@@ -9,7 +9,7 @@
     </record>
 
     <record id="action_res_users_my_fullpage_view" model="ir.actions.act_window.view">
-        <field eval="50" name="sequence" />
+        <field name="sequence" eval="50" />
         <field name="view_mode">form</field>
         <field name="view_id" ref="base.view_users_form_simple_modif" />
         <field name="act_window_id" ref="mail.action_res_users_my_fullpage" />

@@ -76,7 +76,7 @@ class MailComposeMessage(models.TransientModel):
             )
         if "default_res_id" in self.env.context:
             raise ValueError(
-                _("Deprecated usage of 'default_res_id', should use 'default_res_ids'.")
+                "Deprecated usage of 'default_res_id', should use 'default_res_ids'."
             )
         if (
             "body" in fields
@@ -813,15 +813,13 @@ class MailComposeMessage(models.TransientModel):
         for wizard in self:
             if wizard.res_domain:
                 search_domain = wizard._evaluate_res_domain()
-                res_ids = self.env[wizard.model].search(search_domain).ids
+                res_ids = self.env[wizard.model].search(search_domain).ids  # noqa: E8507  model and domain both vary per wizard, so no one query spans them
             else:
                 res_ids = wizard._evaluate_res_ids()
             if not res_ids and wizard.composition_mode == "comment":
                 raise ValueError(
-                    _(
-                        "Mail composer in comment mode should run on at least one record. No records found (model %(model_name)s).",
-                        model_name=wizard.model,
-                    )
+                    f"Mail composer in comment mode should run on at least one "
+                    f"record. No records found (model {wizard.model})."
                 )
 
             if wizard.composition_mode == "mass_mail":

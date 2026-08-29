@@ -1,4 +1,4 @@
 {
-  "count": 3,
-  "note": "discuss_core_public_web constructor 82 -> 25: the three listeners it registered inline became onChannelJoined, onServiceWorkerMessage (splitting again into openPushedChannel and downloadRtcLogs) and a one-expression broadcast handler. downloadRtcLogs was covered by nothing until the preceding commit."
+  "count": 0,
+  "note": "mail: both offenders were closures holding their state in captured variables. useVoiceRecorder (195 lines, with a 92-line startRecording inside it) and mailPopoutService.start (176) are now thin factories over a VoiceRecorder / MailPopout class whose fields are that state; every method is under 80 lines. No export changed, so js_public_surface is unmoved."
 }

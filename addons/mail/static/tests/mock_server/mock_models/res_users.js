@@ -49,9 +49,7 @@ export class ResUsers extends webModels.ResUsers {
             ),
         });
         if (!this._is_public(this.env.uid)) {
-            const userSettings = ResUsersSettings._get_or_create_for_user(
-                this.env.uid,
-            );
+            const userSettings = ResUsersSettings._get_or_create_for_user(this.env.uid);
             store.add({
                 self_partner: mailDataHelpers.Store.one(
                     ResPartner.browse(this.env.user.partner_id),

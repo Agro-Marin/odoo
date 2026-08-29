@@ -3,7 +3,7 @@ import typing
 from collections.abc import Callable
 from typing import Any, Self
 
-from odoo import _, api, fields, models, tools
+from odoo import api, fields, models, tools
 from odoo.api import DomainType
 from odoo.exceptions import AccessError
 from odoo.fields import Domain
@@ -102,15 +102,14 @@ class ResPartner(models.Model):
     @api.model
     def get_or_create(self, email: str, assert_valid_email: bool = False) -> Self:
         if not email:
-            raise ValueError(_("An email is required for get_or_create to work"))
+            raise ValueError("An email is required for get_or_create to work")
 
         parsed_name, parsed_email_normalized = tools.parse_contact_from_email(email)
         parsed_name = parsed_name.strip()
         if not parsed_email_normalized and assert_valid_email:
             raise ValueError(
-                _(
-                    "%(email)s is not recognized as a valid email. This is required to create a new customer."
-                )
+                f"{email} is not recognized as a valid email. This is required "
+                f"to create a new customer."
             )
         if parsed_email_normalized:
             partners = self.search(

@@ -173,7 +173,7 @@ class MixinMailGateway(models.AbstractModel):
             holders = (
                 self.env[model_name]
                 .sudo()
-                .search([("email_normalized", "=", bounced_email)])
+                .search([("email_normalized", "=", bounced_email)])  # noqa: E8507  the loop is over blacklist models, not records: one query per table
             )
             holders._message_receive_bounce(bounced_email, bounced_partner)
             counted_bounced_record = counted_bounced_record or (
@@ -427,7 +427,7 @@ class MixinMailGateway(models.AbstractModel):
         normalized_from = email_normalize(message_dict["email_from"])
         if normalized_from:
             for model_name in self._mail_get_blacklist_models():
-                self.env[model_name].sudo().search(
+                self.env[model_name].sudo().search(  # noqa: E8507  the loop is over blacklist models, not records: one query per table
                     [
                         ("message_bounce", ">", 0),
                         ("email_normalized", "=", normalized_from),

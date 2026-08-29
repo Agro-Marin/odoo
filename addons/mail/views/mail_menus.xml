@@ -2,12 +2,12 @@
 <odoo>
 
     <menuitem
-        name="Discuss"
         id="mail.menu_mail_root"
+        name="Discuss"
         action="action_discuss"
-        web_icon="mail,static/description/icon.png"
+        sequence="5"
         groups="base.group_user"
-        sequence="5" />
+        web_icon="mail,static/description/icon.png" />
 
     <menuitem
         id="mail.menu_mail_discuss"
@@ -30,8 +30,8 @@
         sequence="3" />
 
     <menuitem
-        name="Notifications"
         id="mail.menu_notification_settings"
+        name="Notifications"
         parent="mail.menu_configuration"
         action="mail.discuss_notification_settings_action"
         sequence="1" />
@@ -44,15 +44,15 @@
         sequence="5" />
 
     <menuitem
-        name="Canned Responses"
         id="mail.menu_canned_responses"
+        name="Canned Responses"
         parent="mail.menu_configuration"
         action="mail.mail_canned_response_action"
         sequence="15" />
 
     <menuitem
-        name="Roles"
         id="mail.menu_roles"
+        name="Roles"
         parent="mail.menu_configuration"
         action="mail.res_role_action"
         sequence="25" />
@@ -61,14 +61,14 @@
         id="menu_mail_technical"
         name="Technical"
         parent="mail.menu_mail_root"
-        groups="base.group_no_one"
-        sequence="10" />
+        sequence="10"
+        groups="base.group_no_one" />
 
     <menuitem
-        action="discuss_call_history_action"
         id="menu_mail_call_history"
         name="Call History"
         parent="menu_mail_technical"
+        action="discuss_call_history_action"
         sequence="15" />
 
     <record id="base.menu_email" model="ir.ui.menu">
@@ -76,8 +76,8 @@
     </record>
 
     <menuitem
-        name="Emails"
         id="menu_mail_mail"
+        name="Emails"
         parent="base.menu_email"
         action="action_view_mail_mail"
         sequence="1" />
@@ -97,8 +97,8 @@
         groups="base.group_no_one" />
 
     <menuitem
-        name="Incoming Mail Servers"
         id="menu_action_fetchmail_server_tree"
+        name="Incoming Mail Servers"
         parent="base.menu_email"
         action="action_email_server_tree"
         sequence="6"
@@ -119,8 +119,8 @@
         groups="base.group_no_one" />
 
     <menuitem
-        name="Channels/Members"
         id="mail.menu_mail_channel_member"
+        name="Channels/Members"
         parent="base.menu_email"
         action="mail.discuss_channel_member_action"
         sequence="21"
@@ -134,50 +134,50 @@
         groups="base.group_no_one" />
 
     <menuitem
-        name="Discuss"
         id="menu_mail_discuss_technical"
+        name="Discuss"
         parent="base.menu_custom"
         sequence="1" />
 
     <menuitem
-        name="Messages"
         id="menu_mail_message"
+        name="Messages"
         parent="mail.menu_mail_discuss_technical"
         action="action_view_mail_message"
         sequence="1" />
 
     <menuitem
-        name="Scheduled Messages"
         id="menu_mail_message_schedule"
+        name="Scheduled Messages"
         parent="mail.menu_mail_discuss_technical"
         action="mail_message_schedule_action"
         sequence="2" />
 
     <menuitem
-        name="Subtypes"
         id="menu_message_subtype"
+        name="Subtypes"
         parent="mail.menu_mail_discuss_technical"
         action="action_view_message_subtype"
         sequence="4" />
 
     <menuitem
-        name="Tracking Values"
         id="menu_mail_tracking_value"
+        name="Tracking Values"
         parent="mail.menu_mail_discuss_technical"
         action="action_view_mail_tracking_value"
         sequence="5" />
 
     <menuitem
-        name="Notifications"
         id="menu_mail_notification"
+        name="Notifications"
         parent="mail.menu_mail_discuss_technical"
         action="mail_notification_action"
         sequence="20"
         groups="base.group_no_one" />
 
     <menuitem
-        name="Followers"
         id="menu_email_followers"
+        name="Followers"
         parent="mail.menu_mail_discuss_technical"
         action="action_view_followers"
         sequence="21"
@@ -186,81 +186,81 @@
     <menuitem
         id="menu_mail_blacklist"
         name="Email Blacklist"
-        action="mail_blacklist_action"
         parent="mail.menu_mail_discuss_technical"
+        action="mail_blacklist_action"
         sequence="22" />
 
     <menuitem
         id="menu_mail_user_settings"
         name="User Settings"
-        action="res_users_settings_action"
         parent="mail.menu_mail_discuss_technical"
+        action="res_users_settings_action"
         sequence="50" />
 
     <menuitem
         id="menu_mail_guest"
         name="Guests"
-        action="mail_guest_action"
         parent="mail.menu_mail_discuss_technical"
+        action="mail_guest_action"
         sequence="51" />
 
     <menuitem
         id="mail.menu_mail_rtc_session"
         name="RTC sessions"
-        action="mail.discuss_channel_rtc_session_action"
         parent="mail.menu_mail_discuss_technical"
+        action="mail.discuss_channel_rtc_session_action"
         sequence="52" />
 
     <menuitem
         id="mail.menu_mail_ice_servers"
         name="ICE Servers"
-        action="action_ice_servers"
         parent="mail.menu_mail_discuss_technical"
+        action="action_ice_servers"
         sequence="53" />
 
     <menuitem
         id="menu_mail_message_reaction"
         name="Message Reactions"
-        action="mail_message_reaction_action"
         parent="mail.menu_mail_discuss_technical"
+        action="mail_message_reaction_action"
         sequence="54" />
 
     <menuitem
         id="menu_mail_link_preview"
         name="Link Previews"
-        action="mail_link_preview_action"
         parent="mail.menu_mail_discuss_technical"
+        action="mail_link_preview_action"
         sequence="55" />
 
     <menuitem
         id="menu_mail_gif_favorite"
         name="GIF favorite"
-        action="discuss_gif_favorite_action"
         parent="mail.menu_mail_discuss_technical"
+        action="discuss_gif_favorite_action"
         sequence="56" />
 
     <menuitem
-        name="Activities"
         id="menu_mail_activities_section"
+        name="Activities"
         parent="base.menu_custom"
         sequence="2" />
 
     <menuitem
         id="menu_mail_activities"
-        action="mail_activity_action"
         parent="mail.menu_mail_activities_section"
+        action="mail_activity_action"
         sequence="10" />
 
     <menuitem
         id="menu_mail_activity_type"
-        action="mail_activity_type_action"
         parent="mail.menu_mail_activities_section"
+        action="mail_activity_type_action"
         sequence="20" />
 
     <menuitem
         id="menu_mail_activity_plan"
-        action="mail_activity_plan_action"
         parent="mail.menu_mail_activities_section"
+        action="mail_activity_plan_action"
         sequence="30" />
 
     <record id="mail.menu_mail_integrations" model="ir.ui.menu">

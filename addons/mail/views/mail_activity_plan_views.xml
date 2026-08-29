@@ -181,9 +181,9 @@
     <record id="mail_activity_plan_view_form_fixed_model" model="ir.ui.view">
         <field name="name">mail.activity.plan.view.form.fixed.model</field>
         <field name="model">mail.activity.plan</field>
+        <field name="inherit_id" ref="mail.mail_activity_plan_view_form" />
         <field name="mode">primary</field>
         <field name="priority">10</field>
-        <field name="inherit_id" ref="mail.mail_activity_plan_view_form" />
         <field name="arch" type="xml">
             <xpath expr="//list" position="attributes">
                 <attribute name="editable">bottom</attribute>

@@ -17,7 +17,7 @@ RETRYABLE_HTTP_STATUSES = frozenset({429, 500, 502, 503, 504})
 DEFAULT_TIMEOUT = 60
 
 
-import sys  # noqa: E402
+import sys  # noqa: E402 - sys must exist before the guarded import block below, whose handler writes to stderr
 
 try:
     import argparse
@@ -46,7 +46,7 @@ def postfix_exit(
             traceback.print_exc(None, sys.stderr)
         if message:
             sys.stderr.write(message)
-    except Exception:  # noqa: S110
+    except Exception:  # noqa: S110 - already on the failure path; a failure to report it must not mask the original
         pass
     finally:
         sys.exit(exit_code)

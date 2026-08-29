@@ -476,9 +476,7 @@ export class MailThread extends models.ServerModel {
                         temporary_id,
                     },
                 ]);
-                const memberOfCurrentUser = this._get_or_create_member_for_self(
-                    ids[0],
-                );
+                const memberOfCurrentUser = this._get_or_create_member_for_self(ids[0]);
                 if (memberOfCurrentUser) {
                     this.env["discuss.channel.member"]._set_last_seen_message(
                         [memberOfCurrentUser.id],

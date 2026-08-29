@@ -271,9 +271,9 @@
     <record id="mail_activity_view_form" model="ir.ui.view">
         <field name="name">mail.activity.view.form</field>
         <field name="model">mail.activity</field>
-        <field name="priority">21</field>
-        <field name="mode">primary</field>
         <field name="inherit_id" ref="mail.mail_activity_view_form_popup" />
+        <field name="mode">primary</field>
+        <field name="priority">21</field>
         <field name="arch" type="xml">
             <field name="activity_type_id" position="before">
                 <field name="res_name" readonly="1" string="Document" />
@@ -563,6 +563,7 @@
         <field name="res_model">mail.activity</field>
         <field name="view_mode">list,form</field>
         <field name="search_view_id" ref="mail.mail_activity_view_search" />
+        <field name="target">main</field>
         <field
             name="domain">['|', ('id', 'in', context.get('active_ids')), '&amp;', ('res_model',
             '=', False), ('user_id', '=', uid)]</field>
@@ -571,7 +572,6 @@
                 No activities.
             </p>
         </field>
-        <field name="target">main</field>
     </record>
 
     <record
@@ -634,15 +634,15 @@
     <record id="mail_activity_action_my_view_tree" model="ir.actions.act_window.view">
         <field name="sequence" eval="1" />
         <field name="view_mode">list</field>
-        <field name="act_window_id" ref="mail.mail_activity_action_my" />
         <field name="view_id" ref="mail.mail_activity_view_tree_open_target" />
+        <field name="act_window_id" ref="mail.mail_activity_action_my" />
     </record>
 
     <record id="mail_activity_action_my_view_kanban" model="ir.actions.act_window.view">
         <field name="sequence" eval="1" />
         <field name="view_mode">kanban</field>
-        <field name="act_window_id" ref="mail.mail_activity_action_my" />
         <field name="view_id" ref="mail.mail_activity_view_kanban_open_target" />
+        <field name="act_window_id" ref="mail.mail_activity_action_my" />
     </record>
 
     <record
@@ -650,8 +650,8 @@
         model="ir.actions.act_window.view">
         <field name="sequence" eval="1" />
         <field name="view_mode">calendar</field>
-        <field name="act_window_id" ref="mail.mail_activity_action_my" />
         <field name="view_id" ref="mail.mail_activity_view_calendar" />
+        <field name="act_window_id" ref="mail.mail_activity_action_my" />
     </record>
 
 </odoo>

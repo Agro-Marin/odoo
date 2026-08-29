@@ -494,6 +494,7 @@ class DiscussChannel(models.Model):
         for channel in self:
             channel._bus_send("discuss.channel/delete", {"id": channel.id})
 
+    @api.depends_context("lang")
     @api.depends("channel_name_member_ids", "name")
     def _compute_display_name(self) -> None:
         for channel in self:

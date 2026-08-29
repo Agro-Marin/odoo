@@ -244,21 +244,19 @@ class MailActivitySchedule(models.TransientModel):
 
     @api.depends("company_id", "res_model")
     def _compute_plan_available_ids(self) -> None:
-        for scheduler in self:
-            scheduler.plan_available_ids = self.env["mail.activity.plan"].search(
-                scheduler._get_plan_available_base_domain()
-            )
+        domains = {
+            scheduler: scheduler._get_plan_available_base_domain() for scheduler in self
+        }
+        plans = self.env["mail.activity.plan"].search(Domain.OR(domains.values()))
+        for scheduler, domain in domains.items():
+            scheduler.plan_available_ids = plans.filtered_domain(domain)
 
     @api.depends_context("plan_mode")
     @api.depends("plan_available_ids")
     def _compute_plan_id(self) -> None:
         for scheduler in self:
             if self.env.context.get("plan_mode"):
-                scheduler.plan_id = scheduler.env["mail.activity.plan"].search(
-                    [("id", "in", scheduler.plan_available_ids.ids)],
-                    order="id",
-                    limit=1,
-                )
+                scheduler.plan_id = scheduler.plan_available_ids.sorted("id")[:1]
             else:
                 scheduler.plan_id = False
 

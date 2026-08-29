@@ -142,6 +142,7 @@ class MailActivityType(models.Model):
         for activity_type in self:
             activity_type.initial_res_model = activity_type.res_model
 
+    @api.depends_context("lang")
     @api.depends("delay_unit", "delay_count")
     def _compute_delay_label(self) -> None:
         selection_description_values = {

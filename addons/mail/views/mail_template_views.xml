@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <record model="ir.ui.view" id="email_template_form">
+    <record id="email_template_form" model="ir.ui.view">
         <field name="name">email.template.form</field>
         <field name="model">mail.template</field>
         <field name="arch" type="xml">
@@ -166,7 +166,7 @@
         </field>
     </record>
 
-    <record model="ir.ui.view" id="email_template_tree">
+    <record id="email_template_tree" model="ir.ui.view">
         <field name="name">email.template.list</field>
         <field name="model">mail.template</field>
         <field name="arch" type="xml">
@@ -222,7 +222,7 @@
         </field>
     </record>
 
-    <record model="ir.actions.act_window" id="action_email_template_tree_all">
+    <record id="action_email_template_tree_all" model="ir.actions.act_window">
         <field name="name">Email Templates</field>
         <field name="res_model">mail.template</field>
         <field name="path">email-templates</field>

@@ -574,7 +574,7 @@ class TestRegexRendering(common.MailCommon):
                 ) as qweb_render,
                 patch(
                     "odoo.addons.base.models.ir_qweb.unsafe_eval",
-                    side_effect=eval,  # noqa: S307
+                    side_effect=eval,  # noqa: S307 - the spy calls through to real eval so the rendered value is still asserted
                 ) as unsafe_eval,
             ):
                 self.assertEqual(render(template), expected)
@@ -589,7 +589,7 @@ class TestRegexRendering(common.MailCommon):
             ) as qweb_render,
             patch(
                 "odoo.addons.base.models.ir_qweb.unsafe_eval",
-                side_effect=eval,  # noqa: S307
+                side_effect=eval,  # noqa: S307 - the spy calls through to real eval so the rendered value is still asserted
             ) as unsafe_eval,
         ):
             self.assertNotIn("<55", render("""<55 t-out="object.name"></55>"""))
@@ -613,7 +613,7 @@ class TestRegexRendering(common.MailCommon):
                 ) as qweb_render,
                 patch(
                     "odoo.addons.base.models.ir_qweb.unsafe_eval",
-                    side_effect=eval,  # noqa: S307
+                    side_effect=eval,  # noqa: S307 - the spy calls through to real eval so the rendered value is still asserted
                 ) as unsafe_eval,
             ):
                 rendered = render(template)
@@ -639,7 +639,7 @@ class TestRegexRendering(common.MailCommon):
         for template, expected in static_templates:
             with patch(
                 "odoo.tools.safe_eval.unsafe_eval",
-                side_effect=eval,  # noqa: S307
+                side_effect=eval,  # noqa: S307 - the spy calls through to real eval so the rendered value is still asserted
             ) as unsafe_eval:
                 self.assertEqual(render(template), expected)
                 self.assertFalse(unsafe_eval.called)
@@ -659,7 +659,7 @@ class TestRegexRendering(common.MailCommon):
         for template, expected in non_static_templates:
             with patch(
                 "odoo.tools.safe_eval.unsafe_eval",
-                side_effect=eval,  # noqa: S307
+                side_effect=eval,  # noqa: S307 - the spy calls through to real eval so the rendered value is still asserted
             ) as unsafe_eval:
                 self.assertEqual(render(template), expected)
                 self.assertTrue(unsafe_eval.called)

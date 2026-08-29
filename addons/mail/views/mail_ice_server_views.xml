@@ -12,7 +12,7 @@
         </field>
     </record>
 
-    <record model="ir.ui.view" id="view_ice_server_tree">
+    <record id="view_ice_server_tree" model="ir.ui.view">
         <field name="name">mail.ice.server.list</field>
         <field name="model">mail.ice.server</field>
         <field name="arch" type="xml">
@@ -25,7 +25,7 @@
         </field>
     </record>
 
-    <record model="ir.ui.view" id="view_ice_server_form">
+    <record id="view_ice_server_form" model="ir.ui.view">
         <field name="name">mail.ice.server.form</field>
         <field name="model">mail.ice.server</field>
         <field name="arch" type="xml">
@@ -46,7 +46,7 @@
         </field>
     </record>
 
-    <record model="ir.ui.view" id="view_ice_server_kanban">
+    <record id="view_ice_server_kanban" model="ir.ui.view">
         <field name="name">mail.ice.server.kanban</field>
         <field name="model">mail.ice.server</field>
         <field name="arch" type="xml">

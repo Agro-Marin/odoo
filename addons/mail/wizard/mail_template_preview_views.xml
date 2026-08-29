@@ -71,11 +71,11 @@
     <record id="mail_template_preview_action" model="ir.actions.act_window">
         <field name="name">Template Preview</field>
         <field name="res_model">mail.template.preview</field>
-        <field name="binding_model_id" eval="False" />
         <field name="view_mode">form</field>
         <field name="view_id" ref="mail_template_preview_view_form" />
         <field name="target">new</field>
         <field name="context">{'default_mail_template_id':active_id}</field>
+        <field name="binding_model_id" eval="False" />
     </record>
 
 </odoo>

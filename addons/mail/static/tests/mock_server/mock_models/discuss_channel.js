@@ -338,9 +338,7 @@ export class DiscussChannel extends models.ServerModel {
             if (!lastMessage) {
                 continue;
             }
-            const memberOfCurrentUser = this._get_or_create_member_for_self(
-                channel.id,
-            );
+            const memberOfCurrentUser = this._get_or_create_member_for_self(channel.id);
             DiscussChannelMember.write([memberOfCurrentUser.id], {
                 fetched_message_id: lastMessage.id,
             });

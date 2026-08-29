@@ -409,7 +409,7 @@ class MailTemplate(models.Model):
         for model in set(self.mapped("model_id.model")):
             if not model or model not in self.env:
                 continue
-            if record := self.env[model].search([], limit=1):
+            if record := self.env[model].search([], limit=1):  # noqa: E8507  the loop is over distinct models, not records: one sample row per table
                 samples[model] = record
         return samples
 

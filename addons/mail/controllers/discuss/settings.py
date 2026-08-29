@@ -20,7 +20,7 @@ class DiscussSettingsController(Controller):
         if not member:
             raise NotFound
         if minutes == -1:
-            member.mute_until_dt = datetime.max  # noqa: DTZ901
+            member.mute_until_dt = datetime.max  # noqa: DTZ901 - mute_until_dt is a naive UTC column; datetime.max is its 'muted forever' sentinel
         elif minutes:
             if isinstance(minutes, bool) or not isinstance(minutes, (int, str)):
                 raise NotFound

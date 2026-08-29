@@ -7,7 +7,10 @@ from odoo.http import request
 from odoo.tools import file_open
 
 from odoo.addons.mail.tools.discuss import Store
-from odoo.addons.mail.tools.paging import FETCH_LIMIT_MAX, clamp_limit  # noqa: F401
+from odoo.addons.mail.tools.paging import (
+    FETCH_LIMIT_MAX,
+    clamp_limit,  # noqa: F401 - re-export, read by discuss/search.py
+)
 
 MAX_FETCH_LIMIT = FETCH_LIMIT_MAX
 

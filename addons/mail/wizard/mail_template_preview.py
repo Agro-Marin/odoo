@@ -93,7 +93,7 @@ class MailTemplatePreview(models.TransientModel):
     def _compute_no_record(self) -> None:
         for preview, preview_sudo in zip(self, self.sudo(), strict=False):
             model_id = preview_sudo.model_id
-            preview.no_record = not model_id or not self.env[
+            preview.no_record = not model_id or not self.env[  # noqa: E8507  the probed model varies per preview, so no one query spans them
                 model_id.model
             ].search_count([], limit=1)
 
@@ -137,7 +137,7 @@ class MailTemplatePreview(models.TransientModel):
         for preview in self - to_reset:
             mail_template = preview.mail_template_id.sudo()
             model = mail_template.model
-            res = self.env[model].search([], limit=1)
+            res = self.env[model].search([], limit=1)  # noqa: E8507  the probed model varies per preview, so no one query spans them
             preview.resource_ref = f"{model},{res.id}" if res else False
 
     def _set_mail_attributes(self, values: dict | None = None) -> None:

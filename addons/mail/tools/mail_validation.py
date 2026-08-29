@@ -18,7 +18,7 @@ try:
 except ImportError:
 
     def mail_validate(email: str) -> str | Literal[False]:
-        global _flanker_lib_warning  # noqa: PLW0603
+        global _flanker_lib_warning  # noqa: PLW0603 - one-shot latch so the missing-flanker warning is logged once per process
         if not _flanker_lib_warning:
             _flanker_lib_warning = True
             _logger.info(

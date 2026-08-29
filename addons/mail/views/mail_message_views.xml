@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <record model="ir.ui.view" id="view_message_tree">
+    <record id="view_message_tree" model="ir.ui.view">
         <field name="name">mail.message.list</field>
         <field name="model">mail.message</field>
         <field name="priority">20</field>
@@ -104,7 +104,7 @@
         </field>
     </record>
 
-    <record model="ir.ui.view" id="view_message_search">
+    <record id="view_message_search" model="ir.ui.view">
         <field name="name">mail.message.search</field>
         <field name="model">mail.message</field>
         <field name="priority">25</field>
@@ -143,7 +143,7 @@
         <field name="search_view_id" ref="view_message_search" />
     </record>
 
-    <record model="ir.ui.view" id="view_document_file_kanban">
+    <record id="view_document_file_kanban" model="ir.ui.view">
         <field name="name">ir.attachment kanban</field>
         <field name="model">ir.attachment</field>
         <field name="arch" type="xml">

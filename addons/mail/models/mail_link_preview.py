@@ -157,13 +157,15 @@ class MailLinkPreview(models.Model):
     @api.model
     def _create_from_values_race_safe(self, values_list: list[dict]) -> Self:
         previews = self.browse()
+        raced_urls = []
         for values in values_list:
-            url = values["source_url"]
             try:
                 with self.env.cr.savepoint():
                     previews += self.create(values)
             except IntegrityError:
-                previews += self.search([("source_url", "=", url)], limit=1)
+                raced_urls.append(values["source_url"])
+        if raced_urls:
+            previews += self.search([("source_url", "in", raced_urls)])
         return previews
 
     @api.model

@@ -1,7 +1,7 @@
 # Mail Module Test Tags
 
 Reference for running targeted subsets of the `mail` module's tests — Python
-(`tests/`, 60 `test_*.py` files) and JavaScript HOOT (`static/tests/`, 144 `*.test.js`).
+(`tests/`, 60 `test_*.py` files) and JavaScript HOOT (`static/tests/`, 145 `*.test.js`).
 
 > **See also**: `CONVENTIONS.md` (the mock-gateway / bus test helpers), `ROUTE_MAP.md`
 > (the controller-contract tests), `STATE_MANAGEMENT.md` (what the JS store tests exercise).
@@ -311,28 +311,29 @@ is the last one under `/addons/`, since everything below it is ORM.
 
 ## JavaScript — HOOT suites (`static/tests/`)
 
-143 `*.test.js` files. They run in a headless browser via `test_js.py` (tag `mail_js`), or
+145 `*.test.js` files. They run in a headless browser via `test_js.py` (tag `mail_js`), or
 interactively at `/web/tests` (mail is included in `web.assets_unit_tests`).
 
 ### File groups (by subdirectory)
 
-Rows below sum to 144.
+Rows below sum to 145.
 
 | Directory | Files | Scope |
 |-----------|------:|-------|
 | `discuss/` | 45 | Discuss app: channels, members, calls, sidebar, sub-channels |
-| `core/` | 22 | Store/Record framework, personas, notifications, settings, presence |
+| `core/` | 23 | Store/Record framework, personas, notifications, settings, presence |
 | `web/` | 9 | Backend-web integration (systray, form chatter wiring) |
 | `chatter/` | 9 | Form-view chatter |
 | `discuss_app/` | 6 | Discuss client-action shell |
 | `utils/` | 6 | Date/format/misc helper units |
 | `composer/` | 5 | Message composer |
 | `thread/` | 5 | Thread rendering + message list |
-| `(root)` | 5 | Cross-cutting suites + helpers |
+| `(root)` | 9 | Cross-cutting suites + helpers |
 | `message/` | 4 | Message component |
-| `activity/`, `mock_server/` | 3 each | Activities · mock-server units |
+| `activity/` | 3 | Activities |
 | `chat_window/`, `emoji/`, `inline/`, `messaging_menu/`, `views/` | 2 each | — |
 | `chat_bubble/`, `crosstab/`, `gif_picker/`, `html_editor/`, `messaging/`, `mobile/`, `quick_reaction_menu/`, `scheduled_message/`, `suggestion/`, `translation/`, `widgets/` | 1 each | — |
+| `mock_server/` | 0 | Mock-server models and route contracts — harness, not suites |
 | `tours/` | 0 | Browser tours — excluded from the unit bundle (ship in `web.assets_tests`) |
 
 ### JS test helpers

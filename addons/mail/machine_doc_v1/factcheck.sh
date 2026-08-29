@@ -609,13 +609,13 @@ assert_eq "TEST_TAGS.md no stale ~52 cite" \
 
 # JS test directory table. core/ was cited as 15 (really 16) and widgets/ as 2 (really 1);
 # the two errors cancelled, so the table summed correctly while both rows were wrong.
-assert_eq "static/tests/core/ test files"    "$(find "$MAIL/static/tests/core"    -name '*.test.js' | wc -l)" "22"
+assert_eq "static/tests/core/ test files"    "$(find "$MAIL/static/tests/core"    -name '*.test.js' | wc -l)" "23"
 assert_eq "static/tests/widgets/ test files" "$(find "$MAIL/static/tests/widgets" -name '*.test.js' | wc -l)" "1"
 assert_doc_cites "TEST_TAGS.md cites the discuss/ test-file count" \
     "$(find "$MAIL/static/tests/discuss" -name '*.test.js' | wc -l)" \
     '\| `discuss/` \| %s \|' TEST_TAGS.md
-assert_eq "TEST_TAGS.md cites core/ 22" \
-    "$(grep -c '| `core/` | 22 |' "$DOC/TEST_TAGS.md")" "1"
+assert_eq "TEST_TAGS.md cites core/ 23" \
+    "$(grep -c '| `core/` | 23 |' "$DOC/TEST_TAGS.md")" "1"
 assert_eq "TEST_TAGS.md moved widgets/ to the '1 each' row" \
     "$(grep -c 'translation/`, `widgets/`' "$DOC/TEST_TAGS.md")" "1"
 

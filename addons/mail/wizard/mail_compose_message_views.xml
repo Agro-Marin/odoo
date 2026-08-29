@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <record model="ir.ui.view" id="email_compose_message_wizard_form">
+    <record id="email_compose_message_wizard_form" model="ir.ui.view">
         <field name="name">mail.compose.message.form</field>
         <field name="model">mail.compose.message</field>
-        <field name="group_ids" eval="[Command.link(ref('base.group_user'))]" />
         <field name="arch" type="xml">
             <form
                 string="Compose Email"
@@ -183,6 +182,7 @@
                 </footer>
             </form>
         </field>
+        <field name="group_ids" eval="[Command.link(ref('base.group_user'))]" />
     </record>
 
     <record id="mail_compose_message_view_form_template_save" model="ir.ui.view">
@@ -215,9 +215,9 @@
     <record id="action_email_compose_message_wizard" model="ir.actions.act_window">
         <field name="name">Compose Email</field>
         <field name="res_model">mail.compose.message</field>
-        <field name="binding_model_id" ref="mail.model_mail_compose_message" />
         <field name="view_mode">form</field>
         <field name="target">new</field>
+        <field name="binding_model_id" ref="mail.model_mail_compose_message" />
     </record>
 
 </odoo>

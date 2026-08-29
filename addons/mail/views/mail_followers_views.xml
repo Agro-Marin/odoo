@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <record model="ir.ui.view" id="view_followers_tree">
+    <record id="view_followers_tree" model="ir.ui.view">
         <field name="name">mail.followers.list</field>
         <field name="model">mail.followers</field>
         <field name="priority">10</field>
@@ -14,7 +14,7 @@
         </field>
     </record>
 
-    <record model="ir.ui.view" id="view_mail_subscription_form">
+    <record id="view_mail_subscription_form" model="ir.ui.view">
         <field name="name">mail.followers.form</field>
         <field name="model">mail.followers</field>
         <field name="arch" type="xml">

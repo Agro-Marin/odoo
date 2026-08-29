@@ -373,7 +373,7 @@ class TestMailTemplate(MailCommon):
                 ) as qweb_render,
                 patch(
                     "odoo.addons.base.models.ir_qweb.unsafe_eval",
-                    side_effect=eval,  # noqa: S307
+                    side_effect=eval,  # noqa: S307 - the spy calls through to real eval so the rendered value is still asserted
                 ) as unsafe_eval,
             ):
                 rendered = template._render_field("body_html", record.ids)[record.id]
@@ -392,12 +392,12 @@ class TestMailTemplate(MailCommon):
             self.assertTrue(qweb_render.called)
 
         employee_template.email_to = "Test {{ object.name }}"
-        with patch("odoo.tools.safe_eval.unsafe_eval", side_effect=eval) as unsafe_eval:  # noqa: S307
+        with patch("odoo.tools.safe_eval.unsafe_eval", side_effect=eval) as unsafe_eval:  # noqa: S307 - the spy calls through to real eval so the rendered value is still asserted
             employee_template._render_field("email_to", record.ids)
             self.assertFalse(unsafe_eval.called)
 
         mail_template.email_to = "Test {{ 1+1 }}"
-        with patch("odoo.tools.safe_eval.unsafe_eval", side_effect=eval) as unsafe_eval:  # noqa: S307
+        with patch("odoo.tools.safe_eval.unsafe_eval", side_effect=eval) as unsafe_eval:  # noqa: S307 - the spy calls through to real eval so the rendered value is still asserted
             mail_template._render_field("email_to", record.ids)
             self.assertTrue(unsafe_eval.called)
 
