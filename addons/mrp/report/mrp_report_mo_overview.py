@@ -855,7 +855,6 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             bom_cost = currency.round(
                 self._get_component_real_cost(move_raw, expected_quantity)
             )
-        cost_to_compare = real_cost if production.state != "confirmed" else bom_cost
         if production.state == "draft":
             mo_cost_decorator = self._get_comparison_decorator(
                 bom_cost, mo_cost, currency.rounding
