@@ -400,8 +400,6 @@ patch(PosStore.prototype, {
             }
 
             this.addLineToCurrentOrder({
-                pos: this,
-                order: saleOrder,
                 product_id: baseLine.product_id,
                 product_tmpl_id: baseLine.product_id.product_tmpl_id,
                 price: baseLine.price_unit,
