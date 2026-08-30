@@ -42,7 +42,7 @@ class AccountMoveLine(models.Model):
         """Get the mapping of move.line with the sale.order record on which its analytic entries should be reinvoiced.
         A sale.order matches a move.line if the sale.order's project contains all the same analytic accounts
         as the ones in the distribution of the move.line.
-        :return a dict where key is the move line id, and value is sale.order record (or None).
+        :return: a dict where key is the move line id, and value is a sale.order record; move lines with no match are omitted, never mapped to None.
         """
         mapping = {}
         projects = self.env["project.project"].search(
