@@ -1,3 +1,5 @@
+from datetime import date
+
 from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
 from markupsafe import Markup
@@ -44,6 +46,26 @@ class TestCertificationFlow(common.TestSurveyCommon):
                 {"value": "Correct", "is_correct": True, "answer_score": 1.0},
                 {"value": "Incorrect"},
             ],
+        )
+
+    def _create_passing_answer(self, partner, survey=None):
+        """Answer the certification correctly, so that ``_mark_done`` scores it a pass."""
+        survey = survey or self.certification
+        question = survey.question_ids[0]
+        return self.env["survey.user_input"].create(
+            {
+                "survey_id": survey.id,
+                "partner_id": partner.id,
+                "user_input_line_ids": [
+                    Command.create(
+                        {
+                            "question_id": question.id,
+                            "answer_type": "suggestion",
+                            "suggested_answer_id": question.suggested_answer_ids.ids[0],
+                        }
+                    )
+                ],
+            }
         )
 
     @freeze_time("2024-03-20")
@@ -138,3 +160,78 @@ class TestCertificationFlow(common.TestSurveyCommon):
         self.assertEqual(
             cert_2_resume_line.date_end, fields.Date.today() + relativedelta(months=9)
         )
+
+    @freeze_time("2024-03-21")
+    def test_resume_line_creation_employee_without_user(self):
+        """An employee with no linked user still gets the certification on their CV.
+
+        ``hr.employee.create`` gives every employee a work contact, so a
+        certification can be sent to that partner through the invite wizard even
+        when the employee has no user account at all.
+        """
+        employee = self.env["hr.employee"].create({"name": "Certified No User"})
+        self.assertFalse(employee.user_id)
+        self.assertTrue(employee.work_contact_id)
+
+        self._create_passing_answer(employee.work_contact_id)._mark_done()
+
+        resume_line = self.env["hr.resume.line"].search(
+            [
+                ("employee_id", "=", employee.id),
+                ("survey_id", "=", self.certification.id),
+            ]
+        )
+        self.assertEqual(len(resume_line), 1)
+        self.assertEqual(resume_line.name, self.certification.title)
+        self.assertEqual(
+            resume_line.line_type_id,
+            self.env.ref("hr_skills_survey.resume_type_certification"),
+        )
+        self.assertEqual(resume_line.date_start, fields.Date.today())
+        self.assertEqual(
+            resume_line.date_end, fields.Date.today() + relativedelta(months=3)
+        )
+
+    @freeze_time("2024-03-21")
+    def test_resume_line_creation_deduplicates_same_certification(self):
+        """Two passing answers marked done together leave a single CV line.
+
+        ``survey.survey.action_end_session`` marks every answer of a live session
+        done in one call, so the same participant can bring two passing answers
+        for the same certification into a single ``_mark_done``.
+        """
+        first = self._create_passing_answer(self.user_emp.partner_id)
+        second = self._create_passing_answer(self.user_emp.partner_id)
+
+        (first | second)._mark_done()
+
+        resume_line = self.env["hr.resume.line"].search(
+            [
+                ("employee_id", "=", self.employee_emp.id),
+                ("survey_id", "=", self.certification.id),
+            ]
+        )
+        self.assertEqual(len(resume_line), 1)
+
+    @freeze_time("2024-03-21 02:00:00")
+    def test_resume_line_dated_in_the_answering_user_timezone(self):
+        """The CV line carries the date the employee saw, not the UTC one.
+
+        The controller marks the answer done on a sudo of the answering user's
+        environment, and ``sudo`` keeps the user, so the timezone is still
+        theirs. At 02:00 UTC an employee in Mexico is on the previous day.
+        """
+        self.user_emp.tz = "America/Mexico_City"
+        self.assertEqual(fields.Date.today(), date(2024, 3, 21))
+
+        answer = self._create_passing_answer(self.user_emp.partner_id)
+        answer.with_user(self.user_emp).sudo()._mark_done()
+
+        resume_line = self.env["hr.resume.line"].search(
+            [
+                ("employee_id", "=", self.employee_emp.id),
+                ("survey_id", "=", self.certification.id),
+            ]
+        )
+        self.assertEqual(resume_line.date_start, date(2024, 3, 20))
+        self.assertEqual(resume_line.date_end, date(2024, 6, 20))

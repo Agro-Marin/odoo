@@ -11,7 +11,7 @@ class SurveyUser_Input(models.Model):
     def _mark_done(self):
         """Will add certification to employee's resume if
         - The survey is a certification
-        - The user is linked to an employee
+        - The answering partner is one of an employee's related contacts
         - The user succeeded the test"""
 
         super()._mark_done()
@@ -22,9 +22,28 @@ class SurveyUser_Input(models.Model):
             )
         )
         user_inputs_by_partner = certification_user_inputs.grouped("partner_id")
+        partner_ids = certification_user_inputs.partner_id.ids
         employees = self.env["hr.employee"].search(
-            [("user_id.partner_id", "in", certification_user_inputs.partner_id.ids)]
+            Domain.OR(
+                [
+                    Domain("work_contact_id", "in", partner_ids),
+                    Domain("user_id.partner_id", "in", partner_ids),
+                ]
+            )
         )
+        # An employee answers through any of their related contacts, and a
+        # certification earns one resume line however many times it was passed.
+        empty_survey = self.env["survey.survey"]
+        surveys_by_employee = {
+            employee: empty_survey.union(
+                *(
+                    user_inputs_by_partner[partner].survey_id
+                    for partner in employee._get_related_partners()
+                    if partner in user_inputs_by_partner
+                )
+            )
+            for employee in employees
+        }
         resume_lines = self.env["hr.resume.line"].search(
             Domain("employee_id", "in", employees.ids)
             & Domain("survey_id", "in", certification_user_inputs.survey_id.ids)
@@ -37,10 +56,9 @@ class SurveyUser_Input(models.Model):
         )
 
         lines_to_create = []
-        today = fields.Date.today()
+        today = fields.Date.context_today(self)
         for employee in employees:
-            for user_input in user_inputs_by_partner[employee.user_id.partner_id]:
-                survey = user_input.survey_id
+            for survey in surveys_by_employee[employee]:
                 date_start = today
                 validity_month = survey.certification_validity_months
                 resume_line_vals = {
