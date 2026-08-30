@@ -110,6 +110,12 @@ class TestProductMargin(AccountTestInvoicingCommon):
             f"Fields {', '.join(map(repr, field_names))} must be flagged as aggregatable.",
         )
 
+    def test_invalid_invoice_state_context(self):
+        with self.assertRaises(ValueError):
+            self.ipad.with_context(
+                invoice_state="bogus_value"
+            )._compute_product_margin_fields_values()
+
     def test_product_margin(self):
         self.invoices.action_post()
 
