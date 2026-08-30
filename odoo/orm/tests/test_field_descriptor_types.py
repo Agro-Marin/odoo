@@ -1,7 +1,11 @@
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import assert_type
+    import datetime  # noqa: F401  named by the assert_type strings below
+    from typing import (  # noqa: F401  Literal is named by those strings too
+        Literal,
+        assert_type,
+    )
 
     from odoo import fields, models
 

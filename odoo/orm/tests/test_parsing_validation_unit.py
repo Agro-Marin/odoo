@@ -146,7 +146,7 @@ class TestObjectAndManualNames:
     )
     def test_check_object_name_raises_where_the_predicate_is_false(self, name, ok):
         if ok:
-            assert check_object_name(name) is None
+            check_object_name(name)
         else:
             with pytest.raises(ValidationError, match="is not valid"):
                 check_object_name(name)

@@ -49,7 +49,7 @@ class HAnimalLegs(models.Model):
 
     def describe(self):
         self.ensure_one()
-        return f"{self.name} says {self.sound} on {self.legs} legs"
+        return f"{self['name']} says {self['sound']} on {self.legs} legs"
 
 
 class HEngine(models.Model):

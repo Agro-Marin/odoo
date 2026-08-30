@@ -1,4 +1,5 @@
 import types
+import typing
 import unittest
 
 from odoo.exceptions import UserError
@@ -8,6 +9,8 @@ from odoo.orm.domain.ast import Domain, DomainCondition
 
 
 class _StubField:
+    determine_domain: typing.Any = None
+
     def __init__(self, name, ftype="integer", *, relational=False, comodel=None):
         self.name = name
         self.type = ftype
@@ -25,6 +28,7 @@ class _StubField:
 
 class _StubEnv:
     su = True
+    registry: typing.Any = None
 
     def __init__(self, model):
         self._model = model
@@ -35,7 +39,7 @@ class _StubEnv:
 
 class _StubModel:
     _name = "m"
-    _ids = ()
+    _ids: tuple = ()
     _auto = True
 
     def __init__(self):
@@ -373,7 +377,7 @@ class TestResetOptCopyUndoesAModelDependentRewrite(unittest.TestCase):
 
     def test_a_condition_with_no_fallback_is_copied_as_before(self):
         condition = DomainCondition("rel", "in", OrderedSet([1, 2]))
-        reset = condition._reset_opt_copy()
+        reset = typing.cast("DomainCondition", condition._reset_opt_copy())
         self.assertIsNot(reset, condition)
         self.assertEqual(list(reset.value), [1, 2])
         self.assertEqual(reset.field_expr, "rel")

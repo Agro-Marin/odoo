@@ -43,7 +43,7 @@ class DecSudoProbe(models.Model):
 
     name = fields.Char()
 
-    observed_su = []
+    observed_su: list = []
 
     @api.constrains("name")
     def _check_name_default_sudo(self):

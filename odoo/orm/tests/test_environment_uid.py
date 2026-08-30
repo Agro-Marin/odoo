@@ -18,8 +18,8 @@ def test_uid_placeholder_object_accepted():
 
     with model_test_env() as env:
         placeholder = _RequestUIDLike()
-        e = Environment(env.cr, placeholder, {})
-        assert e.uid is placeholder
+        e = Environment(env.cr, placeholder, {})  # type: ignore[arg-type]
+        assert e.uid is placeholder  # type: ignore[comparison-overlap]
         assert e.su is False
 
 

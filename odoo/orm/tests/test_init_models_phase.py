@@ -1,3 +1,5 @@
+import typing
+
 import pytest
 
 from odoo.orm.runtime._init_phase import InitModelsPhase
@@ -9,9 +11,9 @@ class _FakeRegistry:
 
     from odoo.orm.runtime.registry import Registry as _R
 
-    init_phase = _R.init_phase
-    post_init = _R.post_init
-    add_relation_reflection = _R.add_relation_reflection
+    init_phase: typing.Any = _R.init_phase
+    post_init: typing.Any = _R.post_init
+    add_relation_reflection: typing.Any = _R.add_relation_reflection
     del _R
 
 
@@ -39,7 +41,7 @@ class TestPhaseIsClosedByDefault:
 class TestPhaseWhileOpen:
     def test_post_init_queues_in_call_order(self):
         registry = _FakeRegistry(InitModelsPhase(install=True))
-        seen = []
+        seen: list = []
         registry.post_init(seen.append, 1)
         registry.post_init(seen.append, 2)
         queue = registry.init_phase.post_init_queue
@@ -76,7 +78,9 @@ class TestPhaseWhileOpen:
     def test_each_phase_starts_empty(self):
         first = InitModelsPhase(install=True)
         first.post_init_queue.append(lambda: None)
-        first.foreign_keys[("t", "c")] = ("t2", "c2", "cascade", None, "base")
+        first.foreign_keys[("t", "c")] = typing.cast(
+            "typing.Any", ("t2", "c2", "cascade", None, "base")
+        )
         second = InitModelsPhase(install=True)
         assert not second.post_init_queue
         assert not second.foreign_keys

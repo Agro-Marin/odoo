@@ -63,7 +63,8 @@ class TestComputeScheduling(unittest.TestCase):
         self.engine.schedule("total", [])
         self.assertFalse(self.engine.has_pending())
         self.assertFalse(self.engine.has_pending_field("total"))
-        self.engine.schedule("tax", (i for i in [] if i))
+        empty: list[int] = []
+        self.engine.schedule("tax", (i for i in empty if i))
         self.assertNotIn("tax", self.engine._pending)
         self.assertEqual(self.engine.pending_real_fields(), [])
 

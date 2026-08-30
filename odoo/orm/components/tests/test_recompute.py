@@ -444,7 +444,7 @@ class TestEdgeCases(unittest.TestCase):
     def test_marked_is_live_reference(self) -> None:
         engine = ComputeEngine()
         field = _MockField("parent_total", stored_computed=True, recursive=True)
-        marked = {field: set()}
+        marked: dict = {field: set()}
 
         scheduler = RecomputeScheduler(engine, marked=marked)
         scheduler.process_entry(field, {1, 2})

@@ -1,3 +1,4 @@
+import typing
 from contextlib import contextmanager
 
 import pytest
@@ -31,7 +32,7 @@ def _make_registry(*fields):
         _fields = {f.name: f for f in fields}
 
     reg = object.__new__(Registry)
-    reg.models = {"fake.model": _Model}
+    reg.models = {"fake.model": typing.cast("typing.Any", _Model)}
     reg.has_trigram = False
     reg.has_unaccent = FunctionStatus.MISSING
     return reg

@@ -1,3 +1,5 @@
+import typing
+
 import pytest
 
 from odoo.orm.primitives import NewId
@@ -71,7 +73,7 @@ class TestNewIdVsNewId:
 
 class TestSorting:
     def test_sorted_interleaves_origin_newids_with_ints(self):
-        items = [NewId(origin=2), 1, NewId(), 3, NewId(origin=1)]
+        items: list[typing.Any] = [NewId(origin=2), 1, NewId(), 3, NewId(origin=1)]
         assert sorted(items) == [
             1,
             items[4],
@@ -82,8 +84,10 @@ class TestSorting:
 
     def test_sort_is_stable_for_int_before_equal_origin(self):
         n = NewId(origin=5)
-        assert sorted([n, 5]) == [5, n]
-        assert sorted([5, n]) == [5, n]
+        forward: list[typing.Any] = [n, 5]
+        backward: list[typing.Any] = [5, n]
+        assert sorted(forward) == [5, n]
+        assert sorted(backward) == [5, n]
 
     def test_sort_is_stable_for_incomparable_originless_newids(self):
         a, b, c = NewId(), NewId(), NewId()

@@ -23,13 +23,13 @@ class RecNode(models.Model):
     def _compute_root_id(self):
         CALLS["compute"] += 1
         for node in self:
-            node.root_id = node.parent_id.root_id or node
+            node.root_id = node.parent_id["root_id"] or node
 
     @api.constrains("root_id")
     def _check_root(self):
         CALLS["constrain"] += 1
         for node in self:
-            if node.root_id and node.root_id.parent_id:
+            if node.root_id and node.root_id["parent_id"]:
                 raise ValueError(f"{node} has a non-root root_id")
 
 

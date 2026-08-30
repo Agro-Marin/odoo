@@ -1,3 +1,5 @@
+import typing
+
 from odoo.orm.primitives import NewId
 
 
@@ -32,7 +34,7 @@ class TestNewIdOrdersAfterItsOrigin:
 
     def test_sorting_a_mixed_list_interleaves_each_newid_after_its_origin(self):
         anonymous = NewId()
-        values = [9, NewId(5), 5, NewId(9), 3, anonymous]
+        values: list[typing.Any] = [9, NewId(5), 5, NewId(9), 3, anonymous]
         assert sorted(values) == [3, 5, NewId(5), 9, NewId(9), anonymous]
 
     def test_lt_and_ge_are_consistent_complements(self):

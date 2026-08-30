@@ -88,7 +88,7 @@ def _dispatch_sites() -> set[tuple[str, str]]:
             )
             if not is_env:
                 continue
-            enclosing = node
+            enclosing: ast.AST = node
             while enclosing in parents:
                 enclosing = parents[enclosing]
                 if isinstance(enclosing, ast.FunctionDef | ast.AsyncFunctionDef):

@@ -1,4 +1,5 @@
 import types
+import typing
 import unittest
 from datetime import date, datetime
 from unittest.mock import patch
@@ -16,8 +17,17 @@ from odoo.orm.primitives import NewId
 
 _UNSET = object()
 
+if typing.TYPE_CHECKING:
+    from odoo.orm.models import BaseModel
+
+
+def _as_model(stub: object) -> BaseModel:
+    return typing.cast("BaseModel", stub)
+
 
 class _StubField:
+    determine_domain: typing.Any = None
+
     _PREDICATES_BY_TYPE = {
         "is_many2one": frozenset({"many2one"}),
         "is_x2many": frozenset({"many2many", "one2many"}),
@@ -83,6 +93,7 @@ class _StubField:
 
 class _StubEnv:
     tz = utc
+    registry: typing.Any = None
 
     def __init__(self, model):
         self._model = model
@@ -94,6 +105,7 @@ class _StubEnv:
 class _StubModel:
     _name = "m"
     _auto = True
+    _ids: tuple = ()
 
     def _check_field_access(self, field, operation):
         pass
@@ -113,7 +125,7 @@ class _StubModel:
 
 
 def _opt(domain):
-    return list(domain.optimize(_StubModel()))
+    return list(domain.optimize(_as_model(_StubModel())))
 
 
 class TestScalarNormalisation(unittest.TestCase):
@@ -251,28 +263,30 @@ class TestNaryFlattening(unittest.TestCase):
 class TestOptimizerInvariants(unittest.TestCase):
     def test_optimize_does_not_mutate_original(self):
         original = Domain("a", "=", 1)
-        original.optimize(_StubModel())
+        original.optimize(_as_model(_StubModel()))
         self.assertEqual(list(original), [("a", "=", 1)])
         self.assertIs(original._opt_level, OptimizationLevel.NONE)
 
     def test_optimize_state_is_written_atomically(self):
         original = Domain("name", "like", "x")
         self.assertEqual(original._opt, (OptimizationLevel.NONE, None))
-        out = original.optimize(_StubModel())
+        out = original.optimize(_as_model(_StubModel()))
         self.assertIs(out, original)
         self.assertEqual(out._opt, (OptimizationLevel.BASIC, "m"))
 
     def test_optimize_is_idempotent(self):
         model = _StubModel()
-        once = (Domain("a", "in", [1, 2]) | Domain("a", "in", [2, 3])).optimize(model)
-        twice = once.optimize(model)
+        once = (Domain("a", "in", [1, 2]) | Domain("a", "in", [2, 3])).optimize(
+            _as_model(model)
+        )
+        twice = once.optimize(_as_model(model))
         self.assertEqual(once, twice)
         self.assertIs(once._opt_level, twice._opt_level)
 
     def test_boolean_singletons_optimize_to_themselves(self):
         model = _StubModel()
-        self.assertIs(Domain.TRUE.optimize(model), Domain.TRUE)
-        self.assertIs(Domain.FALSE.optimize(model), Domain.FALSE)
+        self.assertIs(Domain.TRUE.optimize(_as_model(model)), Domain.TRUE)
+        self.assertIs(Domain.FALSE.optimize(_as_model(model)), Domain.FALSE)
 
 
 class TestOptimizeModelScoping(unittest.TestCase):
@@ -300,16 +314,18 @@ class TestOptimizeModelScoping(unittest.TestCase):
     def test_reuse_across_models_recoerces_value(self):
         int_model = self._Model("int_model", {"a": "integer"})
         bool_model = self._Model("bool_model", {"a": "boolean"})
-        opt = Domain("a", "=", 5).optimize(int_model)
+        opt = Domain("a", "=", 5).optimize(_as_model(int_model))
         self.assertEqual(list(opt), [("a", "in", [5])])
-        reused = list(opt.optimize(bool_model))
-        self.assertEqual(reused, list(Domain("a", "=", 5).optimize(bool_model)))
+        reused = list(opt.optimize(_as_model(bool_model)))
+        self.assertEqual(
+            reused, list(Domain("a", "=", 5).optimize(_as_model(bool_model)))
+        )
         self.assertEqual(reused, [("a", "in", [True])])
 
     def test_same_model_reuse_stays_idempotent(self):
         int_model = self._Model("int_model", {"a": "integer"})
-        opt = Domain("a", "=", 5).optimize(int_model)
-        again = opt.optimize(int_model)
+        opt = Domain("a", "=", 5).optimize(_as_model(int_model))
+        again = opt.optimize(_as_model(int_model))
         self.assertEqual(list(again), list(opt))
         self.assertIs(again._opt_level, opt._opt_level)
         self.assertEqual(opt._opt_model_name, "int_model")
@@ -317,16 +333,16 @@ class TestOptimizeModelScoping(unittest.TestCase):
     def test_reuse_across_models_leaves_shared_node_unmutated(self):
         int_model = self._Model("int_model", {"a": "integer"})
         bool_model = self._Model("bool_model", {"a": "boolean"})
-        node = Domain("a", "=", 5).optimize(int_model)
+        node = Domain("a", "=", 5).optimize(_as_model(int_model))
         stamp_before = node._opt
         self.assertEqual(node._opt_model_name, "int_model")
 
-        reused = node.optimize(bool_model)
+        reused = node.optimize(_as_model(bool_model))
         self.assertEqual(list(reused), [("a", "in", [True])])
         self.assertIsNot(reused, node)
         self.assertEqual(node._opt, stamp_before)
         self.assertEqual(node._opt_model_name, "int_model")
-        self.assertIs(node.optimize(int_model), node)
+        self.assertIs(node.optimize(_as_model(int_model)), node)
 
 
 class TestBooleanSearchableTautology(unittest.TestCase):
@@ -345,14 +361,14 @@ class TestBooleanSearchableTautology(unittest.TestCase):
     def test_in_true_false_collapses_before_search(self):
         calls: list = []
         model = self._model_with_searchable_bool(calls)
-        result = Domain("flag", "in", [True, False]).optimize_full(model)
+        result = Domain("flag", "in", [True, False]).optimize_full(_as_model(model))
         self.assertEqual(calls, [])
         self.assertEqual(list(result), [(1, "=", 1)])
 
     def test_single_value_still_uses_search(self):
         calls: list = []
         model = self._model_with_searchable_bool(calls)
-        result = Domain("flag", "in", [True]).optimize_full(model)
+        result = Domain("flag", "in", [True]).optimize_full(_as_model(model))
         self.assertEqual(calls, [("in", [True])])
         self.assertEqual(list(result), [("a", "in", [1])])
 
@@ -417,7 +433,7 @@ class TestDatetimeEqualityGranularity(unittest.TestCase):
     def test_eq_today_resolves_to_whole_day(self):
         with patch.object(optimizations, "resolve_date", return_value=date(2024, 1, 5)):
             self.assertEqual(
-                list(Domain("dt", "=", "today").optimize_full(_StubModel())),
+                list(Domain("dt", "=", "today").optimize_full(_as_model(_StubModel()))),
                 [
                     "&",
                     ("dt", "<", datetime(2024, 1, 6)),
@@ -463,7 +479,7 @@ class TestRelativePassSkipsWithoutStrings(unittest.TestCase):
 class TestSubdomainNestingGuardCaseInsensitive(unittest.TestCase):
     @staticmethod
     def _nested_any(depth, op):
-        subdomain = [("a", "=", 1)]
+        subdomain: list[tuple] = [("a", "=", 1)]
         for _ in range(depth):
             subdomain = [("rel", op, subdomain)]
         return subdomain
@@ -488,14 +504,14 @@ class TestDeepDomainSurfacesValueError(unittest.TestCase):
         for _ in range(2000):
             domain = (domain & Domain("a", "=", 2)) | Domain("a", "=", 3)
         with self.assertRaisesRegex(ValueError, "nesting too deep"):
-            domain.validate(_StubModel())
+            domain.validate(_as_model(_StubModel()))
 
     def test_as_predicate_surfaces_value_error(self):
         domain = Domain("a", "=", 1)
         for _ in range(5000):
             domain = Domain("rel", "any", domain)
         with self.assertRaisesRegex(ValueError, "nesting too deep"):
-            domain._as_predicate(_StubModel())
+            domain._as_predicate(_as_model(_StubModel()))
 
 
 class TestMergedSetCanonicalOrder(unittest.TestCase):
@@ -533,8 +549,8 @@ class TestMergedSetCanonicalOrder(unittest.TestCase):
             return domain
 
         other = Domain("b", "in", [7]) | Domain("name", "like", "z")
-        d1 = (sub([1, 2]) & other).optimize(model)
-        d2 = (other & sub([2, 1])).optimize(model)
+        d1 = (sub([1, 2]) & other).optimize(_as_model(model))
+        d2 = (other & sub([2, 1])).optimize(_as_model(model))
         self.assertEqual(d1, d2)
         self.assertEqual(list(d1), list(d2))
 

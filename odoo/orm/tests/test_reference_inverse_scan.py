@@ -127,7 +127,10 @@ def _browses_for_one_reference(extra_models):
         calls = []
         note_cls = type(env["ris.note"])
         original = note_cls.browse
-        note_cls.browse = lambda self, ids=(): (calls.append(1), original(self, ids))[1]
+        note_cls.browse = lambda self, ids=(): (  # type: ignore[func-returns-value]
+            calls.append(1),  # type: ignore[func-returns-value]
+            original(self, ids),
+        )[1]
         try:
             field._update_inverses(note, alpha.id)
         finally:

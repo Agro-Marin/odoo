@@ -1,3 +1,4 @@
+import typing
 from collections import defaultdict
 
 from odoo.orm.components.model_graph import ModelGraph
@@ -80,7 +81,7 @@ def test_a_refused_memo_goes_permanently_stale_but_the_barrier_heals_it():
     assert "_field_triggers_refused_at" in registry.__dict__
 
     registry.model_graph.end_invalidation()
-    new_triggers = defaultdict(lambda: defaultdict(list))
+    new_triggers: typing.Any = defaultdict(lambda: defaultdict(list))
     new_field = _FakeField("c", "m")
     new_triggers[dep][()] = [new_field]
     assert registry.model_graph.set_triggers(new_triggers) is True

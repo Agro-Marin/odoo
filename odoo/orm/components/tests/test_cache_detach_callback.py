@@ -14,7 +14,7 @@ class _F:
 
 class TestDetachCallback(unittest.TestCase):
     def setUp(self) -> None:
-        self.fired = []
+        self.fired: list = []
         self.cache = FieldCache(on_detach=lambda: self.fired.append(1))
         self.f = _F("a")
 

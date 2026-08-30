@@ -9,6 +9,11 @@ from odoo.orm.components.storage import DictBackend
 from odoo.orm.components.unit_of_work import UnitOfWork
 
 
+def _present[T](value: T | None) -> T:
+    assert value is not None, "the component under test returned None"
+    return value
+
+
 class TestCacheComputeLifecycle(unittest.TestCase):
     def setUp(self) -> None:
         self.cache = FieldCache()
@@ -39,7 +44,7 @@ class TestCacheComputeLifecycle(unittest.TestCase):
         self.cache.set_value(self.name_field, 1, "Alice")
         self.cache.mark_dirty(self.name_field, [1])
 
-        dirty_ids = self.cache.pop_dirty(self.name_field)
+        dirty_ids = _present(self.cache.pop_dirty(self.name_field))
         self.assertIn(1, dirty_ids)
 
         self.assertFalse(self.cache.has_dirty_field(self.name_field))
@@ -105,7 +110,7 @@ class TestCacheStorageRoundTrip(unittest.TestCase):
         self.cache.set_value("name", 1, "Alicia")
         self.cache.mark_dirty("name", [1])
 
-        dirty = self.cache.pop_dirty("name")
+        dirty = _present(self.cache.pop_dirty("name"))
         for id_ in dirty:
             value = self.cache.get_value("name", id_)
             self.storage.update_rows("partner", [(id_, {"name": value})])
@@ -119,8 +124,7 @@ class TestCacheStorageRoundTrip(unittest.TestCase):
 
         self.cache.add_patch("line_ids", 1, 12)
 
-        patches = self.cache.get_patches("line_ids")
-        self.assertIsNotNone(patches)
+        patches = _present(self.cache.get_patches("line_ids"))
         self.assertEqual(patches[1], [12])
 
 
@@ -171,7 +175,7 @@ class TestUnitOfWorkIntegration(unittest.TestCase):
         self.MockField = _MockField
         self.storage = DictBackend()
 
-    def _field(self, model: str, name: str) -> object:
+    def _field(self, model: str, name: str) -> _MockField:
         return self.MockField(model, name)
 
     def test_recompute_then_flush_lifecycle(self) -> None:
@@ -194,7 +198,7 @@ class TestUnitOfWorkIntegration(unittest.TestCase):
         def flush_fn(model_names):
             flushed_models.extend(model_names)
             for model_name in model_names:
-                for field in [f_val, f_double]:
+                for field in (f_val, f_double):
                     if field.model_name == model_name:
                         dirty_ids = self.cache.pop_dirty(field)
                         if dirty_ids:
@@ -212,7 +216,7 @@ class TestUnitOfWorkIntegration(unittest.TestCase):
         result = self.uow.run_flush_loop(recompute_fn, flush_fn)
         self.assertTrue(result.converged)
         self.assertIn("m", flushed_models)
-        row = self.storage.get_row("m", 1)
+        row = _present(self.storage.get_row("m", 1))
         self.assertEqual(row["val"], 5)
         self.assertEqual(row["double"], 10)
 
@@ -240,7 +244,7 @@ class TestUnitOfWorkIntegration(unittest.TestCase):
 
         def flush_fn(model_names):
             for model_name in model_names:
-                for field in [f_a, f_b, f_c]:
+                for field in (f_a, f_b, f_c):
                     if field.model_name == model_name:
                         self.cache.pop_dirty(field)
 

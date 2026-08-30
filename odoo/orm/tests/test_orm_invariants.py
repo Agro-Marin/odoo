@@ -162,7 +162,7 @@ def _fastpath_cache_to_record(field: fields.Field) -> Callable[[Any], Any] | Non
     return None
 
 
-_FASTPATH_CACHE_SAMPLES = {
+_FASTPATH_CACHE_SAMPLES: dict[str, list] = {
     "f_bool": [None, False, True],
     "f_int": [None, 0, 7],
     "f_float": [None, 0.0, 3.5],
@@ -220,7 +220,7 @@ def test_real_dependency_error_propagates_not_swallowed() -> None:
         a = fields.Integer()
         b = fields.Integer(compute="_compute_b", store=True)
 
-        @api.depends(lambda self: 1 / 0)
+        @api.depends(lambda self: 1 / 0)  # type: ignore[arg-type, return-value]
         def _compute_b(self) -> None:
             for rec in self:
                 rec.b = rec.a

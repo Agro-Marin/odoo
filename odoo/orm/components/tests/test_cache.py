@@ -3,6 +3,11 @@ import unittest
 from odoo.orm.components.cache import FieldCache
 
 
+def _present[T](value: T | None) -> T:
+    assert value is not None, "the component under test returned None"
+    return value
+
+
 class TestFieldCacheData(unittest.TestCase):
     def setUp(self) -> None:
         self.cache = FieldCache()
@@ -69,13 +74,14 @@ class TestFieldCacheDirty(unittest.TestCase):
     def test_mark_dirty_idempotent(self) -> None:
         self.cache.mark_dirty("name", [1])
         self.cache.mark_dirty("name", [1])
-        self.assertEqual(len(self.cache.get_dirty("name")), 1)
+        self.assertEqual(len(_present(self.cache.get_dirty("name"))), 1)
 
     def test_mark_dirty_empty_creates_no_phantom(self) -> None:
         self.cache.mark_dirty("name", [])
         self.assertFalse(self.cache.is_any_dirty())
         self.assertNotIn("name", list(self.cache.iter_dirty_fields()))
-        self.cache.mark_dirty("ref", (i for i in [] if i))
+        empty: list[int] = []
+        self.cache.mark_dirty("ref", (i for i in empty if i))
         self.assertFalse(self.cache.is_any_dirty())
         self.assertEqual(self.cache.dirty_entry_count(), 0)
 
@@ -144,7 +150,7 @@ class TestFieldCachePatches(unittest.TestCase):
         self.cache.add_patch("line_ids", 1, 101)
         self.cache.add_patch("line_ids", 2, 200)
 
-        patches = self.cache.get_patches("line_ids")
+        patches = _present(self.cache.get_patches("line_ids"))
         self.assertEqual(patches[1], [100, 101])
         self.assertEqual(patches[2], [200])
 

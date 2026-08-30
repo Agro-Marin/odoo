@@ -1,3 +1,5 @@
+import typing
+
 import psycopg
 import pytest
 
@@ -24,8 +26,10 @@ class _Conn:
 def _make_registry(*, replica_fails=False, with_replica=True, max_lag=0.0):
     reg = object.__new__(Registry)
     reg.db_name = "_breaker_db"
-    reg._db = _Conn("primary")
-    reg._db_readonly = _Conn("replica", fails=replica_fails) if with_replica else None
+    reg._db = typing.cast("typing.Any", _Conn("primary"))
+    reg._db_readonly = typing.cast(
+        "typing.Any", _Conn("replica", fails=replica_fails) if with_replica else None
+    )
     reg._replica_breaker = CircuitBreaker(max_cooldown=_REPLICA_RETRY_TIME)
     reg._replica_lag = ReplicaLagGate(max_lag)
     return reg
@@ -210,7 +214,9 @@ def test_an_unreadable_measurement_does_not_demote():
         def cursor(self):
             self.attempts += 1
             cr = _LagCursor(self)
-            cr.execute = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom"))
+            cr.execute = lambda *a, **k: (_ for _ in ()).throw(  # type: ignore[method-assign]
+                RuntimeError("boom")
+            )
             return cr
 
     reg = _make_registry(max_lag=30.0)
@@ -241,7 +247,11 @@ def test_enabling_tests_is_what_opens_a_readonly_connection():
 
     from odoo.orm.runtime import registry as registry_module
 
-    base = {"db_replica_host": None, "test_enable": False, "dev_mode": []}
+    base: dict[str, typing.Any] = {
+        "db_replica_host": None,
+        "test_enable": False,
+        "dev_mode": [],
+    }
 
     def _with(**overrides):
         return mock.patch.object(registry_module, "config", base | overrides)

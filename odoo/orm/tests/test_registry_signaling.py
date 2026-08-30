@@ -1,4 +1,5 @@
 import threading
+import typing
 
 import psycopg
 import pytest
@@ -314,7 +315,7 @@ def test_signalled_id_falls_back_when_no_row_comes_back():
         def fetchone(self):
             return None
 
-    assert Registry._signalled_id(_NoRowCursor(), 7) == 8
+    assert Registry._signalled_id(typing.cast("typing.Any", _NoRowCursor()), 7) == 8
 
 
 def test_get_sequences_coalesces_an_empty_signalling_table():

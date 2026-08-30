@@ -60,7 +60,10 @@ def test_a_warm_read_does_not_fall_back_to_get_cache(monkeypatch):
         monkeypatch.setattr(
             type(field),
             "_get_cache",
-            lambda self, e: (calls.append(self), original(self, e))[1],
+            lambda self, e: (  # type: ignore[func-returns-value]
+                calls.append(self),  # type: ignore[func-returns-value]
+                original(self, e),
+            )[1],
         )
 
         field_cache = env.__dict__["_field_cache_memo"][field]

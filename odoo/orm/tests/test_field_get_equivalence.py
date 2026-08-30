@@ -69,7 +69,7 @@ class GHost(models.Model):
             rec.f_scomp = (rec.f_int or 0) + 1
 
 
-_SCALAR_DIFFERENTIAL = {
+_SCALAR_DIFFERENTIAL: dict[str, list] = {
     "f_bool": [None, False, True],
     "f_int": [None, 0, 7],
     "f_float": [None, 0.0, 3.5],

@@ -1,5 +1,6 @@
 import datetime
 import decimal
+import typing
 import unittest
 
 from odoo import fields, models
@@ -120,6 +121,8 @@ class TestTheFlagsAreDeclared(unittest.TestCase):
 
 
 class TestTheFlagsMatchTheConversions(unittest.TestCase):
+    record: typing.Any
+
     @classmethod
     def setUpClass(cls):
         cls.record = _a_record()
@@ -289,10 +292,18 @@ class TestInstanceLevelGuards(unittest.TestCase):
 
         field = fields.Text()
         field.translate = per_term
-        self.assertTrue(caches_lang_dicts(field, _Env(prefetch_langs=True)))
-        self.assertFalse(caches_lang_dicts(field, _Env()))
+        self.assertTrue(
+            caches_lang_dicts(
+                field, typing.cast("typing.Any", _Env(prefetch_langs=True))
+            )
+        )
+        self.assertFalse(caches_lang_dicts(field, typing.cast("typing.Any", _Env())))
         field.translate = True
-        self.assertFalse(caches_lang_dicts(field, _Env(prefetch_langs=True)))
+        self.assertFalse(
+            caches_lang_dicts(
+                field, typing.cast("typing.Any", _Env(prefetch_langs=True))
+            )
+        )
 
 
 if __name__ == "__main__":

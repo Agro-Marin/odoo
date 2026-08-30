@@ -6,6 +6,12 @@ from odoo.orm.components.cache import FieldCache
 from odoo.orm.components.compute import ComputeEngine
 from odoo.orm.components.core import OrmCore
 
+
+def _present[T](value: T | None) -> T:
+    assert value is not None, "the component under test returned None"
+    return value
+
+
 _DELEGATIONS = [
     ("get_value", "cache", "get_value", 2, True),
     ("set_value", "cache", "set_value", 3, False),
@@ -101,7 +107,7 @@ class TestOrmCoreCache(unittest.TestCase):
     def test_add_and_get_patches(self) -> None:
         self.core.add_patch(self.f1, 1, 100)
         self.core.add_patch(self.f1, 1, 101)
-        patches = self.core.get_patches(self.f1)
+        patches = _present(self.core.get_patches(self.f1))
         self.assertEqual(patches[1], [100, 101])
 
     def test_get_patches_none(self) -> None:

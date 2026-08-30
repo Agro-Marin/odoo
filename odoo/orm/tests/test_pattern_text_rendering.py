@@ -11,7 +11,7 @@ class Thing(models.Model):
     _log_access = False
 
     name = fields.Char()
-    count = fields.Integer()
+    count = fields.Integer()  # type: ignore[assignment]
     ratio = fields.Float()
     priced = fields.Float(digits=(12, 6))
     when = fields.Date()

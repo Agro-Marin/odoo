@@ -1,4 +1,5 @@
 import sys
+import typing
 
 import pytest
 
@@ -19,7 +20,11 @@ class _StubRecord:
 
 
 def test_len_matches_iteration_after_property_removed_from_container():
-    prop = Property({"a": 1, "b": 2}, _StubField(["a", "c"]), _StubRecord())
+    prop = Property(
+        {"a": 1, "b": 2},
+        typing.cast("typing.Any", _StubField(["a", "c"])),
+        typing.cast("typing.Any", _StubRecord()),
+    )
     assert list(prop) == ["a"]
     assert len(prop) == len(list(prop)) == 1
     assert len(prop.keys()) == len(list(prop.keys()))

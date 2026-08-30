@@ -1,3 +1,4 @@
+import typing
 import unittest
 
 from odoo.orm.components.model_graph import (
@@ -112,7 +113,7 @@ class TestTriggerTree(unittest.TestCase):
         self.assertIsInstance(tree.root, tuple)
         self.assertIs(TriggerTree.merge([tree]), tree)
         with self.assertRaises(AttributeError):
-            tree.root.append("C")
+            typing.cast("typing.Any", tree.root).append("C")
 
     def test_merge_roots(self) -> None:
         t1 = TriggerTree(["A", "B"])
@@ -793,34 +794,34 @@ class TestDiscardFields(unittest.TestCase):
 
 class TestCollector(unittest.TestCase):
     def test_missing_key_returns_empty_tuple(self) -> None:
-        c = _Collector()
+        c: _Collector = _Collector()
         self.assertEqual(c["nonexistent"], ())
 
     def test_setitem_stores_tuple(self) -> None:
-        c = _Collector()
+        c: _Collector = _Collector()
         c["key"] = [1, 2, 3]
         self.assertEqual(c["key"], (1, 2, 3))
 
     def test_setitem_removes_on_empty(self) -> None:
-        c = _Collector()
+        c: _Collector = _Collector()
         c["key"] = [1, 2]
         c["key"] = []
         self.assertNotIn("key", c)
 
     def test_add_appends(self) -> None:
-        c = _Collector()
+        c: _Collector = _Collector()
         c.add("key", "a")
         c.add("key", "b")
         self.assertEqual(c["key"], ("a", "b"))
 
     def test_add_deduplicates(self) -> None:
-        c = _Collector()
+        c: _Collector = _Collector()
         c.add("key", "a")
         c.add("key", "a")
         self.assertEqual(c["key"], ("a",))
 
     def test_discard_keys_and_values(self) -> None:
-        c = _Collector()
+        c: _Collector = _Collector()
         c["a"] = ("x", "y")
         c["b"] = ("x", "z")
         c["x"] = ("w",)
@@ -830,34 +831,34 @@ class TestCollector(unittest.TestCase):
         self.assertEqual(c["b"], ("z",))
 
     def test_discard_removes_empty_after_filter(self) -> None:
-        c = _Collector()
+        c: _Collector = _Collector()
         c["a"] = ("x",)
         c.discard_keys_and_values({"x"})
         self.assertNotIn("a", c)
 
     def test_pop_works(self) -> None:
-        c = _Collector()
+        c: _Collector = _Collector()
         c["key"] = ("val",)
         result = c.pop("key", None)
         self.assertEqual(result, ("val",))
         self.assertNotIn("key", c)
 
     def test_clear_empties(self) -> None:
-        c = _Collector()
+        c: _Collector = _Collector()
         c["a"] = ("x",)
         c["b"] = ("y",)
         c.clear()
         self.assertEqual(len(c), 0)
 
     def test_get_agrees_with_getitem_on_a_missing_key(self) -> None:
-        c = _Collector()
+        c: _Collector = _Collector()
         self.assertEqual(c.get("missing"), ())
         self.assertEqual(c["missing"], ())
         self.assertEqual(c.get("missing", "default"), "default")
         self.assertIsNone(c.get("missing", None))
 
     def test_pop_agrees_with_getitem_too(self) -> None:
-        c = _Collector()
+        c: _Collector = _Collector()
         self.assertEqual(c.pop("missing"), ())
         self.assertEqual(c.pop("missing", "default"), "default")
         c["a"] = ("x",)
@@ -865,7 +866,7 @@ class TestCollector(unittest.TestCase):
         self.assertNotIn("a", c)
 
     def test_iteration(self) -> None:
-        c = _Collector()
+        c: _Collector = _Collector()
         c["a"] = ("x",)
         c["b"] = ("y",)
         self.assertEqual(set(c), {"a", "b"})
@@ -893,7 +894,7 @@ class TestDataOwnership(unittest.TestCase):
 
     def test_external_assignment_updates_property(self) -> None:
         g = ModelGraph()
-        new_inverses = _Collector()
+        new_inverses: _Collector = _Collector()
         f = _field("partner_id")
         inv = _field("order_ids")
         new_inverses[f] = (inv,)

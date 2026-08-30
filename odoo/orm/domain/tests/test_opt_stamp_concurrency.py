@@ -1,4 +1,5 @@
 import threading
+import typing
 import unittest
 
 from odoo.orm.domain import optimizations  # noqa: F401  registers the optimizations
@@ -60,16 +61,16 @@ class TestOptStampConcurrency(unittest.TestCase):
         self.assertNotEqual(self.expected_int, self.expected_bool)
 
     def test_cross_model_concurrent_optimize_copies_and_never_tears(self):
-        errors = []
+        errors: list[tuple] = []
         known_stamped_models = {None, "m_seed"}
 
         for _ in range(_ITERATIONS):
             shared = _build_domain().optimize(self.m_seed)
             stamps_before = {id(node): node._opt for node in _iter_nodes(shared)}
             barrier = threading.Barrier(3)
-            results = {}
-            samples = []
-            failures = []
+            results: dict[str, typing.Any] = {}
+            samples: list = []
+            failures: list = []
 
             def optimize(
                 model,
@@ -137,13 +138,13 @@ class TestOptStampConcurrency(unittest.TestCase):
         self.assertEqual(errors, [])
 
     def test_same_model_interleaving_is_benign(self):
-        errors = []
+        errors: list[tuple] = []
 
         for _ in range(_ITERATIONS):
             shared = _build_domain()
             barrier = threading.Barrier(2)
-            results = {}
-            failures = []
+            results: dict[str, typing.Any] = {}
+            failures: list = []
 
             def optimize(
                 key, barrier=barrier, shared=shared, results=results, failures=failures

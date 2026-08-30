@@ -376,7 +376,10 @@ class TestStallDetection(unittest.TestCase):
         cache.set_value(f, 1, 10)
         cache.mark_dirty(f, [1])
 
-        result = uow.run_flush_loop(lambda field: None, lambda _m: cache.pop_dirty(f))
+        def _flush(_m: list[str]) -> None:
+            cache.pop_dirty(f)
+
+        result = uow.run_flush_loop(lambda field: None, _flush)
         self.assertTrue(result.converged)
         self.assertEqual(result.stalled_fields, [])
 
