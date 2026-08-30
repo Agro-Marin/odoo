@@ -973,3 +973,16 @@ class TestHrVersion(TestHrCommon):
         # attempt to reassign all versions
         with self.assertRaises(ValidationError):
             employee.version_ids.write({"employee_id": another_employee.id})
+
+    def test_wage_cannot_be_negative(self):
+        """A negative wage is a typo, never a business value.
+
+        Nothing guarded ``wage`` before: neither the form nor an import nor a
+        direct ``write`` refused it. The check lives in the database so every
+        writer hits it, not only the ones that go through a view.
+        """
+        employee = self.env["hr.employee"].create(
+            {"name": "John Doe", "date_version": "2020-01-01", "wage": 1000}
+        )
+        with self.assertRaises(CheckViolation), mute_logger("odoo.db"):
+            employee.version_id.write({"wage": -1000})
