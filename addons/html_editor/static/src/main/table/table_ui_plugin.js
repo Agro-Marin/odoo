@@ -52,6 +52,16 @@ export class TableUIPlugin extends Plugin {
         this.rowMenuOverlayKey = "table-row-menu";
         this.activeTd = null;
 
+        // Dropdown reads `state` once, in setup, so the same object has to
+        // serve every cell the menu is re-targeted at: handing it a fresh one
+        // per hover throws out of onWillUpdateProps.
+        this.rowMenuDropdownState = this.createDropdownState(
+            this.closeColumnMenu.bind(this),
+        );
+        this.columnMenuDropdownState = this.createDropdownState(
+            this.closeRowMenu.bind(this),
+        );
+
         this.addDomListener(this.document, "pointermove", this.onMouseMove);
         const closeMenus = () => {
             if (this.isMenuOpened) {
@@ -142,6 +152,10 @@ export class TableUIPlugin extends Plugin {
         this.activeTd = td;
         this.closeColumnMenu();
         this.closeRowMenu();
+        // Both overlays are gone, so neither menu is open on the cell we are
+        // leaving; the shared state has to say so before the next cell mounts.
+        this.rowMenuDropdownState.isOpen = false;
+        this.columnMenuDropdownState.isOpen = false;
         if (!td) {
             return;
         }
@@ -176,9 +190,7 @@ export class TableUIPlugin extends Plugin {
                         document: this.document,
                         type: "row",
                         target: td,
-                        dropdownState: this.createDropdownState(
-                            this.closeColumnMenu.bind(this),
-                        ),
+                        dropdownState: this.rowMenuDropdownState,
                         direction: this.config.direction || "ltr",
                         close: () => this.closeRowMenu(),
                         ...tableMethods,
@@ -194,9 +206,7 @@ export class TableUIPlugin extends Plugin {
                         document: this.document,
                         type: "column",
                         target: td,
-                        dropdownState: this.createDropdownState(
-                            this.closeRowMenu.bind(this),
-                        ),
+                        dropdownState: this.columnMenuDropdownState,
                         direction: this.config.direction || "ltr",
                         close: () => this.closeColumnMenu(),
                         ...tableMethods,

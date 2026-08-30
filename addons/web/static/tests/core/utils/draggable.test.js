@@ -793,6 +793,7 @@ test("a delayed drag is cancelled when the pointer left the element before it fi
 
     const { drop, moveTo } = await contains(".item:first-child").drag({
         initialPointerMoveDistance: 0,
+        pointerDownDuration: 0,
     });
     await hover(".item:last-child");
     await advanceTime(200);
@@ -802,6 +803,30 @@ test("a delayed drag is cancelled when the pointer left the element before it fi
 
     await moveTo(".item:nth-child(2)");
     expect.verifySteps([], { message: "and it stays abandoned" });
+
+    await drop();
+    expectNoDragResidue();
+});
+
+test("a delayed press that drifted off the element never arms the drag", async () => {
+    await mountWithCleanup(
+        makeDraggableList({
+            delay: 100,
+            onWillStartDrag: () => expect.step("willStart"),
+            onDragStart: () => expect.step("start"),
+        }),
+    );
+
+    const { drop } = await contains(".item:first-child").drag({
+        initialPointerMoveDistance: 0,
+        pointerDownDuration: 0,
+    });
+    await hover(".item:last-child");
+    await advanceTime(200);
+
+    expect.verifySteps([], {
+        message: "the press is abandoned before it arms, so nothing is torn down after",
+    });
 
     await drop();
     expectNoDragResidue();

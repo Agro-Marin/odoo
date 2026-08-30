@@ -42,7 +42,7 @@ class TestWebPerfRegression(TransactionCase):
                     "country_id": cls.country_be.id,
                     "category_id": [(6, 0, cls.categories[:3].ids)],
                     "type": "contact",
-                    "company_type": "person",
+                    "is_company": False,
                 }
                 for i in range(100)
             ]

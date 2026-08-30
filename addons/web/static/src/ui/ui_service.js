@@ -120,6 +120,14 @@ class UiService {
         this.env = env;
         this.bus = new EventBus();
         /**
+         * Replaced in setup(), which runs on the reactive proxy: a handler
+         * built here would close over the raw instance and its writes would
+         * notify nobody. Initialised only so the property is never undefined.
+         *
+         * @type {() => void}
+         */
+        this._onMediaChange = () => {};
+        /**
          * @type {MediaQueryList[]}
          */
         this.subscribedMedias = [];

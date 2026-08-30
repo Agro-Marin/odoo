@@ -9,6 +9,7 @@ import { setRecurringAnimationFrame } from "@web/core/utils/timing";
 import {
     canStartDrag,
     handleEdgeScrolling,
+    isPointerOver,
     updateElementPosition,
     updatePointerPosition,
     updateRects,
@@ -314,14 +315,15 @@ export class DragSession {
             });
 
             ctx.current.timeout = browser.setTimeout(() => {
+                const element = /** @type {HTMLElement | null} */ (
+                    target.closest(/** @type {string} */ (ctx.elementSelector))
+                );
+                if (element && !isPointerOver(ctx.pointer, dom.getRect(element))) {
+                    this.dragEnd(null);
+                    return;
+                }
                 ctx.current.initialPosition = { ...ctx.pointer };
                 this.willStartDrag(target);
-
-                const { x: px, y: py } = ctx.pointer;
-                const { x, y, width, height } = dom.getRect(ctx.current.element);
-                if (px < x || x + width < px || py < y || y + height < py) {
-                    this.dragEnd(null);
-                }
             }, initiationDelay);
             this.cleanup.add(() => browser.clearTimeout(ctx.current.timeout));
         } else {

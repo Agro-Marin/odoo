@@ -127,89 +127,71 @@ function isMeridiemFormat(format) {
 }
 
 /**
- * @param {string} value
- * @param {boolean} [parseSeconds]
- * @returns {Time | null}
+ * @param {string} str
+ * @returns {number}
  */
-export function parseTime(value, parseSeconds) {
-    const { isPm, isAm } = meridiemCheck(value);
-    const normalized = normalizeTimeStr(value);
-
-    if (!normalized) {
-        return null;
+function parseTimeComponent(str) {
+    if (!str.length) {
+        return 0;
+    } else if (/^[\d]+$/.test(str)) {
+        return Number.parseInt(str, 10);
+    } else {
+        return NaN;
     }
-    value = normalized;
+}
 
-    let hour = 0;
-    let minute = 0;
-    let second = 0;
-
-    const parse = (/** @type {string} */ str) => {
-        if (!str.length) {
-            return 0;
-        } else if (/^[\d]+$/.test(str)) {
-            return Number.parseInt(str, 10);
-        } else {
-            return NaN;
+/**
+ * One unbroken run of digits, with no separator to say where the hour ends.
+ * @param {string} raw
+ * @param {boolean} [parseSeconds]
+ * @returns {{ hour: number, minute: number, second: number } | null}
+ */
+function parseTimeDigitRun(raw, parseSeconds) {
+    const pickSolution = (/** @type {string[][]} */ ...solutions) => {
+        for (const solution of solutions) {
+            const hour = parseTimeComponent(solution[0]);
+            if (hour < 24 || (hour === 24 && !solution[1])) {
+                const minute = solution[1]
+                    ? parseTimeComponent(solution[1].padEnd(2, "0"))
+                    : 0;
+                return { hour, minute, second: 0 };
+            }
         }
+        return { hour: 0, minute: 0, second: 0 };
     };
 
-    const parts = value.split(/[\s:]/g);
-    if (parts.length > 3) {
-        return null;
-    } else if (parts.length === 3) {
+    if (raw.length === 1) {
+        return { hour: parseTimeComponent(raw), minute: 0, second: 0 };
+    } else if (raw.length === 2) {
+        return pickSolution([raw], [raw[0], raw[1]]);
+    } else if (raw.length === 3) {
+        return pickSolution([raw.slice(0, 2), raw[2]], [raw[0], raw.slice(1)]);
+    } else if (raw.length === 4) {
+        return {
+            hour: parseTimeComponent(raw.slice(0, 2)),
+            minute: parseTimeComponent(raw.slice(2)),
+            second: 0,
+        };
+    } else if (raw.length > 4 && raw.length <= 6) {
         if (!parseSeconds) {
             return null;
         }
-        hour = parse(parts[0]);
-        minute = parse(parts[1].padEnd(2, "0"));
-        second = parse(parts[2].padEnd(2, "0"));
-    } else if (parts.length === 2) {
-        hour = parse(parts[0]);
-        minute = parse(parts[1].padEnd(2, "0"));
-    } else if (parts.length === 1) {
-        const raw = parts[0];
-
-        const pickSolution = (/** @type {string[][]} */ ...solutions) => {
-            for (const solution of solutions) {
-                const h = parse(solution[0]);
-                if (h < 24 || (h === 24 && !solution[1])) {
-                    hour = h;
-                    if (solution[1]) {
-                        minute = parse(solution[1].padEnd(2, "0"));
-                    }
-                    break;
-                }
-            }
+        return {
+            hour: parseTimeComponent(raw.slice(0, 2)),
+            minute: parseTimeComponent(raw.slice(2, 4)),
+            second: parseTimeComponent(raw.slice(4).padEnd(2, "0")),
         };
-
-        if (raw.length === 1) {
-            hour = parse(raw);
-        } else if (raw.length === 2) {
-            pickSolution([raw], [raw[0], raw[1]]);
-        } else if (raw.length === 3) {
-            pickSolution([raw.slice(0, 2), raw[2]], [raw[0], raw.slice(1)]);
-        } else if (raw.length === 4) {
-            hour = parse(raw.slice(0, 2));
-            minute = parse(raw.slice(2));
-        } else if (raw.length > 4 && raw.length <= 6) {
-            if (!parseSeconds) {
-                return null;
-            }
-            hour = parse(raw.slice(0, 2));
-            minute = parse(raw.slice(2, 4));
-            second = parse(raw.slice(4).padEnd(2, "0"));
-        } else {
-            return null;
-        }
     }
+    return null;
+}
 
-    if (isPm && hour < 12) {
-        hour += 12;
-    } else if (isAm && hour === 12) {
-        hour = 0;
-    }
-
+/**
+ * @param {number} hour
+ * @param {number} minute
+ * @param {number} second
+ * @returns {Time | null}
+ */
+function makeTime(hour, minute, second) {
     if (
         hour >= 0 &&
         hour <= 24 &&
@@ -225,9 +207,54 @@ export function parseTime(value, parseSeconds) {
             hour = 0;
         }
         return new Time({ hour, minute, second });
-    } else {
+    }
+    return null;
+}
+
+/**
+ * @param {string} value
+ * @param {boolean} [parseSeconds]
+ * @returns {Time | null}
+ */
+export function parseTime(value, parseSeconds) {
+    const { isPm, isAm } = meridiemCheck(value);
+    const normalized = normalizeTimeStr(value);
+
+    if (!normalized) {
         return null;
     }
+
+    let hour = 0;
+    let minute = 0;
+    let second = 0;
+
+    const parts = normalized.split(/[\s:]/g);
+    if (parts.length > 3) {
+        return null;
+    } else if (parts.length === 3) {
+        if (!parseSeconds) {
+            return null;
+        }
+        hour = parseTimeComponent(parts[0]);
+        minute = parseTimeComponent(parts[1].padEnd(2, "0"));
+        second = parseTimeComponent(parts[2].padEnd(2, "0"));
+    } else if (parts.length === 2) {
+        hour = parseTimeComponent(parts[0]);
+        minute = parseTimeComponent(parts[1].padEnd(2, "0"));
+    } else if (parts.length === 1) {
+        const parsed = parseTimeDigitRun(parts[0], parseSeconds);
+        if (!parsed) {
+            return null;
+        }
+        ({ hour, minute, second } = parsed);
+    }
+
+    if (isPm && hour < 12) {
+        hour += 12;
+    } else if (isAm && hour === 12) {
+        hour = 0;
+    }
+    return makeTime(hour, minute, second);
 }
 
 /**

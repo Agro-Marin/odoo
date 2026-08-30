@@ -2,8 +2,11 @@ import base64
 
 from odoo.exceptions import UserError
 from odoo.http import Controller, Response, content_disposition, request, route
+from odoo.libs.documents import extension_for, mimetype_for
 from odoo.libs.json import dumps as json_dumps
 from odoo.libs.json import dumps_bytes as json_dumps_bytes
+
+JSON_MIMETYPE = mimetype_for("json")
 
 
 class Profiling(Controller):
@@ -53,11 +56,13 @@ class Profiling(Controller):
         )
         if action == "speedscope_download_json":
             headers = [
-                ("Content-Type", "application/json"),
+                ("Content-Type", JSON_MIMETYPE),
                 ("X-Content-Type-Options", "nosniff"),
                 (
                     "Content-Disposition",
-                    content_disposition(f"profile_{profile_str}.json"),
+                    content_disposition(
+                        f"profile_{profile_str}.{extension_for(JSON_MIMETYPE)}"
+                    ),
                 ),
             ]
             return request.make_response(speedscope_result, headers)

@@ -37,6 +37,14 @@ export class JournalDashboardGraphField extends FieldComponent {
     /** @type {any} */
     chart;
 
+    /**
+     * Assigned in setup() and read from other methods, a sequence TypeScript
+     * cannot follow, so the field is declared.
+     *
+     * @type {ReturnType<typeof useChartCanvas>}
+     */
+    canvasRef;
+
     setup() {
         this.canvasRef = useChartCanvas(() => [this.field.value]);
     }
@@ -78,6 +86,9 @@ export class JournalDashboardGraphField extends FieldComponent {
             this.props.graphType === "line"
                 ? this.getLineChartConfig()
                 : this.getBarChartConfig();
+        if (!this.canvasRef.el) {
+            return;
+        }
         this.chart = new Chart(this.canvasRef.el, config);
     }
     /** @returns {Object} */

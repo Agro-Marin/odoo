@@ -28,43 +28,43 @@ def _count_selects(cr, fn):
 class TestOnchange(common.TransactionCase):
     def test_first_call_seeds_defaults(self):
         result = self.env["res.partner"].onchange(
-            {}, [], {"name": {}, "active": {}, "company_type": {}}
+            {}, [], {"name": {}, "active": {}, "type": {}}
         )
         self.assertIn("value", result)
         self.assertTrue(result["value"].get("active"))
 
     def test_field_change_recomputes_dependent(self):
         result = self.env["res.partner"].onchange(
-            {"company_type": "company", "is_company": False},
-            ["company_type"],
-            {"company_type": {}, "is_company": {}},
+            {"type": "invoice", "type_address_label": False},
+            ["type"],
+            {"type": {}, "type_address_label": {}},
         )
         self.assertIn("value", result)
         self.assertTrue(
-            result["value"].get("is_company"),
-            "onchange must recompute is_company from company_type",
+            result["value"].get("type_address_label"),
+            "onchange must recompute type_address_label from type",
         )
 
     def test_unknown_changed_field_is_dropped_not_fatal(self):
         with self.assertLogs(ONCHANGE_LOGGER, "WARNING") as capture:
             result = self.env["res.partner"].onchange(
-                {"company_type": "company", "is_company": False},
-                ["company_type", "field_that_does_not_exist"],
-                {"company_type": {}, "is_company": {}},
+                {"type": "invoice", "type_address_label": False},
+                ["type", "field_that_does_not_exist"],
+                {"type": {}, "type_address_label": {}},
             )
         self.assertIn("field_that_does_not_exist", capture.output[0])
         self.assertIn("value", result)
         self.assertTrue(
-            result["value"].get("is_company"),
+            result["value"].get("type_address_label"),
             "a valid changed field must still recompute despite an unknown name",
         )
 
     def test_all_unknown_changed_fields_is_noop(self):
         with self.assertLogs(ONCHANGE_LOGGER, "WARNING") as capture:
             result = self.env["res.partner"].onchange(
-                {"company_type": "company"},
+                {"type": "invoice"},
                 ["field_that_does_not_exist"],
-                {"company_type": {}, "is_company": {}},
+                {"type": {}, "type_address_label": {}},
             )
         self.assertIn("field_that_does_not_exist", capture.output[0])
         self.assertEqual(result, {})
@@ -96,13 +96,13 @@ class TestOnchange(common.TransactionCase):
     def test_stale_top_level_spec_field_dropped(self):
         with self.assertLogs(ONCHANGE_LOGGER, "WARNING") as capture:
             result = self.env["res.partner"].onchange(
-                {"company_type": "company", "is_company": False},
-                ["company_type"],
-                {"company_type": {}, "is_company": {}, "stale_field_zz": {}},
+                {"type": "invoice", "type_address_label": False},
+                ["type"],
+                {"type": {}, "type_address_label": {}, "stale_field_zz": {}},
             )
         self.assertIn("stale_field_zz", capture.output[0])
         self.assertIn("value", result)
-        self.assertTrue(result["value"].get("is_company"))
+        self.assertTrue(result["value"].get("type_address_label"))
         self.assertNotIn("stale_field_zz", result["value"])
 
     def test_stale_sub_spec_field_dropped(self):
@@ -133,13 +133,13 @@ class TestOnchange(common.TransactionCase):
 
     def test_changed_field_absent_from_values_does_not_crash(self):
         result = self.env["res.partner"].onchange(
-            {"company_type": "company", "is_company": False},
-            ["company_type", "name"],
-            {"company_type": {}, "is_company": {}, "name": {}},
+            {"type": "invoice", "type_address_label": False},
+            ["type", "name"],
+            {"type": {}, "type_address_label": {}, "name": {}},
         )
         self.assertIn("value", result)
         self.assertTrue(
-            result["value"].get("is_company"),
+            result["value"].get("type_address_label"),
             "valid changed fields must still recompute when another changed "
             "field is absent from values",
         )

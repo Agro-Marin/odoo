@@ -67,6 +67,112 @@ const COMPARATORS = new Set([
 ]);
 
 /**
+ * @param {string} str
+ * @param {number} abp binding power of the node itself
+ * @param {number} lbp binding power the caller binds with
+ * @returns {string}
+ */
+function parenthesize(str, abp, lbp) {
+    return abp < lbp ? `(${str})` : str;
+}
+
+/**
+ * @param {AST} ast
+ * @param {number} lbp
+ * @returns {string | null} null when `ast` is not an operator node
+ */
+function formatOperatorAST(ast, lbp) {
+    switch (ast.type) {
+        case ASTType.UnaryOperator: {
+            const abp = ast.op === "not" ? bp("not") : 130;
+            const right = formatAST(ast.right, abp);
+            return parenthesize(
+                ast.op === "not" ? `not ${right}` : ast.op + right,
+                abp,
+                lbp,
+            );
+        }
+        case ASTType.BinaryOperator: {
+            const abp = bp(ast.op);
+            let leftBp = abp;
+            let rightBp = abp + 1;
+            if (ast.op === "**") {
+                leftBp = abp + 1;
+                rightBp = abp;
+            } else if (COMPARATORS.has(ast.op)) {
+                leftBp = abp + 1;
+            }
+            const left = formatAST(ast.left, leftBp);
+            return parenthesize(
+                `${left} ${ast.op} ${formatAST(ast.right, rightBp)}`,
+                abp,
+                lbp,
+            );
+        }
+        case ASTType.BooleanOperator: {
+            const abp = bp(ast.op);
+            const left = formatAST(ast.left, abp);
+            return parenthesize(
+                `${left} ${ast.op} ${formatAST(ast.right, abp)}`,
+                abp,
+                lbp,
+            );
+        }
+        case ASTType.If: {
+            const { ifTrue, condition, ifFalse } = ast;
+            const abp = bp("if");
+            const head = `${formatAST(ifTrue, abp + 1)} if ${formatAST(condition, abp + 1)}`;
+            return parenthesize(`${head} else ${formatAST(ifFalse, abp)}`, abp, lbp);
+        }
+        case ASTType.Chain: {
+            const abp = bp(ast.operators[0]);
+            const str = ast.operands
+                .map((operand, i) =>
+                    i === 0
+                        ? formatAST(operand, abp + 1)
+                        : `${ast.operators[i - 1]} ${formatAST(operand, abp + 1)}`,
+                )
+                .join(" ");
+            return parenthesize(str, abp, lbp);
+        }
+    }
+    return null;
+}
+
+/**
+ * @param {AST} ast
+ * @returns {string | null} null when `ast` is not a collection or access node
+ */
+function formatCollectionAST(ast) {
+    switch (ast.type) {
+        case ASTType.List:
+            return `[${ast.value.map((v) => formatAST(v)).join(", ")}]`;
+        case ASTType.Tuple: {
+            const items = ast.value.map((v) => formatAST(v));
+            return items.length === 1 ? `(${items[0]},)` : `(${items.join(", ")})`;
+        }
+        case ASTType.Dictionary: {
+            const pairs = Object.keys(ast.value || {}).map(
+                (k) => `${JSON.stringify(k)}: ${formatAST(ast.value[k])}`,
+            );
+            return `{${pairs.join(", ")}}`;
+        }
+        case ASTType.Lookup:
+            return `${formatAST(ast.target)}[${formatAST(ast.key)}]`;
+        case ASTType.ObjLookup:
+            return `${formatAST(ast.obj, 150)}.${ast.key}`;
+        case ASTType.FunctionCall: {
+            const args = ast.args.map((v) => formatAST(v));
+            const kwargs = Object.keys(ast.kwargs || {}).map(
+                (kwarg) => `${kwarg} = ${formatAST(ast.kwargs[kwarg])}`,
+            );
+            return `${formatAST(ast.fn)}(${[...args, ...kwargs].join(", ")})`;
+        }
+    }
+    return null;
+}
+
+/**
  * @param {AST} ast
  * @param {number} [lbp]
  * @return {string}
@@ -83,86 +189,14 @@ export function formatAST(ast, lbp = 0) {
         }
         case ASTType.Boolean:
             return ast.value ? "True" : "False";
-        case ASTType.List:
-            return `[${ast.value.map((v) => formatAST(v)).join(", ")}]`;
-        case ASTType.UnaryOperator: {
-            const abp = ast.op === "not" ? bp("not") : 130;
-            const str =
-                ast.op === "not"
-                    ? `not ` + formatAST(ast.right, abp)
-                    : ast.op + formatAST(ast.right, abp);
-            return abp < lbp ? `(${str})` : str;
-        }
-        case ASTType.BinaryOperator: {
-            const abp = bp(ast.op);
-            let leftBp = abp;
-            let rightBp = abp + 1;
-            if (ast.op === "**") {
-                leftBp = abp + 1;
-                rightBp = abp;
-            } else if (COMPARATORS.has(ast.op)) {
-                leftBp = abp + 1;
-            }
-            const str = `${formatAST(ast.left, leftBp)} ${ast.op} ${formatAST(
-                ast.right,
-                rightBp,
-            )}`;
-            return abp < lbp ? `(${str})` : str;
-        }
-        case ASTType.Dictionary: {
-            const pairs = [];
-            for (const k of Object.keys(ast.value || {})) {
-                pairs.push(`${JSON.stringify(k)}: ${formatAST(ast.value[k])}`);
-            }
-            return `{` + pairs.join(", ") + `}`;
-        }
-        case ASTType.Tuple: {
-            const items = ast.value.map((v) => formatAST(v));
-            return items.length === 1 ? `(${items[0]},)` : `(${items.join(", ")})`;
-        }
         case ASTType.Name:
             return ast.value;
-        case ASTType.Lookup: {
-            return `${formatAST(ast.target)}[${formatAST(ast.key)}]`;
-        }
-        case ASTType.If: {
-            const { ifTrue, condition, ifFalse } = ast;
-            const abp = bp("if");
-            const str = `${formatAST(ifTrue, abp + 1)} if ${formatAST(
-                condition,
-                abp + 1,
-            )} else ${formatAST(ifFalse, abp)}`;
-            return abp < lbp ? `(${str})` : str;
-        }
-        case ASTType.BooleanOperator: {
-            const abp = bp(ast.op);
-            const str = `${formatAST(ast.left, abp)} ${ast.op} ${formatAST(ast.right, abp)}`;
-            return abp < lbp ? `(${str})` : str;
-        }
-        case ASTType.Chain: {
-            const abp = bp(ast.operators[0]);
-            const str = ast.operands
-                .map((operand, i) =>
-                    i === 0
-                        ? formatAST(operand, abp + 1)
-                        : `${ast.operators[i - 1]} ${formatAST(operand, abp + 1)}`,
-                )
-                .join(" ");
-            return abp < lbp ? `(${str})` : str;
-        }
-        case ASTType.ObjLookup:
-            return `${formatAST(ast.obj, 150)}.${ast.key}`;
-        case ASTType.FunctionCall: {
-            const args = ast.args.map((v) => formatAST(v));
-            const kwargs = [];
-            for (const kwarg of Object.keys(ast.kwargs || {})) {
-                kwargs.push(`${kwarg} = ${formatAST(ast.kwargs[kwarg])}`);
-            }
-            const argStr = [...args, ...kwargs].join(", ");
-            return `${formatAST(ast.fn)}(${argStr})`;
-        }
     }
-    throw new Error(`invalid expression: ${ast}`);
+    const formatted = formatOperatorAST(ast, lbp) ?? formatCollectionAST(ast);
+    if (formatted === null) {
+        throw new Error(`invalid expression: ${ast}`);
+    }
+    return formatted;
 }
 
 /**

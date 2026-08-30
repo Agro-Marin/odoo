@@ -159,7 +159,7 @@ export class ActionDispatch {
         const { restoreStackOnError } = this;
         if (
             restoreStackOnError?.length &&
-            restoreStackOnError.at(-1).isMounted &&
+            restoreStackOnError.at(-1)?.isMounted &&
             am.controllerStack !== restoreStackOnError
         ) {
             am.controllerStack = restoreStackOnError;

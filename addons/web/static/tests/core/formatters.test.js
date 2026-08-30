@@ -147,6 +147,43 @@ test("formatInteger", () => {
     expect(formatInteger(6000, options)).toBe("60€00");
 });
 
+test("thousands_sep: false keeps a year from being grouped", () => {
+    // A number that identifies rather than counts -- a birth year, a reference
+    // -- reads as nonsense once grouped, and neither formatter offered a way
+    // out of it: extractOptions dropped thousandsSep, so the arch could not say so.
+    patchWithCleanup(localization, { grouping: [3, 3, 3, 3], thousandsSep: "," });
+
+    expect(formatInteger(1946)).toBe("1,946");
+    expect(formatFieldFloat(1946, { digits: [16, 0] })).toBe("1,946");
+
+    const asked = { attrs: {}, options: { thousands_sep: false } };
+    expect(formatInteger(1946, formatInteger.extractOptions(asked))).toBe("1946");
+    expect(
+        formatFieldFloat(1946, {
+            ...formatFieldFloat.extractOptions(asked),
+            digits: [16, 0],
+        }),
+    ).toBe("1946");
+});
+
+test("extractOptions leaves the separator to the locale unless asked", () => {
+    // Passing an explicit `undefined` would NOT be a no-op: formatInteger reads
+    // `"thousandsSep" in options`, and insertThousandsSep's own default is a
+    // hardcoded ",", so the key has to stay absent for a locale to win.
+    for (const format of [formatInteger, formatFieldFloat]) {
+        for (const options of [{}, { thousands_sep: true }]) {
+            expect(
+                "thousandsSep" in format.extractOptions({ attrs: {}, options }),
+            ).toBe(false);
+        }
+    }
+
+    patchWithCleanup(localization, { grouping: [3, 0], thousandsSep: "€" });
+    expect(
+        formatInteger(1946, formatInteger.extractOptions({ attrs: {}, options: {} })),
+    ).toBe("1€946");
+});
+
 test("formatInteger past the exponential-notation threshold", () => {
     patchWithCleanup(localization, { grouping: [3, 3, 3, 3] });
     expect(formatInteger(1e20)).toBe("100000000,000,000,000,000");

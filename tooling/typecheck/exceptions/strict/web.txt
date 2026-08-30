@@ -7,7 +7,6 @@ addons/web/static/src/components/datetime/datetime_picker.js
 addons/web/static/src/components/file_viewer/file_viewer.js
 addons/web/static/src/components/model_field_selector/model_field_selector_popover.js
 addons/web/static/src/components/select_menu/select_menu.js
-addons/web/static/src/core/field_service.js
 addons/web/static/src/core/file_upload/file_upload_service.js
 addons/web/static/src/core/hotkeys/hotkey_service.js
 addons/web/static/src/core/navigation/navigation.js
@@ -15,14 +14,12 @@ addons/web/static/src/core/tree/tree_processor_service.js
 addons/web/static/src/fields/display/progress_bar/progress_bar_field.js
 addons/web/static/src/fields/display/statusbar/statusbar_field.js
 addons/web/static/src/fields/field_widths.js
-addons/web/static/src/fields/relational/many2many_binary/many2many_binary_field.js
 addons/web/static/src/fields/relational/many2many_checkboxes/many2many_checkboxes_field.js
 addons/web/static/src/fields/relational/many2many_tags_avatar/many2many_tags_avatar_field.js
 addons/web/static/src/fields/relational/reference/reference_field.js
 addons/web/static/src/fields/relational/x2many/x2many_field.js
 addons/web/static/src/fields/specialized/domain/domain_field.js
 addons/web/static/src/fields/specialized/iframe_wrapper/iframe_wrapper_field.js
-addons/web/static/src/fields/specialized/journal_dashboard_graph/journal_dashboard_graph_field.js
 addons/web/static/src/fields/specialized/properties/properties_field.js
 addons/web/static/src/fields/specialized/properties/properties_sortable_hook.js
 addons/web/static/src/fields/specialized/properties/property_definition.js
@@ -30,7 +27,6 @@ addons/web/static/src/fields/specialized/properties/property_definition_selectio
 addons/web/static/src/fields/specialized/properties/property_value.js
 addons/web/static/src/fields/specialized/user_groups/res_user_group_ids_field.js
 addons/web/static/src/fields/temporal/datetime/datetime_field.js
-addons/web/static/src/fields/translation_button.js
 addons/web/static/src/fields/translation_dialog.js
 addons/web/static/src/libs/bootstrap.js
 addons/web/static/src/libs/popper_compat.js
@@ -49,7 +45,6 @@ addons/web/static/src/search/action_menus/action_menus.js
 addons/web/static/src/search/control_panel/control_panel.js
 addons/web/static/src/search/custom_favorite_item/custom_favorite_item.js
 addons/web/static/src/search/search_arch_parser.js
-addons/web/static/src/search/search_bar_menu/search_bar_menu.js
 addons/web/static/src/search/search_model.js
 addons/web/static/src/search/search_panel/search_panel.js
 addons/web/static/src/ui/block/block_ui.js
@@ -59,8 +54,6 @@ addons/web/static/src/ui/dialog/dialog.js
 addons/web/static/src/ui/notification/notification.js
 addons/web/static/src/ui/overlay/overlay_container.js
 addons/web/static/src/ui/popover/popover.js
-addons/web/static/src/ui/tooltip/tooltip_service.js
-addons/web/static/src/ui/ui_service.js
 addons/web/static/src/views/calendar/calendar_common/calendar_common_renderer.js
 addons/web/static/src/views/calendar/calendar_model.js
 addons/web/static/src/views/calendar/calendar_year/calendar_year_renderer.js
@@ -82,14 +75,10 @@ addons/web/static/src/views/settings/settings/searchable_setting.js
 addons/web/static/src/views/settings/settings/settings_app.js
 addons/web/static/src/views/settings/settings_form_controller.js
 addons/web/static/src/views/view_dialogs/export_data_dialog.js
-addons/web/static/src/webclient/actions/action_dispatch.js
-addons/web/static/src/webclient/actions/action_state.js
-addons/web/static/src/webclient/actions/reports/report_action.js
 addons/web/static/src/webclient/clickbot/clickbot.js
 addons/web/static/src/webclient/debug/profiling/profiling_qweb.js
 addons/web/static/src/webclient/loading_indicator/loading_indicator.js
 addons/web/static/src/webclient/navbar/navbar.js
-addons/web/static/src/webclient/session_service.js
 addons/web/static/src/webclient/switch_company_menu/switch_company_menu.js
 addons/web/static/tests/_framework/component_test_helpers.js
 addons/web/static/tests/_framework/env_test_helpers.js

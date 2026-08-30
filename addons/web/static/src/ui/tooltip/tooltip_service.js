@@ -37,8 +37,8 @@ class TrackedTooltip {
      */
     constructor(el, onDetached) {
         this.el = el;
-        /** @type {number | null} */
-        this.openTimeout = null;
+        /** @type {number | undefined} */
+        this.openTimeout = undefined;
         /** @type {(() => void) | null} */
         this.closePopover = null;
         /** @type {string | null} */
@@ -84,7 +84,7 @@ class TrackedTooltip {
         this.unwatch?.();
         this.unwatch = null;
         browser.clearTimeout(this.openTimeout);
-        this.openTimeout = null;
+        this.openTimeout = undefined;
         const closePopover = this.closePopover;
         this.closePopover = null;
         closePopover?.();
@@ -99,7 +99,7 @@ class TooltipService {
         this.popover = popover;
         /** @type {TrackedTooltip | null} */
         this.tracked = null;
-        /** @type {number} */
+        /** @type {number | undefined} */
         this.showTimer = undefined;
         this.elementsWithTooltips = new WeakMap();
         /** @type {(() => void)[]} */
@@ -170,7 +170,7 @@ class TooltipService {
         this.tracked = opening;
         const timeoutDelay = this.isHelpNode(el) ? 0 : delay;
         opening.openTimeout = browser.setTimeout(() => {
-            opening.openTimeout = null;
+            opening.openTimeout = undefined;
             if (!el.isConnected) {
                 return;
             }

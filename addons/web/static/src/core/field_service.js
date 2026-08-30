@@ -158,7 +158,12 @@ class FieldService {
         }
 
         const fieldDef = getOwnFieldDef(fieldDefs, name);
-        if ((name !== "*" && !fieldDef) || (name === "*" && remainingNames.length)) {
+        if (name === "*") {
+            return remainingNames.length
+                ? { isInvalid: "path", names, modelsInfo }
+                : { names, modelsInfo };
+        }
+        if (!fieldDef) {
             return { isInvalid: "path", names, modelsInfo };
         }
 

@@ -92,7 +92,7 @@ export class Many2ManyBinaryField extends FieldComponent {
             uploadedIds.push(file.id);
         }
         if (uploadedIds.length) {
-            await this.operations.linkRecords(uploadedIds);
+            await this.operations.linkRecords?.(uploadedIds);
         }
     }
 

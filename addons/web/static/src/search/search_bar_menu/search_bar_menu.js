@@ -28,6 +28,14 @@ const favoriteMenuRegistry = registry.category("favoriteMenu");
 favoriteMenuRegistry.addValidation(MENU_REGISTRY_VALIDATION);
 
 export class SearchBarMenu extends Component {
+    /**
+     * Assigned in setup() and read from other methods, a sequence TypeScript
+     * cannot follow, so the field is declared.
+     *
+     * @type {import("@web/core/action_port").ActionPort}
+     */
+    actionService;
+
     static template = "web.SearchBarMenu";
     static components = {
         Dropdown,
@@ -50,6 +58,14 @@ export class SearchBarMenu extends Component {
 
     /** @type {{Component: Function, groupNumber: number, key: string}[]} */
     otherItems = [];
+
+    /**
+     * Assigned in setup() and read from other methods, a sequence TypeScript
+     * cannot follow, so the field is declared.
+     *
+     * @type {{ sharedFavoritesExpanded: boolean }}
+     */
+    state;
 
     setup() {
         this.facet_icons = FACET_ICONS;

@@ -143,6 +143,7 @@ formatFieldFloat.extractOptions = ({ attrs, options }) => ({
     minDigits: options.min_display_digits,
     humanReadable: !!options.human_readable,
     trailingZeros: !options.hide_trailing_zeros,
+    ...(options.thousands_sep === false && { thousandsSep: "" }),
 });
 
 /**
@@ -241,6 +242,7 @@ formatInteger.extractOptions = ({ attrs, options }) => ({
     decimals: options.decimals || 0,
     humanReadable: !!options.human_readable,
     isPassword: exprToBoolean(attrs.password),
+    ...(options.thousands_sep === false && { thousandsSep: "" }),
 });
 
 /**

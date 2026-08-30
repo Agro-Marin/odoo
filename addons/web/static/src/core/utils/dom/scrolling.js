@@ -89,6 +89,76 @@ export function closestScrollableY(el) {
 }
 
 /**
+ * Resolves when the scroll has settled: on `scrollend` where the browser
+ * supports it, and otherwise once the offset has held still for two
+ * consecutive frames. Bounded either way by SCROLL_SETTLE_TIMEOUT.
+ * @param {HTMLElement} scrollable
+ * @returns {Promise<any>}
+ */
+function whenScrollSettles(scrollable) {
+    return new Promise((resolve) => {
+        let settled = false;
+        /** @type {any} */
+        let timer;
+        /** @type {any} */
+        let rafId;
+        const finish = () => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            browser.clearTimeout(timer);
+            if (rafId !== undefined) {
+                browser.cancelAnimationFrame(rafId);
+            }
+            scrollable.removeEventListener("scrollend", finish);
+            resolve(undefined);
+        };
+        timer = browser.setTimeout(finish, SCROLL_SETTLE_TIMEOUT);
+        if (SUPPORTS_SCROLLEND) {
+            scrollable.addEventListener("scrollend", finish, { once: true });
+            return;
+        }
+        let lastTop = scrollable.scrollTop;
+        let stableFrames = 0;
+        const check = () => {
+            if (settled) {
+                return;
+            }
+            const top = scrollable.scrollTop;
+            if (top === lastTop) {
+                if (++stableFrames >= 2) {
+                    finish();
+                    return;
+                }
+            } else {
+                stableFrames = 0;
+                lastTop = top;
+            }
+            rafId = browser.requestAnimationFrame(check);
+        };
+        rafId = browser.requestAnimationFrame(check);
+    });
+}
+
+/**
+ * @param {HTMLElement} scrollable
+ * @param {number} targetTop
+ * @param {ScrollBehavior} behavior
+ * @returns {Promise<any>}
+ */
+function scrollAndSettle(scrollable, targetTop, behavior) {
+    const prevTop = scrollable.scrollTop;
+    const maxTop = scrollable.scrollHeight - scrollable.clientHeight;
+    const clampedTop = Math.max(0, Math.min(targetTop, maxTop));
+    scrollable.scrollTo({ top: targetTop, behavior });
+    if (Math.abs(clampedTop - prevTop) < 1) {
+        return Promise.resolve();
+    }
+    return whenScrollSettles(scrollable);
+}
+
+/**
  * @param {HTMLElement} element
  * @param {object} options
  * @param {HTMLElement} [options.scrollable]
@@ -112,76 +182,24 @@ export function scrollTo(element, options = {}) {
 
     const scrollPromises = [];
 
-    /**
-     * @param {number} targetTop
-     */
-    function awaitScroll(targetTop) {
-        const prevTop = scrollable.scrollTop;
-        const maxTop = scrollable.scrollHeight - scrollable.clientHeight;
-        const clampedTop = Math.max(0, Math.min(targetTop, maxTop));
-        scrollable.scrollTo({ top: targetTop, behavior });
-        if (Math.abs(clampedTop - prevTop) < 1) {
-            return Promise.resolve();
-        }
-        return new Promise((resolve) => {
-            let settled = false;
-            /** @type {any} */
-            let timer;
-            /** @type {any} */
-            let rafId;
-            const finish = () => {
-                if (settled) {
-                    return;
-                }
-                settled = true;
-                browser.clearTimeout(timer);
-                if (rafId !== undefined) {
-                    browser.cancelAnimationFrame(rafId);
-                }
-                scrollable.removeEventListener("scrollend", finish);
-                resolve(undefined);
-            };
-            timer = browser.setTimeout(finish, SCROLL_SETTLE_TIMEOUT);
-            if (SUPPORTS_SCROLLEND) {
-                scrollable.addEventListener("scrollend", finish, { once: true });
-            } else {
-                let lastTop = scrollable.scrollTop;
-                let stableFrames = 0;
-                const check = () => {
-                    if (settled) {
-                        return;
-                    }
-                    const top = scrollable.scrollTop;
-                    if (top === lastTop) {
-                        if (++stableFrames >= 2) {
-                            finish();
-                            return;
-                        }
-                    } else {
-                        stableFrames = 0;
-                        lastTop = top;
-                    }
-                    rafId = browser.requestAnimationFrame(check);
-                };
-                rafId = browser.requestAnimationFrame(check);
-            }
-        });
-    }
-
     if (elementRect.bottom > scrollRect.bottom && !isAnchor) {
         scrollPromises.push(
-            awaitScroll(
+            scrollAndSettle(
+                scrollable,
                 scrollable.scrollTop +
                     elementRect.top -
                     scrollRect.bottom +
                     Math.ceil(elementRect.height) +
                     offset,
+                behavior,
             ),
         );
     } else if (elementRect.top < scrollRect.top || isAnchor) {
         scrollPromises.push(
-            awaitScroll(
+            scrollAndSettle(
+                scrollable,
                 scrollable.scrollTop - scrollRect.top + elementRect.top + offset,
+                behavior,
             ),
         );
 

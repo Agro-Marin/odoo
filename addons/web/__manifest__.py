@@ -536,6 +536,7 @@ This module provides the core of the Odoo Web Client.
             "dompurify": "/web/static/lib/dompurify/purify.es.js",
             "signature_pad": "/web/static/lib/signature_pad/signature_pad.js",
             "zxing-library": "/web/static/lib/zxing-library/zxing-library.js",
+            "joint": "/web/static/lib/joint/joint.esm.js",
             "pdfjs-dist": "/web/static/lib/pdfjs/build/pdf.js",
             "chart.js": "/web/static/lib/Chart/Chart.js",
             "chart.js/helpers": "/web/static/lib/Chart/helpers.js",

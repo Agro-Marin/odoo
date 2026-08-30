@@ -653,6 +653,7 @@
         "**/lib/dompurify",
         "**/lib/fullcalendar",
         "**/lib/jquery",
+        "**/lib/joint",
         "**/lib/luxon",
         "**/lib/odoo_ui_icons",
         "**/lib/owl",

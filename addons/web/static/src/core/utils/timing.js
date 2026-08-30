@@ -47,6 +47,47 @@ export function batched(callback, synchronize = () => Promise.resolve()) {
 export const INPUT_DEBOUNCE_DELAY = 250;
 
 /**
+ * @param {Function} func
+ * @param {any} self
+ * @param {any[]} args
+ * @param {{ resolve: Function, reject: Function }[]} awaiters
+ */
+function executeAndSettle(func, self, args, awaiters) {
+    let result;
+    try {
+        result = func.apply(self, args);
+    } catch (error) {
+        for (const { reject } of awaiters) {
+            reject(error);
+        }
+        return;
+    }
+    Promise.resolve(result).then(
+        (value) => {
+            for (const { resolve } of awaiters) {
+                resolve(value);
+            }
+        },
+        (error) => {
+            for (const { reject } of awaiters) {
+                reject(error);
+            }
+        },
+    );
+}
+
+/**
+ * @param {boolean | {leading?: boolean, trailing?: boolean}} [options]
+ * @returns {{ leading: boolean, trailing: boolean }}
+ */
+function debounceEdges(options) {
+    if (typeof options === "boolean") {
+        return { leading: options, trailing: !options };
+    }
+    return { leading: options?.leading ?? false, trailing: options?.trailing ?? true };
+}
+
+/**
  * @template {Function} T
  * @param {T} func
  * @param {number | "animationFrame" | (() => number)} delay
@@ -63,49 +104,12 @@ export function debounce(func, delay, options) {
     const clearFnName = useAnimationFrame ? "cancelAnimationFrame" : "clearTimeout";
     /** @type {any[] | null} */
     let lastArgs;
-    let leading = false;
-    let trailing = true;
-    if (typeof options === "boolean") {
-        leading = options;
-        trailing = !options;
-    } else if (options) {
-        leading = options.leading ?? leading;
-        trailing = options.trailing ?? trailing;
-    }
+    const { leading, trailing } = debounceEdges(options);
 
     /** @type {any} */
     let lastSelf;
     /** @type {{ resolve: Function, reject: Function }[]} */
     let pending = [];
-
-    /**
-     * @param {any} self
-     * @param {any[]} args
-     * @param {{ resolve: Function, reject: Function }[]} awaiters
-     */
-    function execute(self, args, awaiters) {
-        let result;
-        try {
-            result = func.apply(self, args);
-        } catch (error) {
-            for (const { reject } of awaiters) {
-                reject(error);
-            }
-            return;
-        }
-        Promise.resolve(result).then(
-            (value) => {
-                for (const { resolve } of awaiters) {
-                    resolve(value);
-                }
-            },
-            (error) => {
-                for (const { reject } of awaiters) {
-                    reject(error);
-                }
-            },
-        );
-    }
 
     return Object.assign(
         {
@@ -114,7 +118,7 @@ export function debounce(func, delay, options) {
                 lastSelf = this;
                 return new Promise((resolve, reject) => {
                     if (leading && !handle) {
-                        execute(this, args, [{ resolve, reject }]);
+                        executeAndSettle(func, this, args, [{ resolve, reject }]);
                     } else {
                         pending.push({ resolve, reject });
                         lastArgs = args;
@@ -125,7 +129,7 @@ export function debounce(func, delay, options) {
                         if (trailing && lastArgs) {
                             const awaiters = pending;
                             pending = [];
-                            execute(lastSelf, lastArgs, awaiters);
+                            executeAndSettle(func, lastSelf, lastArgs, awaiters);
                             lastArgs = null;
                         } else {
                             const awaiters = pending;
@@ -146,7 +150,7 @@ export function debounce(func, delay, options) {
                 if (execNow && trailing && lastArgs) {
                     const awaiters = pending;
                     pending = [];
-                    execute(lastSelf, lastArgs, awaiters);
+                    executeAndSettle(func, lastSelf, lastArgs, awaiters);
                 } else if (pending.length) {
                     const awaiters = pending;
                     pending = [];

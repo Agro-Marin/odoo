@@ -126,7 +126,7 @@ const dispatchFileDragEvent = async (node, type, files) => {
  */
 const waitForTouchDelay = async (delay) => {
     if (hasTouch()) {
-        await advanceTime(delay || 500);
+        await advanceTime(delay ?? 500);
     }
 };
 

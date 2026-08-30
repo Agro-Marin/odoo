@@ -23,13 +23,57 @@ const directMap = {
     v: "\v",
 };
 
+/** @type {Record<string, { digits: number, span: number, label: string, valid: RegExp }>} */
+const numericEscapes = {
+    u: { digits: 4, span: 4, label: "\\uXXXX", valid: /[0-9a-f]{4}/i },
+    U: { digits: 8, span: 10, label: "\\UXXXXXXXX", valid: /[0-9a-f]{8}/i },
+    x: { digits: 2, span: 2, label: "\\xXX", valid: /[0-9a-f]{2}/i },
+};
+
+/**
+ * @param {string} str
+ * @param {number} i index of the backslash opening the escape
+ * @param {string} escape
+ * @returns {string}
+ */
+function decodeNumericEscape(str, i, escape) {
+    const { digits, span, label, valid } = numericEscapes[escape];
+    const raw = str.slice(i + 2, i + 2 + digits);
+    if (!valid.test(raw)) {
+        throw new TokenizerError(
+            `SyntaxError: (unicode error) 'unicodeescape' codec can't decode bytes in position ${i}-${i + span}: truncated ${label} escape`,
+        );
+    }
+    const code = Number.parseInt(raw, 16);
+    if (code > 0x10ffff) {
+        throw new TokenizerError(
+            `SyntaxError: (unicode error) 'unicodeescape' codec can't decode bytes in position ${i}-${i + span}: illegal Unicode character`,
+        );
+    }
+    return String.fromCodePoint(code);
+}
+
+/**
+ * @param {string} str
+ * @param {number} i index of the backslash opening the escape
+ * @param {string} escape
+ * @returns {string | null}
+ */
+function octalEscapeAt(str, i, escape) {
+    if (!/[0-7]/.test(escape)) {
+        return null;
+    }
+    const digits = /[0-7]{1,3}/g;
+    digits.lastIndex = i + 1;
+    return /** @type {RegExpExecArray} */ (digits.exec(str))[0];
+}
+
 /**
  * @param {string} str
  * @returns {string}
  */
 function decodeStringLiteral(str) {
     const out = [];
-    let code;
     for (let i = 0; i < str.length; ++i) {
         if (str[i] !== "\\") {
             out.push(str[i]);
@@ -47,72 +91,19 @@ function decodeStringLiteral(str) {
                 continue;
             case "N":
                 throw new TokenizerError("SyntaxError: \\N{} escape not implemented");
-            case "u": {
-                const uni = str.slice(i + 2, i + 6);
-                if (!/[0-9a-f]{4}/i.test(uni)) {
-                    throw new TokenizerError(
-                        [
-                            "SyntaxError: (unicode error) 'unicodeescape' codec",
-                            " can't decode bytes in position ",
-                            i,
-                            "-",
-                            i + 4,
-                            ": truncated \\uXXXX escape",
-                        ].join(""),
-                    );
-                }
-                code = Number.parseInt(uni, 16);
-                out.push(String.fromCodePoint(code));
-                i += 5;
+            case "u":
+            case "U":
+            case "x":
+                out.push(decodeNumericEscape(str, i, escape));
+                i += 1 + numericEscapes[escape].digits;
                 continue;
-            }
-            case "U": {
-                const codePointHex = str.slice(i + 2, i + 10);
-                if (!/[0-9a-f]{8}/i.test(codePointHex)) {
-                    throw new TokenizerError(
-                        `SyntaxError: (unicode error) 'unicodeescape' codec can't decode bytes in position ${i}-${i + 10}: truncated \\UXXXXXXXX escape`,
-                    );
-                }
-                const codePoint = Number.parseInt(codePointHex, 16);
-                if (codePoint > 0x10ffff) {
-                    throw new TokenizerError(
-                        `SyntaxError: (unicode error) 'unicodeescape' codec can't decode bytes in position ${i}-${i + 10}: illegal Unicode character`,
-                    );
-                }
-                out.push(String.fromCodePoint(codePoint));
-                i += 9;
-                continue;
-            }
-            case "x": {
-                const hex = str.slice(i + 2, i + 4);
-                if (!/[0-9a-f]{2}/i.test(hex)) {
-                    throw new TokenizerError(
-                        [
-                            "SyntaxError: (unicode error) 'unicodeescape'",
-                            " codec can't decode bytes in position ",
-                            i,
-                            "-",
-                            i + 2,
-                            ": truncated \\xXX escape",
-                        ].join(""),
-                    );
-                }
-                code = Number.parseInt(hex, 16);
-                out.push(String.fromCharCode(code));
-                i += 3;
-                continue;
-            }
             default: {
-                if (!/[0-7]/.test(escape)) {
+                const octal = octalEscapeAt(str, i, escape);
+                if (octal === null) {
                     break;
                 }
-                const r = /[0-7]{1,3}/g;
-                r.lastIndex = i + 1;
-                const m = /** @type {RegExpExecArray} */ (r.exec(str));
-                const oct = m[0];
-                code = Number.parseInt(oct, 8);
-                out.push(String.fromCharCode(code));
-                i += oct.length;
+                out.push(String.fromCharCode(Number.parseInt(octal, 8)));
+                i += octal.length;
                 continue;
             }
         }

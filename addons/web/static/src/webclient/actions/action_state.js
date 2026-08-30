@@ -30,7 +30,7 @@ export function makeActionState(controllerStack) {
         if (action.type === "ir.actions.act_window") {
             actionState.view_type = props.type;
             if (props.type === "form" && action.res_model !== "res.config.settings") {
-                actionState.resId = controller.currentState.resId || "new";
+                actionState.resId = controller.currentState?.resId || "new";
             }
         }
         if (action.type === "ir.actions.client" && controller.currentState?.resId) {
@@ -58,7 +58,10 @@ export function makeActionState(controllerStack) {
     }
     return Object.assign(
         newState,
-        pick(newState.actionStack.at(-1), .../** @type {any} */ (stateKeys)),
+        pick(
+            /** @type {Record<string, any>} */ (newState.actionStack.at(-1)),
+            .../** @type {any} */ (stateKeys),
+        ),
     );
 }
 

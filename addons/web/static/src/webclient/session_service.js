@@ -14,9 +14,8 @@ class LazySessionService {
         this.orm = orm;
         /** @type {Promise<Record<string, any>> | undefined} */
         this.lazyConfigPromise = undefined;
-        /** @type {((value?: any) => void) | undefined} */
-        let resolveWebClientReady;
-        this.webClientReadyPromise = new Promise((r) => (resolveWebClientReady = r));
+        const { promise, resolve: resolveWebClientReady } = Promise.withResolvers();
+        this.webClientReadyPromise = promise;
         env.bus.addEventListener(AppEvent.WEB_CLIENT_READY, resolveWebClientReady, {
             once: true,
         });

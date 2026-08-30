@@ -18,6 +18,20 @@ export function updatePointerPosition(ctx, ev) {
 }
 
 /**
+ * @param {{ x: number, y: number }} pointer
+ * @param {{ x: number, y: number, width: number, height: number }} rect
+ * @returns {boolean}
+ */
+export function isPointerOver(pointer, rect) {
+    return (
+        rect.x <= pointer.x &&
+        pointer.x <= rect.x + rect.width &&
+        rect.y <= pointer.y &&
+        pointer.y <= rect.y + rect.height
+    );
+}
+
+/**
  * @param {DraggableHookContext} ctx
  * @returns {boolean}
  */
