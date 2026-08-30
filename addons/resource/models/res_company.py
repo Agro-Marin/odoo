@@ -20,6 +20,26 @@ class ResCompany(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
+        # A ``resource_calendar_id`` given in vals already exists (Many2one
+        # values are never creation commands), so it may be a caller-supplied
+        # shared/global calendar (``company_id=False`` on purpose -- see
+        # ``resource_calendar_ids``' "Visible to all" use case). Snapshot
+        # which ones pre-date this call *before* creating: only a calendar
+        # that did not exist yet -- i.e. one ``_create_resource_calendar()``
+        # is about to make below -- may still need its company_id backfilled.
+        preexisting_calendar_ids = set(
+            self.env["resource.calendar"]
+            .sudo()
+            .browse(
+                {
+                    vals["resource_calendar_id"]
+                    for vals in vals_list
+                    if vals.get("resource_calendar_id")
+                }
+            )
+            .exists()
+            .ids
+        )
         companies = super().create(vals_list)
         companies_without_calendar = companies.filtered(
             lambda c: not c.resource_calendar_id
@@ -28,8 +48,13 @@ class ResCompany(models.Model):
             companies_without_calendar.sudo()._create_resource_calendar()
         # calendar created from form view: no company_id set because record was still not created
         for company in companies:
-            if not company.resource_calendar_id.company_id:
-                company.resource_calendar_id.company_id = company.id
+            calendar = company.resource_calendar_id
+            if (
+                calendar
+                and not calendar.company_id
+                and calendar.id not in preexisting_calendar_ids
+            ):
+                calendar.company_id = company.id
         return companies
 
     @api.model
