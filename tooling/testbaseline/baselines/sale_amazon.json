@@ -1,0 +1,21 @@
+{
+  "expected": {
+    "sale_amazon/TestAmazon.test_no_inventory_reset_if_order_channel_is_fbm_but_offer_is_fba": "ERROR",
+    "sale_amazon/TestAmazon.test_schedule_inventory_reset_if_order_channel_is_fba_but_offer_is_fbm": "ERROR",
+    "sale_amazon/TestAmazon.test_sync_orders_cancel": "ERROR",
+    "sale_amazon/TestAmazon.test_sync_orders_cancel_abort": "ERROR",
+    "sale_amazon/TestAmazon.test_sync_orders_europe": "ERROR",
+    "sale_amazon/TestAmazon.test_sync_orders_fba": "ERROR",
+    "sale_amazon/TestAmazon.test_sync_orders_full": "ERROR",
+    "sale_amazon/TestAmazon.test_sync_orders_partial": "ERROR",
+    "sale_amazon/TestAmazon.test_sync_orders_replacement": "ERROR",
+    "sale_amazon/TestAmazon.test_sync_pickings": "ERROR",
+    "sale_amazon/TestAmazonMultiCompany.test_tax_application_on_sync_order_for_branch_company": "ERROR",
+    "sale_amazon/TestStock.test_generate_stock_moves_for_not_tracked_product_sets_move_done": "ERROR"
+  },
+  "note": "12 failures predating the credential migration, all in the SP-API mock layer; the 11 TestAmazonCredentials tests added with it all pass",
+  "run_spec": "-u sale_amazon --test-enable --test-tags /sale_amazon",
+  "suite": "/sale_amazon",
+  "tests_total": 70,
+  "verified_at": "cac4569ad6f"
+}

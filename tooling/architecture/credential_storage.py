@@ -128,14 +128,21 @@ def _is_transient(node: ast.ClassDef) -> bool:
 
 
 def _is_stored_field(call: ast.Call) -> bool:
-    """A door is not a store: a compute/related field with no `store=True`."""
+    """Whether the bytes rest in a column.
+
+    Two ways they do not. A `compute`/`related` field without `store=True` is a
+    door onto somewhere else. And `store=False` says it outright, which a plain
+    field may also do: `sale_amazon`'s LWA access token is declared
+    `fields.Char(store=False)` because it lives for one request and is refreshed
+    by an API call, so there is no column and nothing to move.
+    """
     keywords = {k.arg: k.value for k in call.keywords}
-    computed = "compute" in keywords or "related" in keywords
-    stored = (
-        isinstance(keywords.get("store"), ast.Constant)
-        and keywords["store"].value is True
-    )
-    return stored or not computed
+    store = keywords.get("store")
+    if isinstance(store, ast.Constant) and store.value is False:
+        return False
+    if isinstance(store, ast.Constant) and store.value is True:
+        return True
+    return not ("compute" in keywords or "related" in keywords)
 
 
 def findings() -> list[Finding]:
