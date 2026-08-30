@@ -23,6 +23,7 @@ class ProjectPhaseDeleteWizard(models.TransientModel):
         compute="_compute_phases_active", export_string_translation=False
     )
 
+    @api.depends("phase_ids")
     def _compute_projects_count(self) -> None:
         counts = dict(
             self.env["project.project"]
