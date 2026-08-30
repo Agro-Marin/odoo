@@ -869,6 +869,19 @@ class ResourceCalendar(models.Model):
                 elif self.flexible_hours or (
                     resource and resource_calendars[resource].flexible_hours
                 ):
+                    # A flexible calendar has no separate lunch attendance
+                    # lines to report -- same contract as the ``self``-only
+                    # short-circuit above, but decided per resource, since
+                    # ``resource_calendars[resource]`` (the resource's own,
+                    # current calendar) can be flexible even when ``self``
+                    # is not. ``_flexible_attendance_intervals`` has no
+                    # ``lunch`` parameter, so it must never be reached here
+                    # with ``lunch=True``.
+                    if lunch:
+                        result_per_resource_id[resource.id] = Intervals(
+                            [], keep_distinct=True
+                        )
+                        continue
                     calendar = resource_calendars[resource] if resource else self
                     intervals = calendar._flexible_attendance_intervals(
                         start_datetime, end_datetime, tz
