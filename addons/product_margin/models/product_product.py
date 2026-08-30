@@ -265,6 +265,9 @@ class ProductProduct(models.Model):
             ["state", "payment_state", "move_type", "invoice_date", "company_id"]
         )
         self.env["product.template"].flush_model(["list_price"])
+        # sale/purchase sides share the same per-line signed formulas (sign
+        # flips on move_type); FILTER splits one pass over account_move_line
+        # into the two buckets instead of running the identical query twice.
         sqlstr = """
                 WITH currency_rate AS MATERIALIZED ({})
                 SELECT
@@ -272,10 +275,18 @@ class ProductProduct(models.Model):
                     SUM(
                         l.price_unit / (CASE COALESCE(cr.rate, 0) WHEN 0 THEN 1.0 ELSE cr.rate END) *
                         l.quantity * (CASE WHEN i.move_type IN ('out_invoice', 'in_invoice') THEN 1 ELSE -1 END) * ((100 - l.discount) * 0.01)
-                    ) / NULLIF(SUM(l.quantity * (CASE WHEN i.move_type IN ('out_invoice', 'in_invoice') THEN 1 ELSE -1 END)), 0) AS avg_unit_price,
-                    SUM(l.quantity * (CASE WHEN i.move_type IN ('out_invoice', 'in_invoice') THEN 1 ELSE -1 END)) AS num_qty,
-                    SUM(CASE WHEN i.move_type = 'out_invoice' THEN -l.balance WHEN i.move_type = 'in_invoice' THEN l.balance ELSE -ABS(l.balance) END) AS total,
-                    SUM(l.quantity * pt.list_price * (CASE WHEN i.move_type IN ('out_invoice', 'in_invoice') THEN 1 ELSE -1 END)) AS sale_expected
+                    ) FILTER (WHERE i.move_type = ANY(%(sale_types)s)) /
+                    NULLIF(SUM(l.quantity * (CASE WHEN i.move_type IN ('out_invoice', 'in_invoice') THEN 1 ELSE -1 END)) FILTER (WHERE i.move_type = ANY(%(sale_types)s)), 0) AS sale_avg_unit_price,
+                    SUM(l.quantity * (CASE WHEN i.move_type IN ('out_invoice', 'in_invoice') THEN 1 ELSE -1 END)) FILTER (WHERE i.move_type = ANY(%(sale_types)s)) AS sale_num_qty,
+                    SUM(CASE WHEN i.move_type = 'out_invoice' THEN -l.balance WHEN i.move_type = 'in_invoice' THEN l.balance ELSE -ABS(l.balance) END) FILTER (WHERE i.move_type = ANY(%(sale_types)s)) AS sale_total,
+                    SUM(l.quantity * pt.list_price * (CASE WHEN i.move_type IN ('out_invoice', 'in_invoice') THEN 1 ELSE -1 END)) FILTER (WHERE i.move_type = ANY(%(sale_types)s)) AS sale_expected,
+                    SUM(
+                        l.price_unit / (CASE COALESCE(cr.rate, 0) WHEN 0 THEN 1.0 ELSE cr.rate END) *
+                        l.quantity * (CASE WHEN i.move_type IN ('out_invoice', 'in_invoice') THEN 1 ELSE -1 END) * ((100 - l.discount) * 0.01)
+                    ) FILTER (WHERE i.move_type = ANY(%(purchase_types)s)) /
+                    NULLIF(SUM(l.quantity * (CASE WHEN i.move_type IN ('out_invoice', 'in_invoice') THEN 1 ELSE -1 END)) FILTER (WHERE i.move_type = ANY(%(purchase_types)s)), 0) AS purchase_avg_unit_price,
+                    SUM(l.quantity * (CASE WHEN i.move_type IN ('out_invoice', 'in_invoice') THEN 1 ELSE -1 END)) FILTER (WHERE i.move_type = ANY(%(purchase_types)s)) AS purchase_num_qty,
+                    SUM(CASE WHEN i.move_type = 'out_invoice' THEN -l.balance WHEN i.move_type = 'in_invoice' THEN l.balance ELSE -ABS(l.balance) END) FILTER (WHERE i.move_type = ANY(%(purchase_types)s)) AS purchase_total
                 FROM account_move_line l
                 LEFT JOIN account_move i ON (l.move_id = i.id)
                 LEFT JOIN product_product product ON (product.id=l.product_id)
@@ -285,33 +296,45 @@ class ProductProduct(models.Model):
                  cr.company_id = i.company_id and
                  cr.date_start <= COALESCE(i.invoice_date, NOW()) and
                  (cr.date_end IS NULL OR cr.date_end > COALESCE(i.invoice_date, NOW())))
-                WHERE l.product_id = ANY(%s)
-                AND i.state = ANY(%s)
-                AND i.payment_state = ANY(%s)
-                AND i.move_type = ANY(%s)
-                AND i.invoice_date BETWEEN %s AND  %s
-                AND i.company_id = %s
+                WHERE l.product_id = ANY(%(product_ids)s)
+                AND i.state = ANY(%(states)s)
+                AND i.payment_state = ANY(%(payment_states)s)
+                AND i.move_type = ANY(%(all_types)s)
+                AND i.invoice_date BETWEEN %(date_from)s AND %(date_to)s
+                AND i.company_id = %(company_id)s
                 AND l.display_type = 'product'
                 GROUP BY l.product_id
                 """.format(self.env["res.currency"]._select_companies_rates())
-        invoice_types = ("out_invoice", "out_refund")
+        sale_types = ("out_invoice", "out_refund")
+        purchase_types = ("in_invoice", "in_refund")
         self.env.cr.execute(
             sqlstr,
-            (
-                list(self.ids),
-                list(states),
-                list(payment_states),
-                list(invoice_types),
-                date_from,
-                date_to,
-                company_id,
-            ),
+            {
+                "sale_types": list(sale_types),
+                "purchase_types": list(purchase_types),
+                "product_ids": list(self.ids),
+                "states": list(states),
+                "payment_states": list(payment_states),
+                "all_types": [*sale_types, *purchase_types],
+                "date_from": date_from,
+                "date_to": date_to,
+                "company_id": company_id,
+            },
         )
-        for product_id, avg, qty, total, sale in self.env.cr.fetchall():
-            res[product_id]["sale_avg_price"] = avg or 0.0
-            res[product_id]["sale_num_invoiced"] = qty or 0.0
-            res[product_id]["turnover"] = total or 0.0
-            res[product_id]["sale_expected"] = sale or 0.0
+        for (
+            product_id,
+            sale_avg,
+            sale_qty,
+            sale_total,
+            sale_expected,
+            purchase_avg,
+            purchase_qty,
+            purchase_total,
+        ) in self.env.cr.fetchall():
+            res[product_id]["sale_avg_price"] = sale_avg or 0.0
+            res[product_id]["sale_num_invoiced"] = sale_qty or 0.0
+            res[product_id]["turnover"] = sale_total or 0.0
+            res[product_id]["sale_expected"] = sale_expected or 0.0
             res[product_id]["sales_gap"] = (
                 res[product_id]["sale_expected"] - res[product_id]["turnover"]
             )
@@ -328,23 +351,9 @@ class ProductProduct(models.Model):
                 / res[product_id]["sale_expected"]
             ) or 0.0
 
-        invoice_types = ("in_invoice", "in_refund")
-        self.env.cr.execute(
-            sqlstr,
-            (
-                list(self.ids),
-                list(states),
-                list(payment_states),
-                list(invoice_types),
-                date_from,
-                date_to,
-                company_id,
-            ),
-        )
-        for product_id, avg, qty, total, _dummy in self.env.cr.fetchall():
-            res[product_id]["purchase_avg_price"] = avg or 0.0
-            res[product_id]["purchase_num_invoiced"] = qty or 0.0
-            res[product_id]["total_cost"] = total or 0.0
+            res[product_id]["purchase_avg_price"] = purchase_avg or 0.0
+            res[product_id]["purchase_num_invoiced"] = purchase_qty or 0.0
+            res[product_id]["total_cost"] = purchase_total or 0.0
             res[product_id]["total_margin"] = (
                 res[product_id].get("turnover", 0.0) - res[product_id]["total_cost"]
             )
