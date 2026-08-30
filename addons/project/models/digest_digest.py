@@ -32,8 +32,9 @@ class DigestDigest(models.Model):
 
     def _get_kpi_actions(self, company: Any, user: Any) -> dict:
         res = super()._get_kpi_actions(company, user)
-        res["kpi_project_task_opened"] = (
-            "project.open_view_project_all?menu_id=%s"
-            % self.env.ref("project.menu_project_root").id
-        )
+        menu = self.env.ref("project.menu_project_root", raise_if_not_found=False)
+        if menu:
+            res["kpi_project_task_opened"] = (
+                "project.open_view_project_all?menu_id=%s" % menu.id
+            )
         return res
