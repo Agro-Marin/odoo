@@ -42,6 +42,7 @@ class TalentPoolAddApplicants(models.TransientModel):
                         "job_id": False,
                         "talent_pool_ids": self.talent_pool_ids,
                         "categ_ids": applicant.categ_ids + self.categ_ids,
+                        "attachment_ids": applicant._copy_attachments_commands(),
                     }
                 )
                 talent.write({"pool_applicant_id": talent.id})

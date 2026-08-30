@@ -1,3 +1,5 @@
+import base64
+
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 from odoo.tests import Form, TransactionCase, tagged
@@ -409,3 +411,74 @@ class TestRecruitmentTalentPool(TransactionCase):
         """Force the creation of tracking values."""
         self.env.flush_all()
         self.cr.flush()
+
+    def test_attachments_follow_the_applicant_out_of_the_pool(self):
+        """
+        Test that the documents follow when an application leaves the pool.
+
+        ``attachment_ids`` is a One2many keyed on ``res_id``, and ``copy_data``
+        leaves it out, so both the talent created for the pool and the
+        application created for a job used to come out empty.
+        """
+        attachments = self.env["ir.attachment"].create(
+            [
+                {
+                    "name": "cv.pdf",
+                    "res_model": "hr.applicant",
+                    "res_id": self.t_applicant_1.id,
+                    "datas": base64.b64encode(b"cv"),
+                },
+                {
+                    "name": "cover_letter.pdf",
+                    "res_model": "hr.applicant",
+                    "res_id": self.t_applicant_1.id,
+                    "datas": base64.b64encode(b"letter"),
+                },
+            ]
+        )
+        self.t_applicant_1.invalidate_recordset(["attachment_ids"])
+        self.assertEqual(len(self.t_applicant_1.attachment_ids), 2)
+
+        pool_wizard = self.env["talent.pool.add.applicants"].create(
+            {
+                "applicant_ids": self.t_applicant_1.ids,
+                "talent_pool_ids": self.t_talent_pool_1.ids,
+            }
+        )
+        talent = pool_wizard._add_applicants_to_pool()
+
+        self.assertEqual(
+            sorted(talent.attachment_ids.mapped("name")),
+            ["cover_letter.pdf", "cv.pdf"],
+            "The talent keeps every document of the application it came from.",
+        )
+        self.assertEqual(
+            talent.attachment_ids.mapped("res_id"),
+            [talent.id, talent.id],
+            "The copies must hang from the talent, not from the original.",
+        )
+        self.assertEqual(
+            len(self.t_applicant_1.attachment_ids),
+            2,
+            "The original application keeps its own documents.",
+        )
+
+        job_wizard = self.env["job.add.applicants"].create(
+            {
+                "applicant_ids": talent.ids,
+                "job_ids": self.t_job_2.ids,
+            }
+        )
+        new_application = job_wizard._add_applicants_to_job()
+
+        self.assertEqual(
+            len(new_application.attachment_ids),
+            1,
+            "Applying to a job carries the latest document, the CV in practice.",
+        )
+        self.assertEqual(
+            new_application.attachment_ids.res_id,
+            new_application.id,
+            "That copy must hang from the new application.",
+        )
+        self.assertEqual(len(attachments.exists()), 2)

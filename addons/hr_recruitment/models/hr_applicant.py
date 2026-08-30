@@ -4,7 +4,7 @@ from datetime import datetime
 
 from markupsafe import Markup
 
-from odoo import api, fields, models, tools
+from odoo import Command, api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.tools import SQL, clean_context
@@ -772,6 +772,24 @@ class HrApplicant(models.Model):
             domains.append([("active", "=", True), ("date_closed", "=", False)])
 
         return Domain.OR(domains)
+
+    def _copy_attachments_commands(self, limit=None):
+        """Duplicate this application's attachments and return link commands.
+
+        ``attachment_ids`` is a One2many keyed on ``res_id``, so it is left out
+        of ``copy_data`` and the copies have to be made by hand. They are created
+        against this record and relinked by the caller's ``copy``, which repoints
+        ``res_id`` at the new one.
+
+        :param int limit: keep only the newest N attachments, all of them if None
+        :return: ``Command.link`` commands for the freshly created copies
+        """
+        self.ensure_one()
+        attachments = self.attachment_ids[:limit] if limit else self.attachment_ids
+        copies = self.env["ir.attachment"]
+        for attachment in attachments:
+            copies |= attachment.copy({"res_id": self.id})
+        return [Command.link(copy.id) for copy in copies]
 
     def _compute_attachment_number(self):
         read_group_res = self.env["ir.attachment"]._read_group(
