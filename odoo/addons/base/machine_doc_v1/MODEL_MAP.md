@@ -1106,7 +1106,7 @@ Inherits: `mixin.format.address`, `mixin.format.vat.label`, `mixin.avatar`, `mix
 - Address fields: `street`, `street2`, `zip`, `city`, `state_id`, `country_id`
 - `partner_latitude`, `partner_longitude` (Float)
 - `email`, `email_formatted` (Char), `phone` (Char)
-- `is_company` (Boolean), `company_type` (Selection: person/company)
+- `is_company` (Boolean)
 - `company_id` (Many2one → res.company)
 - `commercial_partner_id` (Many2one, computed, stored, recursive, indexed)
 - `commercial_company_name` (Char, computed, stored)
@@ -1139,21 +1139,6 @@ Partner tags — hierarchical.
 #### ResPartnerIndustry — `res.partner.industry` (`_name`)
 
 **Fields:** `name` (Char, translatable), `full_name` (Char, translatable), `active` (Boolean)
-
-### models/res_partner_age_range.py
-
-#### ResPartnerAgeRange — `res.partner.age.range` (`_name`, inherits `mixin.band`, `_order = min_value`)
-
-Named age bands for partners. The band arithmetic and the overlap constraint come
-from `mixin.band`; this model adds the recompute of every partner whose band
-changed when a range is created, edited or removed.
-
-**Fields:** `name` (Char, `UNIQUE(name)`), `active` (Boolean), `min_value`, `max_value` (from `mixin.band`)
-
-**Key Methods:**
-- `_current_spans()`, `_span_domain(...)` — The bands in force and their partner domain
-- `_add_partners_to_compute(...)` — Mark the affected partners on create/write/unlink
-- `_default_min_value()` — Continue from the highest existing band
 
 ### models/mixin_format_address.py
 
@@ -1834,7 +1819,6 @@ Quick lookup — file → model → primary role:
 | `mixin_format_address.py` | mixin.format.address | Address formatting |
 | `mixin_format_vat_label.py` | mixin.format.vat.label | VAT label formatting |
 | `res_partner_industry.py` | res.partner.industry | Industries |
-| `res_partner_age_range.py` | res.partner.age.range | Partner age brackets |
 | `res_users.py` | res.users | User accounts |
 | `res_users_apikeys.py` | res.users.apikeys, .description, .show | API keys |
 | `res_users_deletion.py` | res.users.deletion | User deletion queue |

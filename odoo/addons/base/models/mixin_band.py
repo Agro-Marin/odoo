@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
@@ -23,9 +25,9 @@ class MixinBand(models.AbstractModel):
     def _is_band(self):
         return True
 
-    def _band_siblings(self):
+    def _band_scope_domain(self):
         self.ensure_one()
-        return self.search([("id", "!=", self.id)])
+        return []
 
     @staticmethod
     def _ranges_overlap(band_a, band_b):
@@ -40,6 +42,7 @@ class MixinBand(models.AbstractModel):
 
     @api.constrains("min_value", "max_value", "active")
     def _check_band(self):
+        scales = defaultdict(self.browse)
         for record in self:
             if not record._is_band():
                 if record.min_value or record.max_value:
@@ -70,14 +73,24 @@ class MixinBand(models.AbstractModel):
                 )
             if not record.active:
                 continue
-            for other in record._band_siblings():
-                if not other._is_band():
-                    continue
-                if record._ranges_overlap(record, other):
-                    raise ValidationError(
-                        self.env._(
-                            "%(a)s overlaps with %(b)s.",
-                            a=record.display_name,
-                            b=other.display_name,
+            scales[repr(record._band_scope_domain())] |= record
+
+        # One query per distinct scale, not one per record. Which bands may
+        # conflict is a per-record notion -- two attributes' buckets, or two
+        # companies' bands, never overlap each other -- so the hook stays per
+        # record while every record answering it alike shares one search.
+        # Importing a scale used to cost one query per band in it.
+        for records in scales.values():
+            candidates = records.search(records[0]._band_scope_domain())
+            for record in records:
+                for other in candidates:
+                    if other == record or not other._is_band():
+                        continue
+                    if record._ranges_overlap(record, other):
+                        raise ValidationError(
+                            self.env._(
+                                "%(a)s overlaps with %(b)s.",
+                                a=record.display_name,
+                                b=other.display_name,
+                            )
                         )
-                    )

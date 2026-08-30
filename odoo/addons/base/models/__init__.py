@@ -81,12 +81,13 @@ from . import tag_tag
 
 from . import mixin_format_vat_label
 from . import mixin_format_address
-from . import res_partner_age_range
 from . import res_partner_category
 from . import res_partner_industry
 from . import res_country
 from . import res_lang
 from . import res_partner
+from . import res_partner_identifier
+from . import res_partner_identifier_type
 
 from . import res_bank
 from . import res_config

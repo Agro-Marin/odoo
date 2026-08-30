@@ -1,5 +1,5 @@
 import base64
-from datetime import date
+from datetime import date, datetime
 from unittest.mock import patch
 
 from odoo import fields
@@ -222,13 +222,11 @@ class TestQwebFieldRecordContext(common.TransactionCase):
 class TestQwebFieldSelectionRecord(common.TransactionCase):
     def test_selection_record_to_html_label(self):
         partner = self.env["res.partner"].create({"name": "Sel Probe"})
-        result = self.env["ir.qweb.field.selection"].record_to_html(
-            partner, "company_type", {}
-        )
-        field = partner._fields["company_type"]
-        expected = dict(field.get_description(self.env)["selection"])["person"]
+        result = self.env["ir.qweb.field.selection"].record_to_html(partner, "type", {})
+        field = partner._fields["type"]
+        expected = dict(field.get_description(self.env)["selection"])["contact"]
         self.assertEqual(result, expected)
-        self.assertNotEqual(result, "person", "label, not raw value, expected")
+        self.assertNotEqual(result, "contact", "label, not raw value, expected")
 
 
 class TestQwebFieldMonetaryType(common.TransactionCase):
@@ -675,6 +673,44 @@ class TestQwebFieldDatetimeOnADate(common.TransactionCase):
         )
         self.assertIn("2024", rendered)
         self.assertIn("12:00:00 AM", rendered)
+
+    def test_a_readers_timezone_does_not_move_a_date(self):
+        converter = self.env["ir.qweb.field.datetime"].with_context(
+            tz="Europe/Brussels"
+        )
+
+        rendered = converter.value_to_html(date(2024, 5, 4), {})
+
+        self.assertIn("05/04/2024", rendered)
+        self.assertIn(
+            "12:00:00 AM",
+            rendered,
+            "a date names no instant, so no timezone may shift it",
+        )
+
+    def test_a_named_timezone_does_not_move_a_date_either(self):
+        rendered = self.env["ir.qweb.field.datetime"].value_to_html(
+            date(2024, 5, 4), {"tz_name": "Pacific/Kiritimati"}
+        )
+
+        self.assertIn(
+            "05/04/2024",
+            rendered,
+            "a +14 offset must not carry the date onto the next day",
+        )
+
+    def test_a_real_datetime_still_moves_with_the_reader(self):
+        converter = self.env["ir.qweb.field.datetime"].with_context(
+            tz="Europe/Brussels"
+        )
+
+        rendered = converter.value_to_html(datetime(2024, 5, 4, 0, 0, 0), {})
+
+        self.assertIn(
+            "02:00:00 AM",
+            rendered,
+            "an instant is still shown in the reader's timezone",
+        )
 
 
 class TestQwebFieldMonetaryPrecision(common.TransactionCase):

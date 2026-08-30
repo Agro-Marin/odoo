@@ -49,7 +49,7 @@ class TestIrDefaultCompanyDependent(TransactionCase):
         self.assertIn(str(new_company.id), second)
         self.assertEqual(set(first) | {str(new_company.id)}, set(second))
 
-    @mute_logger("odoo.orm.fields")
+    @mute_logger("odoo.fields")
     def test_evaluate_condition_true_and_false(self):
         self.assertIs(
             self.IrDefault._evaluate_condition_with_fallback(
@@ -64,7 +64,7 @@ class TestIrDefaultCompanyDependent(TransactionCase):
             False,
         )
 
-    @mute_logger("odoo.orm.fields")
+    @mute_logger("odoo.fields")
     def test_evaluate_condition_unknown_returns_none(self):
         new_test_user(self.env, login="ird_audit_user")
         self.assertIsNone(

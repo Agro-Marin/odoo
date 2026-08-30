@@ -158,23 +158,21 @@ class BaseCommon(TransactionCase):
 
 
 class _SeededUserCase:
-    _seed_login = ""
-    _seed_groups = ()
-
-    @classmethod
-    def _seed_partner_values(cls):
-        raise NotImplementedError
-
+    # The identity is passed in rather than read off class attributes. A test
+    # class may inherit two seeded cases at once (HttpCaseWithUserDemo and
+    # HttpCaseWithUserPortal), and a class attribute resolves once through the
+    # MRO -- so both would have seeded the same login and the second user would
+    # never exist. Hook names are per identity for the same reason.
     @classmethod
     def _rename_admin_partner(cls):
         return False
 
     @classmethod
-    def _seed_user(cls):
+    def _seed_user(cls, login, groups, partner_values, create_context=None):
         if cls._rename_admin_partner():
             cls.env.ref("base.partner_admin").write({"name": "Mitchell Admin"})
 
-        user = cls.env["res.users"].sudo().search([("login", "=", cls._seed_login)])
+        user = cls.env["res.users"].sudo().search([("login", "=", login)])
         user = user.with_env(cls.env)
         partner = user.partner_id
 
@@ -182,58 +180,51 @@ class _SeededUserCase:
             cls.env["ir.config_parameter"].sudo().set_param(
                 "auth_password_policy.minlength", 4
             )
-            partner = cls.env["res.partner"].create(cls._seed_partner_values())
+            partner = cls.env["res.partner"].create(partner_values)
             user = (
                 cls.env["res.users"]
-                .with_context(**cls._seed_create_context())
+                .with_context(**(create_context or {}))
                 .create(
                     {
-                        "login": cls._seed_login,
-                        "password": cls._seed_login,
+                        "login": login,
+                        "password": login,
                         "partner_id": partner.id,
-                        "group_ids": [
-                            Command.set([cls.env.ref(g).id for g in cls._seed_groups])
-                        ],
+                        "group_ids": [Command.set([cls.env.ref(g).id for g in groups])],
                     }
                 )
             )
         return user, partner
 
-    @classmethod
-    def _seed_create_context(cls):
-        return {}
-
 
 class _UserDemoCase(_SeededUserCase):
-    _seed_login = "demo"
-    _seed_groups = ("base.group_user", "base.group_partner_manager")
-
     @classmethod
-    def _seed_partner_values(cls):
+    def _demo_partner_values(cls):
         return {"name": "Marc Demo", "email": "mark.brown23@example.com"}
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.user_demo, cls.partner_demo = cls._seed_user()
+        cls.user_demo, cls.partner_demo = cls._seed_user(
+            "demo",
+            ("base.group_user", "base.group_partner_manager"),
+            cls._demo_partner_values(),
+        )
 
 
 class _UserPortalCase(_SeededUserCase):
-    _seed_login = "portal"
-    _seed_groups = ("base.group_portal",)
-
     @classmethod
-    def _seed_partner_values(cls):
+    def _portal_partner_values(cls):
         return {"name": "Joel Willis", "email": "joel.willis63@example.com"}
-
-    @classmethod
-    def _seed_create_context(cls):
-        return {"no_reset_password": True}
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.user_portal, cls.partner_portal = cls._seed_user()
+        cls.user_portal, cls.partner_portal = cls._seed_user(
+            "portal",
+            ("base.group_portal",),
+            cls._portal_partner_values(),
+            create_context={"no_reset_password": True},
+        )
 
 
 class TransactionCaseWithUserDemo(_UserDemoCase, TransactionCase):
@@ -248,8 +239,8 @@ class HttpCaseWithUserDemo(_UserDemoCase, HttpCase):
         return True
 
     @classmethod
-    def _seed_partner_values(cls):
-        return {**super()._seed_partner_values(), "tz": "UTC"}
+    def _demo_partner_values(cls):
+        return {**super()._demo_partner_values(), "tz": "UTC"}
 
     @classmethod
     def setUpClass(cls):

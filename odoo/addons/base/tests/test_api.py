@@ -351,7 +351,7 @@ class TestAPI(SavepointCaseWithUserDemo):
     @mute_logger("odoo.models")
     def test_60_prefetch_read(self):
         Partner = self.env["res.partner"]
-        field = type(Partner).company_type
+        field = type(Partner).type_address_label
         self.assertTrue(field.compute and not field.store)
 
         partner1 = Partner.create({"name": "Foo"})
@@ -360,15 +360,15 @@ class TestAPI(SavepointCaseWithUserDemo):
 
         self.env.clear()
         partner1 = partner1.with_prefetch()
-        partner1.read(["company_type"])
-        self.assertIn("company_type", partner1._cache)
-        self.assertNotIn("company_type", partner2._cache)
+        partner1.read(["type_address_label"])
+        self.assertIn("type_address_label", partner1._cache)
+        self.assertNotIn("type_address_label", partner2._cache)
 
         self.env.clear()
         partner1 = partner1.with_prefetch()
-        partner1.read(["child_ids", "company_type"])
-        self.assertIn("company_type", partner1._cache)
-        self.assertNotIn("company_type", partner2._cache)
+        partner1.read(["child_ids", "type_address_label"])
+        self.assertIn("type_address_label", partner1._cache)
+        self.assertNotIn("type_address_label", partner2._cache)
 
     def test_60_reversed(self):
         records = self.partners

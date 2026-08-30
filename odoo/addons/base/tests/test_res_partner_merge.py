@@ -1,3 +1,5 @@
+import unittest
+
 from odoo import Command
 from odoo.exceptions import AccessError, UserError
 from odoo.tests.common import TransactionCase, tagged
@@ -562,3 +564,79 @@ class TestMergePartnerDefaultsCache(TransactionCase):
             "a record created after the merge must not default to a deleted partner",
         )
         self.assertEqual(default, dst)
+
+
+@tagged("res_partner_merge")
+class TestMergePartnerSimilarNames(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.Partner = cls.env["res.partner"]
+        cls.Wizard = cls.env["base.partner.merge.automatic.wizard"]
+        if not cls.env.registry.has_trigram:
+            raise unittest.SkipTest("pg_trgm is required for similar-name grouping")
+
+    def _wizard(self, **values):
+        return self.Wizard.create({"match_similar_names": True, **values})
+
+    def test_a_near_miss_the_exact_criteria_cannot_see_is_grouped(self):
+        keep = self.Partner.create({"name": "Acme Corporation"})
+        dupe = self.Partner.create({"name": "Acme Corporatlon"})
+        groups = self._wizard()._similar_name_groups()
+        grouped = {pid for _min_id, ids in groups for pid in ids}
+        self.assertLessEqual({keep.id, dupe.id}, grouped)
+
+        exact = self.Wizard.create({"group_by_name": True})
+        self.env.cr.execute(exact._generate_query(["name"]))
+        exact_ids = {pid for _min_id, ids in self.env.cr.fetchall() for pid in ids}
+        self.assertNotIn(
+            dupe.id, exact_ids, "grouping on equal names cannot see a near miss"
+        )
+
+    def test_unrelated_names_are_not_grouped(self):
+        left = self.Partner.create({"name": "Zenith Manufacturing"})
+        right = self.Partner.create({"name": "Bakery Delights"})
+        groups = self._wizard()._similar_name_groups()
+        for _min_id, ids in groups:
+            self.assertFalse(
+                {left.id, right.id} <= set(ids), "unrelated names were merged"
+            )
+
+    def test_a_higher_threshold_rejects_what_a_lower_one_accepts(self):
+        self.Partner.create({"name": "Northwind Traders"})
+        self.Partner.create({"name": "Northwind Trading"})
+        wizard = self._wizard()
+        param = self.env["ir.config_parameter"].sudo()
+
+        param.set_param("base.partner_name_similarity_threshold", "0.7")
+        self.assertTrue(wizard._similar_name_groups())
+
+        param.set_param("base.partner_name_similarity_threshold", "0.999")
+        self.assertFalse(wizard._similar_name_groups())
+
+    def test_an_unusable_threshold_falls_back_to_the_default(self):
+        wizard = self._wizard()
+        param = self.env["ir.config_parameter"].sudo()
+        for raw in ("", "not a number", "0", "1.5", "-0.3"):
+            param.set_param("base.partner_name_similarity_threshold", raw)
+            self.assertEqual(wizard._similar_name_threshold(), 0.75, f"raw={raw!r}")
+
+    def test_three_mutually_similar_names_form_one_group_not_three(self):
+        names = ["Globex Industries", "Globex Industrles", "Globex Industriez"]
+        created = {self.Partner.create({"name": n}).id for n in names}
+        groups = self._wizard()._similar_name_groups()
+        holding = [ids for _min_id, ids in groups if created & set(ids)]
+        self.assertEqual(len(holding), 1, "a cluster must not be split into pairs")
+        self.assertLessEqual(created, set(holding[0]))
+
+    def test_similar_names_alone_is_a_valid_selection(self):
+        self.Partner.create({"name": "Umbrella Holdings"})
+        self.Partner.create({"name": "Umbrella Holdlngs"})
+        wizard = self._wizard()
+        wizard.action_start_manual_process()
+        self.assertEqual(wizard.state, "selection")
+        self.assertGreaterEqual(wizard.number_group, 1)
+
+    def test_neither_exact_nor_similar_is_still_refused(self):
+        with self.assertRaises(UserError):
+            self.Wizard.create({}).action_start_manual_process()

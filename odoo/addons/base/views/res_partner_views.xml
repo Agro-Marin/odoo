@@ -28,6 +28,24 @@
                     domain="[('is_company', '=', True)]" />
                 <separator />
                 <filter
+                    name="my_contacts"
+                    string="My Contacts"
+                    domain="[('user_id', '=', uid)]" />
+                <separator />
+                <filter
+                    name="without_email"
+                    string="Without Email"
+                    domain="[('email', '=', False)]" />
+                <filter
+                    name="without_phone"
+                    string="Without Phone"
+                    domain="[('phone', '=', False), ('mobile', '=', False)]" />
+                <filter
+                    name="without_address"
+                    string="Without Address"
+                    domain="[('street', '=', False), ('city', '=', False)]" />
+                <separator />
+                <filter
                     name="inactive"
                     string="Archived"
                     domain="[('active', '=', False)]" />
@@ -46,6 +64,18 @@
                         name="group_country"
                         string="Country"
                         context="{'group_by': 'country_id'}" />
+                    <filter
+                        name="group_category"
+                        string="Tags"
+                        context="{'group_by': 'category_id'}" />
+                    <filter
+                        name="group_industry"
+                        string="Industry"
+                        context="{'group_by': 'industry_id'}" />
+                    <filter
+                        name="group_type"
+                        string="Address Type"
+                        context="{'group_by': 'type'}" />
                     <filter
                         string="Properties"
                         name="group_by_properties"
@@ -197,11 +227,6 @@
                     class="oe_avatar"
                     options="{'preview_image': 'avatar_128'}" />
                 <div class="oe_title">
-                    <field
-                        name="company_type"
-                        options="{'horizontal': true}"
-                        widget="radio"
-                        groups="base.group_no_one" />
                     <h1>
                         <field
                             id="company"
@@ -331,7 +356,20 @@
                         <field name="same_vat_partner_id" context="{'show_address': False, 'show_vat': False}" /> (Same <field name="vat_label" />) and <field name="same_company_registry_partner_id" context="{'show_address': False, 'show_vat': False}" /> (Same <field name="company_registry_label" />) </span>
                 </div>
                 <sheet>
-                    <div name="button_box" class="oe_button_box" />
+                    <div name="button_box" class="oe_button_box">
+                        <button
+                            name="action_view_duplicates"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-clone"
+                            invisible="not duplicate_count"
+                            groups="base.group_partner_manager">
+                            <field
+                                name="duplicate_count"
+                                string="Duplicates"
+                                widget="statinfo" />
+                        </button>
+                    </div>
                     <widget
                         name="web_ribbon"
                         title="Archived"
@@ -346,9 +384,9 @@
                             <field name="avatar_128" invisible="1" />
                             <div class="d-flex flex-column flex-grow-1">
                                 <field
-                                    name="company_type"
-                                    widget="radio"
-                                    options="{'horizontal': true}" />
+                                    name="is_company"
+                                    string="Company"
+                                    widget="boolean_toggle" />
                                 <h1 class="mb-0 w-md-75">
                                     <field
                                         name="name"
@@ -401,20 +439,7 @@
                                 placeholder="Company Name..."
                                 widget="res_partner_many2one"
                                 context="{'default_is_company': True, 'default_user_id': user_id, 'show_address': False}"
-                                invisible="((is_company and not parent_id) or company_name) and company_name != ''" />
-                            <div
-                                colspan="2"
-                                class="d-flex gap-2"
-                                invisible="not company_name or company_name == '' or is_company">
-                                <label for="company_name" class="fw-bold text-nowrap" />
-                                <field name="company_name" />
-                                <button
-                                    name="create_company"
-                                    string="Create"
-                                    type="object"
-                                    icon="fa-solid fa-square-plus"
-                                    class="oe_edit_only btn-link text-nowrap" />
-                            </div>
+                                invisible="is_company and not parent_id" />
                             <span
                                 class="o_form_label o_td_label o_address_type"
                                 name="address_name">
@@ -708,6 +733,20 @@
                                     <field name="company_id" invisible="1" />
                                 </group>
                             </group>
+                        </page>
+                        <page
+                            name="identifiers"
+                            string="Identifiers"
+                            groups="base.group_partner_manager">
+                            <field name="identifier_ids" nolabel="1">
+                                <list editable="bottom">
+                                    <field
+                                        name="type_id"
+                                        options="{'no_quick_create': True}" />
+                                    <field name="value" />
+                                    <field name="normalized_value" optional="hide" />
+                                </list>
+                            </field>
                         </page>
                         <page name="internal_notes" string="Notes">
                             <field name="comment" placeholder="Internal notes..." />

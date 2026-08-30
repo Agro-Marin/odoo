@@ -37,7 +37,7 @@ class TestCatalogMixin(TransactionCase):
         rule = no_name_uniq_index()
         self.assertEqual(rule.get_definition(self.env.registry), "")
 
-    @mute_logger("odoo.sql_db")
+    @mute_logger("odoo.db.cursor")
     def test_duplicate_name_under_same_parent_is_refused(self):
         self.Tag.create({"name": "Twin", "parent_id": self.root.id})
         with self.assertRaises(psycopg.errors.UniqueViolation):
@@ -50,14 +50,14 @@ class TestCatalogMixin(TransactionCase):
         self.Tag.create({"name": "Shared", "parent_id": other_root.id})
         self.env.flush_all()
 
-    @mute_logger("odoo.sql_db")
+    @mute_logger("odoo.db.cursor")
     def test_null_scope_still_collides(self):
         self.Tag.create({"name": "Loner"})
         with self.assertRaises(psycopg.errors.UniqueViolation):
             with self.cr.savepoint():
                 self.Tag.create({"name": "Loner"})
 
-    @mute_logger("odoo.sql_db")
+    @mute_logger("odoo.db.cursor")
     def test_archived_record_keeps_its_name_reserved(self):
         tag = self.Tag.create({"name": "Retired"})
         tag.active = False
@@ -65,7 +65,7 @@ class TestCatalogMixin(TransactionCase):
             with self.cr.savepoint():
                 self.Tag.create({"name": "Retired"})
 
-    @mute_logger("odoo.sql_db")
+    @mute_logger("odoo.db.cursor")
     def test_translation_document_does_not_defeat_the_rule(self):
         self.env["res.lang"]._activate_lang("es_MX")
         self.Tag.create({"name": "Whitefly"})

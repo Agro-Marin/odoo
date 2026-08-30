@@ -820,7 +820,7 @@ class TestIrActionsTableInheritanceRoot(TransactionCase):
     def test_a_foreign_key_to_the_root_would_reject_a_subtype_row(self):
         self.env.cr.execute("SELECT id FROM ir_act_window LIMIT 1")
         [act_window_id] = self.env.cr.fetchone()
-        with self.assertRaises(IntegrityError), mute_logger("odoo.sql_db"):
+        with self.assertRaises(IntegrityError), mute_logger("odoo.db.cursor"):
             with self.env.cr.savepoint():
                 self.env.cr.execute("CREATE TABLE audit_root_fk (act_id integer)")
                 self.env.cr.execute(

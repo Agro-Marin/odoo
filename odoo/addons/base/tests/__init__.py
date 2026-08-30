@@ -41,6 +41,7 @@ from . import test_ir_http
 from . import test_ir_mail_server
 from . import test_ir_mail_server_smtpd
 from . import test_ir_model
+from . import test_table_object_conversion
 from . import test_ir_model_data
 from . import test_ir_module
 from . import test_ir_sequence
@@ -95,6 +96,7 @@ from . import test_res_country
 from . import test_res_partner
 from . import test_res_partner_sync
 from . import test_res_partner_bank
+from . import test_res_partner_identifier
 from . import test_res_partner_merge
 from . import test_res_users
 from . import test_res_users_apikeys
@@ -103,6 +105,7 @@ from . import test_res_users_log
 from . import test_res_users_settings
 from . import test_reports
 from . import test_test_retry
+from . import test_seeded_users
 from . import test_test_suite
 from . import test_tests_tags
 from . import test_transactions
@@ -128,6 +131,4 @@ from . import test_backend_integration
 from . import test_res_config_install
 from . import test_default_group
 from . import test_ir_actions_webhook
-
-from . import test_res_partner_age_range
 from . import test_xml_utils

@@ -28,13 +28,20 @@ class IrModelConstraint(models.Model):
         readonly=True,
         help="PostgreSQL constraint or foreign key name.",
     )
-    definition = fields.Char(help="PostgreSQL constraint definition", readonly=True)
+    definition = fields.Char(
+        readonly=True,
+        help="PostgreSQL constraint definition",
+    )
     message = fields.Char(
-        help="Error message returned when the constraint is violated.",
         translate=True,
+        help="Error message returned when the constraint is violated.",
     )
     model = fields.Many2one(
-        "ir.model", required=True, ondelete="cascade", index=True, readonly=True
+        "ir.model",
+        required=True,
+        ondelete="cascade",
+        index=True,
+        readonly=True,
     )
     module = fields.Many2one(
         "ir.module.module",
@@ -80,36 +87,39 @@ class IrModelConstraint(models.Model):
                 continue
 
             hname = make_identifier(name)
-            typ = data.type
-            if typ in ("f", "u"):
+            if data.type not in ("f", "u", "i"):
+                continue
+
+            tables = [
+                table
                 for (table,) in self.env.execute_query(
                     SQL(
                         """SELECT cl.relname
                     FROM pg_constraint cs
                     JOIN pg_class cl
                     ON (cs.conrelid = cl.oid)
-                    WHERE cs.contype = ANY(%s) AND cs.conname = %s
+                    WHERE cs.conname = %s
                     AND cl.relnamespace = current_schema::regnamespace
                     """,
-                        ["c", "u", "x"] if typ == "u" else [typ],
                         hname,
                     )
-                ):
-                    self.env.execute_query(
-                        SQL(
-                            "ALTER TABLE %s DROP CONSTRAINT %s",
-                            SQL.identifier(table),
-                            SQL.identifier(hname),
-                        )
+                )
+            ]
+            for table in tables:
+                self.env.execute_query(
+                    SQL(
+                        "ALTER TABLE %s DROP CONSTRAINT %s",
+                        SQL.identifier(table),
+                        SQL.identifier(hname),
                     )
-                    _logger.info(
-                        "Dropped CONSTRAINT %s@%s (table %s)",
-                        name,
-                        data.model.model,
-                        table,
-                    )
-
-            elif typ == "i":
+                )
+                _logger.info(
+                    "Dropped CONSTRAINT %s@%s (table %s)",
+                    name,
+                    data.model.model,
+                    table,
+                )
+            if not tables:
                 self.env.execute_query(
                     SQL("DROP INDEX IF EXISTS %s", SQL.identifier(hname))
                 )

@@ -44,6 +44,11 @@
                         <field name="group_by_parent_id" />
                     </group>
                     <group
+                        string="Or find near-misses the exact criteria cannot"
+                        invisible="state not in ('option',)">
+                        <field name="match_similar_names" />
+                    </group>
+                    <group
                         string="Exclude contacts having"
                         invisible="state not in ('option',)">
                         <field name="exclude_contact" />

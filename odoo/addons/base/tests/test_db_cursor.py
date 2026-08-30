@@ -4456,7 +4456,7 @@ class TestEvaluatedCodeKeepsItsDatabaseErrorClass(common.TransactionCase):
         action = self._duplicate_xmlid_action()
         with (
             self.assertRaises(psycopg.IntegrityError) as caught,
-            mute_logger("odoo.sql_db", "odoo.db.cursor"),
+            mute_logger("odoo.db.cursor", "odoo.db.cursor"),
             self.env.cr.savepoint(flush=False),
         ):
             action.run()

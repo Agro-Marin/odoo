@@ -166,7 +166,6 @@ Test organization, tagging strategy, and execution reference for `odoo/addons/ba
 | `test_res_config_install.py` | `post_install`, `-at_install` | 1 | 2 | TransactionCase |
 | `test_res_country.py` | `-at_install`, `post_install` | 2 | 4 | TransactionCase |
 | `test_res_partner.py` | `res_partner`, `res_partner_address`, `post_install`, `-at_install` | 11 | 64 | TransactionCaseWithUserDemo, TransactionCase |
-| `test_res_partner_age_range.py` | `post_install`, `-at_install` | 1 | 12 | TransactionCase |
 | `test_res_partner_merge.py` | `post_install`, `-at_install` | 6 | 19 | TransactionCase |
 | `test_res_partner_sync.py` | `res_partner`, `res_partner_sync` | 1 | 10 | TransactionCase |
 | `test_res_users.py` | `post_install`, `-at_install`, `groups` | 27 | 87 | UsersCommonCase, TransactionCase, HttpCase |
@@ -174,6 +173,7 @@ Test organization, tagging strategy, and execution reference for `odoo/addons/ba
 | `test_res_users_identitycheck.py` | `post_install`, `-at_install` | 1 | 5 | TransactionCase |
 | `test_res_users_log.py` | `post_install`, `-at_install` | 1 | 3 | TransactionCase |
 | `test_res_users_settings.py` | `post_install`, `-at_install` | 4 | 16 | TransactionCase |
+| `test_seeded_users.py` | `-at_install`, `post_install` | 1 | 3 | HttpCaseWithUserDemo, HttpCaseWithUserPortal |
 | `test_test_retry.py` | `test_retry`, `test_retry_success`, `-standard`, `test_retry_failures`, `test_retry_disable` | 12 | 19 | TestRetryCommon, TransactionCase |
 | `test_tests_tags.py` | `nodatabase` | 4 | 14 | TransactionCase, BaseCase |
 | `test_translate.py` | `post_install`, `-at_install` | 12 | 89 | BaseCase, TransactionCase |

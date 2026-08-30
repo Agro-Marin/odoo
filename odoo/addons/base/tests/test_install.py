@@ -23,7 +23,7 @@ def test_isolated_install(env):
         raise SkipTest(f"The modules {MODULE_NAMES} should not be installed")
 
     try:
-        with mute_logger("odoo.modules.registry"):
+        with mute_logger("odoo.registry"):
             install(
                 env.cr.dbname,
                 modules["test_install_fail"].id,

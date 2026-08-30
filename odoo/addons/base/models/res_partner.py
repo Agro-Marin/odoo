@@ -7,20 +7,29 @@ from collections import defaultdict
 from typing import Any, Literal, Self
 from urllib.parse import urlsplit, urlunsplit
 
-from dateutil.relativedelta import relativedelta
-
 from odoo import Command, _, api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.db import FunctionStatus
 from odoo.exceptions import RedirectWarning, UserError, ValidationError
 from odoo.libs.datetime import all_timezones
 from odoo.libs.datetime import timezone as get_timezone
+from odoo.libs.text import name_length_band, similarity_ratio
+from odoo.tools import SQL
 
 if typing.TYPE_CHECKING:
     from .res_partner_category import ResPartnerCategory
     from .res_users import ResUsers
 
 from .mixin_format_address import ADDRESS_FIELDS
+
+SIMILAR_NAME_THRESHOLD_PARAM = "base.partner_name_similarity_threshold"
+DEFAULT_SIMILAR_NAME_THRESHOLD = 0.75
+
+# Candidates the trigram stage may return for one contact before the scorer
+# sees them. The recall threshold is deliberately looser than the scorer, so
+# an unbounded read of a name shared by thousands of rows -- a "Partner N"
+# import -- would fetch all of them to display a handful.
+SIMILAR_NAME_RECALL_LIMIT = 200
 
 EU_EXTRA_VAT_CODES = {
     "GR": "EL",
@@ -30,6 +39,33 @@ EU_EXTRA_VAT_CODES = {
 _logger = logging.getLogger(__name__)
 
 _FAILED_ADDRESS_FORMATS: set[tuple[str, str]] = set()
+
+
+def _is_distinct_partner(
+    candidate: Any,
+    partner_id: int | bool,
+    country_id: int | None,
+    company_id: int | None,
+    company_scoped: bool = False,
+) -> bool:
+    """Whether `candidate` could be a duplicate of the partner, not itself.
+
+    Shared by the exact matches (Tax ID, company registry) and by the
+    name-similarity search, so the three reasons a look-alike is not a
+    duplicate -- it is the record itself, it is one of its own addresses, it
+    belongs to another country or another company -- are stated once.
+    """
+    if candidate.id == partner_id:
+        return False
+    if partner_id and _is_descendant_of(candidate, partner_id):
+        return False
+    if country_id and candidate.country_id.id and candidate.country_id.id != country_id:
+        return False
+    return not (
+        candidate.company_id.id
+        and candidate.company_id.id != company_id
+        and (company_scoped or company_id)
+    )
 
 
 def _find_duplicate(
@@ -42,23 +78,10 @@ def _find_duplicate(
 ) -> ResPartner | Literal[False]:
     for value in values:
         for candidate in candidates_by_value.get(value, []):
-            if candidate.id == partner_id:
-                continue
-            if partner_id and _is_descendant_of(candidate, partner_id):
-                continue
-            if (
-                country_id
-                and candidate.country_id.id
-                and candidate.country_id.id != country_id
+            if _is_distinct_partner(
+                candidate, partner_id, country_id, company_id, company_scoped
             ):
-                continue
-            if (
-                candidate.company_id.id
-                and candidate.company_id.id != company_id
-                and (company_scoped or company_id)
-            ):
-                continue
-            return candidate
+                return candidate
     return False
 
 
@@ -255,12 +278,6 @@ class ResPartner(models.Model):
         string="Address Type",
         default="contact",
     )
-    company_type = fields.Selection(
-        string="Company Type",
-        selection=[("person", "Person"), ("company", "Company")],
-        compute="_compute_company_type",
-        inverse="_inverse_company_type",
-    )
     type_address_label = fields.Char(
         "Address Type Description",
         compute="_compute_type_address_label",
@@ -313,16 +330,6 @@ class ResPartner(models.Model):
         ],
     )
     birthdate = fields.Date()
-    age = fields.Integer(
-        compute="_compute_age",
-        readonly=True,
-    )
-    age_range_id = fields.Many2one(
-        "res.partner.age.range",
-        string="Age Range",
-        compute="_compute_age_range_id",
-        store=True,
-    )
     user_ids: ResUsers = fields.One2many(
         "res.users",
         "partner_id",
@@ -335,6 +342,19 @@ class ResPartner(models.Model):
         compute="_compute_main_user_id",
         help="There can be several users related to the same partner. "
         "When a single user is needed, this field attempts to find the most appropriate one.",
+    )
+    duplicate_ids = fields.Many2many(
+        "res.partner",
+        string="Possible Duplicates",
+        compute="_compute_duplicate_ids",
+    )
+    duplicate_count = fields.Integer(
+        compute="_compute_duplicate_ids",
+    )
+    identifier_ids = fields.One2many(
+        comodel_name="res.partner.identifier",
+        inverse_name="partner_id",
+        string="Identifiers",
     )
     bank_ids = fields.One2many(
         "res.partner.bank",
@@ -374,7 +394,6 @@ class ResPartner(models.Model):
         compute="_compute_commercial_company_name",
         store=True,
     )
-    company_name = fields.Char("Company Name")
 
     application_statistics = fields.Json(
         string="Stats",
@@ -470,7 +489,7 @@ class ResPartner(models.Model):
         self.ensure_one()
 
         name = self.name or ""
-        if self.company_name or self.parent_id:
+        if self.parent_id:
             if not name and self.type in self._complete_name_displayed_types:
                 name = type_description[self.type]
             if not self.is_company and not self.env.context.get(
@@ -484,11 +503,10 @@ class ResPartner(models.Model):
         "name",
         "parent_id.name",
         "type",
-        "company_name",
         "commercial_company_name",
     )
     def _compute_complete_name(self) -> None:
-        clean_self = self.with_context({}) if self.env.context else self
+        clean_self = self.with_context({})
         type_description = dict(
             self._fields["type"]._description_selection(clean_self.env)
         )
@@ -519,30 +537,6 @@ class ResPartner(models.Model):
             if (offset := tz_cache.get(tz)) is None:
                 offset = tz_cache[tz] = now(get_timezone(tz)).strftime("%z")
             partner.tz_offset = offset
-
-    @api.depends("birthdate")
-    def _compute_age(self) -> None:
-        for partner in self:
-            partner.age = False
-            if partner.birthdate:
-                partner.age = relativedelta(
-                    fields.Date.today(), partner.birthdate
-                ).years
-
-    @api.depends("birthdate")
-    def _compute_age_range_id(self) -> None:
-        age_ranges = self.env["res.partner.age.range"].search([])
-        for partner in self:
-            if partner.birthdate:
-                age_range = age_ranges.filtered(
-                    lambda age_range, partner=partner: age_range._covers(
-                        partner.birthdate.year
-                    )
-                )[:1]
-            else:
-                age_range = self.env["res.partner.age.range"].browse()
-            if partner.age_range_id != age_range:
-                partner.age_range_id = age_range
 
     @api.depends("parent_id")
     def _compute_user_id(self) -> None:
@@ -694,6 +688,198 @@ class ResPartner(models.Model):
             else:
                 partner.same_company_registry_partner_id = False
 
+    @api.depends("complete_name", "country_id", "company_id", "parent_id")
+    def _compute_duplicate_ids(self) -> None:
+        matches = self._find_similar_named_partners()
+        for partner in self:
+            duplicates = matches.get(partner.id, self.browse())
+            partner.duplicate_ids = duplicates
+            partner.duplicate_count = len(duplicates)
+
+    def _find_similar_named_partners(self) -> dict[int, ResPartner]:
+        """Contacts whose name resembles each of `self`, keyed by partner id.
+
+        Two stages, as the merge wizard does it: the trigram index recalls
+        loosely, then `similarity_ratio` decides. The recall threshold sits
+        below the deciding one, so the index discards only what the scorer
+        would reject anyway.
+
+        One query per contact rather than one self-join for the whole
+        recordset. The self-join cannot carry a per-contact LIMIT -- a single
+        pathological name would spend the whole budget -- and this field is
+        read a record at a time, from the form.
+        """
+        named = self.filtered(lambda partner: partner.complete_name)
+        if not named or not self.env.registry.has_trigram:
+            return {}
+
+        # Raw SQL: a name edited moments ago is exactly the one being checked,
+        # and pending writes are not in the table yet.
+        self.flush_model(["active", "complete_name"])
+        self.env.cr.execute(
+            SQL(
+                "SELECT set_config('pg_trgm.similarity_threshold', %s, true)",
+                str(self._similar_name_recall_threshold()),
+            )
+        )
+        stored = SQL('candidate."complete_name"')
+        if self.env.registry.has_unaccent == FunctionStatus.INDEXABLE:
+            # Match the expression the trigram index is built on. Without this
+            # the operator is a filter over every row instead of a bitmap index
+            # scan, measured 46.7 ms against 2.4 ms at 30k contacts.
+            stored = self.env.registry.unaccent(stored)
+
+        threshold = self._similar_name_threshold()
+        matches: dict[int, ResPartner] = {}
+        for partner in named:
+            partner_id = partner._origin.id
+            source_name = partner.complete_name
+            searched_expr = SQL("%s", source_name)
+            if self.env.registry.has_unaccent == FunctionStatus.INDEXABLE:
+                searched_expr = self.env.registry.unaccent(searched_expr)
+            self.env.cr.execute(  # noqa: E8501  built via SQL(), no user input
+                SQL(
+                    """
+                    SELECT candidate.id
+                      FROM res_partner AS candidate
+                     WHERE %s %% %s
+                       AND candidate.active
+                       AND candidate.complete_name IS NOT NULL
+                       AND candidate.id != %s
+                     LIMIT %s
+                    """,
+                    stored,
+                    searched_expr,
+                    partner_id or 0,
+                    SIMILAR_NAME_RECALL_LIMIT,
+                )
+            )
+            recalled = [row[0] for row in self.env.cr.fetchall()]
+            if not recalled:
+                continue
+
+            candidates = self.browse(recalled)
+            candidates.fetch(
+                ["complete_name", "parent_id", "company_id", "country_id"]
+            )
+            lowered = source_name.lower()
+            shortest, longest = name_length_band(len(lowered), threshold)
+            country_id = partner.country_id.id if partner.country_id else None
+            company_id = partner.company_id.id if partner.company_id else None
+            kept = self.browse()
+            for other in candidates:
+                name = (other.complete_name or "").lower()
+                if not shortest <= len(name) <= longest:
+                    continue
+                if similarity_ratio(lowered, name) < threshold:
+                    continue
+                if _is_distinct_partner(other, partner_id, country_id, company_id):
+                    kept |= other
+            if kept:
+                matches[partner.id] = kept
+        return matches
+
+    @api.model
+    def _similar_name_threshold(self) -> float:
+        raw = (
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param(SIMILAR_NAME_THRESHOLD_PARAM)
+        )
+        try:
+            value = float(raw)
+        except TypeError, ValueError:
+            return DEFAULT_SIMILAR_NAME_THRESHOLD
+        if not 0 < value <= 1:
+            return DEFAULT_SIMILAR_NAME_THRESHOLD
+        return value
+
+    @api.model
+    def _similar_name_recall_threshold(self) -> float:
+        return max(0.3, self._similar_name_threshold() - 0.2)
+
+    def action_view_duplicates(self) -> dict[str, Any]:
+        """List the contact *with* its look-alikes, not just the look-alikes.
+
+        Merging is the reason to open this, and `action_partner_merge` is bound
+        to a list selection: a list that omits the record you came from lets
+        you merge its duplicates into each other and leave it behind, which is
+        the opposite of the intent.
+        """
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("%s and its possible duplicates", self.display_name),
+            "res_model": "res.partner",
+            "view_mode": "list,kanban,form",
+            "domain": [("id", "in", (self | self.duplicate_ids).ids)],
+            "context": {"create": False},
+        }
+
+    def _get_identifier(self, code: str) -> str | Literal[False]:
+        """The value this contact carries under `code`, or False.
+
+        Reads the commercial entity for a type marked
+        `synced_with_commercial`, so a delivery address answers with its
+        company's tax ID rather than nothing.
+        """
+        self.ensure_one()
+        identifier = self.identifier_ids.filtered(
+            lambda i, code=code: i.type_id.code == code
+        )[:1]
+        if identifier:
+            return identifier.value
+        identifier_type = self.env["res.partner.identifier.type"]._by_code(code)
+        if identifier_type.synced_with_commercial:
+            commercial = self.commercial_partner_id
+            if commercial != self:
+                return commercial._get_identifier(code)
+        return False
+
+    def _set_identifier(self, code: str, value) -> None:
+        """Set, replace or clear this contact's identifier of type `code`."""
+        self.ensure_one()
+        identifier_type = self.env["res.partner.identifier.type"]._by_code(code)
+        if not identifier_type:
+            raise UserError(
+                self.env._("There is no identifier type with code %(code)s.", code=code)
+            )
+        existing = self.identifier_ids.filtered(
+            lambda i, identifier_type=identifier_type: i.type_id == identifier_type
+        )
+        if not value:
+            existing.unlink()
+            return
+        if existing:
+            existing[:1].value = value
+            existing[1:].unlink()
+        else:
+            self.env["res.partner.identifier"].create(
+                {
+                    "partner_id": self.id,
+                    "type_id": identifier_type.id,
+                    "value": value,
+                }
+            )
+
+    def _commercial_sync_identifiers(self) -> None:
+        """Mirror the commercial entity's synced identifiers onto this contact.
+
+        The per-type flag is what `_synced_commercial_fields` cannot express:
+        that list is one set of column names for every contact, so a tax ID and
+        a personal national number have to be treated alike. Here each type
+        decides for itself.
+        """
+        for partner in self:
+            commercial = partner.commercial_partner_id
+            if commercial == partner:
+                continue
+            for source in commercial.identifier_ids.filtered(
+                lambda i: i.type_id.synced_with_commercial
+            ):
+                if partner._get_identifier(source.type_id.code) != source.value:
+                    partner._set_identifier(source.type_id.code, source.value)
+
     @api.depends_context("company")
     def _compute_vat_label(self) -> None:
         self.vat_label = self.env.company.country_id.vat_label or _("Tax ID")
@@ -725,13 +911,11 @@ class ResPartner(models.Model):
             else:
                 partner.commercial_partner_id = partner.parent_id.commercial_partner_id
 
-    @api.depends("company_name", "parent_id.is_company", "commercial_partner_id.name")
+    @api.depends("parent_id.is_company", "commercial_partner_id.name")
     def _compute_commercial_company_name(self) -> None:
         for partner in self:
             p = partner.commercial_partner_id
-            partner.commercial_company_name = (
-                p.is_company and p.name
-            ) or partner.company_name
+            partner.commercial_company_name = p.is_company and p.name
 
     def _compute_company_registry(self) -> None:
         for partner in self:
@@ -823,19 +1007,6 @@ class ResPartner(models.Model):
                 )
             else:
                 partner.email_formatted = fmt((partner.name or "", email))
-
-    @api.depends("is_company")
-    def _compute_company_type(self) -> None:
-        for partner in self:
-            partner.company_type = "company" if partner.is_company else "person"
-
-    def _inverse_company_type(self) -> None:
-        for partner in self:
-            partner.is_company = partner.company_type == "company"
-
-    @api.onchange("company_type")
-    def _onchange_company_type(self) -> None:
-        self.is_company = self.company_type == "company"
 
     @api.constrains("barcode")
     def _check_barcode_unicity(self) -> None:
@@ -1142,8 +1313,6 @@ class ResPartner(models.Model):
                 self._raise_linked_user_error(users, "archive")
         if vals.get("website"):
             vals["website"] = self._clean_website(vals["website"])
-        if vals.get("parent_id"):
-            vals["company_name"] = False
         if vals.get("name"):
             banks_to_sync = self.bank_ids.filtered(
                 lambda bank: bank.acc_holder_name == bank.partner_id.name
@@ -1214,8 +1383,6 @@ class ResPartner(models.Model):
         for vals in vals_list:
             if vals.get("website"):
                 vals["website"] = self._clean_website(vals["website"])
-            if vals.get("parent_id"):
-                vals["company_name"] = False
         partners = super().create(vals_list)
         partners_without_lang = partners.browse(
             partner.id
@@ -1276,31 +1443,35 @@ class ResPartner(models.Model):
             partner._handle_first_contact_creation()
         return partners
 
-    def create_company(self) -> bool:
+    def _create_parent_from_name(
+        self, parent_name: str, additional_values: dict[str, Any] | None = None
+    ) -> Self:
         self.ensure_one()
-        if new_company := self._create_contact_parent_company():
-            self.write(
-                {
-                    "parent_id": new_company.id,
-                    "child_ids": [
-                        Command.update(partner_id, {"parent_id": new_company.id})
-                        for partner_id in self.child_ids.ids
-                    ],
-                }
-            )
-        return True
-
-    def _create_contact_parent_company(self) -> Self:
-        self.ensure_one()
-        if self.company_name:
-            values = {
-                "name": self.company_name,
-                "is_company": True,
-                "vat": self.vat,
+        if not parent_name:
+            return self.browse()
+        values = {
+            "name": parent_name,
+            "is_company": True,
+            "vat": self.vat,
+        }
+        values.update(self._convert_fields_to_values(self._address_fields()))
+        if additional_values:
+            values.update(additional_values)
+        parent_company = self._create_contact_parent_company(values)
+        self.write(
+            {
+                "parent_id": parent_company.id,
+                "child_ids": [
+                    Command.update(partner_id, {"parent_id": parent_company.id})
+                    for partner_id in self.child_ids.ids
+                ],
             }
-            values.update(self._convert_fields_to_values(self._address_fields()))
-            return self.create(values)
-        return self.browse()
+        )
+        return parent_company
+
+    def _create_contact_parent_company(self, values: dict[str, Any]) -> Self:
+        self.ensure_one()
+        return self.create(values)
 
     def open_commercial_entity(self) -> dict[str, Any]:
         self.ensure_one()
@@ -1344,9 +1515,9 @@ class ResPartner(models.Model):
         for partner in self:
             if is_formatted:
                 name = partner.name or ""
-                if partner.parent_id or partner.company_name:
+                if partner.parent_id:
                     name = (
-                        f"{partner.company_name or partner.parent_id.name} \t "
+                        f"{partner.parent_id.name} \t "
                         f"--{partner.name or type_description.get(partner.type, '')}--"
                     )
 
@@ -1552,7 +1723,7 @@ class ResPartner(models.Model):
                 [
                     *self._formatting_address_fields(),
                     "country_id",
-                    "company_name",
+                    "commercial_company_name",
                     "state_id",
                 ]
             )

@@ -259,13 +259,13 @@ class TestRequestRemainingNoCookie(TestRequestRemainingCommon):
         self._test_requests_a()
 
     def test_requests_b(self):
-        with self.assertLogs("odoo.tests.common") as log_catcher:
+        with self.assertLogs("odoo.tests.transaction_case") as log_catcher:
             self._test_requests_b()
         self.assertEqual(
             log_catcher.output,
             [
                 Like(
-                    "... odoo.tests.common:Request with path /web/concurrent has been ignored during test as it does not contain the test_cursor cookie or it is expired. "
+                    "... odoo.tests.transaction_case:Request with path /web/concurrent has been ignored during test as it does not contain the test_cursor cookie or it is expired. "
                     '(required "None (request are not enabled)", got "None")'
                 )
             ],
@@ -277,13 +277,13 @@ class TestRequestRemainingNotEnabled(TestRequestRemainingCommon):
         self._test_requests_a(cookie=True)
 
     def test_requests_b(self):
-        with self.assertLogs("odoo.tests.common") as log_catcher:
+        with self.assertLogs("odoo.tests.transaction_case") as log_catcher:
             self._test_requests_b()
         self.assertEqual(
             log_catcher.output,
             [
                 Like(
-                    "... odoo.tests.common:Request with path /web/concurrent has been ignored during test as it does not contain the test_cursor cookie or it is expired. "
+                    "... odoo.tests.transaction_case:Request with path /web/concurrent has been ignored during test as it does not contain the test_cursor cookie or it is expired. "
                     '(required "None (request are not enabled)", got "/base/tests/test_http_case.py:TestRequestRemainingNotEnabled.test_requests_a")'
                 )
             ],
@@ -296,7 +296,7 @@ class TestRequestRemainingStartDuringNext(TestRequestRemainingCommon):
 
     def test_requests_b(self):
         with (
-            self.assertLogs("odoo.tests.common") as log_catcher,
+            self.assertLogs("odoo.tests.transaction_case") as log_catcher,
             self.allow_requests(),
         ):
             self._test_requests_b()
@@ -304,7 +304,7 @@ class TestRequestRemainingStartDuringNext(TestRequestRemainingCommon):
             log_catcher.output,
             [
                 Like(
-                    "... odoo.tests.common:Request with path /web/concurrent has been ignored during test as it does not contain the test_cursor cookie or it is expired. "
+                    "... odoo.tests.transaction_case:Request with path /web/concurrent has been ignored during test as it does not contain the test_cursor cookie or it is expired. "
                     '(required "/base/tests/test_http_case.py:TestRequestRemainingStartDuringNext.test_requests_b__0", got "/base/tests/test_http_case.py:TestRequestRemainingStartDuringNext.test_requests_a")'
                 )
             ],
@@ -335,7 +335,7 @@ class TestRequestRemainingAfterFirstCheck(TestRequestRemainingCommon):
     def test_requests_b(self):
         _logger.info("B started, waiting for A to finish")
         with (
-            self.assertLogs("odoo.tests.common") as log_catcher,
+            self.assertLogs("odoo.tests.transaction_case") as log_catcher,
             self.allow_requests(),
         ):
             self.thread_a.join()

@@ -907,7 +907,7 @@ class TestStrandedTestCursorReleasesItsLock(TransactionCase):
         )
         self.assertIn(cursor, TestCursor._cursors_stack)
 
-        with mute_logger("odoo.tests.common"):
+        with mute_logger("odoo.tests.transaction_case"):
             stranded = release_stranded_test_cursors("the test above")
 
         self.assertEqual(stranded, 1)
@@ -1190,7 +1190,7 @@ class TestStrandedCursorsUnwindInnermostFirst(TransactionCase):
         self.assertIsNotNone(outer._savepoint, "outer never opened a savepoint")
         self.assertIsNotNone(inner._savepoint, "inner never opened a savepoint")
 
-        with mute_logger("odoo.tests.common"):
+        with mute_logger("odoo.tests.transaction_case"):
             self.assertEqual(release_stranded_test_cursors("the test above"), 2)
 
         self.assertNotEqual(

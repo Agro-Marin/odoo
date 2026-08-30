@@ -896,6 +896,156 @@ class TestPartnerDuplicateIdentifiers(TransactionCase):
         self.assertEqual(be_twin.same_company_registry_partner_id, be_partner)
 
 
+class TestPartnerSimilarNameDuplicates(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.Partner = cls.env["res.partner"]
+        if not cls.env.registry.has_trigram:
+            cls.skipTest(cls, "pg_trgm is not available on this database")
+
+    def test_a_misspelt_name_is_offered_as_a_duplicate(self):
+        first = self.Partner.create({"name": "Xylo Bakeries Limited"})
+        second = self.Partner.create({"name": "Xylo Bakery Limited"})
+
+        self.assertIn(second, first.duplicate_ids)
+        self.assertIn(first, second.duplicate_ids)
+
+    def test_an_unrelated_name_is_not_offered(self):
+        first = self.Partner.create({"name": "Xylo Bakeries Limited"})
+        self.Partner.create({"name": "Quenneville Ironworks"})
+
+        self.assertNotIn("Quenneville Ironworks", first.duplicate_ids.mapped("name"))
+
+    def test_the_count_matches_what_is_offered(self):
+        first = self.Partner.create({"name": "Wexford Cabinetry Group"})
+        self.Partner.create({"name": "Wexford Cabinetry Groupe"})
+
+        self.assertEqual(first.duplicate_count, len(first.duplicate_ids))
+        self.assertTrue(first.duplicate_count)
+
+    def test_an_own_address_is_never_its_parents_duplicate(self):
+        company = self.Partner.create({"name": "Kilbride Joinery Ltd"})
+        address = self.Partner.create(
+            {
+                "name": "Kilbride Joinery Ltd",
+                "parent_id": company.id,
+                "type": "delivery",
+            }
+        )
+
+        self.assertNotIn(
+            address,
+            company.duplicate_ids,
+            "a contact's own address is not a duplicate of it",
+        )
+
+    def test_a_contact_in_another_country_is_not_a_duplicate(self):
+        belgium = self.env.ref("base.be")
+        france = self.env.ref("base.fr")
+        first = self.Partner.create(
+            {"name": "Marchetti Textiles SA", "country_id": belgium.id}
+        )
+        elsewhere = self.Partner.create(
+            {"name": "Marchetti Textiles SA", "country_id": france.id}
+        )
+
+        self.assertNotIn(elsewhere, first.duplicate_ids)
+
+    def test_an_archived_contact_is_not_offered(self):
+        first = self.Partner.create({"name": "Rathmore Glassworks"})
+        archived = self.Partner.create({"name": "Rathmore Glassworks"})
+        self.assertIn(archived, first.duplicate_ids)
+
+        archived.active = False
+        first.invalidate_recordset(["duplicate_ids", "duplicate_count"])
+
+        self.assertNotIn(archived, first.duplicate_ids)
+
+    def test_a_contact_without_a_name_is_not_searched_for(self):
+        nameless = self.Partner.new({"name": False})
+
+        self.assertFalse(nameless.duplicate_ids)
+        self.assertFalse(nameless.duplicate_count)
+
+    def test_the_action_lists_the_contact_with_its_duplicates(self):
+        first = self.Partner.create({"name": "Ballinrobe Creamery"})
+        second = self.Partner.create({"name": "Ballinrobe Creameries"})
+
+        action = first.action_view_duplicates()
+        listed = self.Partner.search(action["domain"])
+
+        self.assertEqual(action["res_model"], "res.partner")
+        self.assertIn(second, listed)
+        self.assertIn(
+            first,
+            listed,
+            "merging is done from a list selection, so the record you came "
+            "from has to be selectable alongside its duplicates",
+        )
+
+    def test_the_offered_list_can_be_merged_from(self):
+        """The whole point of finding duplicates is resolving them.
+
+        `base.action_partner_merge` is bound to a res.partner list selection,
+        so this pins the hand-off: what the stat button opens is a selection
+        the merge wizard accepts, and merging it leaves one record holding
+        both contributions.
+        """
+        keeper = self.Partner.create(
+            {"name": "Halloran Cooperage", "email": "halloran@example.test"}
+        )
+        twin = self.Partner.create(
+            {"name": "Halloran Cooperages", "phone": "+353 1 555 0111"}
+        )
+        listed = self.Partner.search(keeper.action_view_duplicates()["domain"])
+        self.assertEqual(listed, keeper | twin)
+
+        Wizard = self.env["base.partner.merge.automatic.wizard"].with_context(
+            active_model="res.partner", active_ids=listed.ids
+        )
+        wizard = Wizard.create(
+            Wizard.default_get(["state", "partner_ids", "dst_partner_id"])
+        )
+        self.assertEqual(wizard.partner_ids, listed)
+        wizard.action_merge()
+
+        survivors = self.Partner.search(
+            [("name", "in", ["Halloran Cooperage", "Halloran Cooperages"])]
+        )
+        self.assertEqual(len(survivors), 1, "the pair must end as one contact")
+        self.assertEqual(survivors.email, "halloran@example.test")
+        self.assertEqual(survivors.phone, "+353 1 555 0111")
+
+    def test_the_threshold_decides_what_counts_as_alike(self):
+        first = self.Partner.create({"name": "Clonakilty Provisions"})
+        loose = self.Partner.create({"name": "Clonakilty Provisioners"})
+        self.assertIn(loose, first.duplicate_ids)
+
+        self.env["ir.config_parameter"].sudo().set_param(
+            "base.partner_name_similarity_threshold", "0.99"
+        )
+        first.invalidate_recordset(["duplicate_ids", "duplicate_count"])
+
+        self.assertNotIn(
+            loose,
+            first.duplicate_ids,
+            "raising the bar must narrow what is offered",
+        )
+
+    def test_the_wizard_and_the_contact_share_one_threshold(self):
+        self.env["ir.config_parameter"].sudo().set_param(
+            "base.partner_name_similarity_threshold", "0.82"
+        )
+        wizard = self.env["base.partner.merge.automatic.wizard"].create({})
+
+        self.assertEqual(
+            wizard._similar_name_threshold(),
+            self.Partner._similar_name_threshold(),
+            "the wizard must not carry a second copy of the threshold",
+        )
+
+
 @tagged("res_partner", "res_partner_address")
 class TestPartnerAddressCompany(TransactionCase):
     @classmethod
@@ -2129,7 +2279,7 @@ class TestPartnerForm(TransactionCase):
             self.env["res.partner"].with_context(default_lang="de_DE"),
             "base.view_partner_form",
         )
-        partner_form.company_type = "company"
+        partner_form.is_company = True
         partner_form.name = "Test Company"
         self.assertEqual(
             partner_form.lang,
@@ -2182,14 +2332,14 @@ class TestPartnerForm(TransactionCase):
         )
         test_parent_partner = self.env["res.partner"].create(
             {
-                "company_type": "company",
+                "is_company": True,
                 "name": "Micheline",
                 "user_id": test_user.id,
             }
         )
         with Form(self.env["res.partner"]) as partner_form:
             partner_form.parent_id = test_parent_partner
-            partner_form.company_type = "person"
+            partner_form.is_company = False
             partner_form.name = "Philip"
             self.assertEqual(partner_form.user_id, test_parent_partner.user_id)
 

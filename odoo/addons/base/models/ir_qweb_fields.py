@@ -220,9 +220,10 @@ class IrQwebFieldDatetime(models.AbstractModel):
 
         lang = self.user_lang()
         locale = babel_locale_parse(lang.code)
+        dateless = isinstance(value, date) and not isinstance(value, datetime)
         if isinstance(value, str):
             value = fields.Datetime.from_string(value)
-        elif isinstance(value, date) and not isinstance(value, datetime):
+        elif dateless:
             value = datetime.combine(value, time.min)
 
         record = self
@@ -232,7 +233,10 @@ class IrQwebFieldDatetime(models.AbstractModel):
         else:
             tzinfo = None
 
-        value = fields.Datetime.context_timestamp(record, value)
+        if dateless:
+            tzinfo = None
+        else:
+            value = fields.Datetime.context_timestamp(record, value)
 
         if "format" in options:
             pattern = options["format"]

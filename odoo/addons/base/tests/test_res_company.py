@@ -67,7 +67,7 @@ class TestCompany(TransactionCase):
 
     def test_code_is_unique(self):
         self.env["res.company"].create({"name": "First", "code": "DUP"})
-        with self.assertRaises(IntegrityError), mute_logger("odoo.sql_db"):
+        with self.assertRaises(IntegrityError), mute_logger("odoo.db.cursor"):
             with self.env.cr.savepoint():
                 self.env["res.company"].create({"name": "Second", "code": "dup"})
 

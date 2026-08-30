@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="res_partner_identifier_type_view_search" model="ir.ui.view">
+        <field name="name">res.partner.identifier.type.view.search</field>
+        <field name="model">res.partner.identifier.type</field>
+        <field name="arch" type="xml">
+            <search string="Search Identifier Type">
+                <field name="name" />
+                <field name="code" />
+                <field name="country_ids" />
+                <separator />
+                <filter
+                    string="Archived"
+                    name="inactive"
+                    domain="[('active', '=', False)]" />
+            </search>
+        </field>
+    </record>
+
+    <record id="res_partner_identifier_type_view_tree" model="ir.ui.view">
+        <field name="name">Identifier Type</field>
+        <field name="model">res.partner.identifier.type</field>
+        <field name="arch" type="xml">
+            <list string="Identifier Types">
+                <field name="sequence" widget="handle" />
+                <field name="name" />
+                <field name="code" />
+                <field name="country_ids" widget="many2many_tags" optional="show" />
+                <field name="pattern" optional="hide" />
+                <field name="unique_across_contacts" optional="hide" />
+                <field name="multiple_per_contact" optional="hide" />
+                <field name="synced_with_commercial" optional="show" />
+            </list>
+        </field>
+    </record>
+
+    <record id="res_partner_identifier_type_view_form" model="ir.ui.view">
+        <field name="name">Identifier Type</field>
+        <field name="model">res.partner.identifier.type</field>
+        <field name="arch" type="xml">
+            <form string="Identifier Type">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name" />
+                            <field name="code" placeholder="e.g. MX_RFC" />
+                            <field name="active" widget="boolean_toggle" />
+                        </group>
+                        <group>
+                            <field
+                                name="country_ids"
+                                widget="many2many_tags"
+                                options="{'no_create': True}" />
+                            <field name="pattern" placeholder="e.g. [A-Z]{4}[0-9]{6}" />
+                        </group>
+                    </group>
+                    <group string="Rules">
+                        <field name="unique_across_contacts" />
+                        <field name="multiple_per_contact" />
+                        <field name="synced_with_commercial" />
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="res_partner_identifier_type_action" model="ir.actions.act_window">
+        <field name="name">Identifier Types</field>
+        <field name="res_model">res.partner.identifier.type</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="res_partner_identifier_type_view_search" />
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Define an identifier type
+            </p>
+            <p>
+                A tax ID, a national number, a trade register entry. Each type
+                carries its own format and decides whether it identifies the
+                company or the person.
+            </p>
+        </field>
+    </record>
+
+</odoo>

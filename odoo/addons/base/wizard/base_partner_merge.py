@@ -4,11 +4,19 @@ from ast import literal_eval
 from typing import Any
 
 from odoo import api, fields, models
+from odoo.db import FunctionStatus
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
+from odoo.libs.text import name_length_band, similarity_ratio
 from odoo.tools import SQL
 
 _logger = logging.getLogger("odoo.addons.base.partner.merge")
+
+# Pairs fetched per group asked for. The recall stage is deliberately looser
+# than the scorer, so it returns far more pairs than survive; without a ceiling
+# a table where many names resemble each other (branches of one company, a
+# "Partner N" import) joins to millions of rows to fill a hundred groups.
+SIMILAR_NAME_PAIRS_PER_GROUP = 200
 
 
 class BasePartnerMergeLine(models.TransientModel):
@@ -45,6 +53,12 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
     group_by_is_company = fields.Boolean("Is Company")
     group_by_vat = fields.Boolean("VAT")
     group_by_parent_id = fields.Boolean("Parent Company")
+    match_similar_names = fields.Boolean(
+        "Similar Names",
+        help="Also group contacts whose names differ slightly, such as "
+        "'Acme Corp' and 'ACME Corporation'. The exact criteria above can only "
+        "match names that are already identical.",
+    )
 
     state = fields.Selection(
         [
@@ -296,19 +310,131 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
 
         return SQL(" ").join(parts)
 
+    def _similar_name_threshold(self) -> float:
+        return self.env["res.partner"]._similar_name_threshold()
+
+    def _similar_name_pairs(self, limit: int) -> list[tuple[int, int]]:
+        registry = self.env.registry
+        if not registry.has_trigram:
+            raise UserError(
+                self.env._(
+                    "Grouping by similar names needs the pg_trgm PostgreSQL "
+                    "extension, which this database does not have."
+                )
+            )
+        # Raw SQL: pending writes are not in the table yet, and a contact
+        # created moments ago is exactly the one being deduplicated.
+        self.env["res.partner"].flush_model(["active", "complete_name"])
+
+        # `%` answers against pg_trgm's own threshold, which defaults far below
+        # the ratio the scorer demands. Lifting it discards, in the index, pairs
+        # the scorer would only reject after fetching them.
+        # set_config(), not SET: psycopg binds server-side, so a placeholder
+        # reaches PostgreSQL as $N and SET takes no parameter.
+        self.env.cr.execute(
+            SQL(
+                "SELECT set_config('pg_trgm.similarity_threshold', %s, true)",
+                str(self._recall_threshold()),
+            )
+        )
+
+        left = SQL('left_partner."complete_name"')
+        right = SQL('right_partner."complete_name"')
+        if registry.has_unaccent == FunctionStatus.INDEXABLE:
+            # Match the expression res_partner's trigram index is built on, or
+            # PostgreSQL cannot use it and this becomes a sequential self-join.
+            left, right = registry.unaccent(left), registry.unaccent(right)
+        query = SQL(
+            """
+            SELECT left_partner.id, right_partner.id
+              FROM res_partner AS left_partner
+              JOIN res_partner AS right_partner
+                ON right_partner.id > left_partner.id
+               AND %s %% %s
+             WHERE left_partner.active
+               AND right_partner.active
+               AND left_partner.complete_name IS NOT NULL
+               AND right_partner.complete_name IS NOT NULL
+             LIMIT %s
+            """,
+            left,
+            right,
+            limit,
+        )
+        self.env.cr.execute(query)  # noqa: E8501  built via SQL(), no user input
+        return self.env.cr.fetchall()
+
+    def _recall_threshold(self) -> float:
+        return self.env["res.partner"]._similar_name_recall_threshold()
+
+    def _similar_name_groups(
+        self, maximum_group: int = 100
+    ) -> list[tuple[int, list[int]]]:
+        limit = (maximum_group or 100) * SIMILAR_NAME_PAIRS_PER_GROUP
+        pairs = self._similar_name_pairs(limit)
+        if not pairs:
+            return []
+
+        threshold = self._similar_name_threshold()
+        involved = {pid for pair in pairs for pid in pair}
+        partners = self.env["res.partner"].browse(involved)
+        partners.fetch(["complete_name"])
+        names = {p.id: (p.complete_name or "").lower() for p in partners}
+
+        # The trigram operator is the recall stage and is deliberately loose;
+        # SequenceMatcher is what decides, exactly as product name matching does.
+        root: dict[int, int] = {}
+
+        def find(node: int) -> int:
+            while root.setdefault(node, node) != node:
+                root[node] = root[root[node]]
+                node = root[node]
+            return node
+
+        for left_id, right_id in pairs:
+            left_name, right_name = names.get(left_id), names.get(right_id)
+            if not left_name or not right_name:
+                continue
+            shortest, longest = name_length_band(len(left_name), threshold)
+            if not shortest <= len(right_name) <= longest:
+                continue
+            if similarity_ratio(left_name, right_name) < threshold:
+                continue
+            left_root, right_root = find(left_id), find(right_id)
+            if left_root != right_root:
+                root[max(left_root, right_root)] = min(left_root, right_root)
+
+        clusters: dict[int, list[int]] = {}
+        for node in root:
+            clusters.setdefault(find(node), []).append(node)
+
+        groups = [
+            (min(members), sorted(members))
+            for members in clusters.values()
+            if len(members) >= 2
+        ]
+        groups.sort()
+        return groups[:maximum_group] if maximum_group else groups
+
+    @api.model
+    def _selected_groupby_fields(self) -> list[str]:
+        group_by_prefix = "group_by_"
+        return [
+            field_name.removeprefix(group_by_prefix)
+            for field_name in self._fields
+            if field_name.startswith(group_by_prefix) and self[field_name]
+        ]
+
     @api.model
     def _compute_selected_groupby(self) -> list[str]:
-        groups = []
-        group_by_prefix = "group_by_"
-
-        for field_name in self._fields:
-            if field_name.startswith(group_by_prefix):
-                if self[field_name]:
-                    groups.append(field_name.removeprefix(group_by_prefix))
+        groups = self._selected_groupby_fields()
 
         if not groups:
             raise UserError(
-                self.env._("You have to specify a filter for your selection.")
+                self.env._(
+                    "You have to specify a filter for your selection, or tick "
+                    "Similar Names."
+                )
             )
 
         if not self._IDENTIFYING_GROUPBY_FIELDS.intersection(groups):
@@ -393,11 +519,13 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
 
     def _process_query(self, query: SQL) -> None:
         self.ensure_one()
+        self.env.cr.execute(query)  # noqa: E8501  built via SQL() by _generate_query or parent_migration_process_cb, not from user input
+        self._process_groups(self.env.cr.fetchall())
+
+    def _process_groups(self, groups: list[tuple[int, list[int]]]) -> None:
+        self.ensure_one()
         model_mapping = self._compute_models()
 
-        self.env.cr.execute(query)  # noqa: E8501  built via SQL() by _generate_query or parent_migration_process_cb, not from user input
-
-        groups = self.env.cr.fetchall()
         all_ids = [pid for _, aggr_ids in groups for pid in aggr_ids]
         accessible = self.env["res.partner"].search([("id", "in", all_ids)])
         accessible_set = set(accessible.ids)
@@ -431,9 +559,18 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
 
     def action_start_manual_process(self) -> dict[str, Any]:
         self.ensure_one()
-        groups = self._compute_selected_groupby()
-        query = self._generate_query(groups, self.maximum_group)
-        self._process_query(query)
+        groups: list[tuple[int, list[int]]] = []
+
+        if self._selected_groupby_fields() or not self.match_similar_names:
+            exact_fields = self._compute_selected_groupby()
+            query = self._generate_query(exact_fields, self.maximum_group)
+            self.env.cr.execute(query)  # noqa: E8501  built via SQL() by _generate_query
+            groups.extend(self.env.cr.fetchall())
+
+        if self.match_similar_names:
+            groups.extend(self._similar_name_groups(self.maximum_group))
+
+        self._process_groups(groups)
         return self._action_next_screen()
 
     def action_start_automatic_process(self) -> dict[str, Any]:
