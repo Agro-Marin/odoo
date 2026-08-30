@@ -4906,6 +4906,11 @@ msgid "When do you want the accrued time left to be carried-over?"
 msgstr "¿Cuándo desea que se transfiera el tiempo acumulado restante?"
 
 #. module: hr_holidays
+#: model_terms:ir.ui.view,arch_db:hr_holidays.hr_accrual_plan_view_form
+msgid "When do you want the accrued time left to be reset?"
+msgstr "¿Cuándo desea que se reinicie el tiempo acumulado restante?"
+
+#. module: hr_holidays
 #: model:ir.model.fields,help:hr_holidays.field_hr_leave_accrual_level__action_with_unused_accruals
 msgid ""
 "When the Carry-Over Time is reached, according to Plan's setting, select "

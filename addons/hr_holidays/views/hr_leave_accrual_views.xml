@@ -186,7 +186,9 @@
                                     </span>
                                     <label class="fw-bold" invisible="not can_be_carryover" for="carryover_date"
                                            string="When do you want the accrued time left to be carried-over?"/>
-                                    <span name="carryover" invisible="not can_be_carryover">
+                                    <label class="fw-bold" invisible="can_be_carryover" for="carryover_date"
+                                           string="When do you want the accrued time left to be reset?"/>
+                                    <span name="carryover">
                                         <field class="ms-1" name="carryover_date"
                                                widget="radio_followed_by_element"
                                                options="{'links': {'other': 'carryover_custom_date'}, 'observe': 'carryover'}"/>
