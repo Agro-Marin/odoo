@@ -854,6 +854,7 @@ class PaymentProvider(models.Model):
         data=None,
         json=None,
         reference=None,
+        timeout=10,
         **kwargs,
     ):
         """Send a request to the API.
@@ -870,6 +871,7 @@ class PaymentProvider(models.Model):
         :param dict|str data: The body of the request.
         :param dict json: The JSON-formatted body of the request.
         :param str reference: The reference of the transaction, if any.
+        :param float timeout: The maximum time to wait for the request to complete, in seconds.
         :param dict kwargs: Provider-specific data forwarded to the specialized helper methods.
         :return: The formatted content of the response.
         :rtype: dict|str
@@ -896,7 +898,7 @@ class PaymentProvider(models.Model):
                 json=json,
                 headers=headers,
                 auth=auth,
-                timeout=10,
+                timeout=timeout,
             )
         except requests.exceptions.ConnectionError, requests.exceptions.Timeout:
             raise ValidationError(
