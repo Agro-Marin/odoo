@@ -1184,6 +1184,15 @@ class HrApplicant(models.Model):
             },
         }
 
+    @api.model
+    def _get_model_description(self, model_name):
+        # The notification layout prints "Your <model description>", and the
+        # default resolves to this model's own name. A candidate reads about
+        # their application, not about an applicant.
+        if model_name == "hr.applicant":
+            return self.env._("Application")
+        return super()._get_model_description(model_name)
+
     def _track_template(self, changes):
         res = super()._track_template(changes)
         applicant = self[0]
