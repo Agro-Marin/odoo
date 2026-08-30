@@ -26,17 +26,29 @@ export class NewEmployeeDialog extends Component {
             badgeId: "",
             value: null,
             searchName: "",
+            badgeAssigned: false,
         });
     }
 
     onSelectEmployee(emp) {
         this.state.searchName = emp?.name ?? "";
+        // Whatever was typed or assigned belonged to the previous employee.
+        this.state.badgeId = "";
+        this.state.badgeAssigned = false;
         if( this.state.searchName == ""){
             this.state.value = null;
         }
         else{
             this.state.value = emp;
         }
+    }
+
+    get printBadgeUrl() {
+        const params = new URLSearchParams({
+            employee_id: this.state.value.id,
+            token: this.props.token,
+        });
+        return `/hr_attendance/print_badge?${params}`;
     }
 
     async onCreate() {
@@ -86,7 +98,9 @@ export class NewEmployeeDialog extends Component {
             this.notification.add(_t("Badge assigned successfully!"), {
                 type: "success",
             });
-            this.props.close();
+            // Keep the dialog open: the badge that was just assigned is the
+            // one the user came here to print.
+            this.state.badgeAssigned = true;
         } else {
             this.notification.add( _t("Error: ") + data?.message,{
                 type: "danger",

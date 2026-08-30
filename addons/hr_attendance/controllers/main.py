@@ -5,7 +5,7 @@ from requests.exceptions import RequestException
 from odoo import _, http
 from odoo.exceptions import UserError
 from odoo.fields import Domain
-from odoo.http import request
+from odoo.http import content_disposition, request
 from odoo.service.common import exp_version
 from odoo.tools import SQL, float_round, py_to_js_locale
 from odoo.tools.image import image_data_uri
@@ -143,6 +143,38 @@ class HrAttendance(http.Controller):
                 employee.write({"barcode": badge})
                 return {"status": "success"}
         return {}
+
+    @http.route("/hr_attendance/print_badge", type="http", auth="public")
+    def print_badge(self, employee_id, token, **kwargs):
+        """Render the badge of an employee of the company holding ``token``.
+
+        The onboarding dialog that calls this runs inside the public kiosk,
+        which has no action service to fire the report action with -- hence a
+        route. The kiosk token is the only caller identity there, so it is
+        also what bounds the employee, exactly as ``set_badge`` above does.
+        """
+        company = self._get_company(token)
+        if not company:
+            return request.not_found()
+        employee = request.env["hr.employee"].sudo().browse(int(employee_id)).exists()
+        if employee.company_id != company or not employee.barcode:
+            return request.not_found()
+        badge, _report_type = (
+            request.env["ir.actions.report"]
+            .sudo()
+            ._render_qweb_pdf(
+                report_ref="hr.hr_employee_print_badge", res_ids=employee.ids
+            )
+        )
+        filename = f"Badge - {employee.name}.pdf".replace("/", "")
+        return request.make_response(
+            badge,
+            headers=[
+                ("Content-Type", "application/pdf"),
+                ("Content-Length", len(badge)),
+                ("Content-Disposition", content_disposition(filename)),
+            ],
+        )
 
     @http.route("/hr_attendance/create_employee", type="jsonrpc", auth="public")
     def create_employee(self, name, token):
