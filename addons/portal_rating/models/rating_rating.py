@@ -60,10 +60,16 @@ class RatingRating(models.Model):
         `_check_synchronize_publisher_values()` themselves, against the
         recordset that is actually meaningful at their call site (this
         helper alone cannot tell the two apart, and `create()`'s `self` is
-        still empty when it prepares `vals_list`)."""
+        still empty when it prepares `vals_list`).
+
+        `publisher_id` is always stamped to the acting user's partner here,
+        never taken from `values`: it is `readonly=True` on the field (a
+        UI-only restriction), so a direct ORM write passing its own
+        `publisher_id` would otherwise be free to attribute a comment to an
+        arbitrary partner instead of whoever the access check above (or on
+        `write()`) actually authorized."""
         if values.get("publisher_comment"):
             if not values.get("publisher_datetime"):
                 values["publisher_datetime"] = fields.Datetime.now()
-            if not values.get("publisher_id"):
-                values["publisher_id"] = self.env.user.partner_id.id
+            values["publisher_id"] = self.env.user.partner_id.id
         return values
