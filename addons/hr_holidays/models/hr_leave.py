@@ -334,6 +334,11 @@ class HrLeave(models.Model):
     supported_attachment_ids_count = fields.Integer(
         compute="_compute_supported_attachment_ids"
     )
+    attachment_is_visible = fields.Boolean(
+        compute="_compute_attachment_is_visible",
+        compute_sudo=True,
+        export_string_translation=False,
+    )
     # UX fields
     leave_type_request_unit = fields.Selection(
         related="holiday_status_id.request_unit", readonly=True
@@ -1125,6 +1130,25 @@ Versions:
         for holiday in self:
             holiday.supported_attachment_ids = holiday.attachment_ids
             holiday.supported_attachment_ids_count = len(holiday.attachment_ids.ids)
+
+    @api.depends_context("uid")
+    @api.depends("user_id", "create_uid")
+    def _compute_attachment_is_visible(self):
+        """Who may be shown the file attached to a time off request.
+
+        A supporting document is usually a medical certificate. The employee
+        it belongs to, whoever filed the request, and the time off officers
+        may see it; the line manager approving the day off may not, even
+        though hr_leave_rule_responsible_read lets them read the request.
+        """
+        # group_hr_holidays_manager implies group_hr_holidays_user, so the one
+        # group covers both officers and administrators.
+        is_officer = self.env.user.has_group("hr_holidays.group_hr_holidays_user")
+        for leave in self:
+            leave.attachment_is_visible = is_officer or self.env.uid in (
+                leave.user_id.id,
+                leave.create_uid.id,
+            )
 
     @api.depends("employee_id", "holiday_status_id")
     def _compute_leaves(self):

@@ -231,6 +231,33 @@ class TestAccessRightsRead(TestHrHolidaysAccessRightsCommon):
         res = self.employee_leave.read(["name", "number_of_days", "state"])
         self.assertEqual(res[0]["name"], "Test")
 
+    def test_supporting_document_is_hidden_from_the_line_approver(self):
+        """A medical certificate is not for the person approving the day off.
+
+        hr_leave_rule_responsible_read lets a Time Off Responsible read every
+        leave of their reports, attachments included, and that group is not
+        the officer group. The employee's own line manager could therefore
+        open the sick note attached to the request they were approving.
+        """
+        leave = self.employee_leave
+
+        self.assertTrue(
+            leave.with_user(self.user_employee).attachment_is_visible,
+            "The employee sees the document they attached.",
+        )
+        self.assertTrue(
+            leave.with_user(self.user_hruser).attachment_is_visible,
+            "A time off officer sees it.",
+        )
+        self.assertTrue(
+            leave.with_user(self.user_hrmanager).attachment_is_visible,
+            "A time off administrator sees it.",
+        )
+        self.assertFalse(
+            leave.with_user(self.user_responsible).attachment_is_visible,
+            "The approver who is only the employee's responsible does not.",
+        )
+
 
 @tests.tagged("access_rights", "access_rights_write")
 class TestAccessRightsWrite(TestHrHolidaysAccessRightsCommon):
