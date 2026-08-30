@@ -97,7 +97,7 @@ class TestSalePurchase(TestSalePurchaseCommon):
         )
 
     def test_sale_create_purchase(self):
-        """Confirming 2 sales orders with a service that should create two PO, then cancelling the PO should shedule 1 next activity per SO"""
+        """Confirming 2 sales orders with a service that should create two PO, then cancelling the PO should schedule 1 next activity per SO"""
         self.sale_order_1.action_confirm()
         self.sale_order_2.action_confirm()
 

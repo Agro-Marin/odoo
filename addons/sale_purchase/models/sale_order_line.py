@@ -331,7 +331,7 @@ class SaleOrderLine(models.Model):
         return purchase_order
 
     def _get_purchase_partner(self):
-        """In case we want to explicitely name a partner from whom we want to buy or receive products"""
+        """In case we want to explicitly name a partner from whom we want to buy or receive products"""
         self.ensure_one()
         return False
 
