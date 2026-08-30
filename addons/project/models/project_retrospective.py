@@ -81,13 +81,17 @@ class ProjectRetrospective(models.Model):
         open_actions = self.previous_id.action_ids.filtered(
             lambda a: a.state in ("open", "in_progress") and a.id not in already_carried
         )
-        for action in open_actions:
-            action.copy(
-                {
-                    "retrospective_id": self.id,
-                    "carried_from_id": action.id,
-                }
+        vals_list = [
+            {
+                **copy_vals,
+                "retrospective_id": self.id,
+                "carried_from_id": action.id,
+            }
+            for action, copy_vals in zip(
+                open_actions, open_actions.copy_data(), strict=True
             )
+        ]
+        self.env["project.retrospective.action"].create(vals_list)
 
 
 class ProjectRetrospectiveAction(models.Model):
