@@ -12,6 +12,30 @@ ATTACKS = {
     "restrict-backtick": "\\restrict `touch {C}`\n",
     "unrestrict-backtick": "\\unrestrict `touch {C}`\n",
     "restrict-then-bang": "\\restrict k1 \\! touch {C}\n",
+    # Every one of these is a lexer state the scanner has to leave correctly.
+    # Staying inside a string or a comment one character too long is what turns
+    # a payload on the next line into content it never scans, so each pairs a
+    # construct with a `\!` immediately after the point psql considers it over.
+    "bang-after-plain-string-ending-in-backslash": "SELECT 'a\\';\n\\! touch {C}\n",
+    "bang-after-escape-string": "SELECT E'x';\n\\! touch {C}\n",
+    "bang-after-escape-string-with-escaped-backslash": (
+        "SELECT E'a\\\\';\n\\! touch {C}\n"
+    ),
+    "bang-after-doubled-quote": "SELECT 'a''b';\n\\! touch {C}\n",
+    "bang-after-semicolon-inside-string": "SELECT 'a;b';\n\\! touch {C}\n",
+    "bang-after-quote-inside-quoted-identifier": 'SELECT "a\'b";\n\\! touch {C}\n',
+    "bang-after-unicode-escape-string": "SELECT U&'a\\0041';\n\\! touch {C}\n",
+    "bang-after-nested-block-comment": "/* a /* b */ */\nSELECT 1;\n\\! touch {C}\n",
+    "bang-after-tagged-dollar-quote": "SELECT $t$ x $t$;\n\\! touch {C}\n",
+    "bang-after-dollar-inside-identifier": "SELECT a$b;\n\\! touch {C}\n",
+    # A COPY that never starts. If the scanner entered copy-data mode from a
+    # mention psql treats as text, everything after it goes unscanned.
+    "bang-after-copy-named-in-a-string": (
+        "SELECT 'COPY t FROM stdin;';\n\\! touch {C}\n"
+    ),
+    "bang-after-copy-named-in-a-comment": "-- COPY t FROM stdin;\n\\! touch {C}\n",
+    "bang-after-crlf-statement": "SELECT 1;\r\n\\! touch {C}\n",
+    "bang-without-trailing-newline": "SELECT 1;\n\\! touch {C}",
 }
 
 BENIGN = {
@@ -22,6 +46,14 @@ BENIGN = {
     "in-copy-data": (
         "CREATE TEMP TABLE ct (a text);\nCOPY ct (a) FROM stdin;\n\\! touch {C}\n\\.\n"
     ),
+    # The other half of the escape-string pair above, and the reason the
+    # scanner needs `single_quote_escaped` at all: `'a\'` CLOSES, so the next
+    # line is a command, while `E'a\'` does NOT -- the backslash escapes the
+    # quote and psql reads to EOF looking for the end, then refuses the file.
+    # A scanner that treated both alike would either miss a real payload or
+    # reject legitimate dumps, and only real psql settles which is which.
+    "after-unterminated-escape-string": "SELECT E'a\\';\n\\! touch {C}\n",
+    "after-unclosed-block-comment": "/* a\nSELECT 1;\n\\! touch {C}\n",
 }
 
 LEGIT = {

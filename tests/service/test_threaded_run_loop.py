@@ -7,7 +7,7 @@ import psycopg
 import pytest
 
 from odoo.db import PoolError
-from odoo.service import _threaded
+from odoo.service import _cron, _threaded
 
 
 class _Stop(SystemExit):
@@ -31,18 +31,18 @@ def listen(server):
         backoffs = []
         connect = MagicMock(side_effect=[*outcomes, _Stop()])
         with (
-            patch.object(_threaded.db, "db_connect", connect),
+            patch.object(_cron.db, "db_connect", connect),
             patch.object(
-                _threaded,
+                _cron,
                 "capped_backoff",
                 side_effect=lambda n, *a, **k: backoffs.append(n) or 0,
             ),
             patch.object(_threaded, "config", {"limit_time_worker_cron": max_age}),
-            patch.object(_threaded, "arm_cron_listen"),
+            patch.object(_cron, "arm_cron_listen"),
             patch.object(_threaded, "drain_cron_notifies", return_value=set()),
-            patch.object(_threaded, "cron_database_list", return_value=[]),
-            patch.object(_threaded, "CRON_NOTIFY_JITTER_MAX_S", 0),
-            patch.object(_threaded, "SLEEP_INTERVAL", 0),
+            patch.object(_cron, "cron_database_list", return_value=[]),
+            patch.object(_cron, "CRON_NOTIFY_JITTER_MAX_S", 0),
+            patch.object(_threaded, "CRON_POLL_INTERVAL_S", 0),
             pytest.raises(SystemExit),
         ):
             _threaded.ThreadedServer._listen_thread(
@@ -224,7 +224,7 @@ class TestRunLimitReached:
             patch.object(_threaded, "config", {"test_enable": False}),
             patch.object(_threaded, "dumpstacks") as dump,
             patch.object(_threaded, "LIMIT_MONITOR_INTERVAL_S", 0),
-            patch.object(_threaded, "SLEEP_INTERVAL", 60),
+            patch.object(_threaded, "CRON_POLL_INTERVAL_S", 60),
         ):
             _threaded.ThreadedServer.run(server, ["db"], stop=False)
         return calls, dump
@@ -233,7 +233,7 @@ class TestRunLimitReached:
         calls, dump = self._drive(server, others=False)
         assert calls == ["reload"], (
             "the limit was reached and nothing else is in flight, so there is "
-            "nothing to wait for — the reload is due now, not in SLEEP_INTERVAL"
+            "nothing to wait for — the reload is due now, not in CRON_POLL_INTERVAL_S"
         )
         dump.assert_called_once()
 
@@ -241,14 +241,14 @@ class TestRunLimitReached:
         calls, dump = self._drive(server, others=True)
         assert calls == [], (
             "reloading while another request is being served drops it; the "
-            "server waits out SLEEP_INTERVAL first"
+            "server waits out CRON_POLL_INTERVAL_S first"
         )
         dump.assert_not_called()
 
     def test_but_it_does_not_wait_forever_for_them(self, server):
         calls, _ = self._drive(server, others=True, aged=True)
         assert calls == ["reload"], (
-            "past SLEEP_INTERVAL the reload happens regardless — otherwise one "
+            "past CRON_POLL_INTERVAL_S the reload happens regardless — otherwise one "
             "long-lived request pins a worker over its memory limit indefinitely"
         )
 

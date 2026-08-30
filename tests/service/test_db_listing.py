@@ -239,3 +239,77 @@ class TestListCountries:
         before = listing._scan_countries.cache_info().misses
         listing.exp_list_countries()
         assert listing._scan_countries.cache_info().misses == before
+
+
+class TestDbExistDoesNotPayForWhatTheListingProved:
+    def _config(self, **overrides):
+        base = {"list_db": True, "dbfilter": "", "db_name": []}
+        return patch.dict(odoo.tools.config.options, {**base, **overrides})
+
+    def test_the_catalogue_branch_answers_without_connecting(self):
+        with (
+            self._config(),
+            patch.object(listing, "_cached_catalogue", return_value=["alpha"]),
+            patch.object(listing, "exp_db_exist") as connect,
+        ):
+            assert listing._rpc_db_exist("alpha") is True
+
+        assert not connect.called, (
+            "the catalogue query filters on datallowconn and datdba = "
+            "current_user, so a name it returned demonstrably exists; opening a "
+            "connection re-establishes what the listing already proved"
+        )
+
+    def test_the_db_name_branch_still_connects(self):
+        """`db_name` states intent. It is not evidence the database was created."""
+        with (
+            self._config(db_name=["configured"]),
+            patch.object(listing, "exp_db_exist", return_value=False) as connect,
+        ):
+            assert listing._rpc_db_exist("configured") is False
+
+        connect.assert_called_once_with("configured")
+
+    def test_a_configured_but_uncreated_database_is_not_reported_as_existing(self):
+        with (
+            self._config(db_name=["never_created"]),
+            patch.object(listing, "exp_db_exist", return_value=False),
+        ):
+            assert listing._rpc_db_exist("never_created") is False, (
+                "skipping the connection on this branch would answer True for "
+                "every name an operator listed, created or not"
+            )
+
+    def test_a_name_absent_from_the_listing_never_connects(self):
+        with (
+            self._config(),
+            patch.object(listing, "_cached_catalogue", return_value=["alpha"]),
+            patch.object(listing, "exp_db_exist") as connect,
+        ):
+            assert listing._rpc_db_exist("absent") is False
+        assert not connect.called
+
+    def test_the_branch_is_decided_in_one_place(self):
+        """Both `list_dbs` and `_rpc_db_exist` ask the same predicate.
+
+        Re-deriving "which source answered" at each call site is how the two
+        drift; `_rpc_db_exist` is the caller that has to know.
+        """
+        with self._config(db_name=["configured"]):
+            assert listing._answers_from_config() is True
+            assert listing.list_dbs(True) == ["configured"]
+        with self._config():
+            assert listing._answers_from_config() is False
+        with self._config(db_name=["configured"], dbfilter="^x"):
+            assert listing._answers_from_config() is False, (
+                "a dbfilter sends list_dbs to the catalogue even with db_name set"
+            )
+
+    def test_list_dbs_remains_the_seam_callers_and_tests_patch(self):
+        """Moving it broke two suites once already; keep it patchable."""
+        with (
+            self._config(),
+            patch.object(listing, "list_dbs", return_value=["patched"]) as seam,
+        ):
+            assert listing._rpc_db_exist("patched") is True
+            assert seam.called

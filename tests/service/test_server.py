@@ -19,8 +19,14 @@ import psycopg
 import pytest
 import werkzeug.serving
 
-from odoo.service import _base_server, _helpers, _prefork, _process_state, _threaded
-from odoo.service import wsgi as _helpers_wsgi
+from odoo.service import (
+    _base_server,
+    _limits,
+    _prefork,
+    _process_state,
+    _threaded,
+)
+from odoo.service import wsgi as _wsgi
 from odoo.tools import SQL
 
 
@@ -78,6 +84,7 @@ def prefork_server(srv):
     obj._consecutive_fast_deaths = 0
     obj._respawn_not_before = 0.0
     obj._drain_procs = {}
+    obj._killed_workers = {}
     obj.workers_http = {}
     obj.workers_cron = {}
     obj.workers_job = {}
@@ -90,7 +97,7 @@ class TestEmptyPipe:
         try:
             os.set_blocking(r, False)
             os.write(w, b"hello world")
-            _helpers.empty_pipe(r)
+            _limits.empty_pipe(r)
             with pytest.raises(BlockingIOError):
                 os.read(r, 1)
         finally:
@@ -101,7 +108,7 @@ class TestEmptyPipe:
         r, w = os.pipe()
         try:
             os.set_blocking(r, False)
-            _helpers.empty_pipe(r)
+            _limits.empty_pipe(r)
         finally:
             os.close(r)
             os.close(w)
@@ -111,7 +118,7 @@ class TestEmptyPipe:
         try:
             os.set_blocking(r, False)
             os.write(w, b"a" * 512)
-            _helpers.empty_pipe(r)
+            _limits.empty_pipe(r)
             with pytest.raises(BlockingIOError):
                 os.read(r, 1)
         finally:
@@ -238,7 +245,7 @@ class TestWorkerCronConnectPostgres:
         conn, cursor = self._mock_db(in_recovery=in_recovery)
         with (
             patch(
-                "odoo.service._worker.db.db_connect", return_value=conn
+                "odoo.service._cron.db.db_connect", return_value=conn
             ) as mock_connect,
             patch(
                 "odoo.service._worker.selectors.DefaultSelector",
@@ -310,7 +317,7 @@ class TestWorkerCronProcessWorkReconnect:
             "SSL connection has been closed unexpectedly"
         )
         with (
-            patch("odoo.service._worker.cron_database_list", return_value=["testdb"]),
+            patch("odoo.service._cron.cron_database_list", return_value=["testdb"]),
             patch.object(worker_cron, "_connect_postgres") as mock_reconnect,
         ):
             worker_cron.process_work()
@@ -321,14 +328,35 @@ class TestWorkerCronProcessWorkReconnect:
             "SSL"
         )
         with (
-            patch("odoo.service._worker.cron_database_list", return_value=["db1"]),
+            patch("odoo.service._cron.cron_database_list", return_value=["db1"]),
             patch.object(worker_cron, "_connect_postgres"),
         ):
             worker_cron.process_work()
         assert len(worker_cron.db_queue) == 0
         assert worker_cron.db_count == 0
 
-    def test_operational_error_closes_cnx_before_cursor(self, worker_cron):
+    def test_operational_error_releases_the_cursor_and_not_the_connection(
+        self, worker_cron
+    ):
+        """This pinned `["cnx", "cursor"]` until 2026-08-30.  Both halves were wrong.
+
+        The ORDER was wrong: `BaseCursor._close` rolls back before releasing,
+        so with the connection closed first that rollback raises and the cursor
+        logs it at ERROR with a traceback -- which the `suppress(Exception)` at
+        the call site hid as an exception but not as a log.  A real prefork
+        SIGTERM printed two, one per cron/job worker.
+
+        The second close was wrong AT ALL: `_close` ends in
+        `pool.give_back(...)`, so the connection is the pool's by then.  For
+        `postgres` the pool has already closed it; for a pooled DSN it is being
+        held open for the next borrower and closing it costs them a reconnect.
+
+        The order was never argued for -- it arrived in `138282fe3ea`, a bulk
+        characterisation suite that described the code rather than justifying
+        it.  The one argument FOR connection-first (rolling back on a half-dead
+        socket might block) was measured and does not hold: with the backend
+        terminated server-side, cursor-only took 0.15ms and logged nothing.
+        """
         old_cnx = worker_cron.dbcursor.connection
         old_cursor = worker_cron.dbcursor
         call_order = []
@@ -337,12 +365,12 @@ class TestWorkerCronProcessWorkReconnect:
         old_cnx.notifies.side_effect = psycopg.OperationalError("SSL")
 
         with (
-            patch("odoo.service._worker.cron_database_list", return_value=[]),
+            patch("odoo.service._cron.cron_database_list", return_value=[]),
             patch.object(worker_cron, "_connect_postgres"),
         ):
             worker_cron.process_work()
 
-        assert call_order == ["cnx", "cursor"]
+        assert call_order == ["cursor"]
 
     def test_close_error_on_broken_connection_is_suppressed(self, worker_cron):
         worker_cron.dbcursor.connection.notifies.side_effect = psycopg.OperationalError(
@@ -352,7 +380,7 @@ class TestWorkerCronProcessWorkReconnect:
         worker_cron.dbcursor.close.side_effect = Exception("already closed")
 
         with (
-            patch("odoo.service._worker.cron_database_list", return_value=["db1"]),
+            patch("odoo.service._cron.cron_database_list", return_value=["db1"]),
             patch.object(worker_cron, "_connect_postgres") as mock_reconnect,
         ):
             worker_cron.process_work()
@@ -364,7 +392,7 @@ class TestWorkerCronProcessWorkReconnect:
             "SSL"
         )
         with (
-            patch("odoo.service._worker.cron_database_list", return_value=["db1"]),
+            patch("odoo.service._cron.cron_database_list", return_value=["db1"]),
             patch.object(
                 worker_cron,
                 "_connect_postgres",
@@ -373,7 +401,7 @@ class TestWorkerCronProcessWorkReconnect:
             patch("odoo.service._worker.time.sleep"),
         ):
             worker_cron.process_work()
-        assert worker_cron._reconnect_attempts == 1
+        assert worker_cron._backoff.attempts == 1
 
     def test_reconnect_attempts_escalate_across_cycles(self, worker_cron):
         worker_cron.dbcursor.connection.notifies.side_effect = psycopg.OperationalError(
@@ -382,7 +410,7 @@ class TestWorkerCronProcessWorkReconnect:
         per_cycle_sleeps: list[list[float]] = []
         current_cycle_sleeps: list[float] = []
         with (
-            patch("odoo.service._worker.cron_database_list", return_value=["db1"]),
+            patch("odoo.service._cron.cron_database_list", return_value=["db1"]),
             patch.object(
                 worker_cron,
                 "_connect_postgres",
@@ -466,7 +494,7 @@ class TestWorkerCronProcessWorkScheduling:
 
     def test_no_databases_returns_immediately(self, worker_cron):
         worker_cron.dbcursor.connection.notifies.return_value = iter([])
-        with patch("odoo.service._worker.cron_database_list", return_value=[]):
+        with patch("odoo.service._cron.cron_database_list", return_value=[]):
             worker_cron.process_work()
         assert len(worker_cron.db_queue) == 0
         assert worker_cron.db_count == 0
@@ -475,10 +503,10 @@ class TestWorkerCronProcessWorkScheduling:
         worker_cron.dbcursor.connection.notifies.return_value = iter([])
         with (
             patch(
-                "odoo.service._worker.cron_database_list",
+                "odoo.service._cron.cron_database_list",
                 return_value=["db1", "db2", "db3"],
             ),
-            patch("odoo.service._worker.db"),
+            patch("odoo.service._cron.db"),
         ):
             worker_cron.process_work()
         assert worker_cron.db_count == 3
@@ -492,10 +520,10 @@ class TestWorkerCronProcessWorkScheduling:
 
         with (
             patch(
-                "odoo.service._worker.cron_database_list",
+                "odoo.service._cron.cron_database_list",
                 return_value=["slow_db", "urgent_db"],
             ),
-            patch("odoo.service._worker.db"),
+            patch("odoo.service._cron.db"),
         ):
             worker_cron.process_work()
 
@@ -509,8 +537,8 @@ class TestWorkerCronProcessWorkScheduling:
         worker_cron.dbcursor.connection.notifies.return_value = iter([notif])
 
         with (
-            patch("odoo.service._worker.cron_database_list", return_value=["real_db"]),
-            patch("odoo.service._worker.db"),
+            patch("odoo.service._cron.cron_database_list", return_value=["real_db"]),
+            patch("odoo.service._cron.db"),
         ):
             worker_cron.process_work()
 
@@ -523,7 +551,7 @@ class TestWorkerCronProcessWorkScheduling:
         worker_cron.db_queue.append("pending_db")
         worker_cron.db_count = 1
 
-        with patch("odoo.service._worker.db"):
+        with patch("odoo.service._cron.db"):
             worker_cron.process_work()
 
         worker_cron.dbcursor.connection.notifies.assert_not_called()
@@ -531,8 +559,8 @@ class TestWorkerCronProcessWorkScheduling:
     def test_request_count_incremented(self, worker_cron, mock_ir_cron):
         worker_cron.dbcursor.connection.notifies.return_value = iter([])
         with (
-            patch("odoo.service._worker.cron_database_list", return_value=["db1"]),
-            patch("odoo.service._worker.db"),
+            patch("odoo.service._cron.cron_database_list", return_value=["db1"]),
+            patch("odoo.service._cron.db"),
         ):
             worker_cron.process_work()
         assert worker_cron.request_count == 1
@@ -548,22 +576,20 @@ class TestWorkerStopReleasesResources:
         w = object.__new__(srv.Worker)
         w.stop()
 
-    def test_cron_worker_closes_selector_connection_and_cursor(self, worker_cron):
+    def test_cron_worker_closes_the_selector_and_the_cursor_only(self, worker_cron):
+        """The connection is the pool's, not ours.
+
+        `Cursor._close` ends in `pool.give_back(...)`.  For `postgres`, a
+        maintenance database, that closes the connection itself; for a pooled
+        DSN it holds it open for the next borrower.  So a second close here is
+        dead in the first case and destroys a live pooled connection in the
+        second.  This asserted the opposite until 2026-08-30.
+        """
         worker_cron._pg_selector = MagicMock()
         worker_cron.stop()
         worker_cron._pg_selector.close.assert_called_once_with()
-        worker_cron.dbcursor.connection.close.assert_called_once_with()
         worker_cron.dbcursor.close.assert_called_once_with()
-
-    def test_a_failing_connection_close_still_closes_the_cursor(self, worker_cron):
-        worker_cron._pg_selector = MagicMock()
-        worker_cron.dbcursor.connection.close.side_effect = psycopg.OperationalError(
-            "server closed the connection unexpectedly"
-        )
-
-        worker_cron.stop()
-
-        worker_cron.dbcursor.close.assert_called_once_with()
+        worker_cron.dbcursor.connection.close.assert_not_called()
 
     def test_a_failing_cursor_close_does_not_escape(self, worker_cron):
         worker_cron._pg_selector = MagicMock()
@@ -630,7 +656,7 @@ def worker_check_limits_env(memory_bytes=0, config_override=None):
     mock_memory_info = MagicMock(return_value=memory_bytes)
     with (
         patch("odoo.service._worker.config", cfg),
-        patch("odoo.service._helpers.memory_info", mock_memory_info),
+        patch("odoo.service._limits.memory_info", mock_memory_info),
         patch("odoo.service._worker.resource", mock_resource),
     ):
         yield SimpleNamespace(resource=mock_resource, memory_info=mock_memory_info)
@@ -756,20 +782,20 @@ class TestWorkerRunFaultExit:
 class TestCommonServerCallbacks:
     @pytest.fixture(autouse=True)
     def _restore_callbacks(self, srv):
-        original = list(_base_server._ON_STOP_FUNCS)
+        original = list(_base_server._on_stop_hooks)
         yield
-        _base_server._ON_STOP_FUNCS[:] = original
+        _base_server._on_stop_hooks[:] = original
 
     def test_on_stop_appends_callback(self, srv):
         cb = MagicMock()
         srv.CommonServer.on_stop(cb)
-        assert cb in _base_server._ON_STOP_FUNCS
+        assert cb in _base_server._on_stop_hooks
 
     def test_stop_calls_all_registered_callbacks(self, srv):
         server = object.__new__(srv.CommonServer)
         server.logger = MagicMock()
         cb1, cb2 = MagicMock(), MagicMock()
-        _base_server._ON_STOP_FUNCS.extend([cb1, cb2])
+        _base_server._on_stop_hooks.extend([cb1, cb2])
         server.stop()
         cb1.assert_called_once()
         cb2.assert_called_once()
@@ -781,7 +807,7 @@ class TestCommonServerCallbacks:
         cb1.__name__ = "cb1"
         cb2 = MagicMock()
         cb2.__name__ = "cb2"
-        _base_server._ON_STOP_FUNCS.extend([cb1, cb2])
+        _base_server._on_stop_hooks.extend([cb1, cb2])
         server.stop()
         cb2.assert_called_once()
 
@@ -798,7 +824,7 @@ class TestCommonServerCallbacks:
         assert not hasattr(raising_partial, "__name__")
         later = MagicMock()
         later.__name__ = "later"
-        _base_server._ON_STOP_FUNCS.extend([raising_partial, later])
+        _base_server._on_stop_hooks.extend([raising_partial, later])
 
         server.stop()
 
@@ -1105,7 +1131,7 @@ class TestPreforkInitTimeout:
         with (
             patch.object(_prefork, "config", cfg),
             patch.object(_base_server, "config", cfg),
-            patch("odoo.service._helpers.config", cfg),
+            patch("odoo.service._limits.config", cfg),
         ):
             return srv.PreforkServer(MagicMock())
 
@@ -1308,15 +1334,13 @@ def log_handler(srv, monkeypatch):
 class TestLoggingBaseWSGIServerMixIn:
     @staticmethod
     def _server():
-        return object.__new__(_helpers_wsgi.LoggingBaseWSGIServerMixIn)
+        return object.__new__(_wsgi.LoggingBaseWSGIServerMixIn)
 
     def test_a_client_hangup_is_not_logged(self, caplog):
         import logging
 
         with caplog.at_level(logging.DEBUG, logger="odoo.service.server"):
-            with patch.object(
-                _helpers_wsgi.sys, "exception", return_value=BrokenPipeError()
-            ):
+            with patch.object(_wsgi.sys, "exception", return_value=BrokenPipeError()):
                 self._server().handle_error(None, ("127.0.0.1", 51234))
         assert caplog.records == [], (
             f"a disconnected client produced log output: {caplog.records!r}"
@@ -1327,7 +1351,7 @@ class TestLoggingBaseWSGIServerMixIn:
 
         boom = ValueError("handler blew up")
         with caplog.at_level(logging.DEBUG, logger="odoo.service.server"):
-            with patch.object(_helpers_wsgi.sys, "exception", return_value=boom):
+            with patch.object(_wsgi.sys, "exception", return_value=boom):
                 self._server().handle_error(None, ("10.0.0.7", 4242))
 
         errors = [r for r in caplog.records if r.levelno >= logging.ERROR]
@@ -1344,7 +1368,7 @@ class TestLoggingBaseWSGIServerMixIn:
         import logging
 
         with caplog.at_level(logging.DEBUG, logger="odoo.service.server"):
-            with patch.object(_helpers_wsgi.sys, "exception", return_value=None):
+            with patch.object(_wsgi.sys, "exception", return_value=None):
                 self._server().handle_error(None, ("127.0.0.1", 1))
         assert any(r.levelno >= logging.ERROR for r in caplog.records)
 
@@ -1492,7 +1516,7 @@ class TestCommonRequestHandlerLogRequest:
     def _captured_styles(self, log_handler, code):
         captured = []
         with (
-            patch("odoo.service.wsgi._ANSI_ENABLED", True),
+            patch("odoo.service.wsgi._is_ansi_enabled", return_value=True),
             patch(
                 "odoo.service.wsgi._ansi_style",
                 side_effect=lambda msg, *styles: captured.append(styles) or msg,
@@ -1503,7 +1527,7 @@ class TestCommonRequestHandlerLogRequest:
 
     def test_200_no_ansi_styling(self, log_handler):
         with (
-            patch("odoo.service.wsgi._ANSI_ENABLED", True),
+            patch("odoo.service.wsgi._is_ansi_enabled", return_value=True),
             patch("odoo.service.wsgi._ansi_style") as mock_ansi,
         ):
             log_handler.log_request(200, 0)
@@ -1530,7 +1554,7 @@ class TestCommonRequestHandlerLogRequest:
 class TestCommonRequestHandlerLogRequestNoTTY:
     def test_no_ansi_calls_when_disabled(self, log_handler):
         with (
-            patch("odoo.service.wsgi._ANSI_ENABLED", False),
+            patch("odoo.service.wsgi._is_ansi_enabled", return_value=False),
             patch("odoo.service.wsgi._ansi_style") as mock_ansi,
         ):
             for code in (101, 200, 301, 304, 404, 500):
@@ -1546,7 +1570,7 @@ class TestCommonRequestHandlerLogRequestNoTTY:
             del werkzeug.serving._ansi_style
             try:
                 reloaded = importlib.reload(wsgi_mod)
-                with patch.object(reloaded, "_ANSI_ENABLED", True):
+                with patch.object(reloaded, "_is_ansi_enabled", return_value=True):
                     assert reloaded._maybe_style("GET /x", "bold", "red") == "GET /x"
             finally:
                 importlib.reload(wsgi_mod)
@@ -1571,14 +1595,14 @@ class TestCommonRequestHandlerLogRequestControlChars:
     def test_control_chars_in_path_are_escaped(self, log_handler):
         log_handler.path = f"/web/login{self.ESC}[2Jspoof"
         log_handler.requestline = "GET /web/login HTTP/1.1"
-        with patch("odoo.service.wsgi._ANSI_ENABLED", False):
+        with patch("odoo.service.wsgi._is_ansi_enabled", return_value=False):
             log_handler.log_request(404, 0)
         assert self.ESC not in self._logged_msg(log_handler)
         assert "\\x1b" in self._logged_msg(log_handler)
 
     def test_control_chars_in_rpc_fragment_are_escaped(self, log_handler, monkeypatch):
         stamp_rpc_model_method(monkeypatch, f"res.users.read{self.ESC}[31mINJECT")
-        with patch("odoo.service.wsgi._ANSI_ENABLED", False):
+        with patch("odoo.service.wsgi._is_ansi_enabled", return_value=False):
             log_handler.log_request(200, 0)
         msg = self._logged_msg(log_handler)
         assert self.ESC not in msg
@@ -1589,7 +1613,7 @@ class TestCommonRequestHandlerLogRequestControlChars:
         h.requestline = f"GARBAGE{self.ESC}[2K"
         h.log = MagicMock()
         stamp_rpc_model_method(monkeypatch)
-        with patch("odoo.service.wsgi._ANSI_ENABLED", False):
+        with patch("odoo.service.wsgi._is_ansi_enabled", return_value=False):
             h.log_request(200, 0)
         assert self.ESC not in h.log.call_args.args[1]
 
@@ -1865,9 +1889,9 @@ class TestThreadedServerProcessLimit:
             **(config_override or {}),
         }
         with (
-            patch("odoo.service._helpers.memory_info", return_value=memory),
+            patch("odoo.service._limits.memory_info", return_value=memory),
             patch("odoo.service._threaded.config", cfg),
-            patch("odoo.service._helpers.config", cfg),
+            patch("odoo.service._limits.config", cfg),
             patch("odoo.service._base_server.config", cfg),
             patch("threading.enumerate", return_value=list(threads)),
         ):
@@ -1888,7 +1912,7 @@ class TestThreadedServerProcessLimit:
 
         def tick(mem):
             with (
-                patch("odoo.service._helpers.memory_info", return_value=mem),
+                patch("odoo.service._limits.memory_info", return_value=mem),
                 patch("odoo.service._threaded.config", cfg),
                 patch("odoo.service._base_server.config", cfg),
                 patch("threading.enumerate", return_value=[]),
@@ -2170,13 +2194,13 @@ class TestForkAndReloadTimeout:
 class TestOnStopFuncsModuleLevel:
     @pytest.fixture(autouse=True)
     def _restore(self, srv):
-        original_module = list(_base_server._ON_STOP_FUNCS)
+        original_module = list(_base_server._on_stop_hooks)
         yield
-        _base_server._ON_STOP_FUNCS[:] = original_module
+        _base_server._on_stop_hooks[:] = original_module
 
     def test_module_level_list_exists(self):
-        assert hasattr(_base_server, "_ON_STOP_FUNCS")
-        assert isinstance(_base_server._ON_STOP_FUNCS, list)
+        assert hasattr(_base_server, "_on_stop_hooks")
+        assert isinstance(_base_server._on_stop_hooks, list)
 
     def test_class_attr_intentionally_absent(self, srv):
         assert not hasattr(srv.CommonServer, "_on_stop_funcs")
@@ -2184,14 +2208,14 @@ class TestOnStopFuncsModuleLevel:
     def test_on_stop_appends_to_module_list(self, srv):
         cb = MagicMock()
         srv.CommonServer.on_stop(cb)
-        assert cb in _base_server._ON_STOP_FUNCS
+        assert cb in _base_server._on_stop_hooks
 
     def test_on_stop_is_idempotent(self, srv):
         cb = MagicMock()
-        before = len(_base_server._ON_STOP_FUNCS)
+        before = len(_base_server._on_stop_hooks)
         srv.CommonServer.on_stop(cb)
         srv.CommonServer.on_stop(cb)
-        assert len(_base_server._ON_STOP_FUNCS) == before + 1
+        assert len(_base_server._on_stop_hooks) == before + 1
 
         instance = object.__new__(srv.CommonServer)
         instance.logger = MagicMock()
@@ -2253,7 +2277,7 @@ class TestMemoryLogStrings:
         cfg = {"limit_memory_soft_gevent": 100, "limit_memory_soft": 0}
         with (
             patch.object(_threaded, "config", cfg),
-            patch("odoo.service._helpers.memory_info", return_value=500),
+            patch("odoo.service._limits.memory_info", return_value=500),
             patch.object(_threaded.os, "kill"),
         ):
             event_server.check_limits()
@@ -2265,8 +2289,8 @@ class TestMemoryLogStrings:
     def test_memory_info_returns_rss(self):
         proc = MagicMock()
         proc.memory_info.return_value = MagicMock(rss=111, vms=999)
-        assert _helpers.memory_info(proc) == 111
-        assert _helpers.memory_info(proc) != 999
+        assert _limits.memory_info(proc) == 111
+        assert _limits.memory_info(proc) != 999
 
 
 @pytest.fixture
@@ -2284,9 +2308,9 @@ def event_server(srv):
 class TestEventServerGracefulStop:
     @pytest.fixture(autouse=True)
     def _restore_callbacks(self, srv):
-        original = list(_base_server._ON_STOP_FUNCS)
+        original = list(_base_server._on_stop_hooks)
         yield
-        _base_server._ON_STOP_FUNCS[:] = original
+        _base_server._on_stop_hooks[:] = original
 
     @pytest.mark.parametrize("sig", [signal.SIGINT, signal.SIGTERM])
     def test_quit_handler_raises_keyboard_interrupt(self, event_server, sig):
@@ -2379,7 +2403,7 @@ class TestProcessLimitRealTimeLog:
         }
         with (
             patch.object(_threaded, "config", cfg),
-            patch.object(_helpers, "memory_info", return_value=0),
+            patch.object(_limits, "memory_info", return_value=0),
             patch.object(threading, "enumerate", return_value=[fake_thread]),
         ):
             ts.check_limits()
@@ -2483,12 +2507,10 @@ def _drive_listen_thread(listen_server, process_jobs, *, sleeps_before_stop=2):
 
     cfg = {"limit_time_worker_cron": 0, "db_name": ["db1"]}
     with (
-        patch("odoo.service._threaded.db.db_connect"),
-        patch("odoo.service._threaded.arm_cron_listen", return_value=True),
+        patch("odoo.service._cron.db.db_connect"),
+        patch("odoo.service._cron.arm_cron_listen", return_value=True),
         patch("odoo.service._threaded.drain_cron_notifies", return_value=set()),
-        patch(
-            "odoo.service._threaded.cron_database_list", return_value=["db1"]
-        ) as db_list,
+        patch("odoo.service._cron.cron_database_list", return_value=["db1"]) as db_list,
         patch("odoo.service._threaded.selectors.DefaultSelector"),
         patch("odoo.service._threaded.config", cfg),
         patch("odoo.service._threaded.time.sleep", fake_sleep),
@@ -2515,7 +2537,7 @@ class TestListenThreadUsesAMonotonicClock:
         assert calls["full_scans"] == 1, (
             f"the full scan ran {calls['full_scans']} times across "
             f"{calls['sleep']} polls; a wall-clock jump must not reschedule it "
-            f"(SLEEP_INTERVAL is {_helpers.SLEEP_INTERVAL}s and monotonic "
+            f"(CRON_POLL_INTERVAL_S is {_limits.CRON_POLL_INTERVAL_S}s and monotonic "
             f"advanced by milliseconds)"
         )
 
@@ -2617,7 +2639,7 @@ class TestPreforkPhoenixStopRunsOnStopHooks:
         from odoo.service import _base_server
 
         calls = []
-        monkeypatch.setattr(_base_server, "_ON_STOP_FUNCS", [lambda: calls.append(1)])
+        monkeypatch.setattr(_base_server, "_on_stop_hooks", [lambda: calls.append(1)])
         return calls
 
     def _phoenix(self, prefork_server):
@@ -2688,10 +2710,10 @@ class TestListenThreadFirstPassIsImmediate:
 
         cfg = {"limit_time_worker_cron": 0, "db_name": ["db1"]}
         with (
-            patch("odoo.service._threaded.db.db_connect"),
-            patch("odoo.service._threaded.arm_cron_listen", return_value=True),
+            patch("odoo.service._cron.db.db_connect"),
+            patch("odoo.service._cron.arm_cron_listen", return_value=True),
             patch("odoo.service._threaded.drain_cron_notifies", return_value=set()),
-            patch("odoo.service._threaded.cron_database_list", return_value=["db1"]),
+            patch("odoo.service._cron.cron_database_list", return_value=["db1"]),
             patch("odoo.service._threaded.selectors.DefaultSelector", _Sel),
             patch("odoo.service._threaded.config", cfg),
             patch("odoo.service._threaded.time.sleep", lambda _s: None),
@@ -2708,8 +2730,8 @@ class TestListenThreadFirstPassIsImmediate:
     def test_subsequent_selects_use_the_steady_state_interval(self, listen_server):
         timeouts = self._select_timeouts(listen_server, 3)
         assert timeouts[0] == 0, "first pass must poll immediately"
-        assert all(t == _threaded.SLEEP_INTERVAL + 0 for t in timeouts[1:]), (
-            f"steady state must return to SLEEP_INTERVAL, got {timeouts}"
+        assert all(t == _threaded.CRON_POLL_INTERVAL_S + 0 for t in timeouts[1:]), (
+            f"steady state must return to CRON_POLL_INTERVAL_S, got {timeouts}"
         )
 
     def test_first_pass_actually_processes_databases(self, listen_server):
@@ -2734,10 +2756,10 @@ class TestListenThreadFirstPassIsImmediate:
                 return []
 
         with (
-            patch("odoo.service._threaded.db.db_connect"),
-            patch("odoo.service._threaded.arm_cron_listen", return_value=True),
+            patch("odoo.service._cron.db.db_connect"),
+            patch("odoo.service._cron.arm_cron_listen", return_value=True),
             patch("odoo.service._threaded.drain_cron_notifies", return_value=set()),
-            patch("odoo.service._threaded.cron_database_list", return_value=["db1"]),
+            patch("odoo.service._cron.cron_database_list", return_value=["db1"]),
             patch("odoo.service._threaded.selectors.DefaultSelector", _Sel),
             patch("odoo.service._threaded.config", cfg),
             patch("odoo.service._threaded.time.sleep", lambda _s: None),
@@ -2833,3 +2855,108 @@ class TestWorkerCpuLimitHandoff:
             o[0] for o in order
         ].index("stop"), "joined after stop() closed resources"
         assert ("stop", False) in order, "self.alive was not cleared before stop()"
+
+
+class TestTheStartupLineNamesTheSocketItActuallyGot:
+    """Three ways to get a listening socket, three different things to say.
+
+    The message used to be picked before the branch that decides, so a master
+    that inherited a socket across a SIGHUP reload announced the fresh-bind
+    wording. On a live reload that is the only line an operator sees, and it
+    claimed a rebind of a port that never closed.
+    """
+
+    @staticmethod
+    def _start(*, env, socket_activation):
+        server = object.__new__(_prefork.PreforkServer)
+        server.logger = MagicMock()
+        server.interface, server.port, server.population = "127.0.0.1", 0, 1
+        server.pipe_new = MagicMock(return_value=(0, 0))
+        server._sweep_stale_censuses = MagicMock()
+        cfg = MagicMock()
+        cfg.__getitem__.side_effect = {"http_enable": True}.__getitem__
+        cfg.http_socket_activation = socket_activation
+        with (
+            patch.object(_prefork, "config", cfg),
+            patch.object(signal, "signal"),
+            patch.object(_prefork.socket, "socket") as mock_sock,
+            patch.dict(os.environ, env, clear=False),
+        ):
+            if "ODOO_HTTP_SOCKET_FD" not in env:
+                os.environ.pop("ODOO_HTTP_SOCKET_FD", None)
+            server._set_socket_cloexec = MagicMock()
+            server.start()
+        said = " ".join(str(c.args[0]) for c in server.logger.info.call_args_list)
+        return said, mock_sock
+
+    def test_a_fresh_bind_says_so(self):
+        said, _ = self._start(env={}, socket_activation=False)
+        assert "running on %s:%s" in said
+        assert "inherited" not in said
+
+    def test_socket_activation_says_so(self):
+        said, _ = self._start(env={}, socket_activation=True)
+        assert "socket activation" in said
+
+    def test_an_inherited_socket_says_so_and_not_the_bind_wording(self):
+        said, _ = self._start(env={"ODOO_HTTP_SOCKET_FD": "7"}, socket_activation=False)
+        assert "inherited" in said, (
+            "a reload handoff still announces itself as a fresh bind"
+        )
+        assert "running on %s:%s" not in said
+
+
+class TestAWatchdogKillIsAccountedForLikeAnyOtherCrash:
+    """`crashed_by_signal` is written for SIGKILL and was unreachable.
+
+    `process_timeout` SIGKILLs a worker that stopped pinging, and
+    `worker_kill` pops it so the watchdog cannot kill the same pid twice. But
+    the exit is only *accounted* for later, when `process_zombie` reaps it, and
+    `_note_worker_exit` looked the worker up in `self.workers` to learn how
+    long it lived — so after the pop it returned immediately, taking the whole
+    crash branch with it.
+
+    That branch excludes SIGTERM (the graceful stop) and nothing else, and the
+    watchdog is the only sender of SIGKILL, so the case it exists for was the
+    one case it could never see: a worker that hangs on every request was
+    respawned at full rate forever, with no "died after Xs" line and no
+    back-off.
+    """
+
+    @staticmethod
+    def _young_worker(server, pid):
+        worker = MagicMock()
+        worker.spawn_time = time.monotonic() - 1.0
+        worker.watchdog_timeout = 1
+        worker.watchdog_time = time.monotonic() - 10
+        server.workers[pid] = worker
+        return worker
+
+    def test_the_watchdog_kill_arms_the_backoff(self, prefork_server):
+        self._young_worker(prefork_server, 4242)
+        with patch.object(_prefork.os, "kill"):
+            prefork_server.process_timeout()
+        assert 4242 not in prefork_server.workers, "the pop still has to happen"
+        prefork_server._note_worker_exit(4242, signal.SIGKILL)
+        assert prefork_server._consecutive_fast_deaths == 1
+        assert prefork_server._respawn_not_before > 0, (
+            "a worker the watchdog killed young must damp the respawn, which "
+            "is the loop the back-off exists for"
+        )
+
+    def test_a_worker_that_lived_long_enough_resets_it(self, prefork_server):
+        worker = self._young_worker(prefork_server, 4243)
+        worker.spawn_time = time.monotonic() - 600
+        prefork_server._consecutive_fast_deaths = 3
+        with patch.object(_prefork.os, "kill"):
+            prefork_server.process_timeout()
+        prefork_server._note_worker_exit(4243, signal.SIGKILL)
+        assert prefork_server._consecutive_fast_deaths == 0
+
+    def test_the_record_does_not_outlive_the_reap(self, prefork_server):
+        self._young_worker(prefork_server, 4244)
+        with patch.object(_prefork.os, "kill"):
+            prefork_server.process_timeout()
+        assert prefork_server._killed_workers
+        prefork_server._note_worker_exit(4244, signal.SIGKILL)
+        assert not prefork_server._killed_workers, "kept a worker after its reap"

@@ -120,3 +120,44 @@ class TestTheCatalogueScanIsShared:
             pytest.raises(listing.odoo.exceptions.AccessDenied),
         ):
             listing.list_dbs()
+
+
+class TestAnInvalidationCannotBeOutrunByAQueryInFlight:
+    """`_query_catalogue` runs outside the lock, so a create/drop can land mid-scan.
+
+    The scan is ~4.7ms of round trip during which `_create_empty_database`,
+    `_drop_database`, `_rename_database` and `_duplicate_database` all call
+    `invalidate_catalog_caches`.  Storing the scan's result unconditionally
+    undoes that invalidation and serves the pre-change list for a full TTL --
+    long enough for `check_db_exposed` to refuse a dump of a database that was
+    just created, and to admit one that was just dropped.
+    """
+
+    def test_a_creation_during_the_scan_is_not_undone_by_it(self, cfg):
+        stale = ["alpha"]
+
+        def slow_scan():
+            answer = list(stale)  # PostgreSQL answered here, pre-create
+            listing.invalidate_catalog_caches()  # ...and the create lands now
+            return answer
+
+        with (
+            patch.object(listing.odoo.tools, "config", cfg),
+            patch.object(listing, "_query_catalogue", side_effect=slow_scan) as q,
+        ):
+            assert listing.list_dbs(True) == ["alpha"]
+            stale = ["alpha", "beta"]
+            assert listing.list_dbs(True) == ["alpha", "beta"], (
+                "the outrun scan cached its pre-create list, so the new "
+                "database stayed invisible for the whole TTL"
+            )
+        assert q.call_count == 2
+
+    def test_an_unoutrun_scan_still_caches(self, cfg):
+        with (
+            patch.object(listing.odoo.tools, "config", cfg),
+            patch.object(listing, "_query_catalogue", return_value=["a"]) as q,
+        ):
+            assert listing.list_dbs(True) == ["a"]
+            assert listing.list_dbs(True) == ["a"]
+        assert q.call_count == 1, "the generation guard disabled the cache"

@@ -44,6 +44,21 @@ def invalidate_catalog_caches() -> None:
 
 
 def check_db_exposed(db_name: str) -> None:
+    """ "Exposed" means served by this instance, NOT matched by `dbfilter`.
+
+    The gate in front of dump, drop, rename, duplicate and migrate. It asks
+    `list_dbs`, which does not apply `dbfilter`, so a database the filter
+    excludes still passes here.
+
+    That is deliberate rather than an oversight, and worth stating because the
+    name invites the other reading. `dbfilter` routes a REQUEST to a database
+    by host; it is not an authorisation boundary. Applying it here would mean
+    an administrator on one host could not dump or rename a database belonging
+    to another, which is a normal operation. What guards these calls is
+    `check_db_management_enabled` plus the master password, and a caller
+    holding that can create databases and change the master password anyway --
+    so a `dbfilter` test would add no boundary that is not already crossed.
+    """
     if db_name not in list_dbs(True):
         _logger.warning(
             "DB management op on %s rejected, not in the list of exposed databases",
@@ -82,13 +97,31 @@ def _rpc_db_exist(db_name: str) -> bool:
         return False
     if db_name not in list_dbs(True):
         return False
-    return exp_db_exist(db_name)
+    # Every client calls this on connect, so it may not cost a connection.
+    # `exp_db_exist` opens one, and for a database this process has not
+    # touched that is a connectability probe plus a three-thread pool build to
+    # answer yes/no.  Skipped where the listing is already proof -- see
+    # `_answers_from_config`.
+    if _answers_from_config():
+        return exp_db_exist(db_name)
+    return True
 
 
 CATALOGUE_CACHE_TTL_S = 2.0
 
 _catalogue_lock = threading.Lock()
 _catalogue_cache: tuple[float, list[str]] | None = None
+
+_catalogue_generation = 0
+"""Bumped by every invalidation, so a query in flight can tell it was outrun.
+
+Dropping the cache is not enough on its own: `_cached_catalogue` runs the
+`pg_database` scan OUTSIDE the lock, so a create/drop/rename that invalidates
+while a scan is travelling back would be undone the moment that scan stored
+its pre-change list -- and the stale list would then be served for a full TTL.
+The writer compares the generation it read before querying against the one it
+finds after, and declines to cache a result that an invalidation has outrun.
+"""
 
 
 def _catalogue_ttl() -> float:
@@ -101,10 +134,11 @@ def _catalogue_ttl() -> float:
 
 
 def _forget_catalogue() -> None:
-    global _catalogue_cache  # noqa: PLW0603  one catalogue per process
+    global _catalogue_cache, _catalogue_generation  # noqa: PLW0603  one catalogue per process
 
     with _catalogue_lock:
         _catalogue_cache = None
+        _catalogue_generation += 1
 
 
 def _query_catalogue() -> list[str] | None:
@@ -159,19 +193,28 @@ def _cached_catalogue() -> list[str]:
         cached = _catalogue_cache
         if cached is not None and now - cached[0] < ttl:
             return list(cached[1])
+        generation = _catalogue_generation
     names = _query_catalogue()
     if names is None:
         return []
     with _catalogue_lock:
-        _catalogue_cache = (now, names)
+        if _catalogue_generation == generation:
+            _catalogue_cache = (now, names)
     return list(names)
+
+
+def _answers_from_config() -> bool:
+    # Which of `list_dbs`'s two sources answers.  `db_name` states intent and
+    # proves nothing; the catalogue query filters on `datallowconn` and
+    # `datdba = current_user`, so a name it returned demonstrably exists.
+    return not odoo.tools.config["dbfilter"] and bool(odoo.tools.config["db_name"])
 
 
 def list_dbs(force: bool = False) -> list[str]:
     if not odoo.tools.config["list_db"] and not force:
         raise odoo.exceptions.AccessDenied
 
-    if not odoo.tools.config["dbfilter"] and odoo.tools.config["db_name"]:
+    if _answers_from_config():
         return sorted(odoo.tools.config["db_name"])
 
     return _cached_catalogue()

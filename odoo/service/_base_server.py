@@ -9,7 +9,7 @@ import psutil
 
 from odoo.tools.config import config
 
-from ._helpers import over_memory_soft_limit
+from ._limits import over_memory_soft_limit
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -19,7 +19,40 @@ _SIGHUP_AVAILABLE = hasattr(signal, "SIGHUP")
 _logger = logging.getLogger("odoo.service.server")
 
 
-_ON_STOP_FUNCS: list[Callable] = []
+_on_stop_hooks: list[Callable] = []
+"""What to run when THIS PROCESS's server stops.  Process-wide, not per class.
+
+A process runs one server, and a hook registered by (say) the sass compiler has
+no opinion about which flavour is running, so a module-level list is the right
+shape.  What was misleading was reaching it only through `CommonServer.on_stop`,
+a `@classmethod`, which reads as class state.  Verified, not inferred: one hook
+registered on `CommonServer` ran on `stop()` for two unrelated subclasses, and
+was still registered afterwards.  So the storage and the functions that touch it
+live together here, and `CommonServer.on_stop` is the alias two callers outside
+`service/` already import (`tools/sass_embedded.py`, `tools/assets/esm_lexer.py`).
+
+There is deliberately no unregister.  Nothing in production wants one, and the
+only real consequence -- a test leaving a hook behind for every later test in the
+process -- is now caught by the leak guard in `tests/service/conftest.py`, which
+watches this list.
+"""
+
+
+def register_on_stop(func: Callable) -> None:
+    """Register `func` to run when this process's server stops.  Idempotent."""
+    if func not in _on_stop_hooks:
+        _on_stop_hooks.append(func)
+
+
+def run_on_stop_hooks(logger: logging.Logger) -> None:
+    """Run every hook, best-effort: one raising hook must not stop the rest."""
+    for func in _on_stop_hooks:
+        try:
+            logger.debug("on_close call %s", func)
+            func()
+        except Exception:
+            name = getattr(func, "__name__", repr(func))
+            logger.warning("Exception in %s", name, exc_info=True)
 
 
 class CommonServer:
@@ -61,14 +94,14 @@ class CommonServer:
 
     @classmethod
     def on_stop(cls, func: Callable) -> None:
-        if func not in _ON_STOP_FUNCS:
-            _ON_STOP_FUNCS.append(func)
+        """Register a process-wide stop hook.  See `_on_stop_hooks`.
+
+        A classmethod because that is how the two callers outside `service/`
+        already spell it; the registry it writes to is the process's, not the
+        class's, which is why the storage is a module global and not an
+        attribute here.
+        """
+        register_on_stop(func)
 
     def stop(self) -> None:
-        for func in _ON_STOP_FUNCS:
-            try:
-                self.logger.debug("on_close call %s", func)
-                func()
-            except Exception:
-                name = getattr(func, "__name__", repr(func))
-                self.logger.warning("Exception in %s", name, exc_info=True)
+        run_on_stop_hooks(self.logger)

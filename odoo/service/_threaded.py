@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import contextlib
 import logging
 import os
 import random
@@ -25,18 +24,19 @@ from odoo.tools.misc import dumpstacks
 from . import _process_state
 from ._base_server import _SIGHUP_AVAILABLE, CommonServer
 from ._cron import (
+    CRON_NOTIFY_JITTER_MAX_S,
+    CRON_POLL_INTERVAL_S,
     CRON_TRIGGER_CHANNEL,
     JOB_QUEUE_CHANNEL,
     CronSchedule,
-    arm_cron_listen,
+    ReconnectBackoff,
     drain_cron_notifies,
+    open_cron_listener,
+    release_cron_cursor,
+    release_swept_database,
 )
 from ._env import _IS_POSIX, _IS_WINDOWS
-from ._helpers import (
-    CRON_NOTIFY_JITTER_MAX_S,
-    SLEEP_INTERVAL,
-    capped_backoff,
-    cron_database_list,
+from ._limits import (
     cron_real_time_budget,
     job_max_age,
     job_real_time_budget,
@@ -51,19 +51,32 @@ _RECYCLE_CONN_LOST = "connection_lost"
 
 LIMIT_MONITOR_INTERVAL_S = 5.0
 
-_WORKER_THREAD_TYPES = ("http", "cron", "job")
+LIMIT_GRACE_PERIOD_S = 60.0
+"""How long a thread over its limit may wait for other requests to finish.
+
+Its own constant.  This borrowed the cron poll interval, which has nothing to
+do with how long to let in-flight HTTP requests drain; the two shared a number
+and so could not be tuned apart.
+"""
+
+_TIME_LIMITED_THREAD_TYPES = ("http", "cron", "job")
+"""Thread kinds `check_limits` may recycle the server for.
+
+"websocket" is deliberately absent.  `bus/websocket.py` re-labels the request
+thread the moment it starts serving frames, and a websocket is long-lived by
+design -- left in this list it would trip `limit_time_real` and reload the
+server under every connected client.
+"""
+
+_REPORTED_THREAD_TYPES = (*_TIME_LIMITED_THREAD_TYPES, "websocket")
+"""Thread kinds `metrics()` counts, which is a different question.
+
+An operator running --workers 0 wants to see the websocket threads precisely
+because they are long-lived: they hold a thread and a connection each, and
+they were invisible while the two lists were one.
+"""
 
 _SIGXCPU_EXIT_CODE = 128 + getattr(signal, "SIGXCPU", 24)
-
-
-def _databases_to_sweep() -> list[str]:
-    """Resolve `cron_database_list` at call time, not at construction.
-
-    The module attribute is the seam every caller and every test patches, and
-    binding it into the schedule once would freeze whatever was there when the
-    worker was built.
-    """
-    return cron_database_list()
 
 
 class ThreadedServer(CommonServer):
@@ -83,10 +96,10 @@ class ThreadedServer(CommonServer):
         by_type: dict[str, int] = {}
         for thread in threading.enumerate():
             kind = getattr(thread, "type", None)
-            if kind in _WORKER_THREAD_TYPES:
+            if kind in _REPORTED_THREAD_TYPES:
                 by_type[kind] = by_type.get(kind, 0) + 1
         return {
-            "threads": {k: by_type.get(k, 0) for k in _WORKER_THREAD_TYPES},
+            "threads": {k: by_type.get(k, 0) for k in _REPORTED_THREAD_TYPES},
             "http_threads_max": getattr(self.httpd, "max_http_threads", 0),
             "limits_reached_threads": len(self.limits_reached_threads),
         }
@@ -114,7 +127,7 @@ class ThreadedServer(CommonServer):
         now = time.monotonic()
         for thread in threading.enumerate():
             thread_type = getattr(thread, "type", None)
-            if thread_type in _WORKER_THREAD_TYPES:
+            if thread_type in _TIME_LIMITED_THREAD_TYPES:
                 start_time = getattr(thread, "start_time", None)
                 if start_time:
                     thread_execution_time = now - start_time
@@ -182,7 +195,7 @@ class ThreadedServer(CommonServer):
             finally:
                 thread.start_time = None
                 if release:
-                    db.drain_db(db_name)
+                    release_swept_database(db_name)
 
     def _poll_cron_channel(
         self,
@@ -194,18 +207,13 @@ class ThreadedServer(CommonServer):
         max_age: int,
     ) -> str:
         pg_conn = cr.connection
-        arm_cron_listen(cr, cron_logger, channel=channel, disable_idle_timeout=True)
-        cr.commit()
-        schedule = CronSchedule(
-            _databases_to_sweep,
-            refresh_interval=SLEEP_INTERVAL,
-        )
+        schedule = CronSchedule()
         alive_time = time.monotonic()
         first_pass = True
         with selectors.DefaultSelector() as _sel:
             _sel.register(pg_conn, selectors.EVENT_READ)
             while max_age <= 0 or (time.monotonic() - alive_time) <= max_age:
-                _sel.select(timeout=0 if first_pass else SLEEP_INTERVAL + number)
+                _sel.select(timeout=0 if first_pass else CRON_POLL_INTERVAL_S + number)
                 first_pass = False
                 time.sleep(random.uniform(0, CRON_NOTIFY_JITTER_MAX_S))
                 try:
@@ -236,15 +244,15 @@ class ThreadedServer(CommonServer):
         cron_logger = self.logger.getChild(f"{label}{number}")
         cron_logger.info("Alive")
 
-        reconnect_attempts = 0
+        backoff = ReconnectBackoff(cron_logger)
         while True:
+            cr = None
             try:
-                conn = db.db_connect("postgres")
-                with contextlib.closing(conn.cursor()) as cr:
-                    reason = self._poll_cron_channel(
-                        cr, number, channel, process_jobs, cron_logger, max_age
-                    )
-                reconnect_attempts = 0
+                cr = open_cron_listener(channel, cron_logger)
+                reason = self._poll_cron_channel(
+                    cr, number, channel, process_jobs, cron_logger, max_age
+                )
+                backoff.reset()
                 if reason == _RECYCLE_CONN_LOST:
                     cron_logger.warning("Postgres connection lost, reconnecting...")
                 else:
@@ -255,24 +263,13 @@ class ThreadedServer(CommonServer):
             except SystemExit:
                 raise
             except (psycopg.OperationalError, PoolError) as exc:
-                reconnect_attempts += 1
-                backoff = capped_backoff(reconnect_attempts)
-                cron_logger.warning(
-                    "Postgres unavailable (attempt %d): %s; retrying in %ds",
-                    reconnect_attempts,
-                    exc,
-                    backoff,
-                )
-                time.sleep(backoff)
-            except Exception:
-                reconnect_attempts += 1
-                backoff = capped_backoff(reconnect_attempts)
-                cron_logger.critical(
-                    "Uncaught error in cron main loop; retrying in %ds...",
-                    backoff,
-                    exc_info=True,
-                )
-                time.sleep(backoff)
+                backoff.wait_after("Postgres unavailable", exc)
+            except Exception as exc:
+                cron_logger.critical("Uncaught error in cron main loop", exc_info=True)
+                backoff.wait_after("Cron main loop", exc)
+            finally:
+                if cr is not None:
+                    release_cron_cursor(cr)
 
     def cron_spawn(self) -> None:
         for i in range(config["max_cron_threads"]):
@@ -425,7 +422,8 @@ class ThreadedServer(CommonServer):
                     has_other_valid_requests = self._has_other_http_requests()
                     if (
                         not has_other_valid_requests
-                        or (time.monotonic() - self.limit_reached_time) > SLEEP_INTERVAL
+                        or (time.monotonic() - self.limit_reached_time)
+                        > LIMIT_GRACE_PERIOD_S
                     ):
                         self.logger.info(
                             "Dumping stacktrace of limit exceeding threads before reloading"
@@ -540,6 +538,29 @@ class EventServer(CommonServer):
         super().stop()
 
     def run(self, preload: list[str] | None = None, stop: bool = False) -> int | None:
+        """The evented server serves; it does not preload and cannot stop early.
+
+        Both arguments are part of `CommonServer.run`'s shape and neither is
+        actionable here: this process exists to hold long-polling connections,
+        the registries it needs are built lazily per request, and there is no
+        "initialisation done" moment to return from.  They were accepted and
+        dropped in silence, so `odoo-bin evented -i base --stop-after-init`
+        installed nothing and never returned, with nothing in the log saying
+        why.  Say it once instead.
+        """
+        if preload:
+            self.logger.warning(
+                "Ignoring --init/--update/database preload (%s): the evented "
+                "server does not load registries at startup. Run the module "
+                "install through the main server.",
+                ",".join(preload),
+            )
+        if stop:
+            self.logger.warning(
+                "Ignoring --stop-after-init: the evented server has no "
+                "initialisation phase to stop after, and will serve until "
+                "signalled."
+            )
         try:
             self.start()
         finally:

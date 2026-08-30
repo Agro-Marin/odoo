@@ -2,36 +2,36 @@ from unittest.mock import patch
 
 import pytest
 
-from odoo.service import _helpers
+from odoo.service import _cron
 
 
 class TestCronDatabaseList:
     def test_returns_the_configured_databases(self):
         with (
-            patch("odoo.service._helpers.config", {"db_name": ["db1", "db2"]}),
-            patch("odoo.service._helpers.list_dbs") as mock_list,
+            patch("odoo.service._cron.config", {"db_name": ["db1", "db2"]}),
+            patch("odoo.service._cron.list_dbs") as mock_list,
         ):
-            result = _helpers.cron_database_list()
+            result = _cron.cron_database_list()
         assert result == ["db1", "db2"]
         mock_list.assert_not_called()
 
     def test_a_single_configured_database_is_still_a_list(self):
         with (
-            patch("odoo.service._helpers.config", {"db_name": ["mydb"]}),
-            patch("odoo.service._helpers.list_dbs"),
+            patch("odoo.service._cron.config", {"db_name": ["mydb"]}),
+            patch("odoo.service._cron.list_dbs"),
         ):
-            result = _helpers.cron_database_list()
+            result = _cron.cron_database_list()
         assert list(result) == ["mydb"]
 
     def test_falls_back_to_list_dbs_when_empty(self):
         with (
-            patch("odoo.service._helpers.config", {"db_name": [], "dbfilter": ""}),
+            patch("odoo.service._cron.config", {"db_name": [], "dbfilter": ""}),
             patch(
-                "odoo.service._helpers.list_dbs", return_value=["db1", "db2"]
+                "odoo.service._cron.list_dbs", return_value=["db1", "db2"]
             ) as mock_list,
-            patch("odoo.service._helpers.is_maintenance_db", return_value=False),
+            patch("odoo.service._cron.is_maintenance_db", return_value=False),
         ):
-            result = _helpers.cron_database_list()
+            result = _cron.cron_database_list()
         mock_list.assert_called_once_with(True)
         assert result == ["db1", "db2"]
 
@@ -39,10 +39,10 @@ class TestCronDatabaseList:
         from odoo.tools.misc import OrderedSet
 
         with (
-            patch("odoo.service._helpers.config", {"db_name": ["mydb"]}),
-            patch("odoo.service._helpers.list_dbs"),
+            patch("odoo.service._cron.config", {"db_name": ["mydb"]}),
+            patch("odoo.service._cron.list_dbs"),
         ):
-            assert list(OrderedSet(_helpers.cron_database_list())) == ["mydb"]
+            assert list(OrderedSet(_cron.cron_database_list())) == ["mydb"]
 
 
 class TestOrderNotifiedFirst:

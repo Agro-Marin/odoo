@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 from odoo.service import db as db_service
-from odoo.service._helpers import over_memory_soft_limit
+from odoo.service._limits import over_memory_soft_limit
 
 
 def _proc(rss):

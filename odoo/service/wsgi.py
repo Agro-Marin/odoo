@@ -28,9 +28,6 @@ def http_socket_timeout() -> float:
     return env_float("ODOO_HTTP_SOCKET_TIMEOUT", 2.0, minimum=0.1, logger=_logger)
 
 
-_ANSI_ENABLED = sys.stderr.isatty()
-
-
 def _plain_style(msg: str, *styles: str) -> str:
     return msg
 
@@ -38,8 +35,19 @@ def _plain_style(msg: str, *styles: str) -> str:
 _ansi_style = getattr(werkzeug.serving, "_ansi_style", _plain_style)
 
 
+def _is_ansi_enabled() -> bool:
+    """Asked per call, not once at import.
+
+    As a module constant this was fixed by whatever stderr happened to be when
+    `odoo.service.wsgi` was first imported, which made both branches of
+    `log_request`'s colouring untestable without reloading the module -- and
+    wrong for anything that replaces stderr afterwards.
+    """
+    return sys.stderr.isatty()
+
+
 def _maybe_style(msg: str, *styles: str) -> str:
-    if not _ANSI_ENABLED:
+    if not _is_ansi_enabled():
         return msg
     return _ansi_style(msg, *styles)
 

@@ -492,7 +492,7 @@ class TestSigHupSentinel:
         """`server` is the public face; private module state lives at home."""
         from odoo.service import server
 
-        for private in ("_ON_STOP_FUNCS", "_SIGHUP_AVAILABLE", "FSWatcherBase"):
+        for private in ("_on_stop_hooks", "_SIGHUP_AVAILABLE", "FSWatcherBase"):
             assert not hasattr(server, private), (
                 f"odoo.service.server re-exports {private}, which is in no "
                 f"__all__ and has no consumer outside this suite"

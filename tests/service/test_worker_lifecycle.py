@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from odoo.service import _worker
+from odoo.service import _cron, _worker
 
 
 def _open_fds() -> set[int]:
@@ -260,3 +260,68 @@ class TestWorkerHttpAcceptErrors:
         worker.process_request = MagicMock()
         worker.process_work()
         worker.process_request.assert_called_once_with(client, addr)
+
+
+class TestTheCursorIsReleasedAndTheConnectionIsLeftAlone:
+    """Close the cursor.  Do not touch the connection under it.
+
+    Two defects sat here, and the first fix for the first one carried the
+    second along:
+
+      1. The connection was closed FIRST.  `BaseCursor._close` rolls back
+         before releasing, so on a closed connection that rollback raises and
+         the cursor logs "Failed to roll back on cursor close; discarding
+         connection" at ERROR with a traceback -- before re-raising, so the
+         `suppress(Exception)` at the call site hid the exception and not the
+         log.  A real prefork SIGTERM printed two, one per cron/job worker;
+         with the cursor closed first, none.
+      2. There should be no second close at all.  `_close` ends in
+         `pool.give_back(self._cnx, ...)`.  Measured: for `postgres` -- a
+         maintenance database, which is what both cron loops connect to --
+         `give_back` takes its direct branch and closes the connection itself,
+         so `connection.closed` is already True and a second close is dead.
+         For a pooled DSN the connection comes back with `closed` False
+         because the pool is holding it open for the next borrower, and
+         closing it there destroys a live connection.
+    """
+
+    @staticmethod
+    def _recording_cursor():
+        order = []
+        cursor = MagicMock()
+        cursor.close.side_effect = lambda: order.append("cursor")
+        cursor.connection.close.side_effect = lambda: order.append("connection")
+        return cursor, order
+
+    def test_the_helper_closes_only_the_cursor(self):
+        cursor, order = self._recording_cursor()
+        _cron.release_cron_cursor(cursor)
+        assert order == ["cursor"]
+
+    def test_a_raising_cursor_close_does_not_escape(self):
+        cursor, order = self._recording_cursor()
+        cursor.close.side_effect = RuntimeError("already closed")
+        _cron.release_cron_cursor(cursor)
+        assert order == []
+
+    def test_worker_stop_releases_through_it(self):
+        """The clean-teardown site: this is the one that printed on SIGTERM."""
+        worker = _worker.WorkerCron.__new__(_worker.WorkerCron)
+        cursor, order = self._recording_cursor()
+        worker.dbcursor = cursor
+        worker._pg_selector = None
+        worker.stop()
+        assert order == ["cursor"]
+
+    def test_a_failed_listener_open_releases_the_cursor(self):
+        """`open_cron_listener` must not leak the cursor when arming fails."""
+        cursor, order = self._recording_cursor()
+        conn = MagicMock()
+        conn.cursor.return_value = cursor
+        with (
+            patch.object(_cron.db, "db_connect", return_value=conn),
+            patch.object(_cron, "arm_cron_listen", side_effect=RuntimeError("boom")),
+            pytest.raises(RuntimeError, match="boom"),
+        ):
+            _cron.open_cron_listener("ch", _cron._logger)
+        assert order == ["cursor"]

@@ -2488,7 +2488,16 @@ class TestCreateEmptyDatabaseHardening:
 
 class TestRpcDbExistGate:
     def _cfg(self, **over):
-        cfg = _MockConfig({"list_db": True, "db_template": "template1"})
+        # dbfilter/db_name decide which of list_dbs' two sources answers, and
+        # therefore whether the listing is proof of existence on its own.
+        cfg = _MockConfig(
+            {
+                "list_db": True,
+                "db_template": "template1",
+                "dbfilter": "",
+                "db_name": [],
+            }
+        )
         cfg.update(over)
         return cfg
 
@@ -2519,7 +2528,15 @@ class TestRpcDbExistGate:
             assert db_mod.listing._rpc_db_exist("other_tenant_db") is False
         inner.assert_not_called()
 
-    def test_exposed_db_is_answered(self, db_mod):
+    def test_an_exposed_db_from_the_catalogue_answers_without_connecting(self, db_mod):
+        """The catalogue already proved existence; a connection re-proves it.
+
+        This asserted `exp_db_exist` WAS called, which was the old contract.
+        Measured at 50 calls, that connection cost 21.2ms and 50 pool borrows
+        against 0.2ms and 0 for the listing alone -- and for a database this
+        process has not touched it is a connectability probe plus a
+        three-thread pool build, on the one call every client makes at connect.
+        """
         import odoo.tools
 
         with (
@@ -2528,6 +2545,22 @@ class TestRpcDbExistGate:
             patch.object(db_mod.listing, "exp_db_exist", return_value=True) as inner,
         ):
             assert db_mod.listing._rpc_db_exist("served") is True
+        inner.assert_not_called()
+
+    def test_an_exposed_db_from_db_name_still_connects(self, db_mod):
+        """`db_name` is a list of names an operator asked us to serve.
+
+        It is not evidence any of them was created, so this branch keeps
+        paying for the connection -- otherwise `db_exist` answers True for
+        every configured name whether the database exists or not.
+        """
+        import odoo.tools
+
+        with (
+            patch.object(odoo.tools, "config", self._cfg(db_name=["served"])),
+            patch.object(db_mod.listing, "exp_db_exist", return_value=False) as inner,
+        ):
+            assert db_mod.listing._rpc_db_exist("served") is False
         inner.assert_called_once_with("served")
 
     @pytest.mark.parametrize("name", ["postgres", "template0", "template1"])

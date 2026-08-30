@@ -1,11 +1,190 @@
 import contextlib
+import json
 import os
 import signal
+import time
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from odoo.service import _prefork
+
+
+class TestTheWorkerCensusCrossesTheFork:
+    """`/web/metrics` is an HTTP route, so under prefork a CHILD always serves it.
+
+    A child cannot count its siblings, so `metrics()` short-circuited there and
+    the four metrics that exist to describe prefork -- `odoo_workers`,
+    `odoo_worker_population`, `odoo_worker_generation`,
+    `odoo_long_polling_alive` -- were declared by `render_prometheus` and could
+    never be emitted by the only flavour that has them.  Measured before the
+    census: threaded exposed four flavour metrics, prefork exposed none.
+    """
+
+    @pytest.fixture
+    def master(self, tmp_path):
+        obj = object.__new__(_prefork.PreforkServer)
+        obj.pid = os.getpid()
+        obj.logger = MagicMock()
+        obj.population = 3
+        obj.generation = 7
+        obj.long_polling_pid = 4242
+        obj.workers_http = dict.fromkeys((1, 2, 3), MagicMock())
+        obj.workers_cron = dict.fromkeys((4,), MagicMock())
+        obj.workers_job = dict.fromkeys((5, 6), MagicMock())
+        obj._census_written_at = float("-inf")
+        with patch.object(_prefork, "config", {"data_dir": str(tmp_path)}):
+            yield obj
+
+    def _child_of(self, master):
+        """A forked child: same `self.pid` (the master's), different os.getpid()."""
+        child = object.__new__(_prefork.PreforkServer)
+        child.pid = master.pid
+        child.logger = MagicMock()
+        return child
+
+    def test_a_child_reads_the_counts_only_the_master_knows(self, master):
+        master._publish_census()
+        got = self._child_of(master)._read_census()
+
+        assert got == {
+            "workers": {"http": 3, "cron": 1, "job": 2},
+            "worker_population": 3,
+            "worker_generation": 7,
+            "long_polling_alive": True,
+        }, "the census is the child's only route to the master's own numbers"
+
+    def test_metrics_dispatches_on_which_side_of_the_fork_it_is(self, master):
+        master._publish_census()
+        child = self._child_of(master)
+
+        with patch("odoo.service._prefork.os.getpid", return_value=master.pid + 1):
+            from_child = child.metrics()
+
+        assert from_child == master.metrics() == master._census(), (
+            "a worker serving /web/metrics must answer with the master's "
+            "counts, not with {}"
+        )
+
+    def test_the_write_is_throttled_so_a_0_1s_shutdown_beat_is_not_10_writes(
+        self, master
+    ):
+        master._publish_census()
+        first = json.loads((master._census_path()).read_text())
+
+        master.population = 99
+        master._publish_census()
+        assert json.loads(master._census_path().read_text()) == first
+
+        master._census_written_at = float("-inf")
+        master._publish_census()
+        assert json.loads(master._census_path().read_text())["worker_population"] == 99
+
+    def test_a_stale_census_answers_nothing_rather_than_phantom_workers(self, master):
+        master._publish_census()
+        path = master._census_path()
+        old = time.time() - _prefork.CENSUS_MAX_AGE_S - 1
+        os.utime(path, (old, old))
+
+        assert self._child_of(master)._read_census() == {}, (
+            "the file outlives a master that was killed rather than stopped; "
+            "reporting its last counts would show a full complement of workers "
+            "for a server that is gone"
+        )
+
+    def test_a_missing_or_corrupt_census_is_absent_not_an_error(self, master):
+        child = self._child_of(master)
+        assert child._read_census() == {}
+
+        master._census_path().write_text("{ this is not json")
+        assert child._read_census() == {}
+
+        master._census_path().write_text('"a string, not an object"')
+        assert child._read_census() == {}
+
+    def test_publishing_never_raises_even_on_a_half_built_server(self):
+        """`run()`'s catch-all turns any raise here into `stop(False)`; return -1.
+
+        This is not hypothetical: the first version of `_publish_census` read
+        `self._census_written_at` OUTSIDE its try, and four `TestRun` cases
+        went red because the server they build never sets it -- an
+        AttributeError in the loop took the whole master down. The throttle
+        bookkeeping is as much a part of "best effort" as the write is.
+        """
+        bare = object.__new__(_prefork.PreforkServer)
+        bare.logger = MagicMock()
+
+        bare._publish_census()
+
+        assert bare.logger.debug.called, (
+            "a failure must be swallowed and noted, never propagated"
+        )
+
+    def test_publishing_never_raises_into_the_masters_run_loop(self, master):
+        """It runs in `run()`'s while-loop; a raise there takes the server down.
+
+        The failure mode must be exactly what it was before the census
+        existed: the metrics are absent.
+        """
+        with patch.object(_prefork, "config", {"data_dir": "/proc/nonexistent-dir"}):
+            master._census_written_at = float("-inf")
+            master._publish_census()
+
+        with patch.object(_prefork, "config", {}):
+            master._census_written_at = float("-inf")
+            master._publish_census()
+            assert master._census_path() is None
+            assert master._read_census() == {}
+
+    def test_stopping_removes_the_file(self, master):
+        master._publish_census()
+        path = master._census_path()
+        assert path.exists()
+        master._discard_census()
+        assert not path.exists()
+        master._discard_census()
+
+    def test_both_sides_derive_the_same_path_from_the_masters_pid(self, master):
+        assert master._census_path() == self._child_of(master)._census_path(), (
+            "the child names the file without being told where it is, because "
+            "it inherited the master's pid in self.pid across the fork"
+        )
+
+    def test_startup_collects_what_a_killed_master_left_behind(self, master):
+        data_dir = master._census_path().parent
+        dead = data_dir / "prefork-census-999999.json"
+        dead.write_text("{}")
+        old = time.time() - _prefork.CENSUS_MAX_AGE_S - 1
+        os.utime(dead, (old, old))
+
+        live = data_dir / "prefork-census-999998.json"
+        live.write_text("{}")
+
+        unrelated = data_dir / "sessions.json"
+        unrelated.write_text("{}")
+        os.utime(unrelated, (old, old))
+
+        master._sweep_stale_censuses()
+
+        assert not dead.exists(), (
+            "_discard_census only runs on a clean stop, so without this sweep "
+            "every SIGKILLed master leaves a file in data_dir forever"
+        )
+        assert live.exists(), "a census still being written belongs to a live master"
+        assert unrelated.exists(), "the sweep must only claim its own filenames"
+
+    def test_the_sweep_never_takes_our_own_file(self, master):
+        master._publish_census()
+        path = master._census_path()
+        old = time.time() - _prefork.CENSUS_MAX_AGE_S - 1
+        os.utime(path, (old, old))
+
+        master._sweep_stale_censuses()
+
+        assert path.exists(), (
+            "the sweep runs at start() before we have written anything, but it "
+            "must never be able to delete the file this master owns"
+        )
 
 
 @pytest.fixture
@@ -22,6 +201,7 @@ def prefork():
     obj._respawn_not_before = 0.0
     obj.queue = []
     obj._selector = None
+    obj._census_written_at = float("-inf")
     obj.pipe = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
     yield obj
     obj._close_watchdog_selector()
@@ -294,6 +474,112 @@ class TestTheWatchdogSelectorIsReused:
             "a worker never polls the master's watchdog set; carrying the "
             "epoll fd into the fork is one more descriptor per worker"
         )
+
+
+class TestARecycledFdIsRegisteredForItsNewOwner:
+    """`worker_pop` closes the pipe; `pipe_new` hands the same number straight back.
+
+    This is the whole reason the watchdog set is diffed by owner rather than by
+    descriptor number.  A master that diffs numbers sees no change across a
+    worker replacement, skips the re-register, and keeps a map entry for a
+    descriptor epoll dropped when it was closed -- so the replacement is never
+    selected on, its `watchdog_time` never advances, and `process_timeout`
+    SIGKILLs it one `limit_time_real` after it started.  Measured end to end
+    before the fix: every replacement worker killed at its timeout while idle,
+    respawned, and killed again, indefinitely.
+
+    `TestTheWatchdogSelectorIsReused` cannot see this: it retires a worker with
+    `del prefork.workers[pid]`, which leaves the descriptors open, so no number
+    is ever recycled.
+    """
+
+    @pytest.fixture
+    def master(self, prefork):
+        prefork.beat = 0
+        prefork.logger = MagicMock()
+        made = []
+
+        def _spawn(pid):
+            w = MagicMock()
+            w.watchdog_pipe = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
+            w.eintr_pipe = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
+            w.watchdog_time = 0.0
+            w.watchdog_timeout = None
+            w.close = lambda w=w: [
+                os.close(fd)
+                for fd in (*w.watchdog_pipe, *w.eintr_pipe)
+                if _still_open(fd)
+            ]
+            prefork.workers[pid] = w
+            prefork.workers_http[pid] = w
+            made.append(w)
+            return w
+
+        yield prefork, _spawn
+        for w in made:
+            for fd in (*w.watchdog_pipe, *w.eintr_pipe):
+                with contextlib.suppress(OSError):
+                    os.close(fd)
+
+    def test_the_replacement_worker_is_still_watched(self, master):
+        prefork, spawn = master
+
+        dying = spawn(101)
+        prefork.sleep()
+
+        prefork.worker_pop(101)
+        replacement = spawn(102)
+
+        assert replacement.watchdog_pipe[0] == dying.watchdog_pipe[0], (
+            "this test is only meaningful when the descriptor is recycled, "
+            "which is what pipe2 does with the lowest free numbers"
+        )
+
+        os.write(replacement.watchdog_pipe[1], b".")
+        prefork.sleep()
+
+        assert replacement.watchdog_time > 0.0, (
+            "the replacement's watchdog ping was not observed: the selector "
+            "still holds the dead worker's registration for this descriptor "
+            "number, so process_timeout will SIGKILL a healthy idle worker "
+            "one limit_time_real after it spawned"
+        )
+
+    def test_process_timeout_does_not_kill_the_healthy_replacement(self, master):
+        """The symptom the operator sees, rather than the mechanism."""
+        prefork, spawn = master
+
+        dying = spawn(201)
+        prefork.sleep()
+        prefork.worker_pop(201)
+
+        replacement = spawn(202)
+        assert replacement.watchdog_pipe[0] == dying.watchdog_pipe[0]
+        replacement.watchdog_timeout = 0.05
+        replacement.watchdog_time = time.monotonic()
+
+        killed = []
+        with patch.object(prefork, "worker_kill", lambda pid, sig: killed.append(pid)):
+            for _ in range(8):
+                prefork.pipe_ping(replacement.watchdog_pipe)
+                prefork.sleep()
+                time.sleep(0.02)
+                prefork.process_timeout()
+
+        assert killed == [], (
+            f"the master SIGKILLed {killed} — a worker that pinged its "
+            f"watchdog pipe on every beat. Left unfixed this is a permanent "
+            f"kill/respawn loop: every replacement dies one limit_time_real "
+            f"after it spawns, while idle."
+        )
+
+
+def _still_open(fd):
+    try:
+        os.fstat(fd)
+    except OSError:
+        return False
+    return True
 
 
 class TestWatchdogSleep:

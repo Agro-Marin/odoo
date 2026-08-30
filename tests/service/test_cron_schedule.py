@@ -127,14 +127,35 @@ class TestBothLoopsUseIt:
             )
 
     def test_they_use_the_same_refresh_interval(self):
-        from odoo.service import _threaded, _worker
+        """Both take the default, so there is nothing left to keep in step."""
+        from odoo.service._cron import CRON_POLL_INTERVAL_S, CronSchedule
+
+        assert CronSchedule()._refresh_interval == CRON_POLL_INTERVAL_S
+
+    def test_one_seam_now_reaches_both_loops(self, monkeypatch):
+        """Patching `_cron.cron_database_list` must scope every sweep.
+
+        It used to reach neither loop.  Each carried its own byte-identical
+        `_databases_to_sweep` wrapper so that its *own* module attribute stayed
+        the seam, which meant a test had to patch
+        `odoo.service._threaded.cron_database_list` and
+        `odoo.service._worker.cron_database_list` separately and could silence
+        one while the other still swept every database on the box.
+        """
+        from odoo.service import _cron
+
+        calls = []
+        monkeypatch.setattr(
+            _cron, "cron_database_list", lambda: calls.append(1) or ["scoped"]
+        )
+        assert _cron.CronSchedule().due([]) == ["scoped"]
+        assert calls, "the schedule bound the function instead of the module"
+
+    def test_neither_loop_carries_its_own_wrapper_any_more(self):
+        from odoo.service import _cron, _threaded, _worker
 
         for mod in (_threaded, _worker):
-            assert "refresh_interval=SLEEP_INTERVAL" in inspect.getsource(mod)
-
-    def test_the_database_list_is_late_bound_in_both(self):
-        """Freezing it at construction would make the module attribute dead."""
-        from odoo.service import _threaded, _worker
-
-        for mod in (_threaded, _worker):
-            assert "_databases_to_sweep" in inspect.getsource(mod)
+            assert not hasattr(mod, "_databases_to_sweep"), (
+                f"{mod.__name__} grew its own copy back; the seam splits again"
+            )
+        assert hasattr(_cron, "_databases_to_sweep")

@@ -28,24 +28,24 @@ except ImportError:
         return None
 
 
-from odoo import db
 from odoo.db import PoolError
 from odoo.modules.registry import Registry
 from odoo.tools import config
 
 from ._cron import (
+    CRON_NOTIFY_JITTER_MAX_S,
+    CRON_POLL_INTERVAL_S,
     CRON_TRIGGER_CHANNEL,
     JOB_QUEUE_CHANNEL,
     CronSchedule,
-    arm_cron_listen,
+    ReconnectBackoff,
     drain_cron_notifies,
+    open_cron_listener,
+    release_cron_cursor,
+    release_swept_database,
 )
 from ._env import env_int
-from ._helpers import (
-    CRON_NOTIFY_JITTER_MAX_S,
-    SLEEP_INTERVAL,
-    capped_backoff,
-    cron_database_list,
+from ._limits import (
     empty_pipe,
     job_max_age,
     over_memory_soft_limit,
@@ -56,16 +56,6 @@ if TYPE_CHECKING:
     from .server import PreforkServer
 
 _logger = logging.getLogger("odoo.service.server")
-
-
-def _databases_to_sweep() -> list[str]:
-    """Resolve `cron_database_list` at call time, not at construction.
-
-    The module attribute is the seam every caller and every test patches, and
-    binding it into the schedule once would freeze whatever was there when the
-    worker was built.
-    """
-    return cron_database_list()
 
 
 class CpuTimeLimitExceeded(Exception):
@@ -279,11 +269,8 @@ class WorkerCron(Worker):
         self.watchdog_timeout = multi.cron_timeout
         self.db_queue: deque[str] = deque()
         self.db_count: int = 0
-        self._reconnect_attempts: int = 0
-        self.schedule = CronSchedule(
-            _databases_to_sweep,
-            refresh_interval=SLEEP_INTERVAL,
-        )
+        self._backoff = ReconnectBackoff(self.logger)
+        self.schedule = CronSchedule()
         self._pg_selector: selectors.BaseSelector | None = None
 
     def _sleep_with_watchdog(self, total_seconds: float) -> None:
@@ -302,10 +289,10 @@ class WorkerCron(Worker):
 
     def sleep(self) -> None:
         if not self.db_queue:
-            if self._reconnect_attempts > 0:
+            if self._backoff.attempts > 0:
                 return
 
-            interval = SLEEP_INTERVAL + os.getpid() % 10
+            interval = CRON_POLL_INTERVAL_S + os.getpid() % 10
 
             if self.watchdog_timeout:
                 interval = min(interval, max(self.watchdog_timeout / 2, 1))
@@ -326,34 +313,14 @@ class WorkerCron(Worker):
             self.logger.info("Max age (%ss) reached.", max_age)
             self.alive = False
 
-    def _backoff_after_failed_connect(
-        self, attempt: int, what: str, exc: BaseException
-    ) -> None:
-        backoff = capped_backoff(attempt, SLEEP_INTERVAL)
-        self.logger.warning(
-            "%s failed (attempt %d): %s; sleeping %ds", what, attempt, exc, backoff
-        )
-        self._sleep_with_watchdog(backoff)
-
     def _connect_postgres(self) -> None:
-        dbconn = db.db_connect("postgres")
-        cursor = dbconn.cursor()
+        cursor = open_cron_listener(self.listen_channel, self.logger)
         try:
-            arm_cron_listen(
-                cursor,
-                self.logger,
-                channel=self.listen_channel,
-                disable_idle_timeout=True,
-            )
-            cursor.commit()
             selector = selectors.DefaultSelector()
             selector.register(self.wakeup_fd_r, selectors.EVENT_READ)
             selector.register(cursor.connection, selectors.EVENT_READ)
         except Exception:
-            with contextlib.suppress(Exception):
-                cursor.connection.close()
-            with contextlib.suppress(Exception):
-                cursor.close()
+            release_cron_cursor(cursor)
             raise
         if self._pg_selector is not None:
             self._pg_selector.close()
@@ -370,17 +337,13 @@ class WorkerCron(Worker):
                 )
             except psycopg.OperationalError, PoolError:
                 self.logger.warning("Lost postgres connection, reconnecting...")
-                with contextlib.suppress(Exception):
-                    self.dbcursor.connection.close()
-                with contextlib.suppress(Exception):
-                    self.dbcursor.close()
+                release_cron_cursor(self.dbcursor)
                 try:
                     self._connect_postgres()
-                    self._reconnect_attempts = 0
+                    self._backoff.reset()
                 except Exception as exc:
-                    self._reconnect_attempts += 1
-                    self._backoff_after_failed_connect(
-                        self._reconnect_attempts, "Reconnect to postgres", exc
+                    self._backoff.wait_after(
+                        "Reconnect to postgres", exc, self._sleep_with_watchdog
                     )
                 return
             self.db_queue.extend(self.schedule.due(notified))
@@ -401,7 +364,7 @@ class WorkerCron(Worker):
             )
 
         if self.db_count > 1:
-            db.close_db(db_name)
+            release_swept_database(db_name)
 
         self.request_count += 1
         if (
@@ -428,15 +391,14 @@ class WorkerCron(Worker):
         if registries_size > 0:
             Registry.registries.count = registries_size
 
-        attempts = 0
         while self.alive:
             try:
                 self._connect_postgres()
+                self._backoff.reset()
                 break
             except Exception as exc:
-                attempts += 1
-                self._backoff_after_failed_connect(
-                    attempts, "WorkerCron initial PG connect", exc
+                self._backoff.wait_after(
+                    "WorkerCron initial PG connect", exc, self._sleep_with_watchdog
                 )
 
     def stop(self) -> None:
@@ -444,10 +406,7 @@ class WorkerCron(Worker):
         if self._pg_selector is not None:
             self._pg_selector.close()
         if hasattr(self, "dbcursor"):
-            with contextlib.suppress(Exception):
-                self.dbcursor.connection.close()
-            with contextlib.suppress(Exception):
-                self.dbcursor.close()
+            release_cron_cursor(self.dbcursor)
 
 
 class WorkerJob(WorkerCron):

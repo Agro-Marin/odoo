@@ -142,7 +142,11 @@ class TestServiceMetrics:
         assert out["flavor"] == "threaded"
         assert out["http_threads_max"] == 31
         assert out["threads"]["http"] >= 1
-        assert set(out["threads"]) == {"http", "cron", "job"}
+        assert set(out["threads"]) == {"http", "cron", "job", "websocket"}, (
+            "websocket threads are long-lived and hold a thread and a "
+            "connection each; they are exempt from check_limits, not from "
+            "being counted"
+        )
 
 
 class TestEveryServerAnswersForItself:
@@ -390,3 +394,40 @@ class TestBorrowWaitHistogramFamily:
         )
         _, errors = parse_exposition(text)
         assert not errors, errors
+
+
+class TestReportingAndRecyclingAreDifferentQuestions:
+    """A websocket thread must be counted and must never be time-limited.
+
+    The two used to share one tuple, which made the exemption `check_limits`
+    needs also blind `metrics()`: in --workers 0 the long-lived threads were
+    the only ones an operator could not see.
+    """
+
+    def test_websocket_threads_are_counted(self, mod):
+        import threading
+
+        from odoo.service._threaded import ThreadedServer
+
+        server = object.__new__(ThreadedServer)
+        server.httpd = None
+        server.limits_reached_threads = set()
+
+        stop = threading.Event()
+        ws = threading.Thread(target=stop.wait, args=(10,), daemon=True)
+        ws.type = "websocket"
+        ws.start()
+        try:
+            assert server.metrics()["threads"]["websocket"] >= 1
+        finally:
+            stop.set()
+            ws.join()
+
+    def test_websocket_threads_are_never_time_limited(self):
+        from odoo.service import _threaded
+
+        assert "websocket" in _threaded._REPORTED_THREAD_TYPES
+        assert "websocket" not in _threaded._TIME_LIMITED_THREAD_TYPES, (
+            "a websocket over limit_time_real would reload the server under "
+            "every connected client"
+        )

@@ -37,8 +37,14 @@ def _no_global_state_leak():
     thread = threading.current_thread()
     missing = object()
 
+    from odoo.service import _base_server
+
     def snapshot():
         return {
+            # A hook registered and not taken back runs for every server object
+            # any later test builds.  There was no way to unregister until
+            # `clear_on_stop` existed, so this went unnoticed.
+            "_base_server._on_stop_hooks": tuple(_base_server._on_stop_hooks),
             "_process_state.server": _process_state.server,
             "_process_state.server_phoenix": _process_state.server_phoenix,
             "current_thread().name": thread.name,

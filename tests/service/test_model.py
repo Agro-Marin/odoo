@@ -135,6 +135,67 @@ class TestGetPublicMethod:
                 mod._PUBLIC_METHOD_CACHE.pop(cls, None)
 
 
+class TestTheNameIsVettedBeforeTheClassIsTouched:
+    """A rejected name must not reach `getattr(cls, name)`.
+
+    The name is chosen by the RPC caller and `getattr` on a class runs the
+    descriptor protocol, the metaclass included.  Upstream keeps the private/
+    unsafe guard as the first statement for exactly that reason; the cache
+    added here moved it behind the lookup, which put an attacker-chosen name
+    in front of the boundary that exists to reject it.
+    """
+
+    @staticmethod
+    def _model_whose_metaclass_watches():
+        seen = []
+
+        class Watching(type):
+            @property
+            def evil(cls):
+                seen.append("evil")
+                return lambda self: "reached"
+
+            @property
+            def _underscore(cls):  # private by name
+                seen.append("_underscore")
+                return lambda self: "reached"
+
+            @property
+            def gi_frame(cls):  # in _UNSAFE_ATTRIBUTES
+                seen.append("gi_frame")
+                return lambda self: "reached"
+
+        class Model(_FakeBaseModel, metaclass=Watching):
+            _name = "watched.model"
+
+        return Model, seen
+
+    @pytest.mark.parametrize("name", ["_underscore", "gi_frame"])
+    def test_a_rejected_name_never_reaches_the_class(self, mod, name) -> None:
+        from odoo.exceptions import AccessError
+
+        Model, seen = self._model_whose_metaclass_watches()
+        try:
+            with patch.object(mod, "BaseModel", _FakeBaseModel):
+                with pytest.raises(AccessError):
+                    mod.get_public_method(Model(), name)
+            assert seen == [], (
+                f"the metaclass descriptor for {name!r} ran before the guard "
+                f"rejected it"
+            )
+        finally:
+            mod._PUBLIC_METHOD_CACHE.pop(Model, None)
+
+    def test_an_accepted_name_still_reaches_the_class(self, mod) -> None:
+        Model, seen = self._model_whose_metaclass_watches()
+        try:
+            with patch.object(mod, "BaseModel", _FakeBaseModel):
+                mod.get_public_method(Model(), "evil")
+            assert seen == ["evil"], "the guard now rejects a public name too"
+        finally:
+            mod._PUBLIC_METHOD_CACHE.pop(Model, None)
+
+
 class TestGetPublicMethodCache:
     @pytest.fixture
     def cache(self, mod):
@@ -1434,3 +1495,52 @@ class TestDispatchArgShape:
                     "execute_kw",
                     ["db", 1, "pw", "res.partner", "read", [1], {}, "extra"],
                 )
+
+
+class TestABadMethodNameIsAClientErrorNotAServerFault:
+    """`get_public_method`'s six AccessErrors are logged quietly; this was not.
+
+    `http.application._log_request_exception` classifies: `AccessError` and
+    `UserError` become warnings, anything else becomes "Exception during
+    request handling" at ERROR with a traceback. A plain `AttributeError` fell
+    into the catch-all, so every typo'd method name from any authenticated
+    client wrote twenty frames of Odoo's own dispatch stack to the log.
+    Measured over eight refused RPC calls against a live server: six quiet,
+    one AccessDenied at WARNING, and this one alone reported as a fault.
+
+    The exception type is deliberately unchanged -- clients see the same
+    `builtins.AttributeError` -- and `loglevel` is the seam that method checks
+    before anything else.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _own_the_cache(self, mod):
+        """`get_public_method` records the class before it validates the name.
+
+        A rejected name therefore still leaves an (empty) entry keyed by the
+        class, which `conftest`'s leak guard fails the test for -- correctly:
+        the cache is keyed by class object and never evicted.
+        """
+        mod._PUBLIC_METHOD_CACHE.pop(_FakeModel, None)
+        yield
+        mod._PUBLIC_METHOD_CACHE.pop(_FakeModel, None)
+
+    def test_the_missing_method_error_carries_a_client_level(self, mod) -> None:
+        import logging as _logging
+
+        with patch.object(mod, "BaseModel", _FakeBaseModel):
+            with pytest.raises(AttributeError) as caught:
+                mod.get_public_method(_FakeModel(), "missing_xyz")
+        assert getattr(caught.value, "loglevel", None) == _logging.WARNING, (
+            "a bad RPC method name is still reported as a server fault"
+        )
+
+    def test_it_is_the_attribute_the_http_layer_reads(self) -> None:
+        """Pin the seam, so renaming it on either side cannot pass silently."""
+        import inspect
+
+        from odoo.http import application
+
+        src = inspect.getsource(application.Application._log_request_exception)
+        assert 'hasattr(exc, "loglevel")' in src
+        assert "exc.loglevel" in src
