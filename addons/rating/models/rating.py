@@ -232,17 +232,6 @@ class RatingRating(models.Model):
     # ACTIONS
     # ------------------------------------------------------------
 
-    def reset(self):
-        for record in self:
-            record.write(
-                {
-                    "rating": 0,
-                    "access_token": record._default_access_token(),
-                    "feedback": False,
-                    "consumed": False,
-                }
-            )
-
     def action_view_rated_object(self):
         self.ensure_one()
         return {
