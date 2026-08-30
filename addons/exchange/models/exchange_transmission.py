@@ -237,6 +237,9 @@ class ExchangeTransmission(models.Model):
     def create(self, vals_list):
         transmissions = super().create(vals_list)
         transmissions._notify_subjects()
+        transmissions.filtered(
+            lambda transmission: transmission.state == "queued"
+        ).channel_id._enqueue_send()
         return transmissions
 
     def write(self, vals):
@@ -432,15 +435,19 @@ class ExchangeTransmission(models.Model):
                 ),
             )
             return
+        delay = channel.calculate_retry_delay(attempt)
         self.write(
             {
                 "state": "queued",
                 "retry_count": attempt,
                 "message": message,
-                "date_next_retry": fields.Datetime.now()
-                + timedelta(seconds=channel.calculate_retry_delay(attempt)),
+                "date_next_retry": fields.Datetime.now() + timedelta(seconds=delay),
             },
         )
+        # The endpoint's own backoff, carried as the job's `eta`. `ir_job` owns
+        # when the work runs; `retry_count` stays here because how many times a
+        # counterparty has been asked is an audit trail, not scheduling state.
+        channel._enqueue_send(delay=delay)
 
     def _get_next_retry(self, retry_after: int | None):
         if retry_after is None:
@@ -478,8 +485,16 @@ class ExchangeTransmission(models.Model):
 
     @api.model
     def _cron_send_queued(self, limit: int = 100) -> None:
+        """Sweep for queued work no job is carrying.
+
+        Sending is a worker's job now -- `create` and `_schedule_retry` enqueue
+        one per channel. This is the safety net for a transmission that reached
+        `queued` by some other road: a data import, a restored backup, or a job
+        lost to a crash between enqueue and run. Enqueuing is idempotent, so
+        sweeping something already carried costs nothing.
+        """
         now = fields.Datetime.now()
-        queued = self.search(
+        self.search(
             [
                 ("state", "=", "queued"),
                 "|",
@@ -487,15 +502,7 @@ class ExchangeTransmission(models.Model):
                 ("date_next_retry", "<=", now),
             ],
             limit=limit,
-        )
-        for group in queued.grouped("channel_id").values():
-            try:
-                with self.env.cr.savepoint():
-                    group._send_many()
-            except Exception:
-                _logger.exception(
-                    "Sending the queue of %s failed", group.channel_id.display_name
-                )
+        ).channel_id._enqueue_send()
 
     @api.model
     def _cron_read_verdicts(self, limit: int = 100) -> None:

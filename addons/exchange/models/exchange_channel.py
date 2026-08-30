@@ -191,6 +191,42 @@ class ExchangeChannel(models.Model):
         self.ensure_one()
         return self.endpoint_id.calculate_retry_delay(attempt_number)
 
+    def _enqueue_send(self, delay: int | None = None) -> None:
+        """Ask a worker to flush this channel's queue.
+
+        `identity_key` carries the coalescing: `ir_job` holds a unique index over
+        it for queued states, so a channel with fifty transmissions waiting has
+        one job, not fifty, and enqueuing again while that job is still pending
+        is a no-op rather than a second flush.
+        """
+        for channel in self:
+            channel.delayed(
+                identity_key=f"exchange.send:{channel.id}",
+                # Per protocol, not one "exchange" bucket: an `ir.job.channel`
+                # record caps concurrency, and a counterparty that demands one
+                # request at a time should not throttle every other one. No
+                # record means uncapped, so this ships none and leaves the cap
+                # to whoever meets an endpoint that needs it.
+                channel=f"exchange.{channel.protocol}",
+                eta=delay or None,
+                name=f"Send queued transmissions over {channel.display_name}",
+            )._job_send_queued()
+
+    @api.job(channel="exchange", max_retries=0)
+    def _job_send_queued(self) -> None:
+        """Send everything queued on this channel.
+
+        The job takes the channel, not the transmissions: one job flushes
+        whatever has accumulated, which is what makes the coalescing above safe.
+        `max_retries=0` because a failure here is not the job's to retry --
+        `_schedule_retry` records the attempt against each transmission, applies
+        the endpoint's own backoff, and re-enqueues.
+        """
+        self.ensure_one()
+        self.env["exchange.transmission"].search(
+            [("channel_id", "=", self.id), ("state", "=", "queued")],
+        )._send_many()
+
     def _get_api_client(self, credential=None):
         self.ensure_one()
         return self.endpoint_id._get_api_client(credential=credential)

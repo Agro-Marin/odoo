@@ -151,13 +151,75 @@ class TestExchangeTransmission(ExchangeCase):
         with self.assertRaises(ValidationError):
             second.chain_previous_id = first
 
-    def test_the_queue_cron_sends_what_is_due(self):
+    def test_the_queue_cron_hands_the_channel_to_a_worker(self):
         transmission = self._add_transmission()
-        self.env["exchange.transmission"].with_context(
-            exchange_demo_script=self._accepted("CRON-1"),
-        )._cron_send_queued()
+        self.env["ir.job"].search([]).unlink()
+
+        self.env["exchange.transmission"]._cron_send_queued()
+
+        job = self.env["ir.job"].search(
+            [("identity_key", "=", f"exchange.send:{self.channel.id}")]
+        )
+        self.assertEqual(len(job), 1, "the sweep hands the channel over once")
+        self.assertEqual(job.method_name, "_job_send_queued")
+        self.assertEqual(
+            transmission.state, "queued", "and the cron itself sends nothing"
+        )
+
+    def test_the_job_sends_what_is_queued_on_its_channel(self):
+        transmission = self._add_transmission()
+
+        self.channel.with_context(
+            exchange_demo_script=self._accepted("JOB-1"),
+        )._job_send_queued()
+
         self.assertEqual(transmission.state, "accepted")
-        self.assertEqual(transmission.reference, "CRON-1")
+        self.assertEqual(transmission.reference, "JOB-1")
+
+    def test_the_enqueued_job_is_what_the_runner_will_execute(self):
+        # The unit above proves a row was written. This proves the row describes
+        # work that does the right thing when driven the way `ir.job` drives it:
+        # `getattr(env[model_name].browse(record_ids), method_name)()`.
+        self.env["ir.job"].search([]).unlink()
+        transmission = self._add_transmission()
+
+        job = self.env["ir.job"].search(
+            [("identity_key", "=", f"exchange.send:{self.channel.id}")]
+        )
+        self.assertEqual(job.model_name, "exchange.channel")
+        self.assertEqual(job.record_ids, [self.channel.id])
+        self.assertEqual(
+            job.channel,
+            f"exchange.{self.channel.protocol}",
+            "capped per counterparty, not as one exchange-wide bucket",
+        )
+
+        records = self.env[job.model_name].browse(job.record_ids)
+        getattr(
+            records.with_context(exchange_demo_script=self._accepted("RUN-1")),
+            job.method_name,
+        )()
+
+        self.assertEqual(transmission.state, "accepted")
+        self.assertEqual(transmission.reference, "RUN-1")
+
+    def test_a_queued_transmission_enqueues_its_channel_once(self):
+        self.env["ir.job"].search([]).unlink()
+
+        self._add_transmission()
+        self._add_transmission(
+            subject=self.env["res.partner"].create({"name": "Second"})
+        )
+
+        jobs = self.env["ir.job"].search(
+            [("identity_key", "=", f"exchange.send:{self.channel.id}")]
+        )
+        self.assertEqual(
+            len(jobs),
+            1,
+            "two transmissions on one channel coalesce into one flush, which is "
+            "what the identity key buys",
+        )
 
     def test_the_verdict_cron_only_touches_what_is_outstanding(self):
         outstanding = self._add_transmission()
