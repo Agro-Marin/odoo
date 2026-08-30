@@ -5,13 +5,10 @@ class ExpiryPickingConfirmation(models.TransientModel):
     _inherit = "expiry.picking.confirmation"
 
     production_ids = fields.Many2many("mrp.production", readonly=True)
-    workorder_id = fields.Many2one("mrp.workorder", readonly=True)
 
-    @api.depends("lot_ids", "production_ids", "workorder_id")
+    @api.depends("lot_ids", "production_ids")
     def _compute_description(self):
-        manufacturing = self.filtered(
-            lambda wizard: wizard.production_ids or wizard.workorder_id
-        )
+        manufacturing = self.filtered(lambda wizard: wizard.production_ids)
         for wizard in manufacturing:
             if wizard.show_lots:
                 # For multiple expired lots, they are listed in the wizard view.
@@ -33,8 +30,3 @@ class ExpiryPickingConfirmation(models.TransientModel):
         return self.production_ids.with_context(
             **self._validation_context()
         ).button_mark_done()
-
-    def confirm_workorder(self):
-        return self.workorder_id.with_context(
-            **self._validation_context()
-        ).record_production()
