@@ -50,6 +50,10 @@ class MailMessage(models.Model):
         for message, values in zip(self, vals_list, strict=True):
             values["rating_id"] = message_to_rating.get(message.id, {})
 
+            if not message.model:
+                # A message not linked to any document (model=False) has no
+                # rating-enabled record to report stats for.
+                continue
             record = self.env[message.model].browse(message.res_id)
             if hasattr(record, "rating_get_stats"):
                 values["rating_stats"] = record.sudo().rating_get_stats()
