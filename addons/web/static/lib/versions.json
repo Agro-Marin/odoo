@@ -86,6 +86,17 @@
       "license": "LGPL-3",
       "notes": "Odoo HOOT DOM helpers; developed in-tree and versioned with the fork."
     },
+    "joint": {
+        "version": "4.3.2",
+        "npm": "@joint/core",
+        "license": "MPL-2.0",
+        "source": "https://www.jointjs.com",
+        "probe": {
+            "file": "joint.esm.js",
+            "pattern": "JointJS {version} \\| MPL-2.0"
+        },
+        "notes": "NOT a pristine upstream file. @joint/core ships no single-file ESM -- its joint.mjs is a 97-byte re-export shim over ~250 modules under src/, and dist/joint.js is UMD -- so build.sh bundles entry.js with a pinned esbuild, the same recipe geoengine/static/lib/ol uses. entry.js re-exports the WHOLE surface on purpose: JointJS does not tree-shake ({dia, shapes, util} alone measures 431 KB against 462 KB for everything), so a curated entry would buy 7% and add a list to keep in step with its consumers. The artefact also carries @joint/layout-directed-graph 4.3.0 (MPL-2.0, same author) for DAG auto-layout, which pulls @dagrejs/dagre 3.1.1 and @dagrejs/graphlib 4.0.5 (both MIT) with it; their licences ship beside this one as LICENSE.dagre and LICENSE.graphlib, and the OSV coordinate above covers @joint/core only. Reached ONLY through a dynamic import() so it never loads on a session that opens no diagram -- the 2.9 MB web_flow charged every session is why that matters. MPL-2.0 combines with this tree's LGPL-3 under MPL section 3.3: no file in the package carries the Exhibit B \"Incompatible With Secondary Licenses\" notice that would opt out of it."
+    },
     "luxon": {
       "version": "3.7.2",
       "npm": "luxon",
