@@ -50,6 +50,13 @@ SHARE = re.compile(
 # Computed *from* a secret, and the point of them is that they are not it.
 DERIVED = re.compile(r"(_hash|_masked|_fingerprint|_encrypted|_plain|_display)$")
 
+# A cursor the counterparty hands back so the next call resumes a feed.
+# `google_calendar_sync_token` is labelled "Next Sync Token", is read from
+# `nextSyncToken` and is sent back as `params['syncToken']`: it is state, it
+# authorises nothing, and it changes on every sync -- vaulting it would churn
+# the store and its access log for a value that is not a secret.
+CURSOR = re.compile(r"(sync_token|page_token|next_token|_cursor)$", re.IGNORECASE)
+
 
 @dataclass(frozen=True, order=True)
 class Finding:
@@ -128,6 +135,8 @@ def findings() -> list[Finding]:
                     if not SECRET.search(name) or ABOUT.search(name):
                         continue
                     if SHARE.match(name) or DERIVED.search(name):
+                        continue
+                    if CURSOR.search(name):
                         continue
                     if not _is_stored_field(call):
                         continue

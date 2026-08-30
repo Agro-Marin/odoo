@@ -130,3 +130,32 @@ The four exclusions are the classifier, so they are tested directly — a wizard
 field, a share token, a `compute`/`inverse` door and a `*_hash` companion each
 have a case asserting the gate stays quiet, because a gate that fired on those
 would be argued down rather than obeyed.
+
+## Amendments
+
+### 2026-08-30 — a fifth exclusion: a cursor is not a credential
+
+The classifier above named four exclusions. There are five. Found the same day,
+while choosing the first module to migrate and therefore before any migration
+acted on the mistake:
+
+**A cursor the counterparty hands back so the next call resumes a feed is state,
+not a secret.** `google_calendar.google_calendar_sync_token` is labelled *"Next
+Sync Token"* in its own field definition, is read from `nextSyncToken` in the
+response and is sent back as `params['syncToken']`. It authorises nothing, it is
+not anybody's secret, and it changes on **every sync** — vaulting it would churn
+the encrypted store and its access log for a value whose whole purpose is to be
+handed straight back.
+
+`microsoft_calendar.microsoft_calendar_sync_token` is the same field under
+another vendor's name. Both came off the backlog, which is 160 entries rather
+than the 162 this record was seeded with, against 163 sites.
+
+`CURSOR` — `*_sync_token`, `*_page_token`, `*_next_token`, `*_cursor` — joins
+`SHARE`, `DERIVED`, the transient check and the store check in
+`credential_storage.py`, with its own tests, including one asserting that a
+secret whose name merely *ends* in `token` (`ups_access_token`) still counts.
+
+The decision is unchanged: a credential is stored in the vault. What changed is
+one more answer to *what is a credential*, which is the part of this record that
+was always going to need the tree to teach it.

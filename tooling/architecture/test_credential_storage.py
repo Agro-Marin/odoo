@@ -193,3 +193,35 @@ class TestRealTree:
 def test_the_cli_exits_zero_on_the_real_tree(monkeypatch, flag):
     monkeypatch.setattr(sys, "argv", ["credential_storage.py", flag])
     assert gate.main() == 0
+
+
+class TestACursorIsNotACredential:
+    """The fifth exclusion, found before any module was migrated on it.
+
+    `google_calendar_sync_token` is labelled "Next Sync Token" in its own field
+    definition, is read from `nextSyncToken` in the response and is sent back as
+    `params['syncToken']`. It authorises nothing and changes on every sync.
+    """
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "google_calendar_sync_token",
+            "microsoft_calendar_sync_token",
+            "page_token",
+            "next_token",
+            "delta_cursor",
+        ],
+    )
+    def test_a_feed_cursor_is_state_not_a_secret(self, tmp_path, monkeypatch, name):
+        _write(tmp_path, monkeypatch, f"{name} = fields.Char()")
+        assert gate.offenders() == [], (
+            "vaulting a cursor would churn the store and its access log on every "
+            "sync, for a value that authorises nothing"
+        )
+
+    def test_a_secret_whose_name_merely_ends_in_token_still_counts(
+        self, tmp_path, monkeypatch
+    ):
+        _write(tmp_path, monkeypatch, "ups_access_token = fields.Char()")
+        assert [f.field for f in gate.offenders()] == ["ups_access_token"]
