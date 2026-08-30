@@ -1232,11 +1232,17 @@ class HrLeaveAllocation(models.Model):
 
         self.add_follower(employee_id)
 
-        if (
-            "number_of_days_display" not in values
-            and "number_of_hours_display" not in values
-            and "state" not in values
-        ):
+        # Anything here can leave already-taken leaves uncovered, so each one
+        # has to go through the excess check below. `date_to` included: pulling
+        # the end date in front of an approved leave strands it just as surely
+        # as cutting the duration does.
+        checked_fields = {
+            "number_of_days_display",
+            "number_of_hours_display",
+            "state",
+            "date_to",
+        }
+        if not checked_fields.intersection(values):
             res = super().write(values)
             if "allocation_type" in values:
                 self._add_lastcalls()
