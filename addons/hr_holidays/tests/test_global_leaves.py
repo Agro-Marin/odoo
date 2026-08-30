@@ -4,6 +4,7 @@ from freezegun import freeze_time
 
 from odoo.exceptions import ValidationError
 from odoo.tests import tagged
+from odoo.tools.safe_eval import safe_eval
 
 from odoo.addons.hr_holidays.tests.common import TestHrHolidaysCommon
 from odoo.addons.mail.tests.common import mail_new_test_user
@@ -717,3 +718,55 @@ class TestGlobalLeaves(TestHrHolidaysCommon):
             "Number of days should be 19 as one day has been granted back to the"
             "the employee for the public holiday",
         )
+
+    def test_associated_leaves_count_counts_the_global_ones(self):
+        """The stat button of a work schedule must count the public holidays
+        that apply to every schedule, not only the ones tied to that schedule.
+
+        Configuration > Public Holidays creates them without a schedule, so
+        they are the common case rather than the exception.
+        """
+        schedules = self.env["resource.calendar"].create(
+            [{"name": "Schedule A"}, {"name": "Schedule B"}]
+        )
+        schedule_a, schedule_b = schedules
+        before_a = schedule_a.associated_leaves_count
+        before_b = schedule_b.associated_leaves_count
+
+        self.env["resource.calendar.leaves"].create(
+            [
+                {
+                    "name": "Only on Schedule A",
+                    "calendar_id": schedule_a.id,
+                    "date_from": datetime(2025, 1, 1, 0, 0, 0),
+                    "date_to": datetime(2025, 1, 1, 23, 59, 59),
+                },
+                {
+                    "name": "Everyone, whatever their schedule",
+                    "calendar_id": False,
+                    "date_from": datetime(2025, 3, 1, 0, 0, 0),
+                    "date_to": datetime(2025, 3, 1, 23, 59, 59),
+                },
+            ]
+        )
+        schedules.invalidate_recordset(["associated_leaves_count"])
+
+        self.assertEqual(
+            schedule_a.associated_leaves_count,
+            before_a + 2,
+            "Schedule A should count its own public holiday and the global one",
+        )
+        self.assertEqual(
+            schedule_b.associated_leaves_count,
+            before_b + 1,
+            "Schedule B should count the global public holiday too",
+        )
+
+        # The button must open exactly what it counts.
+        action = self.env.ref(
+            "hr_holidays.resource_calendar_global_leaves_action_from_calendar"
+        )
+        listed = self.env["resource.calendar.leaves"].search(
+            safe_eval(action.domain, {"active_id": schedule_a.id})
+        )
+        self.assertEqual(len(listed), schedule_a.associated_leaves_count)
