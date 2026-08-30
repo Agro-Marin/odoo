@@ -409,10 +409,10 @@ class StockWarehouse(models.Model):
         routes = super()._get_all_routes()
         routes |= (
             self.filtered(
-                lambda self: (
-                    self.manufacture_to_resupply
-                    and self.manufacture_pull_id
-                    and self.manufacture_pull_id.route_id
+                lambda wh: (
+                    wh.manufacture_to_resupply
+                    and wh.manufacture_pull_id
+                    and wh.manufacture_pull_id.route_id
                 )
             )
             .mapped("manufacture_pull_id")
