@@ -85,3 +85,53 @@ class TestPointOfSaleFlow(CommonPosTest):
             }
         )
         self.assertEqual(order.picking_ids.move_line_ids.lot_id, lot_1)
+
+    def test_sale_order_count_and_pos_order_count_refresh_without_invalidation(self):
+        # Regression test: both counters used to be non-stored computes with
+        # no @api.depends, so they never refreshed within a transaction after
+        # a pos.order.line linking a sale order was created, unless the
+        # cache was invalidated by hand.
+        sale_order = (
+            self.env["sale.order"]
+            .sudo()
+            .create(
+                {
+                    "partner_id": self.partner_stva.id,
+                    "line_ids": [
+                        (
+                            0,
+                            0,
+                            {
+                                "product_id": self.twenty_dollars_no_tax.product_variant_id.id,
+                                "name": self.twenty_dollars_no_tax.product_variant_id.name,
+                                "price_unit": self.twenty_dollars_no_tax.product_variant_id.lst_price,
+                                "product_qty": 2,
+                            },
+                        )
+                    ],
+                }
+            )
+        )
+        sale_order.action_confirm()
+        self.assertEqual(sale_order.sudo().pos_order_count, 0)
+
+        order, _ = self.create_backend_pos_order(
+            {
+                "order_data": {
+                    "partner_id": self.partner_stva.id,
+                },
+                "line_data": [
+                    {
+                        "product_id": self.twenty_dollars_no_tax.product_variant_id.id,
+                        "tax_ids": [(6, 0, [])],
+                        "sale_order_line_id": sale_order.line_ids[0].id,
+                        "sale_order_origin_id": sale_order.id,
+                    }
+                ],
+                "payment_data": [
+                    {"payment_method_id": self.pos_config_usd.payment_method_ids[0].id}
+                ],
+            }
+        )
+        self.assertEqual(order.sudo().sale_order_count, 1)
+        self.assertEqual(sale_order.sudo().pos_order_count, 1)
