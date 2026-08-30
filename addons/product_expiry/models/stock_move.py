@@ -23,6 +23,9 @@ class StockMove(models.Model):
         product = self.env["product.product"].browse(
             context_data.get("default_product_id")
         )
+        if not product.use_expiration_date:
+            for vals in vals_list:
+                vals.pop("expiration_date", None)
         picking = self.env["stock.picking"].browse(
             context_data.get("default_picking_id")
         )
