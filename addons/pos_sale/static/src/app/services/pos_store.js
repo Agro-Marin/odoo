@@ -111,6 +111,10 @@ patch(PosStore.prototype, {
                 continue;
             }
 
+            if (line.display_type === "line_section") {
+                continue;
+            }
+
             if (line.is_downpayment) {
                 line.product_id = this.config.down_payment_product_id;
             }
@@ -141,9 +145,6 @@ patch(PosStore.prototype, {
                     },
                 ]),
             };
-            if (line.display_type === "line_section") {
-                continue;
-            }
             newLineValues.attribute_value_ids = (
                 line.product_custom_attribute_value_ids || []
             ).map((value_line) => {
