@@ -1315,14 +1315,14 @@ class ResourceCalendar(models.Model):
             leave_intervals = self._leave_intervals_batch(
                 start_dt, end_dt, domain=domain
             )[False]
-            works = set()
+            leave_days = set()
             for start_int, end_int, _ in leave_intervals:
-                works.update(
+                leave_days.update(
                     start_int.date() + timedelta(days=i)
                     for i in range((end_int.date() - start_int.date()).days + 1)
                 )
             return {
-                fields.Date.to_string(day.date()): (day.date() in works)
+                fields.Date.to_string(day.date()): (day.date() in leave_days)
                 for day in rrule(DAILY, start_dt, until=end_dt)
             }
         works = {
