@@ -74,7 +74,7 @@ def _marker(s, base_cv, cand_cv, sub_micro=False):
     return " ="
 
 
-def main(argv=None):
+def _parse_args(argv):
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "-b",
@@ -99,13 +99,10 @@ def main(argv=None):
         help="timing metric to compare (default: median)",
     )
     ap.add_argument("--md", action="store_true", help="emit a Markdown table")
-    args = ap.parse_args(argv)
+    return ap.parse_args(argv)
 
-    key = METRIC_KEY[args.metric]
-    bm, bi = _aggregate(args.baseline, key)
-    cm, ci = _aggregate(args.candidate, key)
-    names = sorted(set(bi) | set(ci), key=lambda n: (bi.get(n) or ci[n])["group"] + n)
 
+def _print_header(args, bm, cm):
     nb = len(args.baseline)
     nc = len(args.candidate)
     print(f"# ORM benchmark comparison  (metric: {args.metric}, median across runs)\n")
@@ -121,16 +118,19 @@ def main(argv=None):
         "  '~' marks a benchmark that is noisy across runs — read its speedup as indicative only.\n"
     )
 
-    sep = "  " + "-" * 98
+
+def _print_table_head(args, sep):
     if args.md:
         print("| benchmark | group | base µs | cand µs | speedup | queries (b→c) |")
         print("|---|---|--:|--:|--:|:--|")
-    else:
-        print(
-            f"  {'benchmark':34} {'group':11} {'base µs':>11} {'cand µs':>11} {'speedup':>9}  {'queries':>11}"
-        )
-        print(sep)
+        return
+    print(
+        f"  {'benchmark':34} {'group':11} {'base µs':>11} {'cand µs':>11} {'speedup':>9}  {'queries':>11}"
+    )
+    print(sep)
 
+
+def _print_rows(args, names, bi, ci):
     speedups = []
     speedups_all = []
     query_divergences = []
@@ -168,83 +168,117 @@ def main(argv=None):
                 f"  {name:34} {b['group']:11} {bv:11.1f} {cvv:11.1f} {_fmt_speedup(s)}{mark} {qstr:>11}"
             )
 
-    if not args.md:
-        print(sep)
+    return speedups, speedups_all, query_divergences, only_base, only_cand
 
-    def _geo(xs):
-        return math.exp(sum(math.log(x) for x in xs) / len(xs)) if xs else float("nan")
 
+def _geo(xs):
+    return math.exp(sum(math.log(x) for x in xs) / len(xs)) if xs else float("nan")
+
+
+def _rank_by_speedup(names, bi, ci):
+    return sorted(
+        (
+            (bi[n]["value"] / ci[n]["value"], n)
+            for n in names
+            if n in bi
+            and n in ci
+            and ci[n]["value"]
+            and not (bi[n]["value"] < SUBMICRO_US and ci[n]["value"] < SUBMICRO_US)
+        ),
+        reverse=True,
+    )
+
+
+def _print_summary(args, names, bi, ci, speedups, speedups_all):
     print("\n## Summary")
-    if speedups_all:
-        faster = sum(1 for s in speedups_all if s >= THRESHOLD)
-        slower = sum(1 for s in speedups_all if s <= 1 / THRESHOLD)
-        same = len(speedups_all) - faster - slower
-        ranked = sorted(
-            (
-                (bi[n]["value"] / ci[n]["value"], n)
-                for n in names
-                if n in bi
-                and n in ci
-                and ci[n]["value"]
-                and not (bi[n]["value"] < SUBMICRO_US and ci[n]["value"] < SUBMICRO_US)
-            ),
-            reverse=True,
+    if not speedups_all:
+        return
+    faster = sum(1 for s in speedups_all if s >= THRESHOLD)
+    slower = sum(1 for s in speedups_all if s <= 1 / THRESHOLD)
+    same = len(speedups_all) - faster - slower
+    ranked = _rank_by_speedup(names, bi, ci)
+    top_wins = ", ".join(f"{n} ({s:.2f}x)" for s, n in ranked[:3])
+    top_regressions = ", ".join(f"{n} ({s:.2f}x)" for s, n in ranked[-3:])
+    if args.md:
+        print(f"- benchmarks compared: {len(speedups_all)}")
+        print(
+            f"- geomean (stable only): {_geo(speedups):.3f}x over {len(speedups)} low-noise benchmarks"
         )
-        top_wins = ", ".join(f"{n} ({s:.2f}x)" for s, n in ranked[:3])
-        top_regressions = ", ".join(f"{n} ({s:.2f}x)" for s, n in ranked[-3:])
-        if args.md:
-            print(f"- benchmarks compared: {len(speedups_all)}")
-            print(
-                f"- geomean (stable only): {_geo(speedups):.3f}x over {len(speedups)} low-noise benchmarks"
-            )
-            print(
-                f"- geomean (all): {_geo(speedups_all):.3f}x (includes noisy DB-bound ops)"
-            )
-            print(f"- candidate faster: {faster}, slower: {slower}, ~equal: {same}")
-            print(f"- top wins: {top_wins}")
-            print(f"- top regressions: {top_regressions}")
-        else:
-            print(f"  benchmarks compared : {len(speedups_all)}")
-            print(
-                f"  geomean (stable only): {_geo(speedups):.3f}x   over {len(speedups)} low-noise benchmarks"
-            )
-            print(
-                f"  geomean (all)        : {_geo(speedups_all):.3f}x   (includes noisy DB-bound ops)"
-            )
-            print(
-                f"  candidate faster    : {faster}    slower: {slower}    ~equal: {same}"
-            )
-            print(f"  top wins            : {top_wins}")
-            print(f"  top regressions     : {top_regressions}")
+        print(
+            f"- geomean (all): {_geo(speedups_all):.3f}x (includes noisy DB-bound ops)"
+        )
+        print(f"- candidate faster: {faster}, slower: {slower}, ~equal: {same}")
+        print(f"- top wins: {top_wins}")
+        print(f"- top regressions: {top_regressions}")
+        return
+    print(f"  benchmarks compared : {len(speedups_all)}")
+    print(
+        f"  geomean (stable only): {_geo(speedups):.3f}x   over {len(speedups)} low-noise benchmarks"
+    )
+    print(
+        f"  geomean (all)        : {_geo(speedups_all):.3f}x   (includes noisy DB-bound ops)"
+    )
+    print(f"  candidate faster    : {faster}    slower: {slower}    ~equal: {same}")
+    print(f"  top wins            : {top_wins}")
+    print(f"  top regressions     : {top_regressions}")
 
-    if query_divergences:
-        if args.md:
-            print(
-                f"\n**⚠ query-count divergences ({len(query_divergences)})** — NOT apples-to-apples:"
-            )
-            for name, bq, cq in query_divergences:
-                print(f"- {name}: baseline={bq}, candidate={cq}")
-        else:
-            print(
-                f"\n  ⚠ query-count divergences ({len(query_divergences)}) — NOT apples-to-apples:"
-            )
-            for name, bq, cq in query_divergences:
-                print(f"      {name:34} baseline={bq}  candidate={cq}")
-    elif args.md:
-        print("\n✓ query counts identical on every shared benchmark")
-    else:
-        print("\n  ✓ query counts identical on every shared benchmark")
 
+def _print_query_divergences(args, query_divergences):
+    if not query_divergences:
+        print(
+            "\n✓ query counts identical on every shared benchmark"
+            if args.md
+            else "\n  ✓ query counts identical on every shared benchmark"
+        )
+        return
+    if args.md:
+        print(
+            f"\n**⚠ query-count divergences ({len(query_divergences)})** — NOT apples-to-apples:"
+        )
+        for name, bq, cq in query_divergences:
+            print(f"- {name}: baseline={bq}, candidate={cq}")
+        return
+    print(
+        f"\n  ⚠ query-count divergences ({len(query_divergences)}) — NOT apples-to-apples:"
+    )
+    for name, bq, cq in query_divergences:
+        print(f"      {name:34} baseline={bq}  candidate={cq}")
+
+
+def _print_exclusives(args, only_base, only_cand):
     if args.md:
         if only_base:
             print(f"\n- only in baseline: {', '.join(only_base)}")
         if only_cand:
             print(f"- only in candidate: {', '.join(only_cand)}")
-    else:
-        if only_base:
-            print(f"\n  only in baseline  : {', '.join(only_base)}")
-        if only_cand:
-            print(f"  only in candidate : {', '.join(only_cand)}")
+        return
+    if only_base:
+        print(f"\n  only in baseline  : {', '.join(only_base)}")
+    if only_cand:
+        print(f"  only in candidate : {', '.join(only_cand)}")
+
+
+def main(argv=None):
+    args = _parse_args(argv)
+
+    key = METRIC_KEY[args.metric]
+    bm, bi = _aggregate(args.baseline, key)
+    cm, ci = _aggregate(args.candidate, key)
+    names = sorted(set(bi) | set(ci), key=lambda n: (bi.get(n) or ci[n])["group"] + n)
+
+    _print_header(args, bm, cm)
+
+    sep = "  " + "-" * 98
+    _print_table_head(args, sep)
+    speedups, speedups_all, query_divergences, only_base, only_cand = _print_rows(
+        args, names, bi, ci
+    )
+    if not args.md:
+        print(sep)
+
+    _print_summary(args, names, bi, ci, speedups, speedups_all)
+    _print_query_divergences(args, query_divergences)
+    _print_exclusives(args, only_base, only_cand)
 
 
 if __name__ == "__main__":

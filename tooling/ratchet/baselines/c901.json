@@ -1,5 +1,5 @@
 {
-  "count": 5,
-  "measured_at": "708f0d278d30b84449f048a77263882211a6338b",
-  "note": "tag_quote (28) and fromstring (22) split; libs/ is now clear of C901 entirely. 7 -> 5."
+  "count": 0,
+  "measured_at": "8395c5e9be21ee97cea88eddb09e027d035e2fe0",
+  "note": "Core reaches zero: 5 -> 0, four of them as a by-product of the function-length work in the same change.\n\n    26  upgrade_code/18.2-00-l10n-translate.py             upgrade\n    26  upgrade_code/18.5-00-no-tax-tag-invert.py          upgrade\n    23  addons/test_performance_compare/compare.py         main\n    23  addons/test_lint/tests/_checker_sql.py             _assignments_in\n    21  upgrade_code/18.3-00-l10n-fiscal-position-taxes.py upgrade\n\nThe first four are the same functions `pyfunclen` was measuring: complexity and\nlength were one defect read by two gates, and the split cleared both.\n\n`_assignments_in` is the fifth and is length-clean -- 40 lines carrying 23\nbranches, because \"a Name, or a Tuple of Names\" was written out three times, once\nper binding form. `_bound_names` says it once, `_binding_targets` says which\nnodes bind, and `_scope_params` lifts the parameter set out. The match arms\nare unchanged in what they accept: Name and flat Tuple for Assign and For, Name\nalone for AugAssign and comprehension, and posonlyargs still absent from the\nparameter set -- deliberately, since widening it would move findings that have\nnothing to do with this change.\n\nVerified by re-running `test_lint` at the CI scope: E8501 reads the same 9 after\nthe rewrite as before it.\n\nRe-derived at a commit in HEAD history; the previous floor was ORPHANED-BASE."
 }

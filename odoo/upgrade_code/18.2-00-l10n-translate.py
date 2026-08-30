@@ -70,6 +70,133 @@ def data_file_module_name(f: FileManager) -> str:
     return f.path.parts[f.path.parts.index("data") - 1]
 
 
+def harvest_translations(file, translations: dict) -> None:
+    module_name = file.path.parts[-3]
+    lang = file.path.stem
+    pofile = polib.pofile(file.content)
+    original_pofile = polib.pofile(file.content)
+    for entry in pofile:
+        if file.path.suffix == ".po":
+            for occurence in entry.occurrences:
+                if occurence[0].startswith(("model:", "model_terms:")):
+                    xmlid = occurence[0].split(":")[2]
+                    model, fname = occurence[0].split(":")[1].split(",")
+                    if model in MODELS and fname in MODELS[model]:
+                        translations[module_name][model][xmlid][fname][lang] = (
+                            entry.msgstr
+                        )
+        entry.occurrences = [
+            occurence
+            for occurence in entry.occurrences
+            if not any(
+                occurence[0].startswith(f"model:{model},{fname}")
+                or occurence[0].startswith(f"model_terms:{model},{fname}")
+                for model in MODELS
+                for fname in MODELS[model]
+            )
+        ]
+        if not entry.occurrences:
+            entry.obsolete = True
+
+    for entry in pofile.obsolete_entries():
+        pofile.remove(entry)
+    if pofile != original_pofile:
+        file.content = str(pofile)
+
+
+def inline_xml_translations(file, module_name: str, translations: dict) -> None:
+    tree = etree.parse(BytesIO(file.content.encode()))
+    for record_node in tree.xpath(
+        f"""//record[{" or ".join(f"@model='{m}'" for m in MODELS)}]"""
+    ):
+        model = record_node.attrib["model"]
+        xmlid = ".".join(parse_xmlid(record_node.attrib["id"], module_name))
+        for fname in MODELS[model]:
+            base_node = record_node.find(f"field[@name='{fname}']")
+            if base_node is None:
+                continue
+            default_tail = next(iter(base_node.getparent())).tail
+            translated_node = None
+            for lang, translated in translations[module_name][model][xmlid][
+                fname
+            ].items():
+                if (
+                    translated
+                    and record_node.find(f"field[@name='{fname}@{lang}']") is None
+                ):
+                    translated_node = E("field", translated, name=f"{fname}@{lang}")
+                    translated_node.tail = default_tail
+                    base_node.addnext(translated_node)
+            if translated_node is not None:
+                base_node.tail = default_tail
+
+    file.content = "".join(
+        diff[2:]
+        for diff in difflib.ndiff(
+            file.content.splitlines(keepends=True),
+            etree.tostring(tree, encoding="utf-8").decode().splitlines(keepends=True),
+        )
+        if diff.startswith((" ", "-")) or re.match(r"""\+\s*<field name="\w+@""", diff)
+    )
+
+
+def translated_langs(
+    csv_data: list[dict], fnames: list[str], module_name: str, model: str, translations
+) -> list[str]:
+    return sorted(
+        {
+            lang
+            for row in csv_data
+            for fname in fnames
+            for lang, val in translations[module_name][model][
+                ".".join(parse_xmlid(row["id"], module_name))
+            ][fname].items()
+            if val
+        }
+    )
+
+
+def inline_csv_translations(file, module_name: str, translations: dict) -> None:
+    model = file.path.stem
+    if model not in MODELS:
+        return
+    csv_file = csv.DictReader(file.content.splitlines())
+    csv_data = list(csv_file)
+    if not csv_data or "id" not in csv_data[0]:
+        return
+    fnames = sorted(set(csv_data[0].keys()) & set(MODELS[model]))
+    if not fnames:
+        return
+    langs = translated_langs(csv_data, fnames, module_name, model, translations)
+    if not langs:
+        return
+
+    buffer = StringIO()
+    writer = csv.DictWriter(
+        buffer,
+        fieldnames=csv_file.fieldnames
+        + [
+            f"{fname}@{lang}"
+            for lang in langs
+            for fname in fnames
+            if f"{fname}@{lang}" not in csv_file.fieldnames
+        ],
+        delimiter=",",
+        quotechar='"',
+        quoting=csv.QUOTE_ALL,
+    )
+    writer.writeheader()
+    for row in csv_data:
+        xmlid = ".".join(parse_xmlid(row["id"], module_name))
+        for lang in langs:
+            for fname in fnames:
+                row[f"{fname}@{lang}"] = translations[module_name][model][xmlid][
+                    fname
+                ].get(lang, "")
+        writer.writerow(row)
+    file.content = buffer.getvalue()
+
+
 def upgrade(file_manager: FileManager) -> None:
     translation_files = [
         f
@@ -93,39 +220,7 @@ def upgrade(file_manager: FileManager) -> None:
     )
     for i, file in enumerate(translation_files):
         file_manager.print_progress(i, nb_translation_files + nb_data_files, file.path)
-        module_name = file.path.parts[-3]
-        lang = file.path.stem
-        pofile = polib.pofile(file.content)
-        original_pofile = polib.pofile(file.content)
-        for entry in pofile:
-            if file.path.suffix == ".po":
-                for occurence in entry.occurrences:
-                    if occurence[0].startswith("model:") or occurence[0].startswith(
-                        "model_terms:"
-                    ):
-                        xmlid = occurence[0].split(":")[2]
-                        model, fname = occurence[0].split(":")[1].split(",")
-                        if model in MODELS and fname in MODELS[model]:
-                            translations[module_name][model][xmlid][fname][lang] = (
-                                entry.msgstr
-                            )
-            entry.occurrences = [
-                occurence
-                for occurence in entry.occurrences
-                if not any(
-                    occurence[0].startswith(f"model:{model},{fname}")
-                    or occurence[0].startswith(f"model_terms:{model},{fname}")
-                    for model in MODELS
-                    for fname in MODELS[model]
-                )
-            ]
-            if not entry.occurrences:
-                entry.obsolete = True
-
-        for entry in pofile.obsolete_entries():
-            pofile.remove(entry)
-        if pofile != original_pofile:
-            file.content = str(pofile)
+        harvest_translations(file, translations)
 
     for i, file in enumerate(data_files):
         file_manager.print_progress(
@@ -135,87 +230,6 @@ def upgrade(file_manager: FileManager) -> None:
         )
         module_name = data_file_module_name(file)
         if file.path.suffix == ".xml":
-            tree = etree.parse(BytesIO(file.content.encode()))
-            for record_node in tree.xpath(
-                f"""//record[{" or ".join(f"@model='{m}'" for m in MODELS)}]"""
-            ):
-                model = record_node.attrib["model"]
-                xmlid = ".".join(parse_xmlid(record_node.attrib["id"], module_name))
-                for fname in MODELS[model]:
-                    base_node = record_node.find(f"field[@name='{fname}']")
-                    if base_node is not None:
-                        default_tail = next(iter(base_node.getparent())).tail
-                        translated_node = None
-                        for lang, translated in translations[module_name][model][xmlid][
-                            fname
-                        ].items():
-                            if (
-                                translated
-                                and record_node.find(f"field[@name='{fname}@{lang}']")
-                                is None
-                            ):
-                                translated_node = E(
-                                    "field", translated, name=f"{fname}@{lang}"
-                                )
-                                translated_node.tail = default_tail
-                                base_node.addnext(translated_node)
-                        if translated_node is not None:
-                            base_node.tail = default_tail
-
-            file.content = "".join(
-                diff[2:]
-                for diff in difflib.ndiff(
-                    file.content.splitlines(keepends=True),
-                    etree.tostring(tree, encoding="utf-8")
-                    .decode()
-                    .splitlines(keepends=True),
-                )
-                if diff.startswith((" ", "-"))
-                or re.match(r"""\+\s*<field name="\w+@""", diff)
-            )
+            inline_xml_translations(file, module_name, translations)
         elif file.path.suffix == ".csv":
-            model = file.path.stem
-            if model not in MODELS:
-                continue
-            csv_file = csv.DictReader(file.content.splitlines())
-            csv_data = list(csv_file)
-            if not csv_data or "id" not in csv_data[0]:
-                continue
-            fnames = sorted(set(csv_data[0].keys()) & set(MODELS[model]))
-            if fnames:
-                langs = sorted(
-                    {
-                        lang
-                        for row in csv_data
-                        for fname in fnames
-                        for lang, val in translations[module_name][model][
-                            ".".join(parse_xmlid(row["id"], module_name))
-                        ][fname].items()
-                        if val
-                    }
-                )
-                if langs:
-                    buffer = StringIO()
-                    writer = csv.DictWriter(
-                        buffer,
-                        fieldnames=csv_file.fieldnames
-                        + [
-                            f"{fname}@{lang}"
-                            for lang in langs
-                            for fname in fnames
-                            if f"{fname}@{lang}" not in csv_file.fieldnames
-                        ],
-                        delimiter=",",
-                        quotechar='"',
-                        quoting=csv.QUOTE_ALL,
-                    )
-                    writer.writeheader()
-                    for row in csv_data:
-                        xmlid = ".".join(parse_xmlid(row["id"], module_name))
-                        for lang in langs:
-                            for fname in fnames:
-                                row[f"{fname}@{lang}"] = translations[module_name][
-                                    model
-                                ][xmlid][fname].get(lang, "")
-                        writer.writerow(row)
-                    file.content = buffer.getvalue()
+            inline_csv_translations(file, module_name, translations)

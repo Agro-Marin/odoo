@@ -537,48 +537,53 @@ class SqlInjectionChecker:
             current = getattr(current, "_parent", None)
         return None
 
+    @staticmethod
+    def _bound_names(target: ast.expr) -> Iterator[str]:
+        match target:
+            case ast.Name(id=name):
+                yield name
+            case ast.Tuple(elts=elts):
+                for elt in elts:
+                    if isinstance(elt, ast.Name):
+                        yield elt.id
+
+    @staticmethod
+    def _scope_params(scope: ast.AST) -> set[str]:
+        if not isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            return set()
+        args = scope.args
+        params = {arg.arg for arg in args.args + args.kwonlyargs}
+        if args.vararg:
+            params.add(args.vararg.arg)
+        if args.kwarg:
+            params.add(args.kwarg.arg)
+        return params
+
+    @staticmethod
+    def _binding_targets(node: ast.AST) -> Iterator[ast.expr]:
+        match node:
+            case ast.Assign(targets=targets):
+                yield from targets
+            case ast.AugAssign(target=target) | ast.For(target=target):
+                yield target
+            case ast.comprehension(target=ast.Name() as target):
+                yield target
+
     def _assignments_in(self, scope: ast.AST) -> dict[str, list[ast.AST]]:
         cached = self._assign_cache.get(id(scope))
         if cached is not None:
             return cached
 
         mapping: dict[str, list[ast.AST]] = defaultdict(list)
-        params: set[str] = set()
-        if isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            params = {arg.arg for arg in scope.args.args + scope.args.kwonlyargs}
-            if scope.args.vararg:
-                params.add(scope.args.vararg.arg)
-            if scope.args.kwarg:
-                params.add(scope.args.kwarg.arg)
-            for name in params:
-                mapping[name] = [scope]
-
-        def record(name: str, node: ast.AST) -> None:
-            if name not in params:
-                mapping[name].append(node)
+        params = self._scope_params(scope)
+        for name in params:
+            mapping[name] = [scope]
 
         for node in ast.walk(scope):
-            match node:
-                case ast.Assign(targets=targets):
-                    for target in targets:
-                        if isinstance(target, ast.Name):
-                            record(target.id, node)
-                        elif isinstance(target, ast.Tuple):
-                            for elt in target.elts:
-                                if isinstance(elt, ast.Name):
-                                    record(elt.id, node)
-                case ast.AugAssign(target=ast.Name(id=target_name)):
-                    record(target_name, node)
-                case ast.For(target=target):
-                    if isinstance(target, ast.Name):
-                        record(target.id, node)
-                    elif isinstance(target, ast.Tuple):
-                        for elt in target.elts:
-                            if isinstance(elt, ast.Name):
-                                record(elt.id, node)
-                case ast.comprehension(target=target):
-                    if isinstance(target, ast.Name):
-                        record(target.id, node)
+            for target in self._binding_targets(node):
+                for name in self._bound_names(target):
+                    if name not in params:
+                        mapping[name].append(node)
 
         self._assign_cache[id(scope)] = mapping
         return mapping

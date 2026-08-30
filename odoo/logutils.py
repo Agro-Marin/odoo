@@ -293,17 +293,7 @@ class LogRecord(logging.LogRecord):
 showwarning: object = None
 
 
-def init_logger() -> None:
-    global showwarning  # noqa: PLW0603  saves the stdlib hook we replace, once per process
-    if logging.getLogRecordFactory() is LogRecord:
-        return
-
-    logging.setLogRecordFactory(LogRecord)
-
-    logging.captureWarnings(True)
-    showwarning = warnings.showwarning
-    warnings.showwarning = showwarning_with_traceback
-
+def _silence_dependency_warnings() -> None:
     warnings.simplefilter("default", category=DeprecationWarning)
     warnings.filterwarnings(
         "ignore",
@@ -355,19 +345,20 @@ def init_logger() -> None:
         category=SyntaxWarning,
         module=".*vobject",
     )
-    from .tools.translate import resetlocale
 
-    resetlocale()
 
+def _apply_log_config_file() -> dict | None:
     log_config = tools.config["log_config"]
-    if log_config:
-        with Path(log_config).open("rb") as fobj:
-            conf = json.load(fobj)
-            conf["disable_existing_loggers"] = False
-        logging.config.dictConfig(conf)
-        if not conf.get("keep_odoo_default", False):
-            return
+    if not log_config:
+        return None
+    with Path(log_config).open("rb") as fobj:
+        conf = json.load(fobj)
+        conf["disable_existing_loggers"] = False
+    logging.config.dictConfig(conf)
+    return conf
 
+
+def _install_log_handler() -> None:
     format = "%(asctime)s %(pid)s %(levelname)s uid:%(uid)s %(dbname)s %(name)s: %(message)s %(perf_info)s"
     handler = logging.StreamHandler()
 
@@ -432,6 +423,8 @@ def init_logger() -> None:
         )
         logging.getLogger().addHandler(postgresqlHandler)
 
+
+def _apply_configured_levels() -> None:
     pseudo_config = PSEUDOCONFIG_MAPPER.get(tools.config["log_level"], [])
 
     logconfig = tools.config["log_handler"]
@@ -445,6 +438,29 @@ def init_logger() -> None:
 
     for logconfig_item in logging_configurations:
         _logger.debug('logger level set: "%s"', logconfig_item)
+
+
+def init_logger() -> None:
+    global showwarning  # noqa: PLW0603  saves the stdlib hook we replace, once per process
+    if logging.getLogRecordFactory() is LogRecord:
+        return
+
+    logging.setLogRecordFactory(LogRecord)
+
+    logging.captureWarnings(True)
+    showwarning = warnings.showwarning
+    warnings.showwarning = showwarning_with_traceback
+
+    _silence_dependency_warnings()
+    from .tools.translate import resetlocale
+
+    resetlocale()
+
+    conf = _apply_log_config_file()
+    if conf is not None and not conf.get("keep_odoo_default", False):
+        return
+    _install_log_handler()
+    _apply_configured_levels()
 
 
 DEFAULT_LOG_CONFIGURATION: Final[list[str]] = [
