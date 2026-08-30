@@ -21,6 +21,7 @@ from ._model_stubs import _ModelStubs
 if typing.TYPE_CHECKING:
     from collections.abc import Collection, Sequence
 
+    from ..._typing import BaseModel
     from ...fields.base import Field
     from ...tools import Query
 
@@ -430,8 +431,9 @@ class ReadMixin(_ModelStubs):
             prof.mark("cache")
 
         if fetched:
+            records = typing.cast("BaseModel", fetched)
             for field in other_fields:
-                field.read(fetched)
+                field.read(records)
 
         prof.stop("other")
         prof.report(

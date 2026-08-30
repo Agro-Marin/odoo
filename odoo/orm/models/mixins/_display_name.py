@@ -22,10 +22,10 @@ class _DisplayNameMixin(_ModelStubs):
         if self._rec_name:
             convert = self._fields[self._rec_name].convert_to_display_name
             for record in self:
-                record.display_name = convert(record[self._rec_name], record)
+                record["display_name"] = convert(record[self._rec_name], record)
         else:
             for record in self:
-                record.display_name = f"{record._name},{record.id}"
+                record["display_name"] = f"{record._name},{record.id}"
 
     @api.model
     def name_create(self, name: str) -> tuple[int, str]:
@@ -37,4 +37,4 @@ class _DisplayNameMixin(_ModelStubs):
                 )
             )
         record = self.create({self._rec_name: name})
-        return record.id, record.display_name
+        return record.id, record.display_name or ""

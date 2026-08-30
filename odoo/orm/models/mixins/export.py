@@ -17,7 +17,7 @@ _logger = logging.getLogger("odoo.models")
 
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterator, Sequence
 
 
 class ExportMixin(_ModelStubs):
@@ -129,7 +129,7 @@ class ExportMixin(_ModelStubs):
         return index, text
 
     def _export_rows(
-        self, fields: list[list[str]], *, _is_toplevel_call: bool = True
+        self, fields: Sequence[Sequence[str]], *, _is_toplevel_call: bool = True
     ) -> list[list]:
         import_compatible = self.env.context.get("import_compat", True)
         lines = []
@@ -143,7 +143,7 @@ class ExportMixin(_ModelStubs):
             self._export_fetch_fields(self, fields, cache_properties)
 
         for record in self:
-            current = [""] * len(fields)
+            current: list[typing.Any] = [""] * len(fields)
             lines.append(current)
 
             primary_done = set()
@@ -320,5 +320,5 @@ class ExportMixin(_ModelStubs):
                     "You don't have the rights to export data. Please contact an Administrator."
                 )
             )
-        fields_to_export = [fix_import_export_id_paths(f) for f in fields_to_export]
-        return {"datas": self._export_rows(fields_to_export)}
+        field_paths = [fix_import_export_id_paths(f) for f in fields_to_export]
+        return {"datas": self._export_rows(field_paths)}

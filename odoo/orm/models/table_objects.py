@@ -35,9 +35,10 @@ class TableObject:
                 "(use a single leading underscore, not two)"
             )
         self.name = name[1:]
+        model_class = typing.cast("typing.Any", owner)
         if getattr(owner, "pool", None) is None:
-            self._module = owner._module
-            owner._table_object_definitions.append(self)
+            self._module = model_class._module
+            model_class._table_object_definitions.append(self)
 
     def get_definition(self, registry: Registry) -> str:
         raise NotImplementedError

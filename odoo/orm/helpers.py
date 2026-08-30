@@ -8,6 +8,7 @@ from .domain import Domain
 if typing.TYPE_CHECKING:
     from collections.abc import Iterable
 
+    from ._typing import ModelLike
     from .fields.base import Field
     from .models.base import BaseModel
 
@@ -22,7 +23,7 @@ def _origin_ids(ids: Iterable) -> list[int]:
     return _origin_ids_python(ids)
 
 
-def resolve_fnames(model: BaseModel, fnames: Iterable[str]) -> list[Field]:
+def resolve_fnames(model: ModelLike, fnames: Iterable[str]) -> list[Field]:
     fields = []
     _fields = model._fields
     for fname in fnames:

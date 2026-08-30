@@ -173,6 +173,14 @@ class IrCronProtocol(RecordsetProtocol, Protocol):
     def _trigger(self, at: Any = None, *, coalesce: int = 0) -> Any: ...
 
 
+class IrModelFieldsSelectionProtocol(RecordsetProtocol, Protocol):
+    def _reflect_selections(self, model_names: list[str]) -> None: ...
+
+
+class IrModelRelationProtocol(RecordsetProtocol, Protocol):
+    def _reflect_relations(self, items: Any) -> None: ...
+
+
 class IrModelInheritProtocol(RecordsetProtocol, Protocol):
     def _reflect_inherits(self, model_names: list[str]) -> None: ...
 
@@ -253,7 +261,9 @@ FRAMEWORK_MODEL_PROTOCOLS: dict[str, type] = {
     "ir.model.constraint": IrModelConstraintProtocol,
     "ir.model.data": IrModelDataProtocol,
     "ir.model.fields": IrModelFieldsProtocol,
+    "ir.model.fields.selection": IrModelFieldsSelectionProtocol,
     "ir.model.inherit": IrModelInheritProtocol,
+    "ir.model.relation": IrModelRelationProtocol,
     "ir.module.module": IrModuleModuleProtocol,
     "ir.rule": IrRuleProtocol,
     "ir.ui.view": IrUiViewProtocol,

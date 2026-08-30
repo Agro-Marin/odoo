@@ -17,6 +17,7 @@ from ...primitives import NewId
 from ._model_stubs import _ModelStubs
 
 if typing.TYPE_CHECKING:
+    from ..._typing import BaseModel
     from ...fields.base import Field
 
 _logger = logging.getLogger("odoo.models")
@@ -191,7 +192,7 @@ class _QueryMixin(_ModelStubs):
         ):
             domain &= Domain(self._active_name, "=", True)
 
-        domain = domain.optimize_full(self)
+        domain = domain.optimize_full(typing.cast("BaseModel", self))
         if domain.is_false():
             return self.browse()._as_query()
 
@@ -221,7 +222,9 @@ class _QueryMixin(_ModelStubs):
             prof = _OrmProfile(_orm_read)
         query = Query(self.env, self._table, self._table_sql)
         if not domain.is_true():
-            query.add_where(domain._to_sql(self, self._table, query))
+            query.add_where(
+                domain._to_sql(typing.cast("BaseModel", self), self._table, query)
+            )
         prof.mark("domain")
 
         if check_access:

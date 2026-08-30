@@ -17,6 +17,8 @@ class _PropertiesMixin(_ModelStubs):
     def get_property_definition(self, full_name: str) -> dict:
         self.browse().check_access("read")
         field_name, property_name = parse_field_expr(full_name)
+        if property_name is None:
+            raise ValueError(f"{full_name!r} does not name a property")
         field = self._fields.get(field_name)
         if not field:
             raise ValueError(f"Invalid field {field_name!r} on model {self._name!r}")
@@ -29,8 +31,16 @@ class _PropertiesMixin(_ModelStubs):
 
         check_property_field_value_name(property_name)
 
-        target_model = self.env[self._fields[field.definition_record].comodel_name]
-        field_definition = target_model._fields[field.definition_record_field]
+        definition_record = field.definition_record
+        definition_record_field = field.definition_record_field
+        if definition_record is None or definition_record_field is None:
+            raise ValueError(
+                f"Field {field_name!r} on model {self._name!r} declares no "
+                f"definition record"
+            )
+
+        target_model = self.env[self._fields[definition_record].comodel_name or ""]
+        field_definition = target_model._fields[definition_record_field]
         result = self.env.execute_query_dict(
             SQL(
                 """ SELECT __property AS definition
@@ -39,7 +49,7 @@ class _PropertiesMixin(_ModelStubs):
                  LIMIT 1 """,
                 table=SQL.identifier(target_model._table),
                 field=SQL.identifier(
-                    field.definition_record_field, to_flush=field_definition
+                    definition_record_field, to_flush=field_definition
                 ),
                 name=property_name,
             )

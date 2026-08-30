@@ -1039,7 +1039,7 @@ class Field[T](
                 added.add(id_)
         return record.browse(result)
 
-    def _clear_dead_pending(self, records: BaseModel) -> None:
+    def _clear_dead_pending(self, records: ModelLike) -> None:
         env = records.env
         field_cache = self._get_cache(env)
         if not field_cache:
@@ -1056,7 +1056,7 @@ class Field[T](
                 continue
             del field_cache[id_]
 
-    def _insert_cache(self, records: BaseModel, values: Iterable) -> None:
+    def _insert_cache(self, records: ModelLike, values: Iterable) -> None:
         field_cache = self._get_cache(records.env)
         collections.deque(
             map(field_cache.setdefault, records._ids, values, strict=True), maxlen=0

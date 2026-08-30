@@ -307,7 +307,7 @@ class ModelGraph:
                 if visited.isdisjoint(seen):
                     return visited
             seen.add(field)
-            visited = {field}
+            visited = frozenset({field})
             clean = True
             for path, targets in triggers[field].items():
                 full_path = _concat_paths(prefix, path)

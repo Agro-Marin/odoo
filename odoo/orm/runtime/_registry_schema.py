@@ -17,6 +17,7 @@ if typing.TYPE_CHECKING:
     from odoo.db import BaseCursor, Cursor
     from odoo.fields import Field
     from odoo.models import BaseModel
+    from odoo.orm._typing import ModelLike
 
 
 _logger = logging.getLogger("odoo.registry")
@@ -296,7 +297,7 @@ class _RegistrySchemaMixin(_RegistryStubs):
             for table in missing_tables:
                 _logger.error("Model %s has no table.", table2model[table])
 
-    def is_an_ordinary_table(self, model: BaseModel) -> bool:
+    def is_an_ordinary_table(self, model: ModelLike) -> bool:
         table = model._table
         if (known := self._ordinary_tables.get(table)) is not None:
             return known

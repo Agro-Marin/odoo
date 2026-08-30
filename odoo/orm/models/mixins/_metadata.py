@@ -32,7 +32,7 @@ class _ModelMetadataMixin(_ModelStubs):
     _transient: bool = False
     _is_registry_metadata: bool = False
 
-    _name: str = None
+    _name: str = None  # type: ignore[assignment]
     _description: str | None = None
     _module: str | None = None
     _custom: bool = False

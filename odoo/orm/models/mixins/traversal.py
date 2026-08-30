@@ -29,6 +29,8 @@ from ._model_stubs import _ModelStubs
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
 
+    from ..._typing import BaseModel
+
 T = typing.TypeVar("T")
 
 
@@ -132,11 +134,11 @@ class TraversalMixin(_ModelStubs):
         if self:
             vals = [func(rec) for rec in self]
             if is_recordset(vals[0]):
-                return vals[0].union(*vals[1:])
+                return typing.cast("Self", vals[0].union(*vals[1:]))
             return vals
         else:
-            vals = func(self)
-            return vals if is_recordset(vals) else []
+            single = func(self)
+            return typing.cast("Self", single) if is_recordset(single) else []
 
     @api.private
     def filtered(self, func: str | Callable[[Self], bool] | Domain) -> Self:
@@ -182,8 +184,11 @@ class TraversalMixin(_ModelStubs):
             return self.filtered_domain(func)
         else:
             raise TypeError(f"Invalid function {func!r} to filter on {self._name}")
+        predicate = typing.cast("Callable[[typing.Any], bool]", func)
         return self.browse(
-            rec_id for rec_id, rec in zip(self._ids, self, strict=True) if func(rec)
+            rec_id
+            for rec_id, rec in zip(self._ids, self, strict=True)
+            if predicate(rec)
         )
 
     @typing.overload
@@ -207,7 +212,7 @@ class TraversalMixin(_ModelStubs):
                 _PENDING = PENDING
                 _get = field_cache.get
                 _field_get = field.__get__
-                collator = defaultdict(list)
+                collator: dict[typing.Any, list] = defaultdict(list)
                 if can_scan_identity(field):
                     _none_val: typing.Any = field.convert_to_record(None, self[:1])
                     ids = self._ids
@@ -264,21 +269,22 @@ class TraversalMixin(_ModelStubs):
             for record in self:
                 collator[key(record)].append(record._ids[0])
 
-        cls = type(self)
         env = self.env
         prefetch_ids = self._prefetch_ids
         return {
-            key: cls(env, tuple(ids), prefetch_ids) for key, ids in collator.items()
+            key: self._spawn(env, tuple(ids), prefetch_ids)
+            for key, ids in collator.items()
         }
 
     @api.private
     def filtered_domain(self, domain: DomainType) -> Self:
         if not self or not domain:
             return self
-        predicate = Domain(domain)._as_predicate(self)
+        records = typing.cast("BaseModel", self)
+        predicate = Domain(domain)._as_predicate(records)
         return self.browse(
             rec_id
-            for rec_id, rec in zip(self._ids, self, strict=True)
+            for rec_id, rec in zip(self._ids, records, strict=True)
             if predicate(rec)
         )
 
@@ -304,7 +310,12 @@ class TraversalMixin(_ModelStubs):
             if ids is not None:
                 return self._spawn(self.env, ids, self._prefetch_ids)
             key = self._sorted_order_to_function(order)
-        ids = tuple(item._ids[0] for item in sorted(self, key=key, reverse=reverse))
+        ids = tuple(
+            item._ids[0]
+            for item in sorted(
+                typing.cast("list[Self]", list(self)), key=key, reverse=reverse
+            )
+        )
         return self._spawn(self.env, ids, self._prefetch_ids)
 
     def _sorted_ensure_computed(self, order: str) -> None:
@@ -433,8 +444,9 @@ class TraversalMixin(_ModelStubs):
 
     @api.private
     def update(self, values: dict[str, typing.Any]) -> None:
+        record = typing.cast("BaseModel", self)
         for name, value in values.items():
-            self[name] = value
+            record[name] = value
 
     def _has_cycle(self, field_name: str | None = None) -> bool:
         if not field_name:

@@ -1,4 +1,5 @@
 import warnings
+from typing import TYPE_CHECKING, cast
 
 import pytest
 
@@ -6,6 +7,9 @@ from odoo import fields, models
 from odoo.orm.model_test_env import model_test_env
 from odoo.orm.models.mixins.read_group.sql import _ReadGroupSQLMixin
 from odoo.tools import SQL
+
+if TYPE_CHECKING:
+    from odoo.tools import Query
 
 _MOD = "test_read_group_guards"
 
@@ -52,19 +56,24 @@ class ReadGroupVirtual(models.Model):
 def test_read_group_having_underflow_raises_valueerror(having_domain):
     stub = _HavingStub()
     with pytest.raises(ValueError, match="Invalid having clause"):
-        stub._read_group_having(having_domain, None)
+        stub._read_group_having(having_domain, cast("Query", None))
 
 
 def test_read_group_having_valid_forms_still_build():
     stub = _HavingStub()
-    assert stub._read_group_having([("__count", ">", 1)], None).code == "COUNT(*) > %s"
     assert (
-        stub._read_group_having([("__count", ">", 1), ("__count", "<", 5)], None).code
+        stub._read_group_having([("__count", ">", 1)], cast("Query", None)).code
+        == "COUNT(*) > %s"
+    )
+    assert (
+        stub._read_group_having(
+            [("__count", ">", 1), ("__count", "<", 5)], cast("Query", None)
+        ).code
         == "(COUNT(*) > %s AND COUNT(*) < %s)"
     )
     assert (
         stub._read_group_having(
-            ["|", ("__count", ">", 1), ("__count", "<", 5)], None
+            ["|", ("__count", ">", 1), ("__count", "<", 5)], cast("Query", None)
         ).code
         == "(COUNT(*) > %s OR COUNT(*) < %s)"
     )

@@ -439,7 +439,7 @@ class InMemoryBackend:
         return query
 
     def existing_ids(self, model: BaseModel, ids: typing.Iterable[int]) -> set[int]:
-        return set(self.storage.contains_ids(model._table, ids))
+        return set(self.storage.contains_ids(model._table, list(ids)))
 
     def lock_for_update(
         self, model: BaseModel, *, allow_referencing: bool = False
@@ -447,7 +447,7 @@ class InMemoryBackend:
         ids = {id_ for id_ in model._ids if id_}
         if not ids:
             return
-        if len(self.storage.contains_ids(model._table, ids)) != len(ids):
+        if len(self.storage.contains_ids(model._table, list(ids))) != len(ids):
             raise LockError(model.env._("Cannot grab a lock on records"))
 
     def try_lock_for_update(
@@ -504,16 +504,16 @@ class InMemoryBackend:
         column2: str,
         pairs: typing.Iterable[tuple[int, int]],
     ) -> None:
-        existing = {
+        existing: set[tuple] = {
             (row.get(column1), row.get(column2))
             for _row_id, row in self._m2m_rows(relation)
         }
         to_insert = []
         for pair in pairs:
-            pair = tuple(pair)
-            if pair not in existing:
-                existing.add(pair)
-                to_insert.append(pair)
+            key = tuple(pair)
+            if key not in existing:
+                existing.add(key)
+                to_insert.append(key)
         if to_insert:
             self.storage.insert_rows(relation, [column1, column2], to_insert)
 

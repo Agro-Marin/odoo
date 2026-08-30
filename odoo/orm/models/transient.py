@@ -3,6 +3,7 @@ import datetime
 from odoo.tools import SQL, config, lazy_classproperty
 
 from .. import decorators as api
+from ..domain import Domain
 from ..primitives import GC_UNLINK_LIMIT
 from .base import Model
 
@@ -43,10 +44,10 @@ class TransientModel(Model):
             )
         return False
 
-    def _transient_clean_rows_older_than(self, seconds: int) -> bool:
+    def _transient_clean_rows_older_than(self, seconds: float) -> bool:
         seconds = max(seconds, _TRANSIENT_VACUUM_MIN_AGE_SECONDS)
         now = self.env.cr.now()
-        domain = [("write_date", "<", now - datetime.timedelta(seconds=seconds))]
+        domain = Domain("write_date", "<", now - datetime.timedelta(seconds=seconds))
         records = self.sudo().search(domain, limit=GC_UNLINK_LIMIT)
         records.unlink()
         return len(records) == GC_UNLINK_LIMIT

@@ -15,6 +15,8 @@ from ._registry_stubs import _RegistryStubs
 if typing.TYPE_CHECKING:
     from odoo.fields import Field
 
+    from .registry import Registry
+
 
 _logger = logging.getLogger("odoo.registry")
 _schema = logging.getLogger("odoo.schema")
@@ -107,7 +109,8 @@ class _RegistryFieldsMixin(_RegistryStubs):
             groups: defaultdict[Field, list[Field]] = defaultdict(list)
             for field in Model._fields.values():
                 if field.compute:
-                    computed[field] = group = groups[field.compute]
+                    compute_key = typing.cast("Field", field.compute)
+                    computed[field] = group = groups[compute_key]
                     group.append(field)
             for fields in groups.values():
                 if len(fields) < 2:
@@ -191,7 +194,9 @@ class _RegistryFieldsMixin(_RegistryStubs):
                 continue
             for field in Model._fields.values():
                 try:
-                    dependencies = list(field.resolve_depends(self))
+                    dependencies = list(
+                        field.resolve_depends(typing.cast("Registry", self))
+                    )
                 except Exception as e:
                     if not field.base_field.manual:
                         raise

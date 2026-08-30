@@ -1,5 +1,6 @@
 import collections
 import datetime
+import typing
 
 from odoo.tools import date_utils, get_lang
 
@@ -11,6 +12,9 @@ from ...._typing import (
 from ....constants import READ_GROUP_TIME_GRANULARITY
 from ....fields.temporal import Date, Datetime
 from ._empty import _ReadGroupEmptyMixin
+
+if typing.TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 class _ReadGroupFillMixin(_ReadGroupEmptyMixin):
@@ -102,7 +106,11 @@ class _ReadGroupFillMixin(_ReadGroupEmptyMixin):
         return list(result.values())
 
     def _read_group_fill_temporal_bound(self, field, granularity, days_offset, bound):
-        value = (Datetime.to_datetime if field.is_datetime else Date.to_date)(bound)
+        value: typing.Any = (
+            Datetime.to_datetime if field.is_datetime else Date.to_date
+        )(bound)
+        if value is None:
+            raise ValueError(f"{bound!r} is not a date to fill a group range from")
         if granularity == "hour":
             value = value.replace(minute=0, second=0, microsecond=0)
         else:
@@ -113,7 +121,7 @@ class _ReadGroupFillMixin(_ReadGroupEmptyMixin):
     def _read_group_fill_temporal(
         self,
         data: list[dict],
-        groupby: list[str],
+        groupby: Sequence[str],
         annotated_aggregates: dict,
         fill_from: str | bool = False,
         fill_to: str | bool = False,
@@ -138,33 +146,35 @@ class _ReadGroupFillMixin(_ReadGroupEmptyMixin):
         existing = sorted(d[first_group] for d in data if d[first_group]) or [None]
         existing_from, existing_to = existing[0], existing[-1]
 
+        bound_from: typing.Any = None
+        bound_to: typing.Any = None
         if fill_from:
-            fill_from = self._read_group_fill_temporal_bound(
+            bound_from = self._read_group_fill_temporal_bound(
                 field, granularity, days_offset, fill_from
             )
         elif existing_from:
-            fill_from = existing_from
+            bound_from = existing_from
         if fill_to:
-            fill_to = self._read_group_fill_temporal_bound(
+            bound_to = self._read_group_fill_temporal_bound(
                 field, granularity, days_offset, fill_to
             )
         elif existing_to:
-            fill_to = existing_to
+            bound_to = existing_to
 
-        if not fill_to and fill_from:
-            fill_to = fill_from
-        if not fill_from and fill_to:
-            fill_from = fill_to
-        if not fill_from and not fill_to:
+        if not bound_to and bound_from:
+            bound_to = bound_from
+        if not bound_from and bound_to:
+            bound_from = bound_to
+        if not bound_from and not bound_to:
             return data
 
         if min_groups > 0:
-            fill_to = max(fill_to, fill_from + (min_groups - 1) * interval)
+            bound_to = max(bound_to, bound_from + (min_groups - 1) * interval)
 
-        if fill_to < fill_from:
+        if bound_to < bound_from:
             return data
 
-        required_dates = date_utils.date_range(fill_from, fill_to, interval)
+        required_dates = date_utils.date_range(bound_from, bound_to, interval)
 
         if existing[0] is None:
             existing = list(required_dates)

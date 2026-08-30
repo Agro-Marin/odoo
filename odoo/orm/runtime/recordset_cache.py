@@ -8,7 +8,7 @@ from odoo.tools import SQL, OrderedSet, Query
 from odoo.tools.misc import PENDING, SENTINEL
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Collection, Iterable, Iterator
+    from collections.abc import Collection, Iterable, Iterator, MutableMapping
 
     from .._typing import BaseModel, Field
     from ..primitives import IdType
@@ -61,7 +61,9 @@ class Cache:
                 data[field] = entries(field_cache)
         return repr(data)
 
-    def _field_cache(self, model: BaseModel, field: Field) -> dict[IdType, typing.Any]:
+    def _field_cache(
+        self, model: BaseModel, field: Field
+    ) -> MutableMapping[IdType, typing.Any]:
         return field._get_cache(model.env)
 
     def contains(self, record: BaseModel, field: Field) -> bool:

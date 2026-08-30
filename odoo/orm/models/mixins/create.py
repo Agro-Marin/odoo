@@ -26,6 +26,7 @@ from ._crud_common import (
 from ._model_stubs import _ModelStubs
 
 if typing.TYPE_CHECKING:
+    from ..._typing import BaseModel
     from ...fields.base import Field
 
 
@@ -490,7 +491,10 @@ class CreateMixin(_ModelStubs):
                 for field in sorted(other_fields, key=attrgetter("_sequence")):
                     field.create(
                         [
-                            (other, data["stored"][field.name])
+                            (
+                                typing.cast("BaseModel", other),
+                                data["stored"][field.name],
+                            )
                             for other, data in zip(others, data_list, strict=True)
                             if field.name in data["stored"]
                         ]

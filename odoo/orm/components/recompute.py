@@ -63,7 +63,7 @@ class RecomputeScheduler:
                 if seen:
                     ids = ids - seen  # noqa: PLR6104  caller-owned set, see above
                 if cached_ids is not None and ids:
-                    ids = type(ids)(id_ for id_ in ids if id_ in cached_ids)
+                    ids = frozenset(id_ for id_ in ids if id_ in cached_ids)
             if not ids:
                 return frozenset()
             if not field.is_stored_computed:

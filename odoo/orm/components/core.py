@@ -115,7 +115,7 @@ class OrmCore[F: FieldKey = FieldKey]:
             cast("ComputeEngine[FieldKey]", self._engine),
             marked=self._engine.pending,
             schedule_inline=inline,
-            set_factory=self._engine.pending.default_factory,
+            set_factory=cast("type | None", self._engine.pending.default_factory),
         )
 
     def mark_done(self, field: F, ids: Iterable[Any]) -> None:

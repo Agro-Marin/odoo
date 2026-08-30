@@ -216,7 +216,7 @@ class SearchMixin(_ModelStubs):
 
     @api.model
     def _rec_names_search_field(self, field_name: str) -> Field:
-        model = self
+        model: typing.Any = self
         segments = field_name.split(".")
         for i, fname in enumerate(segments):
             if model is None:
@@ -226,7 +226,7 @@ class SearchMixin(_ModelStubs):
                     f"non-relational and cannot be traversed further"
                 )
             field = model._fields[fname]
-            model = self.env.get(field.comodel_name) if field.relational else None
+            model = self.env.get(field.comodel_name or "") if field.relational else None
         return field
 
     @api.model
@@ -277,7 +277,7 @@ class SearchMixin(_ModelStubs):
     ) -> list[tuple[int, str]]:
         domain = Domain("display_name", operator, name) & Domain(domain or Domain.TRUE)
         records = self.search_fetch(domain, ["display_name"], limit=limit)
-        return [(record.id, record.display_name) for record in records.sudo()]
+        return [(record.id, record.display_name or "") for record in records.sudo()]
 
     @api.model
     @api.readonly

@@ -235,7 +235,7 @@ class TranslationMixin(_ModelStubs):
                 for term_en, translations in translation_dictionary.items()
                 for lang, term_lang in translations.items()
             ]
-        context = {}
+        context: dict[str, typing.Any] = {}
         context["translation_type"] = (
             "text" if field.type in ["text", "html"] else "char"
         )

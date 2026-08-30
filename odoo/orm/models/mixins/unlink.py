@@ -44,10 +44,10 @@ class UnlinkMixin(_ModelStubs):
         core = self.env._core
         if core.has_pending():
             model_name = self._name
-            deleted_ids = self._ids
+            pending_ids = self._ids
             for field in core.pending_fields():
                 if field.model_name == model_name:
-                    core.mark_done(field, deleted_ids)
+                    core.mark_done(field, pending_ids)
 
         prof.mark("flush")
 
@@ -62,7 +62,7 @@ class UnlinkMixin(_ModelStubs):
             self._modified_before(self._fields)
         prof.mark("before")
 
-        deleted_ids = self.ids
+        deleted_ids: list[int] = self.ids
         for sub_ids in batched(deleted_ids, cr.BATCH_SIZE, strict=False):
             data, attachments = self._unlink_process_batch(
                 sub_ids,

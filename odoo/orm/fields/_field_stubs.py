@@ -47,6 +47,25 @@ class _FieldStubs:
 
         def _get_relation_triple(self) -> tuple[str, str, str]: ...
 
+        def get_translation_dictionary(
+            self, from_lang_value: str, to_lang_values: dict[str, str]
+        ) -> dict[str, dict[str, str]]: ...
+
+        def get_translation_fallback_langs(
+            self, env: typing.Any
+        ) -> tuple[str, ...]: ...
+
+        def _get_properties_definition(self, record: typing.Any) -> typing.Any: ...
+
+        definition_record: str | None
+        ondelete: typing.Any
+
+        def setup_inverses(
+            self, registry: typing.Any, inverses: typing.Any
+        ) -> None: ...
+
+        definition_record_field: str | None
+
         def __get__(
             self, records: typing.Any, owner: typing.Any = None
         ) -> typing.Any: ...

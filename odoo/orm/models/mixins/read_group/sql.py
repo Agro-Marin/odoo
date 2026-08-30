@@ -17,6 +17,7 @@ from ....primitives import SQL_OPERATORS
 from .._model_stubs import _ModelStubs
 
 if typing.TYPE_CHECKING:
+    from ...._typing import BaseModel
     from ....fields import Field
 
 from odoo.tools import get_lang
@@ -56,7 +57,7 @@ class _ReadGroupSQLMixin(_ModelStubs):
             ),
             company_id=self.env.company.root_id.id,
             name_field_sql=CurrencyRate._field_to_sql(CurrencyRate._table, "name"),
-            today=Date.context_today(self),
+            today=Date.context_today(typing.cast("BaseModel", self)),
         )
         currency_field_name = field.get_currency_field(self)
         assert currency_field_name is not None
@@ -211,7 +212,7 @@ class _ReadGroupSQLMixin(_ModelStubs):
 
         if field.is_properties:
             sql_expr = self._read_group_groupby_properties(
-                alias, field, seq_fnames, query
+                alias, field, seq_fnames or "", query
             )
 
         elif seq_fnames:
@@ -232,7 +233,13 @@ class _ReadGroupSQLMixin(_ModelStubs):
 
         if field.is_temporal or (field.is_properties and granularity):
             sql_expr = self._read_group_groupby_temporal(
-                sql_expr, field, granularity, seq_fnames, groupby_spec, alias, query
+                sql_expr,
+                field,
+                granularity or "",
+                seq_fnames or "",
+                groupby_spec,
+                alias,
+                query,
             )
         elif field.is_boolean:
             sql_expr = SQL("COALESCE(%s, FALSE)", sql_expr)
@@ -420,7 +427,7 @@ class _ReadGroupSQLMixin(_ModelStubs):
                 continue
 
             field = self._fields.get(term)
-            __, __, granularity = parse_read_group_spec(term)
+            spec_granularity = parse_read_group_spec(term)[2]
             if (
                 traverse_many2one
                 and field
@@ -431,7 +438,7 @@ class _ReadGroupSQLMixin(_ModelStubs):
                     term, direction, nulls, groupby_terms, orderby_terms, query
                 )
 
-            elif granularity == "day_of_week":
+            elif spec_granularity == "day_of_week":
                 orderby_terms.append(
                     self._read_group_orderby_day_of_week(
                         term, groupby_terms, sql_direction, sql_nulls

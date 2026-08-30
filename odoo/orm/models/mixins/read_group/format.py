@@ -25,14 +25,16 @@ from ....parsing import parse_read_group_spec
 from ._empty import _ReadGroupEmptyMixin
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Generator, Sequence
+
+    from odoo.libs.datetime import Granularity
 
 
 class _ReadGroupFormatMixin(_ReadGroupEmptyMixin):
     __slots__ = ()
 
     def _read_group_postprocess_groupby(
-        self, groupby_spec: str, raw_values: list
+        self, groupby_spec: str, raw_values: Sequence
     ) -> Generator:
         empty_value = self._read_group_empty_value(groupby_spec)
 
@@ -63,7 +65,7 @@ class _ReadGroupFormatMixin(_ReadGroupEmptyMixin):
         return ((value if value is not None else empty_value) for value in raw_values)
 
     def _read_group_postprocess_aggregate(
-        self, aggregate_spec: str, raw_values: list
+        self, aggregate_spec: str, raw_values: Sequence
     ) -> Generator:
         empty_value = self._read_group_empty_value(aggregate_spec)
 
@@ -298,9 +300,13 @@ class _ReadGroupFormatMixin(_ReadGroupEmptyMixin):
                 start = row[group].strftime(db_format)
                 end = (row[group] + datetime.timedelta(days=7)).strftime(db_format)
             else:
-                start = (date_utils.start_of(row[group], func)).strftime(db_format)
+                granularity = typing.cast("Granularity", func)
+                start = (date_utils.start_of(row[group], granularity)).strftime(
+                    db_format
+                )
                 end = (
-                    date_utils.end_of(row[group], func) + datetime.timedelta(minutes=1)
+                    date_utils.end_of(row[group], granularity)
+                    + datetime.timedelta(minutes=1)
                 ).strftime(db_format)
 
             row["__domain"] &= Domain(fullname, ">=", start) & Domain(

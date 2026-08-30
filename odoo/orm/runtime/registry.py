@@ -17,7 +17,7 @@ from odoo.libs import gc
 from odoo.libs.func import locked, reset_cached_properties
 from odoo.libs.lru import LRU
 from odoo.libs.worker_thread import current_worker_thread
-from odoo.tools import SQL, config
+from odoo.tools import SQL, OrderedSet, config
 from odoo.tools.constants import CACHES_BY_KEY, REGISTRY_CACHES
 from odoo.tools.misc import format_frame
 
@@ -97,6 +97,15 @@ def serves_readonly_cursors() -> bool:
     )
 
 
+def _calling_frame() -> typing.Any:
+    frame = inspect.currentframe()
+    for _ in range(3):
+        if frame is None:
+            return None
+        frame = frame.f_back
+    return frame
+
+
 class Registry(
     _RegistryFieldsMixin,
     _RegistrySchemaMixin,
@@ -171,7 +180,7 @@ class Registry(
         upgrade_modules: Collection[str] = (),
         reinit_modules: Collection[str] = (),
         new_db_demo: bool | None = None,
-        models_to_check: set[str] | None = None,
+        models_to_check: OrderedSet[str] | None = None,
         run_tests: bool = True,
     ) -> Registry:
         if db.is_maintenance_db(db_name):
@@ -185,7 +194,7 @@ class Registry(
             cls.registries.count = lru_size
         registry: Registry = object.__new__(cls)
         registry.init(db_name)
-        registry.new = registry.init = registry.registries = None
+        registry.new = registry.init = registry.registries = None  # type: ignore[method-assign, assignment]
         first_registry = not cls.registries
 
         cls.delete(db_name)
@@ -333,7 +342,9 @@ class Registry(
 
         model_names = []
         for model_def in model_defs:
-            model_cls = registration.add_to_registry(self, model_def)
+            model_cls = registration.add_to_registry(
+                self, typing.cast("type[BaseModel]", model_def)
+            )
             model_names.append(model_cls._name)
 
         return model_names
@@ -537,7 +548,7 @@ class Registry(
             level,
             "Invalidating %s model caches from %s",
             ",".join(cache_names),
-            format_frame(inspect.currentframe().f_back.f_back),
+            format_frame(_calling_frame()),
         )
 
     def clear_cache(self, *cache_names: str) -> None:
@@ -757,7 +768,8 @@ class Registry(
     def _sample_replica_lag(self, cr: BaseCursor) -> None:
         try:
             cr.execute(LAG_SQL)  # noqa: E8501  LAG_SQL is a module constant
-            measured = cr.fetchone()[0]
+            row = cr.fetchone()
+            measured = row[0] if row else None
         except Exception:
             _logger.debug("Could not measure replica lag", exc_info=True)
             measured = None

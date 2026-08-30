@@ -315,7 +315,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                 )
 
         aggregates_start_index = len(all_groupby_specs) + 1
-        columns = list(zip(*row_values, strict=False))
+        columns: list = list(zip(*row_values, strict=False))
         dispatch_info = map(mask_grouping_mapping.__getitem__, columns[0])
         columns = [
             *map(
@@ -352,7 +352,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         domain: DomainType,
         groupby: Sequence[str] = (),
         aggregates: Sequence[str] = (),
-        having: DomainType = (),
+        having: DomainType | None = None,
         offset: int = 0,
         limit: int | None = None,
         order: str | None = None,
@@ -402,7 +402,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         if not row_values:
             return []
 
-        column_iterator = zip(*row_values, strict=False)
+        column_iterator: typing.Iterator[list] = zip(*row_values, strict=False)  # type: ignore[assignment]
 
         column_result = []
         for spec in groupby:
@@ -622,8 +622,8 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         domain = Domain(domain)
         rows = self._read_group(
             domain,
-            annotated_groupby.values(),
-            annotated_aggregates.values(),
+            list(annotated_groupby.values()),
+            list(annotated_aggregates.values()),
             offset=offset,
             limit=limit,
             order=orderby,

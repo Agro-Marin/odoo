@@ -329,7 +329,7 @@ class BaseString(Field[str | typing.Literal[False]]):
                     dictionary[from_lang_term][lang] = to_lang_term
         return dictionary
 
-    def _get_stored_translations(self, record: BaseModel) -> dict[str, str] | None:
+    def _get_stored_translations(self, record: ModelLike) -> dict[str, str] | None:
         record.flush_recordset([self.name])
         cr = record.env.cr
         cr.execute(
@@ -379,7 +379,7 @@ class BaseString(Field[str | typing.Literal[False]]):
             )
         return super()._to_prefetch(record)
 
-    def _insert_cache(self, records: BaseModel, values: Iterable[typing.Any]) -> None:
+    def _insert_cache(self, records: ModelLike, values: Iterable[typing.Any]) -> None:
         if not self.translate:
             super()._insert_cache(records, values)
             return

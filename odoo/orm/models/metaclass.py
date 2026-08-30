@@ -33,7 +33,7 @@ class MetaModel(type):
     _module: str | None
     _abstract: bool
     _auto: bool
-    _inherit: list[str] | None
+    _inherit: str | list[str] | tuple[str, ...] | None
 
     def __new__(
         meta: type,
@@ -67,7 +67,7 @@ class MetaModel(type):
                     attrs["_name"],
                 )
 
-        return super().__new__(meta, name, bases, attrs)
+        return super().__new__(meta, name, bases, attrs)  # type: ignore[misc]
 
     def __init__(
         cls,
@@ -101,7 +101,8 @@ class MetaModel(type):
 
         if cls._inherit is None:
             cls._inherit = ()
-        if not cls._abstract and cls._name not in cls._inherit:
+        inherit = (cls._inherit,) if isinstance(cls._inherit, str) else cls._inherit
+        if not cls._abstract and cls._name not in inherit:
             model_class = typing.cast("ModelClass", cls)
 
             def add_default(name: str, field: Field) -> None:
@@ -109,8 +110,9 @@ class MetaModel(type):
                     setattr(cls, name, field)
                     field.__set_name__(model_class, name)
 
-            if not isinstance(cls.id, Id):
-                raise TypeError(f"Field {cls.id} is not an instance of fields.Id")
+            id_field = getattr(cls, "id", None)
+            if not isinstance(id_field, Id):
+                raise TypeError(f"Field {id_field} is not an instance of fields.Id")
 
             if attrs.get("_log_access", cls._auto):
                 add_default(

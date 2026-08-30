@@ -10,13 +10,15 @@ from ._model_stubs import _ModelStubs
 if typing.TYPE_CHECKING:
     from collections.abc import Callable, Collection
 
+    from ..._typing import BaseModel
+
 _logger = logging.getLogger("odoo.models")
 
 
 class CopyMixin(_ModelStubs):
     __slots__ = ()
 
-    def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
+    def copy_data(self, default: ValuesType | None = None) -> list[ValuesType | None]:
         if len(set(self._ids)) != len(self._ids):
             raise ValueError(
                 f"Cannot copy {self._name} records: the same record appears "
@@ -123,7 +125,9 @@ class CopyMixin(_ModelStubs):
                     old_line.copy_translations(new_line)
 
             elif field.translate and field.store and name not in excluded and old[name]:
-                old_stored_translations = field._get_stored_translations(old)
+                old_stored_translations = field._get_stored_translations(
+                    typing.cast("BaseModel", old)
+                )
                 if not old_stored_translations:
                     continue
                 lang = self.env.lang or "en_US"
@@ -151,7 +155,7 @@ class CopyMixin(_ModelStubs):
                         source_term,
                         old_translations,
                     )
-                    translations = defaultdict(dict)
+                    translations: dict[str, dict] = defaultdict(dict)
                     for (
                         from_lang_term,
                         to_lang_terms,
@@ -172,7 +176,9 @@ class CopyMixin(_ModelStubs):
         )
         if new[field_name] != rename(self, self[field_name]):
             return
-        stored_translations = field._get_stored_translations(self)
+        stored_translations = field._get_stored_translations(
+            typing.cast("BaseModel", self)
+        )
         if not stored_translations:
             return
         valid_langs = {code for code, _name in self.env["res.lang"].get_installed()}

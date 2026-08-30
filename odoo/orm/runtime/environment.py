@@ -43,8 +43,10 @@ if typing.TYPE_CHECKING:
         IrModelConstraintProtocol,
         IrModelDataProtocol,
         IrModelFieldsProtocol,
+        IrModelFieldsSelectionProtocol,
         IrModelInheritProtocol,
         IrModelProtocol,
+        IrModelRelationProtocol,
         IrModuleModuleProtocol,
         IrRuleProtocol,
         IrUiViewProtocol,
@@ -209,8 +211,18 @@ class Environment(Mapping[str, "BaseModel"]):
 
     @typing.overload
     def __getitem__(  # type: ignore[overload-overlap]
+        self, model_name: typing.Literal["ir.model.fields.selection"]
+    ) -> IrModelFieldsSelectionProtocol: ...
+
+    @typing.overload
+    def __getitem__(  # type: ignore[overload-overlap]
         self, model_name: typing.Literal["ir.model.inherit"]
     ) -> IrModelInheritProtocol: ...
+
+    @typing.overload
+    def __getitem__(  # type: ignore[overload-overlap]
+        self, model_name: typing.Literal["ir.model.relation"]
+    ) -> IrModelRelationProtocol: ...
 
     @typing.overload
     def __getitem__(  # type: ignore[overload-overlap]

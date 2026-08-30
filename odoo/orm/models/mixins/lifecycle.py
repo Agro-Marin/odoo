@@ -72,9 +72,9 @@ class LifecycleMixin(_ModelStubs):
 
     def _get_redirect_suggested_company(self) -> typing.Any:
         if "company_id" in self:
-            return self.company_id
+            return self["company_id"]
         elif "company_ids" in self:
-            return (self.company_ids & self.env.user.company_ids)[:1]
+            return (self["company_ids"] & self.env.user.company_ids)[:1]
         return False
 
     def _can_return_content(

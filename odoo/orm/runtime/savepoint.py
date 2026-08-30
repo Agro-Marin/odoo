@@ -31,7 +31,7 @@ class _OrmFlushingSavepoint(_FlushingSavepoint):
         if txn is None:
             return
         if self._saved_default_env is not _NO_SNAPSHOT:
-            txn.default_env = self._saved_default_env
+            txn.default_env = typing.cast("typing.Any", self._saved_default_env)
         self._reclear_invalidated_caches(txn.registry)
         current = type(txn.registry).registries.get(txn.registry.db_name)
         if current is not None and current is not txn.registry:

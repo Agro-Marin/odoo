@@ -62,7 +62,8 @@ def add_to_registry(registry: Registry, model_def: type[BaseModel]) -> type[Base
     _warn_removed_model_attributes(model_def)
 
     name = model_def._name
-    parent_names = list(model_def._inherit)
+    inherit = model_def._inherit
+    parent_names = [inherit] if isinstance(inherit, str) else list(inherit or ())
     if name != "base":
         parent_names.append("base")
 
@@ -184,7 +185,10 @@ def _init_model_class_attributes_once(model_cls: type[BaseModel]):
 
     for base in reversed(model_cls._base_classes__):
         if is_model_definition(base):
-            if model_cls._name not in base._inherit and not base._description:
+            base_inherit: typing.Any = base._inherit or ()
+            if isinstance(base_inherit, str):
+                base_inherit = (base_inherit,)
+            if model_cls._name not in base_inherit and not base._description:
                 _logger.warning("The model %s has no _description", model_cls._name)
             model_cls._description = base._description or model_cls._description
             model_cls._table = base._table or model_cls._table
@@ -198,7 +202,7 @@ def _init_model_class_attributes_once(model_cls: type[BaseModel]):
     if inherits:
         model_cls._inherits = frozendict(inherits)
     if depends:
-        model_cls._depends = depends
+        model_cls._depends = frozendict(depends)
 
     registry = registry_of(model_cls)
     for parent_name in model_cls._inherits:
@@ -485,7 +489,7 @@ def _setup_fields(model_cls: type[BaseModel], env: Environment):
                 continue
             raise
         if field.is_many2one and field.company_dependent:
-            many2one_company_dependents.add(field.comodel_name, field)
+            many2one_company_dependents.add(field.comodel_name or "", field)
 
     for name in bad_fields:
         pop_field(model_cls, name)
@@ -499,7 +503,9 @@ def _add_manual_models(env: Environment):
             del env.registry.models[name]
             for parent_cls in model_cls.__bases__:
                 if hasattr(parent_cls, "pool"):
-                    parent_cls._inherit_children.discard(name)
+                    typing.cast("typing.Any", parent_cls)._inherit_children.discard(
+                        name
+                    )
             for parent_name in model_cls._inherits:
                 inherits_parent_cls = env.registry.models.get(parent_name)
                 if inherits_parent_cls is not None:
