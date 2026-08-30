@@ -1,5 +1,6 @@
 """Tests for the individual-skill versioning engine on employees."""
 
+import base64
 from datetime import date
 
 from dateutil.relativedelta import relativedelta
@@ -114,3 +115,96 @@ class TestIndividualSkillVersioning(TransactionCase):
                     "valid_to": self.today - relativedelta(days=1),
                 },
             )
+
+
+@tagged("post_install", "-at_install")
+class TestCertificateFileVersioning(TransactionCase):
+    """The certificate file belongs to the certification record itself, and it
+    must survive the versioning that a level change triggers."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.today = date.today()
+        cls.skill_type = cls.env["hr.skill.type"].create(
+            {"name": "Certificate file type", "is_certification": True}
+        )
+        cls.level_1, cls.level_2 = cls.env["hr.skill.level"].create(
+            [
+                {
+                    "name": "CF half",
+                    "skill_type_id": cls.skill_type.id,
+                    "level_progress": 50,
+                },
+                {
+                    "name": "CF full",
+                    "skill_type_id": cls.skill_type.id,
+                    "level_progress": 100,
+                },
+            ],
+        )
+        cls.skill = cls.env["hr.skill"].create(
+            {"name": "CF skill", "skill_type_id": cls.skill_type.id}
+        )
+        cls.employee = cls.env["hr.employee"].create({"name": "CF employee"})
+        cls.pdf = base64.b64encode(b"%PDF-1.4 certificate")
+
+    def _create_certification(self):
+        return self.env["hr.employee.skill"].create(
+            {
+                "employee_id": self.employee.id,
+                "skill_id": self.skill.id,
+                "skill_level_id": self.level_1.id,
+                "skill_type_id": self.skill_type.id,
+                "valid_from": self.today - relativedelta(months=2),
+                "certificate_file": self.pdf,
+                "certificate_filename": "certificate.pdf",
+            },
+        )
+
+    def test_certificate_file_survives_a_level_change(self):
+        certification = self._create_certification()
+        self.employee.write(
+            {
+                "current_employee_skill_ids": [
+                    [1, certification.id, {"skill_level_id": self.level_2.id}]
+                ],
+            },
+        )
+
+        rows = self.employee.employee_skill_ids.sorted("valid_from")
+        self.assertEqual(len(rows), 2, "the level change must version the record")
+        self.assertEqual(
+            rows.mapped("certificate_file"),
+            [self.pdf, self.pdf],
+            "the new version must keep the certificate already uploaded",
+        )
+        self.assertEqual(
+            rows.mapped("certificate_filename"),
+            ["certificate.pdf", "certificate.pdf"],
+        )
+
+    def test_replacing_only_the_certificate_file_does_not_version(self):
+        certification = self._create_certification()
+        new_pdf = base64.b64encode(b"%PDF-1.4 renewed")
+        self.employee.write(
+            {
+                "current_employee_skill_ids": [
+                    [
+                        1,
+                        certification.id,
+                        {
+                            "certificate_file": new_pdf,
+                            "certificate_filename": "renewed.pdf",
+                        },
+                    ]
+                ],
+            },
+        )
+
+        rows = self.employee.employee_skill_ids
+        self.assertEqual(
+            len(rows), 1, "swapping the attached file is not a new certification"
+        )
+        self.assertEqual(rows.certificate_file, new_pdf)
+        self.assertEqual(rows.certificate_filename, "renewed.pdf")

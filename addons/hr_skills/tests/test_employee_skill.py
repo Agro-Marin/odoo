@@ -2,11 +2,13 @@ import datetime
 
 from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
+from lxml import etree
 
 from odoo import fields
 from odoo.exceptions import ValidationError
 from odoo.tests import Form
 from odoo.tests.common import TransactionCase
+from odoo.tools.safe_eval import safe_eval
 
 
 class TestEmployeeSkills(TransactionCase):
@@ -691,4 +693,240 @@ class TestSkillFieldDefaults(TransactionCase):
             datetime.date(2099, 1, 1),
             "valid_from default must be evaluated per-record at create time, "
             "not captured once at module load",
+        )
+
+
+class TestIndividualSkillOrder(TransactionCase):
+    """The employee profile, the job position and the applicant must all list
+    the skills of a type from the highest level down."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.skill_type = cls.env["hr.skill.type"].create({"name": "Order Test Type"})
+        cls.low, cls.mid, cls.high = cls.env["hr.skill.level"].create(
+            [
+                {
+                    "name": "Low",
+                    "skill_type_id": cls.skill_type.id,
+                    "level_progress": 10,
+                },
+                {
+                    "name": "Mid",
+                    "skill_type_id": cls.skill_type.id,
+                    "level_progress": 50,
+                },
+                {
+                    "name": "High",
+                    "skill_type_id": cls.skill_type.id,
+                    "level_progress": 90,
+                },
+            ]
+        )
+        cls.skill_a, cls.skill_b, cls.skill_c = cls.env["hr.skill"].create(
+            [
+                {"name": "Order Skill A", "skill_type_id": cls.skill_type.id},
+                {"name": "Order Skill B", "skill_type_id": cls.skill_type.id},
+                {"name": "Order Skill C", "skill_type_id": cls.skill_type.id},
+            ]
+        )
+        cls.employee = cls.env["hr.employee"].create({"name": "Order Test Employee"})
+        cls.env["hr.employee.skill"].create(
+            [
+                {
+                    "employee_id": cls.employee.id,
+                    "skill_type_id": cls.skill_type.id,
+                    "skill_id": skill.id,
+                    "skill_level_id": level.id,
+                }
+                for skill, level in (
+                    (cls.skill_a, cls.low),
+                    (cls.skill_b, cls.mid),
+                    (cls.skill_c, cls.high),
+                )
+            ]
+        )
+
+    def test_employee_skills_are_ordered_by_descending_level(self):
+        self.assertEqual(
+            self.employee.employee_skill_ids.mapped("skill_level_id.level_progress"),
+            [90, 50, 10],
+            "the strongest skill of a type must come first on the employee",
+        )
+
+    def test_employee_and_job_skills_share_the_same_order(self):
+        job = self.env["hr.job"].create({"name": "Order Test Job"})
+        self.env["hr.job.skill"].create(
+            [
+                {
+                    "job_id": job.id,
+                    "skill_type_id": self.skill_type.id,
+                    "skill_id": skill.id,
+                    "skill_level_id": level.id,
+                }
+                for skill, level in (
+                    (self.skill_a, self.low),
+                    (self.skill_b, self.mid),
+                    (self.skill_c, self.high),
+                )
+            ]
+        )
+        self.assertEqual(
+            self.employee.current_employee_skill_ids.mapped("skill_id.name"),
+            job.current_job_skill_ids.mapped("skill_id.name"),
+            "the employee profile and the job position must agree on the order",
+        )
+
+
+class TestSkillValidityTimezone(TransactionCase):
+    """Validity dates are calendar dates, so they must be read in the user's
+    timezone. At UTC-6 the local day and the UTC day disagree for the last six
+    hours of every local day."""
+
+    # 02:00 UTC on the 31st is 20:00 on the 30th in America/Mexico_City.
+    EVENING_UTC = "2026-08-31 02:00:00"
+    LOCAL_DAY = datetime.date(2026, 8, 30)
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.env.user.tz = "America/Mexico_City"
+        cls.skill_type = cls.env["hr.skill.type"].create({"name": "Timezone Type"})
+        cls.level = cls.env["hr.skill.level"].create(
+            {
+                "name": "TZ Level",
+                "skill_type_id": cls.skill_type.id,
+                "level_progress": 50,
+            }
+        )
+        cls.skill = cls.env["hr.skill"].create(
+            {"name": "Timezone Skill", "skill_type_id": cls.skill_type.id}
+        )
+        cls.employee = cls.env["hr.employee"].create({"name": "Timezone Employee"})
+
+    def _local_env(self):
+        return self.env["base"].with_context(tz="America/Mexico_City").env
+
+    def test_valid_from_default_uses_the_local_day(self):
+        env = self._local_env()
+        with freeze_time(self.EVENING_UTC):
+            employee_skill = env["hr.employee.skill"].create(
+                {
+                    "employee_id": self.employee.id,
+                    "skill_type_id": self.skill_type.id,
+                    "skill_id": self.skill.id,
+                    "skill_level_id": self.level.id,
+                }
+            )
+        self.assertEqual(
+            employee_skill.valid_from,
+            self.LOCAL_DAY,
+            "a skill added at 20:00 must start today, not tomorrow",
+        )
+
+    def test_job_skill_valid_until_today_is_still_current(self):
+        env = self._local_env()
+        with freeze_time(self.EVENING_UTC):
+            job = env["hr.job"].create({"name": "Timezone Test Job"})
+            job_skill = env["hr.job.skill"].create(
+                {
+                    "job_id": job.id,
+                    "skill_type_id": self.skill_type.id,
+                    "skill_id": self.skill.id,
+                    "skill_level_id": self.level.id,
+                    "valid_from": datetime.date(2026, 8, 1),
+                    "valid_to": self.LOCAL_DAY,
+                }
+            )
+            self.assertIn(
+                job_skill,
+                job.current_job_skill_ids,
+                "a skill valid until today must not expire six hours early",
+            )
+            self.assertIn(
+                job,
+                env["hr.job"].search([("current_job_skill_ids", "in", job_skill.ids)]),
+                "the search side must agree with the computed side",
+            )
+
+
+class TestCertificationViews(TransactionCase):
+    """The Certifications tab of the employee form must expose the uploaded
+    certificate so it can be downloaded from the list."""
+
+    def test_certification_list_shows_the_certificate_file(self):
+        arch = etree.fromstring(
+            self.env["hr.employee"].get_view(view_type="form")["arch"]
+        )
+        certification_lists = arch.xpath("//field[@name='certification_ids']//list")
+        self.assertTrue(
+            certification_lists, "the Certifications tab must embed a list view"
+        )
+        columns = certification_lists[0].xpath("./field/@name")
+        self.assertIn(
+            "certificate_file",
+            columns,
+            "the certificate must be reachable from the certifications list",
+        )
+        self.assertIn(
+            "certificate_filename",
+            columns,
+            "the binary widget needs the filename column to name the download",
+        )
+
+
+class TestCertificationCompany(TransactionCase):
+    """Certifications belong to the employee's company, and the Certifications
+    list must only show the companies the user has selected."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.company_a, cls.company_b = cls.env["res.company"].create(
+            [{"name": "Certification Co A"}, {"name": "Certification Co B"}]
+        )
+        cls.skill_type = cls.env["hr.skill.type"].create(
+            {"name": "Company Certificate", "is_certification": True}
+        )
+        cls.level = cls.env["hr.skill.level"].create(
+            {
+                "name": "Certified",
+                "skill_type_id": cls.skill_type.id,
+                "level_progress": 100,
+            }
+        )
+        cls.skill = cls.env["hr.skill"].create(
+            {"name": "Company Skill", "skill_type_id": cls.skill_type.id}
+        )
+        cls.employee_a, cls.employee_b = cls.env["hr.employee"].create(
+            [
+                {"name": "Employee A", "company_id": cls.company_a.id},
+                {"name": "Employee B", "company_id": cls.company_b.id},
+            ]
+        )
+        cls.certification_a, cls.certification_b = cls.env["hr.employee.skill"].create(
+            [
+                {
+                    "employee_id": employee.id,
+                    "skill_type_id": cls.skill_type.id,
+                    "skill_id": cls.skill.id,
+                    "skill_level_id": cls.level.id,
+                }
+                for employee in (cls.employee_a, cls.employee_b)
+            ]
+        )
+
+    def test_certification_carries_the_employee_company(self):
+        self.assertEqual(self.certification_a.company_id, self.company_a)
+        self.assertEqual(self.certification_b.company_id, self.company_b)
+
+    def test_certification_action_filters_on_the_selected_companies(self):
+        action = self.env.ref("hr_skills.action_hr_employee_skill_certification")
+        domain = safe_eval(action.domain, {"allowed_company_ids": self.company_a.ids})
+        found = self.env["hr.employee.skill"].search(domain)
+        self.assertIn(self.certification_a, found)
+        self.assertNotIn(
+            self.certification_b,
+            found,
+            "a company the user did not select must stay out of the list",
         )

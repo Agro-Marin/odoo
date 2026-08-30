@@ -10,7 +10,7 @@ from odoo.fields import Domain
 class MixinHrIndividualSkill(models.AbstractModel):
     _name = "mixin.hr.individual.skill"
     _description = "Skill level"
-    _order = "skill_type_id, skill_level_id"
+    _order = "skill_type_id, skill_level_id desc"
     _rec_name = "skill_id"
 
     def _linked_field_name(self):
@@ -27,7 +27,10 @@ class MixinHrIndividualSkill(models.AbstractModel):
         # skill_level_id, skill_type_id), but editing a passive field does NOT
         # itself trigger a new version. Core/active fields are preserved
         # automatically and must NOT be listed here.
-        return []
+        # The certificate proves the skill, not one particular level of it, so
+        # it follows the record into its next version; replacing the file alone
+        # is a correction, not a new certification.
+        return ["certificate_file", "certificate_filename"]
 
     def _can_edit_certification_validity_period(self):
         # If True, the overlapping constraint on a certification is released:
@@ -68,7 +71,7 @@ class MixinHrIndividualSkill(models.AbstractModel):
     )
     level_progress = fields.Integer(related="skill_level_id.level_progress")
     color = fields.Integer(related="skill_type_id.color")
-    valid_from = fields.Date(string="Validity Start", default=fields.Date.today)
+    valid_from = fields.Date(string="Validity Start", default=fields.Date.context_today)
     valid_to = fields.Date(string="Validity Stop")
     levels_count = fields.Integer(related="skill_type_id.levels_count")
     certification_skill_type_count = fields.Integer(
@@ -79,6 +82,8 @@ class MixinHrIndividualSkill(models.AbstractModel):
         related="skill_type_id.is_certification", export_string_translation=False
     )  # if is_certification change the model will not trigger the constrains
     display_warning_message = fields.Boolean()
+    certificate_filename = fields.Char()
+    certificate_file = fields.Binary(string="Certificate")
 
     @api.constrains(
         lambda self: [
@@ -339,7 +344,7 @@ class MixinHrIndividualSkill(models.AbstractModel):
     #  To reset the validity period if the skill become certified or uncertified
     @api.onchange("is_certification")
     def _onchange_is_certification(self):
-        self.valid_from = fields.Date.today()
+        self.valid_from = fields.Date.context_today(self)
         if not self.is_certification:
             self.valid_to = False
 
@@ -389,7 +394,7 @@ class MixinHrIndividualSkill(models.AbstractModel):
         # expired (valid_to <= yesterday) is deleted. Otherwise it is archived by
         # setting valid_to to yesterday, unless doing so would break a constraint
         # (overlap), in which case it is deleted instead.
-        yesterday = fields.Date.today() - relativedelta(days=1)
+        yesterday = fields.Date.context_today(self) - relativedelta(days=1)
         to_remove = self.env[self._name]
         to_archive = self.env[self._name]
         for individual_skill in self:
@@ -449,7 +454,7 @@ class MixinHrIndividualSkill(models.AbstractModel):
         validity_domain = Domain.OR(
             [
                 Domain("valid_to", "=", False),
-                Domain("valid_to", ">=", fields.Date.today()),
+                Domain("valid_to", ">=", "today"),
             ]
         )
 
@@ -566,6 +571,7 @@ class MixinHrIndividualSkill(models.AbstractModel):
         result_command = []
         create_vals = []
         remove_from_expire = self.env[self._name]
+        today = fields.Date.context_today(self)
 
         def _get_passive_field_value(field, skill):
             """
@@ -617,9 +623,7 @@ class MixinHrIndividualSkill(models.AbstractModel):
             skill_type = self.env["hr.skill.type"].browse(new_vals["skill_type_id"])
             valid_from = vals.get(
                 "valid_from",
-                ind_skill.valid_from
-                if skill_type.is_certification
-                else fields.Date.today(),
+                ind_skill.valid_from if skill_type.is_certification else today,
             )
             valid_to = vals.get(
                 "valid_to", ind_skill.valid_to if skill_type.is_certification else False
