@@ -178,7 +178,7 @@ export function usePartnerAutocomplete() {
     if (companyData.error) {
       if (companyData.error_message === "Insufficient Credit") {
         notifyNoCredits();
-      } else if (companyData.error_message === "No Account Token") {
+      } else if (companyData.error_message === "No account token") {
         notifyAccountToken();
       } else {
         notification.add(companyData.error_message);
