@@ -207,6 +207,10 @@ class ProductProduct(models.Model):
         date_from = self.env.context.get("date_from", time.strftime("%Y-01-01"))
         date_to = self.env.context.get("date_to", time.strftime("%Y-12-31"))
         invoice_state = self.env.context.get("invoice_state", "open_paid")
+        if invoice_state not in dict(self._fields["invoice_state"].selection):
+            raise ValueError(
+                f"Invalid 'invoice_state' context value: {invoice_state!r}"
+            )
         res = {
             product_id: {
                 "date_from": date_from,
