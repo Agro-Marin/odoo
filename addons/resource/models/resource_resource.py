@@ -477,6 +477,8 @@ class ResourceResource(models.Model):
         self,
         start: datetime,
         end: datetime,
+        compute_leaves: bool = True,
+        leave_domain: list | None = None,
     ) -> tuple[dict[int, Intervals], dict, dict]:
         if not self:
             return {}, {}, {}
@@ -556,30 +558,38 @@ class ResourceResource(models.Model):
                         + resource_hours_per_week[resource.id][year_week],
                     )
 
-        for calendar, resources in calendar_resources.items():
-            domain = [("calendar_id", "=", False)] if not calendar else None
-            leave_intervals = (
-                calendar or self.env["resource.calendar"]
-            )._leave_intervals_batch(min_start_date, max_end_date, resources, domain)
-            for resource_id, leaves in leave_intervals.items():
-                if not resource_id:
-                    continue
+        if compute_leaves:
+            for calendar, resources in calendar_resources.items():
+                domain = (
+                    leave_domain
+                    if leave_domain is not None
+                    else ([("calendar_id", "=", False)] if not calendar else None)
+                )
+                leave_intervals = (
+                    calendar or self.env["resource.calendar"]
+                )._leave_intervals_batch(
+                    min_start_date, max_end_date, resources, domain
+                )
+                for resource_id, leaves in leave_intervals.items():
+                    if not resource_id:
+                        continue
 
-                ranges_to_remove = []
-                # Iterate the Intervals itself, not its private ``_items`` store:
-                # the public iteration yields the same tuples without pinning this
-                # module to the internals of ``odoo.libs.intervals``.
-                for leave in leaves:
-                    resource_by_id[resource_id]._format_leave(
-                        leave,
-                        resource_hours_per_day,
-                        resource_hours_per_week,
-                        ranges_to_remove,
-                        start_day,
-                        end_day,
-                    )
+                    ranges_to_remove = []
+                    # Iterate the Intervals itself, not its private ``_items``
+                    # store: the public iteration yields the same tuples
+                    # without pinning this module to the internals of
+                    # ``odoo.libs.intervals``.
+                    for leave in leaves:
+                        resource_by_id[resource_id]._format_leave(
+                            leave,
+                            resource_hours_per_day,
+                            resource_hours_per_week,
+                            ranges_to_remove,
+                            start_day,
+                            end_day,
+                        )
 
-                resource_work_intervals[resource_id] -= Intervals(ranges_to_remove)
+                    resource_work_intervals[resource_id] -= Intervals(ranges_to_remove)
 
         for resource_id, work_intervals in resource_work_intervals.items():
             tz = timezone(resource_by_id[resource_id].tz or self.env.user.tz or "UTC")
