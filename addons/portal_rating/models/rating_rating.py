@@ -25,6 +25,8 @@ class RatingRating(models.Model):
         return ratings
 
     def write(self, vals):
+        if vals.get("publisher_comment"):
+            self._check_synchronize_publisher_values()
         self._synchronize_publisher_values(vals)
         return super().write(vals)
 
@@ -52,9 +54,14 @@ class RatingRating(models.Model):
     def _synchronize_publisher_values(self, values):
         """Force publisher partner and date if not given in order to have
         coherent values. Those fields are readonly as they are not meant
-        to be modified manually, behaving like a tracking."""
+        to be modified manually, behaving like a tracking.
+
+        Access is not checked here: `create()` and `write()` each call
+        `_check_synchronize_publisher_values()` themselves, against the
+        recordset that is actually meaningful at their call site (this
+        helper alone cannot tell the two apart, and `create()`'s `self` is
+        still empty when it prepares `vals_list`)."""
         if values.get("publisher_comment"):
-            self._check_synchronize_publisher_values()
             if not values.get("publisher_datetime"):
                 values["publisher_datetime"] = fields.Datetime.now()
             if not values.get("publisher_id"):
