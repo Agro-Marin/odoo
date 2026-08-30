@@ -122,8 +122,9 @@ class StockPickingType(models.Model):
             ["__count"],
         ):
             counts_by_state[picking_type.id][state] = count
-        waiting = dict(
-            self.env["mrp.production"]._read_group(
+        waiting = {
+            picking_type.id: count
+            for picking_type, count in self.env["mrp.production"]._read_group(
                 [
                     ("state", "not in", ("done", "cancel")),
                     ("reservation_state", "=", "waiting"),
@@ -132,9 +133,10 @@ class StockPickingType(models.Model):
                 ["picking_type_id"],
                 ["__count"],
             )
-        )
-        late = dict(
-            self.env["mrp.production"]._read_group(
+        }
+        late = {
+            picking_type.id: count
+            for picking_type, count in self.env["mrp.production"]._read_group(
                 [
                     ("state", "=", "confirmed"),
                     ("date_start", "<", fields.Date.today()),
@@ -143,14 +145,14 @@ class StockPickingType(models.Model):
                 ["picking_type_id"],
                 ["__count"],
             )
-        )
+        }
         for record in mrp_picking_types:
             by_state = counts_by_state[record.id]
             record.count_mo_todo = by_state["confirmed"]
             record.count_mo_in_progress = by_state["progress"]
             record.count_mo_to_close = by_state["to_close"]
-            record.count_mo_waiting = waiting.get(record, 0)
-            record.count_mo_late = late.get(record, 0)
+            record.count_mo_waiting = waiting.get(record.id, 0)
+            record.count_mo_late = late.get(record.id, 0)
 
     def action_view_productions(self):
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
