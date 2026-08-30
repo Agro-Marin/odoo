@@ -1,6 +1,8 @@
 import { registry } from "@web/core/registry";
 import { stepUtils } from "@web_tour/tour_utils";
 
+const WEBSITE = "https://sherbrooke.example";
+
 registry.category("web_tour.tours").add('debug_menu_set_defaults', {
     url: '/odoo?debug=1',
     steps: () => [
@@ -11,13 +13,13 @@ registry.category("web_tour.tours").add('debug_menu_set_defaults', {
             run: "click",
         },
         {
-            content: "Check that Company is checked by default, and not Individual",
-            trigger: '.o_field_widget[name="company_type"] input[data-value="company"]:checked',
+            content: "Check that Company is set by default",
+            trigger: '.o_field_widget[name="is_company"] input:checked',
         },
         {
-            content: "Select the individual radio button",
-            trigger: '.o_field_widget[name="company_type"] input[data-value="person"]',
-            run: "click",
+            content: "Give the contact a website, so the field holds a value to save",
+            trigger: '.o_field_widget[name="website"] input',
+            run: `edit ${WEBSITE}`,
         },
         {
             content: "Open the debug menu",
@@ -30,11 +32,19 @@ registry.category("web_tour.tours").add('debug_menu_set_defaults', {
             run: "click",
         },
         {
-            content: "Choose Company Type = Individual",
+            // Setting a <select> to a value it does not offer is a silent
+            // no-op: nothing is saved and the failure only surfaces at the
+            // last step, blaming the default instead of the dialog. Assert
+            // the option first so a breakage names itself here.
+            content: "The dialog must actually offer Website",
+            trigger: '#formview_default_fields:has(option[value="website"])',
+        },
+        {
+            content: "Choose Website = the address just typed",
             trigger: '#formview_default_fields',
             run: function () {
                 const element_field = document.querySelector('select#formview_default_fields');
-                element_field.value = 'company_type';
+                element_field.value = 'website';
                 element_field.dispatchEvent(new Event("change"));
             },
         },
@@ -58,8 +68,8 @@ registry.category("web_tour.tours").add('debug_menu_set_defaults', {
             run: "click",
         },
         {
-            content: "Check that Individual is checked instead of Company",
-            trigger: '.o_field_widget[name="company_type"] input[data-value="person"]:checked',
+            content: "Check that Website is now filled in by default",
+            trigger: `.o_field_widget[name="website"] input:value("${WEBSITE}")`,
         },
         {
             content: "Discard the contact creation",

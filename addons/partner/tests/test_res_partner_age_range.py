@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from odoo.exceptions import ValidationError
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
@@ -214,3 +216,112 @@ class TestPartnerAgeRange(TransactionCase):
         far.max_value = 1781
         self.env.flush_all()
         self.assertEqual(far, stranger.age_range_id, "its own band must repair it")
+
+    def test_13_an_archived_partner_is_reclassified_like_any_other(self):
+        cohort = self.AgeRange.create(
+            {"min_value": 1960, "max_value": 1970, "name": "archived member"}
+        )
+        partner = self.Partner.create({"name": "Born 1965", "birthdate": "1965-06-01"})
+        self.assertEqual(partner.age_range_id, cohort)
+
+        partner.active = False
+        cohort.min_value = 1966
+        self.env.flush_all()
+        partner.invalidate_recordset(["age_range_id"])
+        self.assertFalse(
+            partner.age_range_id,
+            "the sweep searched res.partner with the default active_test, so an "
+            "archived partner kept a cohort whose bounds no longer reach it",
+        )
+
+        cohort.min_value = 1960
+        self.env.flush_all()
+        partner.invalidate_recordset(["age_range_id"])
+        self.assertEqual(
+            partner.age_range_id, cohort, "an archived partner must also be re-covered"
+        )
+
+    def test_14_a_new_cohort_chains_onto_the_highest_closed_bound(self):
+        self.assertEqual(
+            self.AgeRange.default_get(["min_value"])["min_value"],
+            0.0,
+            "with no cohorts at all there is nothing to chain onto",
+        )
+        self.AgeRange.create({"min_value": 1500, "max_value": 1600, "name": "closed"})
+        self.assertEqual(self.AgeRange.default_get(["min_value"])["min_value"], 1600)
+
+        self.AgeRange.create({"min_value": 1600, "max_value": 0, "name": "open top"})
+        self.assertEqual(
+            self.AgeRange.default_get(["min_value"])["min_value"],
+            1600,
+            "the open cohort's max_value of 0 means no upper limit; chaining "
+            "onto it would propose 0 as a LOWER bound, which means the opposite",
+        )
+
+    def test_15_a_cohort_name_is_unique_regardless_of_casing(self):
+        """UNIQUE(name) let "Baby boomer" and "baby boomer" both exist.
+
+        The rule is a unique index over lower(name) rather than a constraint,
+        which is a conversion the framework refused to perform until
+        2c60f5f3d33: it left the old constraint in force and the database
+        unupgradable afterwards.
+        """
+        self.AgeRange.create({"min_value": 1400, "max_value": 1410, "name": "Casing"})
+        with self.assertRaises(Exception):
+            with self.env.cr.savepoint():
+                self.AgeRange.create(
+                    {"min_value": 1410, "max_value": 1420, "name": "casing"}
+                )
+
+    def test_16_an_overlap_inside_one_batch_is_still_rejected(self):
+        """The scale is searched once for the batch, so the batch's own members
+        have to be compared in memory or two overlapping cohorts created
+        together would both pass."""
+        with self.assertRaises(ValidationError):
+            self.AgeRange.create(
+                [
+                    {"name": "batch a", "min_value": 1200, "max_value": 1210},
+                    {"name": "batch b", "min_value": 1205, "max_value": 1215},
+                ]
+            )
+
+    def test_17_checking_a_scale_does_not_cost_a_query_per_band(self):
+        """`_check_band` ran one sibling search per record, from a constraint.
+
+        The assertion is on scaling rather than on a number: what matters is
+        that a wider batch does not buy more queries, and an exact count would
+        pin every incidental search the create path happens to make today.
+        """
+        AgeRange = type(self.AgeRange)
+        original = AgeRange.search
+        counted = []
+
+        def counting_search(records, domain, *args, **kwargs):
+            counted.append(domain)
+            return original(records, domain, *args, **kwargs)
+
+        def searches_for(count, first_year):
+            counted.clear()
+            with patch.object(AgeRange, "search", counting_search):
+                self.AgeRange.create(
+                    [
+                        {
+                            "name": f"scale {first_year} {index}",
+                            "min_value": first_year + index * 10,
+                            "max_value": first_year + index * 10 + 10,
+                        }
+                        for index in range(count)
+                    ]
+                )
+                self.env.flush_all()
+            return len(counted)
+
+        few = searches_for(3, 2600)
+        many = searches_for(12, 2700)
+
+        self.assertEqual(
+            few,
+            many,
+            f"{few} searches for 3 bands and {many} for 12: the sibling lookup "
+            "still scales with the size of the batch",
+        )

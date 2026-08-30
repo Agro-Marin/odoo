@@ -4,7 +4,6 @@ import { advanceTime, queryAllTexts, queryOne } from "@odoo/hoot-dom";
 import {
   contains,
   defineModels,
-  editSelectMenu,
   fields,
   models,
   mountView,
@@ -19,22 +18,11 @@ async function editAutocomplete(el, value) {
 }
 
 class ResPartner extends mailModels.ResPartner {
-  company_type = fields.Selection({
-    string: "Company Type",
-    type: "selection",
-    selection: [
-      ["company", "Company"],
-      ["individual", "Individual"],
-    ],
-    onChange: (obj) => {
-      obj.is_company = obj.company_type === "company";
-    },
-  });
   state_id = fields.Many2one({ relation: "res.country.state" });
   _views = {
     form: `
             <form>
-                <field name="company_type"/>
+                <field name="is_company"/>
                 <field name="name" widget="field_partner_autocomplete"/>
                 <field name="parent_id" widget="res_partner_many2one"/>
                 <field name="website"/>
@@ -126,15 +114,13 @@ onRpc("enrich_company_message_post", () => true);
 preloadBundle("web.jsvat_lib");
 
 test.tags("desktop");
-test("Partner autocomplete : Company type = Individual", async () => {
+test("Partner autocomplete : not a company", async () => {
   await mountView({
     resModel: "res.partner",
     type: "form",
   });
 
-  await editSelectMenu("[name='company_type'] input", {
-    value: "Individual",
-  });
+  expect("[name='is_company'] input").not.toBeChecked();
   expect("[name='name'] input").not.toHaveClass("o-autocomplete--input", {
     message: "The input for field 'name' should be a regular input",
   });
@@ -183,16 +169,14 @@ test("Partner autocomplete : Company type = Individual", async () => {
   }
 });
 
-test("Partner autocomplete : Company type = Company / Name search", async () => {
+test("Partner autocomplete : company / name search", async () => {
   expect.assertions(11);
   await mountView({
     resModel: "res.partner",
     type: "form",
   });
 
-  await editSelectMenu("[name='company_type'] input", {
-    value: "Company",
-  });
+  await contains("[name='is_company'] input").click();
   await contains("[name='name'] .dropdown input").click();
   expect(
     "[name='name'] .o-autocomplete .o-autocomplete--dropdown-item.partner_autocomplete_dropdown_many2one",
@@ -242,9 +226,7 @@ test("Partner autocomplete : Company type = Company / VAT search", async () => {
     type: "form",
   });
 
-  await editSelectMenu("[name='company_type'] input", {
-    value: "Company",
-  });
+  await contains("[name='is_company'] input").click();
   await contains("[name='vat'] .dropdown input").click();
   expect(
     "[name='vat'] .o-autocomplete .o-autocomplete--dropdown-item.partner_autocomplete_dropdown_many2one",
@@ -331,7 +313,7 @@ test("Hide auto complete suggestion for no create", async () => {
     resModel: "res.partner",
     type: "form",
     arch: `<form>
-            <field name="company_type"/>
+            <field name="is_company"/>
             <field name="parent_id" widget="res_partner_many2one" options="{'no_create': True}"/>
         </form>`,
   });
@@ -350,7 +332,7 @@ test("Display auto complete suggestion for canCreate", async () => {
     resModel: "res.partner",
     type: "form",
     arch: `<form>
-            <field name="company_type"/>
+            <field name="is_company"/>
             <field name="parent_id" widget="res_partner_many2one" options="{'no_create': False}"/>
         </form>`,
   });
@@ -367,9 +349,7 @@ test("Partner autocomplete : onChange should not disturb option selection", asyn
     type: "form",
   });
 
-  await editSelectMenu("[name='company_type'] input", {
-    value: "Company",
-  });
+  await contains("[name='is_company'] input").click();
   await contains("[name='name'] .dropdown input").click();
   await editAutocomplete("[name='name'] .dropdown input", "company");
   // 3 options + 1 for the worldwide option
@@ -401,7 +381,7 @@ test("Partner autocomplete : onChange should not disturb option selection", asyn
 // ---------------------------------------------------------------------------
 async function openCompanyNameSearch() {
   await mountView({ resModel: "res.partner", type: "form" });
-  await editSelectMenu("[name='company_type'] input", { value: "Company" });
+  await contains("[name='is_company'] input").click();
   await contains("[name='name'] .dropdown input").click();
 }
 

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="age_range_baby_boomer" model="res.partner.age.range">
+        <field name="name">Baby boomer</field>
+        <field name="min_value">1946</field>
+        <field name="max_value">1965</field>
+    </record>
+
+    <record id="age_range_gen_x" model="res.partner.age.range">
+        <field name="name">Generation X</field>
+        <field name="min_value">1965</field>
+        <field name="max_value">1981</field>
+    </record>
+
+    <record id="age_range_gen_y" model="res.partner.age.range">
+        <field name="name">Generation Y</field>
+        <field name="min_value">1981</field>
+        <field name="max_value">1997</field>
+    </record>
+
+    <record id="age_range_gen_z" model="res.partner.age.range">
+        <field name="name">Generation Z</field>
+        <field name="min_value">1997</field>
+        <field name="max_value">2010</field>
+    </record>
+
+    <record id="age_range_gen_alpha" model="res.partner.age.range">
+        <field name="name">Generation Alpha</field>
+        <field name="min_value">2010</field>
+        <field name="max_value">0</field>
+    </record>
+
+</odoo>

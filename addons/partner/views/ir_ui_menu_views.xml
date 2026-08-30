@@ -13,14 +13,14 @@
         name="Contacts"
         action="action_partner"
         parent="partner_menu_root"
-        sequence="2" />
+        sequence="10" />
 
     <menuitem
         id="res_partner_menu_config"
         name="Configuration"
         parent="partner_menu_root"
-        groups="base.group_system"
-        sequence="2" />
+        groups="base.group_partner_manager"
+        sequence="100" />
 
     <menuitem
         id="menu_partner_category_form"
@@ -30,10 +30,26 @@
         parent="res_partner_menu_config" />
 
     <menuitem
+        id="res_partner_age_range_menu"
+        name="Age Ranges"
+        parent="res_partner_menu_config"
+        action="res_partner_age_range_action"
+        sequence="2" />
+
+    <menuitem
+        id="res_partner_identifier_type_menu"
+        name="Identifier Types"
+        parent="res_partner_menu_config"
+        action="base.res_partner_identifier_type_action"
+        groups="base.group_system"
+        sequence="3" />
+
+    <menuitem
         id="res_partner_industry_menu"
         name="Industries"
         action="base.res_partner_industry_action"
         parent="res_partner_menu_config"
+        groups="base.group_system"
         sequence="4" />
 
     <menuitem

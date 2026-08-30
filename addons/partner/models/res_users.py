@@ -2,15 +2,15 @@ from odoo import api, models, modules
 
 
 class ResUsers(models.Model):
-    _inherit = 'res.users'
+    _inherit = "res.users"
 
     @api.model
     def _get_activity_groups(self):
-        """ Update the systray icon of res.partner activities to use the
-        contact application one instead of base icon. """
+        """Update the systray icon of res.partner activities to use the
+        contact application one instead of base icon."""
         activities = super()._get_activity_groups()
         for activity in activities:
-            if activity['model'] != 'res.partner':
+            if activity["model"] != "res.partner":
                 continue
-            activity['icon'] = modules.module.Manifest.for_addon('partner').icon
+            activity["icon"] = modules.module.Manifest.for_addon("partner").icon
         return activities

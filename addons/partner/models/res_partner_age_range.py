@@ -14,7 +14,7 @@ class ResPartnerAgeRange(models.Model):
     _name = "res.partner.age.range"
     _inherit = ["mixin.band"]
     _description = "Partner Age Range"
-    _order = "min_value"
+    _order = "min_value, id"
 
     name = fields.Char(
         required=True,
@@ -37,7 +37,9 @@ class ResPartnerAgeRange(models.Model):
         "its lower side: a birth year before it predates every cohort here.",
     )
 
-    _name_uniq = models.Constraint("UNIQUE(name)", "A name must be unique")
+    _name_uniq = models.UniqueIndex(
+        "(lower(name))", "A cohort with the same name already exists."
+    )
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -75,10 +77,26 @@ class ResPartnerAgeRange(models.Model):
         domain = Domain.OR(starmap(self._span_domain, spans))
         if self.ids:
             domain |= Domain("age_range_id", "in", self.ids)
-        partners = self.env["res.partner"].sudo().search(domain)
+        # sudo() carries privileges, not active_test: without it an archived
+        # partner is skipped by every sweep and keeps a cohort no bound supports.
+        partners = (
+            self.env["res.partner"]
+            .sudo()
+            .with_context(active_test=False)
+            .search(domain)
+        )
         if partners:
             self.env.add_to_compute(partners._fields["age_range_id"], partners)
 
     def _default_min_value(self):
-        last = self.search([], order="min_value desc", limit=1)
-        return last.max_value if last else 0.0
+        # Where the scale currently ends. The newest cohort is the one meant to
+        # stay open-ended, and its max_value of 0 means "no upper limit" -- but
+        # 0 as a LOWER bound means "no lower limit", the opposite reading, so
+        # chaining onto it proposed an open-below cohort on exactly the scales
+        # that were built correctly. Chain onto the highest closed bound
+        # instead: appending past an open cohort has to close it first, and the
+        # overlap error says so by name.
+        newest_closed = self.search(
+            [("max_value", "!=", 0)], order="max_value desc", limit=1
+        )
+        return newest_closed.max_value if newest_closed else 0.0

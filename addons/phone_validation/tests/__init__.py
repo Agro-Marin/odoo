@@ -5,3 +5,4 @@ from . import test_phone_format_tools
 from . import test_phone_blacklist_ops
 from . import test_phone_format_variants
 from . import test_phone_mobile_search
+from . import test_partner_phone_name_search

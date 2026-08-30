@@ -1,6 +1,50 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <record id="res_partner_view_form" model="ir.ui.view">
+        <field name="name">res.partner.view.form.inherit.partner</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form" />
+        <field name="arch" type="xml">
+            <page name="internal_notes" position="before">
+                <page
+                    name="personal_information_page"
+                    string="Private Information"
+                    invisible="is_company"
+                    groups="base.group_partner_manager">
+                    <group>
+                        <group name="personal_information_group">
+                            <field name="gender" />
+                            <field name="birthdate" />
+                            <field name="age" invisible="not birthdate" />
+                        </group>
+                        <group name="personal_classification_group">
+                            <field name="age_range_id" invisible="not birthdate" />
+                        </group>
+                    </group>
+                </page>
+            </page>
+        </field>
+    </record>
+
+    <record id="res_partner_view_search" model="ir.ui.view">
+        <field name="name">res.partner.view.search.inherit.partner</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_res_partner_filter" />
+        <field name="arch" type="xml">
+            <filter name="group_country" position="after">
+                <filter
+                    name="group_age_range"
+                    string="Age Range"
+                    context="{'group_by': 'age_range_id'}" />
+            </filter>
+            <field name="category_id" position="after">
+                <field name="age" />
+                <field name="age_range_id" />
+            </field>
+        </field>
+    </record>
+
     <record id="action_partner" model="ir.actions.act_window">
         <field name="name">Contacts</field>
         <field name="path">contacts</field>
