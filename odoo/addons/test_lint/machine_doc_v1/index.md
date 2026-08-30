@@ -49,7 +49,13 @@ database, and `test_checkers.py` does exactly that.
 | `_checker_noqa_rationale.py` | `noqa-rationale` |
 | `_checker_translated_unique.py` | `unique-over-translated-column` (cross-unit) |
 | `_checker_pep649.py` | annotation resolution, used by `test_pep649` |
-| `_checker_shadowed_def.py` | `shadowed-definition` |
+| `_checker_tax_company.py` | `tax-company-singular` |
+
+`tax-company-singular` (E8514) catches `.tax_ids.filtered(lambda t: t.company_id)`
+and the five other tax field names. `account.tax` carries `company_ids`, a
+many2many, so the singular reads `AttributeError` at runtime rather than an empty
+recordset — the checker only fires inside a `filtered` lambda over a tax field,
+where the parameter is known to be a tax.
 
 `shadowed-definition` (E8513) runs `_anywhere` rather than inside addons, because
 a member defined twice is dead code wherever it sits: Python keeps the last
