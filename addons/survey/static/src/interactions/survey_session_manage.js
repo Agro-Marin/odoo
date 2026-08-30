@@ -455,7 +455,7 @@ export class SurveySessionManage extends Interaction {
         if (goBack) {
             // If the question is loaded with goBack flag, we need to start
             // from the leaderboard screen. This is achieved by adding a
-            // data-going-back attribute to the newContentChild
+            // data-going-back attribute to newContent
             newContent.dataset.goingBack = true;
         }
 
