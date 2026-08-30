@@ -1159,9 +1159,13 @@ Versions:
             return
         for holiday in self:
             if holiday.state in ["validate1", "validate"]:
-                raise ValidationError(
-                    _("This modification is not allowed in the current state.")
+                message = _(
+                    "Approved time off cannot be modified (%(employee)s: %(date_from)s to %(date_to)s).",
+                    employee=holiday.employee_id.name,
+                    date_from=format_date(self.env, holiday.date_from),
+                    date_to=format_date(self.env, holiday.date_to),
                 )
+                raise ValidationError(message)
 
     def _check_validity(self):
         sorted_leaves = defaultdict(lambda: self.env["hr.leave"])
@@ -1375,7 +1379,13 @@ Versions:
                 leave_type_id = values.get("holiday_status_id")
 
                 # Handle double validation
-                if mapped_validation_type[leave_type_id] == "both":
+                # A row that came back from a spreadsheet without its type is
+                # for the ORM's required-field check to report, not for this
+                # lookup to crash on.
+                if (
+                    leave_type_id
+                    and mapped_validation_type.get(leave_type_id) == "both"
+                ):
                     self._check_double_validation_rules(
                         employee_id, values.get("state", False)
                     )
