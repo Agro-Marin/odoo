@@ -14,14 +14,9 @@ patch(PosOrderline.prototype, {
         }
     },
     get saleDetails() {
-        let down_payment_details = [];
-
-        // FIXME: This is a hack to handle the case where the down_payment_details is a stringified JSON.
-        try {
-            down_payment_details = JSON.parse(this.down_payment_details);
-        } catch {
-            down_payment_details = this.down_payment_details;
-        }
+        const down_payment_details = this.down_payment_details
+            ? JSON.parse(this.down_payment_details)
+            : [];
         return down_payment_details?.map?.((detail) => ({
             product_uom_qty: detail.product_uom_qty,
             product_name: detail.product_name,

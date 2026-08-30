@@ -417,12 +417,14 @@ patch(PosStore.prototype, {
                 price_unit: baseLine.price_unit,
                 price_type: "automatic",
                 sale_order_origin_id: saleOrder,
-                down_payment_details: matchedSaleOrderLines.map((saleOrderLine) => ({
-                    product_name: saleOrderLine.product_id.display_name,
-                    product_uom_qty: saleOrderLine.product_uom_qty,
-                    price_unit: saleOrderLine.price_unit,
-                    total: saleOrderLine.price_total,
-                })),
+                down_payment_details: JSON.stringify(
+                    matchedSaleOrderLines.map((saleOrderLine) => ({
+                        product_name: saleOrderLine.product_id.display_name,
+                        product_uom_qty: saleOrderLine.product_uom_qty,
+                        price_unit: saleOrderLine.price_unit,
+                        total: saleOrderLine.price_total,
+                    })),
+                ),
                 tax_ids: [["link", ...baseLine.tax_ids]],
                 extra_tax_data:
                     accountTaxHelpers.export_base_line_extra_tax_data(baseLine),
