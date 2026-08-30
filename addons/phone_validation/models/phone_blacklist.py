@@ -28,7 +28,7 @@ class PhoneBlacklist(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         """Create new (or activate existing) blacklisted numbers.
-                A. Note: Attempt to create a number that already exists, but is non-active, will result in its activation.
+                A. Note: Attempt to create a number that already exists, but is non-active, will result in its activation, unless the request itself sets `active` to False.
                 B. Note: If the number already exists and it's active, it will be added to returned set, (it won't be re-created)
         Returns Recordset union of created and existing phonenumbers from the requested list of numbers to create
         """
