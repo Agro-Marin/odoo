@@ -1,4 +1,3 @@
-
 {
     "name": "Attendances",
     "version": "2.0",

@@ -1,4 +1,3 @@
-
 from odoo import Command, api, fields, models
 
 
@@ -163,7 +162,9 @@ class HrApplicant(models.Model):
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "hr_recruitment.action_hr_job_applications"
         )
-        action["context"] = self.env["ir.actions.actions"]._eval_action_context(action["context"], active_id=self.job_id.id)
+        action["context"] = self.env["ir.actions.actions"]._eval_action_context(
+            action["context"], active_id=self.job_id.id
+        )
         return action
 
     @api.model_create_multi

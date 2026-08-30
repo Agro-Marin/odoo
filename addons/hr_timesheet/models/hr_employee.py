@@ -1,4 +1,3 @@
-
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import SQL
@@ -89,7 +88,9 @@ class HrEmployee(models.Model):
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "hr_timesheet.timesheet_action_from_employee"
         )
-        context = self.env["ir.actions.actions"]._eval_action_context(action["context"], active_id=self.id)
+        context = self.env["ir.actions.actions"]._eval_action_context(
+            action["context"], active_id=self.id
+        )
         context["create"] = context.get("create", True) and self.active
         action["context"] = context
         return action
