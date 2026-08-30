@@ -104,10 +104,17 @@ class OnboardingOnboarding(models.Model):
 
     def write(self, vals):
         """Recompute progress step ids if new steps are added/removed."""
-        already_linked_steps = self.step_ids
+        already_linked_steps_by_id = {
+            onboarding.id: onboarding.step_ids for onboarding in self
+        }
         res = super().write(vals)
-        if self.step_ids != already_linked_steps:
-            self.progress_ids._recompute_progress_step_ids()
+        changed = self.filtered(
+            lambda onboarding: (
+                onboarding.step_ids != already_linked_steps_by_id[onboarding.id]
+            )
+        )
+        if changed:
+            changed.progress_ids._recompute_progress_step_ids()
         return res
 
     def action_close(self):
