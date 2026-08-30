@@ -47,6 +47,7 @@ class MailMessage(models.Model):
             for rating in related_rating
         }
 
+        stats_by_record = {}
         for message, values in zip(self, vals_list, strict=True):
             values["rating_id"] = message_to_rating.get(message.id, {})
 
@@ -54,9 +55,20 @@ class MailMessage(models.Model):
                 # A message not linked to any document (model=False) has no
                 # rating-enabled record to report stats for.
                 continue
-            record = self.env[message.model].browse(message.res_id)
-            if hasattr(record, "rating_get_stats"):
-                values["rating_stats"] = record.sudo().rating_get_stats()
+            record_key = (message.model, message.res_id)
+            if record_key not in stats_by_record:
+                # Several messages commonly point at the same record (e.g. a
+                # thread with many comments); compute rating_get_stats() once
+                # per record instead of once per message.
+                record = self.env[message.model].browse(message.res_id)
+                stats_by_record[record_key] = (
+                    record.sudo().rating_get_stats()
+                    if hasattr(record, "rating_get_stats")
+                    else None
+                )
+            stats = stats_by_record[record_key]
+            if stats is not None:
+                values["rating_stats"] = stats
 
         return vals_list
 
