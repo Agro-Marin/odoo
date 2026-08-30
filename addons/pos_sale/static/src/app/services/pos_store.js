@@ -15,11 +15,17 @@ patch(PosStore.prototype, {
         await this._processSaleOrder(sale_order);
     },
     async _processSaleOrder(sale_order) {
-        const currentSaleOrigin = this.getOrder()
-            .getOrderlines()
-            .find((line) => line.sale_order_origin_id)?.sale_order_origin_id;
-        if (currentSaleOrigin?.id) {
-            const linkedSO = await this._getSaleOrder(currentSaleOrigin.id);
+        // A cart can already mix lines from more than one sale order, so
+        // every distinct origin already linked must be checked against the
+        // newly selected sale order, not just the first one found.
+        const currentSaleOriginIds = new Set(
+            this.getOrder()
+                .getOrderlines()
+                .map((line) => line.sale_order_origin_id?.id)
+                .filter(Boolean),
+        );
+        for (const saleOriginId of currentSaleOriginIds) {
+            const linkedSO = await this._getSaleOrder(saleOriginId);
             if (
                 linkedSO.partner_id?.id !== sale_order.partner_id?.id ||
                 linkedSO.partner_invoice_id?.id !== sale_order.partner_invoice_id?.id ||
@@ -29,6 +35,7 @@ patch(PosStore.prototype, {
                     partner_id: sale_order.partner_id,
                 });
                 this.notification.add(_t("A new order has been created."));
+                break;
             }
         }
         if (sale_order.partner_id) {
