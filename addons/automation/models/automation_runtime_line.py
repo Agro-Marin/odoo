@@ -7,15 +7,9 @@ _logger = logging.getLogger(__name__)
 
 
 class AutomationRuntimeLine(models.Model):
-    """Execution tracking for one server action within an automation.runtime workflow instance."""
-
     _name = "automation.runtime.line"
     _description = "Automation Runtime Action Line"
     _order = "sequence, id"
-
-    # =========================================================================
-    # Core Fields
-    # =========================================================================
 
     runtime_id = fields.Many2one(
         comodel_name="automation.runtime",
@@ -61,10 +55,6 @@ class AutomationRuntimeLine(models.Model):
         help="Error message if execution failed",
     )
 
-    # =========================================================================
-    # DAG Structure
-    # =========================================================================
-
     predecessor_ids = fields.Many2many(
         comodel_name="automation.runtime.line",
         relation="automation_runtime_line_dag",
@@ -84,10 +74,6 @@ class AutomationRuntimeLine(models.Model):
         help="Completing this action enables these successors",
     )
 
-    # =========================================================================
-    # Results Tracking
-    # =========================================================================
-
     created_record_ref = fields.Reference(
         string="Created Record",
         selection="_selection_created_record_models",
@@ -95,49 +81,26 @@ class AutomationRuntimeLine(models.Model):
         help="Record created or modified by this action",
     )
 
-    # =========================================================================
-    # Selection Methods
-    # =========================================================================
-
     @api.model
     def _selection_created_record_models(self):
-        """Return the models selectable for created_record_ref."""
-        # Inheriting modules override to add their own workflow models.
         return [
             ("automation.runtime", "Workflow Runtime"),
         ]
 
-    # =========================================================================
-    # DAG Resolution
-    # =========================================================================
-
     def _predecessors_satisfied(self):
-        """Return whether every predecessor of this line has completed.
-
-        A line with no predecessors is satisfied by definition — which is what
-        makes a root node runnable, and what makes a node whose edges could not
-        be resolved runnable rather than stuck.
-        """
         self.ensure_one()
         return all(pred.state == "done" for pred in self.predecessor_ids)
 
-    # =========================================================================
-    # State Transitions
-    # =========================================================================
-
     def action_mark_ready(self):
-        """Mark action as ready to execute."""
         self.write({"state": "ready", "error_message": False})
 
     def action_cancel(self):
-        """Cancel this action and propagate to sub-workflows."""
         for line in self:
             if line.state in ["done", "cancel"]:
                 continue
 
             line.state = "cancel"
 
-            # Cancel any created sub-workflows
             if (
                 line.created_record_ref
                 and line.created_record_ref._name == "automation.runtime"
@@ -145,10 +108,8 @@ class AutomationRuntimeLine(models.Model):
                 line.created_record_ref.action_cancel()
 
     def action_mark_done(self):
-        """Mark action as done and activate successors."""
         self.write({"state": "done", "error_message": False})
 
-        # Activate ready successors
         for successor in self.successor_ids:
             if successor.state == "waiting" and successor._predecessors_satisfied():
                 successor.action_mark_ready()
@@ -158,7 +119,6 @@ class AutomationRuntimeLine(models.Model):
                     successor.id,
                 )
 
-        # Check if entire workflow is complete
         incomplete = self.runtime_id.line_ids.filtered(
             lambda l: l.state not in ["done", "cancel"],
         )
@@ -167,41 +127,17 @@ class AutomationRuntimeLine(models.Model):
             self.runtime_id.action_done()
 
     def action_mark_error(self, error_msg):
-        """Mark action as failed with error message."""
         self.write({"state": "error", "error_message": error_msg})
 
     def action_execute(self):
-        """Execute the server action for this line.
-
-        Transitions the line from 'ready' (or 'in_progress') to 'done' on
-        success, or to 'error' on failure.
-
-        A failing step is a **recorded outcome, not an exception**. The action
-        runs inside its own savepoint, so a failure rolls back whatever partial
-        writes it made — leaving the target record untouched rather than
-        half-written — and the error is then written outside that savepoint and
-        survives. The exception is deliberately not re-raised: propagating it
-        unwound the whole transaction, taking the runtime, its lines and the
-        error message with it, so the execution history this model exists to
-        provide was destroyed by exactly the failures it is meant to record.
-
-        The failure is still visible: the line ends in ``error`` carrying the
-        message, the runtime ends in ``error``, and ``action_run_all`` stops.
-
-        :return: the server action's result, ``True`` if it returned nothing,
-            or ``False`` if the step failed.
-        """
         self.ensure_one()
 
-        # Callers should not pre-set 'in_progress'; this method owns that transition.
         if self.state not in ("ready", "in_progress"):
             raise UserError(_("Action is not ready to execute"))
 
         self.write({"state": "in_progress"})
 
         try:
-            # Build execution context: use the automation's target record if set,
-            # otherwise fall back to the runtime record itself (meta-workflow mode).
             ctx = dict(self.env.context)
             runtime = self.runtime_id
             if runtime.res_model and runtime.res_id:
@@ -225,7 +161,6 @@ class AutomationRuntimeLine(models.Model):
                     }
                 )
 
-            # Execute the server action
             _logger.info(
                 "Executing action '%s' (#%d) for runtime %s",
                 self.name,
@@ -233,13 +168,9 @@ class AutomationRuntimeLine(models.Model):
                 self.runtime_id.name,
             )
 
-            # The savepoint scopes the action's own writes: if it raises, its
-            # partial work is discarded, but the error state written after the
-            # block is not.
             with self.env.cr.savepoint():
                 result = self.action_id.with_context(**ctx).run()
 
-            # Mark as done
             self.action_mark_done()
 
             _logger.info("✓ Action '%s' completed successfully", self.name)
@@ -258,16 +189,7 @@ class AutomationRuntimeLine(models.Model):
             self.runtime_id.action_error()
             return False
 
-    # =========================================================================
-    # Document Viewing
-    # =========================================================================
-
     def action_view_document(self):
-        """Open the record stored in created_record_ref.
-
-        :return: an act_window action opening the created record
-        :rtype: dict
-        """
         self.ensure_one()
 
         if not self.created_record_ref:

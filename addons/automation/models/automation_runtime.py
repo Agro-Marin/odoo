@@ -7,8 +7,6 @@ _logger = logging.getLogger(__name__)
 
 
 class AutomationRuntime(models.Model):
-    """Per-execution runtime instance tracking isolated state for a multi-step automation run."""
-
     _name = "automation.runtime"
     _description = "Automation Workflow Runtime Instance"
     _inherit = ["mixin.mail.thread", "mixin.mail.activity"]
@@ -57,7 +55,6 @@ class AutomationRuntime(models.Model):
         domain=["|", ("parent_id", "=", False), ("is_company", "=", True)],
         help="Alternative partner for specific actions in workflow",
     )
-    # Target record for general automations (non-meta-workflow use)
     res_model = fields.Char(
         string="Target Model",
         index=True,
@@ -130,19 +127,9 @@ class AutomationRuntime(models.Model):
         help="Human-readable progress display",
     )
 
-    # =========================================================================
-    # CRUD Methods
-    # =========================================================================
-
     @api.model_create_multi
     def create(self, vals_list):
-        """Generate sequence name on creation."""
         for vals in vals_list:
-            # Resolve the sequence through a *local* elevated environment.
-            # Rebinding `self` here leaked the sudo() into every later entry and
-            # into super().create() itself, so one vals carrying company_id was
-            # enough to create the whole batch as superuser — an employee with
-            # read-only access could create records by adding company_id.
             seq_env = self.sudo()
             if "company_id" in vals:
                 seq_env = seq_env.with_company(vals["company_id"])
@@ -163,17 +150,9 @@ class AutomationRuntime(models.Model):
 
         return super().create(vals_list)
 
-    # =========================================================================
-    # Computed Fields
-    # =========================================================================
-
-    # A step is "settled" once it will not run again, whatever its outcome.
-    # Counting only 'done' left a fully cancelled run reporting 0% forever, and
-    # a failed run stalled at a figure indistinguishable from one still working.
     SETTLED_LINE_STATES = ("done", "cancel", "error")
 
     def _settled_line_counts(self):
-        """Return ``{runtime_id: (settled, total)}`` for ``self``."""
         return {
             runtime.id: (
                 len(
@@ -188,7 +167,6 @@ class AutomationRuntime(models.Model):
 
     @api.depends("line_ids.state")
     def _compute_progress(self):
-        """Calculate workflow completion percentage."""
         counts = self._settled_line_counts()
         for runtime in self:
             settled, total = counts[runtime.id]
@@ -196,18 +174,12 @@ class AutomationRuntime(models.Model):
 
     @api.depends("line_ids.state")
     def _compute_progress_display(self):
-        """Calculate human-readable progress display."""
         counts = self._settled_line_counts()
         for runtime in self:
             settled, total = counts[runtime.id]
             runtime.progress_display = f"{settled}/{total} steps"
 
-    # =========================================================================
-    # Workflow Actions
-    # =========================================================================
-
     def action_start(self):
-        """Start workflow: create per-execution lines from the DAG definition."""
         self.ensure_one()
 
         if self.state != "draft":
@@ -222,23 +194,6 @@ class AutomationRuntime(models.Model):
         )
 
     def action_run_all(self):
-        """Execute ready workflow steps until the runtime settles.
-
-        Stops when the runtime leaves ``in_progress`` (completed, failed or
-        cancelled) or when no step is ready. The latter used to end silently in
-        ``in_progress`` — indistinguishable from success to every caller — so a
-        run that can no longer advance is now marked ``error`` explicitly.
-
-        A step failing mid-batch stops the rest of that batch immediately
-        (siblings with no dependency on the failed step used to keep
-        executing anyway, with real side effects, even though the run was
-        already recorded as failed) and settles every line the failure leaves
-        stranded (a successor gated on the failed step used to sit in
-        ``waiting`` forever, since leaving ``in_progress`` skips the
-        no-ready-line branch above that would otherwise have caught it).
-
-        :return: the runtime ``state`` after execution stops
-        """
         self.ensure_one()
 
         while self.state == "in_progress":
@@ -275,7 +230,6 @@ class AutomationRuntime(models.Model):
         return self.state
 
     def action_cancel(self):
-        """Cancel workflow and all pending steps."""
         self.ensure_one()
 
         if self.state in ["done", "cancel", "error"]:
@@ -288,7 +242,6 @@ class AutomationRuntime(models.Model):
         self.message_post(body=_("Workflow cancelled"), subject=_("Workflow Cancelled"))
 
     def action_done(self):
-        """Mark workflow as completed."""
         self.ensure_one()
 
         if self.state != "in_progress":
@@ -301,12 +254,6 @@ class AutomationRuntime(models.Model):
         )
 
     def action_error(self):
-        """Mark the workflow as failed.
-
-        Called when a step raises, or when no step can become ready. Failure is
-        a terminal outcome recorded on the run, not an exception that unwinds
-        it — see ``automation.runtime.line.action_execute``.
-        """
         self.ensure_one()
 
         if self.state != "in_progress":
@@ -323,7 +270,6 @@ class AutomationRuntime(models.Model):
         )
 
     def action_next_step(self):
-        """Execute the next single ready step (for manual step-by-step mode)."""
         self.ensure_one()
 
         if self.state != "in_progress":
@@ -360,18 +306,7 @@ class AutomationRuntime(models.Model):
         )
         return next_line.with_context(**context).action_execute()
 
-    # =========================================================================
-    # Internal Helpers
-    # =========================================================================
-
     def _create_action_lines(self):
-        """Create runtime.line records that mirror the automation's DAG definition.
-
-        Replicates the ``predecessor_ids`` topology from
-        ``ir.actions.server`` into isolated ``automation.runtime.line``
-        records for this execution. Root actions (no predecessors) start
-        as 'ready'; all others start as 'waiting'.
-        """
         self.ensure_one()
 
         actions = self.automation_id.action_server_ids.sorted("sequence")
@@ -383,8 +318,6 @@ class AutomationRuntime(models.Model):
                 ),
             )
 
-        # Pass 1: create all lines in 'waiting' state (one batched create, not
-        # one INSERT per node)
         lines = self.env["automation.runtime.line"].create(
             [
                 {
@@ -401,7 +334,6 @@ class AutomationRuntime(models.Model):
             zip(actions.ids, lines, strict=True)
         )
 
-        # Pass 2: wire predecessor relationships using the definition topology
         for action in actions:
             line = line_by_action[action.id]
             predecessor_line_ids = [
@@ -412,12 +344,6 @@ class AutomationRuntime(models.Model):
             if predecessor_line_ids:
                 line.predecessor_ids = [(6, 0, predecessor_line_ids)]
 
-        # Pass 3: mark as ready every line whose *resolved* predecessors are
-        # satisfied — i.e. the lines actually created for this run, not the
-        # definition's edges. Keying off the definition meant an edge dropped by
-        # pass 2 left the node 'waiting' with no predecessor to ever complete it,
-        # wedging the whole run. `_check_predecessors_scope` now prevents the
-        # edge that caused it; this makes the state unreachable either way.
         for line in line_by_action.values():
             if line._predecessors_satisfied():
                 line.state = "ready"
@@ -427,7 +353,6 @@ class AutomationRuntime(models.Model):
         )
 
     def _get_execution_context(self):
-        """Build context dict for action execution."""
         self.ensure_one()
         return {
             "default_partner_id": self.partner_id.id if self.partner_id else False,
@@ -443,12 +368,7 @@ class AutomationRuntime(models.Model):
             ),
         }
 
-    # =========================================================================
-    # Navigation Actions
-    # =========================================================================
-
     def action_view_automation(self):
-        """Open the automation workflow definition."""
         self.ensure_one()
         return {
             "name": _("Automation Workflow"),

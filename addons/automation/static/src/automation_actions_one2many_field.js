@@ -26,12 +26,8 @@ class ActionsOne2ManyField extends Component {
         this.hiddenActionsCount = 0;
     }
     async adapt() {
-        // --- Initialize ---
-        // use getBoundingClientRect to get unrounded width
-        // of the elements in order to avoid rounding issues
         const rootWidth = this.root.el.getBoundingClientRect().width;
 
-        // remove all d-none classes (needed to get the real width of the elements)
         const actionsEls = Array.from(this.root.el.children).filter((el) => el.dataset.actionId);
         actionsEls.forEach((el) => el.classList.remove("d-none"));
         const actionsTotalWidth = actionsEls.reduce(
@@ -39,21 +35,18 @@ class ActionsOne2ManyField extends Component {
             0
         );
 
-        // --- Check first overflowing action ---
         let overflowingActionId;
         if (actionsTotalWidth > rootWidth) {
-            let width = 56; // for the ellipsis
+            let width = 56;
             for (const el of actionsEls) {
                 const elWidth = el.getBoundingClientRect().width;
                 if (width + elWidth > rootWidth) {
-                    // All the remaining elements are overflowing
                     overflowingActionId = el.dataset.actionId;
                     const firstOverflowingEl = actionsEls.find(
                         (el) => el.dataset.actionId === overflowingActionId
                     );
                     const firstOverflowingIndex = actionsEls.indexOf(firstOverflowingEl);
                     const overflowingEls = actionsEls.slice(firstOverflowingIndex);
-                    // hide overflowing elements
                     overflowingEls.forEach((el) => el.classList.add("d-none"));
                     break;
                 }
@@ -61,14 +54,12 @@ class ActionsOne2ManyField extends Component {
             }
         }
 
-        // --- Final rendering ---
         const initialHiddenActionsCount = this.hiddenActionsCount;
         this.hiddenActionsCount = overflowingActionId
             ? this.currentActions.length -
               this.currentActions.findIndex((action) => action.id === overflowingActionId)
             : 0;
         if (initialHiddenActionsCount !== this.hiddenActionsCount) {
-            // Render only if hidden actions count has changed.
             return this.render();
         }
     }

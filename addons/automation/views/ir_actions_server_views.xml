@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- List view for workflow actions (used in automation form Actions tab) -->
     <record id="view_ir_actions_server_tree_workflow" model="ir.ui.view">
         <field name="name">ir.actions.server.tree.workflow</field>
         <field name="model">ir.actions.server</field>
@@ -20,7 +19,6 @@
         </field>
     </record>
 
-    <!-- Automation shortcut button on server action form -->
     <record id="view_server_action_form" model="ir.ui.view">
         <field name="name">Server Actions</field>
         <field name="model">ir.actions.server</field>
@@ -42,7 +40,6 @@
         </field>
     </record>
 
-    <!-- Dependencies page on server action form (DAG topology only, no runtime state) -->
     <record id="view_ir_actions_server_form_workflow_dag" model="ir.ui.view">
         <field name="name">ir.actions.server.form.workflow.dag</field>
         <field name="model">ir.actions.server</field>

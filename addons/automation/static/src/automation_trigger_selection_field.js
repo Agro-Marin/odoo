@@ -43,14 +43,10 @@ const OPT_GROUPS = [
 ];
 
 function computeDerivedOptions(options, fields, currentSelection, { excludeGroups = [] } = {}) {
-    // filter options to display, derived from the current value and the model fields
     const derivedOptions = [];
     for (const [value, label] of options) {
         const entry = OPT_GROUPS.find((g) => g.triggers.includes(value));
         if (!entry) {
-            // A trigger added to the Python selection but not to OPT_GROUPS above.
-            // Skipping it loses one option; destructuring undefined here used to
-            // throw and take down the whole trigger field.
             console.warn(`automation: trigger "${value}" is missing from OPT_GROUPS`);
             continue;
         }
@@ -59,14 +55,12 @@ function computeDerivedOptions(options, fields, currentSelection, { excludeGroup
             (group.key === "deprecated" && !triggers.includes(currentSelection)) ||
             excludeGroups.includes(group.key)
         ) {
-            // skip deprecated triggers if the current value is not deprecated
             continue;
         }
         const filterFn = TRIGGER_FILTERS[value];
         if (filterFn) {
             const triggerFields = fields.filter(filterFn);
             if (triggerFields.length === 0) {
-                // skip triggers that don't have any corresponding field
                 continue;
             }
         }
@@ -98,7 +92,6 @@ export class TriggerSelectionField extends SelectionField {
                 );
             }
 
-            // first, compute the derived options
             const derivedOptions = computeDerivedOptions(
                 fields[this.props.name].selection,
                 relatedModelFields,
@@ -106,7 +99,6 @@ export class TriggerSelectionField extends SelectionField {
                 { excludeGroups: data.model_is_mail_thread ? [] : ["mail"] }
             );
 
-            // then group them
             this.groupedOptions.length = 0;
             for (const option of derivedOptions) {
                 const group = this.groupedOptions.find((g) => g.key === option.group.key) ?? {

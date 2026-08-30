@@ -15,12 +15,6 @@ class AutomationRuleController(Controller):
         save_session=False,
     )
     def call_webhook_http(self, rule_uuid, **kwargs):
-        """Execute an automation webhook"""
-        # Filter on the trigger, not the UUID alone: every automation.rule gets a
-        # webhook_uuid whatever its trigger, so matching by UUID made rules the
-        # admin never published (blank, hidden `url`) executable over HTTP.
-        # limit=1 because two rules sharing a UUID would otherwise blow up on
-        # ensure_one() inside the verifier and surface as a 500.
         rule = (
             request.env["automation.rule"]
             .sudo()
@@ -35,8 +29,6 @@ class AutomationRuleController(Controller):
         if not rule:
             return request.make_json_response({"status": "error"}, status=404)
 
-        # Authenticate / rate-check before doing any work. remote_addr is the
-        # ProxyFix-corrected peer (trust X-Forwarded-For only via proxy_mode).
         ok, status, message = rule._verify_webhook_request(
             headers=dict(request.httprequest.headers),
             body=request.httprequest.get_data(as_text=False),

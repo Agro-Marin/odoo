@@ -16,26 +16,10 @@ export class AutomationErrorDialog extends RPCErrorDialog {
         this.orm = useService("orm");
     }
 
-    //--------------------------------------------------------------------------
-    // Handlers
-    //--------------------------------------------------------------------------
-
-    /**
-     * Disable the automation rule (set `active` to false).
-     *
-     * @private
-     * @param {MouseEvent} ev
-     */
     async disableAutomation(ev) {
         await this.orm.write("automation.rule", [this.automationId], { active: false });
         this.props.close();
     }
-    /**
-     * Open the automation rule form for editing.
-     *
-     * @private
-     * @param {MouseEvent} ev
-     */
     editAutomation(ev) {
         this.actionService.doAction({
             name: "Automation Rules",

@@ -43,7 +43,6 @@ function enrichContext(context, group) {
         }
     }
 
-    // Default trigger
     return { ...context, default_trigger: "on_create_or_write" };
 }
 
@@ -54,9 +53,6 @@ patch(GroupConfigMenu.prototype, {
         this.orm = useService("orm");
     },
 
-    /**
-     * @override
-     */
     get permissions() {
         const permissions = super.permissions;
         Object.defineProperty(permissions, "canEditAutomations", {

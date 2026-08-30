@@ -1,11 +1,3 @@
-"""Regression tests for the defects found in the automation audit.
-
-Each test names the behaviour that was wrong and pins the corrected one. The
-webhook cases run through a real HTTP request on purpose: the pre-existing
-webhook tests call ``_verify_webhook_request`` with a plain ``dict``, which is
-exactly why a case-sensitive header lookup survived them.
-"""
-
 import hashlib
 import hmac
 import json
@@ -50,8 +42,6 @@ class AutomationAuditCommon(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestCopyKeepsGraphLocal(AutomationAuditCommon):
-    """copy() used to leave the duplicate's edges pointing at the source."""
-
     def test_copy_remaps_predecessors_onto_the_copied_actions(self):
         source = self._automation("source")
         first = self._action(source, "first")
@@ -103,8 +93,6 @@ class TestCopyKeepsGraphLocal(AutomationAuditCommon):
 
 @tagged("post_install", "-at_install")
 class TestDagIntegrity(AutomationAuditCommon):
-    """A dependency that cannot complete used to wedge the run silently."""
-
     def test_predecessor_from_another_automation_is_rejected(self):
         other = self._automation("other")
         foreign = self._action(other, "foreign")
@@ -114,7 +102,6 @@ class TestDagIntegrity(AutomationAuditCommon):
             self._action(mine, "dependent", predecessor_ids=[Command.link(foreign.id)])
 
     def test_run_that_cannot_advance_is_marked_failed(self):
-        """No step ready and steps outstanding is a failure, not a silent stop."""
         automation = self._automation("blocked")
         first = self._action(automation, "first")
         second = self._action(
@@ -125,7 +112,6 @@ class TestDagIntegrity(AutomationAuditCommon):
         runtime = self.Runtime.create({"automation_id": automation.id})
         runtime.action_start()
 
-        # force the wedge the old _create_action_lines could produce
         line_second = runtime.line_ids.filtered(lambda l: l.action_id == second)
         line_first = runtime.line_ids.filtered(lambda l: l.action_id == first)
         line_first.action_cancel()
@@ -145,8 +131,6 @@ class TestDagIntegrity(AutomationAuditCommon):
 
 @tagged("post_install", "-at_install")
 class TestFailureIsRecorded(AutomationAuditCommon):
-    """The execution history has to survive the failures it exists to record."""
-
     def test_failed_step_leaves_the_target_record_untouched(self):
         partner = self.env["res.partner"].create({"name": "target", "ref": "before"})
         automation = self._automation("half-write")
@@ -195,8 +179,6 @@ class TestFailureIsRecorded(AutomationAuditCommon):
 
 @tagged("post_install", "-at_install")
 class TestProcessRespectsDependencies(AutomationAuditCommon):
-    """_process ordered by `sequence` alone, ignoring the declared graph."""
-
     def test_actions_run_in_dependency_order_not_sequence_order(self):
         automation = self._automation("ordered", trigger="on_create")
         first = self._action(
@@ -239,13 +221,6 @@ class TestProcessRespectsDependencies(AutomationAuditCommon):
         self.assertEqual(partner.ref, "BA")
 
     def test_recordless_webhook_respects_dependency_order_too(self):
-        """`_run_webhook_recordless` had its own copy of the sequence-only bug.
-
-        A webhook with no ``record_getter`` runs its actions with no active
-        record, through its own loop rather than `_process`. That loop used
-        plain ``sorted("sequence")``, reintroducing the exact bug this class
-        already covers for the normal path.
-        """
         automation = self._automation(
             "recordless webhook", trigger="on_webhook", webhook_uuid="test-uuid-order"
         )
@@ -277,29 +252,7 @@ class TestProcessRespectsDependencies(AutomationAuditCommon):
 
 @tagged("post_install", "-at_install")
 class TestFeedbackFlagReachesProcess(AutomationAuditCommon):
-    """`__action_feedback` was set on `records` but checked on `self` in `_process`.
-
-    `_filter_pre`/`_filter_post_export_domain` tag the *records* they return
-    with `__action_feedback` when a caller passes `feedback=True`; `_process`
-    used to check it on `self` (the automation) instead -- a different object
-    that never received the flag through any call site, making the
-    mutate-in-place recursion-guard branch unreachable.
-    """
-
     def test_process_mutates_the_shared_done_dict_in_place_under_feedback(self):
-        """`_process` must observe `__action_feedback` via `records`, not `self`.
-
-        Every caller that passes `feedback=True` to `_filter_pre`/
-        `_filter_post_export_domain` gets the flag set on the *records* those
-        methods return -- never on `self` (the automation), which is a
-        different object with an independently-managed context. Checking
-        `self.env.context` made the mutate-in-place branch unreachable through
-        any real caller. Reproduced directly here: pass in one shared
-        `automation_done` dict via context, tag only `records` with the
-        feedback flag (exactly as the real callers do), and confirm `_process`
-        mutates that same dict object rather than silently working on a copy
-        the caller's own reference never sees.
-        """
         automation = self._automation("feedback-direct", trigger="on_hand")
         self._action(automation, "noop")
         partner = self.env["res.partner"].create({"name": "feedback direct target"})
@@ -323,8 +276,6 @@ class TestFeedbackFlagReachesProcess(AutomationAuditCommon):
 
 @tagged("post_install", "-at_install")
 class TestRuleLookupCache(AutomationAuditCommon):
-    """_get_actions ran one SELECT per ORM call on every watched model."""
-
     def _count_rule_lookups(self, fn):
         seen = []
         cr = self.env.cr
@@ -388,7 +339,6 @@ class TestRuleLookupCache(AutomationAuditCommon):
         )
 
     def test_sequence_change_reorders_execution(self):
-        """The cache stores order as well as membership."""
         automation = self._automation("resequenced", trigger="on_create")
         self._action(
             automation,
@@ -417,8 +367,6 @@ class TestRuleLookupCache(AutomationAuditCommon):
 
 @tagged("post_install", "-at_install")
 class TestBookkeepingWriteIsSilent(AutomationAuditCommon):
-    """The date_automation_last stamp fired unrelated on_write rules."""
-
     def test_stamp_does_not_trigger_other_rules(self):
         lead_model = self.env["ir.model"]._get("automation.lead.thread.test")
         if not lead_model:
@@ -481,8 +429,6 @@ class TestBookkeepingWriteIsSilent(AutomationAuditCommon):
 
 @tagged("post_install", "-at_install")
 class TestRuntimeCreatePrivileges(AutomationAuditCommon):
-    """company_id in vals used to elevate the whole create to superuser."""
-
     def test_company_id_does_not_bypass_access_rights(self):
         employee = self.env["res.users"].create(
             {
@@ -521,8 +467,6 @@ class TestRuntimeCreatePrivileges(AutomationAuditCommon):
 
 @tagged("post_install", "-at_install")
 class TestRuntimeVisibility(AutomationAuditCommon):
-    """Runs of every company were readable by every employee."""
-
     def test_other_company_runs_are_not_readable(self):
         automation = self._automation("multico")
         other_company = self.env["res.company"].create({"name": "audit other co"})
@@ -551,8 +495,6 @@ class TestRuntimeVisibility(AutomationAuditCommon):
 
 @tagged("post_install", "-at_install")
 class TestProgressReflectsOutcome(AutomationAuditCommon):
-    """A settled run reported 0% forever."""
-
     def test_cancelled_run_reads_as_complete(self):
         automation = self._automation("cancelled")
         first = self._action(automation, "first")
@@ -578,8 +520,6 @@ class TestProgressReflectsOutcome(AutomationAuditCommon):
 
 @tagged("post_install", "-at_install")
 class TestConstraintMessages(AutomationAuditCommon):
-    """The model-mismatch constraint crashed inside its own error path."""
-
     def test_multi_record_validation_reports_instead_of_crashing(self):
         good = self._automation("good")
         bad = self._automation("bad")
@@ -604,8 +544,6 @@ class TestConstraintMessages(AutomationAuditCommon):
 
 @tagged("post_install", "-at_install")
 class TestWebhookOverHttp(HttpCase):
-    """These must go through a real request; a dict-based call misses the bugs."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -758,13 +696,6 @@ class TestWebhookOverHttp(HttpCase):
 
 @tagged("post_install", "-at_install")
 class TestFirstRunIsAnnounced(AutomationAuditCommon):
-    """An unscoped first run sweeps the whole history — it must say so.
-
-    The behaviour itself is deliberate and upstream-tested (a new rule catches
-    the existing backlog), so it is not changed here; it is made visible, and
-    `last_run` was made settable so the first run can be scoped.
-    """
-
     def test_first_run_warns_and_names_the_volume(self):
         model = self.env["ir.model"]._get("res.partner")
         automation = self.Automation.create(
@@ -779,9 +710,6 @@ class TestFirstRunIsAnnounced(AutomationAuditCommon):
         self._action(automation, "noop")
         self.assertFalse(automation.last_run, "precondition: unscoped")
 
-        # A record old enough to fall inside the window. Without this the rule
-        # matches nothing on a fresh database and the warning correctly stays
-        # silent — the point is that it fires when there IS a backlog.
         old = self.env["res.partner"].create({"name": "predates the rule"})
         self.env.cr.execute(
             "UPDATE res_partner SET create_date = now() - interval '400 days' "
@@ -794,9 +722,6 @@ class TestFirstRunIsAnnounced(AutomationAuditCommon):
             "precondition: the rule must have a backlog to sweep",
         )
 
-        # _cron_process_time_based_actions calls _commit_progress, which commits
-        # the cursor — illegal inside a test transaction (same reason
-        # test_triggers._run_cron patches it).
         IrCron = type(self.env["ir.cron"])
         with (
             patch.object(IrCron, "_commit_progress", return_value=float("inf")),

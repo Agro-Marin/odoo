@@ -1,25 +1,3 @@
-"""Drop cross-automation DAG edges before the constraint that forbids them (1.1).
-
-``ir.actions.server._check_predecessors_scope`` now rejects a ``predecessor_ids``
-entry whose ``automation_rule_id`` differs from the action's own. Such an edge was
-previously accepted and then silently discarded when the run was built, which left
-the dependent step ``waiting`` with nothing that could ever complete it — the run
-wedged in ``in_progress`` forever, with no error and nothing executed.
-
-Any database carrying one of those edges would fail to upgrade, because the
-constraint is validated against existing rows. They never did anything except
-break the run they appeared in, so they are deleted rather than migrated, and each
-one is logged so the administrator can see which automations were affected.
-
-Idempotent: after the delete there is nothing left to match.
-
-This script speaks the post-rename schema on purpose. ``base`` renames
-``base_automation`` to ``automation_rule`` in its own pre-migration, and ``base``
-is the first module the loader reaches -- so by the time this runs, on any
-database old enough to need it, the table and column already carry the new
-names. Leaving the old spellings here would make it fail loudly on ``UndefinedColumn``.
-"""
-
 import logging
 
 _logger = logging.getLogger(__name__)

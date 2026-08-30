@@ -16,45 +16,15 @@ from odoo.tools import safe_eval
 
 _logger = logging.getLogger(__name__)
 
-# ============================================================================
-# CRON INTERVAL CONFIGURATION
-# ============================================================================
 
 CRON_INTERVAL_TOLERANCE_PERCENT = 0.10
-"""Tolerance percentage for cron interval adjustments (10%).
 
-When calculating the optimal cron interval based on automation delays,
-we use 10% of the minimum delay to ensure the cron runs frequently
-enough to catch all time-based automations without excessive overhead.
-
-Example: If minimum delay is 100 minutes, cron runs every 10 minutes.
-"""
-
-DEFAULT_CRON_INTERVAL_MINUTES = 4 * 60  # 4 hours = 240 minutes
-"""Default cron check interval when no time-based automations exist.
-
-This conservative default balances system resources with responsiveness.
-When no automations are configured, the cron still runs periodically to
-check for newly created automations.
-"""
+DEFAULT_CRON_INTERVAL_MINUTES = 4 * 60
 
 MIN_CRON_INTERVAL_MINUTES = 1
-"""Minimum allowed cron check interval (1 minute).
 
-Prevents the cron from running too frequently, which could cause
-performance issues with excessive automation checks.
-"""
+MAX_CRON_INTERVAL_MINUTES = 4 * 60
 
-MAX_CRON_INTERVAL_MINUTES = 4 * 60  # 4 hours = 240 minutes
-"""Maximum cron check interval to prevent excessive delays.
-
-Even with very long automation delays (e.g., monthly), the cron runs
-at least every 4 hours to maintain reasonable responsiveness.
-"""
-
-# ============================================================================
-# DATE/TIME CALCULATIONS
-# ============================================================================
 
 MONTH_APPROXIMATION_DAYS = 30
 """Approximation of days per month for non-calendar timedelta calculations.
@@ -89,10 +59,6 @@ def _get_domain_fields(env, model, domain):
     if not domain:
         return IrModelFields
     fields = IrModelFields
-    # wondering why we use a regex instead of safe_eval?
-    # because this method is called on a compute method hence could be triggered
-    # from an onchange call (i.e. a manually crafted malicious one)
-    # see: https://github.com/odoo/odoo/pull/189772#issuecomment-2548804283
     for match in DOMAIN_FIELDS_RE.finditer(domain):
         if field := match.groupdict().get("field"):
             fields |= IrModelFields._get(model, field)
@@ -180,20 +146,13 @@ def get_webhook_request_payload():
 
 
 class AutomationRule(models.Model):
-    """Rule that triggers server actions on a model event, a schedule, or a webhook."""
-
     _name = "automation.rule"
     _inherit = ["mixin.mail.thread", "mixin.mail.activity", "mixin.inbound.gate"]
     _description = "Automation Rule"
     _order = "sequence, id"
 
-    # which fields have an impact on the registry and the cron
     CRITICAL_FIELDS = ["model_id", "active", "trigger", "on_change_field_ids"]
     RANGE_FIELDS = ["trg_date_range", "trg_date_range_type"]
-
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
 
     sequence = fields.Integer(
         default=10,
@@ -286,27 +245,6 @@ class AutomationRule(models.Model):
         default=False,
     )
 
-    # ------------------------------------------------------------------
-    # Webhook security (absorbed from the agromarin api_webhook module, then
-    # onto the shared gate by ADR-0017).
-    #
-    # The bare /web/hook/<uuid> endpoint authenticates only by the unguessable
-    # UUID; the `mixin.inbound.gate` fields add real request authentication and
-    # abuse protection. Eleven `webhook_`-prefixed fields used to be declared
-    # here, spelling the same things `api.endpoint.inbound` spelled without the
-    # prefix -- one vocabulary for a rule and another for a record, and with
-    # them two implementations of one security check. The second copy is what
-    # produced the 100-calls-an-hour ceiling on authenticated webhooks; see the
-    # record.
-    #
-    # What stays here is only what the gate deliberately does NOT model: the
-    # defaults, which differ because a rule's endpoint is published open and a
-    # device's is not.
-    # ------------------------------------------------------------------
-
-    # `none`, not the gate's `bearer`: a webhook rule has always been publishable
-    # without a credential, and every rule created after the upgrade must keep
-    # behaving the way the ones created before it do.
     auth_type = fields.Selection(
         default="none",
         string="Webhook Authentication",
@@ -317,8 +255,6 @@ class AutomationRule(models.Model):
         string="Webhook Secret",
         help="Credential holding the shared secret / token used to verify calls.",
     )
-    # Off by default, for the same reason: the gate defaults it on because a
-    # device endpoint is provisioned deliberately, while a webhook rule is not.
     rate_limit_enabled = fields.Boolean(string="Rate Limit", default=False)
     rate_limit_requests = fields.Integer(
         string="Requests / Window",
@@ -346,7 +282,7 @@ class AutomationRule(models.Model):
             ("on_unlink", "On deletion"),
             ("on_user_set", "User is set"),
             ("on_webhook", "On webhook"),
-            ("on_write", "On update"),  # deprecated, use 'on_create_or_write' instead
+            ("on_write", "On update"),
         ],
         string="Trigger",
         required=True,
@@ -443,15 +379,9 @@ class AutomationRule(models.Model):
         "If empty, all fields are watched.",
     )
 
-    # ------------------------------------------------------------
-    # CONSTRAINT METHODS
-    # ------------------------------------------------------------
-
     @api.constrains("model_id", "action_server_ids")
     def _check_action_server_model(self):
         for automation in self:
-            # Allow cross-model actions when automation targets automation.rule itself
-            # This enables meta-workflows that orchestrate other automations
             if automation.model_name == "automation.rule":
                 continue
 
@@ -565,27 +495,19 @@ class AutomationRule(models.Model):
                     ),
                 )
 
-    # ------------------------------------------------------------
-    # CRUD METHODS
-    # ------------------------------------------------------------
-
     @api.model_create_multi
     def create(self, vals_list):
         automation_rules = super().create(vals_list)
-        self.env.registry.clear_cache()  # _get_automation_ids
+        self.env.registry.clear_cache()
         self._update_cron()
         self._update_registry()
         if automation_rules._has_trigger_onchange():
-            # Invalidate templates cache to update on_change attributes if needed
             self.env.registry.clear_cache("templates")
         return automation_rules
 
     def write(self, vals: dict):
         clear_templates = self._has_trigger_onchange()
         res = super().write(vals)
-        # unconditional: _get_automation_ids caches membership *and* order, so a
-        # bare `sequence` or `active` edit changes its answer just as much as a
-        # CRITICAL_FIELDS one does
         self.env.registry.clear_cache()
         if set(vals).intersection(self.CRITICAL_FIELDS):
             if "model_id" in vals:
@@ -593,7 +515,6 @@ class AutomationRule(models.Model):
             self._update_cron()
             self._update_registry()
             if clear_templates or self._has_trigger_onchange():
-                # Invalidate templates cache to update on_change attributes if needed
                 self.env.registry.clear_cache("templates")
         elif set(vals).intersection(self.RANGE_FIELDS):
             self._update_cron()
@@ -603,31 +524,20 @@ class AutomationRule(models.Model):
     def unlink(self):
         clear_templates = self._has_trigger_onchange()
         res = super().unlink()
-        self.env.registry.clear_cache()  # _get_automation_ids
+        self.env.registry.clear_cache()
         self._update_cron()
         self._update_registry()
         if clear_templates:
-            # Invalidate templates cache to update on_change attributes if needed
             self.env.registry.clear_cache("templates")
         return res
 
     def copy(self, default=None):
-        """Copy each automation together with its own actions and DAG topology.
-
-        ``action_server_ids`` carries ``copy=False``, so the actions have to be
-        duplicated here. They are copied *per automation* and their
-        ``predecessor_ids`` are remapped onto the newly created actions:
-        copying them wholesale would leave the duplicate's graph pointing at
-        the source automation's nodes (and add the duplicate's nodes to the
-        source's ``successor_ids``, since it is the same many2many table).
-        """
         new_automations = super().copy(default)
         for old_automation, new_automation in zip(self, new_automations, strict=True):
             old_automation._copy_actions_to(new_automation)
         return new_automations
 
     def _copy_actions_to(self, target):
-        """Duplicate ``self``'s actions onto ``target``, remapping the DAG edges."""
         self.ensure_one()
         target.ensure_one()
         new_by_old = {}
@@ -639,8 +549,6 @@ class AutomationRule(models.Model):
                 }
             )
         for action in self.action_server_ids:
-            # keep only edges internal to the copied set; a predecessor from
-            # another automation cannot exist (see _check_predecessors_scope)
             remapped = [
                 new_by_old[pred.id].id
                 for pred in action.predecessor_ids
@@ -648,10 +556,6 @@ class AutomationRule(models.Model):
             ]
             if remapped:
                 new_by_old[action.id].predecessor_ids = [fields.Command.set(remapped)]
-
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
 
     @api.depends("trigger", "webhook_uuid")
     def _compute_url(self):
@@ -672,11 +576,6 @@ class AutomationRule(models.Model):
         self.trigger = False
 
     def _clean_action_server_ids(self):
-        """Remove actions whose model no longer matches this automation's model.
-
-        Called from write() when model_id changes. Skipped for automations
-        targeting automation.rule itself (meta-workflows allow cross-model actions).
-        """
         for automation in self.filtered("model_id"):
             if automation.model_name == "automation.rule":
                 continue
@@ -713,9 +612,6 @@ class AutomationRule(models.Model):
                 continue
             if not record.trg_date_range_type:
                 record.trg_date_range_type = "hour"
-            # note: `trigger != "on_time"`, not `not in "on_time"` — the latter is
-            # a substring test that happens to agree for today's three TIME_TRIGGERS
-            # and would silently flip for any future name contained in "on_time"
             if not record.trg_date_range_mode or record.trigger != "on_time":
                 record.trg_date_range_mode = "after"
 
@@ -746,8 +642,6 @@ class AutomationRule(models.Model):
                 and a.trg_field_ref is not False
             ),
         )
-        # wondering why we check based on 'is not'? Because the ref could be an empty recordset
-        # and we still need to introspec on the model in that case - not just ignore it
         to_reset = self - to_compute
         to_reset.trg_field_ref_model_name = False
         for automation in to_compute:
@@ -780,7 +674,6 @@ class AutomationRule(models.Model):
                 automation.filter_domain = False
                 continue
 
-            # some triggers require a domain
             match automation.trigger:
                 case "on_state_set" | "on_priority_set":
                     value = automation.trg_selection_field_id.value
@@ -819,10 +712,6 @@ class AutomationRule(models.Model):
                 continue
             automation._onchange_trigger()
 
-    # ------------------------------------------------------------
-    # ONCHANGE METHODS
-    # ------------------------------------------------------------
-
     @api.onchange("trigger")
     def _onchange_trigger(self):
         self.ensure_one()
@@ -835,7 +724,6 @@ class AutomationRule(models.Model):
 
     @api.onchange("trigger", "action_server_ids")
     def _onchange_trigger_or_actions(self):
-        # Validation for on_change trigger
         no_code_actions = self.action_server_ids.filtered(lambda a: a.state != "code")
         if self.trigger == "on_change" and len(no_code_actions) > 0:
             trigger_field = self._fields["trigger"]
@@ -859,9 +747,6 @@ class AutomationRule(models.Model):
                 },
             }
 
-        # The set is contributed by whatever modules are installed -- mail, sms
-        # and whatsapp add theirs, base adds its own -- so the message names the
-        # actions it found rather than describing one module's idea of them.
         doomed = self.action_server_ids.filtered(
             lambda action: action._needs_a_live_record()
         )
@@ -907,10 +792,6 @@ class AutomationRule(models.Model):
             self.trigger_field_ids |= added_fields
         self.previous_domain = self.filter_domain
 
-    # ------------------------------------------------------------
-    # ACTION METHODS
-    # ------------------------------------------------------------
-
     def action_view_scheduled_action(self):
         cron = self.env.ref(
             "automation.ir_cron_data_automation_check",
@@ -951,15 +832,6 @@ class AutomationRule(models.Model):
         }
 
     def action_manual_trigger(self):
-        """Manually trigger automation on active records.
-
-        For automations with DAG structure (actions that have ``predecessor_ids``
-        defined), creates an ``automation.runtime`` instance per record to track
-        isolated per-execution step state and runs all steps to completion.
-
-        For simple automations (no DAG), processes records directly via
-        ``_process()``.
-        """
         self.ensure_one()
 
         if self.trigger != "on_hand":
@@ -1023,8 +895,6 @@ class AutomationRule(models.Model):
                 },
             }
 
-        # Use automation.runtime for DAG-based automations (any action has predecessors),
-        # fall back to direct _process() for simple single-step automations.
         has_dag = any(action.predecessor_ids for action in self.action_server_ids)
 
         if has_dag:
@@ -1076,10 +946,6 @@ class AutomationRule(models.Model):
             self._add_postmortem(e)
             raise
 
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
-
     @api.model
     def _add_postmortem(self, e):
         if self.env.user._is_internal():
@@ -1092,11 +958,9 @@ class AutomationRule(models.Model):
 
     @api.model
     def _cron_process_time_based_actions(self):
-        """Execute the time-based automations."""
         if "__action_done" not in self.env.context:
             self = self.with_context(__action_done={})
 
-        # retrieve all the automation rules to run based on a timed condition
         final_exception = None
         automations = self.with_context(active_test=True).search(
             [("trigger", "in", TIME_TRIGGERS)],
@@ -1104,7 +968,6 @@ class AutomationRule(models.Model):
 
         for automation in automations:
             automation = automation.with_prefetch()
-            # is automation deactivated or disappeared between commits?
             try:
                 if not automation.active:
                     continue
@@ -1115,11 +978,6 @@ class AutomationRule(models.Model):
             first_run = not automation.last_run
             records = automation._search_time_based_automation_records(until=now)
             if first_run and records:
-                # With no last_run the window opens at the epoch, so this pass
-                # sweeps the whole history in one go. That is the documented
-                # behaviour (a new rule catches the existing backlog), but on a
-                # populated database it can mean thousands of records and any
-                # mail/activity actions that go with them — say so before doing it.
                 _logger.warning(
                     "Automation rule `%s` has no 'Process Records From' date: its "
                     "first run covers the entire history and will process %s "
@@ -1127,7 +985,6 @@ class AutomationRule(models.Model):
                     automation.name,
                     len(records),
                 )
-            # run the automation on the records
             try:
                 for record in records:
                     automation._process(record)
@@ -1145,50 +1002,21 @@ class AutomationRule(models.Model):
             _logger.info("Time-based automation rule `%s` done.", automation.name)
             self.env["ir.cron"]._commit_progress()
         if final_exception is not None:
-            # raise the last found exception to mark the cron job as failing
             raise final_exception
 
     def _verify_webhook_request(self, headers, body, remote_addr):
-        """Authenticate and rate-check an incoming webhook call.
-
-        Returns ``(ok, status_code, message)``. Called by the ``/web/hook``
-        controller before the automation runs. Every check is opt-in through the
-        gate's fields; with the defaults this is a no-op and the endpoint keeps
-        its historical UUID-only behaviour.
-
-        The checks are `mixin.inbound.gate._check_inbound_request` (ADR-0017),
-        the same ones every other inbound mechanism in the fork runs. This method
-        stays as the name the controller and the tests already call.
-
-        The ordering argument this used to carry lives with the gate now, and it
-        won: authentication still happens before the endpoint quota is spent, so
-        nobody holding only the URL can lock the real sender out. What is new is
-        a caller-keyed allowance spent BEFORE authentication, which is what the
-        other mechanism's "cheap refusals come first" was protecting.
-        """
         self.ensure_one()
         return self._check_inbound_request(headers, body=body, remote_addr=remote_addr)
 
     def _webhook_ip_allowed(self, remote_addr):
-        """Deprecated: the gate's `is_ip_allowed`. Kept for overrides."""
         return self.is_ip_allowed(remote_addr)
 
     def _webhook_rate_ok(self):
-        """Deprecated: the gate's `check_rate_limit`. Kept for overrides."""
         return self.check_rate_limit()
 
     def _execute_webhook(self, payload):
-        """Execute the webhook for the given payload.
-        The payload is a dictionnary that can be used by the `record_getter` to
-        identify the record on which the automation should be run.
-        """
         self.ensure_one()
 
-        # Every automation carries a webhook_uuid, whatever its trigger, so the
-        # UUID alone must not be enough to run one over HTTP: a rule the admin
-        # never published (its `url` is blank and hidden in the form) would
-        # otherwise be remotely executable. The controller filters on the
-        # trigger too; this is the belt to that pair of braces.
         if self.trigger != "on_webhook":
             _logger.warning(
                 "Webhook #%s refused: rule trigger is %r, not 'on_webhook'.",
@@ -1201,7 +1029,6 @@ class AutomationRule(models.Model):
 
         ir_logging_sudo = self.env["ir.logging"].sudo()
 
-        # info logging is done by the ir.http logger
         msg = "Webhook #%s triggered with payload %s"
         msg_args = (self.id, payload)
         _logger.debug(msg, *msg_args)
@@ -1229,9 +1056,6 @@ class AutomationRule(models.Model):
                 raise
 
         if not record.exists() and self.record_getter:
-            # A configured record_getter that resolves to nothing is a real
-            # misconfiguration. With no record_getter the rule runs record-less
-            # (create-from-payload receivers) — see _run_webhook_recordless.
             msg = "Webhook #%s could not be triggered because no record to run it on was found."
             msg_args = (self.id,)
             _logger.warning(msg, *msg_args)
@@ -1244,10 +1068,6 @@ class AutomationRule(models.Model):
             )
 
         try:
-            # Carry the payload on the context for BOTH paths, so a code action
-            # can read `payload` however the webhook was invoked — over HTTP or
-            # by a direct _execute_webhook() call. See
-            # ir.actions.server._get_eval_context.
             if record:
                 return self.with_context(webhook_payload=payload)._process(record)
             return self._run_webhook_recordless(payload)
@@ -1262,13 +1082,6 @@ class AutomationRule(models.Model):
             raise
 
     def _run_webhook_recordless(self, payload):
-        """Run an on_webhook rule that has no record_getter.
-
-        The classic on_webhook flow acts on a record resolved from the payload.
-        A rule with no record_getter is a "create-from-payload" receiver: its
-        server actions run once with no active record and the parsed body
-        exposed as ``env.context['webhook_payload']``.
-        """
         self.ensure_one()
         for action in self.sudo().action_server_ids._sorted_by_dependency():
             action.with_context(
@@ -1280,30 +1093,14 @@ class AutomationRule(models.Model):
         return True
 
     def _filter_pre(self, records, feedback=False):
-        """Filter ``records`` that satisfy the automation's pre-condition (``filter_pre_domain``).
-
-        The pre-condition is evaluated (via ``safe_eval``, under ``sudo()``) on
-        the record state before the update.
-
-        :param records: recordset to filter against the pre-condition.
-        :param feedback: set the ``__action_feedback`` context flag to detect
-            recursive automation execution during domain evaluation.
-        :return: records matching ``filter_pre_domain``, or ``records`` unchanged
-            when no pre-condition is configured.
-        """
         self_sudo = self.sudo()
         if self_sudo.filter_pre_domain and records:
             if feedback:
-                # this context flag enables to detect the executions of
-                # automations while evaluating their precondition
                 records = records.with_context(__action_feedback=True)
             domain = safe_eval.safe_eval(
                 self_sudo.filter_pre_domain,
                 self._get_eval_context(),
             )
-            # keep computed fields depending on the currently changed field
-            # as-is so they are recomputed after the value is set
-            # see `test_computation_sequence`
             changed_fields = self.env.context.get("changed_fields", ())
             to_compute = {
                 dep: comp
@@ -1322,27 +1119,12 @@ class AutomationRule(models.Model):
         return records
 
     def _filter_post(self, records, feedback=False):
-        """Filter ``records`` that satisfy the automation's post-condition (``filter_domain``).
-
-        The post-condition is evaluated after a record event (create/write/unlink).
-        Convenience wrapper around :meth:`_filter_post_export_domain` returning only
-        the filtered records, without the domain.
-
-        :param records: recordset to filter against the post-condition.
-        :param feedback: set the ``__action_feedback`` context flag to detect
-            recursive automation execution during domain evaluation.
-        :return: records matching ``filter_domain``, or ``records`` unchanged when
-            no post-condition is configured.
-        """
         return self._filter_post_export_domain(records, feedback)[0]
 
     def _filter_post_export_domain(self, records, feedback=False):
-        """Filter the records that satisfy the postcondition of automation ``self``."""
         self_sudo = self.sudo()
         if self_sudo.filter_domain and records:
             if feedback:
-                # this context flag enables to detect the executions of
-                # automations while evaluating their postcondition
                 records = records.with_context(__action_feedback=True)
             domain = safe_eval.safe_eval(
                 self_sudo.filter_domain,
@@ -1353,19 +1135,6 @@ class AutomationRule(models.Model):
             return records, None
 
     def _get_actions(self, records, triggers):
-        """Return active automation rules matching ``triggers`` for ``records``' model.
-
-        Initializes the ``__action_done`` context (mapping automation to already
-        processed records) to prevent infinite recursion when automations trigger
-        other automations. Searches under ``sudo()`` and returns the rules in the
-        caller's environment.
-
-        :param records: recordset whose model name (``_name``) selects the rules.
-        :param triggers: trigger strings to match, e.g. ``['on_create', 'on_write']``.
-        :return: active ``automation.rule`` recordset.
-        """
-        # Note: we keep the old action naming for the method and context variable
-        # to avoid breaking existing code/downstream modules
         if "__action_done" not in self.env.context:
             self = self.with_context(__action_done={})
         ids = self._get_automation_ids(records._name, tuple(triggers))
@@ -1374,26 +1143,6 @@ class AutomationRule(models.Model):
     @api.model
     @tools.ormcache("model_name", "triggers")
     def _get_automation_ids(self, model_name, triggers):
-        """Return the ids of active rules on ``model_name`` matching ``triggers``.
-
-        This runs on every patched ``create``/``write``/``unlink``/
-        ``message_post``/``_compute_field_value``, i.e. once per ORM call on any
-        model carrying a rule — before we know whether a rule even applies. It
-        was measured as exactly one extra SELECT per call (50 record-at-a-time
-        writes went from 1 query to 51), all returning the same rows, so it is
-        cached.
-
-        Correctness rests on every mutation of the answer going through this
-        model's ``create``/``write``/``unlink``, which clear the cache. The order
-        matters as much as the membership — ``_order`` is ``sequence, id`` and
-        rules execute in that order — so a plain ``sequence`` edit invalidates
-        too, which is why those three methods clear unconditionally rather than
-        only on :attr:`CRITICAL_FIELDS`.
-
-        :param model_name: ``_name`` of the model the event fired on.
-        :param triggers: tuple of trigger strings (tuple, not list: cache key).
-        :return: tuple of ``automation.rule`` ids, in execution order.
-        """
         domain = [("model_name", "=", model_name), ("trigger", "in", list(triggers))]
         return tuple(
             self.with_context(active_test=True).sudo().search(domain).ids,
@@ -1404,7 +1153,6 @@ class AutomationRule(models.Model):
         return automation.trg_date_calendar_id
 
     def _get_cron_interval(self, automations=None):
-        """Return the expected time interval used by the cron, in minutes or hours."""
 
         def get_delay(rec):
             return abs(rec.trg_date_range) * DATE_RANGE_FACTOR[rec.trg_date_range_type]
@@ -1414,10 +1162,8 @@ class AutomationRule(models.Model):
                 [("trigger", "in", TIME_TRIGGERS)],
             )
 
-        # Calculate interval based on minimum delay with tolerance, respecting min/max bounds
         delays = [d for d in automations.mapped(get_delay) if d]
         if delays:
-            # Use tolerance percentage of minimum delay to determine cron frequency
             tolerance_interval = int(min(delays) * CRON_INTERVAL_TOLERANCE_PERCENT)
             interval = min(
                 max(MIN_CRON_INTERVAL_MINUTES, tolerance_interval),
@@ -1426,7 +1172,6 @@ class AutomationRule(models.Model):
         else:
             interval = DEFAULT_CRON_INTERVAL_MINUTES
 
-        # Convert to hours if interval is a multiple of 60 minutes
         interval_type = "minutes"
         if interval % 60 == 0:
             interval //= 60
@@ -1434,9 +1179,6 @@ class AutomationRule(models.Model):
         return interval, interval_type
 
     def _get_eval_context(self, payload=None):
-        """Prepare the context used when evaluating python code
-        :return: dict -- evaluation context given to safe_eval
-        """
         self.ensure_one()
         model = self.env[self.model_name]
         eval_context = {
@@ -1524,26 +1266,13 @@ class AutomationRule(models.Model):
         return defaults
 
     def _process(self, records, domain_post=None):
-        """Process automation ``self`` on the ``records`` that have not been done yet."""
-        # filter out the records on which self has already been done
         automation_done = self.env.context.get("__action_done", {})
         records_done = automation_done.get(self, records.browse())
         records -= records_done
         if not records:
             return
 
-        # mark the remaining records as done (to avoid recursive processing)
-        #
-        # `_filter_pre`/`_filter_post_export_domain` set `__action_feedback` on
-        # the `records` they return, not on `self` -- checking `self.env.context`
-        # here made this branch unreachable through any caller, since `self`
-        # (the automation) and `records` are different objects with independent
-        # contexts. Checking `records` is what actually observes the flag every
-        # current caller sets.
         if records.env.context.get("__action_feedback"):
-            # modify the context dict in place: this is useful when fields are
-            # computed during the pre/post filtering, in order to know which
-            # automations have already been run by the computation itself
             automation_done[self] = records_done + records
         else:
             automation_done = dict(automation_done)
@@ -1551,30 +1280,16 @@ class AutomationRule(models.Model):
             self = self.with_context(__action_done=automation_done)
             records = records.with_context(__action_done=automation_done)
 
-        # we process the automation on the records for which any watched field
-        # has been modified, and only mark the automation as done for those
         records = records.filtered(self._check_trigger_fields)
         automation_done[self] = records_done + records
         if not records:
-            # nothing the rule watches was touched; everything below reads
-            # `records`, and the batch context reads `records[0]`
             return
 
         if "date_automation_last" in records._fields:
-            # Bookkeeping, not a business update: without the flag this write
-            # re-enters the patched write() and fires *other* rules on the same
-            # model (an on_write rule with no field filter has no reason to be
-            # excluded by __action_done, which only guards the rule running now).
             records.with_context(
                 __automation_bookkeeping=True,
             ).date_automation_last = self.env.cr.now()
 
-        # prepare the contexts for server actions. An action whose runner takes
-        # `active_ids` as a set runs once for the whole batch; the rest run once
-        # per record, because their runners -- and the `record` a user writes in
-        # a `code` action -- read `active_id` and mean one record by it. Sending
-        # one mail per record through a runner built to send them together cost
-        # a composer, a template render and a `message_post` each.
         batch_context = {
             "active_model": records._name,
             "active_ids": records.ids,
@@ -1591,10 +1306,6 @@ class AutomationRule(models.Model):
             for record in records
         ]
 
-        # Execute the actions in an order that satisfies the declared DAG, using
-        # `sequence` both as the tie-break and as the order within a level. Plain
-        # `sorted("sequence")` ignored predecessor_ids entirely, so an action
-        # could run before the action it declares it waits for.
         for action in self.sudo().action_server_ids._sorted_by_dependency():
             action_contexts = [batch_context] if action._is_batchable() else contexts
             for ctx in action_contexts:
@@ -1605,45 +1316,18 @@ class AutomationRule(models.Model):
                     raise
 
     def _register_hook(self):
-        """Patch CRUD/message/onchange methods of models that have automation rules.
-
-        For each rule, wraps the relevant method on its model so the event runs
-        the rule (retrieve applicable rules, call the original, evaluate pre/post
-        filters, execute actions on matching records). Patched:
-
-        - ``create``: ``on_create``/``on_create_or_write`` triggers
-        - ``write`` and ``_compute_field_value``: write-family triggers
-        - ``unlink``: ``on_unlink`` trigger
-        - ``message_post``: ``on_message_received``/``on_message_sent`` triggers
-        - onchange methods: ``on_change`` trigger (per watched field)
-
-        Patches are per-model (via a stored ``origin``) and are refreshed by
-        :meth:`_update_registry` / :meth:`_unregister_hook`.
-        """
-        #
-        # Note: the patched methods must be defined inside another function,
-        # otherwise their closure may be wrong. For instance, the function
-        # create refers to the outer variable 'create', which you expect to be
-        # bound to create itself. But that expectation is wrong if create is
-        # defined inside a loop; in that case, the variable 'create' is bound to
-        # the last function defined by the loop.
-        #
 
         def make_create():
-            """Instanciate a create method that processes automation rules."""
 
             @api.model_create_multi
             def create(self, vals_list, **kw):
-                # retrieve the automation rules to possibly execute
                 automations = self.env["automation.rule"]._get_actions(
                     self,
                     CREATE_TRIGGERS,
                 )
                 if not automations:
                     return create.origin(self, vals_list, **kw)
-                # call original method
                 records = create.origin(self.with_env(automations.env), vals_list, **kw)
-                # check postconditions, and execute actions on the records that satisfy them
                 for automation in automations.with_context(old_values=None):
                     _logger.debug(
                         "Processing automation rule %s (#%s) on %s records (create)",
@@ -1657,14 +1341,10 @@ class AutomationRule(models.Model):
             return create
 
         def make_write():
-            """Instanciate a write method that processes automation rules."""
 
             def write(self, vals, **kw):
-                # `_process` stamps date_automation_last as bookkeeping; that is
-                # not a business update and must not trigger anyone's rules
                 if self.env.context.get("__automation_bookkeeping"):
                     return write.origin(self, vals, **kw)
-                # retrieve the automation rules to possibly execute
                 automations = self.env["automation.rule"]._get_actions(
                     self,
                     WRITE_TRIGGERS,
@@ -1672,9 +1352,7 @@ class AutomationRule(models.Model):
                 if not (automations and self):
                     return write.origin(self, vals, **kw)
                 records = self.with_env(automations.env).filtered("id")
-                # check preconditions on records
                 pre = {a: a._filter_pre(records) for a in automations}
-                # read old values before the update
                 old_values = {
                     record.id: {
                         field_name: record[field_name]
@@ -1684,9 +1362,7 @@ class AutomationRule(models.Model):
                     }
                     for record in records
                 }
-                # call original method
                 write.origin(self.with_env(automations.env), vals, **kw)
-                # check postconditions, and execute actions on the records that satisfy them
                 for automation in automations.with_context(old_values=old_values):
                     _logger.debug(
                         "Processing automation rule %s (#%s) on %s records (write)",
@@ -1704,29 +1380,17 @@ class AutomationRule(models.Model):
             return write
 
         def make_compute_field_value():
-            """Instanciate a compute_field_value method that processes automation rules."""
 
-            #
-            # Note: This is to catch updates made by field recomputations.
-            #
             def _compute_field_value(self, field, validate=True):
-                # determine fields that may trigger an automation
                 stored_fnames = [
                     f.name for f in self.pool.field_computed[field] if f.store
                 ]
                 if not stored_fnames:
                     return _compute_field_value.origin(self, field, validate=validate)
-                # retrieve the action rules to possibly execute
                 automations = self.env["automation.rule"]._get_actions(
                     self,
                     WRITE_TRIGGERS,
                 )
-                # Only a recomputation of a field the automation explicitly
-                # watches counts as an "update" for it. Rules with no watched
-                # field (or watching other fields) are driven by the write()
-                # patch on real writes, not by internal recomputation — filtering
-                # here also stops on_write rules from firing while a new record's
-                # stored computed fields are populated during create().
                 stored_fnames_set = set(stored_fnames)
                 automations = automations.filtered(
                     lambda a: (
@@ -1737,8 +1401,6 @@ class AutomationRule(models.Model):
                 if not (automations and records):
                     _compute_field_value.origin(self, field, validate=validate)
                     return True
-                # check preconditions on records
-                # changed fields are all fields computed by the function
                 changed_fields = [
                     f for f in records._fields.values() if f.compute == field.compute
                 ]
@@ -1748,14 +1410,11 @@ class AutomationRule(models.Model):
                     )
                     for a in automations
                 }
-                # read old values before the update
                 old_values = {
                     record.id: {fname: record[fname] for fname in stored_fnames}
                     for record in records
                 }
-                # call original method
                 _compute_field_value.origin(self, field, validate=validate)
-                # check postconditions, and execute automations on the records that satisfy them
                 for automation in automations.with_context(old_values=old_values):
                     _logger.debug(
                         "Processing automation rule %s (#%s) on %s records (_compute_field_value)",
@@ -1773,16 +1432,13 @@ class AutomationRule(models.Model):
             return _compute_field_value
 
         def make_unlink():
-            """Instanciate an unlink method that processes automation rules."""
 
             def unlink(self, **kwargs):
-                # retrieve the action rules to possibly execute
                 automations = self.env["automation.rule"]._get_actions(
                     self,
                     ["on_unlink"],
                 )
                 records = self.with_env(automations.env)
-                # check conditions, and execute actions on the records that satisfy them
                 for automation in automations:
                     _logger.debug(
                         "Processing automation rule %s (#%s) on %s records (unlink)",
@@ -1791,19 +1447,16 @@ class AutomationRule(models.Model):
                         len(records),
                     )
                     automation._process(automation._filter_post(records, feedback=True))
-                # call original method
                 return unlink.origin(self, **kwargs)
 
             return unlink
 
         def make_onchange(automation_rule_id):
-            """Instanciate an onchange method for the given automation rule."""
 
             def automation_onchange(self):
                 automation_rule = self.env["automation.rule"].browse(automation_rule_id)
 
                 if not automation_rule._filter_post(self):
-                    # Do nothing if onchange record does not satisfy the filter_domain
                     return None
 
                 result = {}
@@ -1841,9 +1494,6 @@ class AutomationRule(models.Model):
         def make_message_post():
             def _message_post(self, *args, **kwargs):
                 message = _message_post.origin(self, *args, **kwargs)
-                # Don't execute automations for a message emitted during
-                # the run of automations for a real message
-                # Don't execute if we know already that a message is only internal
                 message_sudo = message.sudo().with_context(active_test=False)
                 if (
                     "__action_done" in self.env.context
@@ -1858,8 +1508,6 @@ class AutomationRule(models.Model):
                 ):
                     return message
 
-                # always execute actions when the author is a customer
-                # if author is not set, it means the message is coming from outside
                 mail_trigger = (
                     "on_message_received"
                     if not message_sudo.author_id
@@ -1891,18 +1539,15 @@ class AutomationRule(models.Model):
         patched_models = defaultdict(set)
 
         def patch(model, name, method):
-            """Patch method `name` on `model`, unless it has been patched already."""
             if model not in patched_models[name]:
                 patched_models[name].add(model)
                 ModelClass = model.env.registry[model._name]
                 method.origin = getattr(ModelClass, name)
                 setattr(ModelClass, name, method)
 
-        # retrieve all actions, and patch their corresponding model
         for automation_rule in self.with_context({}).search([]):
             Model = self.env.get(automation_rule.model_name)
 
-            # Do not crash if the model of the base_action_rule was uninstalled
             if Model is None:
                 _logger.warning(
                     "Automation rule with name '%s' (ID %d) depends on model %s (ID: %d)",
@@ -1924,13 +1569,6 @@ class AutomationRule(models.Model):
                 patch(Model, "unlink", make_unlink())
 
             elif automation_rule.trigger == "on_change":
-                # register an onchange method for the automation_rule.
-                # _onchange_methods is a memoized *plain* dict (it must not
-                # auto-vivify on runtime reads), so a field with no static
-                # @api.onchange has no key yet — use setdefault rather than
-                # indexing. _unregister_hook drops the memo so each registry
-                # setup rebuilds it from the static methods before we re-add
-                # these automation methods (no cross-reload accumulation).
                 method = make_onchange(automation_rule.id)
                 onchange_methods = Model._onchange_methods
                 for field in automation_rule.on_change_field_ids:
@@ -1943,22 +1581,8 @@ class AutomationRule(models.Model):
                 patch(Model, "message_post", make_message_post())
 
     def _search_time_based_automation_records(self, *, until):
-        """Search records whose trigger date falls between ``last_run`` and ``until``.
-
-        Applies the rule's relative offset (``trg_date_range`` * ``trg_date_range_type``,
-        ``before``/``after`` mode) to the ``trg_date_id`` field. Handles the
-        calendar-aware day mode (``resource.calendar.plan_days``, filtered in
-        Python), date vs datetime fields, and the ``date_automation_last`` fallback
-        to ``create_date`` when unset. Stored/searchable fields are queried
-        directly; computed fields are filtered in Python after a domain search.
-
-        :param until: upper-bound timestamp for the search (the cron passes now).
-        :return: recordset that should trigger the automation, empty when the
-            trigger date field is missing.
-        """
         automation = self.ensure_one()
 
-        # retrieve the domain and field
         domain = Domain.TRUE
         if automation.filter_domain:
             eval_context = automation._get_eval_context()
@@ -1972,7 +1596,6 @@ class AutomationRule(models.Model):
             )
             return Model
 
-        # get the time information and find the records
         last_run = automation.last_run or datetime.datetime.fromtimestamp(0, tz=None)
         is_date_automation_last = (
             date_field.name == "date_automation_last" and "create_date" in Model._fields
@@ -1981,15 +1604,12 @@ class AutomationRule(models.Model):
         date_range = range_sign * automation.trg_date_range
 
         def get_record_dt(record):
-            # the field can be a date or datetime, cast always to a datetime
             dt = record[date_field.name]
             if not dt and is_date_automation_last:
                 dt = record.create_date
             return fields.Datetime.to_datetime(dt)
 
         if automation.trg_date_calendar_id and automation.trg_date_range_type == "day":
-            # use the calendar information from the record
-            # _get_calendar can be overwritten and cannot be optimized
             time_domain = (
                 Domain.TRUE
                 if is_date_automation_last
@@ -2023,13 +1643,10 @@ class AutomationRule(models.Model):
 
             return records.filtered(calendar_filter)
 
-        # we can search for the records to trigger
-        # find the relative dates
         relative_offset = DATE_RANGE[automation.trg_date_range_type] * date_range
         relative_until = until + relative_offset
         relative_last_run = last_run + relative_offset
         if date_field.type == "date":
-            # find records that have a date in past, but were not yet executed that day
             time_domain = Domain(
                 date_field.name,
                 ">",
@@ -2041,7 +1658,7 @@ class AutomationRule(models.Model):
                     & Domain("create_date", ">", relative_last_run.date())
                     & Domain("create_date", "<=", relative_until.date())
                 )
-        else:  # datetime
+        else:
             time_domain = Domain(date_field.name, ">=", relative_last_run) & Domain(
                 date_field.name,
                 "<",
@@ -2060,16 +1677,11 @@ class AutomationRule(models.Model):
             return Model.search(domain).filtered_domain(time_domain)
 
     def _unregister_hook(self):
-        """Remove the patches installed by _register_hook()"""
         NAMES = [
             "create",
             "write",
             "_compute_field_value",
             "unlink",
-            # The onchange registry is memoized on the class under
-            # _onchange_methods__ (the _onchange_methods property is read-only).
-            # Deleting the memo forces a rebuild from the static @api.onchange
-            # methods, discarding the automation methods added by _register_hook.
             "_onchange_methods__",
             "message_post",
         ]
@@ -2079,11 +1691,6 @@ class AutomationRule(models.Model):
                     delattr(Model, name)
 
     def _update_cron(self):
-        """Activate the cron job depending on whether there exists automation rules
-        based on time conditions.  Also update its frequency according to
-        the smallest automation delay, or restore the default 4 hours if there
-        is no time based automation.
-        """
         cron = self.env.ref(
             "automation.ir_cron_data_automation_check",
             raise_if_not_found=False,
@@ -2104,7 +1711,6 @@ class AutomationRule(models.Model):
             )
             new_cron_timedelta = TIMEDELTA_TYPES[interval_type](interval_number)
             if new_cron_timedelta < actual_cron_timedelta:
-                # we only update the cron interval if the new delay is shorter than the current one
                 vals.update(
                     {
                         "interval_type": interval_type,
@@ -2114,39 +1720,19 @@ class AutomationRule(models.Model):
             cron.write(vals)
 
     def _update_registry(self):
-        """Update the registry after a modification on automation rules."""
         if self.env.registry.ready and not self.env.context.get("import_file"):
-            # re-install the model patches, and notify other workers
             self._unregister_hook()
             self._register_hook()
             self.env.registry.registry_invalidated = True
 
-    # ------------------------------------------------------------
-    # VALIDATION METHODS
-    # ------------------------------------------------------------
-
     def _check_trigger_fields(self, record):
-        """Return whether a configured trigger field changed on ``record``.
-
-        Returns True when no trigger fields are configured (all fields trigger)
-        or on create (``old_values`` missing, so all fields count as modified);
-        otherwise True only if a watched field differs from its old value. Old
-        values come from the ``old_values`` context populated by the write-family
-        patches in :meth:`_register_hook`.
-
-        :param record: single record (not a recordset) to check.
-        :rtype: bool
-        """
         self_sudo = self.sudo()
         if not self_sudo.trigger_field_ids:
-            # all fields are implicit triggers
             return True
 
         if self.env.context.get("old_values") is None:
-            # this is a create: all fields are considered modified
             return True
 
-        # note: old_vals are in the record format
         old_vals = self.env.context["old_values"].get(record.id, {})
 
         def differ(name):
@@ -2161,10 +1747,6 @@ class AutomationRule(models.Model):
             and automation.on_change_field_ids
             for automation in self
         )
-
-    # ------------------------------------------------------------
-    # DEPRECATED METHODS
-    # ------------------------------------------------------------
 
     @api.deprecated("Since 19.0, use _cron_process_time_based_actions")
     def _check(self, automatic=False, use_new_cursor=False):

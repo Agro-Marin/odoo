@@ -1,16 +1,3 @@
-"""An authenticated webhook must not have a ceiling on how often it may be called.
-
-`/web/hook/<uuid>` is `auth="public"`, so every sender in the world arrives as
-one uid. While `_verify_webhook_request` read its secret through the ordinary
-accessors, each call spent one of that credential's hourly decryptions against
-that shared uid — measured 2026-08-14 as 100 x 200 followed by 30 x 422 for 130
-correctly-signed POSTs, with 100 `read` and 30 `read_rate_limited` audit rows.
-
-`credential.credential._get_verification_secret` reads the same secret without
-the cap, on the ground that the caller is the server authenticating a request
-rather than a person reading a credential.
-"""
-
 from odoo.tests import TransactionCase, tagged
 from odoo.tools import mute_logger
 
@@ -18,11 +5,6 @@ from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
 
 
 @tagged("post_install", "-at_install")
-# EncryptionKeyCase, not a bare TransactionCase: these rules store a bearer
-# token, every model on mixin.encryption refuses to store one without
-# ODOO_API_ENCRYPTION_KEY in the process environment, and a suite that does not
-# supply one does not skip -- it fails once per test that stores a secret.
-# mixin_encryption owns the variable and ships the helper that guarantees it.
 class TestWebhookAuthDoesNotExhaustTheDecryptionCap(EncryptionKeyCase, TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -59,14 +41,6 @@ class TestWebhookAuthDoesNotExhaustTheDecryptionCap(EncryptionKeyCase, Transacti
         )
 
     def _fresh_request(self):
-        """Drop every memo, so the next call decrypts as a new request would.
-
-        Invalidating `cached_plaintext` alone is not enough: `credential_value`
-        is computed FROM it and stays memoised, so the read never re-enters the
-        capped choke point and the test passes against the unfixed code. In
-        production every request is its own transaction and therefore its own
-        decryption — which is why this only ever showed up over HTTP.
-        """
         self.credential.invalidate_recordset()
 
     def _verify(self):
@@ -77,7 +51,6 @@ class TestWebhookAuthDoesNotExhaustTheDecryptionCap(EncryptionKeyCase, Transacti
         )
 
     def test_a_low_cap_does_not_stop_the_webhook(self):
-        # Three per hour: any per-request decryption would deny the fourth call.
         self.credential.sudo().write(
             {"decrypt_rate_limit_enabled": True, "decrypt_rate_limit_max": 3}
         )
@@ -121,7 +94,6 @@ class TestWebhookAuthDoesNotExhaustTheDecryptionCap(EncryptionKeyCase, Transacti
         )
 
     def test_hmac_webhooks_are_covered_too(self):
-        """HMAC is the case that genuinely cannot use a fingerprint."""
         import hashlib
         import hmac as hmac_mod
 

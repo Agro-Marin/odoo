@@ -1,23 +1,3 @@
-"""The gate records its own verdict — ADR-0037.
-
-Before this, `_check_inbound_request` answered `(allowed, status, reason)` and
-both callers threw the reason into a log line. `automation`'s controller
-returned a JSON error and wrote nothing; `api_transport`'s returned the refusal
-one step *before* it opened its `api.event.log` row. So a refused request was
-recorded nowhere, in either mechanism, and "who is failing authentication
-against us" had no answer in any store.
-
-Two of these tests carry the decision rather than the mechanism:
-
-* successes are NOT recorded unless the record opts in, because a row per
-  admission repeats a mistake this stack already measured — routing
-  `check_inbound_auth` through `authenticate_request` turned a fleet reporting
-  once per position fix into six-figure daily audit volume;
-* caller-rate-limit refusals COLLAPSE into one row per window, because an
-  attacker chooses how many refusals to generate and a log that fills the disk
-  under attack is not a control.
-"""
-
 from unittest.mock import patch
 
 from odoo.exceptions import UserError
@@ -30,20 +10,7 @@ _GATE = "odoo.addons.credential.models.mixins.mixin_inbound_gate"
 
 
 @tagged("post_install", "-at_install")
-# EncryptionKeyCase, not a bare TransactionCase: these rules store a bearer
-# token, every model on mixin.encryption refuses to store one without
-# ODOO_API_ENCRYPTION_KEY in the process environment, and a suite that does not
-# supply one does not skip -- it fails once per test that stores a secret.
-# mixin_encryption owns the variable and ships the helper that guarantees it.
 class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
-    """Driven through `automation.rule`.
-
-    It is the concrete gate implementer that had NO structured record of a
-    refusal at all — `api.endpoint.inbound` is an AbstractModel with no table,
-    and its concrete implementers live in a sibling repo. So this exercises the
-    half of the finding that was worst, in the module that owns the receiver.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -64,13 +31,6 @@ class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
     _GOOD_TOKEN = "the-token-the-caller-should-have-sent"
 
     def _credentialed_endpoint(self, code, **vals):
-        """A gate that can actually check a token.
-
-        Without this, `auth_type = bearer` + no `credential_id` makes
-        `_authenticate_by_scheme` raise before it ever looks at the header --
-        so a test that passes a wrong token is really exercising the
-        misconfiguration path and never reaches the comparison it names.
-        """
         endpoint = self._endpoint(code, **vals)
         endpoint.credential_id = self.env["credential.credential"].create(
             {
@@ -87,10 +47,6 @@ class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
         return self.logs.search(
             [("gate_model", "=", endpoint._name), ("gate_id", "=", endpoint.id)]
         )
-
-    # ------------------------------------------------------------------
-    # The gap this closes
-    # ------------------------------------------------------------------
 
     def test_a_refusal_is_recorded(self):
         endpoint = self._credentialed_endpoint("gate_refused")
@@ -110,7 +66,6 @@ class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
 
     @mute_logger(_GATE)
     def test_the_row_survives_the_endpoint(self):
-        """An audit trail is read exactly when the record is gone."""
         endpoint = self._endpoint("gate_deleted")
         endpoint._check_inbound_request({}, remote_addr="203.0.113.8")
         row = self._rows(endpoint)
@@ -122,9 +77,6 @@ class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
         self.assertTrue(row.gate_name, "the snapshot is what makes it readable")
 
     def test_two_different_bad_tokens_are_two_facts(self):
-        """Needs a gate that can actually compare: with no credential both
-        calls raise before the header is read, and the pair would be one
-        `misconfigured` condition rather than two caller attempts."""
         endpoint = self._credentialed_endpoint("gate_two_tokens")
         endpoint._check_inbound_request(
             {"Authorization": "Bearer one"}, remote_addr="203.0.113.9"
@@ -137,8 +89,6 @@ class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
         self.assertEqual(set(rows.mapped("outcome")), {"unauthenticated"})
 
     def test_the_right_token_is_admitted(self):
-        """Anchors the three tests above: if this fails they are refusing for
-        the wrong reason and prove nothing."""
         endpoint = self._credentialed_endpoint("gate_good_token")
 
         allowed, status, _reason = endpoint._check_inbound_request(
@@ -148,10 +98,6 @@ class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
 
         self.assertTrue(allowed)
         self.assertEqual(status, 200)
-
-    # ------------------------------------------------------------------
-    # Successes are opt-in — the volume decision
-    # ------------------------------------------------------------------
 
     def test_an_admitted_request_is_not_recorded_by_default(self):
         endpoint = self._endpoint("gate_quiet", auth_type="none")
@@ -178,7 +124,6 @@ class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
         self.assertEqual(row.outcome, "allowed")
 
     def test_a_gate_that_is_off_records_nothing(self):
-        """`off` means no decision was made; recording one would be a lie."""
         endpoint = self._endpoint("gate_off", log_inbound_access=True)
 
         endpoint._check_inbound_request({}, mode=endpoint.AUTH_MODE_OFF)
@@ -187,11 +132,6 @@ class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
 
     @mute_logger(_GATE)
     def test_audit_mode_records_what_it_let_through(self):
-        """The one success worth recording whether or not anyone asked.
-
-        Audit mode admits an unauthenticated request on purpose. That is the
-        state an operator most needs a list of, and it is not `allowed`.
-        """
         endpoint = self._endpoint("gate_audit")
 
         allowed, _status, _reason = endpoint._check_inbound_request(
@@ -202,10 +142,6 @@ class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
         row = self._rows(endpoint)
         self.assertEqual(len(row), 1)
         self.assertEqual(row.outcome, "audit_accepted")
-
-    # ------------------------------------------------------------------
-    # The collapse — the other half of the decision
-    # ------------------------------------------------------------------
 
     def test_repeated_caller_limit_refusals_collapse(self):
         endpoint = self._endpoint("gate_flood")
@@ -240,7 +176,6 @@ class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
 
     @mute_logger(_GATE)
     def test_a_distinguishable_refusal_does_not_collapse(self):
-        """Two bad tokens from one address are two events, not one repeated."""
         endpoint = self._credentialed_endpoint("gate_no_collapse")
 
         for _ in range(3):
@@ -252,9 +187,6 @@ class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
 
     @mute_logger(_GATE)
     def test_repeated_audit_admissions_collapse(self):
-        """Audit mode reports a standing configuration state -- the credential
-        is not provisioned -- not a per-request event. A fleet reporting once
-        per position fix wrote one row and two warnings per fix for it."""
         endpoint = self._endpoint("gate_audit_flood")
 
         for _ in range(40):
@@ -267,10 +199,6 @@ class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
 
     @mute_logger(_GATE)
     def test_the_audit_collapse_is_per_gate_not_per_caller(self):
-        """The caller-rate-limit collapse is keyed by address because which
-        address is being refused is the fact. This one is not: the fact is
-        that the gate has no credential, and a sender behind a rotating
-        egress pool would otherwise open a row per request."""
         endpoint = self._endpoint("gate_audit_rotating_pool")
 
         for address in ("198.51.100.9", "198.51.100.10", "198.51.100.11"):
@@ -297,13 +225,6 @@ class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
 
     @mute_logger(_GATE)
     def test_the_audit_collapse_never_writes_the_standing_row(self):
-        """The guard on the whole design, and the reason the row is not
-        counted. Counting means an UPDATE of a row every concurrent request
-        shares; under the REPEATABLE READ every Odoo cursor runs at, two
-        requests updating one row conflict whatever columns they touch, and
-        serialising them does not help. Counting the audit row put a
-        serialisation failure back on this deployment's GPS ingest within
-        seconds of deploying it."""
         endpoint = self._endpoint("gate_audit_no_write")
         endpoint._check_inbound_request(
             {}, remote_addr="198.51.100.20", mode=endpoint.AUTH_MODE_AUDIT
@@ -321,9 +242,6 @@ class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
         self.assertEqual(len(self._rows(endpoint)), 1)
 
     def test_a_bad_token_refusal_is_recorded_but_not_logged(self):
-        """It is recorded because that is the gap ADR-0037 closed, and not
-        logged because the caller chooses how many to send: a line per
-        refused token is a flood an attacker controls."""
         endpoint = self._credentialed_endpoint("gate_quiet_refusal")
 
         with self.assertNoLogs(_GATE, "WARNING"):
@@ -335,8 +253,6 @@ class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
 
     @mute_logger(_GATE)
     def test_the_audit_row_records_why_it_was_unauthenticated(self):
-        """A trail of admissions that does not say what was missing cannot be
-        acted on: every one of them reads the same."""
         endpoint = self._endpoint("gate_audit_reason")
 
         endpoint._check_inbound_request(
@@ -346,10 +262,6 @@ class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
         row = self._rows(endpoint)
         self.assertTrue(row.reason)
         self.assertIn("No credential configured", row.reason)
-
-    # ------------------------------------------------------------------
-    # The log line follows the record — one condition, one report
-    # ------------------------------------------------------------------
 
     def test_a_standing_audit_condition_is_reported_once(self):
         endpoint = self._endpoint("gate_audit_quiet")
@@ -368,10 +280,6 @@ class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
         self.assertIn("UNAUTHENTICATED request accepted", logs.output[0])
 
     def test_an_enforced_refusal_is_recorded_not_logged(self):
-        """The reason used to be logged where it was raised, per request, and
-        in audit mode re-stated by the caller that received it -- so a fleet
-        past an unprovisioned gate printed it twice per position fix. The row
-        is where a refusal belongs."""
         endpoint = self._credentialed_endpoint("gate_single_line")
 
         with self.assertNoLogs(_GATE, "WARNING"):
@@ -381,9 +289,6 @@ class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
 
     @mute_logger(_GATE)
     def test_a_garbage_window_parameter_still_collapses(self):
-        """The parameter tunes how often the condition is reported, not
-        whether it is collapsed: neither a bad value nor a zero may put a
-        row back on every request."""
         endpoint = self._endpoint("gate_audit_bad_param")
         params = self.env["ir.config_parameter"].sudo()
 
@@ -400,7 +305,6 @@ class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
         self.assertEqual(len(self._rows(endpoint)), 1)
 
     def test_the_caller_limit_window_is_the_limiter_s_own(self):
-        """It is not the audit one, and the parameter must not move it."""
         endpoint = self._endpoint("gate_window_split", rate_limit_window_seconds=45)
         self.env["ir.config_parameter"].sudo().set_param(
             endpoint.STANDING_WINDOW_PARAM, "7200"
@@ -409,15 +313,8 @@ class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
         self.assertEqual(endpoint._inbound_coalesce_window("caller_limited"), 45)
         self.assertEqual(endpoint._inbound_coalesce_window("audit_accepted"), 7200)
 
-    # ------------------------------------------------------------------
-    # Our fault vs their fault — the split `unauthenticated` used to hide
-    # ------------------------------------------------------------------
-
     @mute_logger(_GATE)
     def test_a_gate_with_no_credential_is_misconfigured_not_unauthenticated(self):
-        """Both are 401s and were once the same outcome. They are not the same
-        fact: one is answered by provisioning a credential, the other by the
-        caller fixing their own."""
         endpoint = self._endpoint("gate_no_cred")
 
         allowed, status, _reason = endpoint._check_inbound_request(
@@ -432,8 +329,6 @@ class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
 
     @mute_logger(_GATE)
     def test_a_body_dependent_gate_asked_without_a_body_is_misconfigured(self):
-        """The other gate-side fault: HMAC verifies the request body and the
-        caller passed none, which is our wiring, not their credentials."""
         endpoint = self._credentialed_endpoint(
             "gate_hmac_no_body", auth_type="hmac_sha256"
         )
@@ -447,10 +342,6 @@ class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
 
     @mute_logger(_GATE)
     def test_a_misconfigured_gate_collapses_per_gate(self):
-        """The mirror image of `unauthenticated`: the gate answers identically
-        to every caller until somebody fixes it, so repeating it is rows, not
-        facts. This is what flipping the GPS fleet to enforce without
-        provisioning would otherwise cost -- 35k rows a day."""
         endpoint = self._endpoint("gate_no_cred_flood")
 
         for n in range(30):
@@ -461,9 +352,6 @@ class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
         self.assertEqual(rows.outcome, "misconfigured")
 
     def test_a_misconfigured_gate_is_reported_once_and_loudly(self):
-        """Once, because it is a standing condition. Loudly, because the gate
-        is refusing 100% of its traffic and the callers cannot tell -- they
-        see a 401 and read it as their own credentials being wrong."""
         endpoint = self._endpoint("gate_no_cred_quiet")
 
         with self.assertLogs(_GATE, "ERROR") as logs:
@@ -475,8 +363,6 @@ class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
 
     @mute_logger(_GATE)
     def test_a_misconfigured_gate_row_is_not_counted(self):
-        """Same reason as the audit row: counting is an UPDATE of a row every
-        concurrent request shares."""
         endpoint = self._endpoint("gate_no_cred_no_write")
         endpoint._check_inbound_request({}, remote_addr="198.51.100.43")
         row = self._rows(endpoint)
@@ -489,9 +375,6 @@ class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
 
     @mute_logger(_GATE)
     def test_audit_mode_still_wins_over_the_gate_fault(self):
-        """In audit mode the salient fact is that an unauthenticated request
-        was let through, not why it could not be checked. The reason still
-        says which."""
         endpoint = self._endpoint("gate_no_cred_audit")
 
         allowed, _status, _reason = endpoint._check_inbound_request(
@@ -503,14 +386,8 @@ class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
         self.assertEqual(row.outcome, "audit_accepted")
         self.assertIn("No credential configured", row.reason)
 
-    # ------------------------------------------------------------------
-    # The record must not be able to break the request
-    # ------------------------------------------------------------------
-
     @mute_logger(_GATE)
     def test_a_failure_to_record_does_not_change_the_verdict(self):
-        """A trail that can refuse a request by failing to write is worse than
-        one that misses a row."""
         endpoint = self._credentialed_endpoint("gate_log_broken")
 
         with patch.object(
@@ -524,10 +401,6 @@ class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
 
         self.assertFalse(allowed)
         self.assertEqual(status, 401)
-
-    # ------------------------------------------------------------------
-    # Write-once
-    # ------------------------------------------------------------------
 
     @mute_logger(_GATE)
     def test_the_row_cannot_be_edited(self):
@@ -546,37 +419,13 @@ class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
         endpoint._check_inbound_request({}, remote_addr="203.0.113.12")
         self.assertTrue(self._rows(endpoint))
 
-        # -1 rather than 0, to be safely past the retention cutoff (Datetime
-        # fields truncate to the second, so 0 risks a tie with `now`) — the
-        # cron is being exercised, not the arithmetic of a real retention.
         self.logs.cron_gc_inbound_access_logs(retention_days=-1)
 
         self.assertFalse(self._rows(endpoint))
 
 
 @tagged("post_install", "-at_install")
-# EncryptionKeyCase, not a bare TransactionCase: these rules store a bearer
-# token, every model on mixin.encryption refuses to store one without
-# ODOO_API_ENCRYPTION_KEY in the process environment, and a suite that does not
-# supply one does not skip -- it fails once per test that stores a secret.
-# mixin_encryption owns the variable and ships the helper that guarantees it.
 class TestInboundRateLimitScope(EncryptionKeyCase, TransactionCase):
-    """The inbound quota belongs to the endpoint, not to the acting company.
-
-    `rate.limit.bucket` keys on `model:id:company`, so whatever is passed as the
-    company IS part of the bucket's identity: a second value is a second bucket
-    with its own full allowance. The gate used to pass `env.company.id`, which is
-    ambient request state — every inbound controller runs `sudo()`, so it
-    described whoever happened to be acting rather than the endpoint being
-    protected. Anything putting a company in the context (an authenticated call
-    carrying `allowed_company_ids`, a `with_company()` inside a subclass's
-    `_process_queued_event`, async replay through `delayed()`) therefore handed
-    the caller a fresh bucket, and the limit here is a security control.
-
-    It now passes `_inbound_company_id()` — the endpoint's own company, the same
-    value the gate already stamps on its audit row.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

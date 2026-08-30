@@ -1,29 +1,3 @@
-"""Carry the ``webhook_*`` gate columns over to the shared gate's names.
-
-ADR-0017 moves identity and admission onto ``mixin.inbound.gate``, which spells
-these without the prefix. Renaming in ``pre-`` rather than ``post-`` for the
-reason ``api_transport``'s 19.0.1.10.0 gives: the schema update would otherwise
-create the new columns EMPTY beside the populated old ones, and every webhook
-configured with a signature header, an allowlist or a credential would come back
-up unauthenticated.
-
-The ``webhook_*`` names survive as non-stored ``related`` aliases on the model,
-so data files and code using them keep working for one release — that is what
-lets a sibling repository (``agromarin/api_stock_scale`` seeds nine of them)
-migrate on its own schedule rather than in the same commit.
-
-Guarded per column and re-runnable: a rename only fires when the old column is
-present and the new one is not.
-
-This script speaks the post-rename schema on purpose. ``base`` renames
-``base_automation`` to ``automation_rule`` in its own pre-migration, and ``base``
-is the first module the loader reaches -- so by the time this runs, on any
-database old enough to need it, the table and column already carry the new
-names. Leaving the old spellings here would make it match nothing and silently
-skip, leaving every configured webhook unauthenticated -- exactly the failure
-the paragraph above is about.
-"""
-
 import logging
 
 _logger = logging.getLogger(__name__)
@@ -75,10 +49,6 @@ def migrate(cr, version):
             renamed,
         )
 
-    # `auth_type` is required on the gate. A rule predating the webhook fields,
-    # or one whose column was never written, would fail the NOT NULL the ORM is
-    # about to add — and "no authentication configured" is exactly what `none`
-    # means, so it is the honest backfill rather than a placeholder.
     if "auth_type" in present:
         cr.execute(
             "UPDATE automation_rule SET auth_type = 'none' WHERE auth_type IS NULL"
