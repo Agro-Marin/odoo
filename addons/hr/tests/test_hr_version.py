@@ -1,5 +1,7 @@
+import ast
 from datetime import date
 
+from lxml import etree
 from psycopg.errors import CheckViolation
 
 from odoo.exceptions import AccessError, ValidationError
@@ -986,3 +988,48 @@ class TestHrVersion(TestHrCommon):
         )
         with self.assertRaises(CheckViolation), mute_logger("odoo.db"):
             employee.version_id.write({"wage": -1000})
+
+    def _running_contract_domain(self):
+        """The `Running Contract` filter domain, as the search view really ships it."""
+        arch = self.env["hr.version"].get_view(
+            self.env.ref("hr.hr_version_search_view").id, "search"
+        )["arch"]
+        [node] = etree.fromstring(arch).xpath("//filter[@name='running_contract']")
+        return ast.literal_eval(node.get("domain"))
+
+    def test_running_contract_filter_ignores_a_version_without_a_start_date(self):
+        """A version with no start date is not a running contract.
+
+        ``_is_in_contract`` has always said so -- it returns False as soon as
+        ``contract_date_start`` is unset -- while the filter said the opposite,
+        so HR read the two answers side by side and got different employees.
+
+        Only the missing start date is asserted here: the filter still uses a
+        strict ``<`` where ``_is_in_contract`` uses ``<=``, so the two still
+        part ways on a contract that starts today. That is untouched by this
+        change.
+        """
+        no_contract = (
+            self.env["hr.employee"]
+            .create({"name": "John Doe", "date_version": "2020-01-01"})
+            .version_id
+        )
+        running = (
+            self.env["hr.employee"]
+            .create(
+                {
+                    "name": "Jane Doe",
+                    "date_version": "2020-01-01",
+                    "contract_date_start": "2020-01-01",
+                }
+            )
+            .version_id
+        )
+
+        self.assertFalse(no_contract.contract_date_start)
+        self.assertFalse(no_contract.is_in_contract)
+        self.assertTrue(running.is_in_contract)
+
+        found = self.env["hr.version"].search(self._running_contract_domain())
+        self.assertNotIn(no_contract, found)
+        self.assertIn(running, found)
