@@ -10,6 +10,7 @@ from ..fields.relational import Many2one
 from ..fields.temporal import Datetime
 
 if typing.TYPE_CHECKING:
+    from .._typing import ModelClass
     from ..fields.base import Field
     from ..runtime import Registry
     from .table_objects import TableObject
@@ -102,10 +103,12 @@ class MetaModel(type):
             cls._inherit = ()
         if not cls._abstract and cls._name not in cls._inherit:
 
+            model_class = typing.cast("ModelClass", cls)
+
             def add_default(name: str, field: Field) -> None:
                 if name not in attrs:
                     setattr(cls, name, field)
-                    field.__set_name__(cls, name)
+                    field.__set_name__(model_class, name)
 
             if not isinstance(cls.id, Id):
                 raise TypeError(f"Field {cls.id} is not an instance of fields.Id")

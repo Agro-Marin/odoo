@@ -11,7 +11,7 @@ from ..primitives import SEQUENCE_FIELD
 from .base import Field, _make_scalar_get
 
 if typing.TYPE_CHECKING:
-    from .._typing import BaseModel, Environment, ModelLike
+    from .._typing import BaseModel, Environment, ModelClass, ModelLike
 
 MAXINT = 2**31 - 1
 
@@ -40,9 +40,7 @@ class Integer(Field[int]):
     if not typing.TYPE_CHECKING:
         __get__ = _make_scalar_get(lambda v: v or 0)
 
-    def _get_attrs(
-        self, model_class: type[BaseModel], name: str
-    ) -> dict[str, typing.Any]:
+    def _get_attrs(self, model_class: ModelClass, name: str) -> dict[str, typing.Any]:
         res = super()._get_attrs(model_class, name)
         if "aggregator" not in res and name == SEQUENCE_FIELD:
             res["aggregator"] = None

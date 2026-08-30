@@ -448,17 +448,17 @@ imports. `orm-layer1-below-models-and-runtime` and `orm-models-below-runtime`
 are clean and always will be, because that reach produces no import edge.
 
 **Layer 1 is the heavier consumer on the `Environment` channel; on the
-`Registry` one the two are level.** Measured:
+`Registry` one the two are within one access of each other.** Measured:
 
 | Channel | Layer 1 (`orm/fields`, `orm/domain`) | Layer 2 (`orm/models`, `orm/registration.py`) |
 |---|---:|---:|
-| `Registry` accesses | 30 | **30** |
+| `Registry` accesses | 29 | **30** |
 | `pool[<model>]` subscripts | 5 | **5** |
 | distinct `Registry` members | 9 | **15** |
 | unsanctioned `Environment` privates | **4** | 2 |
 | accesses to those privates | **10** | 2 |
 
-The inversion is one of kind, not of volume: the two reach the Registry equally
+The inversion is one of kind, not of volume: the two reach the Registry about as
 often, and Layer 2 reaches more *distinct* members and has private reaches of its
 own (`_ensure_field_triggers`, `_init_modules`, `_database_translated_fields`,
 `_database_company_dependent_fields`).

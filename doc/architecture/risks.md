@@ -66,8 +66,9 @@ are not deleted — a closed risk is the evidence that the register is read.
 **What.** The direction contracts are clean and always will be, because Layers 1
 and 2 reach the runtime through `self.env` / `self.pool`, which produces no
 import edge. Measured, **Layer 1 is the heavier consumer on the `Environment`
-channel and the two are level on the `Registry` one** — 4 unsanctioned
-`Environment` privates against Layer 2's 2, and 30 Registry sites against 30.
+channel and the two are within one access of each other on the `Registry`
+one** — 4 unsanctioned `Environment` privates against Layer 2's 2, and 29
+Registry sites against 30.
 
 **Evidence.** `env_surface_check.py`, `pool_surface_check.py`; see
 [`module.md`](module.md#coupling-the-import-graph-cannot-see).

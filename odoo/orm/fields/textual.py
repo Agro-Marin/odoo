@@ -31,7 +31,7 @@ if typing.TYPE_CHECKING:
 
     from odoo.tools import Query
 
-    from .._typing import IdType, ModelLike
+    from .._typing import IdType, ModelClass, ModelLike
     from ..models import BaseModel
     from ..runtime import Environment
 
@@ -808,7 +808,7 @@ class Char(BaseString):
     cache_is_read_value = True
     trim: bool = True
 
-    def _setup_attrs__(self, model_class: type[BaseModel], name: str) -> None:
+    def _setup_attrs__(self, model_class: ModelClass, name: str) -> None:
         super()._setup_attrs__(model_class, name)
         assert self.size is None or isinstance(self.size, int), (
             f"Char field {self} with non-integer size {self.size!r}"
@@ -866,9 +866,6 @@ class Html(BaseString):
     type = "html"
     is_html = True
     cache_truthiness_matches = True
-    """Only this one: convert_to_record wraps the value in ``Markup``, which
-    compares equal to the str but is not it, and read() must hand out the
-    Markup rather than the cached string."""
     _column_type = ("text", "text")
 
     if not typing.TYPE_CHECKING:
@@ -903,9 +900,7 @@ class Html(BaseString):
     strip_classes: bool = False
 
     @override
-    def _get_attrs(
-        self, model_class: type[BaseModel], name: str
-    ) -> dict[str, typing.Any]:
+    def _get_attrs(self, model_class: ModelClass, name: str) -> dict[str, typing.Any]:
         attrs = super()._get_attrs(model_class, name)
         if attrs.get("sanitize") == "email_outgoing":
             attrs["sanitize"] = True

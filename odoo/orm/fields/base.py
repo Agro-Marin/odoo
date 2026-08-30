@@ -42,6 +42,7 @@ if typing.TYPE_CHECKING:
         BaseModel,
         ContextType,
         DomainType,
+        ModelClass,
         ModelLike,
         ModelType,
         Self,
@@ -50,6 +51,9 @@ if typing.TYPE_CHECKING:
     from ..runtime import Environment, Registry
 
     M = typing.TypeVar("M", bound=BaseModel)
+
+
+_NO_ARGS: Mapping[str, typing.Any] = ReadonlyDict({})
 
 
 def _expand_ids(id0: IdType, ids: Iterable[IdType]) -> Iterator[IdType]:
@@ -150,7 +154,10 @@ _global_seq = itertools.count()
 
 
 class Field[T](
-    _FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin, _FieldMetadataMixin
+    _FieldDescriptionMixin,
+    _FieldConvertMixin,
+    _FieldSqlMixin,
+    _FieldMetadataMixin,
 ):
     type: str
 
@@ -165,93 +172,32 @@ class Field[T](
     is_many2one: bool = False
 
     cache_is_record_value: bool = False
-    """Whether ``convert_to_record`` returns the cached value unchanged.
-
-    ``None`` is exempt: every scan that relies on this computes
-    ``convert_to_record(None, ...)`` once and substitutes it. What the flag
-    promises is that *no other* cached value is rewritten on the way out --
-    so ``mapped()``, ``grouped()`` and ``sorted()`` may read the cache dict
-    instead of going through the descriptor.
-
-    Declared here at ``False`` so a field type that says nothing gets no fast
-    path; see ``models/mixins/_cache_scan.py`` for why this is a class
-    attribute and not a table of type strings.
-    """
 
     cache_truthiness_matches: bool = False
-    """Whether ``bool(cache value)`` answers ``bool(record value)``.
-
-    Weaker than :attr:`cache_is_record_value` and separately declared, because
-    ``filtered(fname)`` needs only this. ``Binary``, ``Html`` and ``Json``
-    rewrite their value but never across the truthiness boundary, so they set
-    this and not the one above.
-    """
 
     cache_is_orderable: bool = False
-    """Whether sorting the cached values orders the records correctly.
-
-    Distinct from :attr:`cache_is_record_value` because it also asserts the
-    values are mutually comparable: ``Binary`` is identity-valued but ``bytes``
-    against ``None`` is not an ordering anyone asked for.
-    """
 
     cache_is_read_value: bool = False
-    """Whether the cached value is what ``read()`` should return.
-
-    Asserts ``convert_to_read(convert_to_record(v)) == v``, which is a
-    different claim from the two above: ``Html`` is truthiness-preserving but
-    wraps its value in ``Markup``, and ``Integer`` widens a value outside
-    ``int4`` to a float.
-    """
 
     is_one2many: bool = False
-    """Whether the field is the *many* side of a one2many/many2one pair."""
 
     is_many2many: bool = False
-    """Whether the field is a many2many through a relation table."""
 
     is_many2one_reference: bool = False
-    """Whether the field names one record as an id paired with a model name.
-
-    ``Many2oneReference`` only, and deliberately disjoint from
-    :attr:`is_many2one`: this is an ``Integer`` column with no foreign key, so
-    it cannot be joined or grouped like one. A site that wants "names exactly
-    one record, however it stores it" asks for both.
-    """
 
     is_boolean: bool = False
-    """Whether the field holds a tri-state ``bool`` column."""
 
     is_integer: bool = False
-    """Whether the field holds a plain integer.
-
-    Reset on ``Many2oneReference``, which subclasses ``Integer`` and stores an
-    id: the column is an ``int4`` but the value is a pointer, and the sites
-    asking this question mean arithmetic.
-    """
 
     is_monetary: bool = False
-    """Whether the field holds an amount paired with a currency field."""
 
     is_date: bool = False
-    """Whether the field holds a date with no time part."""
 
     is_datetime: bool = False
-    """Whether the field holds a date *and* a time.
-
-    :attr:`is_temporal` is the union of this and :attr:`is_date`; both exist
-    because most sites that branch on one need to tell them apart, and a
-    ``not is_date`` spelling of this would invert on a third temporal type.
-    """
 
     is_html: bool = False
-    """Whether the field holds sanitised markup.
-
-    Narrower than :attr:`is_text`, which ``BaseString`` sets for ``Char`` too.
-    """
 
     is_binary: bool = False
-    """Whether the field holds bytes, in the column or in an attachment."""
 
     is_properties: bool = False
 
@@ -265,7 +211,7 @@ class Field[T](
 
     write_sequence: int = 0
 
-    _args__: dict[str, typing.Any] | None = None
+    _args__: Mapping[str, typing.Any] = _NO_ARGS
     _module: str | None = None
     _modules: tuple[str, ...] = ()
     _setup_done = True
@@ -276,7 +222,7 @@ class Field[T](
     _toplevel: bool = False
 
     inherited: bool = False
-    inherited_field: Field | None = None
+    inherited_field: typing.Any = None
 
     comodel_name: str | None = None
     context: ContextType = frozendict({})
@@ -308,9 +254,8 @@ class Field[T](
     write_groups: str | Callable[[BaseModel], bool] | None = None
     change_default = False
 
-    related_field: Field | None = None
+    related_field: typing.Any = None
     _related_field_seq: tuple[Field, ...] = ()
-    """The fields `related` names, hop by hop, resolved once by `setup_related`."""
     aggregator: str | None = None
     group_expand: (
         str | Callable[[ModelLike, typing.Any, DomainType], typing.Any] | None
@@ -363,17 +308,17 @@ class Field[T](
             if taken is None:
                 cls._by_type__[cls.type] = cls
 
-        cls.related_attrs = []
-        cls.description_attrs = []
+        related: list[tuple[str, str]] = []
+        described: list[tuple[str, str]] = []
         for attr in dir(cls):
             if attr.startswith("_related_"):
-                cls.related_attrs.append((attr.removeprefix("_related_"), attr))
+                related.append((attr.removeprefix("_related_"), attr))
             elif attr.startswith("_description_"):
-                cls.description_attrs.append((attr.removeprefix("_description_"), attr))
-        cls.related_attrs = tuple(cls.related_attrs)
-        cls.description_attrs = tuple(cls.description_attrs)
+                described.append((attr.removeprefix("_description_"), attr))
+        cls.related_attrs = tuple(related)
+        cls.description_attrs = tuple(described)
 
-    def __set_name__(self, owner: type[BaseModel], name: str) -> None:
+    def __set_name__(self, owner: ModelClass, name: str) -> None:
         assert base_model() is None or is_model_class(owner)
         self.model_name = owner._name
         self.name = name
@@ -456,9 +401,7 @@ class Field[T](
                 depends_context = ("company", *depends_context)
             attrs["_depends_context"] = depends_context
 
-    def _get_attrs(
-        self, model_class: type[BaseModel], name: str
-    ) -> dict[str, typing.Any]:
+    def _get_attrs(self, model_class: ModelClass, name: str) -> dict[str, typing.Any]:
         attrs: dict[str, typing.Any] = {}
         modules: list[str] = []
         for field in self._args__.get("_base_fields__", ()):
@@ -495,7 +438,7 @@ class Field[T](
 
         return attrs
 
-    def _setup_attrs__(self, model_class: type[BaseModel], name: str) -> None:
+    def _setup_attrs__(self, model_class: ModelClass, name: str) -> None:
         attrs = self._get_attrs(model_class, name)
 
         extra_keys = tuple(key for key in attrs if not hasattr(self, key))
@@ -596,9 +539,9 @@ class Field[T](
 
         self._related_names = related_names = tuple(self.related.split("."))
 
-        field_seq = []
+        field_seq: list[Field] = []
         model_name = self.model_name
-        for name in related_names:
+        for depth, name in enumerate(related_names, start=1):
             field = model.pool[model_name]._fields.get(name)
             if field is None:
                 raise KeyError(
@@ -607,21 +550,29 @@ class Field[T](
             if not field._setup_done:
                 field.setup(model.env[model_name])
             field_seq.append(field)
-            model_name = field.comodel_name
+            if depth < len(related_names):
+                if field.comodel_name is None:
+                    raise TypeError(
+                        f"Field {field} in related field definition {self} is not "
+                        f"relational, so {related_names[depth]} cannot be reached "
+                        f"through it."
+                    )
+                model_name = field.comodel_name
 
         self._related_field_seq = tuple(field_seq)
+        related_field = field_seq[-1]
 
-        if self.type != field.type:
+        if self.type != related_field.type:
             raise TypeError(
-                f"Type of related field {self} is inconsistent with {field}"
+                f"Type of related field {self} is inconsistent with {related_field}"
             )
 
-        self.related_field = field
+        self.related_field = related_field
 
-        model.pool.field_setup_dependents.add(field, self)
+        model.pool.field_setup_dependents.add(related_field, self)
 
         self.compute = self._compute_related
-        if self.inherited or not (self.readonly or field.readonly):
+        if self.inherited or not (self.readonly or related_field.readonly):
             self.inverse = self._inverse_related
         if not self.store and all(f._description_searchable for f in field_seq):
             self.search = self._search_related
@@ -631,19 +582,19 @@ class Field[T](
 
         for attr, prop in self.related_attrs:
             if attr not in self.__dict__:
-                setattr(self, attr, getattr(field, prop))
+                setattr(self, attr, getattr(related_field, prop))
 
-        for attr in field._extra_keys__:
+        for attr in related_field._extra_keys__:
             if not hasattr(self, attr) and model._valid_field_parameter(self, attr):
-                setattr(self, attr, getattr(field, attr))
+                setattr(self, attr, getattr(related_field, attr))
 
         if self.inherited:
-            self.inherited_field = field
-            if field.required:
+            self.inherited_field = related_field
+            if related_field.required:
                 self.required = True
             delegate_field = model._fields[related_names[0]]
             self._modules = tuple(
-                {*self._modules, *delegate_field._modules, *field._modules}
+                {*self._modules, *delegate_field._modules, *related_field._modules}
             )
 
     def traverse_related(self, record: BaseModel) -> tuple[BaseModel, Field]:
@@ -767,7 +718,7 @@ class Field[T](
 
         for dotnames in registry.field_depends[self]:
             field_seq: list[Field] = []
-            model_name = self.model_name
+            model_name: str | None = self.model_name
             check_precompute = self.precompute
 
             for index, fname in enumerate(dotnames.split(".")):
@@ -821,7 +772,7 @@ class Field[T](
                     yield tuple(field_seq)
 
                 if field.is_one2many:
-                    for inv_field in Model.pool.field_inverses[field]:
+                    for inv_field in registry.field_inverses[field]:
                         yield tuple(field_seq) + (inv_field,)
 
                 if check_precompute and field.is_many2one:
@@ -850,7 +801,7 @@ class Field[T](
         if not self.column_type:
             return False
 
-        column = columns.get(self.name)
+        column = columns.get(self.name) or {}
 
         self.update_db_column(model, column)
         self.update_db_notnull(model, column)
@@ -872,21 +823,27 @@ class Field[T](
         return not column
 
     def update_db_column(self, model: ModelLike, column: dict[str, typing.Any]) -> None:
+        column_type = self.column_type
+        if column_type is None:
+            raise TypeError(f"{self} has no column: update_db_column does not apply")
         if not column:
             sql.create_column(
                 model.env.cr,
                 model._table,
                 self.name,
-                self.column_type[1],
+                column_type[1],
                 self.string,
             )
             return
-        if column["udt_name"] == self.column_type[0]:
+        if column["udt_name"] == column_type[0]:
             return
         self._convert_db_column(model, column)
 
     def _convert_db_column(self, model: ModelLike, column: dict[str, typing.Any]):
-        sql.convert_column(model.env.cr, model._table, self.name, self.column_type[1])
+        column_type = self.column_type
+        if column_type is None:
+            raise TypeError(f"{self} has no column: _convert_db_column does not apply")
+        sql.convert_column(model.env.cr, model._table, self.name, column_type[1])
 
     def update_db_notnull(
         self, model: ModelLike, column: dict[str, typing.Any]
@@ -1288,7 +1245,10 @@ class Field[T](
 
         def is_inherited_field(name):
             field = record._fields[name]
-            return field.inherited and field.related.split(".")[0] == self.name
+            related = field.related
+            return bool(
+                field.inherited and related and related.split(".")[0] == self.name
+            )
 
         parent = record.env[self.comodel_name].new(
             {

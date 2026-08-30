@@ -16,7 +16,7 @@ from ..base import Field
 from ._base import _Relational
 
 if typing.TYPE_CHECKING:
-    from ..._typing import ModelLike
+    from ..._typing import ModelClass, ModelLike
     from ...models import BaseModel
 
     OnDelete = typing.Literal["cascade", "set null", "restrict"]
@@ -77,7 +77,7 @@ class Many2one(_Relational):
         super().__init__(comodel_name=comodel_name, string=string, **kwargs)
 
     @override
-    def _setup_attrs__(self, model_class: type[BaseModel], name: str) -> None:
+    def _setup_attrs__(self, model_class: ModelClass, name: str) -> None:
         super()._setup_attrs__(model_class, name)
         if name in model_class._inherits.values():
             self.delegate = True

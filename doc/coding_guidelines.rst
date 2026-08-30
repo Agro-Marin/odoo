@@ -1652,7 +1652,7 @@ to a field name and a registry string.
 **``field`` is a ``Field``; a field's name is ``field_name``**
 ``[gate doc_restated_counts]``. A parameter name is the only type statement most
 call sites ever see. **92** parameters annotated ``field_name`` are ``str`` and
-**0** are a ``Field``, against ``field``'s **104** ``Field`` and **17** ``str``.
+**0** are a ``Field``, against ``field``'s **105** ``Field`` and **17** ``str``.
 One direction is clean; the other is the backlog. The ORM breaks the rule in the
 package that states it, and ``lifecycle.py``'s
 ``_get_placeholder_filename(self, field: str)`` is *bound by name*, so its

@@ -562,7 +562,7 @@ class TestRuntimeSurfaceFigures(unittest.TestCase):
         )
         self.assertIn(
             "The inversion is one of kind, not of volume: the two reach the "
-            "Registry equally often, and Layer 2 reaches more *distinct* "
+            "Registry about as often, and Layer 2 reaches more *distinct* "
             "members",
             DOC_FLAT,
         )

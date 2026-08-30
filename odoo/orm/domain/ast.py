@@ -301,14 +301,14 @@ class Domain:
         msg = "Domain objects are immutable"
         raise TypeError(msg)
 
-    def __and__(self, other: object) -> Domain | type[NotImplemented]:
+    def __and__(self, other: object) -> Domain:
         if isinstance(other, Domain):
             if isinstance(other, DomainBool):
                 return self if other.value else other
             return DomainAnd.apply([self, other])
         return NotImplemented
 
-    def __or__(self, other: object) -> Domain | type[NotImplemented]:
+    def __or__(self, other: object) -> Domain:
         if isinstance(other, Domain):
             if isinstance(other, DomainBool):
                 return other if other.value else self
@@ -477,12 +477,12 @@ class DomainBool(Domain):
     def __invert__(self) -> DomainBool:
         return _FALSE_DOMAIN if self.value else _TRUE_DOMAIN
 
-    def __and__(self, other: object) -> Domain | type[NotImplemented]:
+    def __and__(self, other: object) -> Domain:
         if isinstance(other, Domain):
             return other if self.value else self
         return NotImplemented
 
-    def __or__(self, other: object) -> Domain | type[NotImplemented]:
+    def __or__(self, other: object) -> Domain:
         if isinstance(other, Domain):
             return self if self.value else other
         return NotImplemented
@@ -661,7 +661,7 @@ class DomainAnd(DomainNary):
     def INVERSE(self) -> type[DomainNary]:
         return DomainOr
 
-    def __and__(self, other: object) -> Domain | type[NotImplemented]:
+    def __and__(self, other: object) -> Domain:
         if isinstance(other, DomainAnd):
             return DomainAnd(self.children + other.children)
         return super().__and__(other)
@@ -687,7 +687,7 @@ class DomainOr(DomainNary):
     def INVERSE(self) -> type[DomainNary]:
         return DomainAnd
 
-    def __or__(self, other: object) -> Domain | type[NotImplemented]:
+    def __or__(self, other: object) -> Domain:
         if isinstance(other, DomainOr):
             return DomainOr(self.children + other.children)
         return super().__or__(other)

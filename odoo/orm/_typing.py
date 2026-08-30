@@ -12,6 +12,7 @@ if typing.TYPE_CHECKING:
 
 type DomainType = Domain | list[str | tuple[str, str, typing.Any]]
 type ModelLike = BaseModel | _ModelStubs
+type ModelClass = type[BaseModel]
 ModelType = typing.TypeVar("ModelType", bound="BaseModel")
 
 __all__ = [
@@ -21,6 +22,7 @@ __all__ = [
     "Environment",
     "Field",
     "IdType",
+    "ModelClass",
     "ModelLike",
     "ModelType",
     "Registry",

@@ -24,7 +24,7 @@ from .base import Field, _logger
 if typing.TYPE_CHECKING:
     from odoo.tools import Query
 
-    from .._typing import ModelLike
+    from .._typing import ModelClass, ModelLike
     from ..models import BaseModel
 
 NoneType = type(None)
@@ -43,12 +43,6 @@ RELATIONAL_PROPERTY_TYPES = frozenset(("many2one", "many2many"))
 class Properties(Field):
     type = "properties"
     cache_truthiness_matches = False
-    """Not even the truthiness. ``convert_to_record`` returns a ``Property``,
-    an ``abc.Mapping`` whose ``__len__`` counts the properties the *definition*
-    declares -- not the entries in the cached values dict. A record still
-    holding values for a definition that has since been emptied caches a
-    truthy dict and reads back a falsy ``Property``, so ``filtered(fname)``
-    kept records that ``filtered(lambda r: r[fname])`` dropped."""
     is_properties = True
     _column_type = ("jsonb", "jsonb")
     copy = False
@@ -96,11 +90,11 @@ class Properties(Field):
     )
 
     @override
-    def _setup_attrs__(self, model_class: type[BaseModel], name: str) -> None:
+    def _setup_attrs__(self, model_class: ModelClass, name: str) -> None:
         super()._setup_attrs__(model_class, name)
         self._setup_definition_attrs(model_class)
 
-    def _setup_definition_attrs(self, model_class: type[BaseModel]) -> None:
+    def _setup_definition_attrs(self, model_class: ModelClass) -> None:
         if self.definition:
             assert self.definition.count(".") == 1
             self.definition_record, self.definition_record_field = (
@@ -897,11 +891,6 @@ class Property(abc.Mapping):
 class PropertiesDefinition(Field):
     type = "properties_definition"
     cache_truthiness_matches = False
-    """Not even the truthiness. ``convert_to_record`` drops every definition
-    entry whose ``name`` or ``type`` is falsy, so a non-empty cached list can
-    read back as ``[]``. The validator now refuses to *write* such an entry,
-    but the column can still hold one written before that or by SQL, and the
-    reader is the authority on what the field is worth."""
     _column_type = ("jsonb", "jsonb")
     copy = True
     readonly = False

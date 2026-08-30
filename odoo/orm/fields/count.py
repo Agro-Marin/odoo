@@ -9,7 +9,7 @@ from ..domain import Domain
 from .numeric import Integer
 
 if typing.TYPE_CHECKING:
-    from .._typing import BaseModel
+    from .._typing import BaseModel, ModelClass
 
 COUNTABLE_TYPES = ("one2many", "many2many")
 
@@ -33,9 +33,7 @@ class Count(Integer):
         )
 
     @override
-    def _get_attrs(
-        self, model_class: type[BaseModel], name: str
-    ) -> dict[str, typing.Any]:
+    def _get_attrs(self, model_class: ModelClass, name: str) -> dict[str, typing.Any]:
         attrs = super()._get_attrs(model_class, name)
         if attrs.get("inherited"):
             attrs.pop("compute", None)

@@ -10,7 +10,7 @@ from .base import Field, _logger, _make_scalar_get, determine, resolve_mro
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
 
-    from .._typing import BaseModel, ModelLike
+    from .._typing import BaseModel, ModelClass, ModelLike
     from ..runtime import Environment
 
     SelectValue = tuple[str, str]
@@ -54,9 +54,7 @@ class Selection(Field[str | typing.Literal[False]]):
         self.selection = lambda model: field._description_selection(model.env)
         self._selection = None
 
-    def _get_attrs(
-        self, model_class: type[BaseModel], name: str
-    ) -> dict[str, typing.Any]:
+    def _get_attrs(self, model_class: ModelClass, name: str) -> dict[str, typing.Any]:
         attrs = super()._get_attrs(model_class, name)
         attrs.pop("selection_add", None)
         if attrs.get("group_expand") is True:
@@ -148,7 +146,7 @@ class Selection(Field[str | typing.Literal[False]]):
         self.ondelete.update(ondelete)
         return values
 
-    def _setup_attrs__(self, model_class: type[BaseModel], name: str) -> None:
+    def _setup_attrs__(self, model_class: ModelClass, name: str) -> None:
         super()._setup_attrs__(model_class, name)
         if not self._base_fields__:
             return
