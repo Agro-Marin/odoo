@@ -294,10 +294,10 @@ class ProductProduct(models.Model):
             ),
         )
         for product_id, avg, qty, total, sale in self.env.cr.fetchall():
-            res[product_id]["sale_avg_price"] = (avg and avg) or 0.0
-            res[product_id]["sale_num_invoiced"] = (qty and qty) or 0.0
-            res[product_id]["turnover"] = (total and total) or 0.0
-            res[product_id]["sale_expected"] = (sale and sale) or 0.0
+            res[product_id]["sale_avg_price"] = avg or 0.0
+            res[product_id]["sale_num_invoiced"] = qty or 0.0
+            res[product_id]["turnover"] = total or 0.0
+            res[product_id]["sale_expected"] = sale or 0.0
             res[product_id]["sales_gap"] = (
                 res[product_id]["sale_expected"] - res[product_id]["turnover"]
             )
@@ -328,9 +328,9 @@ class ProductProduct(models.Model):
             ),
         )
         for product_id, avg, qty, total, _dummy in self.env.cr.fetchall():
-            res[product_id]["purchase_avg_price"] = (avg and avg) or 0.0
-            res[product_id]["purchase_num_invoiced"] = (qty and qty) or 0.0
-            res[product_id]["total_cost"] = (total and total) or 0.0
+            res[product_id]["purchase_avg_price"] = avg or 0.0
+            res[product_id]["purchase_num_invoiced"] = qty or 0.0
+            res[product_id]["total_cost"] = total or 0.0
             res[product_id]["total_margin"] = (
                 res[product_id].get("turnover", 0.0) - res[product_id]["total_cost"]
             )
