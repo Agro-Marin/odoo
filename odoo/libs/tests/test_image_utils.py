@@ -56,10 +56,12 @@ class TestWebpIsProcessedLikeAnyOtherRaster(unittest.TestCase):
         source = _encode("WEBP", (200, 100))
         out = ImageProcess(source).resize(50, 50).image_quality()
         self.assertNotEqual(out, source)
+        assert out is not False, "the resize produced no image"
         self.assertEqual(Image.open(io.BytesIO(out)).size, (50, 25))
 
     def test_the_format_is_preserved_rather_than_transcoded_to_jpeg(self):
         out = ImageProcess(_encode("WEBP", (40, 40))).resize(20, 20).image_quality()
+        assert out is not False, "the resize produced no image"
         self.assertEqual(Image.open(io.BytesIO(out)).format, "WEBP")
 
     def test_an_untouched_webp_is_still_returned_byte_identical(self):
@@ -71,6 +73,7 @@ class TestWebpIsProcessedLikeAnyOtherRaster(unittest.TestCase):
         processed = ImageProcess(source)
         self.assertTrue(processed.animated)
         out = processed.resize(20, 20).image_quality()
+        assert out is not False, "the resize produced no image"
         reloaded = Image.open(io.BytesIO(out))
         self.assertEqual(reloaded.n_frames, 3)
         self.assertEqual(reloaded.size, (20, 20))
@@ -78,6 +81,7 @@ class TestWebpIsProcessedLikeAnyOtherRaster(unittest.TestCase):
     def test_an_animated_gif_still_keeps_its_frames(self):
         source = _encode_animated("GIF", (40, 40), frames=3)
         out = ImageProcess(source).resize(20, 20).image_quality()
+        assert out is not False, "the resize produced no image"
         self.assertEqual(Image.open(io.BytesIO(out)).n_frames, 3)
 
     def test_a_format_outside_preinit_is_decodable_again(self):
