@@ -226,3 +226,16 @@ class TestRecruitmentSurveyConfig(common.TransactionCase):
             )["arch"]
         )
         self.assertTrue(arch.xpath("//button[@name='action_open_jobs']"))
+
+    def test_settings_button_opens_the_interviews(self):
+        arch = etree.fromstring(
+            self.env["res.config.settings"].get_view(
+                self.env.ref("hr_recruitment.res_config_settings_view_form").id
+            )["arch"]
+        )
+        buttons = arch.xpath("//button[@string='Interview Survey']")
+        self.assertEqual(len(buttons), 1)
+        self.assertEqual(
+            int(buttons[0].get("name")),
+            self.env.ref("hr_recruitment_survey.survey_survey_action_recruitment").id,
+        )
