@@ -108,8 +108,21 @@ env:
   # five tests; and 4ffeacacd8c stripping `_http_handler`'s docstring, which
   # `openapi._summary()` reads as fixture data. All three are the same failure:
   # a suite nothing ran. When you add a test addon, give it a lane here.
+  #
+  # IT RAN WITH `--no-http` UNTIL 2026-08-30, WHICH IS THE SAME FAILURE AGAIN,
+  # one layer in. Every HttpCase in the module skips itself without a server
+  # ("requires a running HTTP server"), and a skipped setUpClass takes its whole
+  # class with it: the lane reported `0 failed, 0 error(s) of 25 tests` and was
+  # read as green while 35 classes never started. With the server up the same
+  # command measures 255 tests, 0 skipped — so this lane was exercising under a
+  # tenth of the suite, and none of the end-to-end request path it exists for.
+  # None of the 35 needs Chrome; they use `url_open`, not `browser_js`.
   HTTP_INSTALL: test_http
   HTTP_TEST_TAGS: /test_http
+  # Deliberately well under the 255 that run, so a collection or tag change
+  # fails loudly rather than by one test. The floor is what makes the skip
+  # above impossible to reintroduce quietly.
+  HTTP_TEST_COUNT_FLOOR: 200
 
   # test_orm, added 2026-08-08 — the broadening this workflow's header has asked
   # for since it landed ("Broaden via the TEST_TAGS / INSTALL env below (e.g. add
@@ -393,6 +406,7 @@ jobs:
         # in the env block above. Same interpreter and dependencies as the step
         # before it -- only the database and the module set differ.
         run: |
+          set -o pipefail
           python odoo-bin \
             --addons-path=odoo/addons,addons \
             -d ci_http \
@@ -401,8 +415,28 @@ jobs:
             -i "${HTTP_INSTALL}" \
             --test-enable --test-tags "${HTTP_TEST_TAGS}" \
             --stop-after-init \
-            --max-cron-threads=0 --no-http \
-            --log-level=test --logfile=/dev/stdout
+            --max-cron-threads=0 \
+            --log-level=test --logfile=/dev/stdout | tee /tmp/http-suite.log
+
+      - name: Assert the test_http suite actually ran
+        # The guard base and test_orm already carry, and the one this suite
+        # needed most: it was the only core lane without a count, and what it
+        # was hiding was 35 classes skipping themselves for want of a server.
+        # An exit code cannot tell a clean run from one that executed nothing.
+        run: |
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/http-suite.log \
+                | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no test-result summary in the log — test_http did not report a count"
+            exit 1
+          fi
+          echo "test_http tests run: $RAN (floor: ${HTTP_TEST_COUNT_FLOOR})"
+          if [ "$RAN" -lt "${HTTP_TEST_COUNT_FLOOR}" ]; then
+            echo "::error::only $RAN test_http tests ran, below the floor of"
+            echo "::error::${HTTP_TEST_COUNT_FLOOR} — something skipped rather than failed."
+            echo "::error::A drop to ~25 means the HttpCases found no server."
+            exit 1
+          fi
 
       - name: Run test_orm suite
         # Its own database (ci_orm), same reasoning as test_http above.
