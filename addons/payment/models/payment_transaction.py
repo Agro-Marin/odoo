@@ -228,10 +228,10 @@ class PaymentTransaction(models.Model):
         # Browse the providers and partners of the whole batch at once so that reading their fields
         # below prefetches across all transactions instead of issuing one query per transaction.
         providers = self.env["payment.provider"].browse(
-            [values["provider_id"] for values in vals_list]
+            [values.get("provider_id") for values in vals_list]
         )
         partners = self.env["res.partner"].browse(
-            [values["partner_id"] for values in vals_list]
+            [values.get("partner_id") for values in vals_list]
         )
 
         # Track the references assigned within this batch so that two transactions created together
