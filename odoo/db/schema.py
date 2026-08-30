@@ -587,6 +587,31 @@ def index_definition(cr: BaseCursor, indexname: str) -> tuple[str | None, str | 
     return (row[0], row[1]) if row else (None, None)
 
 
+def index_constraint(cr: BaseCursor, indexname: str) -> str | None:
+    """Name of the table constraint that owns ``indexname``, if any.
+
+    A UNIQUE, PRIMARY KEY or EXCLUDE constraint is backed by an index that
+    ``pg_indexes`` lists like any other, but which belongs to the constraint:
+    it cannot be dropped on its own, and its comment lives on the constraint.
+    Callers that mean to replace or remove an index have to ask this first,
+    because both operations take different DDL once the answer is not None.
+    """
+    cr.execute(
+        SQL(
+            """
+        SELECT c.conname
+        FROM pg_constraint c
+        JOIN pg_class i ON i.oid = c.conindid
+        WHERE i.relname = %s
+          AND i.relnamespace = current_schema::regnamespace
+    """,
+            indexname,
+        )
+    )
+    row = cr.fetchone()
+    return row[0] if row else None
+
+
 def create_index(
     cr: BaseCursor,
     indexname: str,
