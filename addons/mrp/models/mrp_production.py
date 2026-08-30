@@ -1759,6 +1759,22 @@ class MrpProduction(models.Model):
             if record.product_tracking == "lot" and len(record.lot_producing_ids) > 1:
                 raise UserError(_("You cannot set more than 1 lot"))
 
+    @api.constrains("production_group_id", "company_id")
+    def _check_production_group_company(self):
+        # `mrp.production.group` carries no company_id of its own -- it has
+        # no single owner, since it groups productions that might otherwise
+        # span companies -- so the boundary is enforced here instead. All of
+        # the group's productions are checked, not just `self`: the mismatch
+        # a write introduces can land on either side of the pairing.
+        for group in self.production_group_id:
+            if len(group.production_ids.company_id) > 1:
+                raise ValidationError(
+                    _(
+                        "All the manufacturing orders of a production group "
+                        "must belong to the same company."
+                    )
+                )
+
     def write(self, vals):
         vals = self._get_normalized_write_vals(dict(vals))
         if "product_id" in vals:
