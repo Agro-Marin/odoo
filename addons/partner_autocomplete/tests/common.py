@@ -7,6 +7,7 @@ from odoo.tests import common
 from odoo.addons.iap.tools import iap_tools
 from odoo.addons.partner_autocomplete.models.iap_autocomplete_api import (
     IapAutocompleteApi,
+    MissingIAPAccountTokenError,
 )
 
 
@@ -64,7 +65,7 @@ class MockIAPPartnerAutocomplete(common.BaseCase):
                         + local_endpoint
                     )
                 if sim_error and sim_error == "token":
-                    raise ValueError("No account token")
+                    raise MissingIAPAccountTokenError("No account token")
                 return {"data": sim_result}
             return None
 
