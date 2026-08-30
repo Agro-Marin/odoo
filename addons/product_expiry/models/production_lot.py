@@ -89,17 +89,17 @@ class StockLot(models.Model):
 
     @api.depends("product_id", "product_id.use_expiration_date", "expiration_date")
     def _compute_use_date(self):
-        self._derive_expiry_date("use_date", "use_time")
+        self._update_expiry_date("use_date", "use_time")
 
     @api.depends("product_id", "product_id.use_expiration_date", "expiration_date")
     def _compute_removal_date(self):
-        self._derive_expiry_date("removal_date", "removal_time")
+        self._update_expiry_date("removal_date", "removal_time")
 
     @api.depends("product_id", "product_id.use_expiration_date", "expiration_date")
     def _compute_alert_date(self):
-        self._derive_expiry_date("alert_date", "alert_time")
+        self._update_expiry_date("alert_date", "alert_time")
 
-    def _derive_expiry_date(self, date_field, time_field):
+    def _update_expiry_date(self, date_field, time_field):
         for lot in self:
             if not lot.product_id.use_expiration_date or not lot.expiration_date:
                 lot[date_field] = False

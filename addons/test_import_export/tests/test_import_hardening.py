@@ -53,14 +53,14 @@ class ImportHardeningCase(TransactionCase):
         raise an unhandled `AttributeError` instead of a clean
         `ImportValidationError`."""
         imp = self._make_import(file=b"a,b,c", file_name="x.csv", file_type="text/csv")
-        # Patches `_detect_encoding`, the module's own helper, rather than
-        # `chardet.detect`: detection was moved to chardet's streaming
+        # Patches `guess_encoding` where base_import imported it, rather than
+        # `chardet.detect`: detection uses chardet's streaming
         # `UniversalDetector` (a 249x win on non-ASCII files, see its
         # docstring), so patching the one-shot call no longer intercepts
         # anything and this test passed vacuously.
         with (
             patch(
-                "odoo.addons.base_import.models.base_import._detect_encoding",
+                "odoo.addons.base_import.models.base_import.guess_encoding",
                 return_value=None,
             ),
             self.assertRaises(ImportValidationError),

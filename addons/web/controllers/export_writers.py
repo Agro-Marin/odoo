@@ -11,8 +11,26 @@ import xlsxwriter
 
 from odoo.exceptions import UserError
 from odoo.http import request
+from odoo.libs.documents import (
+    ROWS,
+    BaseWriter,
+    Format,
+    register_format,
+    register_writer,
+)
 
 _logger = logging.getLogger(__name__)
+
+XLSX_MIMETYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+register_format(
+    Format(
+        mimetype=XLSX_MIMETYPE,
+        extension="xlsx",
+        representation=ROWS,
+        label="Excel workbook",
+    )
+)
 
 
 def none_values_filtered[T](
@@ -160,7 +178,12 @@ class ExportXlsxWriter:
         fields: list[dict[str, Any]],
         columns_headers: list[str],
         row_count: int,
+        env: Any = None,
     ) -> None:
+        # A workbook is not a response. Reading the environment off `request`
+        # bound this to a controller, which is why every wizard and cron that
+        # needs a sheet imports `xlsxwriter` and starts again instead.
+        self.env = request.env if env is None else env
         self.fields = fields
         self.columns_headers = columns_headers
         self.output = io.BytesIO()
@@ -180,7 +203,7 @@ class ExportXlsxWriter:
             {"text_wrap": True, "num_format": "#,##0.00"}
         )
 
-        decimal_places = request.env["res.currency"]._read_group(
+        decimal_places = self.env["res.currency"]._read_group(
             [], aggregates=["decimal_places:max"]
         )[0][0]
         self.monetary_decimal_places = decimal_places or 2
@@ -212,7 +235,7 @@ class ExportXlsxWriter:
 
         if row_count + 1 > self.worksheet.xls_rowmax:
             raise UserError(
-                request.env._(
+                self.env._(
                     "There are too many rows (%(count)s rows, limit: %(limit)s) to export as Excel 2007-2013 (.xlsx) format. Consider splitting the export.",
                     count=row_count,
                     limit=self.worksheet.xls_rowmax,
@@ -246,14 +269,14 @@ class ExportXlsxWriter:
         error_code = self.worksheet.write(row, column, cell_value, style)
         if error_code == -1:
             raise UserError(
-                request.env._(
+                self.env._(
                     "There are too many rows (limit: %(limit)s) to export as Excel 2007-2013 (.xlsx) format. Consider splitting the export.",
                     limit=self.worksheet.xls_rowmax,
                 )
             )
         if error_code:
             raise UserError(
-                request.env._(
+                self.env._(
                     "The value of cell (row %(row)s, column %(column)s) could not be written to the XLSX file.",
                     row=row,
                     column=column,
@@ -268,7 +291,7 @@ class ExportXlsxWriter:
                 cell_value = cell_value.decode()
             except UnicodeDecodeError:
                 raise UserError(
-                    request.env._(
+                    self.env._(
                         "Binary fields can not be exported to Excel unless their content is base64-encoded. That does not seem to be the case for %s.",
                         self.columns_headers[column],
                     )
@@ -278,7 +301,7 @@ class ExportXlsxWriter:
 
         if isinstance(cell_value, str):
             if len(cell_value) > self.worksheet.xls_strmax:
-                cell_value = request.env._(
+                cell_value = self.env._(
                     "The content of this cell is too long for an XLSX file (more than %s characters). Please use the CSV format for this export.",
                     self.worksheet.xls_strmax,
                 )
@@ -311,7 +334,7 @@ class GroupExportXlsxWriter(ExportXlsxWriter):
             else group_name
         )
         if group._groupby_type[group_depth] != "boolean":
-            group_name = group_name or request.env._("Undefined")
+            group_name = group_name or self.env._("Undefined")
         row, column = self._write_group_header(
             row, column, group_name, group, group_depth
         )
@@ -365,3 +388,26 @@ class GroupExportXlsxWriter(ExportXlsxWriter):
                 )
             self.write(row, column, aggregated_value, header_style)
         return row + 1, 0
+
+
+class XlsxRowsWriter(BaseWriter):
+    name = "xlsx"
+    mimetype = XLSX_MIMETYPE
+    consumes = ROWS
+
+    def write(self, value: Any, **options: Any) -> bytes:
+        rows = [list(row) for row in value]
+        columns_headers = list(options.get("columns_headers") or [])
+        width = max((len(row) for row in rows), default=len(columns_headers))
+        fields = list(options.get("fields") or [])
+        fields += [{"name": "", "type": "char"}] * (width - len(fields))
+        with ExportXlsxWriter(
+            fields, columns_headers, len(rows), env=options.get("env")
+        ) as writer:
+            for row_index, row in enumerate(rows):
+                for cell_index, cell_value in enumerate(row):
+                    writer.write_cell(row_index + 1, cell_index, cell_value)
+        return writer.value
+
+
+register_writer(XlsxRowsWriter())

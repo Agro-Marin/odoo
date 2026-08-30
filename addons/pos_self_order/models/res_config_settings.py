@@ -1,11 +1,14 @@
 import zipfile
 from io import BytesIO
-
-from odoo import models, fields, api, _
-from odoo.exceptions import ValidationError
-from odoo.fields import Domain
 from itertools import batched
 from urllib.parse import unquote
+
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
+from odoo.fields import Domain
+from odoo.libs.documents import Document, mimetype_for
+
+XLSX_MIMETYPE = mimetype_for("xlsx")
 
 
 class ResConfigSettings(models.TransientModel):
@@ -80,17 +83,12 @@ class ResConfigSettings(models.TransientModel):
         }
 
     def _generate_excel(self, rows, headers):
-        import xlsxwriter  # noqa: PLC0415
-        with BytesIO() as buffer:
-            with xlsxwriter.Workbook(buffer, {'in_memory': True}) as workbook:
-                worksheet = workbook.add_worksheet()
-
-                for col, header in enumerate(headers):
-                    worksheet.write(0, col, header)
-                for row_idx, row in enumerate(rows, start=1):
-                    for col_idx, cell in enumerate(row):
-                        worksheet.write(row_idx, col_idx, cell)
-            return buffer.getvalue()
+        return Document.of(
+            rows=rows,
+            mimetype=XLSX_MIMETYPE,
+            columns_headers=headers,
+            env=self.env,
+        ).data
 
     def get_pos_qr_stands(self):
         """Redirect to the get the free stands with the data of QR codes for the current POS config"""
@@ -104,7 +102,7 @@ class ResConfigSettings(models.TransientModel):
         }
 
     def generate_qr_codes_zip(self):
-        if not self.pos_self_ordering_mode in ['mobile', 'consultation']:
+        if self.pos_self_ordering_mode not in ['mobile', 'consultation']:
             raise ValidationError(_("QR codes can only be generated in mobile or consultation mode."))
 
         qr_images = []

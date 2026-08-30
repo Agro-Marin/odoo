@@ -7,8 +7,11 @@ from werkzeug.exceptions import UnprocessableEntity
 
 from odoo import _, http
 from odoo.http import Response, content_disposition, request
+from odoo.libs.documents import extension_for
 from odoo.libs.filesystem import osutil
 from odoo.libs.json import loads as json_loads
+
+from .export_writers import XLSX_MIMETYPE
 
 MAX_EXPORT_CELLS = 1_000_000
 
@@ -86,13 +89,10 @@ class TableExporter(http.Controller):
         return request.make_response(
             xlsx_data,
             headers=[
-                (
-                    "Content-Type",
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                ),
+                ("Content-Type", XLSX_MIMETYPE),
                 (
                     "Content-Disposition",
-                    content_disposition(filename + ".xlsx"),
+                    content_disposition(f"{filename}.{extension_for(XLSX_MIMETYPE)}"),
                 ),
             ],
         )

@@ -1194,7 +1194,7 @@ class TestProductAuditFixes(ProductCommon):
 @tagged("post_install", "-at_install")
 class TestAttributeNameUniqueness(ProductCommon):
 
-    @mute_logger("odoo.sql_db")
+    @mute_logger("odoo.db.cursor")
     def test_duplicate_value_in_one_attribute_is_refused(self):
         attribute = self.env["product.attribute"].create({"name": "Fabric"})
         self.env["product.attribute.value"].create(

@@ -11,6 +11,7 @@ from werkzeug.exceptions import InternalServerError
 from odoo import http
 from odoo.exceptions import UserError
 from odoo.http import Response, content_disposition, request
+from odoo.libs.documents import mimetype_for
 from odoo.libs.filesystem import osutil
 from odoo.libs.json import dumps as json_dumps
 from odoo.libs.json import loads as json_loads
@@ -291,13 +292,25 @@ class Export(http.Controller):
 
 
 class ExportFormat:
+    # The registered extension, and the only thing a subclass states about its
+    # format. The mimetype comes from the same registration, so the two cannot
+    # drift apart -- `application/vnd.ms-excel` on OOXML bytes is the shape that
+    # mistake takes when they are declared separately.
+    format_key: str = ""
+
     @property
     def content_type(self) -> str:
-        raise NotImplementedError
+        mimetype = mimetype_for(self.format_key)
+        if not mimetype:
+            raise NotImplementedError(
+                f"{type(self).__name__} exports {self.format_key!r}, which no "
+                f"module registers as a format"
+            )
+        return mimetype
 
     @property
     def extension(self) -> str:
-        raise NotImplementedError
+        return f".{self.format_key}"
 
     def filename(self, base: str) -> str:
         if base not in request.env:
@@ -494,17 +507,15 @@ class ExportFormat:
 
 
 class CSVExport(ExportFormat, http.Controller):
+    format_key = "csv"
+
     @http.route("/web/export/csv", type="http", auth="user")
     def web_export_csv(self, data: str) -> Response:
         return self.base_response(data)
 
     @property
     def content_type(self) -> str:
-        return "text/csv;charset=utf8"
-
-    @property
-    def extension(self) -> str:
-        return ".csv"
+        return f"{super().content_type};charset=utf8"
 
     def from_group_data(
         self,
@@ -526,17 +537,11 @@ class CSVExport(ExportFormat, http.Controller):
 
 
 class ExcelExport(ExportFormat, http.Controller):
+    format_key = "xlsx"
+
     @http.route("/web/export/xlsx", type="http", auth="user")
     def web_export_xlsx(self, data: str) -> Response:
         return self.base_response(data)
-
-    @property
-    def content_type(self) -> str:
-        return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-
-    @property
-    def extension(self) -> str:
-        return ".xlsx"
 
     def from_group_data(
         self,

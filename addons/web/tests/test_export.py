@@ -9,9 +9,19 @@ from lxml import etree
 from odoo_rust import csv_export
 
 from odoo import Command, http
+from odoo.libs.documents import (
+    ROWS,
+    Document,
+    extension_for,
+    get_writers,
+    mimetype_for,
+)
 from odoo.libs.json import dumps as json_dumps
-from odoo.tests.common import HttpCase, JsonRpcException, tagged
+from odoo.tests.common import HttpCase, JsonRpcException, TransactionCase, tagged
 from odoo.tools import mute_logger
+
+from odoo.addons.web.controllers.export import CSVExport, ExcelExport, ExportFormat
+from odoo.addons.web.controllers.export_writers import XLSX_MIMETYPE
 
 _XLSX_NS = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
 
@@ -276,3 +286,37 @@ class TestXlsxRowLimit(ExportControllerCase):
         sheet = _sheet_text(response.content)
         for suffix in "ABCDE":
             self.assertIn(f"xrowtest {suffix}", sheet)
+
+
+@tagged("post_install", "-at_install", "web_export")
+class TestFormatRegistration(TransactionCase):
+    def test_the_extension_and_the_mimetype_come_from_one_registration(self):
+        self.assertEqual(mimetype_for("xlsx"), XLSX_MIMETYPE)
+        self.assertEqual(extension_for(XLSX_MIMETYPE), "xlsx")
+
+    def test_the_controller_derives_both_from_it(self):
+        self.assertEqual(ExcelExport().content_type, XLSX_MIMETYPE)
+        self.assertEqual(ExcelExport().extension, ".xlsx")
+        self.assertEqual(CSVExport().content_type, "text/csv;charset=utf8")
+        self.assertEqual(CSVExport().extension, ".csv")
+
+    def test_an_unregistered_format_fails_loudly(self):
+        class Nowhere(ExportFormat):
+            format_key = "nowhere"
+
+        with self.assertRaises(NotImplementedError):
+            Nowhere().content_type
+
+    def test_the_writer_is_reachable_outside_this_controller(self):
+        writers = get_writers(XLSX_MIMETYPE, ROWS)
+        self.assertEqual([w.name for w in writers], ["xlsx"])
+
+    def test_a_document_can_be_written_through_the_registry(self):
+        document = Document.of(
+            rows=[["Ref", "Amount"], ["INV/1", 10.5]],
+            mimetype=XLSX_MIMETYPE,
+            columns_headers=["Ref", "Amount"],
+            env=self.env,
+        )
+        self.assertEqual(document.mimetype, XLSX_MIMETYPE)
+        self.assertIn("INV/1", _sheet_text(document.data))

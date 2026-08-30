@@ -1,5 +1,4 @@
 import base64
-import codecs
 import collections
 import contextlib
 import csv
@@ -7,6 +6,7 @@ import datetime
 import difflib
 import functools
 import hashlib
+import importlib.util
 import io
 import itertools
 import logging
@@ -17,13 +17,21 @@ import unicodedata
 from collections.abc import Sequence
 from pathlib import Path
 
-import chardet
 import psycopg
 import requests
 from PIL import Image
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.documents import (
+    ROWS,
+    BaseReader,
+    decode,
+    guess_encoding,
+    infer_separators,
+    register_reader,
+    strip_currency_symbol,
+)
 from odoo.libs.filesystem import guess_mimetype
 from odoo.tools import (
     DEFAULT_SERVER_DATE_FORMAT,
@@ -40,13 +48,6 @@ DEFAULT_CHUNK_SIZE = 32768
 # the shape of a file is decided by its first lines, so cap the work.
 SEPARATOR_SNIFF_ROWS = 100
 _logger = logging.getLogger(__name__)
-BOM_MAP = {
-    "utf-16le": codecs.BOM_UTF16_LE,
-    "utf-16be": codecs.BOM_UTF16_BE,
-    "utf-32le": codecs.BOM_UTF32_LE,
-    "utf-32be": codecs.BOM_UTF32_BE,
-}
-
 MIMETYPE_TO_READER = {
     "text/csv": "csv",
     "application/vnd.ms-excel": "xls",  # legacy .xls (BIFF), read via xlrd
@@ -167,6 +168,23 @@ CONCAT_SEPARATOR_IMPORT = {
 }
 
 
+class _StoredCurrencySymbols:
+    """The symbols this database knows, asked one at a time.
+
+    A ``Container`` rather than a set because the caller that reaches here has
+    no symbol table to hand and wants exactly one query, for the one symbol the
+    value turned out to carry.
+    """
+
+    def __init__(self, env):
+        self.env = env
+
+    def __contains__(self, symbol):
+        return bool(
+            self.env["res.currency"].search_count([("symbol", "=", symbol)], limit=1)
+        )
+
+
 class ImportValidationError(Exception):
     """
     This class is made to correctly format all the different error types that
@@ -189,6 +207,156 @@ class ImportValidationError(Exception):
         self.field_path = [kwargs["field"]] if kwargs.get("field") else False
         self.field_type = kwargs.get("field_type")
 
+
+
+def read_xls_rows(data, options):
+    # Lazy import, mirroring _read_xlsx's `import openpyxl` and _read_ods's
+    # `from . import odf_ods_reader`: `xlrd` is an optional format library
+    # (not in requirements.txt, unlike chardet/Pillow/psycopg above), and a
+    # module-level `import xlrd` used to make the WHOLE base_import module
+    # fail to load if it were ever absent, instead of only ".xls" support
+    # becoming unavailable via _read_file's existing `except ImportError`
+    # handling (t24068 F20).
+    import xlrd
+
+    book = xlrd.open_workbook(file_contents=data)
+    sheets = options["sheets"] = book.sheet_names()
+    sheet_name = options["sheet"] = options.get("sheet") or sheets[0]
+    sheet = book.sheet_by_name(sheet_name)
+    rows = []
+    for rowx, row in enumerate(map(sheet.row, range(sheet.nrows)), 1):
+        values = []
+        for colx, cell in enumerate(row, 1):
+            if cell.ctype is xlrd.XL_CELL_NUMBER:
+                if cell.value % 1 == 0:
+                    values.append(str(int(cell.value)))
+                else:
+                    values.append(str(cell.value))
+            elif cell.ctype is xlrd.XL_CELL_DATE:
+                dt = datetime.datetime(
+                    *xlrd.xldate.xldate_as_tuple(cell.value, book.datemode)
+                )
+                values.append(dt if cell.value % 1 else dt.date())
+            elif cell.ctype is xlrd.XL_CELL_BOOLEAN:
+                values.append("True" if cell.value else "False")
+            elif cell.ctype is xlrd.XL_CELL_ERROR:
+                raise ValueError(
+                    _(
+                        "Invalid cell value at row %(row)s, column %(col)s: %(cell_value)s",
+                        row=rowx,
+                        col=colx,
+                        cell_value=xlrd.error_text_from_code.get(
+                            cell.value, _("unknown error code %s", cell.value)
+                        ),
+                    )
+                )
+            else:
+                values.append(cell.value)
+        if any(x and (not isinstance(x, str) or x.strip()) for x in values):
+            rows.append(values)
+    return rows
+
+def read_xlsx_rows(data, options):
+    import openpyxl
+    import openpyxl.cell.cell as types
+    import openpyxl.styles.numbers as styles
+
+    book = openpyxl.load_workbook(
+        io.BytesIO(data), data_only=True, read_only=True
+    )
+    try:
+        sheets = options["sheets"] = book.sheetnames
+        sheet_name = options["sheet"] = options.get("sheet") or sheets[0]
+        sheet = book[sheet_name]
+        rows = []
+        for rowx, row in enumerate(sheet.rows, 1):
+            values = []
+            for colx, cell in enumerate(row, 1):
+                if cell.data_type == types.TYPE_ERROR:
+                    raise ValueError(
+                        _(
+                            "Invalid cell value at row %(row)s, column %(col)s: %(cell_value)s",
+                            row=rowx,
+                            col=colx,
+                            cell_value=cell.value,
+                        )
+                    )
+
+                if cell.value is None:
+                    values.append("")
+                elif isinstance(cell.value, float):
+                    if cell.value % 1 == 0:
+                        values.append(str(int(cell.value)))
+                    else:
+                        values.append(str(cell.value))
+                elif cell.is_date:
+                    d_fmt = styles.is_datetime(cell.number_format)
+                    if d_fmt == "datetime":
+                        values.append(cell.value)
+                    elif d_fmt == "date":
+                        values.append(cell.value.date())
+                    else:
+                        raise ValueError(
+                            _(
+                                "Invalid cell format at row %(row)s, column %(col)s: %(cell_value)s, with format: %(cell_format)s, as (%(format_type)s) formats are not supported.",
+                                row=rowx,
+                                col=colx,
+                                cell_value=cell.value,
+                                cell_format=cell.number_format,
+                                format_type=d_fmt,
+                            )
+                        )
+                else:
+                    values.append(str(cell.value))
+
+            if any(x and (not isinstance(x, str) or x.strip()) for x in values):
+                rows.append(values)
+        return rows
+    finally:
+        book.close()
+
+class _SpreadsheetReader(BaseReader):
+    """A workbook read as `rows`, for every consumer of the format layer.
+
+    ADR-0078 put these here rather than in `libs/documents` because xlrd,
+    openpyxl and odfpy are optional and this module is where they are declared.
+    The registry reads the first sheet: choosing one is a conversation with a
+    person, which `base_import.import` has and a strategy reading a document
+    does not.
+    """
+
+    yields = (ROWS,)
+
+    def __init__(self, name, mimetypes, reader, module):
+        self.name = name
+        self.mimetypes = frozenset(mimetypes)
+        self._reader = reader
+        self._module = module
+
+    def read(self, document):
+        return self._reader(document.data, {})
+
+    def provides(self, document):
+        return importlib.util.find_spec(self._module) is not None
+
+
+def read_ods_rows(data, options):
+    from . import odf_ods_reader
+
+    doc = odf_ods_reader.ODSReader(file=io.BytesIO(data))
+    sheets = options["sheets"] = list(doc.sheets)
+    if not sheets:
+        raise ImportValidationError(_("Import file has no content or is corrupt"))
+    # A stale/hand-crafted `sheet` option must not IndexError or KeyError
+    # its way out of the reader; fall back to the first sheet.
+    sheet = options.get("sheet")
+    if sheet not in doc.sheets:
+        sheet = sheets[0]
+    options["sheet"] = sheet
+
+    # The reader already drops blank rows, including the repeated blank
+    # tail every producer writes.
+    return doc.get_sheet(sheet)
 
 class Base(models.AbstractModel):
     _inherit = "base"
@@ -781,130 +949,6 @@ class Base_ImportImport(models.TransientModel):
             )
         )
 
-    def _read_xls(self, options):
-        # Lazy import, mirroring _read_xlsx's `import openpyxl` and _read_ods's
-        # `from . import odf_ods_reader`: `xlrd` is an optional format library
-        # (not in requirements.txt, unlike chardet/Pillow/psycopg above), and a
-        # module-level `import xlrd` used to make the WHOLE base_import module
-        # fail to load if it were ever absent, instead of only ".xls" support
-        # becoming unavailable via _read_file's existing `except ImportError`
-        # handling (t24068 F20).
-        import xlrd
-
-        book = xlrd.open_workbook(file_contents=self.file or b"")
-        sheets = options["sheets"] = book.sheet_names()
-        sheet_name = options["sheet"] = options.get("sheet") or sheets[0]
-        sheet = book.sheet_by_name(sheet_name)
-        rows = []
-        for rowx, row in enumerate(map(sheet.row, range(sheet.nrows)), 1):
-            values = []
-            for colx, cell in enumerate(row, 1):
-                if cell.ctype is xlrd.XL_CELL_NUMBER:
-                    if cell.value % 1 == 0:
-                        values.append(str(int(cell.value)))
-                    else:
-                        values.append(str(cell.value))
-                elif cell.ctype is xlrd.XL_CELL_DATE:
-                    dt = datetime.datetime(
-                        *xlrd.xldate.xldate_as_tuple(cell.value, book.datemode)
-                    )
-                    values.append(dt if cell.value % 1 else dt.date())
-                elif cell.ctype is xlrd.XL_CELL_BOOLEAN:
-                    values.append("True" if cell.value else "False")
-                elif cell.ctype is xlrd.XL_CELL_ERROR:
-                    raise ValueError(
-                        _(
-                            "Invalid cell value at row %(row)s, column %(col)s: %(cell_value)s",
-                            row=rowx,
-                            col=colx,
-                            cell_value=xlrd.error_text_from_code.get(
-                                cell.value, _("unknown error code %s", cell.value)
-                            ),
-                        )
-                    )
-                else:
-                    values.append(cell.value)
-            if any(x and (not isinstance(x, str) or x.strip()) for x in values):
-                rows.append(values)
-        return rows
-
-    def _read_xlsx(self, options):
-        import openpyxl
-        import openpyxl.cell.cell as types
-        import openpyxl.styles.numbers as styles
-
-        book = openpyxl.load_workbook(
-            io.BytesIO(self.file or b""), data_only=True, read_only=True
-        )
-        try:
-            sheets = options["sheets"] = book.sheetnames
-            sheet_name = options["sheet"] = options.get("sheet") or sheets[0]
-            sheet = book[sheet_name]
-            rows = []
-            for rowx, row in enumerate(sheet.rows, 1):
-                values = []
-                for colx, cell in enumerate(row, 1):
-                    if cell.data_type == types.TYPE_ERROR:
-                        raise ValueError(
-                            _(
-                                "Invalid cell value at row %(row)s, column %(col)s: %(cell_value)s",
-                                row=rowx,
-                                col=colx,
-                                cell_value=cell.value,
-                            )
-                        )
-
-                    if cell.value is None:
-                        values.append("")
-                    elif isinstance(cell.value, float):
-                        if cell.value % 1 == 0:
-                            values.append(str(int(cell.value)))
-                        else:
-                            values.append(str(cell.value))
-                    elif cell.is_date:
-                        d_fmt = styles.is_datetime(cell.number_format)
-                        if d_fmt == "datetime":
-                            values.append(cell.value)
-                        elif d_fmt == "date":
-                            values.append(cell.value.date())
-                        else:
-                            raise ValueError(
-                                _(
-                                    "Invalid cell format at row %(row)s, column %(col)s: %(cell_value)s, with format: %(cell_format)s, as (%(format_type)s) formats are not supported.",
-                                    row=rowx,
-                                    col=colx,
-                                    cell_value=cell.value,
-                                    cell_format=cell.number_format,
-                                    format_type=d_fmt,
-                                )
-                            )
-                    else:
-                        values.append(str(cell.value))
-
-                if any(x and (not isinstance(x, str) or x.strip()) for x in values):
-                    rows.append(values)
-            return rows
-        finally:
-            book.close()
-
-    def _read_ods(self, options):
-        from . import odf_ods_reader
-
-        doc = odf_ods_reader.ODSReader(file=io.BytesIO(self.file or b""))
-        sheets = options["sheets"] = list(doc.sheets)
-        if not sheets:
-            raise ImportValidationError(_("Import file has no content or is corrupt"))
-        # A stale/hand-crafted `sheet` option must not IndexError or KeyError
-        # its way out of the reader; fall back to the first sheet.
-        sheet = options.get("sheet")
-        if sheet not in doc.sheets:
-            sheet = sheets[0]
-        options["sheet"] = sheet
-
-        # The reader already drops blank rows, including the repeated blank
-        # tail every producer writes.
-        return doc.get_sheet(sheet)
-
     def _check_csv_quoting(self, options):
         """The text delimiter, defaulted and validated.
 
@@ -927,7 +971,7 @@ class Base_ImportImport(models.TransientModel):
         return quoting
 
     def _decode_csv_text(self, csv_data, options):
-        """Decode the uploaded bytes, detecting the encoding when unspecified.
+        """Decode the uploaded bytes, guessing the encoding when unspecified.
 
         Records the encoding it settles on into ``options``, so the client sees
         what was guessed and the error message can say whether the user chose
@@ -936,32 +980,24 @@ class Base_ImportImport(models.TransientModel):
         :param bytes csv_data: the raw uploaded file
         :param dict options: parsing options, mutated in place
         :rtype: str
-        :raises ImportValidationError: if the encoding cannot be detected or applied
+        :raises ImportValidationError: if the encoding cannot be guessed or applied
         """
         encoding = options.get("encoding")
-        encoding_guessed = False
-        if not encoding:
-            encoding_guessed = True
-            detected_encoding = _detect_encoding(csv_data)
-            if not detected_encoding:
-                # chardet returns encoding=None for ambiguous/undetectable byte
-                # content; used to crash here with AttributeError (t24068 F19).
+        encoding_guessed = not encoding
+        if encoding_guessed:
+            # `guess_encoding` answers None for ambiguous or undetectable byte
+            # content; this used to crash with AttributeError (t24068 F19).
+            encoding = guess_encoding(csv_data)
+            if not encoding:
                 raise ImportValidationError(
                     _(
                         "Could not detect the file's encoding, please select it manually."
                     )
                 )
-            encoding = options["encoding"] = detected_encoding.lower()
-            # some versions of chardet (e.g. 2.3.0 but not 3.x) will return
-            # utf-(16|32)(le|be), which for python means "ignore / don't strip
-            # BOM". We don't want that, so rectify the encoding to non-marked
-            # IFF the guessed encoding is LE/BE and csv_data starts with a BOM
-            bom = BOM_MAP.get(encoding)
-            if bom and csv_data.startswith(bom):
-                encoding = options["encoding"] = encoding[:-2]
+            options["encoding"] = encoding
 
         try:
-            return csv_data.decode(encoding)
+            return decode(csv_data, encoding)
         except UnicodeDecodeError as exc:
             if encoding_guessed:
                 msg = _(
@@ -975,7 +1011,7 @@ class Base_ImportImport(models.TransientModel):
                 )
             raise ImportValidationError(msg) from exc
 
-    def _sniff_csv_separator(self, csv_text, quoting, options):
+    def _guess_csv_separator(self, csv_text, quoting, options):
         """Guess the column separator, recording it into ``options`` when found.
 
         Falls back to ``','`` *without* recording it, so the caller's parse
@@ -1016,6 +1052,15 @@ class Base_ImportImport(models.TransientModel):
                 return candidate
         return ","
 
+    def _read_xls(self, options):
+        return read_xls_rows(self.file or b"", options)
+
+    def _read_xlsx(self, options):
+        return read_xlsx_rows(self.file or b"", options)
+
+    def _read_ods(self, options):
+        return read_ods_rows(self.file or b"", options)
+
     def _read_csv(self, options):
         """Returns a CSV-parsed list of all non-empty lines in the file.
 
@@ -1028,7 +1073,7 @@ class Base_ImportImport(models.TransientModel):
             return []
 
         csv_text = self._decode_csv_text(csv_data, options)
-        separator = options.get("separator") or self._sniff_csv_separator(
+        separator = options.get("separator") or self._guess_csv_separator(
             csv_text, quoting, options
         )
 
@@ -2024,43 +2069,10 @@ class Base_ImportImport(models.TransientModel):
             for this one symbol, preserving the behaviour of external callers.
         :returns: the numeric part, or ``False`` if this is not a decorated number
         """
-        value = value.strip()
-        negative = False
-        # Careful that some countries use () for negative so replace it by - sign
-        if value.startswith("(") and value.endswith(")"):
-            value = value[1:-1]
-            negative = True
-        split_value = [g for g in _FLOAT_RE.split(value) if g]
-        if len(split_value) > 2:
-            # This is probably not a float
-            return False
-        if len(split_value) == 1:
-            if _FLOAT_RE.search(split_value[0]) is not None:
-                return split_value[0] if not negative else "-" + split_value[0]
-            return False
-        else:
-            # String has been split in 2, locate which index contains the float and which does not
-            currency_index = 0
-            if _FLOAT_RE.search(split_value[0]) is not None:
-                currency_index = 1
-            # Check that currency exists
-            symbol = split_value[currency_index].strip()
-            if currency_symbols is None:
-                known = bool(
-                    self.env["res.currency"].search_count(
-                        [("symbol", "=", symbol)], limit=1
-                    )
-                )
-            else:
-                known = symbol in currency_symbols
-            if known:
-                return (
-                    split_value[(currency_index + 1) % 2]
-                    if not negative
-                    else "-" + split_value[(currency_index + 1) % 2]
-                )
-            # Otherwise it is not a float with a currency symbol
-            return False
+        if currency_symbols is None:
+            currency_symbols = _StoredCurrencySymbols(self.env)
+        number = strip_currency_symbol(value, currency_symbols)
+        return False if number is None else number
 
     @api.model
     def _currency_symbols(self):
@@ -2128,34 +2140,12 @@ class Base_ImportImport(models.TransientModel):
                 )
 
     def _infer_separators(self, value, options):
-        """Try to infer the shape of the separators: if there are two
-        different "non-numberic" characters in the number, the
-        former/duplicated one would be grouping ("thousands" separator) and
-        the latter would be the decimal separator. The decimal separator
-        should furthermore be unique.
-        """
-        # can't use \p{Sc} using re so handroll it
-        non_number = [
-            # any character
-            c
-            for c in value
-            # which is not a numeric decoration (() is used for negative
-            # by accountants)
-            if c not in "()-+"
-            # which is not a digit or a currency symbol
-            if unicodedata.category(c) not in ("Nd", "Sc")
-        ]
-
-        counts = collections.Counter(non_number)
-        # if we have two non-numbers *and* the last one has a count of 1,
-        # we probably have grouping & decimal separators
-        if len(counts) == 2 and counts[non_number[-1]] == 1:
-            return [character for character, _count in counts.most_common()]
-
-        # otherwise get whatever's in the options, or fallback to a default
-        thousand_separator = options.get("float_thousand_separator", " ")
-        decimal_separator = options.get("float_decimal_separator", ".")
-        return thousand_separator, decimal_separator
+        """How ``value`` groups and points its digits, per :func:`infer_separators`."""
+        return infer_separators(
+            value,
+            options.get("float_thousand_separator", " "),
+            options.get("float_decimal_separator", "."),
+        )
 
     def _parse_import_data(self, data, import_fields, options):
         """Normalise the raw cell values of the date, float and binary columns
@@ -3078,46 +3068,6 @@ TIME_PATTERNS = [
 ]
 
 _INTEGER_RE = re.compile(r"^[+-]?[0-9]+$")
-# Hoisted out of `_remove_currency_symbol`, which is called once per cell of
-# every float/monetary column: the pattern is a compile-time constant and was
-# being handed to `re.compile` (and so to `re`'s internal cache) per value.
-_FLOAT_RE = re.compile(r"([+-]?[0-9.,]+)")
-# Bytes handed to chardet per `feed` call. Only affects how often the detector
-# is asked whether it is done, not what it sees -- see `_detect_encoding`.
-_ENCODING_DETECT_CHUNK = 1 << 16
-
-
-def _detect_encoding(data):
-    """Guess the encoding of ``data``, or ``None`` if chardet cannot tell.
-
-    Uses chardet's streaming detector rather than the one-shot
-    ``chardet.detect``. Both see every byte and return the same answer -- the
-    difference is that ``feed`` keeps chardet in its cheap "pure ASCII" state
-    until the first high byte, so the ASCII prefix of a file costs nothing,
-    whereas the one-shot call runs the full prober suite over the whole buffer.
-
-    That is not a micro-optimisation. Measured on a 3.4 MiB CSV: 694 ms when
-    the file is pure ASCII, but 15.0 s once it contains a single accented
-    character -- which for any non-English deployment is every file. The same
-    file detects in 50 ms here, a 249x difference, with an identical result.
-
-    Deliberately *not* implemented as "detect on the first N bytes": that is
-    the obvious version and it is wrong. Any file whose non-ASCII bytes fall
-    outside the window is reported as ``ascii``, and the decode in the caller
-    then fails on content that used to import fine. Verified across utf-8,
-    latin-1, cp1252 and utf-8/CJK samples at 8 KiB, 32 KiB and 256 KiB: all
-    four mis-detect at every size.
-
-    :param bytes data: the whole file
-    :rtype: str | None
-    """
-    detector = chardet.UniversalDetector()
-    for start in range(0, len(data), _ENCODING_DETECT_CHUNK):
-        detector.feed(data[start : start + _ENCODING_DETECT_CHUNK])
-        if detector.done:
-            break
-    detector.close()
-    return detector.result["encoding"]
 
 
 def _normalize_column_name(name):
@@ -3236,3 +3186,32 @@ def _prepare_read_file_error(exc: Exception, message: str) -> UserError:
     e = UserError(message)
     e.__cause__ = exc
     return e
+
+
+register_reader(
+    _SpreadsheetReader(
+        "xlsx",
+        (
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.ms-excel.sheet.macroenabled.12",
+        ),
+        read_xlsx_rows,
+        "openpyxl",
+    ),
+)
+register_reader(
+    _SpreadsheetReader(
+        "xls",
+        ("application/vnd.ms-excel",),
+        read_xls_rows,
+        "xlrd",
+    ),
+)
+register_reader(
+    _SpreadsheetReader(
+        "ods",
+        ("application/vnd.oasis.opendocument.spreadsheet",),
+        read_ods_rows,
+        "odf",
+    ),
+)

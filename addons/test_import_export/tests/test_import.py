@@ -1142,20 +1142,20 @@ class test_convert_import_data(TransactionCase):
         import_wizard = self.env["base_import.import"].create(
             {
                 "res_model": "res.partner",
-                "file": """foo,US,person\n
-foo1,Invalid Country,person\n
-foo2,US,persons\n""",
+                "file": """foo,US,invoice\n
+foo1,Invalid Country,invoice\n
+foo2,US,invoices\n""",
                 "file_type": "text/csv",
             }
         )
 
         results = import_wizard.execute_import(
-            ["name", "country_id", "company_type"],
+            ["name", "country_id", "type"],
             [],
             {
                 "quoting": '"',
                 "separator": ",",
-                "import_set_empty_fields": ["country_id", "company_type"],
+                "import_set_empty_fields": ["country_id", "type"],
             },
         )
         partners_now = self.env["res.partner"].search([]) - partners_before
@@ -1174,9 +1174,9 @@ foo2,US,persons\n""",
             "Foo partner's country should be US",
         )
         self.assertEqual(
-            partners_now[0].company_type,
-            "person",
-            "Foo partner's country should be person",
+            partners_now[0].type,
+            "invoice",
+            "Foo partner's type should be invoice",
         )
 
         self.assertEqual(
@@ -1186,9 +1186,9 @@ foo2,US,persons\n""",
         )
 
         self.assertEqual(
-            partners_now[2].company_type,
+            partners_now[2].type,
             False,
-            "foo2 partner's country should be False",
+            "foo2 partner's type should be False",
         )
         # if results empty, no errors
         self.assertItemsEqual(results["messages"], [])
@@ -1198,21 +1198,21 @@ foo2,US,persons\n""",
         import_wizard = self.env["base_import.import"].create(
             {
                 "res_model": "res.partner",
-                "file": """foo,US,0,person\n
-foo1,Invalid Country,0,person\n
-foo2,US,False Value,person\n
-foo3,US,0,persons\n""",
+                "file": """foo,US,0,invoice\n
+foo1,Invalid Country,0,invoice\n
+foo2,US,False Value,invoice\n
+foo3,US,0,invoices\n""",
                 "file_type": "text/csv",
             }
         )
 
         results = import_wizard.execute_import(
-            ["name", "country_id", "is_company", "company_type"],
+            ["name", "country_id", "is_company", "type"],
             [],
             {
                 "quoting": '"',
                 "separator": ",",
-                "import_skip_records": ["country_id", "is_company", "company_type"],
+                "import_skip_records": ["country_id", "is_company", "type"],
             },
         )
         partners_now = self.env["res.partner"].search([]) - partners_before

@@ -284,7 +284,7 @@ class ImportAuditChallengePerf(TransactionCase):
         non-English deployment."""
         import chardet
 
-        from odoo.addons.base_import.models.base_import import _detect_encoding
+        from odoo.libs.documents import guess_encoding
 
         data = (
             b"name,ref\n"
@@ -293,7 +293,7 @@ class ImportAuditChallengePerf(TransactionCase):
         )
 
         start = time.perf_counter()
-        detected = _detect_encoding(data)
+        detected = guess_encoding(data)
         elapsed = time.perf_counter() - start
 
         # Same answer as the one-shot call -- the speed is worth nothing if the

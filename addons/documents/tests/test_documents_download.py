@@ -516,7 +516,7 @@ class TestDocumentsDownloadAudit(HttpCase, TransactionCaseDocuments):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsLastAccessUpsert(TransactionCaseDocuments):
-    @mute_logger("odoo.sql_db")
+    @mute_logger("odoo.db.cursor")
     def test_upsert_last_access_date_idempotent(self):
         from odoo.addons.documents.controllers.documents import ShareRoute
 

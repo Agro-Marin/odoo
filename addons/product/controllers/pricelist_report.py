@@ -6,6 +6,10 @@ from werkzeug.exceptions import BadRequest
 
 from odoo import _
 from odoo.http import Controller, content_disposition, request, route
+from odoo.libs.documents import Document, extension_for, mimetype_for
+
+CSV_MIMETYPE = mimetype_for("csv")
+XLSX_MIMETYPE = mimetype_for("xlsx")
 
 
 class ProductPricelistExportController(Controller):
@@ -54,36 +58,32 @@ class ProductPricelistExportController(Controller):
         content = buffer.getvalue()
         buffer.close()
         headers = [
-            ("Content-Type", "text/csv"),
+            ("Content-Type", CSV_MIMETYPE),
             (
                 "Content-Disposition",
-                content_disposition(f"Pricelist - {pricelist_name}.csv"),
+                content_disposition(
+                    f"Pricelist - {pricelist_name}.{extension_for(CSV_MIMETYPE)}"
+                ),
             ),
         ]
         return request.make_response(content, headers)
 
     def _generate_xlsx(self, pricelist_name, quantities, products, headers):
-        buffer = io.BytesIO()
-        import xlsxwriter
-
-        with xlsxwriter.Workbook(buffer, {"in_memory": True}) as workbook:
-            worksheet = workbook.add_worksheet()
-            worksheet.write_row(0, 0, headers)
-            worksheet.freeze_panes(1, 0)
-            rows = self._generate_rows(products, quantities)
-            for row_idx, row in enumerate(rows, start=1):
-                worksheet.write_row(row_idx, 0, row)
-            worksheet.autofit()
-        content = buffer.getvalue()
-        buffer.close()
-        headers = [
-            (
-                "Content-Type",
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            ),
-            (
-                "Content-Disposition",
-                content_disposition(f"Pricelist - {pricelist_name}.xlsx"),
-            ),
-        ]
-        return request.make_response(content, headers)
+        document = Document.of(
+            rows=self._generate_rows(products, quantities),
+            mimetype=XLSX_MIMETYPE,
+            columns_headers=headers,
+            env=request.env,
+        )
+        return request.make_response(
+            document.data,
+            [
+                ("Content-Type", XLSX_MIMETYPE),
+                (
+                    "Content-Disposition",
+                    content_disposition(
+                        f"Pricelist - {pricelist_name}.{extension_for(XLSX_MIMETYPE)}"
+                    ),
+                ),
+            ],
+        )
