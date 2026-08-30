@@ -1,7 +1,7 @@
 {
     'author': 'Odoo',
     'name': 'Greece - myDATA',
-    'version': '1.0',
+    'version': '19.0.2.0.0',
     'category': 'Accounting/Localizations',
     'summary': """Connect to myDATA API implementation for Greece""",
     'description': """
@@ -10,9 +10,9 @@
         to digitize business tax and accounting information declaration.
     """,
     'countries': ['gr'],
-    'depends': ['l10n_gr'],
+    'depends': ['l10n_gr', 'exchange'],
     'data': [
-        'data/ir_cron.xml',
+        'data/exchange_data.xml',
         'data/template.xml',
         'security/ir.model.access.csv',
         'views/account_fiscal_position_views.xml',

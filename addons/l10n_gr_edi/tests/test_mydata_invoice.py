@@ -96,11 +96,16 @@ class TestMyDATAInvoice(AccountTestInvoicingCommon):
             invoice_line_ids=invoice_line_ids,
             **kwargs,
         )
-        bill.l10n_gr_edi_document_ids = self.env['l10n_gr_edi.document'].create([{
-            'move_id': bill.id,
-            'mydata_mark': mydata_mark,
-            'state': 'bill_fetched',
+        self.env['exchange.transmission'].create([{
+            'subject_id': f'account.move,{bill.id}',
+            'channel_id': bill._get_exchange_channel().id,
+            'company_id': bill.company_id.id,
+            'intent': 'issue',
+            'state': 'draft',
+            'document_kind': 'mydata.classification',
+            'l10n_gr_edi_mark': mydata_mark,
         }])
+        bill.invalidate_recordset()
         return bill
 
     @staticmethod
@@ -128,9 +133,10 @@ class TestMyDATAInvoice(AccountTestInvoicingCommon):
         :param account.move invoice:
         :param str expected_error_message:
         """
-        document = invoice.l10n_gr_edi_document_ids.sorted()[0]
-        self.assertRecordValues(document, [{
-            'state': 'invoice_error' if invoice.is_sale_document(include_receipts=True) else 'bill_error',
+        kind = 'invoice' if invoice.is_sale_document(include_receipts=True) else 'classification'
+        transmission = invoice._l10n_gr_edi_get_transmission(kind)
+        self.assertRecordValues(transmission, [{
+            'state': 'rejected',
             'message': expected_error_message,
         }])
 

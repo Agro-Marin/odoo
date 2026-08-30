@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <record id="endpoint_mydata" model="api.endpoint.outbound">
+        <field name="name">myDATA (AADE)</field>
+        <field name="code">mydata</field>
+        <field name="company_id" eval="False" />
+        <field name="category">tax</field>
+        <field name="provider">AADE</field>
+        <field name="website">https://www.aade.gr</field>
+        <field name="documentation_url">https://www.aade.gr/myDATA</field>
+        <field name="auth_type">api_key</field>
+        <field name="api_key_header">ocp-apim-subscription-key</field>
+        <field name="endpoint_url">https://mydatapi.aade.gr/myDATA</field>
+        <field name="endpoint_url_test">https://mydataapidev.aade.gr</field>
+        <field name="timeout_read">60</field>
+        <field name="retry_enabled" eval="True" />
+        <field name="retry_max_attempts">3</field>
+    </record>
+
+    <record id="channel_mydata" model="exchange.channel">
+        <field name="endpoint_id" ref="endpoint_mydata" />
+        <field name="protocol">mydata</field>
+        <field name="counterparty">authority</field>
+        <field name="is_inbox_enabled" eval="True" />
+    </record>
+
+</odoo>

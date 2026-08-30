@@ -8,7 +8,6 @@ from odoo.exceptions import UserError
 from odoo.tools import cleanup_xml_node
 
 from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
-from odoo.addons.l10n_gr_edi.models.l10n_gr_edi_document import _make_mydata_request
 from odoo.addons.l10n_gr_edi.models.preferred_classification import (
     CLASSIFICATION_CATEGORY_EXPENSE,
     COMBINATIONS_WITH_POSSIBLE_EMPTY_TYPE,
@@ -30,7 +29,8 @@ from odoo.addons.l10n_gr_edi.models.preferred_classification import (
 
 
 class AccountMove(models.Model):
-    _inherit = "account.move"
+    _name = "account.move"
+    _inherit = ["account.move", "mixin.exchange.subject"]
 
     l10n_gr_edi_mark = fields.Char(
         string="Mark",
@@ -42,12 +42,6 @@ class AccountMove(models.Model):
         compute="_compute_from_l10n_gr_edi_document_ids",
         store=True,
     )
-    l10n_gr_edi_document_ids = fields.One2many(
-        comodel_name="l10n_gr_edi.document",
-        inverse_name="move_id",
-        copy=False,
-        readonly=True,
-    )
     l10n_gr_edi_state = fields.Selection(
         selection=[
             ("invoice_sent", "Invoice sent"),
@@ -58,6 +52,10 @@ class AccountMove(models.Model):
         compute="_compute_from_l10n_gr_edi_document_ids",
         store=True,
         tracking=True,
+    )
+    l10n_gr_edi_url = fields.Char(
+        compute="_compute_from_l10n_gr_edi_document_ids",
+        store=True,
     )
     l10n_gr_edi_available_inv_type = fields.Char(
         compute="_compute_l10n_gr_edi_available_inv_type"
@@ -122,21 +120,32 @@ class AccountMove(models.Model):
     # Standard Field Computes
     ################################################################################
 
-    @api.depends("l10n_gr_edi_document_ids")
     def _compute_from_l10n_gr_edi_document_ids(self):
-        self.l10n_gr_edi_state = False
-        self.l10n_gr_edi_mark = False
-        self.l10n_gr_edi_cls_mark = False
-        self.l10n_gr_edi_attachment_id = False
-
         for move in self:
-            for document in move.l10n_gr_edi_document_ids.sorted():
-                if document.state in ("invoice_sent", "bill_fetched", "bill_sent"):
-                    move.l10n_gr_edi_state = document.state
-                    move.l10n_gr_edi_mark = document.mydata_mark
-                    move.l10n_gr_edi_cls_mark = document.mydata_cls_mark
-                    move.l10n_gr_edi_attachment_id = document.attachment_id
-                    break
+            invoice = move._l10n_gr_edi_get_transmission("invoice")
+            classification = move._l10n_gr_edi_get_transmission("classification")
+
+            move.l10n_gr_edi_mark = (
+                invoice.reference or classification.l10n_gr_edi_mark or False
+            )
+            move.l10n_gr_edi_cls_mark = (
+                classification.reference
+                if classification.state == "accepted"
+                else False
+            )
+            move.l10n_gr_edi_url = invoice.l10n_gr_edi_url or False
+
+            if invoice.state == "accepted":
+                move.l10n_gr_edi_state = "invoice_sent"
+            elif classification.state == "accepted":
+                move.l10n_gr_edi_state = "bill_sent"
+            elif classification.l10n_gr_edi_mark:
+                move.l10n_gr_edi_state = "bill_fetched"
+            else:
+                move.l10n_gr_edi_state = False
+
+            settled = invoice if invoice.state == "accepted" else classification
+            move.l10n_gr_edi_attachment_id = settled.attachment_id or False
 
     @api.depends("l10n_gr_edi_state")
     def _compute_show_reset_to_draft_button(self):
@@ -258,77 +267,6 @@ class AccountMove(models.Model):
     # Greece Document Helpers
     ################################################################################
 
-    def _l10n_gr_edi_create_error_document(self, values: dict):
-        """
-        Creates ``l10n_gr_edi.document`` of state ``invoice_error`` or ``bill_error``.
-        :param values: dictionary in the format of: {'error': <str>, 'xml_content': <optional/str>}
-        """
-        self.ensure_one()
-        document = self.env["l10n_gr_edi.document"].create(
-            {
-                "move_id": self.id,
-                "state": "invoice_error"
-                if self.is_sale_document(include_receipts=True)
-                else "bill_error",
-                "message": values["error"],
-            }
-        )
-        if xml_content := values.get("xml_content"):
-            document.attachment_id = (
-                self.env["ir.attachment"]
-                .sudo()
-                .create(
-                    {
-                        "name": f"mydata_{self.name.replace('/', '_')}.xml",
-                        "res_model": document._name,
-                        "res_id": document.id,
-                        "raw": xml_content,
-                        "type": "binary",
-                        "mimetype": "application/xml",
-                    }
-                )
-            )
-        return document
-
-    def _l10n_gr_edi_create_sent_document(self, values: dict):
-        """
-        Creates ``l10n_gr_edi.document`` of state ``invoice_sent`` or ``bill_sent``.
-        :param values: dictionary in the format of:
-        {
-            'mydata_mark': <str>,
-            'mydata_cls_mark': <optional/str>,
-            'mydata_url': <str>,
-            'xml_content': <str>,
-        }
-        """
-        self.ensure_one()
-        document = self.env["l10n_gr_edi.document"].create(
-            {
-                "move_id": self.id,
-                "state": "invoice_sent"
-                if self.is_sale_document(include_receipts=True)
-                else "bill_sent",
-                "mydata_mark": values["mydata_mark"],
-                "mydata_cls_mark": values.get("mydata_cls_mark"),
-                "mydata_url": values["mydata_url"],
-            }
-        )
-        document.attachment_id = (
-            self.env["ir.attachment"]
-            .sudo()
-            .create(
-                {
-                    "name": f"mydata_{self.name.replace('/', '_')}.xml",
-                    "res_model": self._name,
-                    "res_id": self.id,
-                    "raw": values["xml_content"],
-                    "type": "binary",
-                    "mimetype": "application/xml",
-                }
-            )
-        )
-        return document
-
     ################################################################################
     # Helpers
     ################################################################################
@@ -362,14 +300,14 @@ class AccountMove(models.Model):
     def _l10n_gr_edi_get_extra_invoice_report_values(self):
         """Get the values used to render the invoice PDF."""
         self.ensure_one()
-        document = self.l10n_gr_edi_document_ids.sorted()[:1]
+        document = self._l10n_gr_edi_get_transmission("invoice")
 
-        if document.state in ("invoice_sent", "bill_sent"):
+        if document.state == "accepted":
             barcode_params = urlencode(
                 {
                     "barcode_type": "QR",
                     "quiet": 0,
-                    "value": document.mydata_url,
+                    "value": document.l10n_gr_edi_url,
                     "width": 180,
                     "height": 180,
                 }
@@ -881,109 +819,22 @@ class AccountMove(models.Model):
         return "\n".join(error_messages)
 
     @api.model
-    def _l10n_gr_edi_handle_send_result(self, result, xml_vals):
-        """
-        Handle the result object received from sending xml to myDATA.
-        Create the related error/sent document with the necessary values.
-        """
-        move_xml_map = {}  # Dictionary mapping of ``move_id`` -> ``xml_content``.
-        for invoice_vals in xml_vals["invoice_values_list"]:
-            single_xml_vals = {"invoice_values_list": [invoice_vals]}
-            move = invoice_vals["__move__"]
-            xml_template = (
-                "l10n_gr_edi.mydata_invoice"
-                if move.is_sale_document(include_receipts=True)
-                else "l10n_gr_edi.mydata_expense_classification"
-            )
-            xml_content = self._l10n_gr_edi_generate_xml_content(
-                xml_template, single_xml_vals
-            )
-            move_xml_map[move] = xml_content
-
-        move_ids = list(move_xml_map.keys())
-
-        if "error" in result:
-            # If the request failed at this stage, it is probably caused by connection/credentials issues.
-            # In such case, we don't need to attach the xml here as it won't be helpful for the user.
-            for move in move_ids:
-                move._l10n_gr_edi_create_error_document(result)
-        else:
-            for result_id, result_dict in result.items():
-                move = move_ids[result_id]
-                xml_content = move_xml_map[move]
-                document_values = {**result_dict, "xml_content": xml_content}
-                # Delete previous error documents
-                move.l10n_gr_edi_document_ids.filtered(
-                    lambda d: d.state in ("invoice_error", "bill_error")
-                ).unlink()
-                if "error" in result_dict:
-                    # In this stage, the sending process has succeeded, and any error we receive is generated from the myDATA API.
-                    # Previous error(s) without attachments (generated from pre-compute) are now useless and can be unlinked.
-                    move._l10n_gr_edi_create_error_document(document_values)
-                else:
-                    move._l10n_gr_edi_create_sent_document(document_values)
-
-        if self._can_commit():
-            self.env.cr.commit()
-
-    def _l10n_gr_edi_send_invoices(self):
-        """Send batches of invoice SendInvoice XML to myDATA."""
-        for company, invoices in self.grouped("company_id").items():
-            xml_vals = invoices._l10n_gr_edi_get_invoices_xml_vals()
-            xml_content = invoices._l10n_gr_edi_generate_xml_content(
-                "l10n_gr_edi.mydata_invoice", xml_vals
-            )
-            result = _make_mydata_request(
-                company=company, endpoint="SendInvoices", xml_content=xml_content
-            )
-            self._l10n_gr_edi_handle_send_result(result, xml_vals)
-
-    def _l10n_gr_edi_send_expense_classification(self):
-        """Send batches of bill SendExpensesClassification XML to myDATA."""
-        for company, bills in self.grouped("company_id").items():
-            xml_vals = bills._l10n_gr_edi_get_expense_classification_xml_vals()
-            xml_content = bills._l10n_gr_edi_generate_xml_content(
-                "l10n_gr_edi.mydata_expense_classification", xml_vals
-            )
-            result = _make_mydata_request(
-                company=company,
-                endpoint="SendExpensesClassification",
-                xml_content=xml_content,
-            )
-            self._l10n_gr_edi_handle_send_result(result, xml_vals)
+    def _l10n_gr_edi_send(self, kind: str) -> None:
+        transmissions = self.env["exchange.transmission"]
+        for move in self:
+            transmissions |= move._l10n_gr_edi_get_open_transmission(kind)
+        transmissions._send_many()
 
     def l10n_gr_edi_try_send_invoices(self):
-        moves_to_send = self.env["account.move"]
-        for move in self:
-            if error := move._l10n_gr_edi_get_pre_error_string():
-                move._l10n_gr_edi_create_error_document({"error": error})
-            else:
-                moves_to_send |= move
-
-        if moves_to_send:
-            self.env["res.company"]._with_locked_records(moves_to_send)
-            moves_to_send._l10n_gr_edi_send_invoices()
+        self.env["res.company"]._with_locked_records(self)
+        self._l10n_gr_edi_send("invoice")
 
     def l10n_gr_edi_try_send_expense_classification(self):
-        moves_to_send = self.env["account.move"]
-        for move in self:
-            if error_message := move._l10n_gr_edi_get_pre_error_string():
-                move._l10n_gr_edi_create_error_document({"error": error_message})
-
-                # Simulate the error handling behavior on invoice's send and print wizard.
-                # If we're only sending one bill, raise the warning error immediately.
-                if len(self) == 1 and self._can_commit():
-                    self.env.cr.commit()
-                    raise UserError(error_message)
-            else:
-                moves_to_send |= move
-
-        if moves_to_send:
-            moves_to_send._l10n_gr_edi_send_expense_classification()
-            if len(self) == 1 and (
-                error_message := self.l10n_gr_edi_document_ids.sorted()[0].message
-            ):
-                raise UserError(error_message)
+        self._l10n_gr_edi_send("classification")
+        if len(self) == 1:
+            rejected = self._l10n_gr_edi_get_transmission("classification")
+            if rejected.state == "rejected" and rejected.message:
+                raise UserError(rejected.message)
 
     def _l10n_gr_edi_try_send_batch(self):
         """Only available for Vendor Bills. In case of invoices, user should use Send & Print instead."""
@@ -1003,3 +854,33 @@ class AccountMove(models.Model):
             )
 
         self.l10n_gr_edi_try_send_expense_classification()
+
+    ################################################################################
+    # Exchange
+    ################################################################################
+
+    def _get_exchange_channel(self):
+        return self._get_exchange_channel_of("mydata")
+
+    def _l10n_gr_edi_get_transmission(self, kind: str):
+        """The most recent transmission of this kind, settled or not."""
+        self.ensure_one()
+        return self.transmission_ids.filtered(
+            lambda transmission: transmission.document_kind == f"mydata.{kind}"
+        ).sorted(key="id", reverse=True)[:1]
+
+    def _l10n_gr_edi_get_open_transmission(self, kind: str):
+        """The draft a fetched bill already carries, or a new one.
+
+        A settled transmission is never reused or removed: what was sent and
+        what came back is the record, and a resend is a second ask.
+        """
+        self.ensure_one()
+        latest = self._l10n_gr_edi_get_transmission(kind)
+        if latest and not latest.is_settled:
+            return latest
+        return self._add_transmission("issue", kind=kind)
+
+    def _on_transmission_changed(self) -> None:
+        super()._on_transmission_changed()
+        self._compute_from_l10n_gr_edi_document_ids()

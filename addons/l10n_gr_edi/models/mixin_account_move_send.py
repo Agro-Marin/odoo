@@ -56,5 +56,5 @@ class MixinAccountMoveSend(models.AbstractModel):
             if invoice in invoices and invoice.l10n_gr_edi_state != 'invoice_sent':
                 invoice_data['error'] = {
                     'error_title': _("Error when sending invoice to myDATA"),
-                    'errors': [invoice.l10n_gr_edi_document_ids.sorted()[0].message],
+                    'errors': [invoice._l10n_gr_edi_get_transmission('invoice').message],
                 }

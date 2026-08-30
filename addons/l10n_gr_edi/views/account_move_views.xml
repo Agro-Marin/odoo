@@ -86,19 +86,17 @@
             <xpath expr="//page[@id='other_tab_entry']" position="after">
                 <page id="l10n_gr_edi_documents"
                       string="myDATA"
-                      invisible="not l10n_gr_edi_document_ids">
-                    <field name="l10n_gr_edi_document_ids">
+                      invisible="not transmission_ids">
+                    <field name="transmission_ids" readonly="1" nolabel="1">
                         <list create="false" delete="false" edit="false" no_open="1"
-                              decoration-danger="state in ('invoice_error', 'bill_error')"
-                              decoration-success="state in ('invoice_sent', 'bill_sent')">
-                            <field name="message" column_invisible="1"/>
-                            <field name="attachment_id" column_invisible="1"/>
-                            <field name="datetime"/>
-                            <field name="state" widget="account_document_state"/>
-                            <button name="action_download"
-                                    type="object"
-                                    string="Download"
-                                    invisible="not attachment_id"/>
+                              decoration-danger="state == 'rejected'"
+                              decoration-success="state == 'accepted'">
+                            <field name="date_created"/>
+                            <field name="document_kind"/>
+                            <field name="reference"/>
+                            <field name="message"/>
+                            <field name="attachment_id"/>
+                            <field name="state"/>
                         </list>
                     </field>
                 </page>
