@@ -46,6 +46,26 @@ class TestCertificationFlow(common.TestSurveyCommon):
             ],
         )
 
+    def _create_passing_answer(self, partner, survey=None):
+        """Answer the certification correctly, so that ``_mark_done`` scores it a pass."""
+        survey = survey or self.certification
+        question = survey.question_ids[0]
+        return self.env["survey.user_input"].create(
+            {
+                "survey_id": survey.id,
+                "partner_id": partner.id,
+                "user_input_line_ids": [
+                    Command.create(
+                        {
+                            "question_id": question.id,
+                            "answer_type": "suggestion",
+                            "suggested_answer_id": question.suggested_answer_ids.ids[0],
+                        }
+                    )
+                ],
+            }
+        )
+
     @freeze_time("2024-03-20")
     def test_resume_line_creation(self):
         """Check that the resume line is correctly created upon certification completion.
@@ -138,3 +158,55 @@ class TestCertificationFlow(common.TestSurveyCommon):
         self.assertEqual(
             cert_2_resume_line.date_end, fields.Date.today() + relativedelta(months=9)
         )
+
+    @freeze_time("2024-03-21")
+    def test_resume_line_creation_employee_without_user(self):
+        """An employee with no linked user still gets the certification on their CV.
+
+        ``hr.employee.create`` gives every employee a work contact, so a
+        certification can be sent to that partner through the invite wizard even
+        when the employee has no user account at all.
+        """
+        employee = self.env["hr.employee"].create({"name": "Certified No User"})
+        self.assertFalse(employee.user_id)
+        self.assertTrue(employee.work_contact_id)
+
+        self._create_passing_answer(employee.work_contact_id)._mark_done()
+
+        resume_line = self.env["hr.resume.line"].search(
+            [
+                ("employee_id", "=", employee.id),
+                ("survey_id", "=", self.certification.id),
+            ]
+        )
+        self.assertEqual(len(resume_line), 1)
+        self.assertEqual(resume_line.name, self.certification.title)
+        self.assertEqual(
+            resume_line.line_type_id,
+            self.env.ref("hr_skills_survey.resume_type_certification"),
+        )
+        self.assertEqual(resume_line.date_start, fields.Date.today())
+        self.assertEqual(
+            resume_line.date_end, fields.Date.today() + relativedelta(months=3)
+        )
+
+    @freeze_time("2024-03-21")
+    def test_resume_line_creation_deduplicates_same_certification(self):
+        """Two passing answers marked done together leave a single CV line.
+
+        ``survey.survey.action_end_session`` marks every answer of a live session
+        done in one call, so the same participant can bring two passing answers
+        for the same certification into a single ``_mark_done``.
+        """
+        first = self._create_passing_answer(self.user_emp.partner_id)
+        second = self._create_passing_answer(self.user_emp.partner_id)
+
+        (first | second)._mark_done()
+
+        resume_line = self.env["hr.resume.line"].search(
+            [
+                ("employee_id", "=", self.employee_emp.id),
+                ("survey_id", "=", self.certification.id),
+            ]
+        )
+        self.assertEqual(len(resume_line), 1)
