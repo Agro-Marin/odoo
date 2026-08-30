@@ -14,7 +14,7 @@ from odoo.http import request
 from odoo.libs.datetime import timezone
 from odoo.libs.intervals import Intervals
 from odoo.tools import convert, format_datetime, format_duration, format_time
-from odoo.tools.date_utils import sum_intervals
+from odoo.tools.date_utils import float_to_time, sum_intervals
 
 
 def get_google_maps_url(latitude, longitude):
@@ -834,6 +834,10 @@ class HrAttendance(models.Model):
         self.linked_overtime_ids.action_refuse()
 
     def _cron_auto_check_out(self):
+        self._cron_auto_check_out_tolerance()
+        self._cron_auto_check_out_specific_time()
+
+    def _cron_auto_check_out_tolerance(self):
         def check_in_tz(attendance):
             """Returns check-in time in calendar's timezone."""
             return attendance.check_in.astimezone(
@@ -844,6 +848,7 @@ class HrAttendance(models.Model):
             [
                 ("check_out", "=", False),
                 ("employee_id.company_id.auto_check_out", "=", True),
+                ("employee_id.company_id.auto_check_out_mode", "=", "tolerance"),
                 ("employee_id.resource_calendar_id.flexible_hours", "=", False),
             ]
         )
@@ -928,6 +933,54 @@ class HrAttendance(models.Model):
                             "This attendance was automatically checked out because the employee exceeded the allowed time for their scheduled work hours."
                         )
                     )
+
+    def _cron_auto_check_out_specific_time(self):
+        """Close open attendances at the company's daily check-out time.
+
+        Unlike the tolerance mode this needs no working schedule to reason
+        about, so it also reaches employees on a flexible calendar -- exactly
+        the ones the tolerance search skips.
+        """
+        now_utc = fields.Datetime.now().replace(tzinfo=UTC)
+        to_verify = self.env["hr.attendance"].search(
+            [
+                ("check_out", "=", False),
+                ("employee_id.company_id.auto_check_out", "=", True),
+                ("employee_id.company_id.auto_check_out_mode", "=", "specific_time"),
+            ]
+        )
+
+        for company, company_attendances in to_verify.grouped(
+            lambda att: att.employee_id.company_id
+        ).items():
+            cutoff = float_to_time(company.auto_check_out_specific_time)
+            for att in company_attendances:
+                tz = timezone(att.employee_id._get_tz())
+                check_in_tz = att.check_in.replace(tzinfo=UTC).astimezone(tz)
+                cutoff_tz = check_in_tz.replace(
+                    hour=cutoff.hour, minute=cutoff.minute, second=0, microsecond=0
+                )
+                if check_in_tz >= cutoff_tz:
+                    # Checked in past the cut-off: the next one is tomorrow's.
+                    cutoff_tz += relativedelta(days=1)
+                if now_utc.astimezone(tz) < cutoff_tz:
+                    continue
+
+                att.write(
+                    {
+                        "check_out": max(
+                            cutoff_tz.astimezone(UTC).replace(tzinfo=None),
+                            att.check_in + relativedelta(seconds=1),
+                        ),
+                        "out_mode": "auto_check_out",
+                    }
+                )
+                att.message_post(
+                    body=self.env._(
+                        "This attendance was automatically checked out at the "
+                        "company's daily check-out time."
+                    )
+                )
 
     def _cron_absence_detection(self):
         """
