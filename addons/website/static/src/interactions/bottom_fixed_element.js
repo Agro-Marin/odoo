@@ -29,7 +29,7 @@ export class BottomFixedElement extends Interaction {
         // thanks to the CSS that is based on the 'modal-open' class added to
         // the body. However, when the modal does not have a backdrop (e.g.
         // cookies bar), this 'modal-open' class is not added. That's why we
-        // handle it here. Note that the popup widget code triggers a 'scroll'
+        // handle it here. The popup widget code triggers a 'scroll'
         // event when the modal is hidden to make the bottom fixed elements
         // reappear.
         if (this.el.querySelector(".s_popup_no_backdrop.show")) {

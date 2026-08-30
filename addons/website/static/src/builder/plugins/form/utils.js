@@ -14,7 +14,7 @@ export const VISIBILITY_DATASET = [
 
 /**
  * Returns the parsed data coming from the data-for element for the given form.
- * TODO Note that we should rely on the same util as the website form interaction.
+ * TODO we should rely on the same util as the website form interaction.
  * Maybe this will need to be deleted.
  *
  * @param {string} formId

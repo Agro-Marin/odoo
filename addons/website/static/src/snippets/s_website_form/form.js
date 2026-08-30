@@ -477,7 +477,7 @@ export class Form extends Interaction {
                                 // same as the current page URL so we can scroll
                                 // directly to the element (if found) later
                                 // instead of redirecting.
-                                // Note that both currentUrlPath and successPage
+                                // Both currentUrlPath and successPage
                                 // can exist with or without a trailing slash
                                 // before the hash (e.g. "domain.com#footer" or
                                 // "domain.com/#footer"). Therefore, if they are
@@ -652,7 +652,7 @@ export class Form extends Interaction {
                     return true;
                 }
 
-                // Note that checkValidity also takes care of the case where
+                // checkValidity also takes care of the case where
                 // the input is disabled, in which case, it is considered
                 // valid (as the data will not be sent anyway).
                 // This takes care of conditionally-hidden fields (whose
