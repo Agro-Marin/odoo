@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { useEffect, useRef } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
+import { SIZES } from "@web/ui/viewport";
 import { FormRenderer } from "@web/views/form";
 
 export class FormRendererWithHtmlExpander extends FormRenderer {
@@ -66,6 +67,6 @@ export class FormRendererWithHtmlExpander extends FormRenderer {
     }
 
     _canExpandHTMLField(size) {
-        return size === 6;
+        return size === SIZES.XXL;
     }
 }
