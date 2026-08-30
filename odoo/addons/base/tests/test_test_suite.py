@@ -1337,7 +1337,7 @@ class TestFilestoreIsSweptOncePerSuite(BaseCase):
 
 
 class TestCommonHasNoImportEdgeToHttp(BaseCase):
-    """``http.py`` subclasses ``TransactionCase``, so it must import
+    """``http.py`` uses ``common.ChromeBrowser``, so it must import
     ``common`` while executing. ``common`` therefore must not import ``http``
     back, or the pair is a cycle whose only resolution is an import on the last
     line -- which additionally makes every name ``http.py`` takes from
