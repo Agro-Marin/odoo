@@ -75,6 +75,26 @@ class HrAttendance(models.Model):
         precompute=True,
         required=True,
     )
+    day_of_date = fields.Selection(
+        # Same labels as resource.calendar.attendance.dayofweek, so a schedule
+        # and the attendances worked against it read the same way.
+        selection=[
+            ("0", "Monday"),
+            ("1", "Tuesday"),
+            ("2", "Wednesday"),
+            ("3", "Thursday"),
+            ("4", "Friday"),
+            ("5", "Saturday"),
+            ("6", "Sunday"),
+        ],
+        string="Day of Week",
+        compute="_compute_day_of_date",
+        store=True,
+        precompute=True,
+    )
+    resource_calendar_id = fields.Many2one(
+        related="employee_id.resource_calendar_id", string="Working Schedule"
+    )
     worked_hours = fields.Float(
         string="Worked Hours",
         compute="_compute_worked_hours",
@@ -166,6 +186,13 @@ class HrAttendance(models.Model):
             tz = timezone(attendance.employee_id._get_tz())
             attendance.date = (
                 attendance.check_in.replace(tzinfo=UTC).astimezone(tz).date()
+            )
+
+    @api.depends("date")
+    def _compute_day_of_date(self):
+        for attendance in self:
+            attendance.day_of_date = (
+                str(attendance.date.weekday()) if attendance.date else False
             )
 
     @api.depends("worked_hours", "overtime_hours")
