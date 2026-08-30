@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="exchange_transmission_view_list" model="ir.ui.view">
+        <field name="name">exchange.transmission.list</field>
+        <field name="model">exchange.transmission</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="date_created" />
+                <field name="subject_id" />
+                <field name="channel_id" />
+                <field name="protocol" optional="hide" />
+                <field name="intent" />
+                <field name="document_kind" optional="show" />
+                <field name="reference" />
+                <field name="retry_count" optional="hide" />
+                <field name="date_next_retry" optional="hide" />
+                <field name="state"
+                       decoration-success="state == 'accepted'"
+                       decoration-danger="state == 'rejected'"
+                       decoration-warning="state == 'sent'"
+                       decoration-muted="state == 'expired'" />
+                <field name="company_id" groups="base.group_multi_company" optional="hide" />
+            </list>
+        </field>
+    </record>
+
+    <record id="exchange_transmission_view_form" model="ir.ui.view">
+        <field name="name">exchange.transmission.form</field>
+        <field name="model">exchange.transmission</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button string="Send" name="action_send" type="object"
+                            class="oe_highlight" invisible="is_settled" />
+                    <button string="Read Verdict" name="action_read_verdict" type="object"
+                            invisible="state != 'sent'" />
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,queued,sent,accepted" />
+                </header>
+                <sheet>
+                    <div name="button_box" class="oe_button_box">
+                        <button name="action_view_subject" type="object"
+                                class="oe_stat_button" icon="fa-file-text-o"
+                                string="Subject" />
+                    </div>
+                    <div class="oe_title">
+                        <h1><field name="display_name" readonly="1" /></h1>
+                    </div>
+                    <group name="main">
+                        <group name="what">
+                            <field name="subject_id" />
+                            <field name="intent" />
+                            <field name="document_kind" />
+                            <field name="channel_id" />
+                            <field name="company_id" groups="base.group_multi_company" />
+                        </group>
+                        <group name="verdict">
+                            <field name="reference" />
+                            <field name="date_created" />
+                            <field name="date_sent" />
+                            <field name="date_settled" invisible="not is_settled" />
+                            <field name="is_settled" invisible="1" />
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Counterparty's Answer" name="message">
+                            <field name="message" readonly="1"
+                                   placeholder="Nothing said yet." />
+                        </page>
+                        <page string="Payload" name="payload">
+                            <group name="payload">
+                                <field name="attachment_id" />
+                                <field name="response_attachment_id" />
+                            </group>
+                        </page>
+                        <page string="Delivery" name="delivery">
+                            <group name="delivery">
+                                <field name="event_log_id" />
+                                <field name="retry_count" />
+                                <field name="date_next_retry" />
+                                <field name="parent_id" />
+                                <field name="chain_previous_id" />
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="exchange_transmission_view_search" model="ir.ui.view">
+        <field name="name">exchange.transmission.search</field>
+        <field name="model">exchange.transmission</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="reference" />
+                <field name="channel_id" />
+                <field name="subject_id" />
+                <filter string="Open" name="open"
+                        domain="[('is_settled', '=', False)]" />
+                <filter string="Rejected" name="rejected"
+                        domain="[('state', '=', 'rejected')]" />
+                <filter string="Awaiting a Verdict" name="sent"
+                        domain="[('state', '=', 'sent')]" />
+                <separator />
+                <filter string="Annulments" name="annul"
+                        domain="[('intent', '=', 'annul')]" />
+                <group name="groupby">
+                    <filter string="State" name="group_state"
+                            context="{'group_by': 'state'}" />
+                    <filter string="Intent" name="group_intent"
+                            context="{'group_by': 'intent'}" />
+                    <filter string="Channel" name="group_channel"
+                            context="{'group_by': 'channel_id'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="exchange_transmission_action" model="ir.actions.act_window">
+        <field name="name">Transmissions</field>
+        <field name="res_model">exchange.transmission</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+</odoo>
