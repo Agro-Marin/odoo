@@ -2,7 +2,13 @@ import textwrap
 from pathlib import Path
 
 import pytest
-from compute_context_deps import Violation, declared_keys, measure, read_keys
+from compute_context_deps import (
+    Violation,
+    declared_keys,
+    is_field_compute,
+    measure,
+    read_keys,
+)
 
 
 def _func(src: str):
@@ -208,3 +214,72 @@ def test_measure_orders_by_key_then_location(tmp_path):
     )
     keys = [v.key for v in measure([tmp_path])]
     assert keys == sorted(keys)
+
+
+@pytest.mark.parametrize(
+    ("signature", "expected"),
+    [
+        ("self", True),
+        ("self, field_name", False),
+        ("self, target_field=None", False),
+        ("self, *args", False),
+        ("self, **kwargs", False),
+        ("self, *, key", False),
+        ("providers_sudo, **kwargs", False),
+    ],
+)
+def test_is_field_compute_takes_self_alone(signature, expected):
+    node = _func(f"""
+        def _compute_x({signature}):
+            return self.env.user
+    """)
+    assert is_field_compute(node) is expected
+
+
+def test_a_helper_named_compute_is_not_measured(tmp_path):
+    _write(
+        tmp_path,
+        "m.py",
+        """
+        class M(models.Model):
+            @api.model
+            def _compute_domain(self, model_name, mode="read"):
+                return self.env.uid
+        """,
+    )
+    assert measure([tmp_path]) == []
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        'dict(self._fields["type"]._description_selection(self.with_context({}).env))',
+        "get_lang(self.with_context().env).code",
+    ],
+)
+def test_a_read_through_a_stripped_context_is_not_a_read(body):
+    node = _func(f"""
+        def _compute_x(self):
+            {body}
+    """)
+    assert read_keys(node) == set()
+
+
+def test_a_name_bound_to_a_stripped_recordset_carries_the_strip():
+    node = _func("""
+        def _compute_complete_name(self):
+            clean = self.with_context({}) if self.env.context else self
+            labels = dict(self._fields["type"]._description_selection(clean.env))
+            for record in clean:
+                record.complete_name = labels[record.type]
+    """)
+    assert read_keys(node) == set()
+
+
+def test_a_with_context_carrying_keys_does_not_neutralise():
+    node = _func("""
+        def _compute_x(self):
+            other = self.with_context(lang="fr_FR")
+            return get_lang(other.env).code
+    """)
+    assert read_keys(node) == {"lang"}

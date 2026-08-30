@@ -874,6 +874,45 @@ class TestSqlLint(BaseCase):
         """)
         self.assertTrue(violations)
 
+    def test_an_assert_over_the_name_clears_it(self):
+        violations = self._check("""
+        def build(coltype):
+            assert coltype in TYPES
+            return SQL(coltype)
+        """)
+        self.assertFalse(violations, "the assert proves the token is one of a set")
+
+    def test_a_raising_guard_over_the_name_clears_it(self):
+        violations = self._check("""
+        def create_column(cr, columntype):
+            if not _SQL_TYPE_TOKEN.fullmatch(columntype):
+                raise ValueError(columntype)
+            cr.execute(SQL(columntype))
+        """)
+        self.assertFalse(
+            violations,
+            "an `if <bad>: raise` guard proves as much as an assert, and is the "
+            "form production code has to use",
+        )
+
+    def test_a_guard_that_does_not_raise_clears_nothing(self):
+        violations = self._check("""
+        def create_column(cr, columntype):
+            if columntype == "BOOLEAN":
+                columntype = "bool"
+            cr.execute(SQL(columntype))
+        """)
+        self.assertTrue(violations, "a branch that does not raise is not a guard")
+
+    def test_a_guard_over_another_name_clears_nothing(self):
+        violations = self._check("""
+        def create_column(cr, tablename, columntype):
+            if not tablename:
+                raise ValueError(tablename)
+            cr.execute(SQL(columntype))
+        """)
+        self.assertTrue(violations, "the guard has to name the value being built")
+
     def test_every_cursor_spelling_is_recognised(self):
         snippet = """
         def do_the_thing(self, env, cr, table):

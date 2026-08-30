@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import enum
 import logging
+import re
 import typing
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
@@ -26,6 +27,19 @@ class RowCountReader(typing.Protocol):
     def execute(
         self, query: typing.Any, /, *args: typing.Any, **kwargs: typing.Any
     ) -> typing.Any: ...
+
+
+_SQL_TYPE_TOKEN = re.compile(
+    r"[A-Za-z_][A-Za-z0-9_]*"
+    r"(\([A-Za-z0-9_, ]*\))?"
+    r"(\[\])*"
+    r"( +[A-Za-z][A-Za-z0-9_]*)*"
+)
+_SQL_NAME_TOKEN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
+def _not_a_token(kind: str, value: object) -> str:
+    return f"{kind} {value!r} is not a PostgreSQL name: refusing to build DDL from it"
 
 
 _CONFDELTYPES = {
@@ -142,6 +156,9 @@ SQL_ORDER_BY_TYPE = defaultdict(
 def create_model_table(
     cr: BaseCursor, tablename: str, comment: str | None = None, columns: Sequence = ()
 ) -> None:
+    for _, coltype, _ in columns:
+        if not _SQL_TYPE_TOKEN.fullmatch(coltype):
+            raise ValueError(_not_a_token("column type", coltype))
     colspecs = [
         SQL("id SERIAL NOT NULL"),
         *(
@@ -230,6 +247,8 @@ def create_column(
     columntype: str,
     comment: str | None = None,
 ) -> None:
+    if not _SQL_TYPE_TOKEN.fullmatch(columntype):
+        raise ValueError(_not_a_token("column type", columntype))
     sql = SQL(
         "ALTER TABLE %s ADD COLUMN %s %s %s",
         SQL.identifier(tablename),
@@ -259,6 +278,8 @@ def create_column(
 def convert_column(
     cr: BaseCursor, tablename: str, columnname: str, columntype: str
 ) -> None:
+    if not _SQL_TYPE_TOKEN.fullmatch(columntype):
+        raise ValueError(_not_a_token("column type", columntype))
     using = SQL("%s::%s", SQL.identifier(columnname), SQL(columntype))
     _convert_column(cr, tablename, columnname, columntype, using)
 
@@ -281,6 +302,8 @@ def convert_column_translatable(
 def _convert_column(
     cr: BaseCursor, tablename: str, columnname: str, columntype: str, using: SQL
 ) -> None:
+    if not _SQL_TYPE_TOKEN.fullmatch(columntype):
+        raise ValueError(_not_a_token("column type", columntype))
     query = SQL(
         "ALTER TABLE %s ALTER COLUMN %s DROP DEFAULT, ALTER COLUMN %s TYPE %s USING %s",
         SQL.identifier(tablename),
@@ -578,6 +601,8 @@ def create_index(
 ) -> None:
     if not expressions:
         raise ValueError("Missing expressions")
+    if not _SQL_NAME_TOKEN.fullmatch(method):
+        raise ValueError(_not_a_token("index method", method))
     if check_exists and index_exists(cr, indexname):
         return
     definition = SQL(

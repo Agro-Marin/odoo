@@ -590,14 +590,22 @@ class SqlInjectionChecker:
     def _find_return_nodes(node: ast.AST) -> list[ast.Return]:
         return [child for child in ast.walk(node) if isinstance(child, ast.Return)]
 
+    @staticmethod
+    def _guard_tests(scope: ast.AST) -> Iterator[ast.expr]:
+        for node in ast.walk(scope):
+            if (isinstance(node, ast.Assert) and node.test is not None) or (
+                isinstance(node, ast.If)
+                and any(isinstance(stmt, ast.Raise) for stmt in node.body)
+            ):
+                yield node.test
+
     def _is_asserted(self, scope: ast.AST, name: str) -> bool:
         cached = self._assert_cache.get(id(scope))
         if cached is None:
             cached = {
                 child.id
-                for node in ast.walk(scope)
-                if isinstance(node, ast.Assert) and node.test is not None
-                for child in ast.walk(node.test)
+                for test in self._guard_tests(scope)
+                for child in ast.walk(test)
                 if isinstance(child, ast.Name)
             }
             self._assert_cache[id(scope)] = cached

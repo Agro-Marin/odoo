@@ -57,6 +57,60 @@ def _python_files(roots: list[Path]) -> list[Path]:
     )
 
 
+def is_field_compute(node: ast.FunctionDef) -> bool:
+    if not node.name.startswith("_compute_"):
+        return False
+    args = node.args
+    if args.vararg or args.kwarg or args.kwonlyargs or args.posonlyargs:
+        return False
+    return len(args.args) == 1
+
+
+def _strips_context(call: ast.Call) -> bool:
+    if _called_name(call) != "with_context":
+        return False
+    if call.keywords:
+        return False
+    if not call.args:
+        return True
+    return (
+        len(call.args) == 1
+        and isinstance(call.args[0], ast.Dict)
+        and not call.args[0].keys
+    )
+
+
+def context_free_names(node: ast.FunctionDef) -> set[str]:
+    names: set[str] = set()
+    for sub in ast.walk(node):
+        targets: list[ast.expr]
+        if isinstance(sub, ast.Assign):
+            targets = list(sub.targets)
+        elif isinstance(sub, ast.AnnAssign) and sub.value is not None:
+            targets = [sub.target]
+        else:
+            continue
+        value = sub.value
+        if value is None:
+            continue
+        if not any(
+            isinstance(inner, ast.Call) and _strips_context(inner)
+            for inner in ast.walk(value)
+        ):
+            continue
+        names.update(target.id for target in targets if isinstance(target, ast.Name))
+    return names
+
+
+def _is_neutralised(node: ast.AST, context_free: set[str]) -> bool:
+    for sub in ast.walk(node):
+        if isinstance(sub, ast.Name) and sub.id in context_free:
+            return True
+        if isinstance(sub, ast.Call) and _strips_context(sub):
+            return True
+    return False
+
+
 def declared_keys(node: ast.FunctionDef) -> set[str]:
     keys: set[str] = set()
     for decorator in node.decorator_list:
@@ -98,13 +152,14 @@ def _called_name(call: ast.Call) -> str:
 def read_keys(node: ast.FunctionDef) -> set[str]:
     keys: set[str] = set()
     parents = _parents(node)
+    context_free = context_free_names(node)
     for sub in ast.walk(node):
         if isinstance(sub, ast.Attribute):
             value = sub.value
             reads_env = (isinstance(value, ast.Attribute) and value.attr == "env") or (
                 isinstance(value, ast.Name) and value.id == "env"
             )
-            if reads_env:
+            if reads_env and not _is_neutralised(sub, context_free):
                 for key, attrs in ENV_READS.items():
                     if sub.attr in attrs:
                         keys.add(key)
@@ -116,6 +171,8 @@ def read_keys(node: ast.FunctionDef) -> set[str]:
                 if called == "_description_selection" and not _reads_labels(
                     sub, parents
                 ):
+                    continue
+                if _is_neutralised(sub, context_free):
                     continue
                 keys.add(key)
     return keys
@@ -139,7 +196,7 @@ def measure(roots: list[Path] | None = None) -> list[Violation]:
         for node in ast.walk(tree):
             if not isinstance(node, ast.FunctionDef):
                 continue
-            if not node.name.startswith("_compute_"):
+            if not is_field_compute(node):
                 continue
             missing = read_keys(node) - declared_keys(node)
             found.extend(
