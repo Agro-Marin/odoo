@@ -3,11 +3,13 @@ from odoo.fields import Command
 
 
 class PurchaseOrder(models.Model):
-    _inherit = 'purchase.order'
+    _inherit = "purchase.order"
 
-    dropship_picking_count = fields.Integer("Dropship Count", compute='_compute_count_transfer_incoming')
+    dropship_picking_count = fields.Integer(
+        "Dropship Count", compute="_compute_count_transfer_incoming"
+    )
 
-    @api.depends('picking_ids.is_dropship')
+    @api.depends("picking_ids.is_dropship")
     def _compute_count_transfer_incoming(self):
         super()._compute_count_transfer_incoming()
         for order in self:
@@ -16,28 +18,32 @@ class PurchaseOrder(models.Model):
             order.dropship_picking_count = dropship_count
 
     def action_view_picking(self):
-        return self._get_action_view_picking(self.picking_ids.filtered(lambda p: not p.is_dropship))
+        return self._get_action_view_picking(
+            self.picking_ids.filtered(lambda p: not p.is_dropship)
+        )
 
     def action_view_dropship(self):
-        return self._get_action_view_picking(self.picking_ids.filtered(lambda p: p.is_dropship))
+        return self._get_action_view_picking(
+            self.picking_ids.filtered(lambda p: p.is_dropship)
+        )
 
     def _prepare_reference_vals(self):
         res = super()._prepare_reference_vals()
         sale_orders = self.line_ids.sale_order_id
         if len(sale_orders) == 1:
-            res['sale_ids'] = [Command.link(sale_orders.id)]
+            res["sale_ids"] = [Command.link(sale_orders.id)]
         return res
 
     def _is_dropshipped(self):
         self.ensure_one()
-        return self.picking_type_id and self.picking_type_id.code == 'dropship'
+        return self.picking_type_id and self.picking_type_id.code == "dropship"
 
     def _should_set_dest_address(self):
         return super()._should_set_dest_address() or self._is_dropshipped()
 
 
 class PurchaseOrderLine(models.Model):
-    _inherit = 'purchase.order.line'
+    _inherit = "purchase.order.line"
 
     def _is_dropshipped(self):
         return self.order_id._is_dropshipped()

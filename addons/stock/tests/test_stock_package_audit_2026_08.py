@@ -15,9 +15,7 @@ class PackageAuditCommon(TestStockCommon):
         got = records.search(
             [("id", "in", records.ids), (field_name, "in", value_records.ids)]
         )
-        self.assertEqual(
-            got, expected, f"{field_name} 'in' disagrees with its compute"
-        )
+        self.assertEqual(got, expected, f"{field_name} 'in' disagrees with its compute")
         got_neg = records.search(
             [("id", "in", records.ids), (field_name, "not in", value_records.ids)]
         )

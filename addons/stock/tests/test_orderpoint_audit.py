@@ -838,7 +838,10 @@ class TestOrderpointAudit(TransactionCase):
         )
         self.assertEqual(
             self.env["stock.move"].search_count(
-                [("product_id", "=", good.id), ("location_dest_id", "=", self.stock_location.id)]
+                [
+                    ("product_id", "=", good.id),
+                    ("location_dest_id", "=", self.stock_location.id),
+                ]
             ),
             1,
             "the orderpoint that had a rule must still have been procured",

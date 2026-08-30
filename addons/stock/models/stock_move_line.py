@@ -1366,6 +1366,7 @@ class StockMoveLine(models.Model):
             for move_line in dirty_move_lines | deleted_move_lines
         )
         if not domain.is_false():
+
             def _match_key(record):
                 return tuple(record[name].id for name in RESERVATION_KEY_FIELDS)
 
@@ -1723,7 +1724,9 @@ class StockMoveLine(models.Model):
                 "stock.action_put_in_pack_wizard"
             )
             action["context"] = {
-                **self.env["ir.actions.actions"]._eval_action_context(action.get("context")),
+                **self.env["ir.actions.actions"]._eval_action_context(
+                    action.get("context")
+                ),
                 "all_move_line_ids": move_lines.ids,
                 "default_move_line_ids": self.ids,
                 "default_location_dest_id": self.location_dest_id.id,

@@ -1493,7 +1493,9 @@ class StockPicking(models.Model):
 
     def action_view_move_scrap(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("stock.action_stock_scrap")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
+            "stock.action_stock_scrap"
+        )
         action["domain"] = [("picking_id", "=", self.id)]
         action["context"] = dict(self.env.context, create=False)
         return action
@@ -1533,7 +1535,9 @@ class StockPicking(models.Model):
         }
 
     def action_view_move_list(self):
-        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("stock.stock_move_action")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
+            "stock.stock_move_action"
+        )
         action["views"] = [
             (self.env.ref("stock.view_stock_move_list_picking").id, "list"),
         ]

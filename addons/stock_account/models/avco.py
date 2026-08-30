@@ -1,4 +1,3 @@
-
 class AvcoAccumulator:
     """Running weighted-average-cost state — the single source of truth for the AVCO
     recurrence.

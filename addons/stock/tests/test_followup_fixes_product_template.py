@@ -50,7 +50,6 @@ class TestProductTemplateFollowupFixes(TransactionCase):
             ]
         )._apply_inventory()
 
-
     def test_create_with_zero_quantity_does_not_crash(self):
         tmpl = self.Tmpl.create(
             {
@@ -101,7 +100,6 @@ class TestProductTemplateFollowupFixes(TransactionCase):
         self.env.invalidate_all()
         self.assertEqual(tmpl.qty_available, 6.0)
 
-
     def test_ineligible_product_is_told_why_not_the_sign(self):
         service = self.Tmpl.create({"name": "F05", "type": "service"})
         with self.assertRaises(UserError) as caught:
@@ -125,7 +123,6 @@ class TestProductTemplateFollowupFixes(TransactionCase):
         with self.assertRaises(UserError) as caught:
             tmpl.write({"qty_available": -1})
         self.assertIn("negative", str(caught.exception))
-
 
     def test_search_ignores_archived_variants_like_the_field_does(self):
         tmpl = self._two_variants("F08")
@@ -170,7 +167,6 @@ class TestProductTemplateFollowupFixes(TransactionCase):
             domain[0][2],
             "a template totalling 0 must not match through one of its variants",
         )
-
 
     def test_next_serial_is_the_name_the_lot_will_get(self):
         tmpl = self.Tmpl.create(
@@ -224,7 +220,6 @@ class TestProductTemplateFollowupFixes(TransactionCase):
         self.assertEqual(tmpl.lot_sequence_id.prefix, "F13-")
         self.assertEqual(tmpl.lot_sequence_id.padding, 7)
 
-
     def test_company_change_sees_archived_variants(self):
         other_company = self.env["res.company"].create({"name": "F14 co"})
         tmpl = self._two_variants("F14")
@@ -235,7 +230,6 @@ class TestProductTemplateFollowupFixes(TransactionCase):
 
         with self.assertRaises(UserError):
             tmpl.write({"company_id": other_company.id})
-
 
     def test_show_qty_update_button_goes_through_the_overridable_method(self):
         tmpl = self.Tmpl.create({"name": "F15", "type": "consu", "is_storable": True})
@@ -252,7 +246,6 @@ class TestProductTemplateFollowupFixes(TransactionCase):
             )
         finally:
             cls._should_open_product_quants = original
-
 
     def test_quantity_scope_context_keys_are_in_the_cache_key(self):
         sub = self.env["stock.location"].create(
@@ -294,7 +287,6 @@ class TestProductTemplateFollowupFixes(TransactionCase):
         draft = self.Tmpl.new(origin=tmpl)
         self.assertEqual(draft.count_reordering_rules, 1)
         self.assertEqual(draft.reordering_qty_max, 9.0)
-
 
     def _capacity(self, product, quantity):
         return self.env["stock.storage.category.capacity"].create(
@@ -381,7 +373,6 @@ class TestProductTemplateFollowupFixes(TransactionCase):
             ],
             [[1.0, 2.0], [3.0, 4.0]],
         )
-
 
     def test_zero_adjustment_leaves_the_location_alone(self):
         tmpl = self.Tmpl.create({"name": "F18", "type": "consu", "is_storable": True})

@@ -7,14 +7,20 @@ class StockMove(models.Model):
 
     def _search_picking_for_assignation_domain(self):
         domain = super()._search_picking_for_assignation_domain()
-        return Domain.AND([domain, ['|', ('batch_id', '=', False), ('batch_id.is_wave', '=', False)]])
+        return Domain.AND(
+            [domain, ["|", ("batch_id", "=", False), ("batch_id.is_wave", "=", False)]]
+        )
 
     def _action_cancel(self):
         res = super()._action_cancel()
 
         for picking in self.picking_id:
             # Remove the picking from the batch if the whole batch isn't cancelled.
-            if picking.state == 'cancel' and picking.batch_id and any(p.state != 'cancel' for p in picking.batch_id.picking_ids):
+            if (
+                picking.state == "cancel"
+                and picking.batch_id
+                and any(p.state != "cancel" for p in picking.batch_id.picking_ids)
+            ):
                 picking.batch_id = None
         return res
 
@@ -25,9 +31,9 @@ class StockMove(models.Model):
 
     def write(self, vals):
         res = super().write(vals)
-        if 'state' in vals and vals['state'] in ('partially_available', 'assigned'):
+        if "state" in vals and vals["state"] in ("partially_available", "assigned"):
             for picking in self.picking_id:
-                if picking.state != 'assigned':
+                if picking.state != "assigned":
                     continue
                 picking._find_auto_batch()
 
@@ -40,5 +46,5 @@ class StockMove(models.Model):
     def action_show_details(self):
         action = super().action_show_details()
         if self.picking_id.batch_id:
-            action['context']['default_picking_id'] = self.picking_id.id
+            action["context"]["default_picking_id"] = self.picking_id.id
         return action

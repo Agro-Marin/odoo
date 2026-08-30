@@ -2,7 +2,7 @@ from odoo import models
 
 
 class StockReturnPicking(models.TransientModel):
-    _inherit = 'stock.return.picking'
+    _inherit = "stock.return.picking"
 
     def _create_return(self):
         # Prevent copy of the carrier and carrier price when generating return picking
@@ -12,10 +12,12 @@ class StockReturnPicking(models.TransientModel):
         return new_picking
 
     def _reset_carrier_id(self, picking):
-        """ Prevent copy of the carrier and carrier price when generating return picking
+        """Prevent copy of the carrier and carrier price when generating return picking
         (we have no integration of returns for now).
         """
-        picking.write({
-            'carrier_id': False,
-            'carrier_price': 0.0,
-        })
+        picking.write(
+            {
+                "carrier_id": False,
+                "carrier_price": 0.0,
+            }
+        )

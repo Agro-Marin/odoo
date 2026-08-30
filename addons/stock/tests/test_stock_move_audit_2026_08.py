@@ -63,7 +63,6 @@ class TestStockMoveAudit202608(TransactionCase):
             },
         )
 
-
     def test_prefilled_serial_count_is_a_number_of_units(self):
         dozen = self.env.ref("uom.product_uom_dozen")
         units = self.env.ref("uom.product_uom_unit")
@@ -117,7 +116,6 @@ class TestStockMoveAudit202608(TransactionCase):
             7,
             "reservation overwrote a count the user had already entered",
         )
-
 
     def test_generated_lot_lines_consume_capacity_as_they_are_placed(self):
         product = self._product("gen-cap", tracking="serial")
@@ -190,7 +188,6 @@ class TestStockMoveAudit202608(TransactionCase):
             len(placed), 3, f"the batch did not consume capacity as it placed: {placed}"
         )
 
-
     def test_inventory_reference_is_not_stored_in_the_writers_language(self):
         self.env["res.lang"]._activate_lang("es_ES")
         product = self._product("ref-i18n")
@@ -224,7 +221,6 @@ class TestStockMoveAudit202608(TransactionCase):
             f"the reference column holds one language for every reader: {stored!r}",
         )
 
-
     def test_a_picked_receipt_keeps_its_state_when_demand_is_rewritten(self):
         product = self._product("picked-receipt")
         picking = self.env["stock.picking"].create(
@@ -250,7 +246,6 @@ class TestStockMoveAudit202608(TransactionCase):
             "assigned",
             "a fully reserved, picked receipt was left partially_available",
         )
-
 
     def test_a_deep_chain_does_not_crash_the_upstream_walk(self):
         product = self._product("upstream-depth")
@@ -285,7 +280,6 @@ class TestStockMoveAudit202608(TransactionCase):
             "the bound must sit far above any chain a warehouse really builds",
         )
 
-
     def test_pasting_lots_from_a_windows_editor(self):
         self.assertEqual(
             self.env["stock.move"].split_lots("A1;5\r\nA2;3\r\nA3;7"),
@@ -305,7 +299,6 @@ class TestStockMoveAudit202608(TransactionCase):
                 {"lot_name": "LOT 3", "quantity": 1},
             ],
         )
-
 
     def _deadline_chain(self, length, deadline="2026-06-01 00:00:00"):
         product = self._product(f"deadline-{length}")
@@ -332,7 +325,9 @@ class TestStockMoveAudit202608(TransactionCase):
         moves[0].write({"date_deadline": "2026-07-01 00:00:00"})
 
         self.assertEqual(
-            len(moves.filtered(lambda m: str(m.date_deadline) == "2026-07-01 00:00:00")),
+            len(
+                moves.filtered(lambda m: str(m.date_deadline) == "2026-07-01 00:00:00")
+            ),
             300,
             "the deadline did not reach the whole chain",
         )
@@ -357,13 +352,10 @@ class TestStockMoveAudit202608(TransactionCase):
             f"writing the deadline the chain already carries cascaded: {writes}",
         )
 
-
     def test_merging_cancelling_quantities_does_not_divide_by_zero(self):
         dozen = self.env.ref("uom.product_uom_dozen")
         units = self.env.ref("uom.product_uom_unit")
-        product = self._product(
-            "merge-zero", uom_id=dozen.id, uom_ids=[(4, units.id)]
-        )
+        product = self._product("merge-zero", uom_id=dozen.id, uom_ids=[(4, units.id)])
         picking = self.env["stock.picking"].create(
             {
                 "picking_type_id": self.wh.out_type_id.id,
@@ -393,7 +385,6 @@ class TestStockMoveAudit202608(TransactionCase):
 
         (positive | negative)._action_confirm()
 
-
     def test_create_does_not_mutate_the_vals_it_is_given(self):
         product = self._product("vals-mutation")
         vals = {
@@ -411,7 +402,6 @@ class TestStockMoveAudit202608(TransactionCase):
             "create() wrote back into the caller's dict; a reused vals template "
             "carries picked/state into the next, unrelated move",
         )
-
 
     def test_partner_of_a_transit_move_does_not_depend_on_who_is_looking(self):
         other = self.env["res.company"].create({"name": "Audit Co"})

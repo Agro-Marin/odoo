@@ -37,7 +37,6 @@ class TestProductProductAudit(TransactionCase):
             move.state = state
         return move
 
-
     def test_a_bare_from_date_starts_the_readers_day_not_utcs(self):
         day = datetime.date(2020, 1, 15)
         for tz, expected in (
@@ -87,7 +86,6 @@ class TestProductProductAudit(TransactionCase):
             [datetime.datetime(2020, 1, 15, 6, 0, 0)],
             "the scope must carry the converted bound, not the raw string",
         )
-
 
     def test_owners_is_a_parameter_and_no_longer_a_hidden_context_read(self):
         Product = self.env["product.product"]
@@ -168,7 +166,6 @@ class TestProductProductAudit(TransactionCase):
         self.assertEqual(
             dict(delays), {}, "reading the delays must not invent an entry in them"
         )
-
 
     def test_the_route_priority_survives_every_hop_of_the_chain(self):
         Location = self.env["stock.location"]
@@ -262,7 +259,6 @@ class TestProductProductAudit(TransactionCase):
         )
         self.assertIn(self.stock_location.name, scoped.view_header_get(False, "list"))
 
-
     def test_the_scoped_labels_still_resolve_in_the_readers_language(self):
         import odoo.tools.translate as translate_module
 
@@ -297,7 +293,6 @@ class TestProductProductAudit(TransactionCase):
             {"en_US"},
             "the reader's language, not whatever the module-level table was built under",
         )
-
 
     def test_setting_a_quantity_on_a_service_variant_is_refused_not_ignored(self):
         service = self.Product.create({"name": "Audit 0822 svc", "type": "service"})
@@ -353,7 +348,6 @@ class TestProductProductAudit(TransactionCase):
             tmpl.write({"qty_available": 4})
         self.assertIn("lot/serial number", str(caught.exception))
 
-
     def test_a_company_without_a_warehouse_does_not_drop_the_other_companys_write(
         self,
     ):
@@ -403,7 +397,6 @@ class TestProductProductAudit(TransactionCase):
         finally:
             type(Warehouse)._warehouse_redirect_warning = original
 
-
     def test_a_single_non_internal_scope_is_told_what_is_actually_wrong(self):
         with self.assertRaises(UserError) as caught:
             self.Product.with_context(
@@ -426,7 +419,6 @@ class TestProductProductAudit(TransactionCase):
                 location=[self.stock_location.id, other.id]
             )._resolve_inventory_location()
         self.assertIn("total over all of them", str(caught.exception))
-
 
     def _two_company_reader_fixture(self):
         second = self.env["res.company"].create({"name": "Audit 0822 Reader Co"})
@@ -576,7 +568,6 @@ class TestProductProductAudit(TransactionCase):
                         len(companies),
                     )
 
-
     def test_a_draft_or_cancelled_move_does_not_make_a_search_candidate(self):
         drafted = self.Product.create(
             {"name": "Audit 0822 draft", "type": "consu", "is_storable": True},
@@ -615,7 +606,6 @@ class TestProductProductAudit(TransactionCase):
         move._action_confirm()
         self.assertIn(incoming, self.Product._get_quantity_search_candidates())
         self.assertIn(incoming, self.Product.search([("qty_incoming", ">", 0)]))
-
 
     def test_variant_and_template_searches_agree_on_the_same_stock(self):
         self.env["stock.quant"].with_context(inventory_mode=True).create(

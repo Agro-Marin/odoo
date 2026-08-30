@@ -1,9 +1,9 @@
 {
-    'name': 'Drop Shipping',
-    'version': '1.0',
-    'category': 'Supply Chain/Inventory',
-    'summary': 'Drop Shipping',
-    'description': """
+    "name": "Drop Shipping",
+    "version": "1.0",
+    "category": "Supply Chain/Inventory",
+    "summary": "Drop Shipping",
+    "description": """
 Manage drop shipping orders
 ===========================
 
@@ -17,18 +17,18 @@ going through the retailer's warehouse. In this case no
 internal transfer document is needed.
 
 """,
-    'depends': ['sale_purchase_stock'],
-    'data': [
-        'data/stock_data.xml',
-        'views/sale_order_views.xml',
-        'views/stock_picking_views.xml',
-        'views/purchase_order_views.xml'
+    "depends": ["sale_purchase_stock"],
+    "data": [
+        "data/stock_data.xml",
+        "views/sale_order_views.xml",
+        "views/stock_picking_views.xml",
+        "views/purchase_order_views.xml",
     ],
-    'demo': [
-        'data/stock_dropshipping_demo.xml',
+    "demo": [
+        "data/stock_dropshipping_demo.xml",
     ],
-    'uninstall_hook': "uninstall_hook",
-    'installable': True,
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "uninstall_hook": "uninstall_hook",
+    "installable": True,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
 }

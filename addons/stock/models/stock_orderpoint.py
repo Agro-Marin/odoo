@@ -471,9 +471,9 @@ class StockWarehouseOrderpoint(models.Model):
                 )
 
     def _get_pending_move_domains(self, horizon_date):
-        _dummy, domain_move_in, domain_move_out = (
-            self.env["stock.location"]._quantity_domains(self.location_id.ids)
-        )
+        _dummy, domain_move_in, domain_move_out = self.env[
+            "stock.location"
+        ]._quantity_domains(self.location_id.ids)
         scope = Domain.AND(
             [
                 [("product_id", "in", self.product_id.ids)],
@@ -846,7 +846,9 @@ class StockWarehouseOrderpoint(models.Model):
         )
         qty_forecast = orderpoints_to_compute._get_qty_forecast_map()
         for orderpoint in orderpoints_to_compute:
-            orderpoint.qty_on_hand = values_by_orderpoint[orderpoint.id]["qty_available"]
+            orderpoint.qty_on_hand = values_by_orderpoint[orderpoint.id][
+                "qty_available"
+            ]
             orderpoint.qty_forecast = qty_forecast[orderpoint.id]
 
     @api.depends(
@@ -1345,8 +1347,7 @@ class StockWarehouseOrderpoint(models.Model):
             if origin_ids:
                 references = self.env["stock.reference"].browse(origin_ids)
                 origin = (
-                    f"{orderpoint.display_name} - "
-                    f"{','.join(references.mapped('name'))}"
+                    f"{orderpoint.display_name} - {','.join(references.mapped('name'))}"
                 )
             else:
                 origin = orderpoint.name

@@ -55,12 +55,8 @@ class TestLocationPackageFixes(TestStockCommon):
         self.assertTrue(
             self.shelf_1._can_store_product(self.productA, 0.1, 0.1 + 0.2, 0.0)
         )
-        self.assertFalse(
-            self.shelf_1._can_store_product(self.productA, 0.0, 0.4, 0.0)
-        )
-        self.assertFalse(
-            self.shelf_1._can_store_product(self.productA, 0.2, 0.3, 0.0)
-        )
+        self.assertFalse(self.shelf_1._can_store_product(self.productA, 0.0, 0.4, 0.0))
+        self.assertFalse(self.shelf_1._can_store_product(self.productA, 0.2, 0.3, 0.0))
 
     def test_max_weight_zero_means_unlimited(self):
         category = self.env["stock.storage.category"].create(
@@ -69,14 +65,10 @@ class TestLocationPackageFixes(TestStockCommon):
         self.shelf_1.storage_category_id = category
         self.productB.weight = 5.0
 
-        self.assertTrue(
-            self.shelf_1._can_store_product(self.productB, 1.0, 0.0, 0.0)
-        )
+        self.assertTrue(self.shelf_1._can_store_product(self.productB, 1.0, 0.0, 0.0))
 
         category.max_weight = 4.0
-        self.assertFalse(
-            self.shelf_1._can_store_product(self.productB, 1.0, 0.0, 0.0)
-        )
+        self.assertFalse(self.shelf_1._can_store_product(self.productB, 1.0, 0.0, 0.0))
         category.max_weight = 5.0
         self.assertTrue(
             self.shelf_1._can_store_product(self.productB, 1.0, 0.0, 0.0000000001)
@@ -99,9 +91,7 @@ class TestLocationPackageFixes(TestStockCommon):
 
         self.assertTrue(self.shelf_1._can_store_package(package, 2, 0.0))
         self.assertFalse(self.shelf_1._can_store_package(package, 3, 0.0))
-        self.assertFalse(
-            self.shelf_1._can_store_package(package, 2.9999999999, 0.0)
-        )
+        self.assertFalse(self.shelf_1._can_store_package(package, 2.9999999999, 0.0))
 
     def test_check_new_product_policy_without_products_context(self):
         package_type = self.env["stock.package.type"].create({"name": "Tote"})
@@ -114,9 +104,7 @@ class TestLocationPackageFixes(TestStockCommon):
         )
 
         self.assertTrue(
-            self.shelf_2._can_be_used(
-                self.env["product.product"], package=package
-            )
+            self.shelf_2._can_be_used(self.env["product.product"], package=package)
         )
 
     def test_propagate_active_noop_keeps_archived_descendants(self):

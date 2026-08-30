@@ -645,7 +645,9 @@ class ProductProduct(models.Model):
         return None
 
     def action_view_orderpoints(self):
-        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("stock.action_orderpoint")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
+            "stock.action_orderpoint"
+        )
         context = action.get("context") or {}
         action["context"] = (
             self.env["ir.actions.actions"]._eval_action_context(context)

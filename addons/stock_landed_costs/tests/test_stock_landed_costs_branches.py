@@ -7,52 +7,65 @@ from odoo.addons.stock_landed_costs.tests.test_stockvaluationlayer import (
 )
 
 
-@tagged('post_install', '-at_install')
-@skip('Temporary to fast merge new valuation')
+@tagged("post_install", "-at_install")
+@skip("Temporary to fast merge new valuation")
 class TestStockLandedCostsBranches(TestStockValuationLCCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
 
-        cls.branch = cls.env['res.company'].create({
-            'name': 'Branch',
-            'parent_id': cls.company.id,
-        })
-        cls.env['account.chart.template'].try_loading(cls.company.chart_template, company=cls.branch, install_demo=False)
+        cls.branch = cls.env["res.company"].create(
+            {
+                "name": "Branch",
+                "parent_id": cls.company.id,
+            }
+        )
+        cls.env["account.chart.template"].try_loading(
+            cls.company.chart_template, company=cls.branch, install_demo=False
+        )
         cls.env.user.company_id = cls.branch
 
-        cls.vendor1 = cls.env['res.partner'].create({'name': 'vendor1'})
+        cls.vendor1 = cls.env["res.partner"].create({"name": "vendor1"})
 
-        cls.product1.categ_id.property_cost_method = 'fifo'
+        cls.product1.categ_id.property_cost_method = "fifo"
 
     def test_create_lc_from_branch(self):
         """
         From a company's branch, create a LC and ensure it impacts the SVL
         """
-        warehouse = self.env['stock.warehouse'].search([('company_id', '=', self.branch.id)], limit=1)
-        supplier_location = self.env.ref('stock.stock_location_suppliers')
+        warehouse = self.env["stock.warehouse"].search(
+            [("company_id", "=", self.branch.id)], limit=1
+        )
+        supplier_location = self.env.ref("stock.stock_location_suppliers")
 
-        receipt = self.env['stock.picking'].create({
-            'location_id': supplier_location.id,
-            'location_dest_id': warehouse.lot_stock_id.id,
-            'picking_type_id': warehouse.in_type_id.id,
-            'move_ids': [(0, 0, {
-                'location_id': supplier_location.id,
-                'location_dest_id': warehouse.lot_stock_id.id,
-                'picking_type_id': warehouse.in_type_id.id,
-                'product_id': self.product1.id,
-                'product_uom_qty': 1,
-                'product_uom_id': self.product1.uom_id.id,
-                'price_unit': 10,
-            })],
-        })
+        receipt = self.env["stock.picking"].create(
+            {
+                "location_id": supplier_location.id,
+                "location_dest_id": warehouse.lot_stock_id.id,
+                "picking_type_id": warehouse.in_type_id.id,
+                "move_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "location_id": supplier_location.id,
+                            "location_dest_id": warehouse.lot_stock_id.id,
+                            "picking_type_id": warehouse.in_type_id.id,
+                            "product_id": self.product1.id,
+                            "product_uom_qty": 1,
+                            "product_uom_id": self.product1.uom_id.id,
+                            "price_unit": 10,
+                        },
+                    )
+                ],
+            }
+        )
         receipt.action_confirm()
         receipt.action_assign()
         receipt.move_line_ids.quantity = 1
         receipt.button_validate()
 
-        lc_form = Form(self.env['stock.landed.cost'])
+        lc_form = Form(self.env["stock.landed.cost"])
         lc_form.picking_ids.add(receipt)
         with lc_form.cost_lines.new() as cost_line:
             cost_line.product_id = self.productlc1
@@ -70,7 +83,7 @@ class TestStockLandedCostsBranches(TestStockValuationLCCommon):
         """
         Confirm PO, receive products, post bill and generate LC
         """
-        po_form = Form(self.env['purchase.order'])
+        po_form = Form(self.env["purchase.order"])
         po_form.partner_id = self.vendor1
         with po_form.line_ids.new() as po_line:
             po_line.product_id = self.product1

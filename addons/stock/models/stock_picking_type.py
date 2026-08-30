@@ -676,7 +676,9 @@ class StockPickingType(models.Model):
 
     @api.model
     def action_redirect_to_barcode_installation(self):
-        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id("base.open_module_tree")
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
+            "base.open_module_tree"
+        )
         action["context"] = dict(
             _eval_dict_or_default(action["context"], dict(self.env.context), {}),
             search_default_name="Barcode",
@@ -699,7 +701,9 @@ class StockPickingType(models.Model):
         return self._get_action("stock.action_get_picking_type_ready_moves")
 
     def action_view_moves_analysis(self):
-        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("stock.stock_move_action")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
+            "stock.stock_move_action"
+        )
         domains = [action["domain"] or []]
         if self:
             self.ensure_one()
@@ -918,7 +922,9 @@ class StockPickingType(models.Model):
                     }
                 )
 
-        action_context = _eval_dict_or_default(action["context"], dict(self.env.context), {})
+        action_context = _eval_dict_or_default(
+            action["context"], dict(self.env.context), {}
+        )
         context = {**action_context, **context}
         action["context"] = context
         if self:

@@ -8957,9 +8957,7 @@ class TestStockMove(TestStockCommon):
         delivery.button_validate()
         self.assertEqual(delivery.state, "done")
         lines = delivery.move_line_ids
-        self.assertRecordValues(
-            lines, [{"quantity": 149.97}, {"quantity": 0.03}]
-        )
+        self.assertRecordValues(lines, [{"quantity": 149.97}, {"quantity": 0.03}])
         for line in lines:
             self.assertAlmostEqual(
                 line.quantity_product_uom,

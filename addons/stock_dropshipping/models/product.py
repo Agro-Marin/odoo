@@ -5,7 +5,7 @@ class ProductProduct(models.Model):
     _inherit = "product.product"
 
     def _get_description(self, picking_type_id):
-        if picking_type_id.code == 'dropship':
+        if picking_type_id.code == "dropship":
             return self.description_pickingout or self.display_name
         else:
             return super()._get_description(picking_type_id)

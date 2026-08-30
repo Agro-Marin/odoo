@@ -7,58 +7,77 @@ from odoo.tests import Form, freeze_time, tagged
 from odoo.addons.sale.tests.common import TestSaleCommon
 
 
-@tagged('post_install', '-at_install')
+@tagged("post_install", "-at_install")
 class TestStockMoveInvoice(TestSaleCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
 
-        cls.ProductProduct = cls.env['product.product']
-        cls.SaleOrder = cls.env['sale.order']
-        cls.AccountJournal = cls.env['account.journal']
+        cls.ProductProduct = cls.env["product.product"]
+        cls.SaleOrder = cls.env["sale.order"]
+        cls.AccountJournal = cls.env["account.journal"]
 
-        cls.partner_18 = cls.env['res.partner'].create({'name': 'My Test Customer'})
-        cls.product_11 = cls.env['product.product'].create({'name': 'A product to deliver'})
-        cls.product_cable_management_box = cls.env['product.product'].create({
-            'name': 'Another product to deliver',
-            'weight': 1.0,
-            'invoice_policy': 'ordered',
-        })
-        cls.product_uom_unit = cls.env.ref('uom.product_uom_unit')
-        cls.product_delivery_normal = cls.env['product.product'].create({
-            'name': 'Normal Delivery Charges',
-            'invoice_policy': 'ordered',
-            'type': 'service',
-            'list_price': 10.0,
-            'categ_id': cls.env.ref('delivery.product_category_deliveries').id,
-        })
-        cls.normal_delivery = cls.env['delivery.carrier'].create({
-            'name': 'Normal Delivery Charges',
-            'fixed_price': 10,
-            'delivery_type': 'fixed',
-            'product_id': cls.product_delivery_normal.id,
-        })
+        cls.partner_18 = cls.env["res.partner"].create({"name": "My Test Customer"})
+        cls.product_11 = cls.env["product.product"].create(
+            {"name": "A product to deliver"}
+        )
+        cls.product_cable_management_box = cls.env["product.product"].create(
+            {
+                "name": "Another product to deliver",
+                "weight": 1.0,
+                "invoice_policy": "ordered",
+            }
+        )
+        cls.product_uom_unit = cls.env.ref("uom.product_uom_unit")
+        cls.product_delivery_normal = cls.env["product.product"].create(
+            {
+                "name": "Normal Delivery Charges",
+                "invoice_policy": "ordered",
+                "type": "service",
+                "list_price": 10.0,
+                "categ_id": cls.env.ref("delivery.product_category_deliveries").id,
+            }
+        )
+        cls.normal_delivery = cls.env["delivery.carrier"].create(
+            {
+                "name": "Normal Delivery Charges",
+                "fixed_price": 10,
+                "delivery_type": "fixed",
+                "product_id": cls.product_delivery_normal.id,
+            }
+        )
 
     def test_01_delivery_stock_move(self):
         # Test if the stored fields of stock moves are computed with invoice before delivery flow
-        self.sale_prepaid = self.SaleOrder.create({
-            'partner_id': self.partner_18.id,
-            'partner_invoice_id': self.partner_18.id,
-            'partner_shipping_id': self.partner_18.id,
-            'line_ids': [(0, 0, {
-                'name': 'Cable Management Box',
-                'product_id': self.product_cable_management_box.id,
-                'product_qty': 2,
-                'price_unit': 750.00,
-            })],
-        })
+        self.sale_prepaid = self.SaleOrder.create(
+            {
+                "partner_id": self.partner_18.id,
+                "partner_invoice_id": self.partner_18.id,
+                "partner_shipping_id": self.partner_18.id,
+                "line_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "name": "Cable Management Box",
+                            "product_id": self.product_cable_management_box.id,
+                            "product_qty": 2,
+                            "price_unit": 750.00,
+                        },
+                    )
+                ],
+            }
+        )
 
         # I add delivery cost in Sales order
-        delivery_wizard = Form(self.env['choose.delivery.carrier'].with_context({
-            'default_order_id': self.sale_prepaid.id,
-            'default_carrier_id': self.normal_delivery.id,
-        }))
+        delivery_wizard = Form(
+            self.env["choose.delivery.carrier"].with_context(
+                {
+                    "default_order_id": self.sale_prepaid.id,
+                    "default_carrier_id": self.normal_delivery.id,
+                }
+            )
+        )
         choose_delivery_carrier = delivery_wizard.save()
         choose_delivery_carrier.button_confirm()
 
@@ -75,69 +94,109 @@ class TestStockMoveInvoice(TestSaleCommon):
         self.invoice.action_post()
 
         # I pay the invoice.
-        self.journal = self.AccountJournal.search([('type', '=', 'cash'), ('company_id', '=', self.sale_prepaid.company_id.id)], limit=1)
+        self.journal = self.AccountJournal.search(
+            [
+                ("type", "=", "cash"),
+                ("company_id", "=", self.sale_prepaid.company_id.id),
+            ],
+            limit=1,
+        )
 
-        register_payments = self.env['account.payment.register'].with_context(active_model='account.move', active_ids=self.invoice.ids).create({
-            'journal_id': self.journal.id,
-        })
+        register_payments = (
+            self.env["account.payment.register"]
+            .with_context(active_model="account.move", active_ids=self.invoice.ids)
+            .create(
+                {
+                    "journal_id": self.journal.id,
+                }
+            )
+        )
         register_payments._create_payments()
 
         # Check the SO after paying the invoice
-        self.assertNotEqual(self.sale_prepaid.invoice_count, 0, 'order not invoiced')
-        self.assertEqual(self.sale_prepaid.invoice_state, 'done', 'order is not fully invoiced')
-        self.assertEqual(len(self.sale_prepaid.picking_ids), 1, 'pickings not generated')
+        self.assertNotEqual(self.sale_prepaid.invoice_count, 0, "order not invoiced")
+        self.assertEqual(
+            self.sale_prepaid.invoice_state, "done", "order is not fully invoiced"
+        )
+        self.assertEqual(
+            len(self.sale_prepaid.picking_ids), 1, "pickings not generated"
+        )
 
         # Check the stock moves
         moves = self.sale_prepaid.picking_ids.move_ids
-        self.assertEqual(moves[0].product_qty, 2, 'wrong product_qty')
-        self.assertEqual(moves[0].weight, 2.0, 'wrong move weight')
+        self.assertEqual(moves[0].product_qty, 2, "wrong product_qty")
+        self.assertEqual(moves[0].weight, 2.0, "wrong move weight")
 
         # Ship
-        moves.move_line_ids.write({'quantity': 2})
+        moves.move_line_ids.write({"quantity": 2})
         self.picking = self.sale_prepaid.picking_ids._action_done()
-        self.assertEqual(moves[0].move_line_ids.sale_price, 1725.0, 'wrong shipping value')
+        self.assertEqual(
+            moves[0].move_line_ids.sale_price, 1725.0, "wrong shipping value"
+        )
 
     def test_02_delivery_stock_move(self):
         # Test if SN product shipment line has the correct amount
-        self.product_cable_management_box.write({
-            'is_storable': True,
-            'tracking': 'serial'
-        })
+        self.product_cable_management_box.write(
+            {"is_storable": True, "tracking": "serial"}
+        )
 
-        serial_numbers = self.env['stock.lot'].create([{
-            'name': str(x),
-            'product_id': self.product_cable_management_box.id,
-        } for x in range(5)])
+        serial_numbers = self.env["stock.lot"].create(
+            [
+                {
+                    "name": str(x),
+                    "product_id": self.product_cable_management_box.id,
+                }
+                for x in range(5)
+            ]
+        )
 
         # The product is storable now, so the delivery reserves rather than
         # inventing its lines: with nothing on hand there is nothing to write a
         # serial onto. Two units, one per serial, for the two the order asks for.
-        warehouse = self.env['stock.warehouse'].search(
-            [('company_id', '=', self.env.company.id)], limit=1)
-        self.env['stock.quant'].with_context(inventory_mode=True).create([{
-            'product_id': self.product_cable_management_box.id,
-            'location_id': warehouse.lot_stock_id.id,
-            'lot_id': lot.id,
-            'inventory_quantity': 1,
-        } for lot in serial_numbers[:2]])._apply_inventory()
+        warehouse = self.env["stock.warehouse"].search(
+            [("company_id", "=", self.env.company.id)], limit=1
+        )
+        self.env["stock.quant"].with_context(inventory_mode=True).create(
+            [
+                {
+                    "product_id": self.product_cable_management_box.id,
+                    "location_id": warehouse.lot_stock_id.id,
+                    "lot_id": lot.id,
+                    "inventory_quantity": 1,
+                }
+                for lot in serial_numbers[:2]
+            ]
+        )._apply_inventory()
 
-        self.sale_prepaid = self.SaleOrder.create({
-            'partner_id': self.partner_18.id,
-            'partner_invoice_id': self.partner_18.id,
-            'partner_shipping_id': self.partner_18.id,
-            'line_ids': [(0, 0, {
-                'name': 'Cable Management Box',
-                'product_id': self.product_cable_management_box.id,
-                'product_qty': 2,
-                'price_unit': 750.00,
-            })],
-        })
+        self.sale_prepaid = self.SaleOrder.create(
+            {
+                "partner_id": self.partner_18.id,
+                "partner_invoice_id": self.partner_18.id,
+                "partner_shipping_id": self.partner_18.id,
+                "line_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "name": "Cable Management Box",
+                            "product_id": self.product_cable_management_box.id,
+                            "product_qty": 2,
+                            "price_unit": 750.00,
+                        },
+                    )
+                ],
+            }
+        )
 
         # I add delivery cost in Sales order
-        delivery_wizard = Form(self.env['choose.delivery.carrier'].with_context({
-            'default_order_id': self.sale_prepaid.id,
-            'default_carrier_id': self.normal_delivery.id,
-        }))
+        delivery_wizard = Form(
+            self.env["choose.delivery.carrier"].with_context(
+                {
+                    "default_order_id": self.sale_prepaid.id,
+                    "default_carrier_id": self.normal_delivery.id,
+                }
+            )
+        )
         choose_delivery_carrier = delivery_wizard.save()
         choose_delivery_carrier.button_confirm()
 
@@ -146,29 +205,55 @@ class TestStockMoveInvoice(TestSaleCommon):
         moves = self.sale_prepaid.picking_ids.move_ids
         # Ship
         for ml, lot in zip(moves.move_line_ids, serial_numbers, strict=False):
-            ml.write({'quantity': 1, 'lot_id': lot.id})
+            ml.write({"quantity": 1, "lot_id": lot.id})
         self.picking = self.sale_prepaid.picking_ids._action_done()
-        self.assertEqual(moves[0].move_line_ids[0].sale_price, 862.5, 'wrong shipping value')
+        self.assertEqual(
+            moves[0].move_line_ids[0].sale_price, 862.5, "wrong shipping value"
+        )
 
     def test_03_invoiced_status(self):
-        super_product = self.env['product.product'].create({
-            'name': 'Super Product',
-            'invoice_policy': 'transferred',
-        })
-        great_product = self.env['product.product'].create({
-            'name': 'Great Product',
-            'invoice_policy': 'transferred',
-        })
+        super_product = self.env["product.product"].create(
+            {
+                "name": "Super Product",
+                "invoice_policy": "transferred",
+            }
+        )
+        great_product = self.env["product.product"].create(
+            {
+                "name": "Great Product",
+                "invoice_policy": "transferred",
+            }
+        )
 
-        so = self.env['sale.order'].create({
-            'name': 'Sale order',
-            'partner_id': self.partner_a.id,
-            'partner_invoice_id': self.partner_a.id,
-            'line_ids': [
-                (0, 0, {'name': super_product.name, 'product_id': super_product.id, 'product_qty': 1, 'price_unit': 1,}),
-                (0, 0, {'name': great_product.name, 'product_id': great_product.id, 'product_qty': 1, 'price_unit': 1,}),
-            ]
-        })
+        so = self.env["sale.order"].create(
+            {
+                "name": "Sale order",
+                "partner_id": self.partner_a.id,
+                "partner_invoice_id": self.partner_a.id,
+                "line_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "name": super_product.name,
+                            "product_id": super_product.id,
+                            "product_qty": 1,
+                            "price_unit": 1,
+                        },
+                    ),
+                    (
+                        0,
+                        0,
+                        {
+                            "name": great_product.name,
+                            "product_id": great_product.id,
+                            "product_qty": 1,
+                            "price_unit": 1,
+                        },
+                    ),
+                ],
+            }
+        )
         # Confirm the SO
         so.action_confirm()
 
@@ -186,92 +271,142 @@ class TestStockMoveInvoice(TestSaleCommon):
         # One line is invoiced ('done'), the undelivered one is still owed
         # ('no' with a quantity): something billed and something outstanding
         # is 'partial' per base_order's mixin.order.invoice (ADR-0060).
-        self.assertEqual(so.invoice_state, 'partial')
+        self.assertEqual(so.invoice_state, "partial")
 
         # Add delivery fee
-        delivery_wizard = Form(self.env['choose.delivery.carrier'].with_context({
-            'default_order_id': so.id,
-            'default_carrier_id': self.normal_delivery.id
-        }))
+        delivery_wizard = Form(
+            self.env["choose.delivery.carrier"].with_context(
+                {
+                    "default_order_id": so.id,
+                    "default_carrier_id": self.normal_delivery.id,
+                }
+            )
+        )
         choose_delivery_carrier = delivery_wizard.save()
         choose_delivery_carrier.button_confirm()
 
         # One line is already invoiced, so the order has progressed whatever is
         # left: sale's _resolve_invoice_state_to_do() downgrade to 'no' applies
         # only while nothing has been invoiced at all (ADR-0060).
-        self.assertEqual(so.invoice_state, 'partial')
+        self.assertEqual(so.invoice_state, "partial")
 
     def test_delivery_carrier_from_confirmed_so(self):
         """Test if adding shipping method in sale order after confirmation
-           will add it in pickings too"""
+        will add it in pickings too"""
 
-        sale_order = self.SaleOrder.create({
-            "partner_id": self.partner_18.id,
-            "partner_invoice_id": self.partner_18.id,
-            "partner_shipping_id": self.partner_18.id,
-            "line_ids": [(0, 0, {
-                "name": "Cable Management Box",
-                "product_id": self.product_cable_management_box.id,
-                "product_qty": 2,
-                "price_unit": 750.00,
-            })],
-        })
+        sale_order = self.SaleOrder.create(
+            {
+                "partner_id": self.partner_18.id,
+                "partner_invoice_id": self.partner_18.id,
+                "partner_shipping_id": self.partner_18.id,
+                "line_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "name": "Cable Management Box",
+                            "product_id": self.product_cable_management_box.id,
+                            "product_qty": 2,
+                            "price_unit": 750.00,
+                        },
+                    )
+                ],
+            }
+        )
 
         sale_order.action_confirm()
         sale_order.picking_ids.move_ids.quantity = 2
         sale_order.picking_ids.button_validate()
 
         # Return picking
-        return_form = Form(self.env["stock.return.picking"].with_context(active_id=sale_order.picking_ids.id, active_model="stock.picking"))
+        return_form = Form(
+            self.env["stock.return.picking"].with_context(
+                active_id=sale_order.picking_ids.id, active_model="stock.picking"
+            )
+        )
         return_wizard = return_form.save()
         return_wizard.product_return_moves.quantity = 2
         action = return_wizard.action_create_returns()
         return_picking = self.env["stock.picking"].browse(action["res_id"])
 
         # add new product so new picking is created
-        sale_order.write({
-            "line_ids": [(0, 0, {
-                "name": "Another product to deliver",
-                "product_id": self.product_11.id,
-                "product_qty": 2,
-                "price_unit": 750.00,
-            })],
-        })
+        sale_order.write(
+            {
+                "line_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "name": "Another product to deliver",
+                            "product_id": self.product_11.id,
+                            "product_qty": 2,
+                            "price_unit": 750.00,
+                        },
+                    )
+                ],
+            }
+        )
 
         # Add delivery cost in Sales order
-        delivery_wizard = Form(self.env["choose.delivery.carrier"].with_context({
-            "default_order_id": sale_order.id,
-            "default_carrier_id": self.normal_delivery.id,
-        }))
+        delivery_wizard = Form(
+            self.env["choose.delivery.carrier"].with_context(
+                {
+                    "default_order_id": sale_order.id,
+                    "default_carrier_id": self.normal_delivery.id,
+                }
+            )
+        )
         choose_delivery_carrier = delivery_wizard.save()
         choose_delivery_carrier.button_confirm()
 
         # Check the carrier in picking after confirm sale order
-        delivery_for_product_11 = sale_order.picking_ids.filtered(lambda p: self.product_11 in p.move_ids.product_id)
-        self.assertEqual(delivery_for_product_11.carrier_id, self.normal_delivery, "The shipping method should be set in pending deliveries.")
+        delivery_for_product_11 = sale_order.picking_ids.filtered(
+            lambda p: self.product_11 in p.move_ids.product_id
+        )
+        self.assertEqual(
+            delivery_for_product_11.carrier_id,
+            self.normal_delivery,
+            "The shipping method should be set in pending deliveries.",
+        )
 
         done_delivery = sale_order.picking_ids.filtered(lambda p: p.state == "done")
-        self.assertFalse(done_delivery.carrier_id.id, "The shipping method should not be set in done deliveries.")
-        self.assertFalse(return_picking.carrier_id.id, "The shipping method should not set in return pickings")
+        self.assertFalse(
+            done_delivery.carrier_id.id,
+            "The shipping method should not be set in done deliveries.",
+        )
+        self.assertFalse(
+            return_picking.carrier_id.id,
+            "The shipping method should not set in return pickings",
+        )
 
     def test_picking_weight(self):
         """Test if the picking weight is correctly computed when the product of the move changes."""
         self.product_cable_management_box.weight = 1.0
         self.product_a.weight = 2.0
-        so = self.SaleOrder.create({
-            "partner_id": self.partner_18.id,
-            "line_ids": [(0, 0, {
-                "name": "Cable Management Box",
-                "product_id": self.product_cable_management_box.id,
-                "product_qty": 1,
-                "price_unit": 750.00,
-            })],
-        })
+        so = self.SaleOrder.create(
+            {
+                "partner_id": self.partner_18.id,
+                "line_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "name": "Cable Management Box",
+                            "product_id": self.product_cable_management_box.id,
+                            "product_qty": 1,
+                            "price_unit": 750.00,
+                        },
+                    )
+                ],
+            }
+        )
         so.action_confirm()
         picking = so.picking_ids
         self.assertEqual(picking.weight, 1.0, "The weight of the picking should be 1.0")
         self.product_cable_management_box.weight = 2.0
-        self.assertEqual(picking.weight, 1.0, "The weight of the picking should not change")
+        self.assertEqual(
+            picking.weight, 1.0, "The weight of the picking should not change"
+        )
         picking.move_ids.product_id = self.product_a
         self.assertEqual(picking.weight, 2.0, "The weight of the picking should be 2.0")
 
@@ -281,34 +416,48 @@ class TestStockMoveInvoice(TestSaleCommon):
         Check that changing the scheduled date of a move can affect the scheduled date
         of the picking but not its sibling moves.
         """
-        wh = self.env['stock.warehouse'].search([('company_id', '=', self.env.company.id)], limit=1)
-        receipt = self.env['stock.picking'].create({
-            'picking_type_id': wh.in_type_id.id,
-            'location_id': self.ref('stock.stock_location_customers'),
-            'location_dest_id': wh.lot_stock_id.id,
-            'move_ids': [
-                Command.create({
-                    'product_id': self.product_a.id,
-                    'product_uom_qty': 1,
-                    'location_id': self.ref('stock.stock_location_customers'),
-                    'location_dest_id': wh.lot_stock_id.id,
-                }),
-                Command.create({
-                    'product_id': self.product_b.id,
-                    'product_uom_qty': 1,
-                    'location_id': self.ref('stock.stock_location_customers'),
-                    'location_dest_id': wh.lot_stock_id.id,
-                }),
-            ],
-        })
+        wh = self.env["stock.warehouse"].search(
+            [("company_id", "=", self.env.company.id)], limit=1
+        )
+        receipt = self.env["stock.picking"].create(
+            {
+                "picking_type_id": wh.in_type_id.id,
+                "location_id": self.ref("stock.stock_location_customers"),
+                "location_dest_id": wh.lot_stock_id.id,
+                "move_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.product_a.id,
+                            "product_uom_qty": 1,
+                            "location_id": self.ref("stock.stock_location_customers"),
+                            "location_dest_id": wh.lot_stock_id.id,
+                        }
+                    ),
+                    Command.create(
+                        {
+                            "product_id": self.product_b.id,
+                            "product_uom_qty": 1,
+                            "location_id": self.ref("stock.stock_location_customers"),
+                            "location_dest_id": wh.lot_stock_id.id,
+                        }
+                    ),
+                ],
+            }
+        )
         receipt.action_confirm()
-        today, yesterday = fields.Datetime.now(), fields.Datetime.now() - datetime.timedelta(days=1)
+        today, yesterday = (
+            fields.Datetime.now(),
+            fields.Datetime.now() - datetime.timedelta(days=1),
+        )
         self.assertEqual(receipt.date_planned, today)
         with Form(receipt) as picking_form:
             with picking_form.move_ids.edit(0) as move:
                 move.date = yesterday
         self.assertEqual(receipt.date_planned, yesterday)
-        self.assertRecordValues(receipt.move_ids, [
-            {'date': yesterday},
-            {'date': today},
-        ])
+        self.assertRecordValues(
+            receipt.move_ids,
+            [
+                {"date": yesterday},
+                {"date": today},
+            ],
+        )

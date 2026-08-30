@@ -1,4 +1,5 @@
 import calendar
+import itertools
 import logging
 from collections import defaultdict
 from datetime import timedelta
@@ -36,7 +37,6 @@ class StockLocation(models.Model):
     _order = "complete_name, id"
     _rec_names_search = ["complete_name", "barcode"]
     _check_company_auto = True
-
 
     name = fields.Char(string="Location Name", required=True)
     complete_name = fields.Char(
@@ -185,20 +185,17 @@ class StockLocation(models.Model):
         search="_search_is_empty",
     )
 
-
     _barcode_company_unique_idx = models.UniqueIndex(
         "(barcode, COALESCE(company_id, 0)) WHERE barcode IS NOT NULL",
         "The barcode for a location must be unique per company!",
     )
     _parent_path_id_idx = models.Index("(parent_path, id)")
 
-
     _inventory_freq_bounded = models.Constraint(
         f"check(cyclic_inventory_frequency between 0 and {MAX_CYCLIC_INVENTORY_DAYS})",
         "The inventory frequency (days) for a location must be between 0 and "
         f"{MAX_CYCLIC_INVENTORY_DAYS}.",
     )
-
 
     @api.constrains("replenish_location", "location_id", "usage")
     def _check_replenish_location(self):
@@ -293,7 +290,6 @@ class StockLocation(models.Model):
                     blocking.display_name,
                 ),
             )
-
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -391,7 +387,6 @@ class StockLocation(models.Model):
             return new_location.id, new_location.display_name
         return super().name_create(name)
 
-
     @api.depends("complete_name", "name", "location_id.complete_name", "usage")
     @api.depends_context("formatted_display_name")
     def _compute_display_name(self):
@@ -460,9 +455,54 @@ class StockLocation(models.Model):
         "warehouse_view_ids", "warehouse_view_ids.active", "location_id.warehouse_id"
     )
     def _compute_warehouse_id(self):
+        """The nearest enclosing active warehouse, self included.
+
+        Two things this deliberately does not do. It does not read
+        `warehouse_view_ids` off `self`: that One2many is active-filtered on
+        read, so the ambient `active_test` would decide whether an archived
+        warehouse is a candidate -- and the ORM recomputes under
+        `active_test=False`, its own trigger traversal supplying it, which
+        stored the archived warehouse in the column. And it does not read
+        `warehouse_id` off the parent: a record's compute batch holds its
+        ancestors too, and the field is protected across that batch, so the
+        parent answers with its pre-compute value and a subtree ends up
+        repointed one level deep and stale below that.
+
+        Deciding from the ancestor chain instead settles both: the value is a
+        function of the tree and the warehouses' own `active` flag, so it does
+        not depend on the caller's context nor on the order the batch happens
+        to be computed in. `recursive=True` stays -- it is what propagates the
+        trigger down a subtree when a parent is reparented.
+        """
+        chains = {
+            location.id: [int(node) for node in location.parent_path.split("/")[:-1]]
+            for location in self
+        }
+        warehouses = (
+            self.env["stock.warehouse"]
+            .with_context(active_test=False)
+            .search(
+                [
+                    (
+                        "view_location_id",
+                        "in",
+                        list({*itertools.chain(*chains.values())}),
+                    ),
+                    ("active", "=", True),
+                ],
+            )
+        )
+        by_view_location = {
+            warehouse.view_location_id.id: warehouse for warehouse in warehouses
+        }
         for location in self:
-            location.warehouse_id = (
-                location.warehouse_view_ids[:1] or location.location_id.warehouse_id
+            location.warehouse_id = next(
+                (
+                    by_view_location[node]
+                    for node in reversed(chains[location.id])
+                    if node in by_view_location
+                ),
+                False,
             )
 
     def _compute_child_internal_location_ids(self):
@@ -485,12 +525,10 @@ class StockLocation(models.Model):
             if loc.usage != "internal":
                 loc.replenish_location = False
 
-
     def _search_is_empty(self, operator, value):
         if operator != "in" or set(value) != {True}:
             return NotImplemented
         return [("id", "not in", list(self._get_occupied_location_ids()))]
-
 
     @api.model
     def _get_occupancy_domain(self):
@@ -517,7 +555,6 @@ class StockLocation(models.Model):
                 ("usage", "!=", "supplier"),
             ],
         ).ids
-
 
     def _child_of(self, other_location):
         self.ensure_one()
@@ -600,7 +637,6 @@ class StockLocation(models.Model):
     @api.model
     def _invalidate_location_tree(self):
         self.invalidate_model(["child_internal_location_ids"])
-
 
     def _filter_putaway_access(self):
         return self
@@ -766,7 +802,6 @@ class StockLocation(models.Model):
             )
             qty_by_location[location_dest.id] += current_qty
         return qty_by_location
-
 
     def _get_effective_product(self, product):
         return (
@@ -975,7 +1010,6 @@ class StockLocation(models.Model):
             <= 0
         )
 
-
     def _get_next_inventory_date(self):
         self.ensure_one()
         if self.usage not in STOCKED_USAGES:
@@ -999,7 +1033,6 @@ class StockLocation(models.Model):
             day = min(day, calendar.monthrange(today.year + 1, month)[1])
             annual_date = annual_date.replace(day=day, year=today.year + 1)
         return annual_date
-
 
     def _quantity_domains_from_context(self) -> tuple[Domain, Domain, Domain]:
         location_ids = self._scope_ids_from_context()

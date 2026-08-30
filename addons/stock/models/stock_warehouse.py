@@ -65,7 +65,6 @@ class StockWarehouse(models.Model):
 
     Routing = Routing
 
-
     name = fields.Char(
         string="Warehouse",
         required=True,
@@ -276,7 +275,6 @@ class StockWarehouse(models.Model):
         help="Routes will be created for these resupply warehouses and you can select them on products and product categories",
     )
 
-
     _warehouse_name_uniq = models.Constraint(
         "unique(name, company_id)",
         "The name of the warehouse must be unique per company!",
@@ -286,7 +284,6 @@ class StockWarehouse(models.Model):
         "unique(code, company_id)",
         "The short name of the warehouse must be unique per company!",
     )
-
 
     @api.constrains(
         "lot_stock_id",
@@ -326,7 +323,6 @@ class StockWarehouse(models.Model):
                         warehouse.display_name,
                     )
                 )
-
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -646,7 +642,6 @@ class StockWarehouse(models.Model):
     def _default_name(self):
         return self._generate_default_name(self.env.company)
 
-
     @api.onchange("company_id")
     def _onchange_company_id(self):
         group_user = self.env.ref("base.group_user")
@@ -667,7 +662,6 @@ class StockWarehouse(models.Model):
                 }
             }
         return None
-
 
     def action_view_all_routes(self):
         routes = self._get_all_routes()
@@ -692,7 +686,6 @@ class StockWarehouse(models.Model):
             [("company_id", "in", self.env.companies.ids)],
             fields=["id", "name", "code"],
         )
-
 
     def _toggle_active(self, active, reactivate_depends):
         self.ensure_one()
@@ -865,7 +858,6 @@ class StockWarehouse(models.Model):
             view = self.env.ref(xml_id, raise_if_not_found=False)
             if view:
                 view.active = not enabled
-
 
     @ormcache()
     def _sub_location_field_names(self):
@@ -1076,7 +1068,6 @@ class StockWarehouse(models.Model):
         if not location:
             raise UserError(_("Can't find any production location."))
         return location
-
 
     def _create_or_update_picking_types(self):
         self.ensure_one()
@@ -1298,7 +1289,6 @@ class StockWarehouse(models.Model):
                 "company_id": self.company_id.id,
             },
         }
-
 
     @ormcache()
     def _route_field_names(self):
@@ -1756,7 +1746,6 @@ class StockWarehouse(models.Model):
             )
         return self.env._(ROUTE_NAMES[route_type])  # pylint: disable=gettext-variable
 
-
     def _sync_resupply_routes(self, previous_resupply_whs):
         self.ensure_one()
         Route = self.env["stock.route"]
@@ -1974,7 +1963,6 @@ class StockWarehouse(models.Model):
         if mto_domain:
             Rule.search(mto_domain).write({"active": not multi_step})
 
-
     def _existing_warehouse_values(self, field_name, company, taken=()):
         return set(taken) | set(
             self.env["stock.warehouse"]
@@ -2108,7 +2096,6 @@ class StockWarehouse(models.Model):
             warehouse=supplied_name,
             supplier=supplier_name,
         )
-
 
     @api.model
     def _update_partner_transit_locations(self, partner_id, company_id):
