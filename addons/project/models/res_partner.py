@@ -1,8 +1,5 @@
-from typing import Self
-
-from odoo import Command, _, api, fields, models
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
-from odoo.tools import email_normalize
 
 
 class ResPartner(models.Model):
@@ -72,29 +69,6 @@ class ResPartner(models.Model):
                 if partner.id in self_ids:
                     partner.task_count += count
                 partner = partner.parent_id
-
-    def _create_portal_users(self) -> Self:
-        partners_without_user = self.filtered(lambda partner: not partner.user_ids)
-        if not partners_without_user:
-            return self.env["res.users"]
-        created_users = self.env["res.users"]
-        for partner in partners_without_user:
-            created_users += (
-                self.env["res.users"]
-                .with_context(no_reset_password=True)
-                .sudo()
-                ._create_user_from_template(
-                    {
-                        "email": email_normalize(partner.email),
-                        "login": email_normalize(partner.email),
-                        "partner_id": partner.id,
-                        "company_id": self.env.company.id,
-                        "company_ids": [Command.set(self.env.company.ids)],
-                        "active": True,
-                    }
-                )
-            )
-        return created_users
 
     def action_view_tasks(self) -> dict:
         self.ensure_one()
