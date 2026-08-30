@@ -7,7 +7,6 @@ class HrEmployeeSkill(models.Model):
     _name = "hr.employee.skill"
     _inherit = "mixin.hr.individual.skill"
     _description = "Skill level for employee"
-    _order = "skill_type_id, skill_level_id"
     _rec_name = "skill_id"
 
     employee_id = fields.Many2one(

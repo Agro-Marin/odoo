@@ -692,3 +692,85 @@ class TestSkillFieldDefaults(TransactionCase):
             "valid_from default must be evaluated per-record at create time, "
             "not captured once at module load",
         )
+
+
+class TestIndividualSkillOrder(TransactionCase):
+    """The employee profile, the job position and the applicant must all list
+    the skills of a type from the highest level down."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.skill_type = cls.env["hr.skill.type"].create({"name": "Order Test Type"})
+        cls.low, cls.mid, cls.high = cls.env["hr.skill.level"].create(
+            [
+                {
+                    "name": "Low",
+                    "skill_type_id": cls.skill_type.id,
+                    "level_progress": 10,
+                },
+                {
+                    "name": "Mid",
+                    "skill_type_id": cls.skill_type.id,
+                    "level_progress": 50,
+                },
+                {
+                    "name": "High",
+                    "skill_type_id": cls.skill_type.id,
+                    "level_progress": 90,
+                },
+            ]
+        )
+        cls.skill_a, cls.skill_b, cls.skill_c = cls.env["hr.skill"].create(
+            [
+                {"name": "Order Skill A", "skill_type_id": cls.skill_type.id},
+                {"name": "Order Skill B", "skill_type_id": cls.skill_type.id},
+                {"name": "Order Skill C", "skill_type_id": cls.skill_type.id},
+            ]
+        )
+        cls.employee = cls.env["hr.employee"].create({"name": "Order Test Employee"})
+        cls.env["hr.employee.skill"].create(
+            [
+                {
+                    "employee_id": cls.employee.id,
+                    "skill_type_id": cls.skill_type.id,
+                    "skill_id": skill.id,
+                    "skill_level_id": level.id,
+                }
+                for skill, level in (
+                    (cls.skill_a, cls.low),
+                    (cls.skill_b, cls.mid),
+                    (cls.skill_c, cls.high),
+                )
+            ]
+        )
+
+    def test_employee_skills_are_ordered_by_descending_level(self):
+        self.assertEqual(
+            self.employee.employee_skill_ids.mapped("skill_level_id.level_progress"),
+            [90, 50, 10],
+            "the strongest skill of a type must come first on the employee",
+        )
+
+    def test_employee_and_job_skills_share_the_same_order(self):
+        job = self.env["hr.job"].create({"name": "Order Test Job"})
+        self.env["hr.job.skill"].create(
+            [
+                {
+                    "job_id": job.id,
+                    "skill_type_id": self.skill_type.id,
+                    "skill_id": skill.id,
+                    "skill_level_id": level.id,
+                }
+                for skill, level in (
+                    (self.skill_a, self.low),
+                    (self.skill_b, self.mid),
+                    (self.skill_c, self.high),
+                )
+            ]
+        )
+        self.assertEqual(
+            self.employee.current_employee_skill_ids.mapped("skill_id.name"),
+            job.current_job_skill_ids.mapped("skill_id.name"),
+            "the employee profile and the job position must agree on the order",
+        )

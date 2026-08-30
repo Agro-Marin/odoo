@@ -10,7 +10,7 @@ from odoo.fields import Domain
 class MixinHrIndividualSkill(models.AbstractModel):
     _name = "mixin.hr.individual.skill"
     _description = "Skill level"
-    _order = "skill_type_id, skill_level_id"
+    _order = "skill_type_id, skill_level_id desc"
     _rec_name = "skill_id"
 
     def _linked_field_name(self):
