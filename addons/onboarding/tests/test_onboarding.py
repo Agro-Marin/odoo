@@ -275,7 +275,7 @@ class TestOnboarding(TestOnboardingCommon):
 
     def test_onboarding_multi_record_write_recomputes_progress(self):
         """Linking an already-done step that is shared with another onboarding
-        must still recompute progress for every record in a multi-record write,
+        must still recompute progress for each record whose own step_ids changed,
         even though the aggregate step_ids across the whole batch is unchanged.
         """
         self.onboarding_1_step_1.action_set_just_done()
