@@ -849,7 +849,7 @@ class TestRecruitmentSkills(TransactionCase):
             skill.skill_level_id = self.t_skill_level_1
         talent_form.save()
 
-        test_job = self.env["hr.job"].create({"name": "Test Job"})
+        test_job = self.env["hr.job"].create({"name": "Test Job For Transfer"})
         applicant = (
             self.env["job.add.applicants"]
             .create({"applicant_ids": talent.ids, "job_ids": test_job})

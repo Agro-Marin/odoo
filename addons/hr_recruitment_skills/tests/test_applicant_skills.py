@@ -320,6 +320,13 @@ class TestApplicantSkills(TransactionCase):
         self.assertFalse(new_skill.valid_to)
         self.assertEqual(len(self.t_applicant.applicant_skill_ids), 6)
 
+        # `edit(index)` indexes the FORM's rows. A form that has already saved
+        # still holds the row it appended in the position it appended it to,
+        # while the recomputed current_applicant_skill_ids re-sorts it to the
+        # end, so an index taken from the record addresses a different row --
+        # here a certification, which the edit then replaced instead. Re-read
+        # the record, as reloading the view would, so the two orders agree.
+        applicant_form = Form(self.t_applicant)
         index = self.t_applicant.current_applicant_skill_ids.ids.index(new_skill.id)
         with applicant_form.current_applicant_skill_ids.edit(index) as cas:
             cas.skill_level_id = self.t_skill_level_2

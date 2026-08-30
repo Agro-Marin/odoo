@@ -603,19 +603,26 @@ class HrLeave(models.Model):
 
     def _get_overlapping_contracts(self):
         self.ensure_one()
-        domain = Domain.AND(
+        # The employee's versions are already in cache by the time this runs, and
+        # the coarse domain below is refined in Python straight after, so a fresh
+        # search only re-reads what the cache holds -- twice per write, because
+        # the flush reaches _check_contracts once before and once after the UPDATE.
+        # Filtering version_ids in memory is the idiom the sibling helper
+        # _get_versions_with_contract_overlap_with_period already uses.
+        if not self.date_from or not self.date_to:
+            # Both are computed and stored, so a leave can reach a constraint with
+            # neither set. The search this replaced returned nothing for a NULL
+            # bound; a leave with no dates overlaps no contract, so say so.
+            return self.env["hr.version"]
+        versions = self.employee_id.sudo().version_ids.filtered_domain(
             [
-                Domain("employee_id", "=", self.employee_id.id),
-                Domain("contract_date_start", "<=", self.date_to),
-                Domain.OR(
-                    [
-                        Domain("contract_date_end", ">=", self.date_from),
-                        Domain("contract_date_end", "=", False),
-                    ]
-                ),
+                ("contract_date_start", "!=", False),
+                ("contract_date_start", "<=", self.date_to.date()),
+                "|",
+                ("contract_date_end", ">=", self.date_from.date()),
+                ("contract_date_end", "=", False),
             ]
         )
-        versions = self.env["hr.version"].sudo().search(domain)
         return versions.filtered(
             lambda v: v._is_overlapping_period(
                 self.date_from.date(), self.date_to.date()
