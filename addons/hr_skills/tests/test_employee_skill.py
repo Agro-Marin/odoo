@@ -8,6 +8,7 @@ from odoo import fields
 from odoo.exceptions import ValidationError
 from odoo.tests import Form
 from odoo.tests.common import TransactionCase
+from odoo.tools.safe_eval import safe_eval
 
 
 class TestEmployeeSkills(TransactionCase):
@@ -871,4 +872,61 @@ class TestCertificationViews(TransactionCase):
             "certificate_filename",
             columns,
             "the binary widget needs the filename column to name the download",
+        )
+
+
+class TestCertificationCompany(TransactionCase):
+    """Certifications belong to the employee's company, and the Certifications
+    list must only show the companies the user has selected."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.company_a, cls.company_b = cls.env["res.company"].create(
+            [{"name": "Certification Co A"}, {"name": "Certification Co B"}]
+        )
+        cls.skill_type = cls.env["hr.skill.type"].create(
+            {"name": "Company Certificate", "is_certification": True}
+        )
+        cls.level = cls.env["hr.skill.level"].create(
+            {
+                "name": "Certified",
+                "skill_type_id": cls.skill_type.id,
+                "level_progress": 100,
+            }
+        )
+        cls.skill = cls.env["hr.skill"].create(
+            {"name": "Company Skill", "skill_type_id": cls.skill_type.id}
+        )
+        cls.employee_a, cls.employee_b = cls.env["hr.employee"].create(
+            [
+                {"name": "Employee A", "company_id": cls.company_a.id},
+                {"name": "Employee B", "company_id": cls.company_b.id},
+            ]
+        )
+        cls.certification_a, cls.certification_b = cls.env["hr.employee.skill"].create(
+            [
+                {
+                    "employee_id": employee.id,
+                    "skill_type_id": cls.skill_type.id,
+                    "skill_id": cls.skill.id,
+                    "skill_level_id": cls.level.id,
+                }
+                for employee in (cls.employee_a, cls.employee_b)
+            ]
+        )
+
+    def test_certification_carries_the_employee_company(self):
+        self.assertEqual(self.certification_a.company_id, self.company_a)
+        self.assertEqual(self.certification_b.company_id, self.company_b)
+
+    def test_certification_action_filters_on_the_selected_companies(self):
+        action = self.env.ref("hr_skills.action_hr_employee_skill_certification")
+        domain = safe_eval(action.domain, {"allowed_company_ids": self.company_a.ids})
+        found = self.env["hr.employee.skill"].search(domain)
+        self.assertIn(self.certification_a, found)
+        self.assertNotIn(
+            self.certification_b,
+            found,
+            "a company the user did not select must stay out of the list",
         )
