@@ -2,6 +2,7 @@ import datetime
 
 from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
+from lxml import etree
 
 from odoo import fields
 from odoo.exceptions import ValidationError
@@ -846,3 +847,28 @@ class TestSkillValidityTimezone(TransactionCase):
                 env["hr.job"].search([("current_job_skill_ids", "in", job_skill.ids)]),
                 "the search side must agree with the computed side",
             )
+
+
+class TestCertificationViews(TransactionCase):
+    """The Certifications tab of the employee form must expose the uploaded
+    certificate so it can be downloaded from the list."""
+
+    def test_certification_list_shows_the_certificate_file(self):
+        arch = etree.fromstring(
+            self.env["hr.employee"].get_view(view_type="form")["arch"]
+        )
+        certification_lists = arch.xpath("//field[@name='certification_ids']//list")
+        self.assertTrue(
+            certification_lists, "the Certifications tab must embed a list view"
+        )
+        columns = certification_lists[0].xpath("./field/@name")
+        self.assertIn(
+            "certificate_file",
+            columns,
+            "the certificate must be reachable from the certifications list",
+        )
+        self.assertIn(
+            "certificate_filename",
+            columns,
+            "the binary widget needs the filename column to name the download",
+        )
