@@ -87,7 +87,9 @@ class AccountMove(models.Model):
                 move.message_post(body=message)
         return res
 
-    @api.depends("move_type", "partner_id")
+    @api.depends(
+        "move_type", "partner_id", "line_ids.purchase_line_ids.order_id.user_id"
+    )
     def _compute_invoice_user_id(self):
         super()._compute_invoice_user_id()
         for move in self:
