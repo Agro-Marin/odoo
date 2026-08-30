@@ -955,19 +955,19 @@ free-standing form.
   ``_except_`` is a guard and returns, anything else under ``_unlink_`` deletes.
   An ORM-invoked hook is private.
 
-**``@api.constrains``** ``[review]`` is the fourth and largest, at **621** hooks.
-The Validation row governs the spelling and **553** already carry ``_check_``. The
+**``@api.constrains``** ``[review]`` is the fourth and largest, at **625** hooks.
+The Validation row governs the spelling and **557** already carry ``_check_``. The
 rest are names the ratchet counts (``_validate_``, ``_ensure_``, ``_verify_``) and
 the localisation namespace with the verb behind it
 (``_l10n_se_check_payment_reference``). That leaves **47** spelled with a first
 token carrying no rule anywhere: ``_constrains_``, ``_constraint_``,
 ``_limit_available_currency_ids``, and twice the misspelling ``_contrains_``.
 
-**The field-hook rule must not be extended to it** ``[review]``. **301** bind
+**The field-hook rule must not be extended to it** ``[review]``. **302** bind
 exactly one field and only **129** are ``_check_<field>`` -- that gap is the rule
 working. A ``compute=`` names a subject; a ``@api.constrains`` argument names a
 **trigger**, and a constraint is named for the **condition it enforces**
-(``_check_at_least_one_administrator``). **53** multi-field constraints are named
+(``_check_at_least_one_administrator``). **54** multi-field constraints are named
 for exactly one of their triggers and every one is right. Ask what **raises**.
 
 **A hook may hold two bindings, and then one prefix has to lose** ``[review]``.
@@ -980,10 +980,10 @@ Do not read a prefix as a claim that no other binding exists.
 carrying an ORM role; every other method opens with a free verb. The abolished
 spellings are wrong, not lesser-preferred. The tree spells single operations many
 ways: 7 stems are written with two or more verbs drawn from one semantic family,
-and 104 groups of methods share a byte-identical body under different names.
+and 103 groups of methods share a byte-identical body under different names.
 
 **Every figure in this section is measured, not stated**
-``[gate doc_restated_counts]``. The population is the 25,058 non-test methods
+``[gate doc_restated_counts]``. The population is the 25,062 non-test methods
 declared on a model class **in this repository** -- the population
 ``naming_vocabulary.py`` ratchets. The census stops here (ADR-0033), so every
 figure is a floor.
@@ -1217,7 +1217,7 @@ Four limits:
 2.4.7 Payload against read
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**``_get_`` is not a default.** At 5,614 definitions it is 22.4 % of every method
+**``_get_`` is not a default.** At 5,613 definitions it is 22.4 % of every method
 in this repository's model layer, having absorbed reading, building, deriving and
 computing. The split that matters is against ``_prepare_``: 702 definitions are
 payload builders -- they end in ``_vals``, ``_values``, ``_data``, ``_dict``,
@@ -1297,7 +1297,7 @@ keeps its conversion verb, a **conventional acknowledgement** is nothing at all.
 The call site is the tell: a predicate reads naturally inside an ``if``, a
 converter where a type would.
 
-**Validation raises; predicates return.** ``_check_*`` (1,071 definitions) is
+**Validation raises; predicates return.** ``_check_*`` (1,075 definitions) is
 canonical and matches ``@api.constrains``. ``_validate_`` (24) plus ``_verify_``,
 ``_ensure_`` and ``_control_`` (48 together) are the same operation under four
 names. A method that *answers* rather than enforces is ``_is_*`` / ``_has_*`` /
@@ -1519,7 +1519,7 @@ may not borrow that vocabulary, whether or not it is indented under a class.
 populations in the same files are counted by nothing: a function declared at
 **module level** -- **314** of them under ``models/`` and ``wizard/`` -- and a
 method on a **plain class** declared in the same file, of which there are **381**
-across **146** classes. Counted over the addon trees only, since a directory test
+across **147** classes. Counted over the addon trees only, since a directory test
 alone would sweep in ORM internals the vocabulary does not reach.
 
 **A file can be sixteen names wrong and green** -- three sweeps left the ratchet

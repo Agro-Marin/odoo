@@ -112,7 +112,7 @@ genuine cycle. Moving `errors`/`dsn`/`utils` to `[foundation]` and `helpers` to
 | Tier pair | Downward | Back-edges | Convention |
 |---|---:|---:|---|
 | `db/` `[connectivity]` → `[resilience]` | had 6 connectivity → resilience edges | 1 | counting imported *symbols*, as `layer_check` does |
-| `http/` `[serving]` → `[features]` | 22 serving → features | 1 | counting import *statements*; by symbol it is 47 against 2 |
+| `http/` `[serving]` → `[features]` | 22 serving → features | 1 | counting import *statements*; by symbol it is 49 against 2 |
 
 **These are the pre-fix figures**, re-derived by
 `TestEdgeCountConventions`, which holds the *old* bracket assignment
