@@ -696,7 +696,9 @@ class PurchaseOrder(models.Model):
             suppinfo_vals_list.append(supplierinfo)
 
         if suppinfo_vals_list:
-            self.env["product.supplierinfo"].sudo().create(suppinfo_vals_list)
+            self.env["product.supplierinfo"].sudo().with_company(
+                self.company_id
+            ).create(suppinfo_vals_list)
 
     def get_acknowledge_url(self):
         return self.get_portal_url(query_string="&acknowledge=True")
