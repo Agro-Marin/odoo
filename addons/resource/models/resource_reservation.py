@@ -5,6 +5,7 @@ from datetime import UTC
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.fields import Domain
 from odoo.libs.intervals import Intervals
 from odoo.tools import SQL
 from odoo.tools.date_utils import localized, sum_intervals
@@ -210,17 +211,46 @@ class ResourceReservation(models.Model):
 
         # Hard reservations, not in this batch, whose slot these records intrude on.
         if live:
+            # Bound the fetch to each *resource's own* window, not the whole
+            # batch's: a batch mixing far-apart windows on different
+            # resources must not pull in every hard reservation across that
+            # whole span just to discard most of it per resource afterwards.
+            windows_by_resource = defaultdict(lambda: [None, None])
+            for record in live:
+                window = windows_by_resource[record.resource_id.id]
+                window[0] = (
+                    record.date_start
+                    if window[0] is None
+                    else min(window[0], record.date_start)
+                )
+                window[1] = (
+                    record.date_end
+                    if window[1] is None
+                    else max(window[1], record.date_end)
+                )
             hard |= (
                 self.sudo()
                 .search(
-                    [
-                        ("id", "not in", live.ids),
-                        ("active", "=", True),
-                        ("enforcement_mode", "=", "hard"),
-                        ("resource_id", "in", live.resource_id.ids),
-                        ("date_start", "<", max(live.mapped("date_end"))),
-                        ("date_end", ">", min(live.mapped("date_start"))),
-                    ]
+                    Domain.AND(
+                        [
+                            Domain("id", "not in", live.ids),
+                            Domain("active", "=", True),
+                            Domain("enforcement_mode", "=", "hard"),
+                            Domain.OR(
+                                Domain.AND(
+                                    [
+                                        Domain("resource_id", "=", resource_id),
+                                        Domain("date_start", "<", end),
+                                        Domain("date_end", ">", start),
+                                    ]
+                                )
+                                for resource_id, (
+                                    start,
+                                    end,
+                                ) in windows_by_resource.items()
+                            ),
+                        ]
+                    )
                 )
                 .with_env(self.env)
             )
