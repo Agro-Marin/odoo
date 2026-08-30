@@ -774,3 +774,75 @@ class TestIndividualSkillOrder(TransactionCase):
             job.current_job_skill_ids.mapped("skill_id.name"),
             "the employee profile and the job position must agree on the order",
         )
+
+
+class TestSkillValidityTimezone(TransactionCase):
+    """Validity dates are calendar dates, so they must be read in the user's
+    timezone. At UTC-6 the local day and the UTC day disagree for the last six
+    hours of every local day."""
+
+    # 02:00 UTC on the 31st is 20:00 on the 30th in America/Mexico_City.
+    EVENING_UTC = "2026-08-31 02:00:00"
+    LOCAL_DAY = datetime.date(2026, 8, 30)
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.env.user.tz = "America/Mexico_City"
+        cls.skill_type = cls.env["hr.skill.type"].create({"name": "Timezone Type"})
+        cls.level = cls.env["hr.skill.level"].create(
+            {
+                "name": "TZ Level",
+                "skill_type_id": cls.skill_type.id,
+                "level_progress": 50,
+            }
+        )
+        cls.skill = cls.env["hr.skill"].create(
+            {"name": "Timezone Skill", "skill_type_id": cls.skill_type.id}
+        )
+        cls.employee = cls.env["hr.employee"].create({"name": "Timezone Employee"})
+
+    def _local_env(self):
+        return self.env["base"].with_context(tz="America/Mexico_City").env
+
+    def test_valid_from_default_uses_the_local_day(self):
+        env = self._local_env()
+        with freeze_time(self.EVENING_UTC):
+            employee_skill = env["hr.employee.skill"].create(
+                {
+                    "employee_id": self.employee.id,
+                    "skill_type_id": self.skill_type.id,
+                    "skill_id": self.skill.id,
+                    "skill_level_id": self.level.id,
+                }
+            )
+        self.assertEqual(
+            employee_skill.valid_from,
+            self.LOCAL_DAY,
+            "a skill added at 20:00 must start today, not tomorrow",
+        )
+
+    def test_job_skill_valid_until_today_is_still_current(self):
+        env = self._local_env()
+        with freeze_time(self.EVENING_UTC):
+            job = env["hr.job"].create({"name": "Timezone Test Job"})
+            job_skill = env["hr.job.skill"].create(
+                {
+                    "job_id": job.id,
+                    "skill_type_id": self.skill_type.id,
+                    "skill_id": self.skill.id,
+                    "skill_level_id": self.level.id,
+                    "valid_from": datetime.date(2026, 8, 1),
+                    "valid_to": self.LOCAL_DAY,
+                }
+            )
+            self.assertIn(
+                job_skill,
+                job.current_job_skill_ids,
+                "a skill valid until today must not expire six hours early",
+            )
+            self.assertIn(
+                job,
+                env["hr.job"].search([("current_job_skill_ids", "in", job_skill.ids)]),
+                "the search side must agree with the computed side",
+            )
