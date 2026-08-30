@@ -9,7 +9,7 @@ patch(PaymentPostProcessing, {
      * route, because custom transactions remain in the state 'pending' forever.
      *
      * @override method from `@payment/interactions/post_processing`
--    * @param {string} providerCode - The code of the provider handling the transaction.
+     * @param {string} providerCode - The code of the provider handling the transaction.
      */
     getFinalStates(providerCode) {
         const finalStates = super.getFinalStates(...arguments);
