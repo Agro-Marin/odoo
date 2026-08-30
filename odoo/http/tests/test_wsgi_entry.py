@@ -1,4 +1,5 @@
 import io
+from collections.abc import Callable
 from typing import Any
 from unittest import mock
 
@@ -40,6 +41,8 @@ class _FakeRequest:
         self.session = mock.Mock()
         self.calls: list[str] = []
         self._serve = serve or (lambda name: f"served:{name}")
+        self._serve_db: Callable[[], Any] = self._default_serve_db
+        self._serve_nodb: Callable[[], Any] = self._default_serve_nodb
 
     def _post_init(self):
         self._post_init_done = True
@@ -49,11 +52,11 @@ class _FakeRequest:
 
         return contextlib.nullcontext()
 
-    def _serve_db(self):
+    def _default_serve_db(self):
         self.calls.append("db")
         return self._serve("db")
 
-    def _serve_nodb(self):
+    def _default_serve_nodb(self):
         self.calls.append("nodb")
         return self._serve("nodb")
 

@@ -295,25 +295,25 @@ class _RequestServeMixin(RequestState):
             raise RequestEntityTooLarge
 
     def _serve_ir_http_fallback(self, not_found: NotFound) -> Response:
-        registry = self._bound_registry()
-        ir_http(registry)._apply_max_upload_size()
+        hooks = ir_http(self._bound_registry())
+        hooks._apply_max_upload_size()
         self._reject_oversized_body()
         self._params_source = self.get_http_params
-        ir_http(registry)._auth_method_public()
-        response = ir_http(registry)._serve_fallback()
+        hooks._auth_method_public()
+        response = hooks._serve_fallback()
         if response:
-            ir_http(registry)._post_dispatch(response)
+            hooks._post_dispatch(response)
             return response
 
         no_fallback = NotFound()
         no_fallback.__context__ = not_found
-        set_error_response(no_fallback, ir_http(registry)._handle_error(no_fallback))
+        set_error_response(no_fallback, hooks._handle_error(no_fallback))
         raise no_fallback
 
     def _serve_ir_http(self, rule: Any, args: dict[str, Any]) -> Response:
-        registry = self._bound_registry()
-        ir_http(registry)._authenticate(rule.endpoint)
-        ir_http(registry)._pre_dispatch(rule, args)
+        hooks = ir_http(self._bound_registry())
+        hooks._authenticate(rule.endpoint)
+        hooks._pre_dispatch(rule, args)
         response = self.dispatcher.dispatch(rule.endpoint, args)
-        ir_http(registry)._post_dispatch(response)
+        hooks._post_dispatch(response)
         return response

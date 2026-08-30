@@ -36,6 +36,11 @@ def _request(path="/whatever", args=None):
         path=path,
         args=werkzeug.datastructures.MultiDict(args or {}),
     )
+
+    def _serve_nodb():
+        served.append(1)
+        return "nodb"
+
     this: Any = types.SimpleNamespace(
         db="db",
         session=_Session(),
