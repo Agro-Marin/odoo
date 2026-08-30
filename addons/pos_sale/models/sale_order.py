@@ -76,6 +76,7 @@ class SaleOrder(models.Model):
             **product_tmpls,
         }
 
+    @api.depends("pos_order_line_ids")
     def _compute_pos_order_count(self):
         for order in self:
             linked_orders = order.pos_order_line_ids.mapped("order_id")
