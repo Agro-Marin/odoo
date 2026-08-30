@@ -104,10 +104,10 @@ class ProductTemplate(models.Model):
     def _check_expiry_times(self):
         for template in self:
             offsets = {
-                "Expiration Date": template.expiration_time,
-                "Best Before Date": template.use_time,
-                "Removal Date": template.removal_time,
-                "Alert Date": template.alert_time,
+                self.env._("Expiration Date"): template.expiration_time,
+                self.env._("Best Before Date"): template.use_time,
+                self.env._("Removal Date"): template.removal_time,
+                self.env._("Alert Date"): template.alert_time,
             }
             negative = [name for name, days in offsets.items() if days < 0]
             if negative:
