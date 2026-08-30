@@ -67,7 +67,12 @@ class MixinResourceSchedulingTools(models.AbstractModel):
                     domain=leave_domain,
                 )
             work_intervals, hours_per_day, hours_per_week = (
-                resource._get_flexible_resource_valid_work_intervals(start_utc, end_utc)
+                resource._get_flexible_resource_valid_work_intervals(
+                    start_utc,
+                    end_utc,
+                    compute_leaves=compute_leaves,
+                    leave_domain=leave_domain,
+                )
             )
             return resource._get_flexible_resource_work_hours(
                 work_intervals[resource.id],
