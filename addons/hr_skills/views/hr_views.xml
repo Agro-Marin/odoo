@@ -229,7 +229,7 @@
             </page>
         </field>
     </record>
-    
+
     <!-- hr_resume_line views -->
 
     <record id="hr_resume_line_type_tree_view" model="ir.ui.view">
@@ -420,6 +420,8 @@
                             <label for="valid_to" string="To" class="mx-1"/>
                             <field name="valid_to" placeholder="indefinite" nolabel="1" class="w-25"/>
                         </div>
+                        <field name="certificate_filename" invisible="1"/>
+                        <field name="certificate_file" string="Certificate" filename="certificate_filename" invisible="not is_certification"/>
                     </group>
                     <div class="alert alert-warning ps-3" role="alert" invisible="not display_warning_message">
                         The end date must be after the start date.

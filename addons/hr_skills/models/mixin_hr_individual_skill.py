@@ -27,7 +27,10 @@ class MixinHrIndividualSkill(models.AbstractModel):
         # skill_level_id, skill_type_id), but editing a passive field does NOT
         # itself trigger a new version. Core/active fields are preserved
         # automatically and must NOT be listed here.
-        return []
+        # The certificate proves the skill, not one particular level of it, so
+        # it follows the record into its next version; replacing the file alone
+        # is a correction, not a new certification.
+        return ["certificate_file", "certificate_filename"]
 
     def _can_edit_certification_validity_period(self):
         # If True, the overlapping constraint on a certification is released:
@@ -79,6 +82,8 @@ class MixinHrIndividualSkill(models.AbstractModel):
         related="skill_type_id.is_certification", export_string_translation=False
     )  # if is_certification change the model will not trigger the constrains
     display_warning_message = fields.Boolean()
+    certificate_filename = fields.Char()
+    certificate_file = fields.Binary(string="Certificate")
 
     @api.constrains(
         lambda self: [
