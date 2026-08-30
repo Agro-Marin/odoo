@@ -163,6 +163,7 @@ class PurchaseOrder(models.Model):
         new_orders = super().copy(default=default)
         for line in new_orders.line_ids:
             if line.product_id:
+                line.date_is_manual = False
                 line.date_commitment = line._get_date_commitment(
                     line.selected_seller_id
                 )
