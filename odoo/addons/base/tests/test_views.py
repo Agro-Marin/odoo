@@ -2725,6 +2725,32 @@ class TestViews(ViewCase):
             """Unsearchable field “xml_id” in path “xml_id” in domain of <field name="inherit_id"> ([('xml_id', '=', 'test')])""",
         )
 
+    def test_domain_date_part_is_a_property_not_a_hop(self):
+        """The ORM resolves a date part to date_part() in SQL, so a domain may
+        carry one; ``formatted_read_group`` hands the client this very shape
+        back as ``__extra_domain``. Reading it as a relational path refused a
+        domain the framework itself writes."""
+        arch = """
+            <form string="View">
+                <field name="name"/>
+                <field name="inherit_id" domain="[('%s', '=', 1)]"/>
+            </form>
+        """
+        self.assertValid(arch % "create_date.month_number")
+        self.assertValid(arch % "create_date.day_of_month")
+
+        for path in (
+            "create_date.not_a_granularity",
+            "create_date.month_number.deeper",
+            "name.month_number",
+        ):
+            field = path.split(".")[0]
+            self.assertInvalid(
+                arch % path,
+                f"""Non-relational field “{field}” in path “{path}” in domain """
+                f"""of <field name="inherit_id"> ([('{path}', '=', 1)])""",
+            )
+
     def test_domain_field_no_comodel(self):
         self.assertInvalid(
             """

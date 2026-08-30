@@ -2958,6 +2958,12 @@ class IrUiView(models.Model):
                         use=use,
                     )
                     self._raise_view_error(msg, node)
+                if (
+                    field.type in ("date", "datetime")
+                    and index + 2 == len(names)
+                    and names[-1] in models.READ_GROUP_NUMBER_GRANULARITY
+                ):
+                    break
                 Model = self.pool.get(field.comodel_name)
 
     def _get_view_etrees(self) -> list[_Element]:
