@@ -94,6 +94,12 @@
         <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
     </record>
 
+    <record id="purchase_bill_line_match_comp_rule" model="ir.rule">
+        <field name="name">Purchase Bill Line Match multi-company</field>
+        <field name="model_id" ref="model_purchase_bill_line_match" />
+        <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
+    </record>
+
     <!-- Multi-Buyer Vendor Invoice Analysis Rules -->
     <record id="account_invoice_report_purchase_personal_rule" model="ir.rule">
         <field name="name">Personal Vendor Bills Analysis</field>
