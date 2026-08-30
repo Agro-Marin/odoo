@@ -1921,6 +1921,82 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
         invoice.action_draft()
         self.assertEqual(invoice.state, "posted")
 
+    def test_reflect_cancelled_sol(self):
+        # Regression test for reflect_cancelled_sol, which had no test
+        # coverage: it appends/removes a "(Cancelled)" suffix on a linked
+        # sale.order.line's name when the settling invoice is
+        # cancelled/reposted.
+        sale_order = (
+            self.env["sale.order"]
+            .sudo()
+            .create(
+                {
+                    "partner_id": self.env["res.partner"]
+                    .create({"name": "Test Partner"})
+                    .id,
+                    "line_ids": [
+                        (
+                            0,
+                            0,
+                            {
+                                "product_id": self.desk_pad.product_variant_id.id,
+                                "name": self.desk_pad.name,
+                                "product_qty": 1,
+                                "price_unit": self.desk_pad.product_variant_id.lst_price,
+                            },
+                        )
+                    ],
+                }
+            )
+        )
+        sale_order.action_confirm()
+
+        self.main_pos_config.open_ui()
+        current_session = self.main_pos_config.current_session_id
+        pos_order = self.env["pos.order"].create(
+            {
+                "company_id": self.env.company.id,
+                "session_id": current_session.id,
+                "partner_id": sale_order.partner_id.id,
+                "lines": [
+                    (
+                        0,
+                        0,
+                        {
+                            "name": "OL/0001",
+                            "product_id": self.desk_pad.product_variant_id.id,
+                            "price_unit": self.desk_pad.product_variant_id.lst_price,
+                            "discount": 0.0,
+                            "qty": 1.0,
+                            "tax_ids": [],
+                            "price_subtotal": self.desk_pad.product_variant_id.lst_price,
+                            "price_subtotal_incl": self.desk_pad.product_variant_id.lst_price,
+                            "sale_order_line_id": sale_order.line_ids[0].id,
+                            "sale_order_origin_id": sale_order.id,
+                        },
+                    )
+                ],
+                "amount_total": self.desk_pad.product_variant_id.lst_price,
+                "amount_tax": 0.0,
+                "amount_paid": self.desk_pad.product_variant_id.lst_price,
+                "amount_return": 0.0,
+                "state": "paid",
+                "last_order_preparation_change": "{}",
+            }
+        )
+        res = pos_order.action_pos_order_invoice()
+        invoice = self.env["account.move"].browse(res["res_id"])
+        self.assertEqual(invoice.state, "posted")
+
+        original_name = sale_order.line_ids[0].name
+        self.assertNotIn("(Cancelled)", original_name)
+
+        invoice.reflect_cancelled_sol(True)
+        self.assertEqual(sale_order.line_ids[0].name, f"{original_name} (Cancelled)")
+
+        invoice.reflect_cancelled_sol(False)
+        self.assertEqual(sale_order.line_ids[0].name, original_name)
+
     def test_pos_order_and_invoice_amounts(self):
         payment_term = self.env["account.payment.term"].create(
             {
