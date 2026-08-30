@@ -422,20 +422,17 @@
 
                     <block title="Digitization" id="account_digitalization">
                         <setting
-                            id="account_ocr_settings"
-                            help="Digitize your PDF or scanned documents with OCR and Artificial Intelligence"
+                            id="account_invoice_ocr_settings"
+                            help="Read a bill's fields off its PDF or scan"
                             documentation="/applications/finance/accounting/payables/supplier_bills/invoice_digitization.html">
+                            <field name="module_document_extract_account" />
+                        </setting>
+                        <setting
+                            id="account_bank_statement_ocr_settings"
+                            help="Read a scanned bank statement's balances and transactions">
                             <field
-                                name="module_account_extract"
+                                name="module_document_extract_account_bank_statement"
                                 widget="upgrade_boolean" />
-                            <div
-                                id="msg_invoice_extract"
-                                class="content-group"
-                                invisible="not module_account_extract">
-                                <div class="text-warning mt16 mb4">
-                                    Save this page and come back here to set up the feature.
-                                </div>
-                            </div>
                         </setting>
                     </block>
 

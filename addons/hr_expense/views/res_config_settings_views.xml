@@ -35,7 +35,7 @@
                             <setting id="expense_extract_settings" string="Expense Digitalization (OCR)" company_dependent="1"
                                      help="Digitalize your receipts with OCR and Artificial Intelligence"
                                      title="use OCR to fill data from a picture of the bill">
-                                <field name="module_hr_expense_extract" widget="upgrade_boolean"/>
+                                <field name="module_document_extract_hr_expense"/>
                             </setting>
                             <setting string="Expense Card" company_dependent="True" id="expense_cards_stripe_issuing"
                                      help="Create prepaid virtual and physical cards for both one-time and recurring expenses, integrated into Odoo through Stripe Issuing.">
