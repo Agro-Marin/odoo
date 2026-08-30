@@ -237,7 +237,10 @@ class ProjectProject(models.Model):
             "to_bill": 0.0,
         }
 
-        if with_action and self.env.user.has_group("account.group_account_readonly"):
+        if with_action and (
+            self.env.user.has_group("account.group_account_invoice")
+            or self.env.user.has_group("account.group_account_readonly")
+        ):
             costs["action"] = self._get_action_for_profitability_section(
                 cost_ids, "other_costs_aal"
             )
