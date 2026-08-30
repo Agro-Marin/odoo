@@ -314,8 +314,6 @@ class ProductProduct(models.Model):
                 / res[product_id]["sale_expected"]
             ) or 0.0
 
-        ctx = self.env.context.copy()
-        ctx["force_company"] = company_id
         invoice_types = ("in_invoice", "in_refund")
         self.env.cr.execute(
             sqlstr,
