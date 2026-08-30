@@ -13,7 +13,7 @@ from odoo.fields import Domain
 from odoo.libs.datetime import localize_standard, timezone
 from odoo.libs.intervals import Intervals
 from odoo.libs.numbers import float_is_zero
-from odoo.tools import SQL, Query, convert, email_normalize, format_time
+from odoo.tools import SQL, Query, convert, email_normalize, format_date, format_time
 
 from odoo.addons.hr.models.hr_version import format_date_abbr
 from odoo.addons.mail.tools.discuss import Store
@@ -1594,8 +1594,15 @@ class HrEmployee(models.Model):
     def _compute_birthday_public_display_string(self):
         for employee in self:
             if employee.birthday and employee.birthday_public_display:
-                employee.birthday_public_display_string = datetime.strftime(
-                    employee.birthday, "%d %B"
+                # Not ``strftime("%d %B")``: that takes the month name from the
+                # locale of the server PROCESS, so every reader saw an English
+                # month whatever their own language. ``format_date`` resolves
+                # the language from the environment instead. The field is not
+                # stored, so every request recomputes it for whoever is reading
+                # -- inside one transaction the first read still wins the cache,
+                # because the value is cached per record and not per language.
+                employee.birthday_public_display_string = format_date(
+                    self.env, employee.birthday, date_format="dd MMMM"
                 )
             else:
                 employee.birthday_public_display_string = "hidden"

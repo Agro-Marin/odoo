@@ -29,6 +29,37 @@ class TestHrEmployee(TestHrCommon):
             {"user_id": self.user_without_image.id, "image_1920": False}
         )
 
+    def test_public_birthday_string_follows_the_reader_language(self):
+        """The public date of birth is read by every employee, in their own UI.
+
+        It was built with ``datetime.strftime("%d %B")``, whose month name
+        comes from the locale of the server process, not from the user. On a
+        database running in Spanish that meant an English month inside an
+        otherwise Spanish form.
+        """
+        self.env["res.lang"]._activate_lang("es_ES")
+        employee = self.env["hr.employee"].create(
+            {
+                "name": "Cumpleanera",
+                "birthday": "1990-03-15",
+                "birthday_public_display": True,
+            }
+        )
+
+        self.assertEqual(
+            employee.with_context(lang="es_ES").birthday_public_display_string,
+            "15 marzo",
+        )
+        # The field is not translated, so its computed value is cached once per
+        # transaction and not once per language: the first read would otherwise
+        # answer for the second. Two web requests never share that cache, so
+        # invalidating is what makes this test model the real thing.
+        employee.invalidate_recordset(["birthday_public_display_string"])
+        self.assertEqual(
+            employee.with_context(lang="en_US").birthday_public_display_string,
+            "15 March",
+        )
+
     def test_employee_must_have_active_version(self):
         employee = self.env["hr.employee"].create({"name": "Batman"})
         self.assertEqual(len(employee.version_ids), 1)
