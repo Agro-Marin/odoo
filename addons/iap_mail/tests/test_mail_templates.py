@@ -3,12 +3,7 @@ from odoo.tests import TransactionCase, tagged
 
 @tagged("post_install", "-at_install")
 class TestMailTemplates(TransactionCase):
-    """Render coverage for iap_mail's IAP-enrichment QWeb templates.
-
-    A render test asserts every truthy value actually reaches the page,
-    which is exactly what would have caught a directive typo like a
-    misspelled ``t-out`` silently dropping a field.
-    """
+    """Render coverage for iap_mail's IAP-enrichment QWeb templates."""
 
     def test_enrich_company_renders_every_field(self):
         values = {
