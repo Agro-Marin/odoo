@@ -79,6 +79,47 @@ class TestHrEmployee(TestHrCommon):
         self.assertEqual(form.private_phone, form.work_phone)
         self.assertEqual(form.emergency_phone, form.work_phone)
 
+    def test_presence_state_ignores_an_employee_out_of_contract(self):
+        """Presence is a claim about someone the company expects at work.
+
+        An employee whose contract has ended -- or who never had contract dates
+        at all -- showed as Present the moment their user was online, which
+        states a fact about a working day that does not exist. Both populations
+        are asserted here on purpose: the second one is the wider change, and
+        an employee with no contract dates is allowed by the model.
+        """
+        today = fields.Date.today()
+        self.assertTrue(self.env.company.hr_presence_control_login)
+
+        def online_employee(name, version_vals):
+            user = self.env["res.users"].create(
+                {"name": name, "login": f"presence_{name}"}
+            )
+            employee = self.env["hr.employee"].create(
+                {"name": name, "user_id": user.id}
+            )
+            if version_vals:
+                employee.version_id.write(version_vals)
+            self.env["mail.presence"].create({"user_id": user.id, "status": "online"})
+            return employee
+
+        running = online_employee(
+            "running", {"contract_date_start": today - relativedelta(years=1)}
+        )
+        ended = online_employee(
+            "ended",
+            {
+                "contract_date_start": today - relativedelta(years=1),
+                "contract_date_end": today - relativedelta(days=10),
+            },
+        )
+        never = online_employee("never", {})
+
+        self.env.invalidate_all()
+        self.assertEqual(running.hr_presence_state, "present")
+        self.assertEqual(ended.hr_presence_state, "out_of_working_hour")
+        self.assertEqual(never.hr_presence_state, "out_of_working_hour")
+
     def test_employee_must_have_active_version(self):
         employee = self.env["hr.employee"].create({"name": "Batman"})
         self.assertEqual(len(employee.version_ids), 1)

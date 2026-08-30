@@ -1514,20 +1514,31 @@ class HrEmployee(models.Model):
         This method is overritten in several other modules which add additional
         presence criterions. e.g. hr_attendance, hr_holidays
         """
+        # sudo: ``is_in_contract`` reaches the version through a field owned by
+        # hr.group_hr_manager, while hr_presence_state is read by everyone.
+        # Resolved once for the whole recordset, not per record inside the
+        # filter below, so the versions are fetched in a single batch.
+        in_contract_ids = set(self.sudo().filtered("is_in_contract")._ids)
         # sudo: res.users - can access presence of accessible user.
-        # Only employees whose company uses login-based presence control consult
-        # ``working_now_list`` below, so restrict the (expensive) schedule
-        # computation to them instead of running it for the whole recordset.
+        # Only employees whose company uses login-based presence control AND who
+        # are under contract consult ``working_now_list`` below, so restrict the
+        # (expensive) schedule computation to them instead of running it for the
+        # whole recordset. Anyone else is out of working hours whatever their
+        # schedule says.
         employee_to_check_working = self.filtered(
             lambda e: (
-                e.company_id.sudo().hr_presence_control_login
+                e.id in in_contract_ids
+                and e.company_id.sudo().hr_presence_control_login
                 and (e.user_id.sudo().presence_ids.status or "offline") == "offline"
             )
         )
         working_now_list = employee_to_check_working._get_employee_working_now()
         for employee in self:
             state = "out_of_working_hour"
-            if employee.company_id.sudo().hr_presence_control_login:
+            if (
+                employee.id in in_contract_ids
+                and employee.company_id.sudo().hr_presence_control_login
+            ):
                 # sudo: res.users - can access presence of accessible user
                 presence_status = (
                     employee.user_id.sudo().presence_ids.status or "offline"
