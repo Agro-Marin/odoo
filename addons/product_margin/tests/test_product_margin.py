@@ -1,7 +1,8 @@
 from unittest.mock import patch
 
 from odoo import Command, fields
-from odoo.tests import tagged
+from odoo.exceptions import AccessError
+from odoo.tests import new_test_user, tagged
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
@@ -109,6 +110,19 @@ class TestProductMargin(AccountTestInvoicingCommon):
             {field_name: {"aggregator": "sum"} for field_name in field_names},
             f"Fields {', '.join(map(repr, field_names))} must be flagged as aggregatable.",
         )
+
+    def test_read_group_enforces_field_access(self):
+        restricted_user = new_test_user(
+            self.env,
+            login="product_margin_restricted_user",
+            groups="base.group_user",
+        )
+        turnover_field = self.env["product.product"]._fields["turnover"]
+        with patch.object(turnover_field, "groups", "base.group_system"):
+            with self.assertRaises(AccessError):
+                self.env["product.product"].with_user(restricted_user)._read_group(
+                    [("id", "=", self.ipad.id)], aggregates=["turnover:sum"]
+                )
 
     def test_invalid_invoice_state_context(self):
         with self.assertRaises(ValueError):

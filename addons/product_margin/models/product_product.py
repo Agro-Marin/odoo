@@ -118,6 +118,8 @@ class ProductProduct(models.Model):
         # the purpose of this override is to flag the aggregates above as such:
         # field._description_aggregator() should simply not fail
         if aggregate_spec in self._SPECIAL_SUM_AGGREGATES:
+            field_name = aggregate_spec.split(":")[0]
+            self._check_field_access(self._fields[field_name], "read")
             return SQL("NULL")
         return super()._read_group_select(aggregate_spec, query)
 
@@ -139,6 +141,9 @@ class ProductProduct(models.Model):
             return super()._read_group(
                 domain, groupby, aggregates, having, offset, limit, order
             )
+
+        for spec in self._SPECIAL_SUM_AGGREGATES.intersection(aggregates):
+            self._check_field_access(self._fields[spec.split(":")[0]], "read")
 
         base_aggregates = [
             *(agg for agg in aggregates if agg not in self._SPECIAL_SUM_AGGREGATES),
@@ -168,6 +173,9 @@ class ProductProduct(models.Model):
     def _read_grouping_sets(self, domain, grouping_sets, aggregates=(), order=None):
         if self._SPECIAL_SUM_AGGREGATES.isdisjoint(aggregates):
             return super()._read_grouping_sets(domain, grouping_sets, aggregates, order)
+
+        for spec in self._SPECIAL_SUM_AGGREGATES.intersection(aggregates):
+            self._check_field_access(self._fields[spec.split(":")[0]], "read")
 
         base_aggregates = [
             *(agg for agg in aggregates if agg not in self._SPECIAL_SUM_AGGREGATES),
