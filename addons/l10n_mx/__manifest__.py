@@ -30,6 +30,7 @@ With this module you will have:
     ],
     "auto_install": ["account"],
     "data": [
+        "data/res_partner_identifier_type_data.xml",
         "data/account.account.tag.csv",
         "data/account_report_diot.xml",
         "data/res_bank_data.xml",

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <data noupdate="1">
+        <record id="partner_identifier_type_rfc" model="res.partner.identifier.type">
+            <field name="name">RFC</field>
+            <field name="code">MX_RFC</field>
+            <field name="sequence">10</field>
+            <field name="country_ids" eval="[(6, 0, [ref('base.mx')])]" />
+            <field name="pattern">[A-ZÑ&amp;]{3,4}[0-9]{6}[A-Z0-9]{3}</field>
+            <field name="synced_with_commercial" eval="True" />
+        </record>
+        <record id="partner_identifier_type_curp" model="res.partner.identifier.type">
+            <field name="name">CURP</field>
+            <field name="code">MX_CURP</field>
+            <field name="sequence">20</field>
+            <field name="country_ids" eval="[(6, 0, [ref('base.mx')])]" />
+            <field
+                name="pattern">[A-Z][AEIOUX][A-Z]{2}[0-9]{6}[HM][A-Z]{5}[A-Z0-9][0-9]</field>
+            <field name="synced_with_commercial" eval="False" />
+        </record>
+    </data>
+
+</odoo>
