@@ -2,6 +2,7 @@ from datetime import datetime
 
 from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
+from lxml import etree
 from psycopg.errors import NotNullViolation, UniqueViolation
 
 from odoo import Command, fields
@@ -119,6 +120,40 @@ class TestHrEmployee(TestHrCommon):
         self.assertEqual(running.hr_presence_state, "present")
         self.assertEqual(ended.hr_presence_state, "out_of_working_hour")
         self.assertEqual(never.hr_presence_state, "out_of_working_hour")
+
+    def test_employee_kanban_offers_launch_plan_to_hr(self):
+        """The kanban was the only employee view without the button.
+
+        The list and the form both put `Launch Plan` behind
+        `hr.group_hr_user`; the kanban offered no header at all, so the same HR
+        officer lost the action just by switching how they were looking at the
+        same records.
+        """
+        kanban = self.env.ref("hr.hr_kanban_view_employees")
+
+        def header_buttons(user):
+            arch = (
+                self.env["hr.employee"]
+                .with_user(user)
+                .get_view(kanban.id, "kanban")["arch"]
+            )
+            return etree.fromstring(arch).xpath("//kanban/header/button")
+
+        hr_user = new_test_user(
+            self.env,
+            login="kanban_hr_officer",
+            groups="base.group_user,hr.group_hr_user",
+        )
+        plain_user = new_test_user(
+            self.env, login="kanban_plain_user", groups="base.group_user"
+        )
+
+        [button] = header_buttons(hr_user)
+        self.assertEqual(
+            int(button.get("name")), self.env.ref("hr.plan_wizard_action").id
+        )
+        # And the group on the button is what keeps it away from everyone else.
+        self.assertFalse(header_buttons(plain_user))
 
     def test_employee_must_have_active_version(self):
         employee = self.env["hr.employee"].create({"name": "Batman"})
