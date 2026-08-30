@@ -136,10 +136,6 @@ class CryptContext:
             self._rounds = new_rounds
 
     def copy(self) -> CryptContext:
-        # Rebuilt through the constructor rather than by listing the attributes:
-        # the hand-written version was silently wrong the day a fourth one was
-        # added, and a context that quietly loses a setting is a context that
-        # quietly stops deprecating a scheme.
         return CryptContext(
             self._schemes,
             deprecated=sorted(self._deprecated),

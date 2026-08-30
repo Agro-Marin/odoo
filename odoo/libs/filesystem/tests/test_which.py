@@ -15,8 +15,6 @@ class TestWhichFiles(unittest.TestCase):
         self.assertEqual(pathext, [".exe"])
 
     def test_it_finds_a_real_executable(self):
-        # The exists() pre-check was dropped: access() answers on its own, and
-        # asking twice was a second syscall plus a TOCTOU gap.
         with tempfile.TemporaryDirectory() as tmp:
             exe = pathlib.Path(tmp) / "runnable"
             exe.write_text("#!/bin/sh\n", encoding="utf-8")

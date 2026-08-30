@@ -24,7 +24,8 @@ def _signature(func, **kwargs):
 class TestTypeField:
     def test_type_field_fills_an_unannotated_parameter(self):
         def f(value):
-            """Do a thing.
+            pass
+        f.__doc__ = """Do a thing.
 
             :param value: what to do it to
             :type value: SomeCustomType
@@ -34,13 +35,15 @@ class TestTypeField:
 
     def test_type_field_exports_no_other_key(self):
         def f(value):
-            """:type value: SomeCustomType"""
+            pass
+        f.__doc__ = """:type value: SomeCustomType"""
 
         assert set(_params(f)["value"]) == {"annotation"}
 
     def test_an_annotation_wins_over_the_type_field(self):
         def f(value: int):
-            """:type value: str"""
+            pass
+        f.__doc__ = """:type value: str"""
 
         assert _params(f)["value"]["annotation"] == "int"
 
@@ -159,7 +162,8 @@ class TestDefaults:
 class TestInfoFields:
     def test_returns_and_rtype(self):
         def f():
-            """Do it.
+            pass
+        f.__doc__ = """Do it.
 
             :returns: the thing
             :rtype: dict
@@ -171,8 +175,8 @@ class TestInfoFields:
 
     def test_an_annotation_wins_over_rtype(self):
         def f() -> list[int]:
-            """:rtype: dict"""
             return []
+        f.__doc__ = """:rtype: dict"""
 
         assert (
             docstring.parse_signature(f).as_dict()["return"]["annotation"]
@@ -181,7 +185,8 @@ class TestInfoFields:
 
     def test_raises_is_collected_per_exception(self):
         def f():
-            """
+            pass
+        f.__doc__ = """
             :raises AccessError: not allowed
             :raises ValueError: bad input
             """
@@ -192,7 +197,8 @@ class TestInfoFields:
 
     def test_inline_annotation_in_a_param_field(self):
         def f(a):
-            """:param str a: the a"""
+            pass
+        f.__doc__ = """:param str a: the a"""
 
         param = _params(f)["a"]
         assert param["annotation"] == "str"
@@ -200,7 +206,8 @@ class TestInfoFields:
 
     def test_prose_survives_as_the_doc(self):
         def f(a):
-            """Summary line.
+            pass
+        f.__doc__ = """Summary line.
 
             :param a: ignored
             """
@@ -209,13 +216,15 @@ class TestInfoFields:
 
     def test_a_field_for_an_unknown_parameter_is_ignored(self):
         def f(a):
-            """:param nonexistent: nothing"""
+            pass
+        f.__doc__ = """:param nonexistent: nothing"""
 
         assert set(_params(f)) == {"a"}
 
     def test_var_fields_are_skipped_without_complaint(self, caplog):
         def f():
-            """
+            pass
+        f.__doc__ = """
             :ivar thing: an attribute
             :vartype thing: str
             :meta private:
@@ -227,7 +236,8 @@ class TestInfoFields:
 
     def test_an_unknown_field_name_is_reported(self, caplog):
         def f():
-            """:nonsense value: what"""
+            pass
+        f.__doc__ = """:nonsense value: what"""
 
         with caplog.at_level(logging.WARNING, logger=docstring.__name__):
             docstring.parse_signature(f)
@@ -276,7 +286,8 @@ class TestBorrowedDocstring:
 
     def test_an_explicit_docstring_wins_over_the_callable_s_own(self):
         def override(a):
-            """Own prose."""
+            pass
+        override.__doc__ = """Own prose."""
 
         d = docstring.parse_signature(override, docstring="Borrowed prose.").as_dict()
         assert "Borrowed prose." in d["doc"]
@@ -302,14 +313,6 @@ class TestRenderDocstring:
 
 
 class TestRenderDoctreeHtmlFailsLoudly:
-    """The document shell is stripped by matching a literal docutils wrapper.
-
-    ``str.partition`` returns empty strings when the separator is absent, so a
-    docutils upgrade that reshapes the html4css1 template used to make every
-    rendered docstring silently become ``""`` -- with no exception, no log line
-    and a green suite, because nothing exercised this function at all.
-    """
-
     def test_a_changed_wrapper_raises_instead_of_returning_empty(self, monkeypatch):
         tree = docstring.to_doctree("hello")
         monkeypatch.setattr(
@@ -331,11 +334,6 @@ class TestRenderDoctreeHtmlFailsLoudly:
 
 
 class TestDocutilsHardeningHasOneDefinition:
-    """``raw_enabled``/``file_insertion_enabled`` are what stop docutils reading
-    arbitrary files. They were duplicated in ``rst`` and ``docstring``; a copy
-    that drifts is a copy that stops protecting one of the two callers.
-    """
-
     def test_docstring_uses_the_rst_constant_object(self):
         from odoo.libs import rst
 

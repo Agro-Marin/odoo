@@ -163,9 +163,6 @@ def email_anonymize(normalized_email: str, *, redact_domain: bool = False) -> st
 def email_domain_extract(email: str) -> str | Literal[False]:
     normalized_email = email_normalize(email)
     if normalized_email:
-        # rpartition, as `_normalize_email` does: a quoted local part may itself
-        # contain "@", and `split("@")[1]` then returns a slice of the local
-        # part instead of the domain.
         return normalized_email.rpartition("@")[2]
     return False
 

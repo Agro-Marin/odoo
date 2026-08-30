@@ -46,8 +46,6 @@ class TestQueryLimit(unittest.TestCase):
         self.assertIn("LIMIT", query._env.queries[0])
 
     def test_count_matching_honours_a_zero_limit(self):
-        # `if limit:` sent a zero down the unlimited branch, so count_matching
-        # answered the full count for an input __len__ answers 0 for.
         query = self.make()
         query.count_matching(limit=0)
         self.assertIn("LIMIT", query._env.queries[-1])

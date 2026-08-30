@@ -44,21 +44,6 @@ def invalidate_catalog_caches() -> None:
 
 
 def check_db_exposed(db_name: str) -> None:
-    """ "Exposed" means served by this instance, NOT matched by `dbfilter`.
-
-    The gate in front of dump, drop, rename, duplicate and migrate. It asks
-    `list_dbs`, which does not apply `dbfilter`, so a database the filter
-    excludes still passes here.
-
-    That is deliberate rather than an oversight, and worth stating because the
-    name invites the other reading. `dbfilter` routes a REQUEST to a database
-    by host; it is not an authorisation boundary. Applying it here would mean
-    an administrator on one host could not dump or rename a database belonging
-    to another, which is a normal operation. What guards these calls is
-    `check_db_management_enabled` plus the master password, and a caller
-    holding that can create databases and change the master password anyway --
-    so a `dbfilter` test would add no boundary that is not already crossed.
-    """
     if db_name not in list_dbs(True):
         _logger.warning(
             "DB management op on %s rejected, not in the list of exposed databases",
@@ -97,11 +82,6 @@ def _rpc_db_exist(db_name: str) -> bool:
         return False
     if db_name not in list_dbs(True):
         return False
-    # Every client calls this on connect, so it may not cost a connection.
-    # `exp_db_exist` opens one, and for a database this process has not
-    # touched that is a connectability probe plus a three-thread pool build to
-    # answer yes/no.  Skipped where the listing is already proof -- see
-    # `_answers_from_config`.
     if _answers_from_config():
         return exp_db_exist(db_name)
     return True
@@ -142,13 +122,6 @@ def _forget_catalogue() -> None:
 
 
 def _query_catalogue() -> list[str] | None:
-    """The catalogue, or None when PostgreSQL could not answer.
-
-    The distinction matters to the cache: a transient failure answers `[]` to
-    the caller -- this renders the database selector at auth=none, so it must
-    not raise -- but caching that empty answer would blank the database list
-    for the whole TTL over one hiccup.
-    """
     chosen_template = odoo.tools.config["db_template"]
     templates_list = tuple({"postgres", chosen_template})
     db = odoo.db.db_connect("postgres")
@@ -174,15 +147,6 @@ def _query_catalogue() -> list[str] | None:
 
 
 def _cached_catalogue() -> list[str]:
-    """One pg_database scan serves every caller for a couple of seconds.
-
-    The scan costs ~4.7ms and sits on the `db_exist` RPC that every client
-    makes on connect, on `check_db_exposed` for every management operation, and
-    on each cron sweep.  Anything this process does to the catalogue calls
-    `invalidate_catalog_caches`, so the only staleness window is a database
-    created or dropped by something *else* -- for at most the TTL, after which
-    the next caller re-reads.  Set ODOO_DB_CATALOGUE_CACHE_TTL=0 to disable.
-    """
     global _catalogue_cache  # noqa: PLW0603  one catalogue per process
 
     ttl = _catalogue_ttl()
@@ -204,9 +168,6 @@ def _cached_catalogue() -> list[str]:
 
 
 def _answers_from_config() -> bool:
-    # Which of `list_dbs`'s two sources answers.  `db_name` states intent and
-    # proves nothing; the catalogue query filters on `datallowconn` and
-    # `datdba = current_user`, so a name it returned demonstrably exists.
     return not odoo.tools.config["dbfilter"] and bool(odoo.tools.config["db_name"])
 
 

@@ -155,11 +155,6 @@ def _replace_outer(
     extract: _Extract,
     inherit_branding: bool,
 ) -> etree._Element:
-    """`position="replace"` with the default outer mode.
-
-    Returns the source, which this is the one handler able to *replace*: when
-    the located node is the root, the spec's own content becomes the document.
-    """
     for loc in spec.xpath(".//*[text()='$0']"):
         loc.text = ""
         copied_node = copy.deepcopy(node)
@@ -218,11 +213,6 @@ def _replace_inner(
 def _python_attribute_value(
     attribute: str, value: str, add: str, remove: str, separator: str | None
 ) -> str:
-    """Combine a boolean-expression attribute -- `invisible`, `t-if`, … .
-
-    These are Python source, so the pieces are parenthesised and joined by a
-    real operator rather than by a list separator.
-    """
     separator = (separator or "").strip()
     if separator not in ("and", "or"):
         raise ValueError(
@@ -251,7 +241,6 @@ def _python_attribute_value(
 def _list_attribute_value(
     value: str, add: str, remove: str, separator: str | None
 ) -> str:
-    """Combine a separated-list attribute -- `class`, `groups`, … ."""
     if separator is None:
         separator = ","
     elif separator == " ":
@@ -312,7 +301,6 @@ def _apply_around(
     *,
     after: bool,
 ) -> None:
-    """`position="inside"` / `"after"`, both of which land on a sentinel."""
     sentinel = E.sentinel()
     if after:
         node.addnext(sentinel)
@@ -340,15 +328,6 @@ def apply_inheritance_specs(
     inherit_branding: bool = False,
     pre_locate: Callable[[etree._Element], Any] | None = None,
 ) -> etree._Element:
-    """Apply each spec to `source` in turn, returning the resulting tree.
-
-    This used to be one 200-line body carrying every `position` inline: the
-    longest function in the repository and the largest single offender against
-    both the length budget and the complexity gate. The handlers above are the
-    `position` values the loop already dispatched on by name; `replace/outer` is
-    the one that can hand back a different tree, which is why it alone returns
-    the source rather than mutating it.
-    """
     specs = list(specs_tree) if isinstance(specs_tree, list) else [specs_tree]
     pre_locate = pre_locate or (lambda _: True)
 

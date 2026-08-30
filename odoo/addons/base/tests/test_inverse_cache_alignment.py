@@ -10,9 +10,6 @@ class TestInverseCacheAlignment(TransactionCase):
         cls.new_parent = Partner.create({"name": "New parent", "is_company": True})
         cls.child = Partner.create({"name": "Child", "parent_id": cls.old_parent.id})
 
-    # A Field is a descriptor, so it cannot be held as a class attribute of the
-    # test: `self.parent_id` would invoke `Field.__get__` with the TestCase as
-    # the record. Fetch them per call instead.
     @property
     def _parent_id_field(self):
         return self.env["res.partner"]._fields["parent_id"]
@@ -22,10 +19,9 @@ class TestInverseCacheAlignment(TransactionCase):
         return self.env["res.partner"]._fields["child_ids"]
 
     def _reparent_under_protection(self, targets):
-        """Assign parent_id the way a compute does, bypassing write()."""
         self.env.flush_all()
         self.env.invalidate_all()
-        self.old_parent.child_ids  # warm the inverse cache
+        self.old_parent.child_ids
         parent_id = self._parent_id_field
         with self.env.protecting([parent_id], targets):
             parent_id.__set__(targets, self.new_parent)
@@ -65,13 +61,6 @@ class TestInverseCacheAlignment(TransactionCase):
 
 
 class TestRefCachePruning(TransactionCase):
-    """`Environment.ref` must not remember a record past its deletion.
-
-    `env.ref` memoises that an (model, id) pair passed `exists()` and then skips
-    the check for the rest of the transaction. Nothing dropped that on delete:
-    the entry survived `flush_all()`, and only `invalidate_all()` reached it.
-    """
-
     def test_unlink_drops_the_ref_memo(self):
         partner = self.env["res.partner"].create({"name": "Ref target"})
         self.env["ir.model.data"].create(

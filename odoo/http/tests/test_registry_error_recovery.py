@@ -45,15 +45,10 @@ def _request(path="/whatever", args=None):
 @pytest.mark.parametrize(
     ("db_absent", "transient", "durable"),
     [
-        # the database really is gone: the logout is worth persisting
         (True, False, True),
         (True, True, True),
-        # a permanent error on a database that still exists: also durable
         (False, False, True),
-        # a blip on a database that still exists: do NOT persist a logout, or a
-        # momentary outage signs the user out for good
         (False, True, False),
-        # the cleanup could not tell: treat it as a blip
         (None, False, False),
         (None, True, False),
     ],
@@ -72,7 +67,6 @@ def test_only_a_durable_failure_may_persist_the_logout(db_absent, transient, dur
 
 @pytest.fixture
 def ensure_db_path():
-    """`register_ensure_db_paths` writes a module-level set with no way back."""
     saved = set(constants.ENSURE_DB_PATHS)
     constants.register_ensure_db_paths("/probe/ensure-db")
     yield "/probe/ensure-db"
@@ -106,12 +100,6 @@ def test_an_ordinary_path_is_not_rerouted():
 
 
 def test_a_dispatcher_that_cannot_build_an_error_response_still_yields_one():
-    """The entry point must answer even when handle_error is what broke.
-
-    `_ensure_error_response` is the last thing between an exception and the WSGI
-    server; a dispatcher raising here used to take the response with it and the
-    request ended with no answer at all.
-    """
     app = application.Application()
     request: Any = mock.Mock()
     request.dispatcher.handle_error.side_effect = RuntimeError("handler is broken")

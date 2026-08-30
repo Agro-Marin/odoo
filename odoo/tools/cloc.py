@@ -125,7 +125,7 @@ class Cloc:
             try:
                 manifest = manifest_path.read_bytes()
             except OSError:
-                continue  # no manifest under this name; try the next
+                continue
             try:
                 declared = ast.literal_eval(manifest.decode("utf-8"))
             except (ValueError, SyntaxError, UnicodeDecodeError) as exc:

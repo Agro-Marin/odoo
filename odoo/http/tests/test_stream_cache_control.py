@@ -13,7 +13,6 @@ def payload(tmp_path):
 
 
 def _response(payload, **kwargs):
-    """Serve a file with an explicit environ, so no request global is needed."""
     stream = Stream(
         type="path",
         path=str(payload),
@@ -36,8 +35,6 @@ def _cache_control(response):
 
 
 def test_a_non_public_stream_is_private_and_never_public(payload):
-    """A shared proxy must not cache an attachment the user had to be
-    authorised for. `public` defaults to False, so this is the default."""
     cc = _cache_control(_response(payload, max_age=3600))
     assert "private" in cc
     assert "public" not in cc
@@ -49,8 +46,6 @@ def test_a_public_stream_with_a_lifetime_is_marked_public(payload):
 
 
 def test_a_public_stream_with_no_lifetime_is_not_marked_public(payload):
-    """`public` with no max-age would invite a proxy to cache heuristically,
-    which is the one thing the flag is not asking for."""
     cc = _cache_control(_response(payload, public=True))
     assert "public" not in cc
 
@@ -79,8 +74,6 @@ def test_the_default_policy_locks_the_document_down(payload):
 
 
 def test_a_none_policy_leaves_the_header_off(payload):
-    """`_serve_static` passes None and lets Application.set_csp decide, which
-    only adds a policy for images."""
     response = _response(payload, content_security_policy=None)
     assert "Content-Security-Policy" not in response.headers
 

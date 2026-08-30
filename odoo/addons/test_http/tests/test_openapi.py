@@ -14,10 +14,6 @@ def _http_handler(self, n: int, flag: bool = False, **kw):
     return
 
 
-# Assigned, not written as a docstring: openapi._summary() derives the OpenAPI
-# summary from handler.__doc__, so this is test INPUT rather than prose, and a
-# docstring here is deleted by the fork-wide strip pass -- which is how this
-# test came to fail with KeyError: 'summary'.
 _http_handler.__doc__ = "Echo n and flag."
 
 

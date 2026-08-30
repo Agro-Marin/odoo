@@ -15,10 +15,6 @@ from odoo.libs.image.utils import (
 
 SVG = b"<svg xmlns='http://www.w3.org/2000/svg'><rect width='1' height='1'/></svg>"
 
-# A header with no image data behind it.  This used to be the whole WEBP
-# fixture, because ImageProcess recognised the RIFF magic and passed the bytes
-# through without ever decoding them.  It now means what it says: a truncated
-# file.
 TRUNCATED_WEBP = b"RIFF" + b"\x00" * 4 + b"WEBPVP8 " + b"\x00" * 20
 
 
@@ -56,14 +52,6 @@ class TestOriginalFormatAlwaysDefined(unittest.TestCase):
 
 
 class TestWebpIsProcessedLikeAnyOtherRaster(unittest.TestCase):
-    """WebP used to be recognised by its RIFF magic and passed through whole.
-
-    Nothing reached the raster: `resize`, `crop_resize`, `colorize` and
-    `image_quality` were all no-ops, so `image_128` on a 4000x3000 WebP was the
-    untouched 4000x3000 original.  That branch existed only because
-    `Image._initialized = 2` hid Pillow's WebP plugin from the whole process.
-    """
-
     def test_resize_actually_resizes(self):
         source = _encode("WEBP", (200, 100))
         out = ImageProcess(source).resize(50, 50).image_quality()
@@ -93,7 +81,6 @@ class TestWebpIsProcessedLikeAnyOtherRaster(unittest.TestCase):
         self.assertEqual(Image.open(io.BytesIO(out)).n_frames, 3)
 
     def test_a_format_outside_preinit_is_decodable_again(self):
-        # TIFF is one of the 36 formats `Image._initialized = 2` used to hide.
         self.assertEqual(ImageProcess(_encode("TIFF")).original_format, "TIFF")
 
     def test_svg_passthrough_still_works(self):

@@ -36,13 +36,6 @@ _ansi_style = getattr(werkzeug.serving, "_ansi_style", _plain_style)
 
 
 def _is_ansi_enabled() -> bool:
-    """Asked per call, not once at import.
-
-    As a module constant this was fixed by whatever stderr happened to be when
-    `odoo.service.wsgi` was first imported, which made both branches of
-    `log_request`'s colouring untestable without reloading the module -- and
-    wrong for anything that replaces stderr afterwards.
-    """
     return sys.stderr.isatty()
 
 
@@ -246,14 +239,6 @@ class ThreadedWSGIServerReloadable(
         self.daemon_threads = True
 
     def _announce_thread_budget(self, auto_limit: int) -> None:
-        """Say how many requests can be in flight, and where the number came from.
-
-        It is derived from db_maxconn, so tightening the pool for an unrelated
-        reason silently narrows HTTP concurrency: db_maxconn=8 with the default
-        cron and job counts yields 2.  Requests are not refused -- they wait in
-        the listen backlog -- so an operator sees latency and has nothing in the
-        log connecting it to the pool setting.
-        """
         if not self.max_http_threads:
             _logger.info(
                 "HTTP concurrency is unbounded (ODOO_MAX_HTTP_THREADS=0); "

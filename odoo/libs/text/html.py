@@ -94,10 +94,6 @@ safe_attrs = defs.safe_attrs | frozenset(
         "style",
         "data-o-mail-quote",
         "data-o-mail-quote-node",
-        # `tag_quote` writes this one during html_normalize, which is the step
-        # html_sanitize runs before this allow-list is applied. Leaving it out
-        # meant the sanitiser deleted an attribute it had just written, and only
-        # when `sanitize_attributes=True` -- the default for `fields.Html`.
         "data-o-mail-quote-container",
         "data-oe-model",
         "data-oe-id",
@@ -305,12 +301,6 @@ def _wrap_matches_in_text(
     tag: str = "span",
     attrs: dict[str, str] | None = None,
 ) -> None:
-    """Pull every match out of `node.text` into its own child element.
-
-    The children go in at 0, 1, 2 … in match order, which is what puts them
-    ahead of whatever `node` already held, in the order they appeared in the
-    text; each carries the text that followed it as its tail.
-    """
     text = node.text or ""
     matches = list(regex.finditer(text))
     if not matches:
@@ -340,7 +330,6 @@ def _mark_quote(el: etree._Element, *, container_on_parent: bool = False) -> Non
 
 
 def _quote_client_markers(el: etree._Element, el_class: str, el_id: str) -> None:
-    """The per-client markers: Gmail, Outlook, Yahoo, SkyDrive, signatures."""
     if "gmail_extra" in el_class or "SkyDrivePlaceholder" in el_class:
         _mark_quote(el, container_on_parent=True)
 
@@ -362,8 +351,6 @@ def _quote_client_markers(el: etree._Element, el_class: str, el_id: str) -> None
         el.set(_QUOTE, "1")
 
     if is_outlook_reply_quote:
-        # Outlook puts a rule before the quoted message and the message itself
-        # after; neither carries a marker of its own.
         hr = el.getprevious()
         if hr is not None and hr.tag == "hr":
             hr.set(_QUOTE, "1")
@@ -371,14 +358,12 @@ def _quote_client_markers(el: etree._Element, el_class: str, el_id: str) -> None
             reply_quote.set(_QUOTE_CONTAINER, "1")
             reply_quote.set(_QUOTE, "1")
 
-    # Outlook's "appended on send" block, which is empty when it is the marker.
     if "appendonsend" in el_id and not (el.text or "").strip():
         el.set(_QUOTE_CONTAINER, "1")
         el.set(_QUOTE, "1")
 
 
 def _quote_inherited_from_parent(el: etree._Element) -> None:
-    """Spread a container's mark to the children that follow its first quote."""
     parent = el.getparent()
     if parent is None or parent.get(_QUOTE_NODE):
         return
@@ -396,14 +381,6 @@ def _quote_inherited_from_parent(el: etree._Element) -> None:
 
 
 def tag_quote(el: etree._Element) -> None:
-    """Mark the parts of a mail body that are quoted rather than written.
-
-    One rule per client convention, in the order they have to run: the markers
-    an author's mail client leaves, then the `-- ` signature and `>` quote
-    conventions in the text itself, then blockquote, then what an element
-    inherits from its parent and its predecessor. This used to be one 116-line
-    body at complexity 28.
-    """
     el_class = el.get("class", "") or ""
     el_id = el.get("id", "") or ""
 
@@ -427,18 +404,10 @@ def tag_quote(el: etree._Element) -> None:
 
 
 def _find_all(doc: etree._Element, tag: str) -> list[etree._Element]:
-    """Every `tag` element, whether or not the document declares the XHTML ns."""
     return doc.findall(tag) or doc.findall(f"{{{XHTML_NAMESPACE}}}{tag}")
 
 
 def _merge_into_first(elements: list[etree._Element]) -> etree._Element:
-    """Fold every later element's children into the first, and drop them.
-
-    A parser handed two `<body>`s produces two elements; the caller wants one.
-    Text belonging to a later body has to land on the current last child's tail
-    -- or on the survivor's own text when it has no children yet -- because
-    that is where it reads back in document order.
-    """
     survivor = elements[0]
     for other in elements[1:]:
         if other.text:
@@ -452,24 +421,9 @@ def _merge_into_first(elements: list[etree._Element]) -> etree._Element:
 
 
 def _wrap_loose_body_text(body: etree._Element) -> None:
-    """Give the body's own leading text a `<p>` of its own.
-
-    Three shapes, and they are not interchangeable: with no children the text
-    is the whole body; with block-level children the text plus the inline run
-    ahead of the first block becomes one paragraph; with only inline children
-    the text and all of them do.
-    """
     if not (body.text and body.text.strip()):
         return
 
-    # `body.makeelement`, not `etree.Element`: the latter builds through the
-    # *default* parser's class lookup, so the paragraph came out a bare
-    # `etree._Element` while everything the html parser made around it was an
-    # `lxml.html.HtmlElement`. That mattered only as long as something held a
-    # reference to it -- lxml caches proxies, so `body[0]` returned the same
-    # bare object while the local was alive and rebuilt it as an HtmlElement
-    # once it was not. Which class `fromstring` returned therefore depended on
-    # a local variable's lifetime. It is the tree's own class now, always.
     paragraph = body.makeelement("p", {})
     paragraph.text = body.text
     body.text = None
@@ -492,11 +446,6 @@ def fromstring(
     parser: Any = None,
     **kw: Any,
 ) -> tuple[etree._Element, bool]:
-    """Parse a fragment or a document, and say whether it was a single element.
-
-    The bool is what `html_normalize` uses to decide whether its own `<div>`
-    wrapper has to come back off.
-    """
     if parser is None:
         parser = html_parser
     looks_full_html = (
@@ -513,7 +462,6 @@ def fromstring(
     body = _merge_into_first(bodies) if bodies else None
 
     if heads := _find_all(doc, "head"):
-        # A head means a document, whatever `_looks_like_full_html_*` decided.
         _merge_into_first(heads)
         return doc, False
     if body is None:
@@ -559,12 +507,6 @@ def html_normalize(
     for el in doc.iter(tag=etree.Element):
         tag_quote(el)
 
-    # A serialise/reparse round trip stood here. Its only demonstrated job was to
-    # re-type the tree: `fromstring` could hand back a bare `etree._Element`,
-    # and lxml's Cleaner needs `lxml.html`'s class -- deleting it used to raise
-    # `AttributeError: 'lxml.etree._Element' object has no attribute
-    # 'rewrite_links'`. `fromstring` now builds through the tree's own class
-    # lookup, so there is nothing left to convert.
     if filter_callback:
         doc = filter_callback(doc)
 
@@ -716,8 +658,6 @@ _EMPTY_TAG_RE = re.compile(
     r'<\s*\/?(?:p|div|section|span|br|b|i|font)\b(?:(\s+[A-Za-z_-][A-Za-z0-9-_]*(\s*=\s*[\'"][^"\']*[\'"]))*)(?:\s*>|\s*\/\s*>)'
 )
 
-# `append_content_to_html` and `prepend_html_content` both strip the document
-# shell before splicing; the pattern was written out separately in each.
 _DOCUMENT_SHELL_RE = re.compile(r"(?i)(</?(?:html|body|head|!\s*DOCTYPE)[^>]*>)")
 
 _SIGNATURE_BEGIN_RE = re.compile(r"((?:(?:^|\n)[-]{2}[\s]?$))")
@@ -825,22 +765,12 @@ def _markup_to_structured_text(tree: etree._Element) -> str:
     html_str = re.sub(r"</p\s*>", "\n", html_str)
     html_str = re.sub(r"<br\s*/?>", "\n", html_str)
     html_str = re.sub(r"<[^>]*>", " ", html_str)
-    # Halves a run rather than flattening it -- three spaces become two, four
-    # become two, five become three -- and that is pinned, not incidental:
-    # base/tests/test_ir_mail_server.py::test_content_mail_body expects
-    # "test6   test7" and "test8    test9" out of MISC_HTML_SOURCE. The newline
-    # collapse below is the same idiom for the same reason. Both look like an
-    # incomplete `re.sub(" {2,}", " ")` and neither is; f57cbefef48 changed this
-    # one and took /base red.
     html_str = html_str.replace(" " * 2, " ")
     html_str = html_str.replace("&gt;", ">")
     html_str = html_str.replace("&lt;", "<")
     html_str = html_str.replace("&amp;", "&")
 
     html_str = "\n".join([x.strip() for x in html_str.splitlines()])
-    # The same halving idiom as the spaces above, pinned the same way: a `<br/>`
-    # between two blocks must survive as one blank line
-    # (TestHtml2PlaintextKeepsStructure). Do not "fix" this into `\n{2,}` -> `\n`.
     return html_str.replace("\n" * 2, "\n")
 
 

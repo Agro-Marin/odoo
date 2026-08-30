@@ -141,12 +141,6 @@ class ReadMixin(_ModelStubs):
     def _read_format_scalar_slow(
         self, name: str, field: Field, results: list[dict], use_display_name: bool
     ) -> None:
-        """Re-read every value through the descriptor.
-
-        The scan above bound a cache dict that a getter then detached, so every
-        value it produced may predate the invalidation; see
-        `_cache_scan.is_cache_detached`.
-        """
         for id_, vals in zip(self._ids, results, strict=True):
             if not vals:
                 continue

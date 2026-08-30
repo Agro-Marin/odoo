@@ -28,15 +28,12 @@ def _environ(path="/x", method="GET"):
 
 
 class _FakeRequest:
-    """Enough of Request for __call__'s decisions; each serve_* is a marker."""
-
     def __init__(self, httprequest, app, db=None, serve=None):
         self.httprequest = httprequest
         self.app = app
         self.db = db
         self.dispatcher = mock.Mock()
         self.dispatcher.serializes_errors_in_dev_mode = False
-        # what HttpDispatcher.handle_error does with an HTTPException
         self.dispatcher.handle_error.side_effect = lambda exc: exc
         self._post_init_done = False
         self.session = mock.Mock()
@@ -65,7 +62,6 @@ class _FakeRequest:
 
 
 def _run(app, environ, request):
-    """Drive __call__ with a prepared request and collect the WSGI status."""
     captured = {}
 
     def start_response(status, headers, exc_info=None):
@@ -119,8 +115,6 @@ def test_a_static_path_never_reaches_the_router():
 
 
 def test_trace_is_refused_before_anything_else_runs():
-    """TRACE is how cross-site tracing reads headers the script cannot; it is
-    refused for every path, database or not."""
     app = application.Application()
     req = _FakeRequest(None, app, db="db")
     with mock.patch.object(app, "get_static_file") as static:
@@ -171,8 +165,6 @@ def test_a_failure_still_answers_and_empties_the_stack():
 
 
 def test_a_rerouted_request_has_its_second_httprequest_closed():
-    """__call__ owns only the one the context manager made; a reroute creates a
-    second, and leaking it leaks the parsed body with it."""
     app = application.Application()
     req = _FakeRequest(None, app, db=None)
     rerouted = mock.Mock()
@@ -188,15 +180,6 @@ def test_a_rerouted_request_has_its_second_httprequest_closed():
 
 
 def test_a_memoised_singleton_shadows_a_class_level_replacement():
-    """`_locked_cached_property` memoises into `instance.__dict__`, so patching
-    `Application.session_store` on the CLASS -- what `test_http`'s setUpClass
-    does for the session store and both geoip readers -- is a no-op on a `root`
-    that has already served a request. `odoo.libs.func.reset_cached_properties`
-    is what makes that patch land, and it can only do so while the class
-    attribute is still the descriptor: called AFTER the patch it no longer
-    recognises the name and clears nothing. The reset has to come first, and
-    nothing but this test says so.
-    """
     from odoo.libs.func import reset_cached_properties
 
     app = application.Application()

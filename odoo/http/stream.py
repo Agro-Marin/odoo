@@ -92,11 +92,6 @@ class Stream:
     def from_binary_field(cls, record: Any, field_name: str) -> Stream:
         data = record[field_name] or b""
         if isinstance(data, str):
-            # A Binary field answers bytes, but this is a public classmethod and
-            # nothing stops a caller handing it a Char. Encoding here keeps the
-            # failure at the field's own type rather than surfacing three lines
-            # down as `replace() argument 1 must be str, not bytes`, which names
-            # neither the record nor the field.
             data = data.encode()
 
         with contextlib.suppress(ValueError):
@@ -114,12 +109,6 @@ class Stream:
         )
 
     def _payload(self, attr: str) -> Any:
-        # The one place a Stream says "you gave me a type but not the thing it
-        # names". Every consumer needs the check AND the narrowing, so spelling
-        # it per branch produced the same sentence five times and two branches
-        # that could not be reached: `get_response` validated
-        # `getattr(self, self.type)` generically and then re-validated
-        # `self.data` / `self.path` inside the branch it had just proved.
         value = getattr(self, attr)
         if value is None:
             e = f"There is nothing to stream, missing {attr!r} attribute."

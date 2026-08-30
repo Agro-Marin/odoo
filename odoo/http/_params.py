@@ -142,13 +142,6 @@ def _coerce_scalar(name: str, value: Any, target: type) -> Any:
         try:
             result = float(value)
         except OverflowError:
-            # An int too large for a double. `float()` raises here rather than
-            # answering `inf`, so it escaped as a 500 instead of joining the
-            # `isfinite` rejection three lines down -- the same refusal, reached
-            # by a different route. Werkzeug's `<int:...>` converter matches
-            # `\d+` with no bound, so a 400-digit URL segment on a typed route
-            # is enough; a JSON body is not, because the parser refuses an
-            # integer that does not fit a double before this ever sees it.
             raise BadRequest(f"parameter {name!r} must be a finite number") from None
         except TypeError, ValueError:
             raise BadRequest(f"parameter {name!r} must be a number") from None

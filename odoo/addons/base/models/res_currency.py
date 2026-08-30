@@ -270,8 +270,6 @@ class ResCurrency(models.Model):
         for currency in self:
             currency.is_current_company_currency = company_currency == currency
 
-    # `name` is the currency code and `rate_string` is built from it; it is not
-    # covered by `rate_ids.name`, which is the *date* of a res.currency.rate row.
     @api.depends("name", "rate_ids.rate", "rate_ids.name", "rate_ids.company_id")
     @api.depends_context("to_currency", "date", "company", "company_id")
     def _compute_current_rate(self) -> None:

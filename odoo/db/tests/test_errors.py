@@ -176,8 +176,6 @@ class TestRetrySqlstatesAreDerived(unittest.TestCase):
 
 
 class TestSeamMarker(unittest.TestCase):
-    """The mark that keeps the failure seam idempotent across a pipeline sync."""
-
     def test_an_unmarked_exception_has_not_been_seen(self):
         self.assertFalse(is_handled_by_seam(psycopg.errors.CheckViolation("x")))
         self.assertFalse(is_handled_by_seam(ValueError("x")))

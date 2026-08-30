@@ -57,14 +57,6 @@ _DEFAULT_MAX_LIFETIME = 3600
 _DEFAULT_BORROW_TIMEOUT = 30.0
 _DEFAULT_REAP_IDLE_TTL = 300.0
 
-# psycopg's own default is 3, which is a per-POOL number being spent at
-# per-DATABASE granularity here: this class holds one `_PsycopgPool` per
-# database, each with its own workers plus a scheduler thread. Measured, 12
-# databases in one process held 49 threads and 40 held 161 -- 4.0 per database
-# -- against +135 KB RSS and 0.35% of one core while completely idle. The
-# workers serve AddConnection and ReturnConnection tasks, and psycopg already
-# runs returns off the caller's thread, so the second and third worker only buy
-# parallelism between returns *of the same database*. `db_pool_workers` sizes it.
 _DEFAULT_POOL_WORKERS = 1
 
 _DIRECT_CONNECTION = object()
@@ -327,17 +319,6 @@ class ConnectionPool:
             raise
 
     def _budget_exhausted(self) -> PoolError:
-        """The error both borrow paths raise when no permit is available.
-
-        It names the holders on purpose -- the limit alone does not say which
-        request is sitting on the permits -- and it is one function because
-        the two copies it replaces had already drifted apart in whitespace.
-        """
-        # One acquisition for both numbers. They are read to be printed side
-        # by side in one sentence, and this is the sentence an operator gets
-        # when the pool is exhausted -- "3 database(s), +2 direct" taken half a
-        # microsecond apart can add up to more than `maxconn` and send the
-        # reader looking for a leak that is an artefact of the message.
         with self._lock:
             pools, direct_out = len(self._pools), self._direct_out
         return PoolError(
@@ -382,14 +363,6 @@ class ConnectionPool:
         if not self._budget.acquire(_remaining(deadline)):
             self.stats.record_borrow_failed()
             raise self._budget_exhausted()
-        # One guard for everything after the permit, as in `borrow` -- the
-        # four exits this replaces released the permit correctly but only the
-        # last of them counted, so `borrows_failed` read 0 for a maintenance
-        # endpoint that was refusing every connect while the pooled path
-        # counted the same failure as 1. `db_connect("postgres")` is the
-        # cron's heartbeat, so an unreachable maintenance DB is exactly what
-        # `db.pool_health()` is read to find, and it was the one failure the
-        # figure could not show.
         conn = None
         try:
             if deadline is not None:
@@ -409,9 +382,6 @@ class ConnectionPool:
             except BaseException:
                 with contextlib.suppress(Exception):
                     conn.close()
-                # Unmarked and already closed: hand the unwind None so it
-                # releases the permit directly rather than routing a dead
-                # connection through `give_back`.
                 conn = None
                 raise
             conn._odoo_pool = _DIRECT_CONNECTION
@@ -469,21 +439,6 @@ class ConnectionPool:
                 self._probe.forget(key)
                 _logger.info("Connection to the database failed: %s", e)
                 raise
-        # No `except Exception -> PoolError` here, deliberately. Everything
-        # psycopg_pool raises from `getconn` for an operational reason is a
-        # `psycopg.Error` and is answered above: `PoolTimeout` and `PoolClosed`
-        # both subclass `OperationalError`, "the pool is not open yet" is a
-        # `PoolClosed` (not the `RuntimeError` it looks like), a failed connect
-        # arrives through `WaitingClient.wait` as the error the worker
-        # recorded, and a `check` callback that raises is swallowed by
-        # psycopg_pool's own retry loop until it gives up with `PoolTimeout`.
-        # What was left for a blanket clause to catch was therefore BUGS --
-        # and `PoolError` is the one exception `ir_cron`, `ir_job`,
-        # `orm/runtime/registry.py` and `bus/websocket.py` all catch and treat
-        # as "the database is unavailable", so converting them laundered a
-        # programming error into an expected operational condition and lost
-        # both the type and the traceback. They propagate as themselves now,
-        # exactly as `psycopg.Error` already did on the line above.
         raise PoolError("getconn retry budget exhausted")
 
     def _validate_borrowed_conn(
@@ -538,24 +493,6 @@ class ConnectionPool:
         self._reap_after_return()
 
     def _reap_after_return(self) -> None:
-        """Reaping is edge-triggered on a return, so every return must trigger it.
-
-        `_maybe_reap_idle_pools` has no timer -- deliberately, because a timer
-        is a thread and this class already carries four per database. That makes
-        the set of returns that reach it the whole of the reaper's schedule, and
-        the maintenance branch above used to `return` before it. The direct path
-        is not an exotic one: `db_connect("postgres")` is the cron's heartbeat
-        (`service/_threaded.py`, `service/_worker.py`), which is the only
-        periodic activity an otherwise idle worker has. So a server whose
-        tenants had all gone quiet reaped nothing, while the one call that kept
-        arriving was the one that could not.
-
-        Measured with `db_pool_reap_idle=2`, two pools idle past their TTL:
-        five maintenance cursors moved nothing (`pools=2 threads=9`), and a
-        single pooled return collected both (`pools=1 threads=5`) -- one
-        `collect()` takes every eligible pool, so an active tenant already
-        cleans up the idle ones. This makes the heartbeat do it too.
-        """
         try:
             self._maybe_reap_idle_pools()
         except Exception:

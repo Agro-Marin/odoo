@@ -1,17 +1,3 @@
-"""file_path's cache follows the addons path, which is not part of its key.
-
-`_file_path_resolved` answers "which addons directory provides this relative
-path", keyed on the path alone; `odoo.addons.__path__` is the other half of that
-key and cannot be in it.
-
-`initialize_sys_path()` only appends, and an appended directory has the lowest
-priority, so it cannot invalidate a cached hit.  What does is a harness that
-REPLACES the path — `odoo.addons.__path__[:] = [...]`, which
-`test_files_path.py` does per test.  That harness flushed `_addons_dir_paths`
-and `_root_path` and missed `_file_path_resolved`, the one the swap actually
-invalidates.
-"""
-
 import pathlib
 import tempfile
 import unittest
@@ -47,8 +33,6 @@ class TestSwappingTheAddonsPath(unittest.TestCase):
         )
 
     def test_a_swap_without_clearing_serves_the_previous_answer(self):
-        # The failure this guards, stated directly: without clear_caches() the
-        # second read answers from the first directory.
         first, second = _addons_dir("FIRST"), _addons_dir("SECOND")
         odoo.addons.__path__[:] = [str(first)]
         files.clear_caches()
@@ -77,9 +61,6 @@ class TestSwappingTheAddonsPath(unittest.TestCase):
 
 class TestInitializeSysPathDoesNotThrashTheCache(unittest.TestCase):
     def test_an_unchanged_path_keeps_the_cache_warm(self):
-        # initialize_sys_path runs from module loading, the HTTP application and
-        # several CLI commands; flushing on every call would cost file_path its
-        # cache on a hot path.
         initialize_sys_path()
         file_path("base/__manifest__.py")
         warm = files._file_path_resolved.cache_info().currsize

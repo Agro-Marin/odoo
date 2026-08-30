@@ -1,20 +1,3 @@
-"""config.save() file mode and round-trip, and the "None" unset sentinel.
-
-Three defects these pin, all found by audit rather than by a gate:
-
-* save() created the file under the umask and chmod'd it afterwards.  chmod does
-  not revoke an already-open descriptor, so a reader winning that race read
-  admin_passwd and db_password out of the finished file.  An fd was captured in
-  10 of 20 runs before the fix.
-* save() only re-read the existing file when `keys` narrowed the write, so a
-  full --save wrote a parser that had never seen it and dropped every section
-  outside [options].
-* "None" meant "unset" through the config file and the environment but not on
-  the command line, where optparse calls the type checker directly.  `pg_path =
-  None` unset the option while `--pg_path None` resolved to a path under the
-  cwd, and the CLI had no spelling for "unset" at all.
-"""
-
 import contextlib
 import io
 import os
@@ -28,7 +11,6 @@ from odoo.tools.config import configmanager
 
 
 def _parse(argv=(), env=None, filetext="[options]\n"):
-    """A fresh configmanager over a throwaway rcfile."""
     cfg = configmanager()
     rcfile = Path(tempfile.mkdtemp(), "test.conf")
     rcfile.write_text(filetext, encoding="utf-8")
@@ -77,8 +59,6 @@ class TestSaveFileMode(unittest.TestCase):
         self.assertEqual(stat.S_IMODE(rcfile.stat().st_mode), 0o600)
 
     def test_resaving_tightens_a_file_that_was_already_loose(self):
-        # The opener's mode applies only on creation; a conf left at 0644 by an
-        # earlier odoo, or by hand, is tightened by the fchmod.
         cfg = configmanager()
         rcfile = Path(tempfile.mkdtemp(), "loose.conf")
         rcfile.write_text("[options]\n", encoding="utf-8")
@@ -152,8 +132,6 @@ class TestNoneSentinel(unittest.TestCase):
         self.assertEqual(cfg["pg_path"], "/usr/bin")
 
     def test_without_demo_keeps_its_own_meaning_of_none(self):
-        # "None" is this type's spelling of "demo data is not restricted", which
-        # predates the unset sentinel; it must not become None.
         cfg = _parse(filetext="[options]\nwithout_demo = None\n")
         self.assertIs(cfg["with_demo"], True)
 

@@ -1,14 +1,3 @@
-"""`xml_import` keeps three parallel stacks; all three are seeded.
-
-`envs` and `_noupdate` were given an initial entry and `_sequences` was not, so
-`next_sequence()` read `[-1]` off an empty list for any caller that reaches
-`_tag_record` without a `_tag_root` frame -- which mail's `mixin_template_reset`
-does, calling `obj._tag_record(rec)` on a freshly constructed importer.
-
-The env is a stub: none of this touches the ORM, and the point is what
-`__init__` sets up before anything is parsed.
-"""
-
 import typing
 import unittest
 
@@ -19,8 +8,6 @@ if typing.TYPE_CHECKING:
 
 
 class _StubEnv:
-    """Enough Environment for `__init__`, which only re-derives the context."""
-
     context: dict = {}
 
     def __call__(self, **kwargs):
@@ -29,8 +16,6 @@ class _StubEnv:
 
 class TestImporterStacks(unittest.TestCase):
     def _importer(self) -> xml_import:
-        # cast rather than a real Environment: none of what this pins touches the
-        # ORM, and odoo.tools is a mypy hard zero
         env = typing.cast("Environment", _StubEnv())
         return xml_import(env, "base", None, "init")
 
@@ -44,8 +29,6 @@ class TestImporterStacks(unittest.TestCase):
         self.assertIsNone(self._importer().next_sequence())
 
     def test_the_seeded_frame_means_auto_sequence_off(self):
-        # None, not 0: 0 would make next_sequence() hand out 10, 20, ... to a
-        # record whose file never asked for auto_sequence
         self.assertIsNone(self._importer()._sequences[-1])
 
     def test_noupdate_and_env_still_answer_the_same_way(self):

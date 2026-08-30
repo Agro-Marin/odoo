@@ -432,11 +432,6 @@ def _html_translate(
         result = translate_xml_node(root, callback, serialize_html)
         value = serialize_html(result)[5:-6].replace("\xa0", "&nbsp;")
     except UserError, ValueError:
-        # UserError, not just ValueError: parse_html raises UserError, so this
-        # handler could never fire and the fallback it names never happened --
-        # a value the fragment parser rejects came out of the dialect as a
-        # UserError instead of as the untranslated source.  ValueError stays for
-        # anything the callback raises.
         _logger.exception("Cannot translate malformed HTML, using source value instead")
 
     return value
@@ -497,10 +492,6 @@ FIELD_TRANSLATE["xml_translate"] = xml_translate
 
 
 def _is_iterable_arg(value: object) -> bool:
-    # str/bytes first: they are the overwhelmingly common argument to _(), and
-    # `isinstance(x, Iterable)` is an abc __instancecheck__ -- 2.6x the cost of
-    # the concrete check that rejects them anyway (142ns -> 54ns per call, and
-    # this runs up to three times per _()).
     return not isinstance(value, (str, bytes)) and isinstance(value, Iterable)
 
 
@@ -619,12 +610,6 @@ def _probe(obj: object, name: str) -> Any:
 
 
 def _get_cr(frame: FrameType, fallback: BaseCursor | None = None) -> BaseCursor | None:
-    """The cursor this frame can offer, else `fallback`.
-
-    `fallback` is the request's cursor, resolved once by the caller. It used to
-    be looked up in here, which put a module lookup plus `http.request` inside
-    a loop over ten frames that could not change the answer.
-    """
     if "cr" in frame.f_locals:
         return frame.f_locals["cr"]
     if "cursor" in frame.f_locals:
@@ -656,13 +641,6 @@ _LANG_FRAME_SEARCH_DEPTH = 10
 
 
 def _lang_search_frames(frame: FrameType | None) -> Iterator[FrameType]:
-    """Walk up to `_LANG_FRAME_SEARCH_DEPTH` frames, one at a time.
-
-    Lazily, because the answer usually comes from the first frame or two and
-    the list was built to the full depth regardless.  `_get_lang` collects what
-    it consumes, so its second pass still sees exactly the frames the first one
-    walked.
-    """
     for _depth in range(_LANG_FRAME_SEARCH_DEPTH):
         if frame is None:
             return
@@ -678,11 +656,6 @@ def _mapping_lang(candidate: object) -> str:
 
 
 def _get_frame_context_lang(f_locals: Mapping) -> str:
-    """The `lang` this frame's locals declare, if any.
-
-    Takes the locals rather than the frame: under PEP 667 every `frame.f_locals`
-    builds a fresh proxy, and `_get_lang` needs `self` out of the same mapping.
-    """
     if lang := _mapping_lang(f_locals.get("context")):
         return lang
     if isinstance(local_kwargs := f_locals.get("kwargs"), Mapping):
@@ -964,9 +937,6 @@ class PoFileReader:
             pot_path = get_pot_path(source)
         else:
             self.pofile = polib.pofile(source.read().decode())
-            # getattr: the parameter is annotated IO[bytes] and an in-memory
-            # stream is one. Requiring .name made a BytesIO an AttributeError,
-            # which the tests here worked around by assigning one.
             pot_path = get_pot_path(getattr(source, "name", ""))
 
         if pot_path:
@@ -1020,16 +990,6 @@ class PoFileReader:
                         "src": source,
                         "value": translation,
                         "comments": comments,
-                        # polib gives '' when a reference carries no line --
-                        # `#: code:addons/x/y.py` -- which msgmerge and several
-                        # translation platforms emit. int('') raised ValueError
-                        # out of CodeTranslations._read_code_translations_file,
-                        # whose caller catches only OSError, so one such line in
-                        # one module's .po broke translation loading for that
-                        # language. Neither consumer reads res_id on a code row:
-                        # TranslationImporter._load skips type == "code"
-                        # outright, and the code-translations reader takes only
-                        # src and value.
                         "res_id": int(line_number) if line_number.isdigit() else 0,
                         "module": entry_module,
                     }
@@ -1475,10 +1435,6 @@ class TranslationReader:
             )
             for selection in records:
                 fields[selection.field_id] |= selection
-            # collected, then subtracted once: `records -= x` rebuilds the whole
-            # recordset, so subtracting per rejected item is quadratic in the
-            # rejections (measured 1.44ms against 0.07ms for one bulk subtraction,
-            # on 2426 records)
             to_drop: Any = self.env["ir.model.fields.selection"]
             for field, selection in fields.items():
                 field_name = field.name
@@ -1681,8 +1637,6 @@ class TranslationModuleReader(TranslationReader):
                 tran["id"]: tran["string"] for tran in web_translations["messages"]
             }
         try:
-            # opened here rather than above: the two code_translations lookups
-            # sit between, and a failure in one leaked the handle
             src_file = file_open(fabsolutepath, "rb")
             for extracted in extract.extract(
                 extract_method,
@@ -1883,15 +1837,6 @@ class TranslationImporter:
         sub_xmlids: tuple[str, ...],
         field_dictionary: dict,
     ) -> dict[int, list]:
-        # `imd.model = %(model)s` is what keeps this join on the model the .po
-        # named.  An xmlid is unique, so (module, name) resolves to exactly one
-        # ir_model_data row -- but `m.id = imd.res_id` then matches whatever row
-        # of THIS table carries that id, and every model has its own sequence, so
-        # the ids collide by default.  A .po naming model A for an xmlid that
-        # belongs to model B therefore translated an unrelated record of A.
-        # _save_model_translations has carried this guard all along; the
-        # model_terms path did not, and the two take identically shaped rows
-        # from _load.
         self.cr.execute(
             SQL(
                 """

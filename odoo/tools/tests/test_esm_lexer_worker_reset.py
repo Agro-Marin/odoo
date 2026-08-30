@@ -5,14 +5,6 @@ from odoo.tools.assets import esm_lexer
 
 
 class TestClosingTheWorkerUndoesTheDisable(unittest.TestCase):
-    """`_disabled` latched for the life of the process.
-
-    node absent when the first module is lexed, or two consecutive worker
-    failures, and every later request short-circuits to the regex extractor
-    with nothing above DEBUG to say so. close() is the one call that means
-    "start over" -- it is registered on server stop -- and it left the flag set.
-    """
-
     def setUp(self):
         self.worker = esm_lexer._LexerWorker()
 

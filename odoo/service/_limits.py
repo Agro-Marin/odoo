@@ -1,15 +1,3 @@
-"""Time, memory and back-off budgets: what bounds a worker, and the arithmetic.
-
-Named for what is left after the cron sweep moved to `_cron`.  As `_helpers` it
-was seven unrelated subjects -- backoff, config budgets, RSS accounting, pipe
-draining, dbfilter compilation, the cron database list and pool draining -- and
-a module named for being a module attracts the next one.
-
-`empty_pipe` is the one resident that is not a budget.  Both the prefork master
-and its workers drain their own wake-up pipes, so it needs a home neither owns,
-and a module of its own for one four-line function is not one.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -45,27 +33,6 @@ def _inherits_from_cron(limit: int) -> bool:
 
 
 def _resolve_budget(*keys: str) -> int:
-    """Walk a fallback chain of config keys, most specific first.
-
-    Every budget below is "use my own key, unless it asks to inherit, in which
-    case use the next one out".  Four functions each spelled that walk by hand,
-    and `job_real_time_budget` reached its third level only by re-testing the
-    sentinel on the *result* of a helper -- which works, but hides the chain in
-    the call graph instead of stating it.  Spelled as a key list, the chains
-    line up and their one asymmetry is legible:
-
-        limit_time_worker_job -> limit_time_worker_cron
-        limit_time_real_cron  -> limit_time_real
-        limit_time_real_job   -> limit_time_real_cron -> limit_time_real
-
-    `job_max_age` is the two-level one: a worker job's max AGE does not fall
-    back to `limit_time_real` the way its real-time BUDGET does.  Behaviour is
-    unchanged from when that was four separate functions; it is written down
-    here so the next reader can decide whether it was meant.
-
-    The last key is the end of the chain: if it too asks to inherit, its value
-    is returned as-is and the caller's own clamp applies.
-    """
     limit = config[keys[0]]
     for key in keys[1:]:
         if not _inherits_from_cron(limit):

@@ -171,22 +171,11 @@ class TestReadGroupAuditFixes(TransactionCase):
 
 
 class TestGroupingSetsPropertiesComodel(TransactionCase):
-    """A dotted groupby must resolve its property definition on the comodel.
-
-    ``_groupby_spec_might_duplicate_rows`` recurses into a many2one's comodel
-    and decides whether the groupby can duplicate rows.  Resolving the
-    definition on the *calling* model instead silently answered "no" for a
-    tags-valued property, the grouping sets were then not split, and every
-    aggregate double-counted.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.holder_a = cls.env["test_orm.properties.holder.a"].create({"name": "A"})
         cls.holder_b = cls.env["test_orm.properties.holder.b"].create({"name": "B"})
-        # Same property name on both sides, deliberately different types: the
-        # bug is invisible unless the two definitions disagree.
         cls.holder_a.definition = [
             {"name": "kind", "type": "char", "string": "Kind"},
         ]

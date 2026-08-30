@@ -180,8 +180,6 @@ if __name__ == "__main__":
 
 
 class TestPendingViewContracts(unittest.TestCase):
-    """Which of the two accessors aliases engine state, and which does not."""
-
     def test_pending_fields_survives_being_iterated_while_computing(self):
         engine = ComputeEngine()
         for name in ("a", "b", "c"):

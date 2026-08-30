@@ -59,8 +59,6 @@ MAX_INACTIVITY = 4242
 
 @pytest.fixture(autouse=True)
 def _fixed_inactivity(monkeypatch):
-    """`get_session_max_inactivity` reads ir.config_parameter; the decision
-    tree under test does not care what it answers, only that it is asked."""
     monkeypatch.setattr(
         request_class, "get_session_max_inactivity", lambda env: MAX_INACTIVITY
     )
@@ -102,8 +100,6 @@ def test_a_rotation_with_a_live_cursor_rotates():
 
 
 def test_a_rotation_without_a_cursor_is_deferred_not_lost():
-    """The cursor is gone (post-dispatch of an error), so the token cannot be
-    recomputed. Marking it pending is what makes the NEXT request rotate."""
     s = _Session(uid=2)
     s.should_rotate = True
     store, _ = _save(s, env="closed")
@@ -112,7 +108,6 @@ def test_a_rotation_without_a_cursor_is_deferred_not_lost():
 
 
 def test_an_anonymous_session_can_always_rotate():
-    """No uid means no session token to recompute, so no cursor is needed."""
     s = _Session()
     s.should_rotate = True
     store, _ = _save(s, env=None)
@@ -142,7 +137,6 @@ def test_changed_content_is_written():
 
 
 def test_a_dirty_but_unchanged_session_is_only_touched():
-    """The cheap branch: utime instead of a full write, ~3.6us against ~29us."""
     s = _Session(uid=2)
     s.is_dirty = True
     store, _ = _save(s)
@@ -157,8 +151,6 @@ def test_an_untouched_session_costs_nothing_and_sets_no_cookie():
 
 
 def test_a_new_session_that_was_never_written_gets_no_cookie():
-    """Handing out a cookie for a sid with no file behind it would 404 the
-    next request's lookup."""
     s = _Session()
     s.is_new = True
     store, future = _save(s)

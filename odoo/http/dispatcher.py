@@ -79,11 +79,6 @@ class Dispatcher(ABC):
             return
         existing = _dispatchers.get(routing_type)
         if existing is not None and existing is not cls:
-            # Subclassing the incumbent is how an addon replaces a dispatcher on
-            # purpose -- odoo/addons/iot_drivers/http.py extends
-            # JsonRPCDispatcher to add a 403 shape. Two UNRELATED classes
-            # claiming one routing_type is the accident worth a warning: which
-            # of them wins is then decided by import order.
             deliberate = issubclass(cls, existing)
             _logger.log(
                 logging.DEBUG if deliberate else logging.WARNING,
@@ -145,13 +140,6 @@ class Dispatcher(ABC):
             set_header("Access-Control-Max-Age", CORS_MAX_AGE)
             allow_headers = routing.get("cors_allow_headers")
             if allow_headers is None:
-                # No declaration: echo what the page asked for, which is a rubber
-                # stamp -- the reply says "every header you proposed is allowed",
-                # `Authorization` included. That is the historical behaviour and
-                # it stays the default, because narrowing it globally would break
-                # every route that relies on it. `cors_allow_headers` is how a
-                # route opts out, the request-side counterpart of the
-                # `cors_expose_headers` that already existed for the response.
                 set_header(
                     "Access-Control-Allow-Headers",
                     httprequest.headers.get("Access-Control-Request-Headers")
@@ -172,12 +160,6 @@ class Dispatcher(ABC):
         if httprequest.method == "OPTIONS" and (
             is_preflight or "OPTIONS" not in (routing.get("methods") or ())
         ):
-            # One 204 for both OPTIONS exits. They were separate, and only the
-            # non-CORS one carried `Allow` -- so the single OPTIONS request a
-            # browser actually sends, the CORS preflight, was the one reply that
-            # never said which methods the URL takes (RFC 9110 s9.3.7). A
-            # preflight the resolver refused answers this too: it carries no
-            # `Access-Control-Allow-Origin`, and `Allow` is what is left to say.
             werkzeug.exceptions.abort(
                 no_content(headers=[("Allow", allow_header(routing.get("methods")))])
             )
@@ -415,8 +397,6 @@ class Json2Dispatcher(Dispatcher):
 
     def handle_error(self, exc: Exception) -> Response:
         if isinstance(exc, HTTPException) and exc.response:
-            # `exc.response` is whatever was attached to the exception, usually
-            # a bare werkzeug response; the caller is annotated for ours.
             return Response(exc.response)
 
         headers = None

@@ -11,14 +11,6 @@ if typing.TYPE_CHECKING:
 
 
 def _opnames(*names: str) -> frozenset[str]:
-    """Refuse an opcode this interpreter does not have.
-
-    A name that no longer exists narrows the analysis silently -- `LOAD_METHOD`
-    sat in both sets below and was folded into `LOAD_ATTR` in Python 3.12, so
-    for three releases these sets have been describing an interpreter we do not
-    run.  safe_eval.to_required_opcodes refuses the same way, for the same
-    reason.
-    """
     if missing := sorted(n for n in names if n not in opmap):
         raise RuntimeError(
             f"depends_audit names opcode(s) {', '.join(missing)}, which do not "
@@ -30,10 +22,6 @@ def _opnames(*names: str) -> frozenset[str]:
 
 _ATTR_ACCESS = _opnames("LOAD_ATTR", "STORE_ATTR")
 
-# Loads that can put the receiver of an attribute access on the stack.  The
-# fused forms matter: 3.13+ emits LOAD_FAST_LOAD_FAST and friends, whose argval
-# is a *tuple* of two names, so the `env` guard below has to read the last of
-# them rather than compare the whole argval.
 _RECEIVER_LOAD = _opnames(
     "LOAD_ATTR",
     "LOAD_FAST",
@@ -46,9 +34,6 @@ _RECEIVER_LOAD = _opnames(
     "LOAD_NAME",
 )
 
-# Attributes whose own attributes belong to another record, not to `self`.
-# `self.env.user.name` reads `name` off res.users; reporting it as a missing
-# dependency of the compute's own model is a false positive.
 _FOREIGN_ROOTS = frozenset({"env"})
 
 _NEVER_A_DEPENDENCY = frozenset({"id"})
@@ -75,11 +60,6 @@ class DependsFinding:
 
 
 def _loaded_name(instruction: dis.Instruction) -> str | None:
-    """The name a receiver-load pushes, or None.
-
-    A fused load (LOAD_FAST_LOAD_FAST and its borrowing variants) carries a
-    tuple of two names and leaves the *second* on top of the stack.
-    """
     argval = instruction.argval
     if isinstance(argval, tuple):
         return argval[-1] if argval else None
@@ -87,13 +67,6 @@ def _loaded_name(instruction: dis.Instruction) -> str | None:
 
 
 def accessed_attribute_names(func: Callable) -> set[str]:
-    """Attribute names this function reads off `self`.
-
-    Anything reached through `self.env` belongs to another record and is
-    excluded -- and so is the rest of that chain: for `self.env.user.name` the
-    guard has to survive past `user` to drop `name` too, which a one-instruction
-    lookback did not do.
-    """
     names: set[str] = set()
     code = getattr(func, "__code__", None)
     if code is None:
@@ -102,8 +75,6 @@ def accessed_attribute_names(func: Callable) -> set[str]:
     while todo:
         current = todo.pop()
         instructions = list(dis.get_instructions(current))
-        # Index of every instruction whose result is a value on some foreign
-        # record, so an attribute read off it is not a dependency of ours.
         foreign: set[int] = set()
         for index, instruction in enumerate(instructions):
             if instruction.opname not in _ATTR_ACCESS:
@@ -115,14 +86,12 @@ def accessed_attribute_names(func: Callable) -> set[str]:
                 continue
             previous_name = _loaded_name(previous)
             if previous.opname in _RECEIVER_LOAD and previous_name in _FOREIGN_ROOTS:
-                # self.env.<x> -- and everything further along the chain
                 foreign.add(index)
                 continue
             if index - 1 in foreign:
                 foreign.add(index)
                 continue
             if instruction.argval in _FOREIGN_ROOTS:
-                # `self.env` itself: a doorway to other records, never a field.
                 foreign.add(index)
                 continue
             if isinstance(instruction.argval, str):
@@ -189,11 +158,6 @@ def audit_registry(
             if not field.compute:
                 continue
             if field.related or field.is_properties:
-                # Their `compute` is the framework's own -- `Field._compute_related`
-                # and the properties equivalent -- so scanning its bytecode
-                # attributes the ORM's attribute reads to the model. 92 of the
-                # 133 findings at the widest scope were exactly that, which is
-                # what made the widest scope unusable.
                 continue
             if field.store and not include_stored:
                 continue

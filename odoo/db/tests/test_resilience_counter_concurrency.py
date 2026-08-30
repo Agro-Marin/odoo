@@ -1,32 +1,3 @@
-"""What the counter pins here can and cannot prove.
-
-**On a GIL build these behavioural tests cannot fail.** Replacing
-`PoolStats._lock` with a no-op context manager and running all eleven of them
-gives eleven passes, identical to the shipped code. The harness is not
-powerless -- a positive control (read, `CALL`, write, so the eval breaker can
-run between the load and the store) loses 16 432 of 40 000 increments under
-the same 1e-6 switch interval. A bare `x += 1` simply is not racy on CPython
-3.14 with the GIL: `LOAD_GLOBAL / BINARY_OP / STORE_GLOBAL` carries no
-eval-breaker check between the load and the store, and `setswitchinterval`
-cannot insert one.
-
-So the lock is guarded *structurally* -- by
-`test_every_counter_has_a_recorder_that_takes_the_lock`,
-`test_pool_never_mutates_a_counter_directly` and
-`test_snapshot_reads_every_counter_under_the_lock`, which read the source and
-do fail when a `with self._lock:` goes away. The behavioural ones have power
-only on `freethreading.yml`, where PEP 703 removes the property they lean on;
-that lane is `continue-on-error: true`.
-
-Two counters are therefore asserted here without being protected the way
-`PoolStats` is: `metrics.sql_counter` and `_MetricsMixin.sql_log_count` are
-bare `+=`. Under free threading they are the ones that would lose increments.
-That is a deliberate open trade -- a lock on `_record_metrics` costs ~100 ns on
-every statement against a ~14 us round trip, and a lost `sql_counter`
-increment is a reporting artefact, while `sql_log_count` is only ever touched
-by the one thread that owns the cursor. Revisit it if that lane goes blocking.
-"""
-
 import sys
 import threading
 

@@ -425,22 +425,6 @@ if __name__ == "__main__":
 
 
 class TestABugIsNotLaunderedIntoAPoolError(unittest.TestCase):
-    """`PoolError` means "the database is unavailable" to four call sites.
-
-    `ir_cron`, `ir_job`, `orm/runtime/registry.py` and `bus/websocket.py` all
-    catch it and carry on, so converting an arbitrary exception into one turns
-    a programming error into an expected operational condition and loses both
-    the type and the traceback.
-
-    Nothing operational needs the conversion. Everything `psycopg_pool` raises
-    from `getconn` for a real reason is a `psycopg.Error`: `PoolTimeout` and
-    `PoolClosed` both subclass `OperationalError`, "the pool is not open yet"
-    is a `PoolClosed` rather than the `RuntimeError` it reads like, a failed
-    connect arrives as the error the worker recorded, and a `check` callback
-    that raises is swallowed by psycopg_pool's own retry loop until it gives
-    up with `PoolTimeout`.
-    """
-
     def _borrow_against(self, exc):
         class Broken(_FakePool):
             def getconn(self, timeout=None):

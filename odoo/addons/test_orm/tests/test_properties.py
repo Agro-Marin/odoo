@@ -4549,17 +4549,6 @@ class PropertiesDefinitionRoundTripCase(TestPropertiesMixin):
 
 
 class PropertiesDefinitionColumnNamedDefinitionCase(TransactionCase):
-    """``get_property_definition`` must not shadow the column it reads.
-
-    The lookup expands the definition array with
-    ``jsonb_array_elements(<column>) <alias>``.  While the alias was spelled
-    ``definition`` it collided with any PropertiesDefinition column actually
-    named ``definition``: the comparison then read the alias instead of the
-    array element, the query matched nothing, and every property definition on
-    such a model came back empty -- silently, since the lookup returns ``{}``
-    rather than raising when it finds no row.
-    """
-
     def test_a_definition_column_named_definition_is_still_readable(self):
         holder = self.env["test_orm.properties.holder.b"].create({"name": "holder"})
         holder.definition = [

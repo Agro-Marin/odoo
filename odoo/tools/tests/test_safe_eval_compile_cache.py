@@ -1,14 +1,3 @@
-"""safe_eval hands back a compiled code object instead of recompiling.
-
-`_validated_bytecode_cache` already spared the *validation* on a repeat call,
-but compilation ran every time -- and compilation is the expensive half (9.5 us
-against 0.3 us for a validation hit, on a domain-shaped expression).
-
-The cache must be invisible.  What follows checks that: same values, same
-exceptions, same context mutation, cold and warm; and that the cache key
-separates the three things that change the code object.
-"""
-
 import typing
 import unittest
 
@@ -60,7 +49,6 @@ class TestTheCacheIsInvisible(unittest.TestCase):
         self.assertEqual(context2["result"], 42)
 
     def test_bytes_and_bytearray_are_accepted(self):
-        # bytearray is unhashable and must be normalised before the cache key
         self.assertEqual(safe_eval(b"{'a': 1}"), {"a": 1})
         self.assertEqual(safe_eval(bytearray(b"'x' * 3")), "xxx")  # type: ignore[arg-type]
 
@@ -76,7 +64,6 @@ class TestTheCacheIsInvisible(unittest.TestCase):
 
 class TestTheCacheKeySeparatesWhatMatters(unittest.TestCase):
     def test_mode_is_part_of_the_key(self):
-        # "x = 1" is a statement: valid in exec, a SyntaxError in eval.
         self.assertIsNone(safe_eval("x = 1", {}, mode="exec"))
         with self.assertRaises(SyntaxError):
             safe_eval("x = 1", {}, mode="eval")

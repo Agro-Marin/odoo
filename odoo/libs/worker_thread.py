@@ -45,10 +45,6 @@ _ABSENT = object()
 
 @contextmanager
 def working_on_database(db_name: str) -> Iterator[None]:
-    # The sentinel is what separates "the attribute was not set" from "it was
-    # set to None" -- `http.helpers.dispatch_rpc` sets `thread.dbname = None`
-    # outright, and restoring by `getattr(..., None)` would delete it instead of
-    # putting the None back.
     worker = as_worker_thread(threading.current_thread())
     previous = getattr(worker, "dbname", _ABSENT)
     worker.dbname = db_name

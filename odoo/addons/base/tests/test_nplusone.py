@@ -122,7 +122,6 @@ class TestNplusOneDetection(TransactionCase):
             self.tracker.report()
 
         self.assertTrue(
-            # the header dropped "CRUD" when reads joined the tracker
             any("N+1 detected" in msg for msg in log.output),
             "Report should emit N+1 warning",
         )
@@ -174,14 +173,6 @@ class TestNplusOneDisabled(TransactionCase):
 
 @tagged("-standard", "nplusone")
 class TestNplusOneReadDetection(TestNplusOneDetection):
-    """Reads are judged by records-per-call, not by call count alone.
-
-    A write repeated from one line is an N+1 whatever it writes. A read repeated
-    from one line is only an N+1 if each call brings back almost nothing -- a
-    loop that searches a wide result set every time is doing something else, and
-    flagging it would train people to ignore the report.
-    """
-
     def _entries(self, operation, model_name):
         return [
             entry
@@ -229,7 +220,6 @@ class TestNplusOneReadDetection(TestNplusOneDetection):
         self.assertFalse(self._violations("search", "res.partner.category"))
 
     def test_a_repeated_wide_search_is_not_an_n_plus_one(self):
-        """Many calls, many records each: a loop over data, not an N+1."""
         categories = self.env["res.partner.category"].create(
             [{"name": f"Wide {i}"} for i in range(10)]
         )
@@ -249,7 +239,6 @@ class TestNplusOneReadDetection(TestNplusOneDetection):
         )
 
     def test_a_search_that_finds_nothing_still_counts(self):
-        """The worst N+1 of the lot: it returns nothing, so it looks free."""
         self.tracker.clear()
         for i in range(10):
             self.env["res.partner.category"].search([("name", "=", f"absent-{i}")])

@@ -39,13 +39,11 @@ watches this list.
 
 
 def register_on_stop(func: Callable) -> None:
-    """Register `func` to run when this process's server stops.  Idempotent."""
     if func not in _on_stop_hooks:
         _on_stop_hooks.append(func)
 
 
 def run_on_stop_hooks(logger: logging.Logger) -> None:
-    """Run every hook, best-effort: one raising hook must not stop the rest."""
     for func in _on_stop_hooks:
         try:
             logger.debug("on_close call %s", func)
@@ -74,16 +72,9 @@ class CommonServer:
         self._process_handle = psutil.Process(self.pid)
 
     def metrics(self) -> dict[str, Any]:
-        """What this server can say about itself, for /web/metrics.
-
-        Each flavour answers for its own concurrency: a prefork master counts
-        processes, a threaded server counts threads, and neither has to be
-        recognised from outside by the shape of its attributes.
-        """
         return {}
 
     def check_memory_limit(self) -> int | None:
-        """RSS over the soft limit, or None.  Shared by every flavour."""
         memory = over_memory_soft_limit(self._process_handle, self.memory_soft_limit())
         if memory is not None:
             self.logger.warning("RSS memory soft-limit reached: %s bytes.", memory)
@@ -94,13 +85,6 @@ class CommonServer:
 
     @classmethod
     def on_stop(cls, func: Callable) -> None:
-        """Register a process-wide stop hook.  See `_on_stop_hooks`.
-
-        A classmethod because that is how the two callers outside `service/`
-        already spell it; the registry it writes to is the process's, not the
-        class's, which is why the storage is a module global and not an
-        attribute here.
-        """
         register_on_stop(func)
 
     def stop(self) -> None:

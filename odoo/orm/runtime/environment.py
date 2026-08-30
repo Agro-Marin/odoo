@@ -63,14 +63,6 @@ _orm_cache = logging.getLogger("odoo.orm.cache")
 
 
 class _Protecting:
-    """`Environment.protecting` as a class, not a generator.
-
-    Every compute enters this scope, and `@contextmanager` charges a generator
-    object and two `throw`/`close` trampolines for it: 1.59 us against 0.98 for
-    the same work here, and 0.48 against 0.13 on the empty scope, which is the
-    common one.
-    """
-
     __slots__ = ("_active", "_core", "_records", "_what")
 
     def __init__(self, core: OrmCore[Field], what, records) -> None:
@@ -155,9 +147,6 @@ class Environment(Mapping[str, "BaseModel"]):
 
         envs.add(self)
         transaction._last_env = weakref_ref(self)
-        # isinstance is load-bearing, not redundant under `int | None`:
-        # test_environment_uid pins that an opaque placeholder is accepted as
-        # uid, and such an env must not become the transaction default.
         if transaction.default_env is None and uid and isinstance(uid, int):
             transaction.default_env = self
         return self
@@ -350,12 +339,6 @@ class Environment(Mapping[str, "BaseModel"]):
         return self["ir.default"].with_user(SUPERUSER_ID).with_company(self.company)
 
     def _allowed_company_ids(self) -> list[int]:
-        """`allowed_company_ids`, refused unless the user may have them.
-
-        Both `company` and `companies` read the context key and both must
-        police it; the check lived twice, in two spellings, which is how a
-        security check drifts.
-        """
         company_ids = self.context.get("allowed_company_ids", [])
         if company_ids and not self.su:
             if set(company_ids) - set(self.user._get_company_ids()):

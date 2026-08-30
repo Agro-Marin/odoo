@@ -23,7 +23,6 @@ class TestPopulate(TransactionCase):
         self.assertEqual(self._count("res.partner"), partners_before * 3)
 
     def _count_catalogue_probes(self, model_factors):
-        """How many pg_index lookups one populate run issues, and how many total."""
         cursor_class = type(self.env.cr)
         original = cursor_class.execute
         seen = {"catalogue": 0, "total": 0}
@@ -45,15 +44,6 @@ class TestPopulate(TransactionCase):
         return seen
 
     def test_the_unique_column_lookup_does_not_scale_with_the_columns(self):
-        """One catalogue query per table, not one per column.
-
-        field_needs_variation used to ask "is this column uniquely indexed?"
-        one column at a time, and populate_model calls it twice per column --
-        once for the rename pass, once through populate_field. res.partner
-        alone spent 68 of its 101 statements on that question. The assertion is
-        the marginal cost, not an absolute: whatever res.partner grows to, the
-        catalogue probes must not follow its column count.
-        """
         partner = self.env["res.partner"]
         columns = sum(1 for field in partner._fields.values() if field.is_column)
         self.assertGreater(columns, 20, "res.partner should be wide enough to matter")

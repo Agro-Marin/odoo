@@ -25,18 +25,6 @@ def import_map_for(*specifiers: str) -> ImportMap:
         raise KeyError(msg)
 
     imports = {spec: registered[spec] for spec in sorted(set(specifiers))}
-    # scriptsafe, not json.dumps: this JSON is embedded in a <script> element,
-    # and the HTML parser ends that element at the first `</script`, whatever
-    # the JSON grammar thinks. json.dumps escapes `"` and `\` and leaves `<`
-    # and `/` alone, so a URL or specifier carrying `</script>` would close the
-    # tag and everything after it would be markup. The values come from the
-    # `esm.external_libs` manifest key -- developer input in a checkout, and
-    # admin input once base_import_module is in play.
-    #
-    # `__html__()` is where ScriptSafe applies the mapping; str() of it does
-    # not. The hash is taken over the ESCAPED text because that is what the
-    # browser hashes: a CSP script hash covers the element's literal content,
-    # not the JSON it decodes to.
     body = str(scriptsafe.dumps({"imports": imports}, separators=(",", ":")).__html__())
     digest = base64.b64encode(hashlib.sha256(body.encode()).digest()).decode()
     return ImportMap(

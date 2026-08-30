@@ -38,9 +38,6 @@ def test_options_answers_the_allow_list_without_the_body():
     assert response.status_code == 204
     assert response.headers["Allow"] == "GET, HEAD, OPTIONS"
     assert request.served == []
-    # This 204 returns straight to the WSGI server: the 405 and the file itself
-    # reach `set_csp` by other routes, so a missing call here was invisible
-    # except on the one static reply a browser sends before a CORS asset fetch.
     assert response.headers["X-Content-Type-Options"] == "nosniff"
 
 
@@ -88,14 +85,6 @@ def test_allow_header_treats_empty_as_a_declaration_not_an_absence():
     ],
 )
 def test_get_static_file_answers_none_and_never_raises(resource):
-    """`str | None` is the contract, and two callers depend on it differently.
-
-    Application.__call__ rejects a NUL path before reaching here, so the WSGI
-    path never exercised the NUL case -- but ir_attachment._get_static_file_path
-    calls this with a stored URL and expects None, not an exception. Traversal
-    shapes are in the same list because this is now the ONLY static resolver:
-    the second one, in _serve_static, was unreachable and is gone.
-    """
     from odoo.modules import module as module_manager
 
     module_manager.initialize_sys_path()

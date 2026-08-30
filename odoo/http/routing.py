@@ -53,14 +53,7 @@ def register_routing_parameters(*names: str) -> None:
 
 
 class RouteDefinitionError(ValueError):
-    """A @route override the framework cannot honour.
-
-    Raised while merging one endpoint and caught by ``_merge_routing``, which
-    drops that endpoint and logs. One unserviceable route must not cost the
-    routing map: ``ir.http.routing_map`` is ormcached, so raising through it
-    would recur on every request in every worker and a single third-party addon
-    would take the instance down.
-    """
+    pass
 
 
 class LazyCompiledBuilder:
@@ -303,17 +296,6 @@ def _get_controllers(modules: Collection[str]) -> Generator[Controller]:
         try:
             Ctrl = type(name, tuple(reversed(leaf_controllers)), {})
         except TypeError:
-            # Two addons extending the same bases in OPPOSITE order. Each class
-            # is individually legal -- `class D0(B0, B1)` in one and
-            # `class D1(B1, B0)` in another -- and neither author can see the
-            # other; it is the combined class synthesized here that has no
-            # linearisation.
-            #
-            # This has to be caught for the reason `RouteDefinitionError` gives:
-            # `ir.http.routing_map` is ormcached, so raising through it recurs on
-            # every request in every worker. Measured before the guard: one such
-            # pair took down the WHOLE map, an unrelated third controller's
-            # routes included. One unserviceable tree costs its own routes now.
             _logger.error(
                 "Cannot combine the controllers %s: they extend a shared base "
                 "in incompatible orders, so no method resolution order exists "

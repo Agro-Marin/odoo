@@ -1547,17 +1547,6 @@ class ResPartner(models.Model):
             )
 
     def _display_address_depends(self) -> list[str]:
-        """The fields `_display_address` reads, each named once.
-
-        `country_id` and `state_id` are spelled here as well as in
-        `_formatting_address_fields()` because a subclass may drop them from the
-        formatting set while `_prepare_display_address` still reads
-        `state_id.code` and `country_id.code` directly. Keeping the union means
-        that stays true without the default returning either name twice --
-        `registry.field_depends` stores what this returns verbatim, so a
-        duplicate here is a duplicate trigger path for every field that consumes
-        it.
-        """
         return list(
             tools.unique(
                 [

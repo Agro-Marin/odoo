@@ -52,10 +52,6 @@ from odoo.libs.text import (
     validate_url,
 )
 
-# Every name this module re-exports or defines, per the rule
-# tests/framework/test_public_surfaces.py::TestToolsSubmoduleSurfaces pins:
-# a tools shim publishes what it defines plus what it takes from another
-# odoo module.  Third-party imports are incidental and stay out.
 __all__ = [
     "HTML_NEWLINES_REGEX",
     "HTML_TAGS_REGEX",

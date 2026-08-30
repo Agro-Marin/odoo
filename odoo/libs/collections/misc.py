@@ -6,23 +6,9 @@ from typing import Any
 
 
 class Collector[K, T](dict[K, tuple[T, ...]]):
-    """A dict of tuples in which an absent key reads as the empty tuple.
-
-    ``__setitem__`` deletes on an empty value, so a key is present exactly when
-    its tuple is non-empty -- which is what makes "absent means ``()``" the
-    coherent reading. ``get`` and ``pop`` are overridden to agree with
-    ``__getitem__``: leaving them on ``dict``'s ``None`` default meant the same
-    missing key answered ``()``, ``None`` and ``False`` depending on how it was
-    asked.
-    """
-
     __slots__ = ()
 
     def __init__(self, mapping: Any = (), /, **kwargs: Iterable[T]) -> None:
-        # `dict.__init__`, `dict.update` and `dict.setdefault` all bypass
-        # `__setitem__`, so a Collector built from a mapping used to hold the
-        # caller's own lists -- `Collector({"a": []})` kept an empty one, and
-        # `add()` then raised TypeError concatenating a tuple to a list.
         super().__init__()
         self.update(mapping, **kwargs)
 
@@ -99,9 +85,6 @@ class StackMap[K, T](MutableMapping[K, T]):
         del self._maps[-1][key]
 
     def _unique_keys(self) -> dict[K, None]:
-        # dict.fromkeys, not a set comprehension: a MutableMapping that
-        # enumerates in hash order is not one callers can rely on, and this
-        # costs the same.
         return dict.fromkeys(key for mapping in self._maps for key in mapping)
 
     def __iter__(self) -> Iterator[K]:

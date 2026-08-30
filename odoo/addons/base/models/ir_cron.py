@@ -62,10 +62,6 @@ NOTIFY_CRON_CHANGES = str2bool(os.getenv("ODOO_NOTIFY_CRON_CHANGES", ""), defaul
 
 
 def notify_channel(channel: str, db_name: str) -> None:
-    # Swallowed on purpose: two of the three call sites run from cr.postcommit,
-    # so raising reports failure for a write that has already committed. The
-    # hint is not the wake mechanism -- order_notified_first processes every
-    # database regardless and merely puts the notified ones first.
     try:
         with db.db_connect("postgres").cursor() as cr:
             cr.execute(

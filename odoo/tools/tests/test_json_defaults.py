@@ -1,12 +1,3 @@
-"""json_default and orjson_default answer to one conversion table.
-
-They used to carry a copy each and had drifted: only orjson's knew about
-dataclasses, so the same object serialised as {"x": 1} through one encoder and
-"P(x=1)" through the other.  What legitimately differs between them is
-*recursion* -- the stdlib encoder re-enters `default` on a value it still cannot
-serialise, orjson calls it once -- not policy.
-"""
-
 import dataclasses
 import datetime
 import unittest
@@ -38,7 +29,6 @@ class TestConversionPolicyIsShared(unittest.TestCase):
                 self.assertEqual(json_default(value), orjson_default(value))
 
     def test_a_dataclass_becomes_a_dict_not_its_repr(self):
-        # The drift that motivated this: json_default fell through to str().
         for fn in (json_default, orjson_default):
             with self.subTest(default=fn.__name__):
                 self.assertEqual(fn(_Point()), {"x": 1, "y": 2})
@@ -47,9 +37,7 @@ class TestConversionPolicyIsShared(unittest.TestCase):
         for name, value in CASES.items():
             with self.subTest(case=name):
                 wrapped = lazy(lambda v=value: v)
-                # orjson gets no second pass, so it must convert in one step
                 self.assertEqual(orjson_default(wrapped), orjson_default(value))
-                # the stdlib encoder re-enters default, so one unwrap suffices
                 self.assertEqual(
                     json_default(json_default(wrapped)), json_default(value)
                 )

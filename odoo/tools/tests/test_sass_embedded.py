@@ -102,9 +102,6 @@ if __name__ == "__main__":
 
 
 class TestRestartDoesNotLeakPipes(unittest.TestCase):
-    # _start overwrote self._process when the old one had died, without closing
-    # its stdin/stdout -- two fds per crash-restart, for the life of the server.
-
     @staticmethod
     def _fd_count() -> int:
         return len(list(Path(f"/proc/{os.getpid()}/fd").iterdir()))

@@ -164,16 +164,6 @@ class SetDefinitions:
 
 
 class SetExpression:
-    """A union of intersections of leaves -- disjunctive normal form.
-
-    `SetExpression` used to be an ABC whose sole implementation was a class named
-    `Union`, and every one of its methods immediately narrowed the argument back
-    to that one type and raised otherwise -- so the abstraction bought no
-    polymorphism, while twelve `@abstractmethod` stubs had to be kept in step
-    with it. `Inter` and `Leaf` are the pair that actually varies here, and
-    neither was ever part of it. The two are merged, keeping the published name.
-    """
-
     def __init__(self, inters: Iterable[Inter] = (), optimal: bool = False) -> None:
         if inters and not optimal:
             inters = self.__combine((), inters)

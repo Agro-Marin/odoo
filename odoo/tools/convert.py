@@ -51,8 +51,6 @@ class ParseError(Exception): ...
 
 
 def _require_model(f_model: str | None) -> str:
-    # a raise, not an assert: `python -O` strips asserts, and this validates a
-    # data file. Returns the model so callers keep the narrowing.
     if not f_model:
         raise ValueError('Define an attribute model="..." in your .XML file!')
     return f_model
@@ -612,11 +610,6 @@ form: module.record_id""" % (xml_id,)
 
         record = etree.Element("record", attrib=record_attrs)
         record.append(Field(name, name="name"))
-        # the element's own `key` wins if it has one.  Appending both and letting
-        # _eval_record_fields' last-write-wins sort it out worked by accident.
-        # `get`, not `pop`: `el` is embedded as the arch below, and the attribute
-        # stayed in it before -- unlike `id`/`groups`/`forcecreate`, which this
-        # method does deliberately strip.
         record.append(Field(el.get("key", full_tpl_id), name="key"))
         record.append(Field("qweb", name="type"))
         if "track" in el.attrib:
@@ -707,9 +700,6 @@ form: module.record_id""" % (xml_id,)
         )
 
     def _tag_root(self, el: etree._Element) -> None:
-        # resolved before anything is pushed: get_env() safe_evals the node's
-        # `context` and can raise, and a push that happens before the try is a
-        # stack entry the finally below never pops
         env = self.get_env(el)
         noupdate = nodeattr2bool(el, "noupdate", self.noupdate)
         sequence = 0 if nodeattr2bool(el, "auto_sequence", False) else None
@@ -778,9 +768,6 @@ form: module.record_id""" % (xml_id,)
         self.envs = [env(context=dict(env.context, lang=None))]
         self.idref: IdRef = {} if idref is None else idref
         self._noupdate = [noupdate]
-        # seeded like its two siblings above.  _tag_record is reachable without a
-        # _tag_root frame -- mail's mixin_template_reset calls it directly -- and
-        # next_sequence() read [-1] off an empty list there.
         self._sequences: list[int | None] = [None]
         self.xml_filename = xml_filename
         self._tags: dict[str, Callable[[etree._Element], Any]] = {

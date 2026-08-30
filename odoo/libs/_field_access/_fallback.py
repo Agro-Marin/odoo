@@ -19,12 +19,6 @@ _I64_MAX = 2**63 - 1
 
 
 def _as_i64(value: object) -> int | None:
-    # `isinstance`, not `type(value) is int`, because `bool` is a subclass of
-    # `int` and the Rust export accepts `True` as a record id. This module is a
-    # *reference* for that export, not an improvement on it: tightening it here
-    # made the two disagree (`to_prefetch_ids(True, ...)` -> `(True,)` in Rust,
-    # `None` here) while production kept the old behaviour. Fix `odoo_rust`
-    # first if this is ever worth changing.
     if isinstance(value, int) and _I64_MIN <= value <= _I64_MAX:
         return value
     return None

@@ -119,19 +119,6 @@ class Application:
         try:
             netloc, path = urlparse(url)[1:3]
         except ValueError:
-            # `urlparse` raises "Invalid IPv6 URL" on an unbalanced bracket in a
-            # netloc, and the comment below -- that a resolver contracted to
-            # answer `str | None` must not raise at one caller because another
-            # filters first -- covered everything AFTER this line while this
-            # line itself could raise.
-            #
-            # NOT reachable from a request path: werkzeug collapses `//x` to
-            # `/x` before `httprequest.path`, so `GET //[` arrives here as `/[`,
-            # which parses to an empty netloc. Measured, because the opposite was
-            # assumed first. The caller that can reach it is
-            # `ir.attachment._get_static_file_path`, which passes an attachment's
-            # stored `url` -- database content, and the one caller the contract
-            # above was written for.
             return None
         try:
             leading_segment, module, static, resource = path.split("/", 3)
@@ -142,8 +129,6 @@ class Application:
         if netloc and netloc.lower() != host:
             return None
 
-        # Empty for a rooted path ("/web/static/..."); the host for the
-        # netloc-less absolute URL an ir.attachment carries.
         if not netloc and leading_segment and leading_segment.lower() != host:
             return None
 
@@ -157,12 +142,6 @@ class Application:
         try:
             return _resolve_static_resource(static_path, resource)
         except FileNotFoundError, ValueError:
-            # ValueError is an embedded NUL, which `Path.resolve` refuses to
-            # stat. Application.__call__ rejects those before it ever gets
-            # here, but this is also called with an ir.attachment URL
-            # (`_get_static_file_path`), and a resolver contracted to answer
-            # `str | None` must not raise at one caller because another one
-            # happens to filter first.
             return None
 
     @_locked_cached_property
@@ -279,10 +258,6 @@ class Application:
 
         allow = allow_header(STATIC_ALLOWED_METHODS)
         if method == "OPTIONS":
-            # The 405 below reaches `set_csp` through the error path; this 204
-            # returns straight to the WSGI server, so without the call the one
-            # static reply that carried no `X-Content-Type-Options` was the one
-            # a browser sends before every cross-origin asset fetch.
             response = no_content(headers=[("Allow", allow)])
             self.set_csp(response)
             return response

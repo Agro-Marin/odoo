@@ -61,14 +61,6 @@ POSIX_TO_LDML = {
 
 
 def _ldml_literal(text: str) -> str:
-    """Encode a run of strftime literal text as an LDML literal.
-
-    Apostrophes double, and the run is wrapped in quotes only when it carries
-    something that would otherwise be read as pattern letters. A run that is
-    *only* apostrophes must stay unwrapped: LDML reads a leading ``''`` as one
-    escaped apostrophe rather than as an opening quote, so wrapping ``'`` gives
-    ``''''``, which babel renders as two.
-    """
     escaped = text.replace("'", "''")
     return escaped if text and not text.strip("'") else f"'{escaped}'"
 
@@ -80,11 +72,6 @@ def posix_to_ldml(fmt: str, locale: babel.Locale) -> str:
     quoted: list[str] = []
 
     for c in fmt:
-        # The apostrophe belongs *inside* the literal run, not between two runs.
-        # It is not `isalpha()`, so it used to fall through to `buf.append(c)`
-        # and land between a closing and an opening quote: "%d o'clock" became
-        # "dd 'o'''clock'", which LDML reads as literal "o'" followed by `clock`
-        # as pattern letters -- babel renders that "29 o'7lo715".
         if not pc and (c.isalpha() or c == "'"):
             quoted.append(c)
             continue

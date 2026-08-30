@@ -276,9 +276,6 @@ def _marks_statements() -> set:
 
     from odoo.db.cursor import Cursor
 
-    # inspect.unwrap follows __wrapped__, which functools.wraps sets: `copy`
-    # is a @contextmanager, so the attribute is contextlib's helper and its
-    # co_names are contextlib's, not the method's.
     return {
         name
         for name in dir(Cursor)
@@ -290,16 +287,6 @@ def _marks_statements() -> set:
 
 
 class TestWhatTheFlushPassLimitDoesNotCover(unittest.TestCase):
-    """Stated as a property, because it reads like a guarantee and is not.
-
-    `_MAX_FLUSH_PASSES` bounds hooks whose ORM writes make the NEXT
-    `transaction.flush()` produce more work -- the case the tests above pin.
-    A hook that calls `precommit.add` itself is drained by `Callbacks.run`
-    inside the same pass and never reaches the loop's counter, so an
-    unconditional self-re-arm hangs with no error. Bounded here so the suite
-    cannot hang while still showing the shape.
-    """
-
     def test_a_rearming_hook_is_drained_in_one_pass(self):
         cr = _Cursor()
         txn = _attach(cr)
@@ -341,19 +328,6 @@ if __name__ == "__main__":
 
 
 class TestTheDiscardPathTellsAnOutageFromAFault(unittest.TestCase):
-    """A rollback that never reached PostgreSQL is an outage, not a bug.
-
-    `_close` rolls back before handing the connection back.  When that fails
-    and the connection is not clean the connection can only be discarded, and
-    the level that reports it decides whether an operator reads ERROR as
-    meaning something.  A client-side failure carries no SQLSTATE -- which is
-    what `reached_the_server` reads -- so the two cases are distinguishable.
-
-    Measured on a live server whose cron and job backends were terminated
-    server-side: two ERROR tracebacks per outage before this, none after,
-    with recovery unchanged in both cases.
-    """
-
     def _close_with(self, rollback_error, *, clean):
         import logging
         from unittest.mock import MagicMock, patch

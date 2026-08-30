@@ -95,10 +95,6 @@ class TestImportMapFor(unittest.TestCase):
         )
 
     def test_the_body_cannot_close_the_script_element(self):
-        # The values come from the `esm.external_libs` manifest key, so this is
-        # a stand-in for a hostile or careless one. json.dumps leaves `<` and
-        # `/` alone; the HTML parser does not care that they sit inside a JSON
-        # string, and ends the element at the first `</script`.
         hostile = "/x.js</script><script>alert(1)</script>"
         with mock.patch(
             "odoo.tools.assets.import_map.external_libs",

@@ -66,11 +66,6 @@ def _check_open_container_format(data: bytes) -> str | Literal[False]:
                 declared = mimetype_file.read(256).decode("ascii")
             except UnicodeDecodeError:
                 return False
-        # `fullmatch`, and the matched span rather than the raw read: the member
-        # is whatever the zip's author put there, and `match` anchored only at
-        # the start returned the trailing junk with it. A member reading
-        # "text/plain\r\nX-Injected: yes" became the attachment's mimetype, and
-        # serving it raised ValueError out of werkzeug's header validation.
         matched = _mime_validator.fullmatch(declared)
         return matched[0] if matched else False
 
@@ -99,10 +94,6 @@ _ppt_pattern = re.compile(
 )
 
 
-# `b"Microsoft Excel" in data` is a linear scan, and `data` here is the whole
-# attachment: 62 ms on a 50 MB file, against 0.003 ms on the head. libmagic is
-# handed MIMETYPE_HEAD_SIZE for the same reason; an OLE-CF directory sector is
-# far inside this window, so widening it beyond the head buys nothing.
 _OLECF_SCAN_LIMIT = 1 << 16
 
 
@@ -251,13 +242,6 @@ def guess_mimetype(bin_data: bytes | bytearray, default: str = UNKNOWN_MIMETYPE)
             )
     return mimetype
 
-
-# `neuter_mimetype(mimetype, user)` and its `SystemUser` protocol stood here and
-# were called by nothing. `ir_attachment._prepare_contents` carries the live
-# policy, and the two did not agree: this one matched on `"xml" in mimetype`, so
-# it neutered every OOXML document to text/plain, which the live predicate
-# excludes by prefix. A second, importable, *broader* spelling of a security
-# rule is the risk; the unused bytes are not.
 
 _extension_pattern = re.compile(r"\w+")
 

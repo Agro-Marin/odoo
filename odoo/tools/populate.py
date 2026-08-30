@@ -127,9 +127,6 @@ class PopulateContext:
             yield
             return
         try:
-            # inside a savepoint: the failing SET aborts the transaction and has
-            # to be undone, but cr.rollback() would take everything populated so
-            # far with it
             with model.env.cr.savepoint():
                 model.env.cr.execute("SET session_replication_role TO replica")
         except InsufficientPrivilege:
@@ -150,20 +147,6 @@ class PopulateContext:
 
 
 def unique_indexed_columns(model: Model) -> frozenset[str]:
-    """Every column of `model`'s table under a unique index, in ONE query.
-
-    This used to be asked one column at a time, from inside
-    field_needs_variation, which populate_model calls twice per column -- once
-    to decide the rename pass and once through populate_field. Populating
-    res.partner alone (44 stored columns) therefore issued 68 four-way
-    catalogue joins out of 101 statements for the entire run: two thirds of the
-    work of a bulk-insert tool was asking the catalogue the same question about
-    a different column.
-
-    The AST n-plus-one checker could not see it. The loop is in populate_model
-    and the query was in is_unique, and E8507 does not cross a call boundary --
-    the same blind spot lint_n_plus_one_query's own baseline note warns about.
-    """
     query = SQL(
         """
         SELECT DISTINCT a.attname

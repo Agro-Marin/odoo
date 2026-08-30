@@ -37,19 +37,6 @@ _RESET_SESSION_STATE_SQL = (
 
 
 def clear_prepared_cache(conn: psycopg.Connection) -> bool:
-    """Drop psycopg's client-side auto-prepare map, reporting whether it worked.
-
-    `Connection._prepared` is private and three call sites depend on it -- the
-    pool's reset, `Cursor.discard_cached_plans` and the stale-plan recovery --
-    and each had invented its own contract for the same coupling: two swallowed
-    `AttributeError` and carried on, one logged, disabled auto-prepare for the
-    connection's life and fell back to `DEALLOCATE ALL`.  At most one of three
-    could be right about how much the dependency matters.
-
-    `clear()` is not merely a client-side forget: it appends `None` to
-    psycopg's `_to_flush`, which emits a `DEALLOCATE ALL` on the next command,
-    so the server side is cleaned up too and no caller needs to do it.
-    """
     prepared = getattr(conn, "_prepared", None)
     if prepared is None:
         return False

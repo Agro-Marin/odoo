@@ -236,11 +236,6 @@ def test_vary_staged_alone_still_lands():
 
 
 def test_restaging_a_cookie_replaces_it_whatever_the_spacing():
-    """`_drop_staged_cookie` and `_inject_future_response` must agree on which
-    cookie a Set-Cookie header names. They did not: one compared
-    `startswith(f"{key}=")` and the other partitioned-and-stripped, so a header
-    carrying leading whitespace was the same cookie to one and a different one
-    to the other, and re-setting it appended instead of replacing."""
     fr = FutureResponse()
     fr.headers.add("Set-Cookie", " session_id=stale; Path=/")
 
@@ -252,12 +247,6 @@ def test_restaging_a_cookie_replaces_it_whatever_the_spacing():
 
 
 def test_future_response_supplies_everything_werkzeug_set_cookie_touches():
-    """`FutureResponse.set_cookie` calls `werkzeug.Response.set_cookie` with a
-    FutureResponse as `self`. That is correct only while werkzeug's own
-    implementation touches nothing but `headers` and `max_cookie_size` -- an
-    undocumented property of a third-party library, relied on for every cookie
-    on every response. Fail here, at a readable assertion, rather than at
-    runtime after a werkzeug bump."""
     import inspect
     import re
 

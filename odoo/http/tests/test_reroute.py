@@ -54,12 +54,6 @@ def test_raw_uri_is_rebuilt_and_drops_the_question_mark_when_empty():
 
 
 def test_a_body_already_parsed_survives_the_reroute():
-    """This is the whole reason `_adopt_body_state` exists.
-
-    `_recover_from_registry_error` reroutes AFTER the request has been read, and
-    the WSGI input stream is consumed once. Without the adoption the recovered
-    request sees an empty form and the user's POST is silently lost.
-    """
     original = _httprequest()
     assert dict(original.form) == {"a": "1", "b": "2"}, "read it first"
 
@@ -73,8 +67,6 @@ def test_a_body_not_yet_parsed_is_still_readable_afterwards():
 
 
 def test_the_reroute_produces_a_new_object_so_the_old_one_can_be_closed():
-    """Application.__call__'s `finally` closes `request.httprequest` only when
-    it is no longer the one the context manager owns."""
     original = _httprequest()
     assert _reroute(original, "/new") is not original
 

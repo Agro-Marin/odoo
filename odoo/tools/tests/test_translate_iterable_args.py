@@ -29,8 +29,6 @@ class TestOneShotIterableArguments(unittest.TestCase):
         self.assertEqual(_render("items: %(xs)s", {"xs": generator}), self.EXPECTED)
 
     def test_the_result_does_not_depend_on_the_other_arguments(self):
-        # The bug's signature: a Markup argument ahead of the iterable skipped
-        # the probe, so this pair used to disagree.
         without = _render("%s", ((x for x in ["a", "b"]),))
         with_markup = _render("%s / %s", (Markup("<b>x</b>"), (x for x in ["a", "b"])))
         self.assertEqual(without, "a and b")

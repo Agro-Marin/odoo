@@ -190,8 +190,6 @@ class TestFormAttributeAccess(TransactionCase):
 @tagged("-at_install", "post_install")
 class TestFormHonoursTheAttributeProtocol(TransactionCase):
     def test_reading_an_unknown_field_is_both_kinds_of_error(self):
-        """TestFormAttributeAccess above pins AssertionError; the protocol
-        needs AttributeError. FieldNotInView is both, so neither gives way."""
         form = Form(self.env["res.partner"])
         with self.assertRaises(AssertionError):
             form.not_a_field_of_this_view

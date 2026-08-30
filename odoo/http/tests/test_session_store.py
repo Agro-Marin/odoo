@@ -311,9 +311,6 @@ def test_keep_alive_persists_a_session_with_no_file_yet(store):
 
 
 def test_session_files_are_readable_only_by_their_owner(store):
-    """The `xx/` shards are already 0o700, so this is the file's own claim
-    rather than the barrier -- but a `session_token` should not sit in a file
-    whose mode says anyone may read it."""
     session = store.new()
     session["uid"] = 2
     store.save(session)
@@ -323,12 +320,6 @@ def test_session_files_are_readable_only_by_their_owner(store):
 
 
 def test_the_vendored_store_defines_no_on_disk_layout_of_its_own():
-    """It took a `filename_template`, asserted about its suffix, and never read
-    it: `odoo.http.FilesystemSessionStore` shards by the sid's first two
-    characters and overrides `get_session_filename`. Two stores over one
-    directory with different templates produced the same filename, and every
-    store in the tree is that subclass -- so the layout is the subclass's to
-    define and the base has no default to offer."""
     from odoo.libs._vendor import sessions
 
     base = sessions.FilesystemSessionStore(path="/tmp", session_class=Session)
@@ -348,8 +339,6 @@ def _token_for(sid):
 
 
 class _TokenEnv(dict):
-    """`env["res.users"].browse(uid)._compute_session_token(sid)`, and nothing else."""
-
     def __getitem__(self, key):
         return SimpleNamespace(
             browse=lambda uid: SimpleNamespace(_compute_session_token=_token_for)
@@ -371,15 +360,6 @@ def _rotating_session(store, uid=7):
 def test_following_a_soft_rotation_adopts_the_peer_identity_with_its_sid(
     store, follower_is_modified
 ):
-    """`check_session` recomputes the token from the sid and logs the user out
-    when they disagree, so a session that adopts a new sid has to adopt the
-    token that goes with it -- whether or not it is about to be written.
-
-    The unmodified branch used to take the sid alone. Nothing wrote the result,
-    because `_save_session` is an if/elif chain and a request that rotates never
-    also saves; that made this function's correctness rest on the shape of a
-    different one.
-    """
     env = _TokenEnv()
     sid0 = _rotating_session(store)
 
@@ -403,8 +383,6 @@ def test_following_a_soft_rotation_adopts_the_peer_identity_with_its_sid(
 
 
 def test_a_save_after_following_a_rotation_does_not_log_the_owner_out(store):
-    """The failure the asymmetry allowed, written as the thing that must not
-    happen rather than as the branch that used to allow it."""
     env = _TokenEnv()
     sid0 = _rotating_session(store)
 

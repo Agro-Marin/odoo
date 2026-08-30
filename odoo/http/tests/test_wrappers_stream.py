@@ -72,23 +72,16 @@ def test_stream_read_data_roundtrip():
 
 
 def test_flatten_keeps_the_template_name_in_qcontext():
-    """`ir.http._dispatch` flattens before `_post_dispatch`, and website's
-    `_handle_webpage_dispatch` reads `response_template` out of qcontext at
-    that point to decide whether to track the visit. It looks like stale
-    bookkeeping once `.template` is None; clearing it turns visitor tracking
-    off for every qweb page."""
     from odoo.http.wrappers import _Response
 
     response = _Response("body", template="website.page_x", qcontext={})
-    response.response.append(b"")  # stand in for render(), which needs an env
-    response.template = None       # what flatten() does after rendering
+    response.response.append(b"")
+    response.template = None
 
     assert response.qcontext["response_template"] == "website.page_x"
 
 
 def test_from_binary_field_accepts_a_str_field_value():
-    """A Binary field answers bytes, but this is a public classmethod and a
-    Char reached it as `replace() argument 1 must be str, not bytes`."""
     from odoo.http.stream import Stream
 
     class _Record:
@@ -96,7 +89,7 @@ def test_from_binary_field_accepts_a_str_field_value():
         write_date = None
 
         def __getitem__(self, _name):
-            return "aGVsbG8="  # a str, not bytes
+            return "aGVsbG8="
 
         class env:
             class _Attachment:

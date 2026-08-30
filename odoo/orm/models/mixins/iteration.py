@@ -151,9 +151,6 @@ class IterationMixin(_ModelStubs):
         target = item.id
         ids = self._ids
         n = len(ids)
-        # clamped both ways, as list.index does: without the upper bound an
-        # out-of-range slice walks off the tuple and raises IndexError where
-        # the sequence protocol promises ValueError
         if start < 0:
             start = max(0, n + start)
         else:

@@ -154,14 +154,6 @@ class TestLagSql(unittest.TestCase):
         )
 
     def test_the_sample_and_the_verdict_are_published_together(self):
-        """The pair tears on the GIL, and this is the shape it tears into.
-
-        `record` writes `last_lag` and `_lagging` from one measurement and
-        `snapshot` renders them side by side, so two unguarded stores let an
-        operator read a 99 s lag beside `lagging: false`. That exact pair was
-        observed within 2 s of one writer against one reader before the lock;
-        with it, none in the same window.
-        """
         gate = ReplicaLagGate(10.0)
         stop = threading.Event()
         torn = []
@@ -194,13 +186,6 @@ class TestLagSql(unittest.TestCase):
         self.assertIn("coalesce(", LAG_SQL)
 
     def test_a_null_receive_lsn_reads_as_caught_up_not_as_lag(self):
-        """`NULL = x` is NULL, not false, so the CASE falls through without this.
-
-        A standby in archive-only recovery has no walreceiver and
-        `pg_last_wal_receive_lsn()` is NULL there, which took the ELSE branch
-        and reported the idle primary's elapsed replay time as lag -- the
-        exact false positive the caught-up check exists to prevent.
-        """
         null_check = LAG_SQL.index("pg_last_wal_receive_lsn() IS NULL")
         self.assertLess(
             null_check,

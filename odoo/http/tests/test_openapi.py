@@ -211,8 +211,6 @@ def test_two_verbs_on_one_template_are_both_kept():
 
 
 def _endpoint(rule, handler=None, **routing):
-    """A routing-map endpoint of the shape `_generate_routing_rules` produces."""
-
     def default(self, **kw):
         pass
 
@@ -223,9 +221,6 @@ def _endpoint(rule, handler=None, **routing):
     routing.setdefault("auth", "public")
     routing.setdefault("methods", None)
     routing["routes"] = [rule]
-    # The cast is what `_generate_routing_rules` does with the same object: a
-    # `functools.partial` carrying the three attributes `@route` stuffs onto it
-    # is an `Endpoint` by protocol, and nothing else in the type system says so.
     endpoint = cast("Endpoint", partial)
     endpoint.routing = routing
     endpoint.original_endpoint = handler
@@ -234,9 +229,6 @@ def _endpoint(rule, handler=None, **routing):
 
 
 def test_a_rule_repeating_a_path_parameter_is_skipped_not_emitted():
-    """OpenAPI forbids two parameters sharing (name, in), and a consumer that
-    rejects the document rejects all of it -- so one malformed rule must not
-    cost every other route its documentation."""
     routes = [
         RouteInfo(
             rule="/dup/<int:id>/<int:id>",
@@ -263,12 +255,6 @@ def test_a_rule_repeating_a_path_parameter_is_skipped_not_emitted():
 
 
 def test_the_lazy_builder_lets_a_duplicate_parameter_rule_into_the_map():
-    """Why the guard above is load-bearing rather than defensive.
-
-    `werkzeug.routing.Map.add` compiles the URL builder and refuses such a rule
-    outright; `FasterRule` defers that compilation, so the rule loads, matches,
-    and raises only if someone builds a URL for it.
-    """
     with pytest.raises(SyntaxError):
         werkzeug.routing.Map(
             [werkzeug.routing.Rule("/dup/<int:id>/<int:id>", endpoint="e")]

@@ -4,13 +4,6 @@ from odoo.tools.cache import ormcache
 
 
 class TestOrmcacheNeedsAReceiver(unittest.TestCase):
-    """The key expression opens with `<receiver>._name`, so there must be one.
-
-    `next(iter(parameters), "self")` invented a name the generated lambda's
-    signature never declared, so the mistake surfaced as a NameError on the
-    first call instead of at decoration.
-    """
-
     def test_a_zero_argument_callable_is_refused_at_decoration(self):
         with self.assertRaises(ValueError) as caught:
 

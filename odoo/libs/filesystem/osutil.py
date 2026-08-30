@@ -29,8 +29,6 @@ WINDOWS_RESERVED = re.compile(
 )
 _CLEAN_FILENAME_RE = re.compile(r"[^\w_.()\[\] -]+")
 
-# `Path(name).suffix or Path(name).stem` below is how a dotfile such as
-# ".DS_Store" -- all stem, no suffix -- reaches this set.
 _SKIPPED_SUFFIXES = frozenset({".pyc", ".pyo", ".swp", ".DS_Store"})
 
 

@@ -53,11 +53,6 @@ class SQL:
         if kwargs:
             code, args = named_to_positional_printf(code, kwargs)
         elif not args:
-            # Validation by side effect: a stray `%` in a literal must not reach
-            # the driver as a format directive. The substring test is the guard,
-            # not an optimisation -- a string with no `%` has no directive and
-            # cannot raise -- and it keeps the format pass off the common path,
-            # where it was 16-30% of this constructor.
             if "%" in code:
                 code % ()
             self.__code = code
@@ -137,13 +132,6 @@ class SQL:
         return self.__to_flush
 
     def render(self) -> str:
-        """Inline the parameters for a human, never for a driver.
-
-        Unlike :meth:`inlined`, this quotes without a connection, so it does not
-        know the session's encoding or `standard_conforming_strings`. It is a
-        debugging and logging aid; the result must not be executed. Use
-        :meth:`inlined` when a real cursor is available.
-        """
         if not self.__params:
             return self.__code
         inlined = self.__code % tuple(str(_sql.quote(v)) for v in self.__params)
@@ -201,10 +189,6 @@ class SQL:
         if len(items) == 1 and isinstance(items[0], SQL):
             return items[0]
         if not self.__params:
-            # The general branch below splices `self` between the items, so the
-            # separator's `to_flush` rides along; this one only ever passed the
-            # items, so the same separator answered differently depending on
-            # whether it happened to carry parameters.
             return SQL(
                 self.__code.join("%s" for _ in items),
                 *items,

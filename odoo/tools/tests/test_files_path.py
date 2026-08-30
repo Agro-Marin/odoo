@@ -27,8 +27,6 @@ class _AddonsRoot:
         self._saved_path = list(odoo.addons.__path__)
         self._saved_mod = sys.modules.pop("odoo.addons.mymod", None)
         odoo.addons.__path__[:] = [str(self.addons)]
-        # every path cache at once: the swap invalidates _file_path_resolved
-        # too, which this used to leave warm
         clear_caches()
         return self
 

@@ -39,13 +39,6 @@ def _serve_db(this):
 
 
 def _make(readonly_route=True, replica=True):
-    """A request with just enough shape for ``_serve_db`` to run.
-
-    ``replica`` is the whole point: it decides whether ``registry.cursor()``
-    hands back a genuinely read-only cursor. With a replica configured (or
-    ``test_enable`` on, which implies one) it does; on a deployment without one
-    it does not, and ``_serve_db`` takes an entirely different branch.
-    """
     calls = {"served": 0, "reset_for_replay": [], "opened": []}
     first = _Cursor(readonly=replica)
 
@@ -80,8 +73,6 @@ def _make(readonly_route=True, replica=True):
         httprequest=types.SimpleNamespace(
             method="GET",
             path="/x",
-            # `_serve_readonly` rewinds uploads before the promoted replay, so
-            # the fake needs the shape `rewind_uploaded_files` reads.
             files=werkzeug.datastructures.MultiDict(),
         ),
         dispatcher=None,
@@ -91,10 +82,6 @@ def _make(readonly_route=True, replica=True):
         _update_served_exception=lambda exc: None,
         _reset_for_replay=lambda cr=None: calls["reset_for_replay"].append(cr),
     )
-    # `_serve_db` is called unbound against this namespace, so the pieces it
-    # delegates to have to be reachable on it. These are its own decomposition
-    # rather than collaborators -- bind the real ones, so what the branches
-    # below measure is still the real cursor handling and not a stub of it.
     for helper in (
         "_resolve_serve_target",
         "_run_serve_func",
@@ -124,14 +111,6 @@ def _run(this, env, retrying_side_effect):
 
 
 def test_without_a_replica_a_readonly_route_runs_read_write():
-    """The branch every deployment with no replica takes on every request.
-
-    ``registry.cursor(readonly=True)`` hands back a read/write cursor when there
-    is no replica, so ``readonly and cr.readonly`` is False however the route is
-    declared. The suite never measured this: ``test_enable`` opens a replica
-    connection (``Registry.__init__``), so under test the cursor IS read-only
-    and the other branch runs instead.
-    """
     this, env = _make(readonly_route=True, replica=False)
     served = _run(this, env, lambda func, env: func())
 
@@ -165,9 +144,6 @@ def test_a_write_from_a_readonly_route_is_promoted_and_replayed():
         return func()
 
     with mock.patch.object(_serve, "RequestRetryParticipant") as participant:
-        # Stand in for what the real `on_retry` does, so the assertion below is
-        # load-bearing: it resets the request against `self.env.cr`, which at
-        # that point is still the read-only cursor.
         participant.return_value.on_retry.side_effect = lambda exc: (
             this._reset_for_replay()
         )
@@ -193,9 +169,6 @@ def test_a_write_from_a_readonly_route_is_promoted_and_replayed():
 
 
 def test_a_promotion_rewinds_the_uploaded_files_before_the_replay():
-    """The replay re-reads the body, so a consumed upload stream would arrive
-    empty the second time. `on_retry` used to carry this; dropping the call had
-    to keep it."""
     this, env = _make(readonly_route=True, replica=True)
     upload = mock.Mock()
     upload.seekable.return_value = True

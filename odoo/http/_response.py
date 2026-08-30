@@ -53,17 +53,6 @@ class _RequestResponseMixin(RequestState):
             try:
                 stripped = urlsplit(location)._replace(scheme="", netloc="")
             except ValueError:
-                # `urlsplit` raises "Invalid IPv6 URL" on an unbalanced bracket,
-                # and this is fed straight from a query parameter --
-                # `auth_signup.web_login` passes `request.params.get("redirect")`
-                # and `auth_oauth` does the same -- so `/web/login?redirect=http://[`
-                # was a 500 on the login flow. Measured against a real server.
-                #
-                # The root is not a new answer invented for this case: a hostile
-                # absolute URL with no path already lands there, because
-                # `https://evil.com` splits to an empty path and this builds
-                # `"/" + ""`. A location with nothing local that can be recovered
-                # from it goes where every other such location goes.
                 location = "/"
             else:
                 location = "/" + urlunsplit(stripped).lstrip("/\\")
@@ -99,9 +88,6 @@ class _RequestResponseMixin(RequestState):
     ) -> Response:
         response = Response(template=template, qcontext=qcontext, **kw)
         if not lazy:
-            # `flatten` renders into the body and clears the template, so an
-            # eager render still answers the `Response` this is annotated to
-            # return. It used to hand back the raw bytes of `render()`.
             response.flatten()
         return response
 

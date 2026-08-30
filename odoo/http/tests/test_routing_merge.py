@@ -169,7 +169,6 @@ def test_an_override_may_not_change_the_route_type():
     finally:
         routing_module._logger.removeHandler(handler)
 
-    # loud, and contained: the route is dropped, the routing map still builds
     assert rules == {}
     assert any("overrides a type='jsonrpc' route" in m for m in records), records
     assert any("The route is not served." in m for m in records), records

@@ -118,12 +118,6 @@ class TestAllowRequests(HttpCase):
         self.assertFalse(self.http_request_allow_all)
 
     def test_cookieless_request_refused_after_xmlrpc(self):
-        # The session cookie is what makes this deterministic. Without it the
-        # request carries no database, ensure_db() falls back to scanning the
-        # cluster, and a request that cannot resolve one redirects to the
-        # database selector without ever opening a cursor -- so the guard never
-        # runs and the 400 this asserts becomes a 303. The test_cursor cookie
-        # is still withheld: that is the one being tested for.
         session = self.authenticate("admin", "admin@odoo")
         self.xmlrpc_common.version()
         with self.allow_requests():

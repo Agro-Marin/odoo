@@ -192,7 +192,7 @@ def initialize_sys_path() -> None:
     current_addons_path = tuple(odoo.addons.__path__)
     if _SysPathState.addons_path != current_addons_path:
         Manifest.clear_caches()
-        tools.files.clear_caches()  # same event, same reason
+        tools.files.clear_caches()
         _SysPathState.addons_path = current_addons_path
 
     if not _SysPathState.hooks_installed:

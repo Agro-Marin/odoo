@@ -1,12 +1,3 @@
-"""A --log-handler without a level is refused, not dropped in silence.
-
-`logutils.init_logger` does `loggername, level = item.split(":")`, so a bare
-module name would raise there.  `_deduplicate_loggers` dropped it instead, which
-avoided the crash and left `--log-handler odoo.orm` -- the `:DEBUG` forgotten,
-against a metavar that reads MODULE:LEVEL -- starting the server with the flag
-inert and nothing said.
-"""
-
 import unittest
 
 from odoo.tools.config import _deduplicate_loggers

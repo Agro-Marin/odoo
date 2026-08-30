@@ -1,16 +1,3 @@
-"""A named re-export is an import, whether or not the lexer is available.
-
-`esm_lexer_worker.mjs` skips any statement beginning with `export` unless it is
-`export * from`, so `export { a } from "./x"` reaches Python in neither
-`imports` nor `starFrom`.  `_scan_import_specifiers` covers that by unioning the
-regex over the lexer's answer; `find_escaping_relative_imports` used to read one
-OR the other, so it saw named re-exports only when node was MISSING and the
-regex fallback ran -- a check stricter without its fast path than with it.
-
-The lexer is exercised when node is on PATH and skipped otherwise; the regex
-half is pinned unconditionally, because that is the half that carries the case.
-"""
-
 import unittest
 
 from odoo.tools.assets.esm_graph import (

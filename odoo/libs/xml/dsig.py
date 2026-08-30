@@ -34,9 +34,6 @@ def canonicalize(
     inclusive_ns_prefixes: list[str] | None = None,
 ) -> bytes:
     if isinstance(node, str):
-        # The hardened parser, not the thread's default: this is a third-party
-        # signed document, and whether entity expansion was on used to depend
-        # on which thread reached it.
         node = fromstring(node)
     return etree.tostring(
         node,
@@ -48,14 +45,6 @@ def canonicalize(
 
 
 def _c14n_params_from_transforms(reference: etree._Element) -> tuple[bool, list[str]]:
-    """Whether this Reference canonicalises exclusively, and with what prefixes.
-
-    Any Transform may be the c14n one. This read `transforms[0]`, so the
-    ordinary XAdES pair -- `<Transform enveloped-signature/>` followed by
-    `<Transform exc-c14n/>` -- was reported as inclusive c14n, which digests a
-    different octet stream. No template in the workspace emits two transforms
-    per Reference today, which is why nothing had caught it.
-    """
     exclusive = next(
         (
             transform
@@ -147,8 +136,6 @@ def fill_reference_digests(
     for reference in signed_info.findall("ds:Reference", namespaces=_NSMAP):
         digest_value = reference.find("ds:DigestValue", namespaces=_NSMAP)
         if digest_value is None:
-            # Every other failure in this module is an XmlSigError naming the
-            # document; this one used to be an AttributeError on None.
             raise XmlSigError(
                 f"Reference {reference.get('URI', '')!r} has no <ds:DigestValue> "
                 f"to fill in"

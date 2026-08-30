@@ -383,13 +383,6 @@ if __name__ == "__main__":
 
 
 class TestInvalidateDerivesContextDependence(unittest.TestCase):
-    """The caller may state context-dependence; it is not obliged to.
-
-    It used to be a required keyword, which made every caller responsible for a
-    fact the cache can read off its own keys -- and a caller that got it wrong
-    left every context sub-cache untouched by the invalidation, silently.
-    """
-
     def _context_cache(self) -> FieldCache:
         cache = FieldCache()
         cache.get_field_data("F")[("en_US",)] = {1: "a", 2: "b"}

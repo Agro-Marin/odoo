@@ -43,37 +43,7 @@ def rewind_uploaded_files(
             ) from cause
 
 
-# ``db_list`` below is the package's ONE database-listing entry point.
-#
-# Both readers of "which databases does this host serve" go through it: the
-# selector and database manager (``web/controllers``), and
-# ``Request._get_session_and_dbname`` resolving a session-less request to the
-# single one. Those were two implementations with two caches and two error
-# policies, which is why ``test_http``'s ``nodb_url_open`` had to patch four names
-# to say "no database".
-#
-# There is no cache HERE, and that is the point. ``service.db.list_dbs`` already
-# memoises the ``pg_database`` scan behind a lock, with its own TTL, its own
-# invalidation on every catalogue mutation this process makes, and a fresh list
-# per caller. A second TTL cache used to sit on top of it, keyed on
-# ``(time_bucket, force)``, and it bought nothing: it added a second staleness
-# window on top of the first, registered a second listener for the same
-# invalidation, and made ``force`` a lie -- ``db_list(force=True)`` answered from
-# up to five seconds ago, which is why ``_serve._acquire_registry_cursor`` had one
-# of its two reasons to reach PAST this function to ``service.db.list_dbs``. That
-# reason is gone; its other one stands, and is why it still does: after a registry
-# failure it asks whether the database exists AT ALL, which the host filter below
-# would answer wrongly for a database that exists and is filtered out.
-#
-# Filtering stays outside any cache regardless, because ``db_filter`` falls back
-# to the *current request's* Host header when ``host`` is None, and that must not
-# be memoised.
-
-
 def clear_db_list_cache() -> None:
-    # Kept as the name the package (and ``test_http``, as ``clear_monodb_cache``)
-    # calls, now that the cache it used to clear is gone: the one that remains is
-    # ``service.db``'s, and this is how http asks for it to be dropped.
     odoo.service.db.invalidate_catalog_caches()
 
 
@@ -105,17 +75,6 @@ def _dbfilter_reads_the_host(pattern: str) -> bool:
 
 @functools.lru_cache(maxsize=512)
 def _compiled_dbfilter(pattern: str, host: str) -> re.Pattern[str]:
-    # `host` reaches here from the Host header, which werkzeug does not
-    # validate (`trusted_hosts` is None) -- so it is an attacker-chosen cache
-    # key, and 600 distinct hosts evict all 512 entries and make every
-    # legitimate request recompile. Callers pass "" unless the pattern
-    # actually interpolates the host, which collapses the common case
-    # (`dbfilter = .*`, and every pattern naming databases outright) to a
-    # single entry no header can displace.
-    #
-    # A pattern that DOES use %h/%d still compiles per host: the host is part
-    # of the regex text there, so there is nothing to hoist. That is the
-    # narrow residue, and it is bounded by `maxsize` rather than removed.
     domain = host.partition(".")[0]
     return re.compile(
         pattern.replace("%h", re.escape(host)).replace("%d", re.escape(domain))
@@ -123,13 +82,6 @@ def _compiled_dbfilter(pattern: str, host: str) -> re.Pattern[str]:
 
 
 def db_filter(dbs: Iterable[str], host: str | None = None) -> list[str]:
-    # Two filters, applied in order, and the input's order is preserved through
-    # both. The `db_name` filter used to be spelled twice -- once inside the
-    # `dbfilter` branch and once as `sorted(set(db_name) & dbs)` for the branch
-    # without one -- so the selector listed databases in the catalogue's order
-    # with a dbfilter set and in sorted order without one, from the same list.
-    # `service.db._query_catalogue` already orders by datname, so preserving the
-    # input is what makes the two agree.
     names = [db for db in dbs if not is_maintenance_db(db)]
 
     pattern = config["dbfilter"]
@@ -227,43 +179,17 @@ def _origin_parts(url: str) -> tuple[str, str, int | None] | None:
     try:
         parts = urlsplit(url)
     except ValueError:
-        # `urlsplit` raises "Invalid IPv6 URL" on an unbalanced bracket, and the
-        # Origin header is whatever the client sent -- `Origin: http://[` is one
-        # curl away from a 500 on every CORS route.
         return None
     if not parts.hostname:
         return None
     try:
         port = parts.port
     except ValueError:
-        # `urlsplit` defers port validation to attribute access, so a netloc
-        # like "127.0.0.1:8192.evil.com" yields hostname "127.0.0.1" and raises
-        # only here. No browser can emit such an Origin -- a colon is not legal
-        # in a hostname -- but a resolver that decides who may read a
-        # credentialed response must not answer "same host" to a string it
-        # could not parse.
         return None
-    # Deliberately NOT normalising a missing port to the scheme default: the
-    # scheme is the term we cannot trust (see below), so expanding through it
-    # would make an undeclared TLS terminator look like a port mismatch.
     return parts.scheme, parts.hostname, port
 
 
 def cors_same_host(request: Any) -> str | None:
-    # "Same host" has to mean same ORIGIN, which is (scheme, host, port) -- this
-    # compared hostname alone, so `http://app.example.com:9999` and
-    # `https://app.example.com` were both "same host" as `http://app.example.com`
-    # and got `Access-Control-Allow-Credentials: true`. Any other service on the
-    # same hostname could therefore read a credentialed response.
-    #
-    # Port is compared strictly: both sides derive it from the Host header, which
-    # a reverse proxy forwards, so it agrees in every deployment.
-    #
-    # Scheme is compared ONLY when we are already on https. A TLS terminator that
-    # nobody declared with `proxy_mode` leaves `host_url` saying "http" while the
-    # browser's Origin says "https" -- measured, not assumed -- and refusing that
-    # would break a working deployment to close a hole we cannot see from here.
-    # When `is_secure` does hold, an http Origin is a downgrade and is refused.
     origin = request.httprequest.headers.get("Origin")
     if not origin:
         return None

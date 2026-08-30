@@ -84,9 +84,6 @@ def _app():
 
 
 def test_geoip_does_not_claim_a_mapping_it_cannot_honour():
-    """It registered as a `collections.abc.Mapping` while `__iter__` and
-    `__len__` raised, so `isinstance(g, Mapping)` said yes and every generic
-    Mapping consumer blew up on a value that advertised itself as safe."""
     import collections.abc
 
     from odoo.http.geoip import GeoIP
@@ -103,8 +100,6 @@ def test_the_indexing_api_three_callers_still_use_keeps_working():
 
     assert geoip["country_name"] is None
     assert geoip.get("country_name") is None
-    # the default stands in for a missing KEY, as Mapping.get did -- not for a
-    # known key whose value happens to be None
     assert geoip.get("country_name", "fallback") is None
     assert geoip.get("not_a_geoip_key", "fallback") == "fallback"
     assert "country_code" in geoip

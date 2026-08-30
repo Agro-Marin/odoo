@@ -1,11 +1,3 @@
-"""PostgreSQL connectivity: pools, cursors, schema helpers.
-
-This module is the package's public surface and nothing else. The registry that
-used to live here -- `_pools`, `_budgets`, `_pool_lock` and the nine functions
-closing over them -- is `endpoints.EndpointRegistry`, so a test can build an
-isolated one instead of saving, clearing and restoring process globals.
-"""
-
 import atexit
 import logging
 
@@ -51,8 +43,6 @@ __all__ = [
 
 _logger = logging.getLogger(__name__)
 
-#: The process's registry. One per interpreter, by design -- the budgets it
-#: keys are meant to bound this process against a server's `max_connections`.
 registry = EndpointRegistry()
 
 

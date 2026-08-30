@@ -204,14 +204,6 @@ def test_every_loose_top_level_module_declares_all():
 
 
 def test_every_area_submodule_declares_all():
-    """The same rule, one level down.
-
-    It used to stop at the loose modules, and the rationale above applies
-    verbatim inside an area: `from odoo.libs.email.parsing import *` re-published
-    `base64`, `contextlib`, `re`, `idna` and `urlparse` because that module
-    declared nothing. `test_accidental_submodule_surface_is_bounded` is not a
-    substitute -- it counts modules, not the names inside them.
-    """
     missing = [
         str(p.relative_to(_LIBS)) for p in _area_submodules() if not _declares_all(p)
     ]
@@ -221,9 +213,6 @@ def test_every_area_submodule_declares_all():
     )
 
 
-# Names a submodule publishes that its area deliberately does not re-export.
-# Everything here is reachable as `odoo.libs.<area>.<module>.<name>`; the point
-# is that the area's own surface stays the smaller, curated one.
 UNPROMOTED_SUBMODULE_EXPORTS: dict[str, set[str]] = {
     "filesystem/appdirs.py": {
         "AppDirs",
@@ -257,15 +246,6 @@ def _all_of(path: pathlib.Path) -> set[str] | None:
 
 
 def test_every_submodule_export_is_reachable_from_its_area():
-    """A submodule's `__all__` is a subset of its area's, or pinned as private.
-
-    `test_every_area_submodule_declares_all` checks only that `__all__` exists,
-    which let the two drift into different meanings: "the module's contents"
-    down here and "the published surface" up in the area `__init__`. Seven
-    submodules had accumulated names the area never re-exported and nothing
-    outside libs ever imported -- `Granularity`, `DS_NS`, `IDENT_RE`,
-    `base64vlq_encode`, and `which`'s re-exported stdlib constants among them.
-    """
     drifted: dict[str, list[str]] = {}
     for path in _area_submodules():
         rel = str(path.relative_to(_LIBS))
@@ -286,7 +266,6 @@ def test_every_submodule_export_is_reachable_from_its_area():
 
 
 def test_the_unpromoted_pin_is_not_stale():
-    """A pinned name that no longer exists would hide a real drift later."""
     stale: dict[str, list[str]] = {}
     for rel, pinned in UNPROMOTED_SUBMODULE_EXPORTS.items():
         names = _all_of(_LIBS / rel) or set()

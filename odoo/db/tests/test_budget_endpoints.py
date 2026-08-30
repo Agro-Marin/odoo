@@ -10,20 +10,8 @@ from odoo.db.endpoints import EndpointRegistry
 
 
 class _BudgetCase(unittest.TestCase):
-    """Each case gets its own registry.
-
-    This used to save, clear and restore `self.reg._pools` and `self.reg._budgets` around
-    every test, because the registry was module state in `odoo/db/__init__.py`.
-    A registry is an object now, so an isolated one costs a constructor and
-    cannot leak into another test or into the process's real pools.
-    """
-
     def setUp(self):
         self.reg = EndpointRegistry()
-        # The package's own entry points resolve `registry` by name at call
-        # time, so swapping the one object routes `db_connect` and
-        # `pool_health` through this case's registry too. Swapping an object
-        # replaces clearing and restoring two module dicts.
         patcher = unittest.mock.patch.object(D, "registry", self.reg)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -341,17 +329,6 @@ if __name__ == "__main__":
 
 
 class TestTheCapHoldsUnderRealContention(unittest.TestCase):
-    """The one thing the budget exists to guarantee, driven until it saturates.
-
-    Every other test here is about how budgets are KEYED. This is about the
-    cap itself, and the property it has to have is not "no exception" but
-    "never more than `maxconn` permits out at once" -- which only means
-    something if the run actually reaches `maxconn`, so the peak is asserted
-    to equal it rather than merely stay under it. A holder that returns
-    immediately never saturates: measured, the same test without the hold
-    peaked at 2 of 4 and would have passed against a broken cap.
-    """
-
     MAXCONN = 4
     THREADS = 40
     ROUNDS = 25
@@ -394,7 +371,6 @@ class TestTheCapHoldsUnderRealContention(unittest.TestCase):
         self.assertEqual(budget.available, self.MAXCONN)
 
     def test_a_release_wakes_a_waiter(self):
-        """A lost wakeup is a hang, and a hang is what `db_borrow_timeout` is."""
         budget = ConnectionBudget(1)
         self.assertTrue(budget.acquire(1.0))
         served: list[int] = []
@@ -414,11 +390,6 @@ class TestTheCapHoldsUnderRealContention(unittest.TestCase):
         self.assertEqual(len(served), 8, f"a waiter was never woken: {sorted(served)}")
 
     def test_a_zero_timeout_still_takes_a_free_permit(self):
-        """`borrow` derives its timeout from a deadline that can reach zero.
-
-        Refusing a permit that is sitting there would turn a slow-but-fine
-        borrow into a spurious `PoolError`.
-        """
         budget = ConnectionBudget(1)
         self.assertTrue(budget.acquire(0))
         self.assertFalse(budget.acquire(0))

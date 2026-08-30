@@ -38,10 +38,6 @@ from odoo.libs.image import (
 )
 from odoo.tools.translate import LazyTranslate
 
-# Every name this module re-exports or defines, per the rule
-# tests/framework/test_public_surfaces.py::TestToolsSubmoduleSurfaces pins:
-# a tools shim publishes what it defines plus what it takes from another
-# odoo module.  Third-party imports are incidental and stay out.
 __all__ = [
     "EXIF_TAG_ORIENTATION",
     "FILETYPE_BASE64_MAGICWORD",

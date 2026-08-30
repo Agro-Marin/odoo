@@ -54,5 +54,4 @@ def test_a_needle_that_is_neither_says_so():
 
 def test_a_non_recordset_subject_says_so():
     with pytest.raises(TypeError, match="subject recordset"):
-        # a non-recordset is the case under test, so the wrong type is deliberate
         determine("anything", object())  # type: ignore[arg-type]

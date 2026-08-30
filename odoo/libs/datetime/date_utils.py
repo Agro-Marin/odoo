@@ -167,15 +167,6 @@ def get_timedelta(
 
 
 def start_of[D: (date, datetime)](value: D, granularity: Granularity) -> D:
-    """The start of the period `value` falls in.
-
-    `granularity="week"` means the ISO week, i.e. Monday, deliberately and not
-    by oversight: these bounds are read back against SQL, where PostgreSQL's
-    `date_trunc('week')` is ISO too, so a locale-aware answer here would put
-    read_group's buckets and its boundaries on different calendars. `weekstart`
-    below is the locale-aware one, for display; the two disagree by a day in
-    en_US and by five in ar_EG, which is correct for what each is for.
-    """
     if granularity == "year":
         result = value.replace(month=1, day=1)
     elif granularity == "quarter":
@@ -273,11 +264,6 @@ def date_range[D: (date, datetime)](
             end = end.replace(tzinfo=None)
 
     elif isinstance(start, date) and isinstance(end, date):
-        # `datetime` IS a `date`, so `isinstance(start + step, date)` -- which
-        # this used to test -- is True even when a sub-day step has promoted the
-        # result to a datetime, and the guard never fired. The caller then hit
-        # `start >= start + step` below as a bare TypeError about date vs
-        # datetime, eleven lines from the check written to explain it.
         if type(start + step) is not type(start):
             msg = "the step interval must add only entire days"
             raise ValueError(msg)

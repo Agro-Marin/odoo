@@ -348,16 +348,6 @@ class SyncCollector(Collector):
 
     def __init__(self) -> None:
         super().__init__()
-        # Bind the hook ONCE.  `self.hook` builds a fresh bound method on every
-        # attribute access, so `sys.gettrace() is self.hook` -- which is what
-        # stop() used to ask -- was never true, and the trace function was never
-        # removed: not on the error path, on the ordinary one.  One profile left
-        # the worker thread traced for the rest of its life (measured: a tight
-        # loop 3x slower, entries piling into a collector nobody reads, and
-        # start()'s own "settrace is already set" guard permanently tripped, so
-        # sync profiling worked exactly once per thread).  The siblings never hit
-        # this because list.remove() compares with ==; this is the only collector
-        # that needed an identity, so it is the only one that has to own it.
         self._hook = self.hook
 
     def start(self):
@@ -383,8 +373,6 @@ class SyncCollector(Collector):
         if event == "call" and _frame.f_back:
             entry["parent_frame"] = _format_frame(_frame.f_back)
         self.progress(entry, frame=_frame)
-        # the stored reference, not `self.hook`: returning the latter allocated a
-        # bound method on every traced event
         return self._hook
 
     def _get_stack_trace(self, frame=None):
@@ -709,12 +697,6 @@ class Profiler:
                 return
             self.done = True
         try:
-            # Every collector gets stopped, whatever the one before it did.
-            # __enter__ already unwinds all-or-nothing; end() used to abort at
-            # the first raising stop(), and what it stranded outlived the
-            # request: SyncCollector's sys.settrace, MemoryCollector's
-            # process-wide lock (so no memory profiling ever again in that
-            # process) and tracemalloc left tracing.
             for collector in self.collectors:
                 try:
                     collector.stop()

@@ -91,22 +91,6 @@ if __name__ == "__main__":
 
 
 class TestFromstringReturnsATreeTypedElement(unittest.TestCase):
-    """`fromstring` builds through the tree's own class lookup, always.
-
-    It used to wrap loose body text in `etree.Element("p")`, which resolves
-    through the *default* parser and so produced a bare `etree._Element` among
-    the `lxml.html.HtmlElement`s the html parser had made. Whether that leaked
-    out of `fromstring` depended on a local variable's lifetime: lxml caches
-    element proxies, so `body[0]` returned the same bare object while the local
-    was alive and rebuilt it as an HtmlElement once it was not.
-
-    `html_normalize` carried a serialise/reparse round trip to undo it --
-    without it, `Cleaner` raised `AttributeError: 'lxml.etree._Element' object
-    has no attribute 'rewrite_links'`. Fixing the class at the source removed
-    the need for the round trip, so these pin the property the round trip was
-    standing in for.
-    """
-
     INPUTS = [
         "Many2one<string>",
         "plain text",
@@ -121,7 +105,6 @@ class TestFromstringReturnsATreeTypedElement(unittest.TestCase):
     ]
 
     def test_the_two_classes_really_do_differ(self):
-        # Without this the assertions below would hold vacuously.
         self.assertFalse(hasattr(etree.Element("p"), "rewrite_links"))
         self.assertTrue(hasattr(lxml_html.fromstring("<p>x</p>"), "rewrite_links"))
 
@@ -133,8 +116,6 @@ class TestFromstringReturnsATreeTypedElement(unittest.TestCase):
                 self.assertTrue(hasattr(doc, "rewrite_links"))
 
     def test_the_class_does_not_depend_on_a_live_reference(self):
-        # The old behaviour: hold the proxy and get one class, drop it and get
-        # another. Ask twice, with nothing kept in between.
         first = type(fromstring("Many2one<string>")[0])
         second = type(fromstring("Many2one<string>")[0])
         self.assertIs(first, second)

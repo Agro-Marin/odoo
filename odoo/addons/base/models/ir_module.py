@@ -442,11 +442,6 @@ class IrModuleModule(models.Model):
                     ) as image_file:
                         module.icon_image = base64.b64encode(image_file.read())
                 except OSError, ValueError:
-                    # ValueError: `file_open` raises it, not OSError, when the
-                    # path fails `filter_ext` -- so a module row whose `icon`
-                    # names anything but an image made this compute raise
-                    # instead of falling back, and every list view that renders
-                    # an icon went with it.
                     module.icon_image = ""
             countries = manifest["countries"] if manifest else []
             if len(countries) == 1:

@@ -49,9 +49,6 @@ def _file_path_resolved(
 
 
 def clear_caches() -> None:
-    # _file_path_resolved answers "which addons directory provides this path",
-    # keyed on the path alone; odoo.addons.__path__ is the other half and cannot
-    # be in the key. Callers that REPLACE that list must call this.
     _file_path_resolved.cache_clear()
     _addons_dir_paths.cache_clear()
     _root_path.cache_clear()
@@ -112,8 +109,6 @@ def file_open(
     filter_ext: tuple[str, ...] = (),
     env: Environment | None = None,
 ) -> IO[Any]:
-    # write modes reopen an existing file; file_path resolves a name by finding
-    # it, so there is nowhere to put one that does not exist yet
     writing = any(m in mode for m in ("w", "x", "a"))
     try:
         path = file_path(name, filter_ext=filter_ext, env=env, check_exists=False)

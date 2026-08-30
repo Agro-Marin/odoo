@@ -17,26 +17,6 @@ if TYPE_CHECKING:
 
 
 def _endpoints(item: tuple[Any, Any, Any]) -> tuple[Any, Any]:
-    """Sort key that stops before the payload.
-
-    The two-element key is also what orders coincident boundaries, and the
-    order comes from the flag *strings*: ``"start" < "stop"`` is what merges
-    two adjacent intervals into one. Renaming either changes that -- measured:
-    ``"start"`` -> ``"zstart"`` splits ``[(0,5),(5,10)]`` back into two -- and
-    ``test_intervals`` catches it, which is the only reason it is a note here
-    rather than an integer rank. ``"switch"`` carries no such weight: renaming
-    it changes nothing, tested across five coincident-boundary shapes.
-
-    Both shapes sorted here end in the payload -- ``(start, stop, records)``
-    going in, ``(value, flag, records)`` once split into boundaries -- and
-    sorting one whole lets a tie on the first two fall through to comparing the
-    *payload*: an Odoo recordset, whose ``__lt__`` is a subset partial order and
-    returns ``NotImplemented`` across models, i.e. ``TypeError``. A sort key must never
-    be able to reach a payload object. Measured over ``/resource,/hr``: the
-    boundary sort never got there (0 of 98,322 boundaries), but the
-    ``keep_distinct`` pre-sort did, twice in 480 calls, with three payload
-    models coexisting in the run.
-    """
     return (item[0], item[1])
 
 

@@ -28,13 +28,6 @@ class TestCurrencyDependsCompleteness(TransactionCase):
         )
 
     def test_rate_string_follows_its_own_currency_code(self):
-        """The half of `rate_string` that a field path *can* express.
-
-        It renders both the target currency's code and its own. The target comes
-        from the company or the context, so no path from `res.currency` reaches
-        it -- that half is what `known_incomplete` above records. Its own `name`
-        is reachable, and used not to be declared.
-        """
         company_currency = self.env.company.currency_id
         other = (
             self.env["res.currency"]
@@ -44,7 +37,7 @@ class TestCurrencyDependsCompleteness(TransactionCase):
         self.assertTrue(other, "need a currency other than the company's")
         self.env.flush_all()
         self.env.invalidate_all()
-        other.rate_string  # warm
+        other.rate_string
         other.write({"name": "ZZZ"})
         cached = self.env["res.currency"].browse(other.id).rate_string
         self.env.flush_all()
@@ -53,10 +46,6 @@ class TestCurrencyDependsCompleteness(TransactionCase):
         self.assertEqual(cached, fresh, "renaming a currency left rate_string stale")
 
 
-#: Computed fields whose real input no field path can reach, so the staleness is
-#: a limit of `@api.depends` rather than an omission. Keyed by `model.field`,
-#: the way `test_depends_audit.EXEMPT` is, and checked in the same two
-#: directions: an entry that stops going stale fails the sweep too.
 SWEEP_EXEMPT: dict[str, str] = {
     "res.currency.rate_string": (
         "renders the *company's* currency code, chosen from the company or the "
@@ -71,26 +60,7 @@ SWEEP_EXEMPT: dict[str, str] = {
 
 @tagged("-standard", "depends_sweep")
 class TestDependsSweep(TransactionCase):
-    """Every installed model, probed for computed fields that go stale.
-
-    Off by default and run on demand -- it writes to every writable stored field
-    of every model with records, which is minutes rather than seconds:
-
-        odoo-bin -d <db> --test-enable --test-tags depends_sweep --stop-after-init
-
-    Its yield is proportional to what is installed, so it is worth running after
-    installing a module rather than only in CI. Eight real bugs came out of the
-    first two runs.
-    """
-
     def _sweepable_models(self, unreadable: list[str]):
-        """Every model with computed fields and records to probe them with.
-
-        `unreadable` collects the models whose own `search` raised. A sweep that
-        quietly covers less than it did last week is worse than one that fails,
-        so the caller reports that list rather than letting it disappear into a
-        `continue`.
-        """
         for model_name in sorted(self.env.registry):
             model = self.env[model_name].sudo()
             if model._abstract or model._transient or not model._auto:
@@ -108,10 +78,6 @@ class TestDependsSweep(TransactionCase):
     def test_every_installed_model_declares_what_its_computes_read(self):
         found: dict[str, tuple] = {}
         unreadable: list[str] = []
-        # A savepoint per model, not a cursor rollback: the helper already
-        # savepoints each probe, but a hundred models of probing accumulate
-        # enough registry-cache drift to make a later model's own `search`
-        # raise -- which this used to swallow, silently covering less.
         for _model_name, records in self._sweepable_models(unreadable):
             savepoint = self.env.cr.savepoint(flush=False)
             try:
@@ -159,16 +125,6 @@ class TestDependsSweep(TransactionCase):
         )
 
     def test_the_sweep_can_detect_a_deliberately_broken_field(self):
-        """A sweep that reports nothing must be shown able to report something.
-
-        `res.partner.commercial_partner_id` follows `parent_id`; strip that from
-        the registry and a `parent_id` write has to leave it stale. Two halves
-        of the sweep ride on this one case: the probe is a **many2one**, which
-        no scalar fixture exercises, and the field is **stored**, which a
-        cache-versus-re-read comparison cannot see at all -- the column simply
-        never updates, so both readings agree on the stale value. Getting a
-        verdict here means the forced-recompute path is live.
-        """
         Partner = self.env["res.partner"]
         parent = Partner.create({"name": "Sensitivity parent", "is_company": True})
         other = Partner.create({"name": "Sensitivity other", "is_company": True})

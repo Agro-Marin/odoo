@@ -14,16 +14,6 @@ def test_all_has_no_duplicates():
 
 
 def test_every_public_name_is_declared_in_all():
-    """The other direction, which nothing checked.
-
-    `__init__` re-exports the package's public API, so a name it binds is one
-    it means to publish -- and a name it publishes but does not declare is
-    invisible to `from odoo.http import *`, to a type checker, and to anyone
-    reading `__all__` to learn the surface. Two shipped that way: the openapi
-    builders were never re-exported at all while `__init__` and the README both
-    claimed every symbol was, and `_session_identifier_re` was re-exported
-    without being declared.
-    """
     declared = set(odoo.http.__all__)
     published = {
         name

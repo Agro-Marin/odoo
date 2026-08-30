@@ -31,12 +31,6 @@ def contains_dot_segments(path: str) -> bool:
 
 
 def _is_path_prefix(base_path: str, path: str) -> bool:
-    """Whether `path` lies under `base_path`, by segment.
-
-    `str.startswith` answers this by character, so a base of "/a" accepted an
-    extra of "/abc/d" -- a sibling, not a descendant -- and `removeprefix` then
-    silently produced "/a/bc/d", a third URL that is neither input.
-    """
     prefix = base_path.rstrip("/")
     if not prefix:
         return True

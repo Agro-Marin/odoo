@@ -1,11 +1,3 @@
-"""`FieldCache.invalidate_field` must notify the detach hook in both branches.
-
-`Field._get_cache` memoises a context-dependent field's *sub*-cache per
-environment. Anything that removes that sub-dict from the mapping leaves the
-memo pointing at an orphan, so the hook that drops the memos has to fire. The
-`ids=None` branch used to clear the mapping and return without it.
-"""
-
 from odoo.orm.components.cache import FieldCache
 
 

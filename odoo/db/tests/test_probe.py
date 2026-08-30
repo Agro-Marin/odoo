@@ -1,11 +1,3 @@
-"""The reachability prober, extracted from `ConnectionPool` into `probe.py`.
-
-These classes lived in `test_pool.py` because the prober lived in `pool.py`.
-They exercise `ReachabilityProbe` through the pool that composes it, which is
-the seam that matters: the pool must probe an unseen DSN, skip a proven one, and
-revoke the proof when the database closes or the credentials rotate.
-"""
-
 import unittest
 from time import monotonic
 from unittest.mock import patch
@@ -114,14 +106,6 @@ class TestReachabilityProof(unittest.TestCase):
 
 
 class TestTheDedupedProbeDoesNotShareATraceback(unittest.TestCase):
-    """Every follower raises the ONE exception the leader recorded.
-
-    A `raise` appends to that object's traceback, so without clearing it first
-    the shared exception grows by a frame per follower -- on a dead DSN, which
-    is the case this dedup exists for, and with frames from unrelated threads
-    interleaved.
-    """
-
     def _run(self, followers=8):
         import threading
         import time

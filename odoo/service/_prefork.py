@@ -63,19 +63,6 @@ class PreforkServer(CommonServer):
     flavor = "prefork"
 
     def metrics(self) -> dict[str, Any]:
-        """The master's own counts, answered from either side of the fork.
-
-        `/web/metrics` is an HTTP route, so under prefork it is ALWAYS served
-        by a worker child -- and a child cannot count its siblings.  This
-        method used to return `{}` there, which meant the four metrics that
-        exist to describe prefork (`odoo_workers`, `odoo_worker_population`,
-        `odoo_worker_generation`, `odoo_long_polling_alive`) were declared by
-        `render_prometheus` and could never be emitted by the only server
-        flavour that has them.  Measured before the census existed: threaded
-        exposed four flavour metrics, prefork exposed none.
-
-        So the master writes what only it knows, and the child reads it.
-        """
         if os.getpid() != self.pid:
             return self._read_census()
         return self._census()
@@ -93,27 +80,12 @@ class PreforkServer(CommonServer):
         }
 
     def _census_path(self) -> Path | None:
-        """Both sides derive this from the MASTER's pid.
-
-        `self.pid` is assigned in `CommonServer.__init__`, which runs in the
-        master, so a forked child carries the master's pid here while its own
-        `os.getpid()` differs.  That difference is what `metrics()` branches
-        on, and it is also what lets the child name the file without being
-        told where it is.
-        """
         try:
             return Path(config["data_dir"]) / f"prefork-census-{self.pid}.json"
         except Exception:
             return None
 
     def _publish_census(self) -> None:
-        """Best-effort by construction: a failure leaves the metrics absent.
-
-        Absent is exactly what they were before this existed, so nothing here
-        is allowed to raise into the master's run loop.  Written at most every
-        `CENSUS_WRITE_INTERVAL_S`; `stop_workers_gracefully` drops the beat to
-        0.1s and must not turn that into ten writes a second.
-        """
         try:
             now = time.monotonic()
             if now - self._census_written_at < CENSUS_WRITE_INTERVAL_S:
@@ -134,14 +106,6 @@ class PreforkServer(CommonServer):
             self.logger.debug("Could not publish the worker census", exc_info=True)
 
     def _read_census(self) -> dict[str, Any]:
-        """A stale census is no census.
-
-        The file outlives a master that was killed rather than stopped, and
-        reporting its last counts as current would be worse than reporting
-        nothing -- a dashboard would show a full complement of workers for a
-        server that is gone.  `CENSUS_MAX_AGE_S` is many multiples of the
-        write interval, so a live master is never mistaken for a dead one.
-        """
         path = self._census_path()
         if path is None:
             return {}
@@ -160,18 +124,6 @@ class PreforkServer(CommonServer):
                 path.unlink()
 
     def _sweep_stale_censuses(self) -> None:
-        """Collect what a master that was KILLED rather than stopped left behind.
-
-        `_discard_census` only runs on the way out of `stop()`, so a SIGKILLed
-        master leaves its file for a pid that will never write again.  The age
-        guard in `_read_census` already makes such a file harmless, but
-        without this it also makes it permanent -- one more piece of litter in
-        `data_dir` per hard kill.  Swept at startup, when there is nothing to
-        race with and the cost is one listdir.
-
-        Our own file is not a candidate: it is named for OUR pid and does not
-        exist yet at `start()`.
-        """
         path = self._census_path()
         if path is None:
             return
@@ -351,27 +303,6 @@ class PreforkServer(CommonServer):
             self.workers.pop(pid).close()
 
     def _remember_killed(self, pid: int) -> None:
-        """Keep a killed worker reachable for `_note_worker_exit` after the pop.
-
-        `worker_pop` drops it from `self.workers` so the watchdog does not kill
-        the same pid twice and its pipes close promptly.  But the exit is only
-        *accounted* for later, when `process_zombie` reaps it -- and
-        `_note_worker_exit` looks the worker up in `self.workers` to learn how
-        long it lived.  Popping first therefore made that lookup fail and the
-        function return before doing anything, which took the whole crash
-        branch with it: no "died after Xs" line, and no back-off.
-
-        That branch is written for exactly this case -- `crashed_by_signal`
-        excludes SIGTERM, the graceful stop, and nothing else, so SIGKILL is
-        the signal it means -- and the watchdog is the only thing that sends
-        SIGKILL.  It was unreachable by construction.  Measured: a worker the
-        watchdog killed left `_consecutive_fast_deaths` at 0, where a worker
-        that exited on its own took it to 1 and armed the back-off.
-
-        Entries leave on the next reap.  The one path that pops without
-        reaping is the drain child in `stop_workers_gracefully`, which is
-        bounded by the worker count and about to exit.
-        """
         worker = self.workers.get(pid)
         if worker is not None:
             self._killed_workers[pid] = worker
@@ -518,23 +449,6 @@ class PreforkServer(CommonServer):
                 sel.close()
 
     def _watchdog_selector(self) -> tuple[selectors.BaseSelector, dict[int, Worker]]:
-        """Keep one epoll instance and re-register only what actually moved.
-
-        The watched set changes only when a worker is spawned or reaped, but
-        this runs once per beat -- and `stop_workers_gracefully` drops the beat
-        to 0.1s, so rebuilding it here meant creating and tearing down an epoll
-        instance ten times a second through the whole shutdown.
-
-        What moved is decided per OWNER, not per fd number.  `worker_pop`
-        closes a reaped worker's pipe, and the very next `pipe_new()` hands
-        the lowest free descriptors straight back -- so the replacement worker
-        arrives on the *same fd number* the dead one had.  Diffing fd numbers
-        alone sees no change and skips the re-register, leaving the selector's
-        map claiming a descriptor that epoll dropped when it was closed.  The
-        new worker is then never selected on, its `watchdog_time` never
-        advances, and `process_timeout` SIGKILLs it one `limit_time_real`
-        later -- every replacement, forever, while it sits idle.
-        """
         fds = {w.watchdog_pipe[0]: w for w in self.workers.values()}
         sel = getattr(self, "_selector", None)
         if sel is None:
@@ -581,13 +495,6 @@ class PreforkServer(CommonServer):
         signal.signal(signal.SIGUSR2, log_ormcache_stats)
 
         if config["http_enable"]:
-            # Say which of the three it actually was, AFTER doing it.  The
-            # message used to be chosen before this branch ran, so a master
-            # that had just inherited a listening socket across a SIGHUP
-            # reload announced "running on <interface>:<port>" -- the wording
-            # for a fresh bind, which is the one thing it had not done.  On a
-            # live reload that is the only line an operator gets, and it says
-            # the port was rebound when it never closed.
             inherited_fd = os.environ.pop("ODOO_HTTP_SOCKET_FD", None)
             if inherited_fd:
                 self.socket = socket.socket(fileno=int(inherited_fd))
@@ -786,9 +693,6 @@ class PreforkServer(CommonServer):
 
         if self.socket:
             self.socket.close()
-        # The on_stop hooks run on every other path, and a crash is when a
-        # flush hook matters most -- so the forceful path runs them too, just
-        # defensively: one raising hook must not keep the workers alive.
         try:
             super().stop()
         except Exception:

@@ -86,15 +86,6 @@ msgstr "Bonjour"
 
 
 class TestACodeReferenceWithoutALineNumber(unittest.TestCase):
-    """`#: code:path.py` with no `:line` must not take the import down.
-
-    polib reports the line as '', int('') raised ValueError, and the only
-    caller of CodeTranslations._read_code_translations_file catches OSError --
-    so one such reference in one module's .po broke every Python and JS
-    translation for that language. msgmerge and several translation platforms
-    emit references in exactly that shape.
-    """
-
     def test_the_row_is_still_produced(self):
         rows = _read(_CODE_WITHOUT_A_LINE)
         self.assertEqual(len(rows), 1)
@@ -104,7 +95,6 @@ class TestACodeReferenceWithoutALineNumber(unittest.TestCase):
         self.assertEqual(row["value"], "Bonjour")
 
     def test_the_missing_line_reads_as_zero(self):
-        # Neither consumer reads res_id on a code row; 0 is the absence.
         self.assertEqual(_read(_CODE_WITHOUT_A_LINE)[0]["res_id"], 0)
 
     def test_a_real_line_number_is_still_carried(self):
@@ -126,8 +116,6 @@ class TestACodeReferenceWithoutALineNumber(unittest.TestCase):
 
 class TestAnyBinaryStreamIsAcceptable(unittest.TestCase):
     def test_a_stream_without_a_name_is_read(self):
-        # The parameter is annotated IO[bytes]; requiring .name made a plain
-        # BytesIO an AttributeError, which every test here worked around.
         import io as _io
 
         source = _io.BytesIO((_HEADER + _CODE_WITHOUT_A_LINE).encode())

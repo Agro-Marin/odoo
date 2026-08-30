@@ -25,21 +25,11 @@ class TestClassifyDdl(unittest.TestCase):
             self.assertTrue(_classify_ddl(f"{kw} something"), kw)
 
     def test_dml_not_detected(self):
-        # TRUNCATE stays out deliberately: its `%s` stands for an identifier,
-        # and inlining quotes it into a literal, so `TRUNCATE TABLE 'vp_t'` is
-        # a syntax error just as `$1` was. Nothing is gained by claiming it.
         for kw in ("SELECT", "INSERT", "UPDATE", "DELETE", "WITH", "TRUNCATE"):
             self.assertFalse(_classify_ddl(f"{kw} something"), kw)
 
 
 class TestSetTakesClientSideParams(unittest.TestCase):
-    """`SET x = %s` is a VALUE slot, which is what makes it worth claiming.
-
-    PostgreSQL rejects `$N` there as in any DDL position, and unlike the
-    identifier slots of TRUNCATE/LOCK/ANALYZE, inlining actually rescues it:
-    `SET statement_timeout = '5s'` runs. Verified against PG 18.
-    """
-
     def test_set_is_claimed(self):
         for qs in (
             "SET statement_timeout = %s",
@@ -70,12 +60,6 @@ class TestSetTakesClientSideParams(unittest.TestCase):
         )
 
     def test_the_se_branch_runs_no_regex(self):
-        """The point of the third-character test is that it is not a regex.
-
-        `SET` in `_DDL_KEYWORDS` puts every SELECT through `_RE_DDL` -- 152.5
-        ns -> 370.7 ns measured -- and a dedicated `SE`-only regex still costs
-        301 ns for the leading-comment group. The slice costs +5.4 ns.
-        """
         src = inspect.getsource(classify_statement)
         branch = src[src.index('if c == "SE":') :]
         branch = branch[: branch.index("\n    if ")]

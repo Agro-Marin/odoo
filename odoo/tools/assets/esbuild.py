@@ -64,13 +64,6 @@ _ESBUILD_PATH: str | None = None
 
 
 def _find_esbuild() -> str | None:
-    """Locate esbuild, remembering only a hit.
-
-    @functools.cache memoised the miss too, so a checkout that ran anything
-    before `npm install` kept answering "no esbuild" for the life of the
-    process. A hit is worth caching -- the binary does not move -- and a miss
-    costs two PATH walks to re-ask.
-    """
     global _ESBUILD_PATH  # noqa: PLW0603  process-wide memo of a filesystem lookup
     if _ESBUILD_PATH is not None:
         return _ESBUILD_PATH
@@ -82,42 +75,10 @@ def _find_esbuild() -> str | None:
     return _ESBUILD_PATH
 
 
-# `{` is a token because a substitution can contain braces of its own.
 _TEMPLATE_LITERAL_TOKENS = re.compile(r"\\.|`|\$\{|\{|\}", re.DOTALL)
 
 
 def has_nested_template_literal(source: str) -> bool:
-    """Whether a template literal appears inside another one's substitution.
-
-    The answer decides between rjsmin and esbuild, and the two errors are not
-    symmetric: a false positive costs an esbuild run, a false negative hands
-    rjsmin source it corrupts silently. So anything ambiguous answers True.
-
-    Stack entries are "tpl" for an open template literal and an INT for an open
-    substitution, counting the braces opened inside it. That count is the fix
-    for a false negative: `}` used to close the substitution unconditionally, so
-    the first brace of an object literal or an arrow body ended it early --
-
-        const a = `${ f({}) + `n  o` }`;
-
-    -- after which the scanner believed it was back in the template body and
-    read the nested literal's OPENING backtick as the outer one's closer. It
-    answered False, rjsmin ran, and `n  o` shipped as `n o`: whitespace
-    collapsed inside a string, in the minified bundle, with nothing raised.
-
-    KNOWN AND NOT FIXED HERE: a backtick inside a line comment or a quoted
-    string desynchronises the stack the same way, so
-
-        // don't use ` here
-        const a = `${`n  o`}`;
-
-    still answers False and still reaches rjsmin, which still ships `n o`.
-    Closing it means knowing where code ends and template TEXT begins -- inside
-    a body, `//` is not a comment, and swallowing to end of line there would eat
-    the closing backtick of `https://x` and flag every URL in a template. That
-    is a JS tokeniser, not another alternative in this regex; a first attempt at
-    one regressed `const a = `${ 1/2 } // not a comment`;` from False to True.
-    """
     if "`" not in source or "${" not in source:
         return False
     stack: list[str | int] = []

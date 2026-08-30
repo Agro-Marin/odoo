@@ -172,12 +172,6 @@ def _contextual_values_of(*nodes: ast.AST | None) -> set[str]:
 _CONTEXTUAL_CHILDREN: dict[type, Callable[[typing.Any], tuple]] = {
     ast.List: lambda n: tuple(n.elts),
     ast.Tuple: lambda n: tuple(n.elts),
-    # ast.Slice, not ast.Index. Index was the pre-3.9 wrapper and the parser has
-    # not produced one since -- ast.Index.__new__ returns its argument, so
-    # nothing is ever an instance of it and the entry could not fire. Its
-    # replacement was never added, which left Subscript half-supported: `a[b]`
-    # resolved and `a[b:c]` raised "Unsupported expression: Slice", surfacing as
-    # "Wrong domain formatting." _contextual_values_of skips the None bounds.
     ast.Slice: lambda n: (n.lower, n.upper, n.step),
     ast.Subscript: lambda n: (n.value, n.slice),
     ast.Compare: lambda n: (n.left, *n.comparators),
@@ -201,9 +195,6 @@ def _get_expression_contextual_values(item_ast: ast.AST) -> set[str]:
             return {f"{sorted(values).pop()}.{item_ast.attr}"}
         return values
 
-    # Exact type only: there are no subclass relationships among the keys above,
-    # so the isinstance sweep that used to follow this lookup could never match
-    # anything the lookup missed.
     children = _CONTEXTUAL_CHILDREN.get(type(item_ast))
     if children is None:
         raise ValueError(f"Unsupported expression: {type(item_ast).__name__}.")
@@ -225,8 +216,6 @@ def get_dict_asts(expr: str | ast.AST) -> dict[str, ast.AST]:
     if not isinstance(expr, ast.Dict):
         msg = "Non-dict expression"
         raise ValueError(msg)
-    # the comprehension below used to repeat this predicate as a filter, which
-    # could not drop anything the raise has not already stopped
     if not all(
         (isinstance(key, ast.Constant) and isinstance(key.value, str))
         for key in expr.keys
@@ -320,10 +309,6 @@ def check_fa_class_accessibility(node, description):
     }
     valid_t_attrs = {"t-value", "t-raw", "t-field", "t-esc", "t-out"}
 
-    # getparent() is None for the arch root, and a root element carries a class
-    # like any other: `<form class="fa-star">` reached here through
-    # ir.ui.view._check_attr_class and raised AttributeError out of create().
-    # Every other traversal in this function is already None-safe.
     parent = node.getparent()
     if (node.tail or "").strip() or (
         parent is not None and (parent.text or "").strip()

@@ -2333,20 +2333,6 @@ class TestReconcileObsoleteTerms(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestTranslationImportCrossModel(TransactionCase):
-    """A .po naming one model for an xmlid that belongs to another writes nowhere.
-
-    An xmlid is unique, so (module, name) resolves to exactly one ir_model_data
-    row -- but `m.id = imd.res_id` then matches whatever row of the named model's
-    table carries that id, and every model has its own sequence, so the ids
-    collide by default.  Without `imd.model` in the join, a model_terms row
-    translated an unrelated record of the model the .po named.
-
-    `_save_model_translations` has always carried that guard; the model_terms
-    path did not, and the two take identically shaped rows from `_load`.
-    Reached by module install/upgrade (`_load_module_terms` passes no xmlids
-    filter) as well as by the Import Translation wizard.
-    """
-
     def setUp(self):
         super().setUp()
         self.env["res.lang"]._activate_lang("fr_FR")
@@ -2367,7 +2353,6 @@ class TestTranslationImportCrossModel(TransactionCase):
                 "arch_db": "<t><p>Innocent bystander</p></t>",
             }
         )
-        # the xmlid resolves to a DIFFERENT model, at the same res_id
         self.env["ir.model.data"].create(
             {
                 "module": "base",

@@ -175,17 +175,6 @@ class TestConnectionInfoForUri(unittest.TestCase):
 
 
 class TestCategorizeQuery(unittest.TestCase):
-    """`categorize_query` is pure: no cursor, no database, no registry.
-
-    These lived in `addons/base/tests/test_db_cursor.py`, so a regression in
-    the read/write bucketing needed a full `odoo-bin` run against a database to
-    surface. A mutation sweep is what said so: breaking the UPDATE branch was
-    the one change of thirteen that `pytest odoo/db/tests` did not catch, and
-    it was a tier problem rather than a coverage one.
-    `coding_guidelines.rst` §6 -- put a test in the lowest tier that can
-    express it.
-    """
-
     def test_select_from(self):
         qtype, table = categorize_query("SELECT * FROM res_users")
         self.assertEqual(qtype, "from")
@@ -252,14 +241,6 @@ class TestCategorizeQuery(unittest.TestCase):
 
 
 class TestFromInsideAFunctionCall(unittest.TestCase):
-    """SQL spells `FROM` inside parentheses for things that are not tables.
-
-    `re_from` took the first `FROM` anywhere, so `EXTRACT(epoch FROM now())`
-    named a table called `now`.  These pin the three outcomes `_search_from`
-    now distinguishes: a depth-0 FROM, a depth-0 FROM over a subquery, and no
-    FROM clause at all.
-    """
-
     def test_extract_does_not_shadow_the_real_from(self):
         qtype, table = categorize_query(
             "SELECT extract(epoch FROM now() - x) FROM res_partner"

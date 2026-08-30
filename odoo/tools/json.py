@@ -21,10 +21,6 @@ from odoo.libs.json import (
     loads as fast_loads,
 )
 
-# Every name this module re-exports or defines, per the rule
-# tests/framework/test_public_surfaces.py::TestToolsSubmoduleSurfaces pins:
-# a tools shim publishes what it defines plus what it takes from another
-# odoo module.  Third-party imports are incidental and stay out.
 __all__ = [
     "JSON",
     "ReadonlyDict",
@@ -43,13 +39,6 @@ _fields: typing.Any = None
 
 
 def _odoo_fields() -> typing.Any:
-    """`odoo.fields`, bound once.
-
-    The import cannot move to module scope -- odoo.fields imports this package --
-    but it does not have to run per object either: the statement costs 250ns
-    against 21ns for the cached global, and `_convert` is on the encoding path
-    for every date, Markup, dataclass and recordset in a response.
-    """
     global _fields  # noqa: PLW0603  one-time lazy binding of a module that imports us
     if _fields is None:
         from odoo import fields
@@ -59,13 +48,6 @@ def _odoo_fields() -> typing.Any:
 
 
 def _convert(obj: object) -> object:
-    """The one conversion table both defaults answer to.
-
-    `json_default` and `orjson_default` used to carry a copy each, and they had
-    drifted: only orjson's knew about dataclasses, so the same object came out
-    `{"x": 1}` through one encoder and `"P(x=1)"` through the other.  One table,
-    two drivers -- what differs between them is recursion, not policy.
-    """
     fields = _odoo_fields()
 
     if isinstance(obj, datetime):
@@ -84,21 +66,12 @@ def _convert(obj: object) -> object:
 
 
 def json_default(obj: object) -> object:
-    """`default=` for the stdlib json encoder.
-
-    It re-enters `default` for anything the conversion returns that it still
-    cannot serialise, so unwrapping a `lazy` one level is enough.
-    """
     if isinstance(obj, lazy):
         return obj._value
     return _convert(obj)
 
 
 def orjson_default(obj: object) -> object:
-    """`default=` for orjson, which calls it once per object and does not re-enter.
-
-    A `lazy` therefore has to be unwrapped *and* converted here, in one pass.
-    """
     if isinstance(obj, lazy):
         value = obj._value
         return value if _is_native(value) else _convert(value)
@@ -106,5 +79,4 @@ def orjson_default(obj: object) -> object:
 
 
 def _is_native(value: object) -> bool:
-    """True when orjson can serialise `value` without asking us again."""
     return value is None or isinstance(value, (str, int, float, bool, list, dict))

@@ -14,13 +14,11 @@ def _sample_pdf() -> io.BytesIO:
         return io.BytesIO(stream.read())
 
 
-# PdfSigner only tests `self.company` for truthiness before deciding it cannot
-# sign; a stand-in keeps these cases free of a database.
 _ANY_COMPANY: Any = object()
 
 
 class _WriterWithoutClone:
-    """A pypdf whose PdfWriter predates clone_document_from_reader."""
+    pass
 
 
 class TestSignPdfKeepsItsContract(unittest.TestCase):
@@ -69,15 +67,6 @@ if __name__ == "__main__":
 
 
 class TestSetIdentifier(unittest.TestCase):
-    """`_set_id` had a branch that could only ever crash.
-
-    It chose on `hasattr(type(self), "_ID")` and, when true, assigned
-    `self.trailers["/ID"]`. `_ID` is an instance attribute on every pypdf that
-    has it, never a class one, so the branch was unreachable -- and `trailers`
-    is not an attribute of PdfWriter, so reaching it would have raised
-    AttributeError rather than setting anything.
-    """
-
     def test_the_identifier_is_stored_on_the_instance(self):
         from odoo.tools.pdf import OdooPdfFileWriter
 
@@ -93,7 +82,6 @@ class TestSetIdentifier(unittest.TestCase):
         self.assertFalse(writer._ID)
 
     def test_id_is_an_instance_attribute_not_a_class_one(self):
-        # The premise of the branch that was removed.
         from pypdf import PdfWriter
 
         self.assertFalse(hasattr(PdfWriter, "_ID"))
@@ -112,15 +100,6 @@ class TestRotatePdf(unittest.TestCase):
 
 
 class TestByteRangeDoesNotMoveThePlaceholder(unittest.TestCase):
-    """The digest's offsets are computed before /ByteRange is filled in.
-
-    That is only sound while /Contents serialises ahead of /ByteRange, so
-    growing the latter cannot shift the former. The property rests on one dict
-    literal's insertion order and on pypdf preserving it -- nothing states
-    either, and a violation is silent: the signature is still written, still
-    fits, and only an external verifier can tell it covers the wrong bytes.
-    """
-
     PLACEHOLDER = b"<" + b"0" * (PdfSigner._CONTENTS_PLACEHOLDER_BYTES * 2) + b">"
 
     def _prepared_signer(self):

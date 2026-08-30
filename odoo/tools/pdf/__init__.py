@@ -365,28 +365,12 @@ class OdooPdfFileWriter(BrandedFileWriter):
             second_line = stream.readlines(1)[0]
             if second_line.decode("latin-1")[0] == "%" and len(second_line) == 6:
                 self.is_pdfa = True
-        # NOTE: this guard never fires. pypdf's PdfWriter.__init__ binds
-        # `_ID = None`, so hasattr is always True and the source document's /ID
-        # is not carried over -- pypdf generates a fresh one instead.
-        #
-        # Changing it to `if not self._ID` was tried and reverted: the reader
-        # hands back /ID as TextStringObject (str), while encrypt() feeds
-        # _ID[0] to hashlib and needs bytes, so carrying it over breaks
-        # `TestPdf.test_odoo_pdf_file_reader_with_owner_encryption` with
-        # "Strings must be encoded before hashing". Preserving the identifier
-        # would mean coercing to ByteStringObject and re-testing every consumer
-        # of a cloned document; nothing currently asks for it.
         if not hasattr(self, "_ID"):
             self._set_id(reader.trailer.get("/ID", None))
 
     def _set_id(self, pdf_id: Any) -> None:
         if not pdf_id:
             return
-        # There used to be a `hasattr(type(self), "_ID")` branch assigning
-        # self.trailers["/ID"] here. `_ID` is an instance attribute on every
-        # pypdf that has it, never a class one, so that branch was unreachable --
-        # and `trailers` is not an attribute of PdfWriter, so reaching it would
-        # have raised AttributeError.
         self._ID = pdf_id
 
     _PDFA_ANNOT_INVISIBLE = 1 << 0

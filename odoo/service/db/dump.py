@@ -81,13 +81,6 @@ def _failed(returncode: int, stderr: bytes) -> RuntimeError:
 
 
 def _run_pg_dump_blocking(cmd: list[str], env: dict, *, stdout: Any) -> None:
-    """pg_dump writes straight into `stdout`, so nothing is copied in Python.
-
-    The streaming runner exists because a zip member cannot be handed over as a
-    file descriptor; where the destination IS one, this is the cheaper path for
-    a multi-gigabyte dump.  Two transports, one timeout and one failure message
-    -- which is what `_timed_out` and `_failed` are for.
-    """
     timeout = _pg_dump_total_timeout()
     try:
         result = subprocess.run(

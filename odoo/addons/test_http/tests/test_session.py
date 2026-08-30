@@ -479,10 +479,6 @@ class TestHttpSession(TestHttpBase):
             },
         )
         self.assertEqual(res.status_code, 403, res.text)
-        # The rule is a MISMATCH rule, not a "one or the other" rule --
-        # test_session14 above sends both and gets a 200. The message used to
-        # say the opposite, and named neither of the two databases it refused
-        # to choose between.
         self.assertIn(get_db_name(), res.text)
         self.assertIn(f"not-{get_db_name()}", res.text)
         self.assertIn("X-Odoo-Database", res.text)

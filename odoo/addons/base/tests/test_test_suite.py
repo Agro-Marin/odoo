@@ -721,14 +721,6 @@ class TestRetryAccounting(BaseCase):
 class TestPatchExecuteStatementApi(TransactionCase):
     @staticmethod
     def _marks_a_statement(name):
-        """Whether ``Cursor.<name>`` is a statement entry point.
-
-        Unwrap first. A decorated entry point keeps its mark in the *wrapped*
-        function, while ``__code__`` belongs to the decorator's helper: when
-        ``Cursor.copy`` became a ``@contextmanager`` this scan stopped seeing
-        it, and the gate that exists to catch an unregistered statement API
-        went red pointing at the register rather than at itself.
-        """
         attr = getattr(Cursor, name, None)
         if not callable(attr):
             return False
@@ -1156,18 +1148,8 @@ class TestInfrastructureUnavailable(BaseCase):
 
 
 class TestReporterSurvivesAFilelessTestClass(BaseCase):
-    """A failure in a class whose module resolves to no file must be REPORTED.
-
-    ``getErrorCallerInfo`` used to call ``inspect.getfile(type(test))``
-    unguarded, and the ``TypeError`` it raises for such a class escaped
-    ``addError`` -> ``logError`` -> ``TestSuite.run`` -> ``run_suite``, which
-    ``modules/loading.py`` does not guard: the real assertion was never logged
-    and the rest of the suite never ran.
-    """
-
     @staticmethod
     def _fileless(name, body):
-        # the shape this file already uses for its own probes
         return type(
             name,
             (BaseCase,),
@@ -1197,8 +1179,6 @@ class TestReporterSurvivesAFilelessTestClass(BaseCase):
 
 
 class TestStrandedCursorsUnwindInnermostFirst(TransactionCase):
-    """Stranded savepoints are nested, so they must be released newest-first."""
-
     def test_two_stranded_cursors_leave_the_transaction_usable(self):
         from psycopg.pq import TransactionStatus
 
@@ -1223,17 +1203,12 @@ class TestStrandedCursorsUnwindInnermostFirst(TransactionCase):
 
 
 class TestChildProcessGuardAgreesWithPsutil(BaseCase):
-    """The cheap guard in front of the per-class ``psutil`` walk must never
-    answer False while a descendant exists, or the walk stops running."""
-
     def test_the_guard_matches_psutil_in_every_state(self):
         import subprocess
         import time
 
         import psutil
 
-        # imported here, not at module scope: a probe of a private helper must
-        # not make the whole test module uncollectable when the helper moves
         from odoo.tests.transaction_case import _has_child_processes
 
         def descendants():
@@ -1263,14 +1238,6 @@ class TestChildProcessGuardAgreesWithPsutil(BaseCase):
 
 
 class TestTagSelectorCheckIsPure(BaseCase):
-    """``check()`` answers a question; ``select_params()`` does the writing.
-
-    Folded together, the caller order was load-bearing and unguarded: only the
-    last selector's parameters survived, so swapping ``make_suite``'s operands
-    silently emptied the list ``web/tests/test_js.py`` reads, with every test
-    still selected and nothing failing.
-    """
-
     class _Probe(BaseCase):
         test_tags = {"standard", "at_install"}
         test_module = "base"
@@ -1314,10 +1281,6 @@ class TestTagSelectorCheckIsPure(BaseCase):
 
 
 class TestFilestoreIsSweptOncePerSuite(BaseCase):
-    """The sweep costs a pooled connection, so it belongs to the suite, not to
-    every class: 625 sweeps in one ``-i base,web`` run, each ``0 checked, 0
-    removed``, because ``_GC_CHECKLIST_GRACE`` outlives any run."""
-
     def test_no_class_cleanup_sweeps_the_filestore(self):
         source = inspect.getsource(TransactionCase.setUpClass)
         self.assertNotIn(
@@ -1337,12 +1300,6 @@ class TestFilestoreIsSweptOncePerSuite(BaseCase):
 
 
 class TestCommonHasNoImportEdgeToHttp(BaseCase):
-    """``http.py`` uses ``common.ChromeBrowser``, so it must import
-    ``common`` while executing. ``common`` therefore must not import ``http``
-    back, or the pair is a cycle whose only resolution is an import on the last
-    line -- which additionally makes every name ``http.py`` takes from
-    ``common`` depend on being defined above it, unenforced."""
-
     @staticmethod
     def _runtime_imports_of_http():
         from odoo.tests import common as common_module
@@ -1358,7 +1315,7 @@ class TestCommonHasNoImportEdgeToHttp(BaseCase):
         return [
             sub.lineno
             for node in tree.body
-            if not is_type_checking_guard(node)  # declarations carry no edge
+            if not is_type_checking_guard(node)
             for sub in ast.walk(node)
             if isinstance(sub, ast.ImportFrom) and sub.module == "http"
         ]

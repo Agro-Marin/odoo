@@ -14,12 +14,6 @@ def escape_psql(to_escape: str) -> str:
 
 
 def pg_varchar(size: int | None = 0) -> str:
-    # `None` is `Char.size`'s own spelling of "unbounded" (see
-    # `orm/fields/textual.py`), so it is accepted alongside 0.
-    #
-    # The isinstance check used to live inside `if size:`, which meant only a
-    # truthy non-int could raise: a negative int and a float 0.0 both fell
-    # through to an unconstrained VARCHAR instead of an error.
     if size is None:
         return "VARCHAR"
     if not isinstance(size, int) or isinstance(size, bool):

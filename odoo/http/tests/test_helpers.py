@@ -157,10 +157,6 @@ def test_no_registered_prefix_matches_nothing():
 
 
 def test_a_dbfilter_that_ignores_the_host_caches_one_regex_for_every_host():
-    """`host` comes from the Host header, which werkzeug does not validate, so
-    it used to be an attacker-chosen lru_cache key: rotating it evicted all 512
-    entries and made every legitimate request recompile. A pattern that does
-    not interpolate the host must not vary with it."""
     helpers._compiled_dbfilter.cache_clear()
     with config.patch(dbfilter=".*", db_name=[]):
         for i in range(600):
@@ -179,10 +175,6 @@ def test_a_dbfilter_that_reads_the_host_still_gets_a_regex_per_host():
 
 
 def test_db_filter_orders_the_same_way_through_both_of_its_filters():
-    """The `db_name` filter used to be spelled twice -- inside the `dbfilter`
-    branch, and as `sorted(set(db_name) & dbs)` for the branch without one -- so
-    the selector listed the same databases in two different orders depending on
-    which knob was set."""
     catalogue = ["zeta", "alpha", "mid"]
 
     with config.patch(dbfilter=".*", db_name=[]):
@@ -213,9 +205,6 @@ def _reset_dbfilter_caches():
     helpers._dbfilter_reads_the_host.cache_clear()
 
 
-# Every string an HTTP client controls, in the shapes that break parsers. The
-# unbalanced-bracket family is the one that mattered: `urlsplit`/`urlparse`
-# raise "Invalid IPv6 URL" there, which is a 500 rather than a refusal.
 HOSTILE_STRINGS = [
     "",
     " ",
@@ -270,7 +259,6 @@ HOSTILE_STRINGS = [
 
 
 def _hostile_probe(fn):
-    """Anything but an HTTPException is a 500 the caller cannot see coming."""
     escapes = []
     for value in HOSTILE_STRINGS:
         try:
@@ -288,10 +276,6 @@ def test_no_hostile_host_header_escapes_the_dbfilter_path():
 
 
 def test_no_hostile_origin_escapes_cors_same_host():
-    """`Origin: http://[` used to raise ValueError out of `pre_dispatch`, which
-    is a 500 on every route with a `cors=` callable -- in tree that reaches
-    `/bus/websocket_worker_bundle`, which is auth='public'."""
-
     def resolve(origin):
         return helpers.cors_same_host(
             types.SimpleNamespace(
@@ -309,9 +293,6 @@ def test_no_hostile_origin_escapes_cors_same_host():
 
 
 def test_no_hostile_url_escapes_get_static_file():
-    """Its own comment promises `str | None` and never raising, for the
-    `ir.attachment._get_static_file_path` caller that passes a stored url. The
-    promise covered everything after the `urlparse` and not the `urlparse`."""
     from odoo.http.application import Application
 
     assert _hostile_probe(Application().get_static_file) == []

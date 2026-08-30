@@ -70,8 +70,6 @@ def intersperse(
     return left + res + right, max(len(splits) - 1, 0)
 
 
-# `x in "eEfFgG"` is True for the empty string, so these are sets, not a
-# substring test: a spec with no conversion at all must match no branch.
 _FLOATING = frozenset("eEfFgG")
 _INTEGRAL = frozenset("diu")
 
@@ -81,15 +79,6 @@ _CONVERSION_RE = re.compile(
 
 
 def _conversion_span(spec: str) -> re.Match[str] | None:
-    """The first real conversion in the spec, `%%` literals skipped.
-
-    The conversion character was read as `spec[-1]`, which is only itself when
-    the spec ends at the conversion. `res_lang.format(percent, value)` is a
-    public ORM method taking an arbitrary spec, so `"%.2f%%"` and `"%d units"`
-    reach here and were silently left unlocalised. The *span* is returned, not
-    just the character, because the literal text around it must be held out of
-    the separator rewriting below -- see `format_number`.
-    """
     return next(
         (match for match in _CONVERSION_RE.finditer(spec) if match[1] is not None),
         None,
@@ -113,11 +102,6 @@ def format_number(
         return formatted
     conversion = match[1]
 
-    # Hold the caller's own literal text out of the rewriting. Searching the
-    # whole output for a decimal point took literal periods with it: `"%.2f sec."`
-    # on 1234.5 came out `"1.234,50 sec,"`. `% ()` resolves any `%%` in the
-    # literal runs, so their lengths match what the format above produced and
-    # the number is the slice between them.
     head = spec[: match.start()] % ()
     tail = spec[match.end() :] % ()
     number = formatted[len(head) : len(formatted) - len(tail) or None]
@@ -132,12 +116,6 @@ def format_number(
 
         if conversion in _FLOATING:
             parts = number.split(".")
-            # An exponent must not be grouped. Which conversions can produce one
-            # is known from the spec: e/E always, f/F never, g/G depending on the
-            # value. Only that last case has to inspect the output -- scanning it
-            # unconditionally, as this did, treats any literal text carrying an
-            # "e" as scientific notation, so `"%.2f EUR"` lost its thousands
-            # separator to the E in the currency name.
             scientific = conversion in "eE" or (
                 conversion in "gG" and ("e" in number or "E" in number)
             )

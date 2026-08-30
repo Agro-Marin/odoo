@@ -2288,15 +2288,6 @@ class TestOrmPrecompute(models.Model):
 
 
 class TestOrmPrecomputeGiven(models.Model):
-    """A model of its own, so `test_orm.precompute`'s pinned INSERT columns stay put.
-
-    `given` is writable and computed BESIDE `given_auto`, so reading the sibling
-    runs the compute that would overwrite a caller-supplied `given`. `derived`
-    reads `given` and is declared after both, so it is precomputed once that
-    overwrite has had its chance. sale.order.line's price_unit /
-    price_unit_auto / price_subtotal in miniature; see _add_precomputed_values.
-    """
-
     _name = "test_orm.precompute.given"
     _description = "precomputed fields around a value the caller supplies"
 

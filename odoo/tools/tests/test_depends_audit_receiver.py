@@ -1,15 +1,3 @@
-"""accessed_attribute_names attributes a read to the right record.
-
-Two defects this pins:
-
-* the receiver guard was one instruction deep, so `self.env.user.name` dropped
-  `user` but kept `name` -- reported as a missing dependency of the compute's
-  own model whenever that model also has a `name` field;
-* `LOAD_METHOD` sat in both opcode sets and has not existed since Python 3.12,
-  and the fused `LOAD_FAST_LOAD_FAST` forms 3.13+ emits were absent, so the
-  guard could not fire at all where one preceded the access.
-"""
-
 import unittest
 from opcode import opmap
 

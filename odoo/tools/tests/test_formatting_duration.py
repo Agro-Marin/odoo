@@ -5,8 +5,6 @@ from odoo.tools.formatting import format_duration
 
 class TestFormatDuration(unittest.TestCase):
     def test_a_negative_that_rounds_to_nothing_has_no_sign(self):
-        # The sign was taken from the input, after the magnitude had already
-        # rounded away, so anything under half a minute printed "-00:00".
         for value in (-0.001, -0.004, -0.008):
             with self.subTest(value=value):
                 self.assertEqual(format_duration(value), "00:00")

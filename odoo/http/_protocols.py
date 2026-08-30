@@ -89,12 +89,6 @@ class RoutedMethod(Protocol):
 
 
 class Endpoint(HasRouting, RoutedMethod, Protocol):
-    # An endpoint IS a routed method: `_generate_routing_rules` builds it as a
-    # `functools.partial` over the bound `route_wrapper` and calls
-    # `functools.update_wrapper`, which copies the wrapper's `__dict__` -- so
-    # `original_routing` and `original_endpoint` come across with it. The
-    # protocol did not say so, while `openapi.iter_map_routes` reads
-    # `original_endpoint` off exactly this object.
     func: MethodType
     _param_specs: dict[str, Any] | None
     typed_list_params: frozenset[str] | None

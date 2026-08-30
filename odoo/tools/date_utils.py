@@ -38,11 +38,6 @@ if typing.TYPE_CHECKING:
     from odoo.orm.runtime import Environment
 
 _TRUNCATE_TODAY = relativedelta(microsecond=0, second=0, minute=0, hour=0)
-# Keyed by the SINGULAR relativedelta field `=` sets, so every key here has to be
-# one relativedelta accepts.  "week" was not -- relativedelta takes `weeks`, not
-# `week` -- so the only path that could read it was `=Nw`, which raised TypeError
-# and surfaced as "Invalid term". Nothing documents or tests `=Nw`; the entry was
-# describing a spelling that never worked.
 _TRUNCATE_UNIT = {
     "day": _TRUNCATE_TODAY,
     "month": _TRUNCATE_TODAY,
@@ -90,7 +85,6 @@ __all__ = [
 def _apply_weekday_term(
     dt: datetime | date, operator: str, dayname: str, week_start: int
 ) -> datetime | date:
-    """Move `dt` to the named weekday, in the direction `operator` asks for."""
     weekday = week_start if dayname == "week_start" else WEEKDAY_NUMBER[dayname]
     offset = ((weekday - week_start) % 7) - ((dt.weekday() - week_start) % 7)
     if operator == "+":
@@ -100,18 +94,15 @@ def _apply_weekday_term(
         if offset > 0:
             offset -= 7
     elif isinstance(dt, datetime):
-        # "=monday" means *that* weekday at midnight, not this instant on it
         dt += _TRUNCATE_TODAY
     return dt + timedelta(offset)
 
 
 def _apply_unit_term(dt: datetime | date, operator: str, term: str) -> datetime | date:
-    """Add, subtract or set the unit `term` names (`+3d`, `-2w`, `=5H`)."""
     unit = _SHORT_DATE_UNIT[term[-1]]
     if operator in ("+", "-"):
         number = int(term[:-1])
     else:
-        # a singular relativedelta key SETS the field rather than shifting it
         number = int(term[1:-1])
         unit = unit.removesuffix("s")
         if unit not in _TRUNCATE_UNIT:
@@ -135,14 +126,12 @@ def resolve_date(value: str, env: Environment) -> date | datetime:
     term = terms.pop(0) if terms[0] in ("today", "now") else "now"
     started_as_date = term == "today"
     if started_as_date:
-        # a `date` for now -- a time-valued term below can promote it back to a
-        # naive datetime; see the note above the return
         dt = Date.context_today(env["base"], dt)
     else:
         assert isinstance(dt, datetime)
         dt = Datetime.context_timestamp(env["base"], dt)
 
-    week_start: int | None = None  # read at most once, on the first weekday term
+    week_start: int | None = None
 
     for term in terms:
         operator = term[0]
@@ -170,14 +159,6 @@ def resolve_date(value: str, env: Environment) -> date | datetime:
         if dt.tzinfo is not None:
             dt = dt.astimezone(UTC).replace(tzinfo=None)
         elif started_as_date:
-            # Reachable, and not obviously so.  "today" makes dt a plain `date`
-            # (Date.context_today returns today.date()), but relativedelta
-            # PROMOTES a date to a naive datetime as soon as a time component is
-            # set: date(2024,1,5) + relativedelta(hour=5) is datetime(2024,1,5,5).
-            # So "today =5H" arrives here naive and still in the user's zone, and
-            # skipping this conversion shifts it by the offset -- 04:00 read as
-            # 05:00 for a UTC+1 user, which is what test_parse_date_relative_tz
-            # pins.
             dt = (
                 dt.replace(tzinfo=env["base"].env.tz)
                 .astimezone(UTC)

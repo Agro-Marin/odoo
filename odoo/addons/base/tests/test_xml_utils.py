@@ -33,12 +33,6 @@ class _FakeResponse:
 
 class TestValidateXmlFromAttachment(TransactionCase):
     def test_a_schema_that_cannot_be_parsed_is_not_a_pass(self):
-        """A broken XSD validated nothing, and saying nothing meant "validated".
-
-        The `required=` guard was added for the missing-XSD case and the
-        unparseable one kept logging and returning normally -- the same value a
-        successful validation returns.
-        """
         self.env["ir.attachment"].create({"name": "broken.xsd", "raw": _BROKEN_SCHEMA})
         with self.assertRaises(FileNotFoundError) as caught:
             xml_utils.validate_xml_from_attachment(self.env, "<b/>", "broken.xsd")
@@ -65,10 +59,6 @@ class TestCheckXml(TransactionCase):
         self.addCleanup(patcher.stop)
 
     def test_an_archive_of_several_schemas_asks_which_one(self):
-        """`.name` on a multi-record recordset raised `Expected singleton`.
-
-        l10n_nl_reports and l10n_dk_reports both point @test_xsd at a ZIP.
-        """
         self._serve(_zip("one.xsd", "two.xsd"))
         with self.assertRaises(ValueError) as caught:
             xml_utils._check_xml(self.env, "http://example/s.zip", None, "<a>x</a>")
@@ -91,11 +81,6 @@ class TestCheckXml(TransactionCase):
             )
 
     def test_it_does_not_delete_a_schema_it_did_not_create(self):
-        """The url branch populates the XSD cache; it does not own it.
-
-        _upsert_xsd_attachment returns a record that was already there, and the
-        `finally` unlinked it anyway.
-        """
         self._serve(_zip("only.xsd"))
         pre_existing = self.env["ir.attachment"].create(
             {"name": "only.xsd", "raw": _SCHEMA, "public": True}

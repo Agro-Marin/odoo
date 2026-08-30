@@ -51,20 +51,6 @@ def _union_header_tokens(values: Iterable[str]) -> str:
     return ", ".join(seen.values())
 
 
-# Resolve through the package's public ``db_list``, not around it.
-#
-# ``odoo.http.db_list`` is the name the database selector calls, the name
-# ``iot_drivers`` replaces to say "this box serves no database", and the name
-# ``test_http`` patches. Reaching past it into ``odoo.service.db`` -- which is
-# what a private copy of the listing did -- made every one of those a half
-# measure: it changed what was *listed* and not what was *resolved*.
-#
-# The import is function-local because ``odoo.http.__init__`` imports this
-# module, so the package cannot be reached at import time. Measured at 211 ns
-# against a 19 ns module-global lookup, once per ``_get_session_and_dbname`` and
-# once more on the monodb path -- against 16 us to read a session off disk and 29
-# to write one, so it is not worth a cached module reference. Frozen at
-# 2026-08-29; re-measure before treating it as a cost.
 def _monodb_dblist(host: str) -> list[str]:
     from odoo import http
 
@@ -160,19 +146,6 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
 
     @property
     def params(self) -> dict[str, Any]:
-        # Materialised on first read, so that a path with no endpoint does not
-        # pay for a body nothing is going to look at.
-        #
-        # `_serve_ir_http_fallback` used to spell this `self.params =
-        # self.get_http_params()`, which reads `httprequest.form` and
-        # `httprequest.files` and therefore decodes the WHOLE body -- measured:
-        # `request.params` on an unmatched path held a 1 000 000-character string
-        # for a 1 MB form post, and a `FileStorage` wrapping 3 000 000 bytes for a
-        # multipart one, at ~0.7 ms per MB. It cannot simply be dropped: `base`'s
-        # `_serve_fallback` never reads `params`, but `website`'s does
-        # (`_build_url_w_params(redirect.url_to, request.params)`). Deferring it
-        # is what serves both -- the module that needs the body still gets it,
-        # and the unauthenticated 404 that nobody routed stops decoding one.
         source = self._params_source
         if source is not None:
             self._params_source = None
@@ -348,8 +321,6 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
                 root.session_store.save(sess)
                 written = True
             elif sess.is_dirty:
-                # `modified` here would be `is_dirty`: the branch above already
-                # claimed every state where `content_changed` holds.
                 root.session_store.keep_alive(sess)
                 written = True
             else:

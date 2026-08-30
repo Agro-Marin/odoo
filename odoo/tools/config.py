@@ -34,8 +34,6 @@ _dangerous_logger = logging.getLogger(__name__)
 optparse._ = str  # type: ignore[attr-defined]
 
 ALL_DEV_MODE = ["access", "assets", "qweb", "reload", "xml"]
-# Options whose runtime type is a dict, not the list their `comma` type parses
-# to -- see configmanager.__setitem__ and _postprocess_init_update.
 _MODULE_MAP_OPTIONS = frozenset({"init", "update"})
 DEFAULT_SERVER_WIDE_MODULES = ["base", "rpc", "web"]
 REQUIRED_SERVER_WIDE_MODULES = ["base", "web"]
@@ -82,9 +80,6 @@ class _OdooOption(optparse.Option):
         }
         return {
             **{name: _accept_none(check) for name, check in checkers.items()},
-            # NOT wrapped: "None" is this type's own spelling of "demo data is
-            # not restricted", handled inside _check_without_demo.  Turning it
-            # into the unset sentinel would silently flip with_demo True -> None.
             "without_demo": self.config._check_without_demo,
         }
 
@@ -179,14 +174,6 @@ class _PosixOnlyOption(_OdooOption):
 
 
 class _Unset:
-    """What the literal ``"None"`` parses to, before it becomes ``None``.
-
-    It cannot simply *be* ``None``: optparse leaves an option nobody passed at
-    ``None`` too, and ``_load_cli_options`` reads that to mean "not given on the
-    command line".  A distinct object keeps "the user wrote None" apart from
-    "the user wrote nothing" until each source has had its say.
-    """
-
     __slots__ = ()
 
     def __repr__(self) -> str:
@@ -197,16 +184,6 @@ UNSET = _Unset()
 
 
 def _accept_none(check: Callable[..., Any]) -> Callable[..., Any]:
-    """Make a type checker read the literal ``"None"`` as "this option is unset".
-
-    The sentinel used to live in ``configmanager.parse()``, which serves the
-    config file and the environment but not the command line -- optparse calls
-    the checker directly.  So ``pg_path = None`` in the file unset the option
-    while ``--pg_path None`` resolved to a path named ``None`` under the cwd,
-    and the CLI had no spelling for "unset" at all.  One place, all three
-    sources.
-    """
-
     @functools.wraps(check)
     def checked(option: Any, opt: str, value: str) -> Any:
         if value == "None":
@@ -217,19 +194,10 @@ def _accept_none(check: Callable[..., Any]) -> Callable[..., Any]:
 
 
 def _open_private(path: str, flags: int) -> int:
-    """`opener=` for open(), creating the file readable by its owner alone."""
     return os.open(path, flags, 0o600)
 
 
 def _deduplicate_loggers(loggers: list[str]) -> Generator[str]:
-    """Last spelling of each logger wins, and a spec with no level is refused.
-
-    `logutils.init_logger` does `loggername, level = item.split(":")`, so a bare
-    module name would raise there. Dropping it silently avoided the crash and
-    left `--log-handler odoo.orm` -- the `:DEBUG` forgotten, against a metavar
-    that reads MODULE:LEVEL -- starting the server with the flag inert and
-    nothing said. The option is malformed either way; say so.
-    """
     seen: dict[str, str] = {}
     for spec in loggers:
         logger, sep, level = spec.rpartition(":")
@@ -1650,16 +1618,6 @@ class configmanager:
         return opt
 
     def _check_config_file_is_readable(self) -> None:
-        """Refuse a config file that somebody asked for and nobody can read.
-
-        `_load_file_options` tolerates an unreadable file, because the default
-        ~/.odoorc is a convenience nobody promised exists. A path somebody wrote
-        down is a different thing: ODOO_RC pointing at a file the server cannot
-        open used to start it on hardcoded defaults -- admin_passwd back to
-        'admin', the whole db_* block back to its defaults -- and say nothing.
-        The -c spelling is already guarded above; this is the guard the
-        environment and an explicit override never had.
-        """
         if not any(
             "config" in source
             for source in (
@@ -1714,11 +1672,7 @@ class configmanager:
         for arg in keys:
             value = getattr(opt, arg, None)
             if value is None:
-                # optparse leaves an option nobody passed at None; that is
-                # "absent", not a value, and must fall through to the next source.
                 continue
-            # `--opt None` did reach us -- record the unset explicitly, so it
-            # shadows the file and the environment the way any other CLI value does.
             self._cli_options[arg] = None if value is UNSET else value
 
         if opt.log_handler:
@@ -1743,8 +1697,6 @@ class configmanager:
     def _postprocess_server_wide_modules(self) -> None:
         if not self["server_wide_modules"]:
             self._runtime_options["server_wide_modules"] = DEFAULT_SERVER_WIDE_MODULES
-        # prepended as one block: adding them one at a time reversed the
-        # constant's order, so ['base', 'web'] came out ['web', 'base', ...]
         missing = [
             mod
             for mod in REQUIRED_SERVER_WIDE_MODULES
@@ -2046,9 +1998,6 @@ class configmanager:
             e = f"can only cast strings: {value!r}"
             raise TypeError(e)
         option = self.options_index[option_name]
-        # The "None" sentinel is not handled here: it lives in _accept_none,
-        # which wraps every checker in TYPE_CHECKER, so the command line reads
-        # it the same way the file and the environment do.
         option_class: Any = self.parser.option_class
         checkers = option_class.TYPE_CHECKER
         check_func: Callable[..., Any] = (
@@ -2097,14 +2046,6 @@ class configmanager:
             self.parser.error(f"malformed configuration file {rcfile!r}: {exc}")
             return
         except (OSError, UnicodeDecodeError) as exc:
-            # An undecodable file is a parse failure, and this class of failure
-            # is loud -- it used to reach the caller as a bare UnicodeDecodeError
-            # traceback out of parse_config(). OSError is belt and braces:
-            # read() swallows it (a missing file, a directory and a mode-000
-            # file all come back as []), which is what keeps an *unreadable*
-            # file tolerated here. Whether that silence is acceptable depends on
-            # who chose the path, which this method cannot know -- the caller
-            # decides, in _parse_config.
             self.parser.error(f"cannot read the configuration file {rcfile!r}: {exc}")
             return
 
@@ -2163,10 +2104,6 @@ class configmanager:
         p = configparser.RawConfigParser(inline_comment_prefixes=("#", ";"))
         rc_exists = Path(self["config"]).exists()
         if rc_exists:
-            # Read whatever is already there, whether or not `keys` narrows what
-            # we write back: only `[options]` is ever reloaded by _load_file_options,
-            # so a section belonging to someone else survives a --save only if it is
-            # read here first.  Writing a parser that never saw the file drops them.
             p.read([self["config"]])
         if not p.has_section("options"):
             p.add_section("options")
@@ -2186,20 +2123,6 @@ class configmanager:
                 Path(str(Path(self["config"]).parent)).mkdir(0o700, parents=True)
             try:
                 cfg_path = Path(self["config"])
-                # Two different jobs, and both are needed.
-                #
-                # The opener sets the mode a NEW file is created with. open("w")
-                # alone creates under the umask -- 0664 on a default one -- and a
-                # later chmod does not revoke a descriptor opened in the meantime,
-                # so a reader winning that race keeps reading admin_passwd and
-                # db_password out of the finished file (measured: an fd captured
-                # in 10 of 20 runs).
-                #
-                # fchmod tightens a file that ALREADY existed, where the opener's
-                # mode is ignored -- a conf left at 0644 by an earlier odoo, or by
-                # hand. On the fd rather than the path, so it cannot be redirected
-                # by a symlink swapped in between.
-                # Path.open() takes no `opener`; the builtin does.
                 with open(
                     cfg_path, "w", encoding="utf-8", opener=_open_private
                 ) as file:
@@ -2218,13 +2141,6 @@ class configmanager:
         if isinstance(value, str) and key in self.options_index:
             value = self.parse(key, value)
         if key in _MODULE_MAP_OPTIONS and isinstance(value, (list, tuple, set)):
-            # These two are declared `comma`, so every source parses them to a
-            # list, and _postprocess_init_update then replaces the list with a
-            # dict in _runtime_options -- which is the type the rest of the
-            # server reads (cli/server.py does config["init"]["base"] = True).
-            # An override skips the postprocess and shadows the runtime value,
-            # so a plain config["init"] = "sale" put a list back on top and
-            # every .get() on it raised AttributeError.
             value = dict.fromkeys(value, True)
         self._override_options[key] = value
 

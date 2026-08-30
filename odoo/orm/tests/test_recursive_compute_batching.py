@@ -44,7 +44,7 @@ def env():
 def test_the_constraint_runs_once_for_the_batch_not_once_per_record(env):
     nodes = env["rec.node"].create([{"name": f"n{i}"} for i in range(20)])
     env.flush_all()
-    assert nodes.mapped("root_id") == nodes  # each is its own root
+    assert nodes.mapped("root_id") == nodes
     assert CALLS["constrain"] <= 2, (
         f"@constrains on a recursive computed field ran {CALLS['constrain']} times "
         f"for 20 records; it must run once for the batch"
@@ -52,7 +52,6 @@ def test_the_constraint_runs_once_for_the_batch_not_once_per_record(env):
 
 
 def test_the_compute_still_runs_one_record_at_a_time(env):
-    """The ordering guarantee: widening the entry must not widen the compute."""
     env["rec.node"].create([{"name": f"n{i}"} for i in range(20)])
     env.flush_all()
     assert CALLS["compute"] >= 20, (
@@ -63,7 +62,6 @@ def test_the_compute_still_runs_one_record_at_a_time(env):
 
 
 def test_a_chain_still_resolves_parents_before_children(env):
-    """The reason the compute is per-record, pinned as behaviour."""
     Node = env["rec.node"]
     root = Node.create([{"name": "root"}])
     chain = [root]

@@ -17,8 +17,6 @@ class SourceMapGenerator:
         self._sources: dict[str, int] = {}
         self._mappings: list[_Mapping] = []
         self._sources_contents: dict[str, str] = {}
-        # The only cache: `base64vlq_encode` used to carry an lru_cache of its
-        # own over the same composition this one keys.
         self._cache: dict[tuple[int, int], str] = {}
 
     def _serialize_mappings(self) -> str:

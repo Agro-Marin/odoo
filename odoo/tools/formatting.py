@@ -63,14 +63,6 @@ DATETIME_FORMATS_MAP = {
 
 
 def _as_utc(value: datetime.datetime) -> datetime.datetime:
-    """Attach UTC to a naive datetime; convert an aware one instead of relabelling it.
-
-    The ORM hands out naive UTC, which is why `.replace(tzinfo=utc)` was enough
-    for years.  On an aware value it is silently wrong -- it keeps the wall
-    clock and discards the offset, so 12:00-06:00 became 12:00Z, six hours out.
-    `format_date` already guarded against this; `format_datetime` and
-    `format_time` did not, and the asymmetry is what invited the mistake.
-    """
     if value.tzinfo is None:
         return value.replace(tzinfo=utc)
     return value.astimezone(utc)
@@ -338,9 +330,6 @@ def format_duration(value: float) -> str:
     if minutes == 60:
         minutes = 0
         hours += 1
-    # The sign comes from what survived the rounding, not from the input: a
-    # negative smaller than half a minute rounds away to nothing, and testing
-    # `value < 0` printed it as "-00:00".
     if value < 0 and (hours or minutes):
         return "-%02d:%02d" % (hours, minutes)
     return "%02d:%02d" % (hours, minutes)

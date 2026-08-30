@@ -914,19 +914,9 @@ def _merge(cr, table, columns, rows, on_columns, *, returning="NEW.id"):
 
 
 class TestPipelineModeRoutesFailuresThroughTheSeam(BaseCase):
-    """A pipelined statement's error must reach `_statement_failed` too.
-
-    psycopg does not raise where a pipelined statement was issued: it queues
-    the command and surfaces the server's error at the next sync, which is
-    `Cursor.pipeline`'s exit -- outside every entry point's own `try/except`.
-    The seam was therefore skipped for the whole of pipeline mode, and the
-    ORM's write path is pipelined (`orm/models/mixins/write.py::_write`,
-    `orm/runtime/environment.py::flush_all`).
-    """
-
     def _warm_a_prepared_plan(self, cr, table):
         query = f"SELECT id, a FROM {table} WHERE a = %s"
-        for _ in range(3):  # prepare_threshold is 2
+        for _ in range(3):
             cr.execute(query, (1,))
             cr.fetchall()
         cr.commit()
@@ -959,21 +949,6 @@ class TestPipelineModeRoutesFailuresThroughTheSeam(BaseCase):
         )
 
     def test_retrying_replays_a_pipelined_stale_plan(self):
-        """The end-to-end difference, at the layer that decides the request.
-
-        `retrying()` dispatches on the mark: unmarked, a `FeatureNotSupported`
-        falls to its `else` and is re-raised. Measured across one committed
-        `ALTER COLUMN … TYPE`, the same callable -- raised on attempt 1
-        without the seam hook, recovered on attempt 2 with it.
-
-        The shape is the one the ORM actually produces. Counted over `/base`
-        + `/test_orm` + `/test_new_api`, result-returning statements DO run
-        inside armed pipelines: `orm/runtime/environment.py::execute_query`,
-        `addons/base/models/ir_default.py`, the parent-store
-        `UPDATE … RETURNING`. Plain UPDATEs, which are the bulk of what the
-        ORM pipelines, cannot reach this at all -- PostgreSQL raises only when
-        the altered column is in the statement's result descriptor.
-        """
         table = "_retrying_pipelined_plan"
         with registry().cursor() as writer:
             writer.execute(f"DROP TABLE IF EXISTS {table}")
@@ -984,7 +959,7 @@ class TestPipelineModeRoutesFailuresThroughTheSeam(BaseCase):
                 with registry().cursor() as cr:
                     env = api.Environment(cr, ADMIN_USER_ID, {})
                     query = f"SELECT id, a FROM {table} WHERE a = %s"
-                    for _ in range(3):  # prepare_threshold is 2
+                    for _ in range(3):
                         cr.execute(query, (1,))
                         cr.fetchall()
                     cr.commit()
@@ -1043,21 +1018,10 @@ class TestPipelineModeRoutesFailuresThroughTheSeam(BaseCase):
                 cr.execute("SELECT 1")
                 raise ValueError("caller bug")
             cr.rollback()
-        # No assertLogs: a plain Python error carries no SQLSTATE, so
-        # `reached_the_server` keeps it out of the seam entirely. Reaching for
-        # assertNoLogs here would pass for the wrong reason under a raised log
-        # level, so the assertion is that nothing raised on the way out.
 
 
 class TestCursorConstructionNeverLeaksAPermit(BaseCase):
     def test_a_baseexception_during_construction_returns_the_connection(self):
-        """Everything between `pool.borrow` and `_closed = False` is unowned.
-
-        `__del__` short-circuits on `_closed`, which is True for the whole of
-        `__init__`, so a failure there is the one case no `close()` can clean
-        up. Measured under the `except Exception` this replaces: the injected
-        interrupt left `budget_in_use=1, checked_out=1` permanently.
-        """
         registry_ = registry()
         pool = registry_._db._Connection__pool
         before = pool.stats.snapshot(budget=pool._budget, checkouts=pool._checkouts)
@@ -1085,15 +1049,6 @@ class TestCursorConstructionNeverLeaksAPermit(BaseCase):
 
 
 class TestASavepointIsNeverOpenedInsideAPipeline(BaseCase):
-    """PostgreSQL discards the queued ROLLBACK TO with the rest of the batch.
-
-    Measured on a live cursor before the guard: the same UniqueViolation under
-    the same savepoint left the transaction usable outside a pipeline and
-    `InFailedSqlTransaction` inside one -- silently, because the caller's
-    `except` ran exactly as written and the transaction it believed it had
-    repaired was dead.
-    """
-
     def test_it_is_refused_with_a_reason(self):
         with registry().cursor() as cr:
             with cr.pipeline():
@@ -1345,33 +1300,10 @@ class TestCopyFrom(BaseCase):
 
 
 class TestInsertOrExistingUnderARealRace(BaseCase):
-    """The loser gets `ConcurrencyError`, not the row, and that is the design.
-
-    `Cursor.__init__` sets REPEATABLE READ, so `find()` reads the snapshot the
-    transaction opened with and cannot see a row the winner committed after
-    it. The error is the retry signal `service.transaction.retrying` replays
-    on; the `(existing, False)` branch answers the ordinary case of a row
-    already committed before this transaction began.
-
-    Cursors come from `db_connect`, not `registry().cursor()`: under
-    `--test-enable` the latter hands back a `TestCursor`, which serialises
-    every caller on one lock, and a race test whose racers cannot race proves
-    nothing. `TestConcurrentDdlDuringBinaryCopy` below takes its cursors the
-    same way for the same reason.
-    """
-
     TABLE = "_ioe_race"
 
     @property
     def threads(self):
-        """Sized from the budget, because every racer holds a cursor at once.
-
-        The barrier is the point -- all of them must be inside
-        `insert_or_existing` together -- so the test needs that many permits
-        simultaneously, plus room for the setup and check cursors. Hard-coded
-        at 8 it passed under `--db_maxconn=16` and failed under 8, which is a
-        test that measures the configuration rather than the helper.
-        """
         budget = int(tools.config["db_maxconn"] or 8)
         return max(2, min(6, budget - 2))
 
@@ -1454,17 +1386,6 @@ class TestInsertOrExistingUnderARealRace(BaseCase):
 
 
 class TestBinaryCopyIsSafeAgainstColumnsNotValues(BaseCase):
-    """`binary=True` is a hint about the COLUMN type, not about the value.
-
-    The degradation in `_can_dump_binary` means a caller never has to know what
-    its columns are. It does have to hand over the right Python values: binary
-    encodes client-side from the column OIDs, where text hands the string to
-    PostgreSQL to parse. Measured, same table and same rows in both modes ---
-    `uuid <- str`, `int <- "42"`, `date <- str` and `inet <- str` all insert as
-    text and raise as binary. Re-running as text would be the wrong repair: a
-    caller passing `"42"` for an `int4` has a bug that text COPY only hides.
-    """
-
     def test_text_accepts_a_string_where_binary_does_not(self):
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _bin_vs_text (a int)")
@@ -1492,7 +1413,6 @@ class TestBinaryCopyIsSafeAgainstColumnsNotValues(BaseCase):
             cr.rollback()
 
     def test_a_server_side_failure_gets_no_such_note(self):
-        """The note explains client-side encoding; a constraint is not that."""
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _bin_chk (a int CHECK (a < 10))")
             with self.assertRaises(psycopg.errors.CheckViolation) as caught:
@@ -2039,12 +1959,6 @@ class TestConnectionStateReset(BaseCase):
 
     @staticmethod
     def _dirty(conn):
-        # `CLOSE ALL` and `DISCARD SEQUENCES` were pinned only as text in
-        # `TestResetSessionStateSql`, which proves the clause is present and
-        # not that it does anything. These two make them effect assertions --
-        # and they run FIRST, because the `search_path` below names one schema
-        # that does not exist, after which `CREATE SEQUENCE` has nowhere to go
-        # ("no schema has been selected to create in").
         conn.execute("DROP SEQUENCE IF EXISTS _leak_seq")
         conn.execute("CREATE SEQUENCE _leak_seq")
         conn.execute("SELECT nextval('_leak_seq')")
@@ -2075,10 +1989,6 @@ class TestConnectionStateReset(BaseCase):
             ),
             0,
         )
-        # Filtered by NAME, not `count(*)`: a bare count over `pg_cursors`
-        # counts its own portal once psycopg has auto-prepared it
-        # (`prepare_threshold` is 2), so the third execution of the same probe
-        # answers 1 against an empty view. Measured, and it cost an hour.
         self.assertEqual(
             get("SELECT count(*) FROM pg_cursors WHERE name = '_leak_cursor'"),
             0,
@@ -3353,15 +3263,6 @@ class TestUninitializedCursorClosed(BaseCase):
 
 
 class TestTheModuleLevelFanOut(BaseCase):
-    """`is_pooled`, `close_db`, `drain_db`, `drain_all` over the pool registry.
-
-    All four were rewritten when the two registries (`_Pool`/`_Pool_readonly`
-    and `_uri_pools`) became one, and none of them had a behavioural test:
-    `is_pooled` had none at all, and the only `drain_db` reference in the suite
-    asserts that `check_signaling` *calls* it. `is_pooled` decides which
-    databases the database-manager list reports as in use.
-    """
-
     def test_is_pooled_follows_a_real_connection(self):
         name = common.get_db_name()
         cr = db_connect(name).cursor()
@@ -3380,7 +3281,6 @@ class TestTheModuleLevelFanOut(BaseCase):
         )
 
     def _fake_registry(self):
-        """Two pools at different endpoints, so the fan-out has to reach both."""
         pools = {}
         made = []
         for endpoint in ((None, 5432), ("elsewhere.example", 5433)):
@@ -5042,10 +4942,6 @@ class TestStaleCachedPlanIsRecoverable(BaseCase):
             cr.execute("DROP TABLE IF EXISTS _test_perm CASCADE")
             cr.execute("CREATE TABLE _test_perm (a int)")
             cr.execute("CREATE VIEW _test_perm_v AS SELECT a FROM _test_perm")
-            # Past prepare_threshold (2), so the statement is genuinely in the
-            # connection's auto-prepare cache.  Running it ONCE leaves the cache
-            # empty, which made this test pass without ever reaching the branch
-            # it is meant to guard.
             for _ in range(3):
                 cr.execute("SELECT a FROM _test_perm")
                 cr.fetchall()
@@ -5181,9 +5077,6 @@ class TestCreateModelTableAndConstraintColumns(BaseCase):
             "ALTER TABLE _test_mt ADD CONSTRAINT _test_mt_uq UNIQUE (name, qty)"
         )
         self.cr.execute("INSERT INTO _test_mt (name, qty) VALUES ('a', 1)")
-        # inside a savepoint: a bare rollback would undo the table this test
-        # just created, and the catalog lookup would then find nothing --
-        # which is a different failure wearing the same face.
         with (
             self.assertRaises(psycopg.errors.UniqueViolation) as caught,
             self.cr.savepoint(flush=False),
@@ -5222,8 +5115,6 @@ class TestSchemaCapabilityProbesAndDropIndex(BaseCase):
         return bool(self.cr.fetchscalar())
 
     def test_has_trigram_agrees_with_the_catalog(self):
-        # asserted against the catalog rather than against a fixed answer, so
-        # it holds whether or not pg_trgm is installed on the runner
         self.assertEqual(
             sql_schema.has_trigram(self.cr),
             self._catalog_has("word_similarity"),
@@ -5266,13 +5157,6 @@ class TestSchemaCapabilityProbesAndDropIndex(BaseCase):
 
 
 class TestSchemaForeignKeys(BaseCase):
-    """The reconciliation `_registry_schema.check_foreign_keys` runs every load.
-
-    `add_foreign_key`, `get_foreign_keys`, `get_fk_constraints_batch` and
-    `drop_constraint` are named by no test, and together they decide whether a
-    foreign key whose `ondelete` changed gets replaced or silently kept.
-    """
-
     def setUp(self):
         super().setUp()
         self.cr = db_connect(common.get_db_name()).cursor()
@@ -5343,14 +5227,6 @@ class TestSchemaForeignKeys(BaseCase):
 
 
 class TestSchemaColumnLifecycle(BaseCase):
-    """The column operations `_auto_init` runs on every module upgrade.
-
-    Thirteen of `schema.py`'s functions are named by no test in `odoo/db/tests`,
-    `odoo/addons/base/tests` or `tests/` -- they are exercised only incidentally,
-    by installing a module. These are the ones that mutate a column, where a
-    silent defect surfaces as a broken upgrade rather than a failing test.
-    """
-
     def setUp(self):
         super().setUp()
         self.cr = db_connect(common.get_db_name()).cursor()
@@ -5380,9 +5256,6 @@ class TestSchemaColumnLifecycle(BaseCase):
         )
 
     def test_a_column_comment_survives_ddl_param_inlining(self):
-        # DDL cannot take server-side params, so Cursor.execute inlines them.
-        # A field label like "Discount %" is an ordinary Odoo string and the
-        # inliner scans for %s markers.
         for comment in ("Discount %", "Rate %s of total", "Uses %(name)s"):
             with self.subTest(comment=comment):
                 self.cr.execute("ALTER TABLE _test_collife DROP COLUMN IF EXISTS c")
@@ -5915,10 +5788,6 @@ class TestTestCursorContainsBulkWrites(common.TransactionCase):
         )
 
     def test_every_wire_level_write_is_marked(self):
-        # Both receivers, not just `_obj`: `discard_cached_plans` used to issue
-        # `self._cnx.execute("DEALLOCATE ALL")`, a statement on the wire that
-        # this scan could not see because it only matched `_obj`. That branch
-        # now goes through `self.execute`, and the scan can say so.
         import ast
         import textwrap
 

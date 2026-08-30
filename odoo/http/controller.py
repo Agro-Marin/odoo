@@ -9,11 +9,6 @@ if TYPE_CHECKING:
 
 
 def newest_by_identity(classes: Iterable[type]) -> list[type]:
-    # A module reloaded at runtime rebuilds its classes, so the same controller
-    # arrives twice under one (module, qualname). The newest wins, at the
-    # position the first one claimed. Registration (`__init_subclass__`) and
-    # routing-map assembly (`routing._get_leaf_classes`) both need this rule;
-    # it is spelled once, here, because two spellings of it drift.
     by_key: dict[tuple[str, str], int] = {}
     result: list[type] = []
     for cls in classes:

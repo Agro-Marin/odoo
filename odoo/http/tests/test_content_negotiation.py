@@ -29,8 +29,6 @@ def _set(route_type, *, mimetype="", method="POST", content_length=1, cors=None)
 
 
 def test_an_http_route_accepts_anything():
-    """HttpDispatcher.is_compatible_with is unconditionally True: a form post,
-    a JSON body and a bodyless GET all reach an http endpoint."""
     for mimetype in ("", "application/json", "multipart/form-data", "text/plain"):
         assert isinstance(_set("http", mimetype=mimetype), HttpDispatcher)
 
@@ -45,8 +43,6 @@ def test_a_jsonrpc_route_requires_a_json_content_type():
 
 
 def test_a_json2_route_also_accepts_a_request_with_no_body():
-    """`is_compatible_with` allows an empty content_length so a GET on a json2
-    route does not have to announce a content type it has no body for."""
     assert isinstance(_set("json2", mimetype="application/json"), Json2Dispatcher)
     assert isinstance(
         _set("json2", mimetype="", method="GET", content_length=0), Json2Dispatcher
@@ -56,7 +52,6 @@ def test_a_json2_route_also_accepts_a_request_with_no_body():
 
 
 def test_the_415_names_the_types_the_route_does_accept():
-    """A client that guessed wrong needs to know what to send instead."""
     with pytest.raises(UnsupportedMediaType) as caught:
         _set("jsonrpc", mimetype="text/plain")
 
@@ -77,8 +72,6 @@ def test_the_415_body_names_the_route_and_both_sides_of_the_mismatch():
 
 
 def test_a_cors_preflight_is_exempt_from_the_check():
-    """The preflight carries no body and no content type by definition, so
-    checking it would 415 every cross-origin request before it starts."""
     dispatcher = _set("jsonrpc", mimetype="", method="OPTIONS", cors="*")
     assert isinstance(dispatcher, JsonRPCDispatcher)
 

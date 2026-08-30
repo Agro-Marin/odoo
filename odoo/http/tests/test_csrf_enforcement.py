@@ -26,8 +26,6 @@ def _request(method="POST", params=None, db="db", valid=True, mimetype="", body=
     empty = werkzeug.datastructures.MultiDict()
 
     class _Registry:
-        """`_call_endpoint` routes a database-bound call through ir.http."""
-
         def __getitem__(self, name):
             return types.SimpleNamespace(
                 _dispatch=lambda endpoint: endpoint(**this.params)
@@ -51,8 +49,6 @@ def _request(method="POST", params=None, db="db", valid=True, mimetype="", body=
         get_json_data=dict,
     )
     this.get_http_params = lambda: dict(params or {})
-    # json2 wraps a non-Response return value; the wrapping itself is not what
-    # these tests are about, so it stays identifiable.
     this.make_json_response = lambda data, **kw: ("json", data)
     return this
 
@@ -81,7 +77,6 @@ def test_csrf_false_opts_a_route_out(method):
 
 
 def test_a_valid_token_passes_and_never_reaches_the_handler():
-    """`csrf_token` is popped, so an endpoint need not accept it as a kwarg."""
     endpoint = _endpoint()
     req = _request(params={"csrf_token": "t", "real": "1"}, valid=True)
     assert HttpDispatcher(req).dispatch(endpoint, {}) == "handled"
@@ -90,7 +85,6 @@ def test_a_valid_token_passes_and_never_reaches_the_handler():
 
 
 def test_without_a_database_the_user_is_sent_to_the_selector():
-    """There is no secret to validate against, so a 400 would be a dead end."""
     req = _request(db=None, valid=False)
     result = HttpDispatcher(req).dispatch(_endpoint(), {})
     assert result == ("redirected", "/web/database/selector")
@@ -110,9 +104,6 @@ def test_a_missing_token_and_a_wrong_one_are_logged_differently(caplog):
                 _request(params={"csrf_token": "wrong"}, valid=False)
             ).dispatch(_endpoint(), {})
     assert "CSRF validation failed" in caplog.records[-1].msg
-
-
-# ---- json2 carries its own defence: the content type IS the token ----
 
 
 @pytest.mark.parametrize("method", UNSAFE)

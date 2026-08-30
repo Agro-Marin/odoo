@@ -138,12 +138,6 @@ def standalone(*tags: str) -> Callable[[Callable], Callable]:
 
 
 def test_xsd(url=None, path=None, skip=False, xsd_name=None):
-    """Validate what the decorated method returns against an XSD.
-
-    `xsd_name` names the root schema when `url` serves an archive of several --
-    without it a bundle has no single `.name` to validate against.
-    """
-
     def decorator(func):
         @wraps(func)
         def wrapped_f(self, *args, **kwargs):

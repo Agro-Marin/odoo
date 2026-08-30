@@ -37,16 +37,8 @@ class TestUnreadableInputIsTolerated(_ConfigFileCase):
 
 
 class TestAnExplicitlyChosenFileIsLoud(_ConfigFileCase):
-    """Tolerance belongs to the default path, not to one somebody wrote down.
-
-    ODOO_RC pointing at a file the server cannot open used to start it on
-    hardcoded defaults -- admin_passwd back to 'admin' -- and say nothing.
-    """
-
     def setUp(self):
         super().setUp()
-        # configmanager() parses the ambient environment on construction, so a
-        # developer with ODOO_RC set would otherwise be the thing under test.
         for source in self._explicit_sources():
             source.pop("config", None)
         self.path = self.write("locked.conf", "[options]\nhttp_port = 1\n")
@@ -77,16 +69,16 @@ class TestAnExplicitlyChosenFileIsLoud(_ConfigFileCase):
 
     def test_the_default_path_stays_tolerated(self):
         self.config._default_options["config"] = str(self.path)
-        self.config._check_config_file_is_readable()  # must not raise
+        self.config._check_config_file_is_readable()
 
     def test_a_readable_explicit_file_is_fine(self):
         readable = self.write("fine.conf", "[options]\nhttp_port = 1\n")
         self.config._env_options["config"] = str(readable)
-        self.config._check_config_file_is_readable()  # must not raise
+        self.config._check_config_file_is_readable()
 
     def test_an_absent_explicit_file_is_not_this_guard_s_business(self):
         self.config._env_options["config"] = str(self.tmp / "nope.conf")
-        self.config._check_config_file_is_readable()  # must not raise
+        self.config._check_config_file_is_readable()
 
 
 class TestParseFailuresAreLoud(_ConfigFileCase):

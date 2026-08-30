@@ -404,9 +404,6 @@ class TraversalMixin(_ModelStubs):
                 _P = PENDING
 
                 def getter(rec):
-                    # resolved per call, never bound: `_field_get` below can
-                    # detach the dict, and a bound `.get` would keep serving
-                    # the orphaned one for every later record
                     value = _get_cache(_env).get(rec._ids[0], _S)
                     if value is _S or value is _P:
                         record_value = _field_get(rec)

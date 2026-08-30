@@ -271,14 +271,6 @@ class TestDocstring(LintCase):
                 self.assertIn(expected, str(caught.exception))
 
     def test_the_gate_records_such_a_docstring_as_one_offender(self):
-        # The malformed docstring is this test's FIXTURE, not documentation, so
-        # it is a literal rather than _Fake.method.__doc__. It used to live on
-        # the method, and 0b64c12a5fa -- a blanket "remove prose docstrings"
-        # sweep -- deleted it and left `pass`. inspect.cleandoc(None) then
-        # raised AttributeError, which is not in the caught tuple below, so the
-        # test ERRORED rather than failing: the assertion it exists to make went
-        # unevaluated, and the whole /test_lint run carried an error nobody
-        # could read as a lint finding. A literal cannot be swept away as prose.
         malformed_docstring = ":returns set: the ids"
 
         class _Fake:

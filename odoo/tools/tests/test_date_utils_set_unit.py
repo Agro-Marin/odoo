@@ -1,12 +1,3 @@
-"""`=` sets a SINGULAR relativedelta field, so only units relativedelta has.
-
-`_apply_unit_term` turns `=Nd` into `relativedelta(day=N)`.  For `w` that built
-`relativedelta(week=N)` -- relativedelta takes `weeks`, not `week` -- which
-raised TypeError and surfaced from `resolve_date` as "Invalid term".  A "week"
-entry sat in `_TRUNCATE_UNIT` describing that path, readable as though `=Nw`
-worked.  The unsupported unit is now refused where the mistake is.
-"""
-
 import unittest
 from datetime import date, datetime
 
@@ -18,7 +9,7 @@ class TestSetUnitTerm(unittest.TestCase):
         from dateutil.relativedelta import relativedelta
 
         for unit in _TRUNCATE_UNIT:
-            relativedelta(**{unit: 1})  # must not raise
+            relativedelta(**{unit: 1})
 
     def test_setting_a_day_of_month(self):
         self.assertEqual(

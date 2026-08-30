@@ -55,8 +55,6 @@ class LRU[K, V](MutableMapping[K, V]):
         try:  # noqa: SIM105  contextlib.suppress costs a context manager per read
             self._map.move_to_end(key)
         except KeyError:
-            # Another thread evicted it between the read and the touch. The
-            # value is still the one this caller asked for.
             pass
         return value
 
@@ -90,12 +88,6 @@ class LRU[K, V](MutableMapping[K, V]):
         with self._lock:
             return dict(self._map)
 
-    # `MutableMapping`'s KeysView/ValuesView/ItemsView iterate `self` and then
-    # re-read each key through `__getitem__`, which touches the recency order
-    # on a read-only inspection and -- worse -- reads a key a concurrent
-    # `_trim()` may already have evicted. Three reader threads doing
-    # `dict(cache.items())` against three writers raised KeyError within
-    # seconds. `snapshot` takes the lock once and answers from a copy.
     def keys(self) -> KeysView[K]:  # type: ignore[override]
         return self.snapshot.keys()
 

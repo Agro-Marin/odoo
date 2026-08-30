@@ -295,13 +295,6 @@ class TestGetWebpSize:
         assert get_webp_size(self._webp_vp8x(side, side)) == (side, side)
 
     def test_the_lossy_upscaling_hint_is_not_read_as_a_dimension(self):
-        """The top two bits of each VP8 16-bit field are a scale hint.
-
-        libwebp leaves them zero, so no encoder produces this -- but libwebp
-        *accepts* such a file and decodes it at its true size, and reading the
-        hint as part of the dimension turned 300x200 into 49452x49352, well
-        over IMAGE_MAX_RESOLUTION.
-        """
         stream = io.BytesIO()
         Image.new("RGB", (300, 200), (9, 9, 9)).save(stream, "WEBP", lossless=False)
         raw = bytearray(stream.getvalue())
@@ -315,12 +308,6 @@ class TestGetWebpSize:
 
 
 class TestImageResolutionGuard:
-    """The guard reads the decoded size, so it is format-agnostic.
-
-    It used to have a WebP-only arm that worked off the header, because WebP
-    was never decoded at all.
-    """
-
     @staticmethod
     def _webp(size):
         stream = io.BytesIO()
@@ -565,14 +552,6 @@ class TestContentHashToleranceDoesNotDependOnBlake3:
 
 
 class TestIntervalsSortKeyStopsBeforeThePayload:
-    """A sort key must never reach the payload.
-
-    `Intervals` sorted `(value, flag, records)` triples whole, so a tie on the
-    first two fell through to comparing recordsets -- `BaseModel.__lt__` is a
-    subset partial order and returns NotImplemented across models, i.e.
-    TypeError.
-    """
-
     class Payload:
         def __init__(self, name, ids):
             self._name, self.ids = name, ids
@@ -689,18 +668,6 @@ class TestStackMapIteratesInInsertionOrder:
 
 
 class TestHtml2PlaintextHalvesRunsRatherThanFlatteningThem:
-    """Both whitespace collapses in `_markup_to_structured_text` are a single
-    non-overlapping `str.replace`, which HALVES a run: three spaces become two,
-    four become two, five become three. That reads like an incomplete
-    `re.sub(" {2,}", " ")` and is not.
-
-    `f57cbefef48` "fixed" the space one into a regex and took `/base` red on
-    `test_ir_mail_server.py::test_content_mail_body`, which expects
-    "test6   test7" and "test8    test9". The newline one is pinned the same way
-    by `TestHtml2PlaintextKeepsStructure`. Neither is incidental; this class
-    exists so the next reader does not make the change a third time.
-    """
-
     def test_a_run_of_spaces_is_halved_not_flattened(self):
         assert html2plaintext("<p>a  b</p>") == "a b"
         assert html2plaintext("<p>a   b</p>") == "a  b"
@@ -711,7 +678,6 @@ class TestHtml2PlaintextHalvesRunsRatherThanFlatteningThem:
         assert html2plaintext("<p>a b</p>") == "a b"
 
     def test_the_exact_spacing_base_pins_over_smtp(self):
-        # The two runs from MISC_HTML_SOURCE that test_content_mail_body asserts.
         assert html2plaintext("<p>test6      test7</p>") == "test6   test7"
         assert html2plaintext("<p>test8        test9</p>") == "test8    test9"
 
@@ -807,14 +773,6 @@ class TestWorkingOnDatabaseRestoresAnExplicitNone:
 
 
 class TestOpenContainerMimetypeIsValidated:
-    """The OCF `mimetype` member is whatever the zip's author put there.
-
-    `re.match` anchors only at the start and the raw read was returned with it,
-    so a member of "text/plain\\r\\nX-Injected: yes" became the attachment's
-    mimetype -- and serving that raised ValueError out of werkzeug's header
-    validation. Reachable when libmagic is absent, which is a supported build.
-    """
-
     @staticmethod
     def _ocf(declared: str) -> bytes:
         buf = io.BytesIO()
@@ -845,12 +803,6 @@ class TestOpenContainerMimetypeIsValidated:
 
 
 class TestFormatNumberLeavesLiteralTextAlone:
-    """Only the conversion's own output carries a decimal point.
-
-    Searching the whole formatted string for one rewrote the caller's literal
-    periods too: `"%.2f sec."` on 1234.5 came out `"1.234,50 sec,"`.
-    """
-
     class _Lang:
         decimal_point = ","
         thousands_sep = "."
@@ -878,8 +830,6 @@ class TestFormatNumberLeavesLiteralTextAlone:
 
 class TestUrljoinPrefixIsMeasuredInSegments:
     def test_a_sibling_path_is_refused_not_re_rooted(self):
-        # `startswith` accepted this and `removeprefix` produced
-        # "http://h/a/bc/d", a third URL that is neither input.
         with pytest.raises(ValueError, match="begin with base path"):
             urljoin("http://h/a", "http://h/abc/d")
 
@@ -903,7 +853,6 @@ class TestSqlJoinKeepsTheSeparatorsToFlush:
     def test_a_separator_without_params_reports_its_fields(self):
         field = self._Field()
         joined = SQL(" AND ", to_flush=field).join([SQL("a=1"), SQL("b=2")])
-        # One per gap, which is what the parameterised branch already produced.
         assert list(joined.to_flush) == [field]
         assert joined.code == "a=1 AND b=2"
 
@@ -916,13 +865,6 @@ class TestSqlJoinKeepsTheSeparatorsToFlush:
 
 
 class TestCollectorInvariantHoldsForEveryWriter:
-    """The "absent means ()" invariant was enforced by __setitem__ alone.
-
-    `dict.__init__`, `dict.update` and `dict.setdefault` all bypass it, so a
-    Collector built from a mapping kept the caller's own lists and `add()` then
-    raised TypeError concatenating a tuple to one.
-    """
-
     def test_construction_from_a_mapping(self):
         collector = Collector({"a": [], "b": [1, 2]})
         assert dict(collector) == {"b": (1, 2)}
@@ -946,13 +888,6 @@ class TestCollectorInvariantHoldsForEveryWriter:
 
 
 class TestLruViewsDoNotWalkThroughGetitem:
-    """MutableMapping's views re-read every key through `__getitem__`.
-
-    That touches the recency order on a read-only inspection, and reads a key a
-    concurrent `_trim()` may already have evicted -- three readers doing
-    `dict(cache.items())` against three writers raised KeyError within seconds.
-    """
-
     def test_items_does_not_touch_the_recency_order(self):
         cache = LRU(3)
         cache["a"], cache["b"], cache["c"] = 1, 2, 3
@@ -1013,8 +948,6 @@ class TestDsigTransformOrderIsIrrelevant:
         )
 
     def test_exclusive_c14n_is_found_after_an_enveloped_transform(self):
-        # The ordinary XAdES pair. Reading `transforms[0]` reported inclusive
-        # c14n, which digests a different octet stream.
         assert _c14n_params_from_transforms(
             self._reference(self.ENVELOPED, EXC_C14N_ALGORITHM)
         ) == (True, [])
@@ -1050,8 +983,6 @@ class TestDsigTransformOrderIsIrrelevant:
 
 class TestIsEncodableEmptyString:
     def test_the_empty_string_encodes_in_every_charset(self):
-        # This answered False; every call site happened to mask it with its own
-        # truthiness test first.
         assert is_encodable("") is True
         assert is_encodable("", "ascii") is True
 
@@ -1061,14 +992,6 @@ class TestIsEncodableEmptyString:
 
 
 class TestHashingOneShotAgreesWithIncremental:
-    """`ir.attachment` hashes the same bytes both ways and compares the results.
-
-    `content_hash(data)` runs BLAKE3 multi-threaded above 1 MiB and
-    single-threaded below; `content_hasher()` never does, and
-    `content_hash_file` always does. Nothing pinned that the four agree, and
-    they decide whether two attachments are the same file.
-    """
-
     SIZES = [0, 1, 11, _MT_MIN_BYTES - 1, _MT_MIN_BYTES, 2 * _MT_MIN_BYTES]
 
     @pytest.mark.parametrize("size", SIZES)
@@ -1100,15 +1023,12 @@ class TestHashingOneShotAgreesWithIncremental:
         assert cache_hash(data) == incremental.hexdigest()
 
     def test_different_content_still_gives_different_digests(self):
-        # Without this the agreement above could hold on a constant.
         assert content_hash(b"a") != content_hash(b"b")
         assert content_hash(b"") != content_hash(b"\0")
 
 
 class TestCryptContextCopyKeepsEverySetting:
     def test_a_copy_carries_the_settings_and_is_independent(self):
-        # `copy` used to build through `__new__` and assign three attributes by
-        # name, so a fourth setting would have been dropped in silence.
         original = CryptContext(
             ["pbkdf2_sha512", "plaintext"],
             deprecated=["auto"],

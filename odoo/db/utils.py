@@ -28,13 +28,6 @@ def is_maintenance_db(db_name: str) -> bool:
 
 
 def find_value_markers(query: str) -> list[int]:
-    """Offsets of every literal `%s` placeholder, skipping the `%%` escape.
-
-    Shared by the DDL parameter inliner and by `execute_values`, which needs to
-    locate the single marker standing for its VALUES list.  It lived in `ddl.py`
-    and is not about DDL, which made `bulk.py` import a DDL module for a reason
-    that had nothing to do with DDL.
-    """
     out = []
     i, n = 0, len(query)
     while i < n - 1:
@@ -103,23 +96,6 @@ re_from_keyword = re.compile(r"\bfrom\b", re.IGNORECASE)
 
 
 def _mask_nested(sql_text: str) -> str:
-    r"""Blank out everything inside parentheses, keeping offsets and length.
-
-    `re_from` takes the first `FROM` anywhere, and SQL puts `FROM` inside
-    parentheses for reasons that have nothing to do with the table being read:
-    `EXTRACT(epoch FROM now())`, `SUBSTRING(x FROM y)`, `TRIM(BOTH ' ' FROM x)`.
-    Measured before this masking, `SELECT extract(epoch FROM now() - x) FROM
-    res_partner` was filed under a table called `now`, and so was `lag.LAG_SQL`
-    -- this package's own replica probe, which has no FROM clause at all -- and
-    the per-table timings this feeds are what a slow-query hunt reads first.
-
-    The filler is NUL rather than a space on purpose. `re_from` spells the gap
-    between the keyword and the table `\s+`, so masking a subquery to blanks
-    lets `FROM (SELECT b FROM inner_t) s` match straight through the hole and
-    capture the *alias*: measured, `('from', 's')`. NUL is neither whitespace
-    nor an identifier character, so the match simply fails there and the
-    subquery falls to the unmasked search below, which answers as it always did.
-    """
     out = []
     depth = 0
     for char in sql_text:
@@ -135,16 +111,6 @@ def _mask_nested(sql_text: str) -> str:
 
 
 def _search_from(body: str) -> re.Match | None:
-    """The FROM that names the table being read, or None if there is not one.
-
-    Three outcomes, and the third is the one the old single `search` could not
-    express. A depth-0 `FROM` with a plain table after it answers directly. A
-    depth-0 `FROM` whose target is a parenthesised subquery answers from the
-    unmasked text, naming the inner table -- unchanged behaviour, pinned by
-    `test_select_from_subquery`. No depth-0 `FROM` keyword at all means the
-    statement has no FROM clause, and reaching into a function's arguments for
-    one is how `now` became a table name.
-    """
     masked = _mask_nested(body)
     match = re_from.search(masked)
     if match is not None:

@@ -85,11 +85,6 @@ class PdfSigner:
         if not self.company or not HAS_CRYPTOGRAPHY or not self.usable:
             return None
 
-        # `| None` used to sit on _setup_form's return type, and the branch that
-        # answered it could not fire: the method has one return statement and it
-        # always yields the pair.  The unreachable arm was the whole reason
-        # test_pdf_signer_contract could not unpack the result without mypy
-        # calling it an iteration over None.
         _dummy, sig_field_value = self._setup_form(
             visible_signature, field_name, signer
         )
@@ -391,12 +386,6 @@ class PdfSigner:
     def _locate_contents_placeholder(
         self, pdf_data: bytes
     ) -> tuple[int, int, bytes] | None:
-        """Where the zero-filled /Contents blob sits, and what it should read.
-
-        Returns the offsets and the expected bytes so the caller can re-check
-        the same window after writing /ByteRange -- that second comparison is
-        the point, so it uses these offsets rather than searching again.
-        """
         signature_field_pos = pdf_data.rfind(b"/FT /Sig")
         if signature_field_pos == -1:
             _logger.warning(
@@ -460,18 +449,6 @@ class PdfSigner:
 
         pdf_data = self._get_document_data()
 
-        # Writing the real /ByteRange lengthens the document, and the offsets
-        # the digest is about to use were computed BEFORE that. It is sound only
-        # because _signature_field_value inserts /Contents ahead of /ByteRange,
-        # so the growth lands after the placeholder and cannot move it -- a
-        # load-bearing property of one dict literal's order and of how pypdf
-        # serialises a dictionary, neither of which is promised anywhere.
-        #
-        # If it ever stops holding, the digest covers the wrong bytes and
-        # nothing downstream notices: the CMS blob is still built, still fits,
-        # and sign_pdf still returns a stream. The document would leave here
-        # carrying a signature only an external verifier could tell was invalid.
-        # Cheaper to re-read the placeholder than to trust the ordering.
         if pdf_data[placeholder_start:placeholder_end] != placeholder:
             _logger.error(
                 "Cannot sign PDF: filling in /ByteRange moved the /Contents "

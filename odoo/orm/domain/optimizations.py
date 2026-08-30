@@ -62,13 +62,6 @@ def _check_operators(caller: str, operators: Collection[str]) -> None:
 def _register_condition_optimization(
     keys: Collection[str], level: OptimizationLevel, kind: str
 ) -> typing.Callable[[typing.Any], typing.Any]:
-    """Claim `keys` for `kind` and register the optimisation under them.
-
-    One registrar for both decorators: they differ only in which key space the
-    names come from, and having written it twice is how one of them ended up
-    validating its names and the other not.
-    """
-
     def register(optimization: typing.Any) -> typing.Any:
         mapping = _OPTIMIZATIONS_FOR[level]
         for key in keys:

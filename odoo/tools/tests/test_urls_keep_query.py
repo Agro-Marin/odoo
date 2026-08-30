@@ -23,11 +23,6 @@ def fake_request(**query):
 
 @contextlib.contextmanager
 def _http_serving(request):
-    """Stand in for a live odoo.http while keep_query runs.
-
-    keep_query imports `request` when it is called, not when the module loads,
-    so the stub has to be in sys.modules at call time -- and only then.
-    """
     stub = types.ModuleType("odoo.http")
     stub.request = request  # type: ignore[attr-defined]
     previous = sys.modules.get("odoo.http")
@@ -97,18 +92,9 @@ if __name__ == "__main__":
 
 
 class TestToolsStaysBelowTheServingTier(unittest.TestCase):
-    """odoo.tools sits below odoo.http, which imports odoo.tools in eight places.
-
-    urls.py used to do `from odoo.http import request` at module scope, so
-    `import odoo.tools.urls` -- which ir_qweb and ~60 other modules do, most of
-    them only for `urljoin` -- dragged in the whole serving tier.  layer_check's
-    `tools-stays-below-the-serving-tier` contract is the repo-wide gate; this is
-    the unit-level one, and it also pins the deferral itself.
-    """
-
     def test_the_module_does_not_import_odoo_http_at_module_scope(self):
         tree = ast.parse(Path(urls.__file__).read_text(encoding="utf-8"))
-        for node in tree.body:  # module scope only, not function bodies
+        for node in tree.body:
             names = []
             if isinstance(node, ast.Import):
                 names = [alias.name for alias in node.names]

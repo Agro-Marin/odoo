@@ -25,8 +25,6 @@ _DB_PACKAGE = pathlib.Path(pool.__file__).parent
 
 
 def _callees(func) -> set[str]:
-    # unwrap first: a @contextmanager's attribute is contextlib's helper, and
-    # its co_names are contextlib's rather than the decorated function's.
     return set(inspect.unwrap(func).__code__.co_names)
 
 
@@ -151,16 +149,6 @@ class TestStalePlanIsRetriedAtTheRequestLayer(unittest.TestCase):
         )
 
     def test_it_clears_the_plans_so_the_retry_re_prepares(self):
-        """Behavioural, because the call it used to grep for moved.
-
-        This asserted `"clear()" in src`, which stopped being true when the
-        three copies of the `_prepared` contract were unified behind
-        `lifecycle.clear_prepared_cache`. The property was never about the
-        spelling: what matters is that the marker empties the cache, so the
-        replay `service.transaction.retrying` performs re-prepares against the
-        new plan instead of reusing the stale one.
-        """
-
         class _Prepared:
             def __init__(self):
                 self._names = {"_pg3_0": b"stmt"}
@@ -306,14 +294,6 @@ class TestEveryDsnConsumerExpandsConninfo(unittest.TestCase):
 
 
 class TestLibpqTimeoutNeverLeaksZero(unittest.TestCase):
-    """libpq reads `connect_timeout=0` as "wait forever", not "give up now".
-
-    The helper and two of its three call sites moved to `probe.py` with the
-    reachability prober; `_borrow_direct` kept the third. The guard is a
-    property of every call site wherever it lives, so this scans both modules
-    rather than whichever one happens to hold the function today.
-    """
-
     def test_it_returns_zero_or_at_least_one_never_between(self):
         now = probe.monotonic()
         for offset in (-5, -1, -0.5, 0, 0.2, 0.9, 1.0, 1.5, 3, 10, 900):
@@ -562,11 +542,6 @@ class TestEveryCheckoutIsTracked(unittest.TestCase):
 
 
 class TestBudgetBelongsToAServer(unittest.TestCase):
-    """The registry moved out of `odoo/db/__init__.py` into `EndpointRegistry`.
-
-    These pin the keying, not where it lives, so they follow it to the class.
-    """
-
     def test_the_key_is_the_resolved_endpoint(self):
         names = _callees(endpoints.EndpointRegistry.budget_for)
         self.assertIn("endpoint_of", names)
@@ -688,14 +663,6 @@ class TestPipelineModeCannotBypassTheFailureSeam(unittest.TestCase):
 
 
 class TestASavepointIsNeverOpenedInsideAPipeline(unittest.TestCase):
-    """A queued ROLLBACK TO SAVEPOINT is discarded with the rest of the batch.
-
-    Measured on a live cursor: the same UniqueViolation under the same
-    savepoint left the transaction usable outside a pipeline and
-    `InFailedSqlTransaction` inside one -- silently, because the caller's
-    `except` ran exactly as written.
-    """
-
     def test_savepoint_refuses_pipeline_mode(self):
         src = inspect.getsource(cursor.BaseCursor.savepoint)
         self.assertIn("in_pipeline", src)
@@ -715,16 +682,6 @@ class TestASavepointIsNeverOpenedInsideAPipeline(unittest.TestCase):
 
 
 class TestEveryFailedBorrowIsCounted(unittest.TestCase):
-    """Both borrow paths end in one guard, and that guard counts.
-
-    `_borrow_direct` used to have four exits and only the last of them called
-    `record_borrow_failed`, so `borrows_failed` read 0 for a maintenance
-    endpoint refusing every connect while the pooled path counted the same
-    failure as 1. `db_connect("postgres")` is the cron's heartbeat, so an
-    unreachable maintenance DB is exactly what `db.pool_health()` is read to
-    find, and it was the one failure the figure could not show.
-    """
-
     def _final_guard(self, name):
         fn = ast.parse(
             textwrap.dedent(inspect.getsource(getattr(pool.ConnectionPool, name)))
@@ -787,15 +744,6 @@ class TestOneDecodeOfAStatementsText(unittest.TestCase):
 
 
 class TestCursorConstructionNeverLeaksAPermit(unittest.TestCase):
-    """`Cursor.__init__` owns a borrowed connection before `_closed` is False.
-
-    `__del__` short-circuits on `_closed`, so nothing else can ever return it:
-    measured with a KeyboardInterrupt injected at `_cnx.cursor()`, an
-    `except Exception` handler left `budget_in_use=1, checked_out=1` for the
-    life of the process, and `maxconn` of those leave every later borrow
-    timing out on "connection budget reached".
-    """
-
     def _init_handlers(self):
         fn = ast.parse(textwrap.dedent(inspect.getsource(cursor.Cursor.__init__))).body[
             0
@@ -835,13 +783,6 @@ class TestCursorConstructionNeverLeaksAPermit(unittest.TestCase):
 
 
 class TestTheBreakerLockIsNotReentrant(unittest.TestCase):
-    """`allow` holds a plain `threading.Lock`, so it must not call `closed`.
-
-    Demonstrated: giving the `closed` property that lock leaves `allow()` hung
-    past a 2 s join. The trap is that `closed` looks exactly like the read
-    `allow` wants, so the lock-held path reads `_open` directly instead.
-    """
-
     def test_allow_does_not_go_through_the_property(self):
         self.assertNotIn(
             "closed",
@@ -942,8 +883,6 @@ class TestTheProbeAsksItsQuestionOnce(unittest.TestCase):
                 if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
             }
 
-        # AST, not source text: a `.close()` named in a COMMENT explaining the
-        # shape this replaces is not a call, and matching on text says it is.
         self.assertIn("connect", calls(block.body))
         self.assertNotIn(
             "close",
@@ -961,19 +900,6 @@ class TestTheProbeAsksItsQuestionOnce(unittest.TestCase):
 
 
 class TestNoSelfLockIsTakenTwice(unittest.TestCase):
-    """`threading.Lock` is not reentrant, so a nested acquisition hangs.
-
-    Two instances of this trap have been found in this package -- `allow`
-    reading through the `closed` property, and `_budget_exhausted` growing an
-    acquisition while its callers might have held one. Both were checked by
-    hand; this checks the whole class each time.
-
-    The rule enforced is narrow and mechanical: within one class, a method that
-    is called from inside a `with self._lock:` block must not itself contain
-    `with self._lock:`. It reads the AST rather than the text, so a lock named
-    in a comment or a docstring is not a call.
-    """
-
     LOCKED_CLASSES = (
         pool.ConnectionPool,
         probe.ReachabilityProbe,
@@ -1011,10 +937,6 @@ class TestNoSelfLockIsTakenTwice(unittest.TestCase):
             if not locked:
                 continue
             for reached in ast.walk(ast.Module(body=sub.body, type_ignores=[])):
-                # Both shapes reach a method body: `self.x()` is a Call, and
-                # `self.x` on a PROPERTY is a bare Attribute. Collecting only
-                # calls is what let `allow()`'s read of the `closed` property
-                # -- the very trap this class exists for -- pass the check.
                 if (
                     isinstance(reached, ast.Attribute)
                     and isinstance(reached.value, ast.Name)
@@ -1044,7 +966,6 @@ class TestNoSelfLockIsTakenTwice(unittest.TestCase):
                     )
 
     def test_the_check_can_see_a_violation(self):
-        """A structural pin that cannot fail is not a pin."""
         src = textwrap.dedent("""
             class Bad:
                 def outer(self):

@@ -538,16 +538,6 @@ class EventServer(CommonServer):
         super().stop()
 
     def run(self, preload: list[str] | None = None, stop: bool = False) -> int | None:
-        """The evented server serves; it does not preload and cannot stop early.
-
-        Both arguments are part of `CommonServer.run`'s shape and neither is
-        actionable here: this process exists to hold long-polling connections,
-        the registries it needs are built lazily per request, and there is no
-        "initialisation done" moment to return from.  They were accepted and
-        dropped in silence, so `odoo-bin evented -i base --stop-after-init`
-        installed nothing and never returned, with nothing in the log saying
-        why.  Say it once instead.
-        """
         if preload:
             self.logger.warning(
                 "Ignoring --init/--update/database preload (%s): the evented "

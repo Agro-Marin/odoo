@@ -41,17 +41,6 @@ class CircuitBreaker:
 
     @property
     def closed(self) -> bool:
-        """Whether the breaker is letting traffic through.
-
-        Deliberately lock-free, and `allow` below deliberately does NOT use
-        it. `self._lock` is a plain `threading.Lock`, which is not reentrant,
-        so a `closed` that took the lock would deadlock every caller of
-        `allow` -- demonstrated: giving this property the lock leaves
-        `allow()` hung past a 2 s join. That is a trap laid for whoever next
-        decides the read "should" be guarded, so the lock-held path reads
-        `_open` directly and this property exists only for callers outside
-        the lock.
-        """
         return not self._open
 
     @property

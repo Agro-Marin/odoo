@@ -66,8 +66,6 @@ class TestQueryMemoInvalidation(unittest.TestCase):
         self.assertEqual(sub.params, (1, 2, 3))
 
     def test_a_measured_empty_is_dropped_by_a_widening_limit(self):
-        # _invalidate_ids keeps a memoised () on purpose, and its comment used
-        # to argue no mutator could repopulate. Raising `limit` off 0 does.
         env = _StubEnv()
         query = Query(cast("Environment", env), "res_partner")
         query.limit = 0
@@ -93,8 +91,6 @@ class TestQueryMemoInvalidation(unittest.TestCase):
         self.assertEqual(query.get_result_ids(), (1, 2, 3))
 
     def test_a_constructed_empty_needs_no_query_at_all(self):
-        # set_result_ids([]) writes a WHERE FALSE; no limit or offset brings
-        # rows back through that, so the answer is known without asking.
         env = _StubEnv()
         query = Query(cast("Environment", env), "res_partner")
         query.set_result_ids([])

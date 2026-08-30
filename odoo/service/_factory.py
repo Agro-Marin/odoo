@@ -1,14 +1,3 @@
-"""Choose a server for this process, run it, and re-exec if it asked to.
-
-The factory, and only the factory.  `lifecycle` is everything the servers
-themselves need -- preload, the re-exec, the resident-registry sizing -- and
-`_process_state` holds the two globals they reach for.  This module sits ABOVE
-the server classes and imports them at the top; while it lived inside
-`lifecycle`, which they import, the graph was two-way and `lifecycle`,
-`_watcher`, `_metrics`, `_threaded` and `_prefork` each carried a deferred
-import to work around it.
-"""
-
 from __future__ import annotations
 
 import logging

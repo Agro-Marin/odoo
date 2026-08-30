@@ -42,10 +42,6 @@ def _import(
 
 
 for _allowed_module in _ALLOWED_MODULES:
-    # Imported eagerly so time.strptime does not lazily import _strptime from
-    # inside a safe_eval. Underscore-named because this module's own error text
-    # tells callers that its attributes are pre-wrapped modules, and a bare
-    # loop variable left `odoo.tools.safe_eval.module == "time"` sitting there.
     __import__(_allowed_module)
 del _allowed_module
 
@@ -415,14 +411,6 @@ def assert_valid_codeobj(
     *,
     memoise: bool = True,
 ) -> None:
-    """Validate `code_obj`, memoising the verdict unless the caller has its own.
-
-    `memoise=False` is for `_compile_and_validate`, whose lru_cache hands back
-    the code object itself: after the first call it never re-enters here, so
-    every entry it wrote was written once and read never -- while competing for
-    the same 8192 slots with `const_eval`/`expr_eval`/`test_python_expr`, which
-    do come back and do read them.
-    """
     nested_code = [c for c in code_obj.co_consts if isinstance(c, CodeType)]
     cacheable = memoise and not nested_code
 
@@ -576,17 +564,6 @@ _SAFE_BUILTINS = {**_BUILTINS, _GUARD_FORMAT_NAME: _guard_format}
 def _compile_and_validate(
     expr: str, filename: str, mode: typing.Literal["eval", "exec"]
 ) -> CodeType:
-    """Compile `expr` once and hand back the code object on every later call.
-
-    `_validated_bytecode_cache` already spares the *validation* on a repeat, but
-    compilation ran every time -- and compilation is the expensive half: 9.5 us
-    against 0.3 us for a validation hit, on a domain-shaped expression.  A code
-    object is immutable and carries no per-call state (the globals are built
-    fresh below), so it is safe to hand the same one out repeatedly.
-
-    Bounded like its sibling: an expression built at runtime would otherwise
-    grow this without limit.
-    """
     code = compile_codeobj(expr, filename=filename, mode=mode, guard_format=True)
     assert_valid_codeobj(_SAFE_OPCODES, code, expr, memoise=False)
     return code
@@ -613,7 +590,6 @@ def safe_eval(
     globals_dict = dict(context or {}, __builtins__=dict(_SAFE_BUILTINS))
 
     if isinstance(expr, (bytes, bytearray)):
-        # bytearray is unhashable, so normalise before the cache key
         expr = bytes(expr).decode()
     c = _compile_and_validate(expr, filename or "<unknown>", mode)
     try:

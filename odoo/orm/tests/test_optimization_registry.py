@@ -30,12 +30,6 @@ def test_every_registered_key_is_an_operator_or_a_field_type():
 
 
 def test_each_key_is_valid_for_the_kind_it_was_claimed_as():
-    """The union check above cannot tell which door a bad key came through.
-
-    A key registered as a field type but spelled like nothing in
-    `Field._by_type__` is dead on arrival, and used to be invisible: only
-    `operator_optimization` validated its names.
-    """
     wrong = {
         key: kind
         for key, kind in _OPTIMIZATION_KEY_KIND.items()
@@ -59,11 +53,6 @@ def test_the_two_key_spaces_do_not_overlap():
 
 @contextlib.contextmanager
 def _isolated_registry():
-    """Registration mutates process-global state; put it back.
-
-    Without this the probe below leaves a `None`-returning optimisation
-    registered under a real operator, for every test that runs after it.
-    """
     level = OptimizationLevel.BASIC
     mapping = _OPTIMIZATIONS_FOR[level]
     saved_kinds = dict(_OPTIMIZATION_KEY_KIND)
@@ -78,7 +67,6 @@ def _isolated_registry():
 
 
 def test_claiming_a_key_for_both_kinds_is_refused():
-    """The dispatcher looks both key spaces up in one mapping."""
     with _isolated_registry() as level:
         operator_optimization(["="], level)(lambda *a: None)
         with pytest.raises(ValueError, match="already registered as a domain operator"):

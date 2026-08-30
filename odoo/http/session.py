@@ -44,10 +44,6 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
         renew_missing: bool = False,
         mode: int = 0o600,
     ) -> None:
-        # 0o600, not the vendored 0o644. `save` below creates each `xx/` shard
-        # 0o700, so the mode was never what kept another user out -- but it is
-        # the file's own claim about who may read the `session_token` inside,
-        # and it claimed anyone. Nothing outside this process reads one.
         super().__init__(path, session_class, renew_missing, mode)
 
     def get_session_filename(self, sid: str) -> str:
@@ -108,21 +104,6 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
                     if session.is_modified():
                         self.save(session)
                     return
-                # Both branches adopt the peer's SID, so both adopt the peer's
-                # identity with it. Only the write is conditional.
-                #
-                # They were asymmetric: the unmodified branch took `new_sid` and
-                # nothing else, leaving an in-memory session whose
-                # `session_token` was computed for the sid it had just stopped
-                # using. `check_session` recomputes the token from the sid and
-                # logs the user out when the two disagree, so anything that went
-                # on to `save()` that session wrote a file that logs its owner
-                # out. Nothing does -- `_save_session` is an if/elif chain and a
-                # request that rotates never also saves -- which means the
-                # correctness of this function rested on the shape of a
-                # different one. Measured both ways: 32 scenarios through the
-                # real chain produce no violation, and the same interleavings
-                # with one added `save()` produce one every time.
                 modified = session.is_modified()
                 for key in ("next_sid", "deletion_time"):
                     if key in session:
@@ -217,8 +198,6 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
             if not _session_identifier_re.match(identifier):
                 msg = "Identifier format incorrect, did you pass in a string instead of a list?"
                 raise ValueError(msg)
-            # No containment check: `identifier` matched the regex above, so
-            # `identifier[:2]` cannot escape `base_path`.
             files_to_unlink.extend((base_path / identifier[:2]).glob(identifier + "*"))
         for fn in files_to_unlink:
             if exclude_sid is not None and fn.name == exclude_sid:

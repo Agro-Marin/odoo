@@ -850,13 +850,6 @@ class TestCollector(unittest.TestCase):
         self.assertEqual(len(c), 0)
 
     def test_get_agrees_with_getitem_on_a_missing_key(self) -> None:
-        # Deliberate change of a previously pinned behaviour. `Collector` already
-        # departs from `dict` at `__getitem__`, which returns () rather than
-        # raising, and `__setitem__` deletes on an empty value -- so a key is
-        # present exactly when its tuple is non-empty and "absent means ()" is
-        # the coherent reading. Leaving `get` on dict's None default meant the
-        # same missing key answered (), None and False depending on how it was
-        # asked. An explicit default still wins.
         c = _Collector()
         self.assertEqual(c.get("missing"), ())
         self.assertEqual(c["missing"], ())

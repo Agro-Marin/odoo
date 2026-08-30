@@ -94,7 +94,7 @@ def _has_child_processes() -> bool:
             for task in pathlib.Path("/proc/self/task").iterdir()
         )
     except OSError:
-        return True  # no procfs: fall through to the portable walk
+        return True
 
 
 def gc_test_filestore() -> None:
@@ -731,7 +731,6 @@ class BaseCase(TestCase):
     def assertItemsEqual(self, a: Any, b: Any, msg: str | None = None) -> None:
         self.assertCountEqual(a, b, msg=msg)
 
-    #: Field types `assertDependsComplete` knows how to write a probe value to.
     _DEPENDS_PROBE_VALUES: ClassVar[dict[str, list[Any]]] = {
         "char": ["zzz-probe"],
         "text": ["zzz-probe"],
@@ -744,7 +743,6 @@ class BaseCase(TestCase):
         "datetime": [datetime(2021, 3, 4, 5, 6, 7)],
     }
 
-    #: Types whose probe values have to be asked of the field, not tabulated.
     _DEPENDS_PROBE_DYNAMIC = frozenset({"selection", "many2one"})
 
     def assertDependsComplete(
@@ -756,32 +754,6 @@ class BaseCase(TestCase):
         known_incomplete: Iterable[str] | None = None,
         msg: str | None = None,
     ) -> None:
-        """Assert every computed field on `records` declares what it reads.
-
-        For each writable stored field of the model: warm the computed fields,
-        write a probe value, read the computed fields back from cache, then
-        flush + invalidate and read them again. A field whose two readings
-        differ reads something the write changed without declaring a dependency
-        that reaches it -- which is a value users see go stale for the rest of
-        the transaction that changed it.
-
-        The warm-up is the load-bearing step, not a nicety. Read a computed
-        field only *after* the write and its compute runs against inputs that
-        are already updated, the two readings agree, and the assertion passes
-        while proving nothing. Three revisions of the probe this grew out of
-        reported clean for exactly that reason.
-
-        Samples that cannot run -- a write the model refuses, a compute that
-        raises on the fixture -- are skipped, not failed: this asserts about
-        dependencies, and a constraint violation is somebody else's subject.
-
-        `known_incomplete` names fields whose dependency **cannot** be written
-        as a field path, so the staleness is a limit of `@api.depends` rather
-        than an omission -- `res.currency.rate_string` reads the name of the
-        *company's* currency, which no path from `res.currency` reaches. The
-        exemption is checked in both directions: a name listed there that has
-        stopped going stale fails too, so it cannot outlive its reason.
-        """
         self.assertTrue(records, msg or "assertDependsComplete needs records")
         model = records.browse(records.ids)
         exempt = set(known_incomplete or ())
@@ -832,8 +804,6 @@ class BaseCase(TestCase):
                 or f.type in self._DEPENDS_PROBE_DYNAMIC
             )
         ]
-        # many2one last: its probe values cost a search, and a scalar write that
-        # already found the divergence makes that search unnecessary.
         probes.sort(key=lambda name: fields[name].type == "many2one")
         return probes
 
@@ -844,15 +814,6 @@ class BaseCase(TestCase):
         probe_fields: Iterable[str] | None = None,
         computed_fields: Iterable[str] | None = None,
     ) -> list[tuple[str, str, Any, Any, Any]]:
-        """The computed fields a write leaves disagreeing with a cold recompute.
-
-        The measurement behind `assertDependsComplete`, without the verdict, so
-        a sweep over many models can collect findings and compare the whole set
-        against what it expects instead of failing on the first model.
-
-        Each entry is `(written field, stale field, value written, cached value,
-        freshly computed value)`.
-        """
         model = records.browse(records.ids)
         fields = model._fields
         computed = self._depends_computed_names(model, computed_fields)
@@ -866,17 +827,10 @@ class BaseCase(TestCase):
     def _depends_probe_values(
         self, records: odoo.models.BaseModel, field: Any
     ) -> list[Any]:
-        """Values to write to `field`, at least one differing from what is there.
-
-        Relational probes matter more than their count suggests: most of what a
-        compute reads is reached through a many2one, and a scalar-only sweep
-        cannot move any of it.
-        """
         if field.type == "many2one":
             return self._depends_probe_comodel_ids(records, field)
         if field.type in self._DEPENDS_PROBE_DYNAMIC:
             with contextlib.suppress(Exception):
-                # a selection that cannot be enumerated is simply not probed
                 return list(field.get_values(records.env))[:2]
             return []
         return self._DEPENDS_PROBE_VALUES.get(field.type, [])
@@ -885,13 +839,6 @@ class BaseCase(TestCase):
     def _depends_probe_comodel_ids(
         records: odoo.models.BaseModel, field: Any
     ) -> list[Any]:
-        """One comodel id the records do not already point at, or nothing.
-
-        A record of the comodel is the only value a many2one write can take that
-        is guaranteed to satisfy its foreign key. Finding none -- an empty
-        comodel, or one whose every row is already referenced -- is not a
-        failure; that field simply goes unprobed.
-        """
         try:
             comodel = records.env[field.comodel_name].sudo()
             held = {record[field.name].id for record in records} - {False}
@@ -909,7 +856,6 @@ class BaseCase(TestCase):
         probe_name: str,
         value: Any,
     ) -> list[tuple[str, str, Any, Any, Any]]:
-        """One write of `probe_name`, rolled back; the computed fields it staled."""
         env = records.env
         savepoint = env.cr.savepoint(flush=False)
         try:
@@ -922,13 +868,6 @@ class BaseCase(TestCase):
                     return []
             elif current == value:
                 return []
-            # Normalise the stored computes before measuring anything. A column
-            # that was never populated -- a field added without a migration that
-            # fills it -- reads False while its compute produces a value, and
-            # that divergence predates the write. Recomputing first makes the
-            # starting state consistent, so anything found afterwards is caused
-            # by the write and nothing else. `ir.actions.server.automated_name`
-            # was reported until this was here, and was never a dependency bug.
             if self._depends_forced_recompute(records, computed) is None:
                 return []
             env.invalidate_all()
@@ -961,26 +900,6 @@ class BaseCase(TestCase):
     def _depends_forced_recompute(
         self, records: odoo.models.BaseModel, field_names: list[str]
     ) -> dict[tuple[Any, str], Any] | None:
-        """What the *stored* computed fields would hold if recomputed now.
-
-        Comparing the cache against a re-read only finds a missing dependency on
-        a **non-stored** field. On a stored one the missing trigger means the
-        column is never rewritten, so the re-read returns the same stale value
-        the cache holds and the two agree -- while the database quietly carries
-        a value its own compute no longer produces, which is the worse of the
-        two bugs and the one that outlives the transaction.
-
-        So for stored computes the comparison has to be against a forced
-        recompute rather than against a read. Everything here happens inside the
-        caller's savepoint and is rolled back.
-
-        Only `readonly` stored computes qualify. A stored compute that is
-        writable exists precisely so a user's value can survive, and its column
-        is *supposed* to disagree with what the compute would produce -- forcing
-        one is not a finding, it is the feature. Without that filter this
-        reported `ir.actions.server.name`, `automated_name` and
-        `res.users.signature`, all three of them working as designed.
-        """
         stored = [
             name
             for name in field_names
@@ -1005,17 +924,6 @@ class BaseCase(TestCase):
     def _depends_read(
         records: odoo.models.BaseModel, field_names: list[str]
     ) -> dict[tuple[Any, str], Any] | None:
-        """Read `field_names` off every record, or None if any read raised.
-
-        The whole pass is discarded rather than the one key, because a compute
-        that raises part-way through can leave the cache holding whatever it
-        assigned before it did. `_compute_icon_display` opens with
-        `self.icon_image = ""` over the entire recordset and then raises on a
-        malformed path, so its *siblings* read back blank -- which looks exactly
-        like staleness and is not. A raising compute is a different bug from an
-        undeclared dependency, and this assertion should report neither in the
-        other's name.
-        """
         values: dict[tuple[Any, str], Any] = {}
         for record in records:
             for name in field_names:

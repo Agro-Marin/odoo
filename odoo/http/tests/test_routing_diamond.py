@@ -211,23 +211,6 @@ def test_leaf_order_survives_fusion():
     assert grouped == [(A, [L1, L2, L3])]
 
 
-# --- randomised property test over the whole assembly ------------------------
-#
-# The cases above are hand-built shapes. This one generates hierarchies -- chains,
-# diamonds, multiple inheritance, overlapping leaf sets -- and asserts the two
-# properties that hold for ANY of them, which is what "routes doubled on a shared
-# controller leaf" (c4d193577f9) violated:
-#
-#   * every declared URL appears EXACTLY once: none lost, none duplicated
-#   * an overridden method resolves to the most-derived implementation
-#
-# The generator declares each URL with @route in exactly one place and makes
-# overrides use a bare @route() that inherits the routes, so the expected answer
-# is knowable without re-implementing the merge. It also allows at most one
-# override per method: with two, the winner is decided by the synthesized class's
-# MRO and the expectation would have to model that too.
-
-
 def _gen_hierarchy(rng, tag):
     n_base = rng.randint(1, 4)
     base_src = ["from odoo.http import Controller, route", ""]
@@ -258,12 +241,6 @@ def _gen_hierarchy(rng, tag):
     for k in range(rng.randint(0, 4)):
         cls = f"D{k}"
         pool = names + derived
-        # Two constraints, both so the generator emits hierarchies Python
-        # accepts -- what this test measures is the ASSEMBLY, and the two shapes
-        # it would otherwise stumble into have their own tests:
-        #   * canonical order, since two classes taking the same bases in
-        #     opposite orders is the MRO defect covered further down;
-        #   * no class beside its own ancestor, which Python rejects outright.
         chosen = rng.sample(pool, rng.randint(1, min(2, len(pool))))
         chosen = [
             c for c in chosen if not any(c in ancestors[o] for o in chosen if o != c)
@@ -325,7 +302,6 @@ def test_a_random_hierarchy_yields_every_route_once_and_the_deepest_override(
         for url, endpoint in rules:
             _, meth = declared[url]
             if meth in overrides:
-                # `route_wrapper` wraps an http return value in a Response
                 body = endpoint().get_data(as_text=True)
                 assert body.startswith(overrides[meth] + "."), url
     finally:
@@ -388,13 +364,6 @@ def incompatible_orders(monkeypatch):
 def test_controllers_extending_shared_bases_in_opposite_orders_cost_only_themselves(
     incompatible_orders, caplog
 ):
-    """`class DA(B0, B1)` and `class DB(B1, B0)` are each legal, written by
-    authors who cannot see one another. The class this synthesizes from both has
-    no linearisation, and the `TypeError` used to escape `_generate_routing_rules`
-    -- through `ir.http.routing_map`, which is ormcached, so it recurred on every
-    request in every worker. Measured before the guard: the WHOLE map died,
-    `/mro/innocent` with it.
-    """
     with caplog.at_level(logging.ERROR, logger="odoo.http.routing"):
         urls = _urls(["mro_base", "mro_a", "mro_b"])
 

@@ -22,15 +22,6 @@ class CacheInvalidError(AssertionError):
 
 
 class Cache:
-    """The recordset-level view of the field cache.
-
-    It is not a second cache: the storage is the transaction's `OrmCore`, and
-    every method here is a recordset-shaped question answered against it --
-    `get_values(records, field)` where the core stores `field -> {id: value}`.
-    The two levels exist because the core is Odoo-agnostic and keyed by ids,
-    while this one speaks recordsets, contexts and `Field` objects.
-    """
-
     __slots__ = ("transaction",)
 
     def __init__(self, transaction: Transaction):

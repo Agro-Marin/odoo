@@ -150,15 +150,10 @@ def test_options_on_a_cors_route_is_still_the_preflight():
 
     assert response.status_code == 204
     assert req.future_response.headers["Access-Control-Max-Age"]
-    # The preflight is the one OPTIONS a browser sends on its own, and it used
-    # to be the only OPTIONS reply without `Allow` -- the non-CORS branch two
-    # lines below in `pre_dispatch` had it and this one did not.
     assert response.headers["Allow"] == "GET, PUT, OPTIONS"
 
 
 def test_a_refused_preflight_still_says_which_methods_the_url_takes():
-    """No `Access-Control-Allow-Origin` is the resolver's answer; `Allow` is
-    then the only thing the 204 has left to say about the URL."""
     req = _request(method="OPTIONS", headers={"Origin": "https://evil.example"})
     response = _pre_dispatch(
         req, _rule(cors=lambda r: None, cors_credentials=True, methods=("POST",))
@@ -204,7 +199,6 @@ def test_unmatched_json_error_keeps_the_status_code():
 
 
 def test_extending_a_dispatcher_is_not_a_warning(caplog):
-    """iot_drivers replaces JsonRPCDispatcher by subclassing it, on purpose."""
     import logging
 
     from odoo.http.dispatcher import JsonRPCDispatcher, _dispatchers
@@ -256,8 +250,6 @@ def test_an_unrelated_class_claiming_a_routing_type_still_warns(caplog):
 
 
 def test_preflight_echoes_the_requested_headers_when_the_route_declares_none():
-    """The historical rubber stamp, kept as the default: narrowing it globally
-    would break every route that relies on it."""
     req = _request(
         method="OPTIONS",
         headers={
@@ -286,8 +278,6 @@ def test_preflight_falls_back_to_the_default_header_list():
     "declared", ["X-Api-Key, Content-Type", ("X-Api-Key", "Content-Type")]
 )
 def test_cors_allow_headers_narrows_the_preflight(declared):
-    """`cors_expose_headers` already existed for the response side; this is the
-    request side, and without it a route had no way to refuse `Authorization`."""
     req = _request(
         method="OPTIONS",
         headers={
@@ -299,13 +289,10 @@ def test_cors_allow_headers_narrows_the_preflight(declared):
 
     headers = req.future_response.headers
     assert headers["Access-Control-Allow-Headers"] == "X-Api-Key, Content-Type"
-    # A declared list does not vary by what the client asked for.
     assert "Access-Control-Request-Headers" not in headers.get("Vary", "")
 
 
 def test_cors_allow_headers_is_a_declared_routing_parameter():
-    """An undeclared @route parameter is only warned about, so a typo here would
-    reach production as a silently ignored kwarg."""
     from odoo.http.routing import _KNOWN_ROUTING_PARAMETERS
 
     assert "cors_allow_headers" in _KNOWN_ROUTING_PARAMETERS

@@ -64,18 +64,8 @@ EXIF_TAG_ORIENTATION = 0x112
 IMAGE_MAX_RESOLUTION = 50e6
 
 
-# `preinit()` warms the seven formats almost every upload is, and leaves
-# `_initialized` at 1 so `Image.open`/`Image.save` can still fall through to
-# `init()` for the rest.  Pinning `_initialized = 2` here made that fallback a
-# no-op, freezing the process-wide registry at those seven for every caller,
-# addons included: TIFF and JPEG2000 became undecodable, and WebP needed the
-# hand-rolled header parser and passthrough branch that used to live below.  It
-# bought nothing -- `init()` was already lazy, and 500 PNG opens measure 9.0 ms
-# either way -- while the first exotic upload pays 14 ms once.
 Image.preinit()
 
-# EXIF orientations 5-8 are the transposed ones: the stored raster is a quarter
-# turn from the displayed one, so its width and height are swapped.
 _TRANSPOSED_ORIENTATIONS = frozenset({5, 6, 7, 8})
 
 
@@ -127,23 +117,13 @@ class ImageProcess:
                 )
 
             self.original_format = (self.image.format or "").upper()
-            # Read once, here: `_extract_animated_frames` replaces `self.image`
-            # with a copy of frame 0, which carries no `n_frames`.
             self.animated = getattr(self.image, "n_frames", 1) > 1
 
-            # `exif_transpose` rebuilds the image from frame 0 and drops every
-            # other one -- measured on both GIF and animated WebP.
             if not self.animated:
                 self.image = image_fix_orientation(self.image)
 
     @property
     def _frame_wise(self) -> bool:
-        """Whether geometry has to be applied one frame at a time.
-
-        Animation is the reason.  GIF keeps the frame-wise path even when
-        static, because that is the behaviour its tests pin: a static GIF is
-        never enlarged by `expand`.
-        """
         return self.animated or self.original_format == "GIF"
 
     def _extract_animated_frames(self) -> None:
@@ -194,8 +174,6 @@ class ImageProcess:
             opt["save_all"] = True
             opt["append_images"] = self.animated_frames
         if output_format == "WEBP":
-            # 80 is libwebp's own default.  `quality=0` here means "caller did
-            # not ask", not "lossless", so it must not reach the encoder as 0.
             opt["quality"] = quality or 80
             if self.animated:
                 opt["save_all"] = True
@@ -442,10 +420,6 @@ def get_webp_size(source: bytes) -> tuple[int, int] | None:
     vp8_type = source[15]
     if vp8_type == 0x20 and len(source) >= 30:
         width_low, width_high, height_low, height_high = source[26:30]
-        # The top two bits of each 16-bit field are the upscaling hint, not part
-        # of the dimension.  libwebp leaves them zero, so this only shows on a
-        # hand-built file -- where it read a 300x200 image as 49452x49352 and
-        # tripped IMAGE_MAX_RESOLUTION.
         width = ((width_high << 8) + width_low) & 0x3FFF
         height = ((height_high << 8) + height_low) & 0x3FFF
         return (width, height)
@@ -470,13 +444,6 @@ def get_webp_size(source: bytes) -> tuple[int, int] | None:
 
 
 def _decoded_image_size(base64_source: bytes | str) -> tuple[int, int]:
-    """The displayed size, without decoding the raster.
-
-    `image_fix_orientation` -- which this used to call -- decodes the pixels and
-    builds a rotated copy, and orientation only ever swaps the two numbers.  It
-    was 9.8 ms of the 10.4 ms this spent per image; the header-only form agrees
-    with it on all eight EXIF orientations.
-    """
     image = binary_to_image(base64.b64decode(base64_source))
     width, height = image.size
     if image.getexif().get(EXIF_TAG_ORIENTATION, 1) in _TRANSPOSED_ORIENTATIONS:

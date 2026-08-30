@@ -324,14 +324,6 @@ class Many2one(_Relational):
         record_ids = set(records._ids)
         field_cache = self._get_cache(records.env)
         _pending = PENDING
-        # The `NewId` wrap is decided per record, not per recordset. It used to
-        # be `all(record_ids)`, so a single new record in the set rewrote EVERY
-        # cached coid -- including those held by the real records, whose inverse
-        # cache is keyed by the plain id. Their lookup below then missed and
-        # their old corecord kept them in its cached x2many. `write()` hides it,
-        # because `_modified_before` has already invalidated that cache by the
-        # time this runs; an assignment under `env.protecting` (a compute, an
-        # onchange) does not, and that is where it showed.
         corecords = records.env[self.comodel_name].browse(
             coid if record_id else (coid and NewId(coid))
             for record_id in records._ids

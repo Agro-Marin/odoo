@@ -1,14 +1,3 @@
-"""What a client actually receives when a request fails.
-
-The nodb 404 is the case worth pinning end to end. Its body is negotiated by
-`_serve_nodb`, but the response only reaches the client because the exception
-carries it through `Application.__call__`'s handler and werkzeug's
-`HTTPException.get_response` honours `exc.response`. That last step is
-third-party behaviour, and nothing else here pins it: `test_wsgi_entry`
-replaces `_serve_nodb` with a marker and `test_content_negotiation` stops at
-dispatcher selection.
-"""
-
 import io
 from typing import Any
 from unittest import mock
@@ -51,7 +40,6 @@ def _environ(path="/no-such-route", content_type=None, accept="*/*"):
 
 @pytest.fixture
 def nodb_app(tmp_path):
-    """An Application with an empty routing map and no database: every path 404s."""
     app = Application()
     app.__dict__["nodb_routing_map"] = build_routing_map([])
     app.__dict__["session_store"] = FilesystemSessionStore(
@@ -93,9 +81,6 @@ def test_a_json_client_gets_the_nodb_message_as_json(nodb_app):
 
 
 def test_json2_error_responses_are_the_package_response_type():
-    """`handle_error` is annotated `-> Response`; an HTTPException carrying a
-    bare werkzeug response used to be handed back unwrapped, and survived only
-    because `post_dispatch` happens to touch nothing but `.headers`."""
     exc = werkzeug.exceptions.NotFound()
     exc.response = werkzeug.wrappers.Response(b"raw", status=404)
     dispatcher = Json2Dispatcher.__new__(Json2Dispatcher)
@@ -105,17 +90,6 @@ def test_json2_error_responses_are_the_package_response_type():
 
 
 def test_the_negotiated_nodb_404_is_the_one_that_reaches_the_client(nodb_app):
-    """`_serve_nodb` builds the body and `Application` delivers it -- once.
-
-    The two carry an error response on different attributes: werkzeug's
-    `exc.response`, which `HTTPException.get_response` honours, and Odoo's
-    `error_response`, which is what `_ensure_error_response` reads. Writing the
-    werkzeug one left the odoo one empty, so the entrypoint asked the
-    dispatcher for a second response and delivered that instead.
-    `Json2Dispatcher.handle_error` short-circuits on `exc.response` and paid
-    only a rewrap; `JsonRPCDispatcher.handle_error` has no such branch and
-    serialized the exception twice for every 404 a JSON-RPC client sent.
-    """
     from odoo.http.dispatcher import JsonRPCDispatcher
 
     calls = []

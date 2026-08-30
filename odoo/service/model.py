@@ -61,16 +61,6 @@ def get_public_method(model: BaseModel, name: str) -> Callable:
         raise AttributeError(
             f"The method {name!r} does not exist on model '{model._name}'"
         )
-    # The name comes off the wire, so nothing may touch the class with it
-    # before it has been vetted.  `getattr(cls, name)` runs the descriptor
-    # protocol, including anything the metaclass defines, and the caller
-    # chooses which descriptor that is.  MetaModel declares no property today
-    # and `Field.__get__` returns self on class access, so there is no live
-    # escape -- but the guard is the boundary and it belongs in front, which
-    # is where upstream keeps it; it moved behind the lookup only so the cache
-    # could compare the method it had just fetched.  The cache does not need
-    # it that early: a rejected name is never cached, so no entry can exist
-    # for one, and `_UNSAFE_ATTRIBUTES` is a frozenset so the test is O(1).
     if name.startswith("_") or name in _UNSAFE_ATTRIBUTES:
         raise AccessError(  # noqa: E8505  rejection reply to a bad RPC call
             f"Private methods (such as '{model._name}.{name}') "
@@ -89,27 +79,10 @@ def get_public_method(model: BaseModel, name: str) -> Callable:
             return cached
 
     if not callable(method):
-        # A method that does not exist is the caller naming something it may
-        # not call -- the same class of mistake as the six `AccessError`
-        # rejections around it, which carry "rejection reply to a bad RPC
-        # call".  Those are logged as client errors; this one was an
-        # `AttributeError`, so `http.application._log_request_exception` fell
-        # through to its catch-all and wrote "Exception during request
-        # handling" at ERROR with twenty frames of Odoo's own dispatch stack,
-        # for every typo'd method name any authenticated client cares to send.
-        # Measured over eight refused RPC calls: six AccessErrors logged
-        # quietly, one AccessDenied at WARNING, and this one alone as a server
-        # fault.  `loglevel` is the seam `_log_request_exception` checks first
-        # and nothing had used yet; the exception type is unchanged, so the
-        # wire contract is too.
         error = AttributeError(f"The method '{model._name}.{name}' does not exist")
         error.loglevel = logging.WARNING
         raise error
 
-    # A classmethod or staticmethod: `getattr` on the class and on an instance
-    # both yield the same object, where a plain method yields a function and a
-    # bound method.  Neither takes a recordset as its first argument, so
-    # `call_kw` would pass one as a real parameter.
     if method == getattr(model, name, None):
         raise AccessError(  # noqa: E8505  rejection reply to a bad RPC call
             f"The method '{model._name}.{name}' cannot be called remotely."
@@ -266,12 +239,6 @@ _SCALAR_LEAF_TYPES = frozenset({int, float, bool, str, bytes, type(None)})
 
 
 def _is_bare_iterator(val: typing.Any) -> bool:
-    """`lazy` proxies __iter__/__next__, so isinstance(lazy_obj, Iterator) is True.
-
-    Every place that asks "would walking this consume it?" has to exclude a
-    lazy first, or the wrapper it exists to warm gets skipped as if it were a
-    generator.
-    """
     return not isinstance(val, lazy) and isinstance(val, Iterator)
 
 
@@ -307,28 +274,12 @@ def _forced_sequence(val: Sequence) -> Sequence:
 
 
 def _warm_in_place(val: Iterable) -> None:
-    """Walk something that cannot be rewritten: skip what walking would eat."""
     for item in val:
         if item.__class__ not in _SCALAR_LEAF_TYPES and not _is_bare_iterator(item):
             _force_lazy_in(item)
 
 
 def _force_lazy_in(val: typing.Any) -> typing.Any:
-    """Warm every `lazy` in the result, and materialise every iterator.
-
-    The warming is the point: `lazy._value` runs the deferred call, and it has
-    to run here, while the cursor is still open -- the marshaller renders the
-    result long after `retrying()` has committed.
-
-    Walking a container means iterating it, which for an *iterator* consumes
-    it.  So an iterator is replaced by the list it yielded rather than merely
-    traversed; where the container it sits in cannot be rewritten (a read-only
-    mapping, a set) it is left untouched instead, which hands the marshaller an
-    intact object rather than an exhausted one.
-
-    The return value is the walked object, which is the same object except
-    where an iterator had to be substituted.
-    """
     if val.__class__ in _SCALAR_LEAF_TYPES:
         return val
     if isinstance(val, lazy):

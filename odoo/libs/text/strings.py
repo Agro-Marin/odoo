@@ -21,8 +21,6 @@ def remove_accents(input_str: str) -> str:
 
 def is_encodable(value: str, charset: str = "ascii") -> bool:
     if not value:
-        # The empty string encodes in every charset. This answered False, which
-        # every call site happened to mask with its own truthiness test first.
         return True
     try:
         remove_accents(value).encode(charset)

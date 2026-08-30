@@ -147,14 +147,6 @@ _TRANSITIVE_IMPORT_RE = re.compile(
 
 
 def _scan_import_specifiers(src: str) -> set[str]:
-    """Every static import/re-export specifier in `src`.
-
-    The regex runs even when the lexer answered, and that is not belt and
-    braces: the worker drops NAMED re-exports on the floor. It skips any
-    statement beginning with `export` unless it is `export * from`, so
-    `export { a } from "./x"` lands in neither `imports` nor `starFrom`, while
-    `_TRANSITIVE_IMPORT_RE` -- which alternates `import|export` -- catches it.
-    """
     specs: set[str] = set()
     lexed = lex_module(src)
     if lexed is not None:
@@ -179,12 +171,6 @@ def find_escaping_relative_imports(
     )
     escapes: list[tuple[str, str, str]] = []
     for module in modules:
-        # the same scan its sibling above performs, and for the same reason.
-        # This used to read the lexer OR the regex, never both, so a named
-        # re-export escaping the bundle -- `export { x } from "../elsewhere"` --
-        # was reported only when node was MISSING and the regex fallback ran.
-        # A check that is stricter without its fast path than with it reports
-        # nothing on every machine that has one.
         specs = _scan_import_specifiers(module.raw_content)
         for spec in sorted(specs):
             if not spec.startswith("."):

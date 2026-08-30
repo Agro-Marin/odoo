@@ -1,9 +1,3 @@
-"""What a Profiler must leave behind: nothing.
-
-Both defects here were invisible to the suite because nothing asserted the
-*process* state after a profile -- only the entries it produced.
-"""
-
 import sys
 import unittest
 
@@ -25,9 +19,6 @@ class TestSyncCollectorUninstallsItsTrace(unittest.TestCase):
         sys.settrace(None)
 
     def test_a_clean_profile_leaves_no_trace_function(self):
-        # `sys.gettrace() is self.hook` compared against a bound method built
-        # fresh on every attribute access, so it was never true and the hook was
-        # never removed -- on the ordinary path, no exception involved.
         with Profiler(db=None, collectors=[SyncCollector()], description="t"):
             pass
         self.assertIsNone(sys.gettrace())
@@ -38,8 +29,6 @@ class TestSyncCollectorUninstallsItsTrace(unittest.TestCase):
         self.assertIsNot(collector.hook, collector.hook)
 
     def test_sync_profiling_works_more_than_once_per_thread(self):
-        # start() refuses when a trace function is already installed. A leaked
-        # hook tripped that guard permanently.
         for _ in range(3):
             with Profiler(db=None, collectors=[SyncCollector()], description="t"):
                 pass

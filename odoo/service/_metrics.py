@@ -80,11 +80,6 @@ class _Family:
         self.samples: list[_Sample] = []
 
     def _ordered(self) -> list[_Sample]:
-        """Group a histogram/summary by series, buckets ascending, `le` last.
-
-        Prometheus reads a bucket run as cumulative, so the order inside one
-        series is part of the value.  Everything else keeps insertion order.
-        """
         if self.kind not in _SUFFIXES_BY_KIND:
             return self.samples
         by_series: dict[tuple[tuple[str, str], ...], list[_Sample]] = {}
@@ -105,16 +100,6 @@ class _Family:
 
 
 class _Exposition:
-    """A Prometheus text exposition that keeps each family in one block.
-
-    The text format wants every sample of a metric family emitted together,
-    after that family's single HELP/TYPE pair.  Appending samples in call order
-    breaks that as soon as two callers contribute to the same family -- which
-    is exactly what happens with more than one connection pool, and which costs
-    the second pool its type and its histogram structure.  So samples are
-    bucketed by the family that owns their name and only laid out at render().
-    """
-
     def __init__(self, base_labels: dict[str, str] | None = None) -> None:
         self._families: dict[str, _Family] = {}
         self._owner: dict[str, str] = {}

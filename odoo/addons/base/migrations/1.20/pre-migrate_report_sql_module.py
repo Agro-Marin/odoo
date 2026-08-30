@@ -108,10 +108,6 @@ def _rename_models(cr):
 
 
 def _rename_owned_relations(cr, old_table, new_table):
-    # ALTER ... RENAME leaves indexes, sequences and constraints under the old
-    # name. mixin.materialized.view derives every index name from _table and
-    # creates it IF NOT EXISTS, so an index left behind is not cosmetic: it
-    # becomes a second, permanently unmaintained copy the next init() cannot see.
     cr.execute(
         """
         SELECT c.relname, c.relkind FROM pg_class c

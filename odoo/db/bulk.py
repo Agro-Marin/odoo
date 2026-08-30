@@ -169,23 +169,6 @@ def _copy_statement(
 
 
 def _note_binary_needs_exact_types(exc: Exception, table: str, columns: list) -> None:
-    """Say which mode rejected the value, on an error that names neither.
-
-    A binary COPY encodes client-side from the column OIDs, so it needs the
-    exact Python type where a text COPY hands the value to PostgreSQL to
-    parse. `"42"` into an `int4` column inserts as text and raises a bare
-    `TypeError` from inside psycopg's dumper as binary; `uuid`, `date` and
-    `inet` behave the same way. All four measured against PG 18, same table
-    and same rows in both modes.
-
-    Re-running as text would be the wrong repair -- a caller passing `"42"`
-    for an `int4` has a bug that text COPY only hides -- so the exception
-    keeps its type and gains the sentence that says what to change.
-
-    `reached_the_server` is the discriminator: a constraint the server
-    reported is not a value the client could not encode, and attaching this
-    to it would send the reader after the wrong thing.
-    """
     if reached_the_server(exc):
         return
     exc.add_note(
@@ -273,15 +256,6 @@ class _BulkAccessMixin:
                     if fetch:
                         results.extend(self.fetchall())
         except Exception as e:
-            # The pipeline this block opens has already routed a deferred
-            # server error through `_statement_failed`, and the seam is
-            # idempotent, so this is not that call: it is the one for an error
-            # that reached neither seam -- `fetch=True` under an OUTER
-            # pipeline, where `fetchall` forces the sync and raises here.
-            # `reached_the_server` keeps a client-side rejection out of it, as
-            # in `Cursor.pipeline`; the bare `_log_sql_error` this replaces
-            # carried a third of the seam and left the stale-plan mark off
-            # every pipelined bulk write.
             if reached_the_server(e):
                 self._statement_failed(e, query, log_exceptions=log_exceptions)
             raise

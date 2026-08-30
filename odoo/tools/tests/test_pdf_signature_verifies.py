@@ -1,25 +1,3 @@
-"""The signature a signed PDF carries has to verify, not merely be well shaped.
-
-`test_pdf_signer_contract` pins the structure -- the placeholder's position, the
-serialisation order that keeps it from moving, the reserved size. None of it
-proves an external validator would accept the result, and every failure in this
-area is silent: the CMS blob is still built, still fits, and `sign_pdf` still
-returns a stream. The document leaves carrying a signature only a verifier can
-tell is wrong.
-
-So this does what a verifier does. For each key type `_get_signature_algorithm`
-supports:
-
-  * recompute the digest over exactly the bytes /ByteRange covers and compare it
-    with the `message_digest` signed attribute;
-  * verify the signature over the DER of the signed attributes, with the SET OF
-    tag RFC 5652 section 5.4 requires in place of the implicit [0];
-  * check /ByteRange reaches the end of the file, so nothing is left uncovered.
-
-A change to the digest, the range arithmetic, the attribute set or the signing
-call breaks one of these three rather than none of them.
-"""
-
 import datetime
 import hashlib
 import io
@@ -116,8 +94,6 @@ class TestTheSignatureVerifies(unittest.TestCase):
             "message_digest does not describe the bytes /ByteRange covers",
         )
 
-        # RFC 5652 5.4: sign the DER of the SET OF, not the implicit [0] tag the
-        # structure carries inside SignerInfo.
         payload = bytearray(attributes.dump())
         payload[0] = 0x31
         payload = bytes(payload)
@@ -145,7 +121,6 @@ class TestTheSignatureVerifies(unittest.TestCase):
         data, _certificate = self._sign_with(key)
         (start_a, len_a, start_b, len_b), _covered, content_info = self._parts(data)
 
-        # flip one byte inside the signed region
         tampered = bytearray(data)
         tampered[start_a + len_a - 1] ^= 0xFF
         recovered = bytes(tampered[start_a : start_a + len_a]) + bytes(

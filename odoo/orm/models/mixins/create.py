@@ -319,15 +319,6 @@ class CreateMixin(_ModelStubs):
         return records
 
     def _validate_created(self, data_list: list[dict]) -> None:
-        """Run the constraints of the created records, once per distinct shape.
-
-        `_validate_fields` reads only the *names*, and every `@constrains`
-        method is written to iterate `self` -- so records that were created
-        with the same inversed and stored keys can be validated together.
-        Per record instead, a 500-record create made 500 singleton calls, and
-        any constraint matching an inversed field ran once per record rather
-        than once for the batch.
-        """
         groups: dict[tuple, tuple[list, dict]] = {}
         for data in data_list:
             inversed = data["inversed"]
@@ -394,37 +385,6 @@ class CreateMixin(_ModelStubs):
 
         records = self.browse().concat(*(self.new(vals) for vals in vals_list_todo))
 
-        # What the caller supplied, re-asserted before every read.
-        #
-        # Reading a precomputed field runs its compute, and a compute may write
-        # fields other than the one being read -- a `readonly=False` computed
-        # field the caller passed in `vals` among them. Nothing restored it, so
-        # every field precomputed after that point was frozen against a value
-        # the INSERT would not carry, and the row landed internally inconsistent
-        # with nothing pending to repair it: as far as the ORM is concerned those
-        # fields have been computed.
-        #
-        # Which fields saw the clobbered value was decided by the order of
-        # `precomputable`, i.e. by field DECLARATION order, so the defect stayed
-        # invisible until somebody added a field or moved two.
-        #
-        # Measured on sale.order.line, whose `price_unit` is computed, stored,
-        # precomputed and writable: `create` with `price_unit: 0` stored
-        # `price_unit` 0 beside a `price_subtotal` of 20 computed from the
-        # automatic 10.
-        #
-        # FIELD-MAJOR, not record-major, and that is the whole reason this loop
-        # is inverted: `record[fname]` computes over a PREFETCH set spanning
-        # every scratch record, so a per-record restore lands too late for the
-        # records after it -- their value is already computed and cached from
-        # the clobbered input. Restoring all of them before each field is what
-        # holds for a batch.
-        #
-        # Only the COMPUTED entries of `vals` are restored: a plain column is
-        # not written by anybody's compute, and carrying the whole of `vals`
-        # cost 22% on create (262ms -> 319ms for 200 sale.order.line) against
-        # 5% this way (275ms). For a create whose vals are plain columns the
-        # dict is empty and the loop below is untouched.
         givens = [
             {
                 fname: value

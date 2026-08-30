@@ -66,13 +66,6 @@ class ReplicaLagGate:
         return self.max_lag > 0
 
     def allows(self) -> bool:
-        """Deliberately lock-free: it reads one flag, and it is per cursor.
-
-        `Registry.cursor(readonly=True)` calls this for every read-only
-        cursor, so the cost is worth keeping at an attribute read. One bool is
-        never torn; what could tear is the PAIR `last_lag`/`_lagging`, and the
-        only reader of both is `snapshot`, which takes the lock.
-        """
         return not (self.enabled and self._lagging)
 
     def due_for_sample(self) -> bool:
@@ -86,19 +79,6 @@ class ReplicaLagGate:
             return True
 
     def record(self, lag_seconds: float | None) -> None:
-        """Publish a sample. Under the lock: this writes two fields, not one.
-
-        `last_lag` and `_lagging` are derived from the same measurement and
-        `snapshot` renders them together, so an unguarded pair of writes lets
-        an operator read a lag of 12.0 beside `lagging: false` -- the sample
-        from one round and the verdict from the next. Unlike a single
-        read-modify-write, this one is genuinely exposed on the GIL: the two
-        stores are separated by a `max()` and a comparison, and a reader
-        between them sees a mixed pair. The lock this class
-        already owns for `due_for_sample` covers it; the cost is one
-        acquisition per SAMPLE, which `sample_interval` bounds to at most one
-        per `max(1, max_lag/4)` seconds.
-        """
         lag = 0.0 if lag_seconds is None else max(0.0, lag_seconds)
         with self._lock:
             self.last_lag = lag

@@ -4,14 +4,6 @@ from odoo.http import application
 
 
 def test_no_handover_without_an_attached_debugger():
-    """``gunicorn odoo.http:root`` reaches the application directly.
-
-    setup/odoo-wsgi.example.py documents exactly that, and such a process can
-    carry --dev=werkzeug in its environment with no DebuggedApplication
-    anywhere. Deciding from the config rather than from what was actually
-    wrapped would hand it an unhandled exception and a bare 500, in exchange
-    for a traceback page nothing is there to render.
-    """
     assert application.debugger_attached is False, (
         "importing odoo.http must not attach a debugger"
     )

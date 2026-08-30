@@ -90,19 +90,6 @@ class _RegistryCaches:
 
 
 def serves_readonly_cursors() -> bool:
-    """Whether this process opens a second, read-only connection per registry.
-
-    ``test_enable`` is one of the three terms, so ENABLING TESTS CHANGES THE
-    CURSOR TOPOLOGY: under test ``Registry.cursor(readonly=True)`` hands back a
-    genuinely read-only cursor, and on a deployment that configures no replica
-    it hands back a read/write one. ``odoo/http/_serve.py::_serve_db`` branches
-    on exactly that, so the suite and a replica-less deployment execute
-    mutually exclusive halves of it -- ``cr.rollback()`` runs on every request
-    of the latter and on none of the former. Both halves are measured in
-    ``odoo/http/tests/test_serve_db_cursor_modes.py``; this function exists so
-    the coupling has a name and one place to read about it, rather than being
-    an unremarked term in an ``if``.
-    """
     return bool(
         config["db_replica_host"]
         or config["test_enable"]

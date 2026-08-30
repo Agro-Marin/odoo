@@ -8,8 +8,6 @@ from odoo.http._response import _RequestResponseMixin
 
 
 def _this(db=None, env=None):
-    """A stand-in carrying the two attributes ``redirect`` reads, and the one
-    method ``redirect_query`` calls back into."""
     obj: Any = types.SimpleNamespace(db=db, env=env)
     obj.redirect = lambda loc, code=303, local=True: _RequestResponseMixin.redirect(
         obj, loc, code=code, local=local
@@ -40,10 +38,6 @@ HOSTILE = [
     "//evil.com@good.com/",
     "\\/\\/evil.com",
     "http://good.com\\@evil.com",
-    # `urlsplit` raises "Invalid IPv6 URL" on an unbalanced bracket, and this
-    # corpus is fed from a query parameter -- `auth_signup.web_login` passes
-    # `request.params.get("redirect")` straight in -- so these were a 500 on the
-    # login flow, measured against a real server, rather than a refusal.
     "http://[",
     "http://[x",
     "//[",
@@ -54,15 +48,6 @@ HOSTILE = [
 
 @pytest.mark.parametrize("location", HOSTILE)
 def test_a_local_redirect_can_never_leave_this_origin(location):
-    r"""`local=True` is the promise the whole open-redirect defence rests on.
-
-    Judged with the BROWSER's rules, not Python's. WHATWG treats a backslash as
-    a path separator, so `/\evil.com` is an authority and leaves the origin --
-    while `urllib.parse.urlsplit` reports it as an ordinary path and would call
-    it safe. Asserting through urlsplit alone makes this test pass with the
-    backslash removed from the sanitiser's `lstrip`, which is the one character
-    doing the work.
-    """
     import urllib.parse
 
     result = _location(location)
@@ -76,11 +61,6 @@ def test_a_local_redirect_can_never_leave_this_origin(location):
 
 
 def test_a_newline_cannot_reach_the_location_header():
-    """CRLF is dropped by urlsplit before werkzeug ever sees the value.
-
-    Pinned because it is stdlib behaviour the sanitiser leans on rather than
-    something this function does itself.
-    """
     result = _location("/a\r\nX-Injected: 1")
     assert "\r" not in result and "\n" not in result, repr(result)
 
@@ -94,7 +74,6 @@ def test_a_newline_cannot_reach_the_location_header():
         ("/already/absolute", "/already/absolute"),
         ("/keeps?a=1&b=2", "/keeps?a=1&b=2"),
         ("/keeps#frag", "/keeps#frag"),
-        # a hostile value inside the QUERY is a value, not a target
         ("/legit?next=//evil.com", "/legit?next=//evil.com"),
     ],
 )
@@ -109,7 +88,6 @@ def test_local_false_leaves_an_absolute_url_alone():
 
 
 def test_a_database_bound_request_delegates_to_ir_http():
-    """`ir.http._redirect` is the override point http_routing uses for langs."""
     seen = {}
 
     def _ir_redirect(location, code=303):
@@ -151,16 +129,10 @@ def test_redirect_query_uses_an_ampersand_when_the_url_already_has_one():
     "location", ["http://[", "http://[x", "//[", "//[evil.com", "http://a[b"]
 )
 def test_an_unparseable_location_lands_where_every_other_non_local_one_does(location):
-    """Not a destination invented for this case: a hostile absolute URL with no
-    path already reduces to the root, because `https://evil.com` splits to an
-    empty path and the sanitiser builds `"/" + ""`. A location with nothing
-    local to recover from it goes to the same place."""
     assert _location(location) == "/"
     assert _location("https://evil.com") == "/", "the shape it is consistent with"
 
 
 @pytest.mark.parametrize(("location", "expected"), [("/[", "/["), ("/a[b", "/a[b")])
 def test_a_bracket_outside_an_authority_is_an_ordinary_path(location, expected):
-    """Only a bracket inside a netloc makes `urlsplit` raise. Sending these to
-    the root instead would be the guard overreaching on a legitimate path."""
     assert _location(location) == expected

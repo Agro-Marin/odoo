@@ -116,16 +116,6 @@ class _RequestServeMixin(RequestState):
             return self._serve_aborted(exc)
 
     def _nodb_not_found_response(self, exc: NotFound) -> Response:
-        # The result travels on `error_response`, not on werkzeug's own
-        # `exc.response`. Both would reach the client -- `Application` asks
-        # `get_error_response` first and werkzeug's `get_response` honours
-        # `exc.response` -- but only the first is a channel `_ensure_error_response`
-        # reads, so the werkzeug one had the dispatcher build this body and then
-        # threw it away and asked for another. `Json2Dispatcher.handle_error`
-        # happened to short-circuit on `exc.response` and paid only a rewrap;
-        # `JsonRPCDispatcher.handle_error` has no such branch and serialized the
-        # exception a second time on every 404 a JSON-RPC client sent to a
-        # database-less instance.
         if self.dispatcher.routing_type == "http":
             return Response(
                 NOT_FOUND_NODB,
@@ -197,8 +187,6 @@ class _RequestServeMixin(RequestState):
             raise
 
     def _serve_readonly(self, serve_func: Any) -> Any:
-        # Answers `_PROMOTE` -- never a response -- when the handler wrote and
-        # has to be replayed against a read/write cursor.
         current_worker_thread().cursor_mode = "ro"
         try:
             return retrying(serve_func, env=self.env)
@@ -215,10 +203,6 @@ class _RequestServeMixin(RequestState):
             )
             current_worker_thread().cursor_mode = "ro->rw"
             RequestRetryParticipant(self).on_rollback(exc)
-            # Not `on_retry`: it also resets the request against `self.env.cr`,
-            # which here is the read-only cursor `_serve_db` is about to close.
-            # `_serve_db` resets again with the read/write cursor it opens, so
-            # the first reset only built an Environment on a doomed cursor.
             rewind_uploaded_files(self.httprequest, cause=exc)
             return _PROMOTE
         except Exception as exc:
@@ -226,8 +210,6 @@ class _RequestServeMixin(RequestState):
             raise
 
     def _open_read_write_cursor(self, cr: Any) -> Any:
-        # Closes `cr` and answers the cursor to use instead, so the caller can
-        # rebind before its `finally` closes one of them.
         env = self.env
         assert env is not None
         if cr.readonly:
@@ -236,8 +218,6 @@ class _RequestServeMixin(RequestState):
         else:
             cr.rollback()
         if cr.readonly:
-            # Not a type narrowing -- this is the invariant the promotion
-            # exists to establish, and `assert` would be stripped by -O.
             e = (
                 f"{self.httprequest.method} {self.httprequest.path} needs a "
                 f"read/write cursor and the registry handed back a read-only "
@@ -305,18 +285,6 @@ class _RequestServeMixin(RequestState):
         return registry
 
     def _reject_oversized_body(self) -> None:
-        # Deferring the body (see `Request.params`) also deferred the one thing
-        # the eager parse did besides producing params: raising
-        # `RequestEntityTooLarge`. `_apply_max_upload_size` runs immediately
-        # above and would otherwise have no effect at all on a path with no
-        # endpoint, so the limit is checked against the DECLARED length here --
-        # which is also the cheaper question, since the old answer required
-        # decoding the megabytes in order to find out there were too many.
-        #
-        # A body with no declared length (chunked) is not caught here and is
-        # answered 404 without being read, which is the safe outcome: nothing
-        # allocates it. Should a fallback go on to read `params`, werkzeug
-        # enforces `max_content_length` during the parse exactly as before.
         limit = self.httprequest.max_content_length
         length = self.httprequest.content_length
         if limit is not None and length is not None and length > limit:

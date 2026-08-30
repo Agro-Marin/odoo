@@ -68,14 +68,6 @@ def test_resolution_goes_through_the_public_db_list(fresh_monodb_cache):
 
 
 def test_resolution_goes_through_the_public_db_filter():
-    """Both seams are the public ones, and both are needed to say "no database".
-
-    A session that already carries a ``db`` never reaches the listing at all --
-    ``_get_session_and_dbname`` asks ``db_filter`` whether that database is
-    still served by this host. Patching only ``db_list`` therefore simulates
-    "no database" for a fresh visitor and not for a logged-in one, which is how
-    ``test_http``'s ``nodb_url_open`` came to need two patches rather than one.
-    """
     import odoo.http.request_class as rc
 
     source = pathlib.Path(rc.__file__).read_text(encoding="utf-8")
@@ -87,15 +79,6 @@ def test_resolution_goes_through_the_public_db_filter():
 
 
 def test_http_adds_no_second_cache_over_the_catalogue(fresh_monodb_cache):
-    """Freshness is `service.db.list_dbs`'s to own, and it already memoises the
-    `pg_database` scan behind a lock with its own TTL and its own invalidation.
-
-    A second TTL cache used to sit here, keyed on `(time_bucket, force)`. It
-    bought nothing and cost the honesty of `force`: `db_list(force=True)` could
-    answer from up to five seconds ago, so `_serve._acquire_registry_cursor` had
-    to reach past `db_list` to `service.db.list_dbs` to get the freshness the
-    parameter already names.
-    """
     with _catalog(["a", "b"]) as lister, _passthrough_filter():
         for _ in range(5):
             assert request_class._monodb_dblist("h") == ["a", "b"]
@@ -127,8 +110,6 @@ def test_each_host_gets_its_own_filtered_answer(fresh_monodb_cache):
 
 
 def test_the_caller_cannot_mutate_what_the_next_caller_sees(fresh_monodb_cache):
-    """`db_filter` builds a new list on every call, so a caller that mutates its
-    answer cannot reach the catalogue behind it."""
     with _catalog(["a"]):
         first = odoo.http.db_list()
         first.append("smuggled")
@@ -136,8 +117,6 @@ def test_the_caller_cannot_mutate_what_the_next_caller_sees(fresh_monodb_cache):
 
 
 def test_clear_monodb_cache_drops_the_catalogue_service_db_holds():
-    """It is still the name `test_http` calls between requests; what it clears is
-    now `service.db`'s catalogue rather than a second cache of this package's."""
     from odoo.service.db import listing
 
     assert request_class.clear_monodb_cache is helpers.clear_db_list_cache
@@ -161,7 +140,6 @@ def test_a_listener_that_raises_does_not_break_the_mutation():
 
 
 def _params_request():
-    """A Request with only what the `params` property touches."""
     request = Request.__new__(Request)
     request._params = {}
     request._params_source = None
@@ -196,8 +174,6 @@ def test_a_deferred_source_runs_once_on_first_read():
 
 
 def test_assigning_params_discards_a_pending_source():
-    """`http_routing._handle_error` assigns `request.params` outright; the body
-    it names must win over one an earlier fallback deferred."""
     request = _params_request()
     request._params_source = lambda: {"from": "body"}
     request.params = {"from": "caller"}
@@ -206,10 +182,6 @@ def test_assigning_params_discards_a_pending_source():
 
 
 def test_the_fallback_defers_the_body_instead_of_decoding_it():
-    """`base`'s `_serve_fallback` never reads `request.params`; `website`'s does.
-    Decoding up front made every unmatched path pay for a body only one of them
-    would look at -- measured at ~0.7ms per MB of form data, and a `FileStorage`
-    wrapping the whole upload for multipart."""
     from werkzeug.exceptions import NotFound
 
     from odoo.http import _serve
@@ -258,17 +230,13 @@ def test_the_fallback_defers_the_body_instead_of_decoding_it():
     [
         (1000, 1001, True),
         (1000, 1000, False),
-        (1000, None, False),  # chunked: not caught here, and never read either
-        (None, 10**9, False),  # no limit configured
+        (1000, None, False),
+        (None, 10**9, False),
     ],
 )
 def test_an_unmatched_path_refuses_an_oversized_body_by_its_declared_length(
     limit, length, refused
 ):
-    """The eager parse used to raise `RequestEntityTooLarge` as a side effect, so
-    deferring the body deferred the only effect `_apply_max_upload_size` had on a
-    path with no endpoint. Checking the declared length is both the restored
-    contract and the cheaper question."""
     from werkzeug.exceptions import RequestEntityTooLarge
 
     from odoo.http import _serve

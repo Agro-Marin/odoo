@@ -39,14 +39,6 @@ class TestExpressionNodeHandling(unittest.TestCase):
 
 
 class TestSubscriptSupportIsWholeNotHalf(unittest.TestCase):
-    """`a[b]` resolved and `a[b:c]` raised, and the reason was a dead entry.
-
-    _CONTEXTUAL_CHILDREN carried ast.Index -- the pre-3.9 slice wrapper, which
-    the parser has not produced since and which nothing can be an instance of
-    (ast.Index.__new__ returns its argument). Its replacement, ast.Slice, was
-    never added, so Subscript recursed into a node type the table did not know.
-    """
-
     def test_a_plain_subscript_resolves(self):
         self.assertEqual(get_expression_field_names("a[b]"), {"a", "b"})
 

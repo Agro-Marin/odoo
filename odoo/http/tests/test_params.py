@@ -200,7 +200,7 @@ _FUZZ_VALUES = [
     1,
     -1,
     2**63,
-    10**500,  # a 400-digit `<int:...>` URL segment; float() raises OverflowError
+    10**500,
     0.0,
     1.5,
     float("nan"),
@@ -220,9 +220,9 @@ _FUZZ_VALUES = [
     "maybe",
     "nan",
     "inf",
-    "١٢٣",  # Arabic-Indic digits: int() accepts them, JSON does not
-    "１２３",  # fullwidth digits, same reason
-    "9" * 5000,  # over CPython's int<->str digit limit: ValueError, not a crash
+    "١٢٣",
+    "１２３",
+    "9" * 5000,
     "\x00",
     [],
     [1, 2],
@@ -244,12 +244,6 @@ _FUZZ_VALUES = [
 def test_no_value_escapes_coercion_as_anything_but_a_bad_request(
     target, item, allow_none
 ):
-    """The contract of `coerce_params` is that untrusted input either coerces or
-    becomes a 400. Anything else is a 500 the caller cannot see coming, and this
-    is the only test that says so across the whole value space rather than one
-    case at a time. It caught `float(10**500)` raising `OverflowError`, which is
-    reachable through werkzeug's unbounded `<int:...>` converter.
-    """
     spec = {
         "p": ParamSpec(target=target, item=item, allow_none=allow_none, required=True)
     }
@@ -272,8 +266,6 @@ def test_an_int_too_large_for_a_double_is_a_bad_request_not_a_crash():
 
 
 def test_the_int_converter_werkzeug_hands_us_really_is_unbounded():
-    """The reachability half of the case above: if this ever gains a bound, the
-    test beside it stops standing for anything real."""
     import werkzeug.routing
 
     adapter = werkzeug.routing.Map(

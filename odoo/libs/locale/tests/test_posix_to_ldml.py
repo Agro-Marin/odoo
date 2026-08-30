@@ -23,14 +23,6 @@ class TestPosixToLdml(unittest.TestCase):
 
 
 class TestPosixToLdmlLiteralApostrophe(unittest.TestCase):
-    """A literal apostrophe belongs inside the quoted run, not between two runs.
-
-    It is not `isalpha()`, so it used to fall through to the plain append and
-    land between a closing and an opening quote. LDML then read the result as a
-    literal "o" plus an escaped apostrophe, followed by `clock` as pattern
-    letters -- babel rendered "%d o'clock" as "29 o'7lo715".
-    """
-
     WHEN = datetime.datetime(2026, 8, 29, 15, 4, 5)
 
     CASES = [
@@ -63,8 +55,6 @@ class TestPosixToLdmlLiteralApostrophe(unittest.TestCase):
         self.assertEqual(posix_to_ldml("%d o'clock", EN), "dd 'o''clock'")
 
     def test_a_run_of_only_apostrophes_is_not_wrapped(self):
-        # LDML reads a leading "''" as one escaped apostrophe rather than as an
-        # opening quote, so wrapping this run would render two apostrophes.
         self.assertEqual(posix_to_ldml("%H'%M", EN), "HH''mm")
         self.assertEqual(format_datetime(self.WHEN, "HH''mm", locale=EN), "15'04")
 

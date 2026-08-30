@@ -54,14 +54,6 @@ class odoo_resolver(etree.Resolver):
 
 
 def _pick_xsd(xsd_attachments: Any, xsd_name: str | None, source: str) -> str:
-    """The one schema to validate against, out of what the source provided.
-
-    A URL serving a ZIP yields one attachment per member, and reading `.name`
-    off that recordset raised `Expected singleton` -- which is what the SAF-T
-    bundles l10n_nl_reports and l10n_dk_reports point at do. There is no way to
-    guess which member is the root schema and which are its includes, so a
-    bundle has to be told.
-    """
     if xsd_name:
         picked = xsd_attachments.filtered(lambda a: a.name.endswith(xsd_name))
         if not picked:
@@ -88,11 +80,6 @@ def _check_xml(
     xsd_name: str | None = None,
 ) -> None:
     xsd_attachment: Any = env["ir.attachment"]
-    # Only the attachment this call created is this call's to remove. The URL
-    # branch populates the XSD *cache* -- that is what load_xsd_files_from_url
-    # is for, and _upsert_xsd_attachment happily returns a record that was
-    # already there -- so unlinking its result deleted schemas the caller had
-    # never asked to own.
     owned: Any = env["ir.attachment"]
     if path:
         with file_open(path, filter_ext=(".xsd",)) as file:
@@ -105,9 +92,6 @@ def _check_xml(
     elif url:
         xsd_attachment = load_xsd_files_from_url(env, url) or env["ir.attachment"]
 
-    # Everything after the attachment exists goes inside the try, so the one
-    # this call created is removed however it leaves -- _pick_xsd raises for an
-    # unnamed bundle, and that used to escape past the cleanup.
     try:
         if not xsd_attachment:
             raise FileNotFoundError(
@@ -311,10 +295,6 @@ def validate_xml_from_attachment(
             "XSD %r not found; the document was NOT validated", prefixed_xsd_name
         )
     except etree.XMLSchemaParseError as e:
-        # Same fail-open the FileNotFoundError branch above was closed for, and
-        # the same fix: a schema that cannot be parsed validated nothing, so
-        # returning normally reports the document validated when it was never
-        # checked. `required=False` is how a caller says it will accept that.
         if required:
             raise FileNotFoundError(
                 f"XSD {prefixed_xsd_name!r} could not be parsed, so the "

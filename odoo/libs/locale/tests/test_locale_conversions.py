@@ -50,14 +50,6 @@ class _EN:
 
 
 class TestFormatNumberFindsItsConversion:
-    """The conversion character is not always the last one in the spec.
-
-    `res_lang.format(percent, value)` is a public ORM method taking an arbitrary
-    spec, so `"%.2f%%"` and `"%d units"` reach `format_number`. Reading the
-    conversion as `spec[-1]` saw `%` and `s` there, matched no branch, and
-    returned the number unlocalised -- no decimal point, no thousands separator.
-    """
-
     def test_a_trailing_literal_percent(self):
         assert format_number("%.2f%%", 1234.5, _EU(), grouping=True) == "1.234,50%"
 
@@ -84,12 +76,7 @@ class TestFormatNumberFindsItsConversion:
 
 
 class TestFormatNumberDetectsScientificFromTheSpec:
-    """Whether an exponent is present is decided by the conversion, not by
-    scanning the whole output for an "e"."""
-
     def test_a_literal_e_in_the_suffix_no_longer_suppresses_grouping(self):
-        # "EUR" carries an E; the old scan read that as scientific notation and
-        # skipped the thousands separator.
         assert format_number("%.2f EUR", 1234.5, _EU(), grouping=True) == "1.234,50 EUR"
 
     def test_a_real_exponent_is_still_not_grouped(self):
