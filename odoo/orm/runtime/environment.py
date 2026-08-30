@@ -35,6 +35,7 @@ if typing.TYPE_CHECKING:
     from datetime import tzinfo
 
     from .._protocols import (
+        DecimalPrecisionProtocol,
         IrAttachmentProtocol,
         IrCronProtocol,
         IrDefaultProtocol,
@@ -160,6 +161,11 @@ class Environment(Mapping[str, "BaseModel"]):
 
     def __contains__(self, model_name) -> bool:
         return model_name in self.registry
+
+    @typing.overload
+    def __getitem__(  # type: ignore[overload-overlap]
+        self, model_name: typing.Literal["decimal.precision"]
+    ) -> DecimalPrecisionProtocol: ...
 
     @typing.overload
     def __getitem__(  # type: ignore[overload-overlap]

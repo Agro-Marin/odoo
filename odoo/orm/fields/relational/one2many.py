@@ -51,6 +51,14 @@ class One2many(_RelationalMulti):
             **kwargs,
         )
 
+    def _get_inverse_name(self) -> str:
+        if self.inverse_name is None:
+            raise TypeError(
+                f"{self} has no inverse_name, so the many2one on "
+                f"{self.comodel_name} that carries it cannot be named"
+            )
+        return self.inverse_name
+
     @override
     def setup_nonrelated(self, model: BaseModel) -> None:
         super().setup_nonrelated(model)
@@ -80,7 +88,7 @@ class One2many(_RelationalMulti):
     @override
     def update_db(
         self, model: ModelLike, columns: dict[str, dict[str, typing.Any]]
-    ) -> None:
+    ) -> bool:
         if self.comodel_name in model.env:
             comodel = model.env[self.comodel_name]
             if self.inverse_name not in comodel._fields:
@@ -91,11 +99,12 @@ class One2many(_RelationalMulti):
                         comodel=self.comodel_name,
                     )
                 )
+        return False
 
     def _additional_domain(self, env: Environment) -> Domain:
         if self.comodel_name and self.inverse_name:
             comodel = env.registry[self.comodel_name]
-            inverse_field = comodel._fields[self.inverse_name]
+            inverse_field = comodel._fields[self._get_inverse_name()]
             if inverse_field.is_many2one_reference:
                 return Domain(inverse_field.model_field, "=", self.model_name)
         return Domain.TRUE
@@ -328,7 +337,7 @@ class One2many(_RelationalMulti):
         records[self.name]
 
         if self.store:
-            inverse = self.inverse_name
+            inverse = self._get_inverse_name()
 
             inverse_field = comodel._fields[inverse]
             for record in records:
@@ -378,7 +387,7 @@ class One2many(_RelationalMulti):
         operator: str,
         value: Domain | Query,
     ) -> Query:
-        inverse_field = comodel._fields[self.inverse_name]
+        inverse_field = comodel._fields[self._get_inverse_name()]
         if inverse_field not in comodel.env.registry.not_null_fields:
             if isinstance(value, Domain):
                 value &= Domain(inverse_field.name, "not in", {False})

@@ -11,7 +11,7 @@ from ..primitives import SEQUENCE_FIELD
 from .base import Field, _make_scalar_get
 
 if typing.TYPE_CHECKING:
-    from .._typing import BaseModel, Environment, ModelClass, ModelLike
+    from .._typing import BaseModel, Environment, ModelClass, ModelLike, ModelType
 
 MAXINT = 2**31 - 1
 
@@ -35,7 +35,7 @@ class Integer(Field[int]):
     cache_is_orderable = True
     cache_is_read_value = True
 
-    aggregator = "sum"
+    aggregator: str | None = "sum"
 
     if not typing.TYPE_CHECKING:
         __get__ = _make_scalar_get(lambda v: v or 0)
@@ -79,9 +79,7 @@ class Integer(Field[int]):
         return super()._inequality_comparand(value, model)
 
     @override
-    def convert_to_record(
-        self, value, record: ModelLike
-    ) -> int | typing.Literal[False]:
+    def convert_to_record(self, value, record: ModelLike) -> int:
         return value or 0
 
     @override
@@ -114,10 +112,10 @@ class Float(Field[float]):
     cache_truthiness_matches = True
     cache_is_orderable = True
     cache_is_read_value = True
-    _digits: str | tuple[int, int] | None = None
+    _digits: str | tuple[int, int] | bool | None = None
     _min_display_digits: str | int | None = None
     falsy_value = 0.0
-    aggregator = "sum"
+    aggregator: str | None = "sum"
 
     if not typing.TYPE_CHECKING:
         __get__ = _make_scalar_get(lambda v: v or 0.0)
@@ -125,7 +123,7 @@ class Float(Field[float]):
     def __init__(
         self,
         string: str | Sentinel = SENTINEL,
-        digits: str | tuple[int, int] | Sentinel | None = SENTINEL,
+        digits: str | tuple[int, int] | Sentinel | bool | None = SENTINEL,
         min_display_digits: str | int | Sentinel | None = SENTINEL,
         **kwargs,
     ):
@@ -139,14 +137,14 @@ class Float(Field[float]):
         )
 
     @property
-    def _column_type(self) -> tuple[str, str]:
+    def _column_type(self) -> tuple[str, str]:  # type: ignore[override]
         return (
             ("numeric", "numeric")
             if self._digits is not None
             else ("float8", "double precision")
         )
 
-    def get_digits(self, env: Environment) -> tuple[int, int] | None:
+    def get_digits(self, env: Environment) -> tuple[int, int] | bool | None:
         if isinstance(self._digits, str):
             precision = env["decimal.precision"].get_precision(self._digits)
             return 16, precision
@@ -155,7 +153,7 @@ class Float(Field[float]):
 
     _related__digits = property(attrgetter("_digits"))
 
-    def _description_digits(self, env: Environment) -> tuple[int, int] | None:
+    def _description_digits(self, env: Environment) -> tuple[int, int] | bool | None:
         return self.get_digits(env)
 
     def get_min_display_digits(self, env: Environment) -> int | None:
@@ -175,10 +173,11 @@ class Float(Field[float]):
         validate: bool = True,
     ) -> typing.Any:
         value = float(value or 0.0)
-        if digits := self.get_digits(record.env):
+        if isinstance(digits := self.get_digits(record.env), tuple):
             _precision, scale = digits
             value = float_round(value, precision_digits=scale)
-        if self.column_type[0] == "numeric":
+        column_type = self.column_type
+        if column_type is not None and column_type[0] == "numeric":
             return Decimal(repr(value))
         return value
 
@@ -203,7 +202,12 @@ class Float(Field[float]):
     def _comparand_to_column(self, value, model) -> typing.Any:
         if not _is_exact_number(value):
             return super()._comparand_to_column(value, model)
-        if self.column_type[0] == "numeric" and not isinstance(value, Decimal):
+        column_type = self.column_type
+        if (
+            column_type is not None
+            and column_type[0] == "numeric"
+            and not isinstance(value, Decimal)
+        ):
             return Decimal(repr(float(value)))
         return float(value)
 
@@ -214,9 +218,7 @@ class Float(Field[float]):
         return super()._inequality_comparand(value, model)
 
     @override
-    def convert_to_record(
-        self, value, record: ModelLike
-    ) -> float | typing.Literal[False]:
+    def convert_to_record(self, value, record: ModelLike) -> float:
         return value or 0.0
 
     @override
@@ -249,8 +251,8 @@ class Monetary(Field[float]):
     if not typing.TYPE_CHECKING:
         __get__ = _make_scalar_get(lambda v: v or 0.0)
 
-    currency_field: Field | None = None
-    aggregator = "sum"
+    currency_field: str | None = None
+    aggregator: str | None = "sum"
 
     def __init__(
         self,
@@ -265,7 +267,7 @@ class Monetary(Field[float]):
 
     def _description_aggregator(self, env: Environment) -> str | None:
         model = env[self.model_name]
-        currency_field_name = self.get_currency_field(model)
+        currency_field_name = self._get_currency_field_name(model)
         currency_field = model._fields[currency_field_name]
         if not currency_field.column_type or not currency_field.store:
             try:
@@ -286,6 +288,15 @@ class Monetary(Field[float]):
             if "x_currency_id" in model._fields
             else None
         )
+
+    def _get_currency_field_name(self, model: ModelLike) -> str:
+        name = self.get_currency_field(model)
+        if name is None:
+            raise TypeError(
+                f"Field {self} needs a currency field and {model._name} declares "
+                f"neither currency_id nor x_currency_id"
+            )
+        return name
 
     def _currency_record(self, record: ModelLike):
         currency_field_name = self.get_currency_field(record)
@@ -335,7 +346,7 @@ class Monetary(Field[float]):
         values: dict | None = None,
         validate: bool = True,
     ) -> typing.Any:
-        currency_field_name = self.get_currency_field(record)
+        currency_field_name = self._get_currency_field_name(record)
         currency_field = record._fields[currency_field_name]
         if values and currency_field_name in values:
             dummy = record.new({currency_field_name: values[currency_field_name]})
@@ -362,7 +373,7 @@ class Monetary(Field[float]):
     ) -> typing.Any:
         value = float(value or 0.0)
         if value and validate:
-            currency_field = self.get_currency_field(record)
+            currency_field = self._get_currency_field_name(record)
             currency = record.sudo().with_context(prefetch_fields=False)[currency_field]
             if len(currency) > 1:
                 raise ValueError(
@@ -386,9 +397,7 @@ class Monetary(Field[float]):
         return super()._inequality_comparand(value, model)
 
     @override
-    def convert_to_record(
-        self, value, record: ModelLike
-    ) -> float | typing.Literal[False]:
+    def convert_to_record(self, value, record: ModelLike) -> float:
         return value or 0.0
 
     @override
@@ -414,14 +423,14 @@ class Monetary(Field[float]):
         return ""
 
     def _filter_not_equal(
-        self, records: BaseModel, cache_value: typing.Any
-    ) -> BaseModel:
+        self, records: ModelType, cache_value: typing.Any
+    ) -> ModelType:
         records = super()._filter_not_equal(records, cache_value)
         if not records:
             return records
         env = records.env
         field_cache = self._get_cache(env)
-        currency_field = records._fields[self.get_currency_field(records)]
+        currency_field = records._fields[self._get_currency_field_name(records)]
         ids_to_update = tuple(
             record_id
             for record_id, record_sudo in zip(

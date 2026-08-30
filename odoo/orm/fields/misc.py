@@ -150,8 +150,8 @@ class Id(Field[IdType | typing.Literal[False]]):
     readonly = True
     prefetch = False
 
-    def update_db(self, model: ModelLike, columns: dict[str, typing.Any]) -> None:
-        pass
+    def update_db(self, model: ModelLike, columns: dict[str, typing.Any]) -> bool:
+        return False
 
     @typing.overload
     def __get__(self, record: None, owner: typing.Any = None) -> typing.Self: ...

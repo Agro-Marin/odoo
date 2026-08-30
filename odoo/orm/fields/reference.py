@@ -18,7 +18,7 @@ if typing.TYPE_CHECKING:
 REFERENCE_VERIFIED_CACHE_KEY = "reference.verified_pairs"
 
 
-class Reference(Selection):
+class Reference(Selection["BaseModel | None"]):
     type = "reference"
     cache_is_record_value = False
     cache_is_orderable = False
@@ -210,12 +210,15 @@ class Many2oneReference(Integer):
                 invf._update_cache(corecord, ids1)
 
     def _record_ids_per_res_model(self, records: BaseModel) -> dict[str, OrderedSet]:
+        model_field = self.model_field
+        if model_field is None:
+            raise TypeError(f"{self} declares no model_field to group its ids by")
         model_ids: defaultdict[str, OrderedSet] = defaultdict(OrderedSet)
         for record in records:
-            model = record[self.model_field]
-            if not model and record._fields[self.model_field].compute:
-                record._fields[self.model_field].compute_value(record)
-                model = record[self.model_field]
+            model = record[model_field]
+            if not model and record._fields[model_field].compute:
+                record._fields[model_field].compute_value(record)
+                model = record[model_field]
                 if not model:
                     continue
             model_ids[model].add(record.id)

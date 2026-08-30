@@ -11,13 +11,12 @@ if typing.TYPE_CHECKING:
     from .._typing import BaseModel, ModelLike
 
     M = typing.TypeVar("M", bound=BaseModel)
-    T = typing.TypeVar("T")
 
 
 from ._field_stubs import _FieldStubs
 
 
-class _FieldConvertMixin(_FieldStubs):
+class _FieldConvertMixin[T](_FieldStubs):
     def convert_to_column(
         self,
         value: typing.Any,
@@ -154,7 +153,7 @@ class _FieldConvertMixin(_FieldStubs):
         return value
 
     def convert_to_record(self, value: typing.Any, record: ModelLike) -> T:
-        return False if value is None else value
+        return typing.cast("T", False if value is None else value)
 
     def convert_to_read(
         self, value: typing.Any, record: ModelLike, use_display_name: bool = True

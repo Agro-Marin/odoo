@@ -17,7 +17,7 @@ if typing.TYPE_CHECKING:
     OnDeletePolicy = str | Callable[[BaseModel], None]
 
 
-class Selection(Field[str | typing.Literal[False]]):
+class Selection[T = str | typing.Literal[False]](Field[T]):
     type = "selection"
     cache_is_record_value = True
     cache_truthiness_matches = True
@@ -96,7 +96,7 @@ class Selection(Field[str | typing.Literal[False]]):
         selection_add = field._args__["selection_add"]
         if not isinstance(selection_add, list):
             raise TypeError(f"{self}: selection_add={selection_add!r} must be a list")
-        if values is None:
+        if values is None or self.ondelete is None:
             raise TypeError(
                 f"{self}: selection_add={selection_add!r} on non-list selection {self.selection!r}"
             )
@@ -190,7 +190,7 @@ class Selection(Field[str | typing.Literal[False]]):
         return value_modules
 
     def _description_selection(self, env: Environment) -> list[SelectValue]:
-        selection = self.selection
+        selection = self._get_selection()
         if isinstance(selection, str) or callable(selection):
             selection = determine(selection, env[self.model_name])
             return [(str(key), str(label)) for key, label in selection]
@@ -208,8 +208,15 @@ class Selection(Field[str | typing.Literal[False]]):
     ) -> list[str]:
         return self.get_values(records.env)
 
+    def _get_selection(
+        self,
+    ) -> list[SelectValue] | str | Callable[[BaseModel], list[SelectValue]]:
+        if self.selection is None:
+            raise TypeError(f"{self} declares no selection")
+        return self.selection
+
     def get_values(self, env: Environment) -> list[str]:
-        selection = self.selection
+        selection = self._get_selection()
         if isinstance(selection, str) or callable(selection):
             selection = determine(
                 selection, env[self.model_name].with_context(lang="en_US")

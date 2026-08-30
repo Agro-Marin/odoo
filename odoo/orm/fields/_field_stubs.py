@@ -43,6 +43,12 @@ class _FieldStubs:
 
         def _update_inverse(self, records: BaseModel, value: BaseModel) -> None: ...
 
+        def _update_inverses(
+            self, records: BaseModel, value: typing.Any
+        ) -> None: ...
+
+        model_field: str | None
+
         @property
         def is_column(self) -> bool:
             pass

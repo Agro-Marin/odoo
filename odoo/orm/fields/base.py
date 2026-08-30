@@ -155,7 +155,7 @@ _global_seq = itertools.count()
 
 class Field[T](
     _FieldDescriptionMixin,
-    _FieldConvertMixin,
+    _FieldConvertMixin[T],
     _FieldSqlMixin,
     _FieldMetadataMixin,
 ):

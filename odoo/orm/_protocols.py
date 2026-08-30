@@ -59,6 +59,10 @@ class RecordsetProtocol(Protocol):
     def write(self, vals: Any) -> Any: ...
 
 
+class DecimalPrecisionProtocol(RecordsetProtocol, Protocol):
+    def get_precision(self, application: str) -> int: ...
+
+
 class IrModelDataProtocol(RecordsetProtocol, Protocol):
     def _load_xmlid(self, xml_id: str) -> Any: ...
 
@@ -234,6 +238,7 @@ class ResUsersProtocol(RecordsetProtocol, Protocol):
 
 
 FRAMEWORK_MODEL_PROTOCOLS: dict[str, type] = {
+    "decimal.precision": DecimalPrecisionProtocol,
     "ir.attachment": IrAttachmentProtocol,
     "ir.cron": IrCronProtocol,
     "ir.default": IrDefaultProtocol,
