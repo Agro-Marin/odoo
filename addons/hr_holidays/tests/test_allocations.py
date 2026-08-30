@@ -922,3 +922,41 @@ class TestAllocations(TestHrHolidaysCommon):
         self.assertEqual(allocation_5_days.state, "validate")
         allocation_3_days.action_refuse()
         self.assertEqual(allocation_3_days.state, "refuse")
+
+    def test_allocation_request_hours_rounds_the_title(self):
+        """A 38h week spread over five days averages 7.6 hours a day, and no
+        binary float divides by it exactly: four hours are stored as 4/7.6
+        days and read back as 3.9999999999999996.
+
+        `duration_display` already rounds that same product to two digits, so
+        without this the same allocation shows two different numbers.
+        """
+        self.leave_type.write(
+            {
+                "name": "Custom Time Off Test",
+                "allocation_validation_type": "hr",
+                "request_unit": "hour",
+            }
+        )
+        calendar_38h = self.calendar_35h.copy({"name": "Calendar - 38H"})
+        calendar_38h.hours_per_day = 7.6
+        self.employee.resource_calendar_id = calendar_38h
+
+        employee_allocation = self.env["hr.leave.allocation"].create(
+            {
+                "employee_id": self.employee.id,
+                "holiday_status_id": self.leave_type.id,
+                "allocation_type": "regular",
+                "type_request_unit": "hour",
+            }
+        )
+
+        with Form(
+            employee_allocation.with_context(is_employee_allocation=True),
+            "hr_holidays.hr_leave_allocation_view_form_dashboard",
+        ) as allocation:
+            allocation.number_of_hours_display = 4
+            employee_allocation = allocation.save()
+
+        self.assertEqual(employee_allocation.duration_display, "4 hours")
+        self.assertEqual(employee_allocation.name, "Custom Time Off Test (4.0 hour(s))")
