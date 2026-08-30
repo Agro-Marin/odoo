@@ -5,7 +5,12 @@ from lxml import etree as ET
 from lxml.builder import E
 
 from odoo.tests import common
-from odoo.tools.convert import _eval_xml, convert_file, xml_import
+from odoo.tools.convert import (
+    _eval_xml,
+    convert_csv_import,
+    convert_file,
+    xml_import,
+)
 from odoo.tools.misc import file_path
 
 
@@ -347,3 +352,29 @@ class TestEvalXML(common.TransactionCase):
             </parent>""",
             "Evaluating an HTML field should give empty nodes instead of self-closing tags",
         )
+
+
+class TestConvertCsvEncoding(common.TransactionCase):
+    """Module CSV data is developer-authored, and editors add byte-order marks."""
+
+    def _load(self, text):
+        convert_csv_import(
+            self.env,
+            "test_convert",
+            "res.partner.category.csv",
+            text.encode("utf-8"),
+            mode="init",
+        )
+
+    def test_a_plain_csv_loads(self):
+        self._load("id,name\ntest_convert.plain_tag,Plain Tag\n")
+
+        self.assertEqual(self.env.ref("test_convert.plain_tag").name, "Plain Tag")
+
+    def test_a_csv_saved_with_a_byte_order_mark_loads_too(self):
+        # A BOM lands on the first column name, so `id` reads as `﻿id`: the
+        # xmlid column is not recognised, and on an update the file is refused
+        # outright for not having one.
+        self._load("﻿id,name\ntest_convert.bom_tag,BOM Tag\n")
+
+        self.assertEqual(self.env.ref("test_convert.bom_tag").name, "BOM Tag")

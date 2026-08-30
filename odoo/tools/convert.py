@@ -838,7 +838,16 @@ def convert_csv_import(
     env = env(context=dict(env.context, lang=None))
     filename = Path(fname).stem
     model = filename.split("-")[0]
-    reader = csv.reader(io.StringIO(csvcontent.decode()), quotechar='"', delimiter=",")
+    # `utf-8-sig`, not `utf-8`: a byte-order mark is what editors and Excel put in
+    # front of a UTF-8 file, and it lands on the first column name -- `id` becomes
+    # `\ufeffid`, so the xmlid column is not recognised and an update is refused
+    # for not having one. This strips a BOM if there is one and is byte-identical
+    # otherwise. Deliberately not the encoding-guessing reader in
+    # `odoo.libs.documents`: module data must load the same way on every machine
+    # and every upgrade, and guessing is the opposite of that.
+    reader = csv.reader(
+        io.StringIO(csvcontent.decode("utf-8-sig")), quotechar='"', delimiter=","
+    )
     fields = next(reader)
 
     if not (mode == "init" or "id" in fields):
