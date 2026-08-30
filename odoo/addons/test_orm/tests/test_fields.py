@@ -428,10 +428,10 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.env.invalidate_all()
         users = (user1 + user2 + user3).with_user(self.user_demo)
         user1, user2, user3 = users
-        user1.company_type
+        user1.type_address_label
         with self.assertRaises(AccessError):
-            user2.company_type
-        user3.company_type
+            user2.type_address_label
+        user3.type_address_label
 
     def test_12_recursive(self):
         Category = self.env["test_orm.category"]

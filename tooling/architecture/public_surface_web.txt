@@ -123,6 +123,7 @@
 @web/fields/dynamic_placeholder_popover  odoo enterprise
 @web/fields/dynamic_placeholder_syntax  odoo
 @web/fields/field  odoo enterprise
+@web/fields/field_component  odoo
 @web/fields/field_dirty_signal  odoo enterprise
 @web/fields/field_options  odoo
 @web/fields/hooks/record_observer  odoo enterprise agromarin

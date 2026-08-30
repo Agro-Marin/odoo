@@ -20,6 +20,7 @@ UNRECORDED_GATES: frozenset[str] = frozenset(
         "translation_catalog.py",
         "order_line_qty.py",
         "external_dependency_pins.py",
+        "format_literals.py",
     }
 )
 

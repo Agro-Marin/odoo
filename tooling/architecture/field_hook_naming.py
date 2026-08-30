@@ -169,9 +169,12 @@ def _field_hooks(tree: ast.Module) -> list[tuple[str, str, str, str, int]]:
             continue
         model = _model_of(node)
         for stmt in node.body:
-            if not isinstance(stmt, ast.Assign) or len(stmt.targets) != 1:
+            if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1:
+                target = stmt.targets[0]
+            elif isinstance(stmt, ast.AnnAssign):
+                target = stmt.target
+            else:
                 continue
-            target = stmt.targets[0]
             call = stmt.value
             if not isinstance(target, ast.Name) or not isinstance(call, ast.Call):
                 continue

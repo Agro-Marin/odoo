@@ -254,7 +254,6 @@ def test_a_helper_named_compute_is_not_measured(tmp_path):
     "body",
     [
         'dict(self._fields["type"]._description_selection(self.with_context({}).env))',
-        "get_lang(self.with_context().env).code",
     ],
 )
 def test_a_read_through_a_stripped_context_is_not_a_read(body):
@@ -283,3 +282,96 @@ def test_a_with_context_carrying_keys_does_not_neutralise():
             return get_lang(other.env).code
     """)
     assert read_keys(node) == {"lang"}
+
+
+def test_a_helper_taking_more_than_self_is_not_a_field_compute(tmp_path):
+    _write(
+        tmp_path,
+        "m.py",
+        """
+        class M(models.Model):
+            @api.model
+            def _compute_domain(self, model_name, mode="read"):
+                return self.env.user.all_group_ids
+        """,
+    )
+    assert measure([tmp_path]) == []
+
+
+@pytest.mark.parametrize(
+    "tail", ["target_field", "*names", "**kwargs", "*, group", "field_name, group"]
+)
+def test_no_signature_beyond_self_can_carry_depends_context(tmp_path, tail):
+    _write(
+        tmp_path,
+        "m.py",
+        f"""
+        class M(models.Model):
+            def _compute_warning(self, {tail}):
+                return self.env.user.name
+        """,
+    )
+    assert measure([tmp_path]) == []
+
+
+def test_a_field_compute_taking_only_self_is_still_measured(tmp_path):
+    _write(
+        tmp_path,
+        "m.py",
+        """
+        class M(models.Model):
+            def _compute_flag(self):
+                self.flag = self.env.user.name
+        """,
+    )
+    assert [v.key for v in measure([tmp_path])] == ["uid"]
+
+
+@pytest.mark.parametrize(
+    "receiver",
+    ["clean_self.env", "self.with_context({}).env"],
+)
+def test_a_selection_read_through_a_cleared_env_is_lang_free(receiver):
+    node = _func(f"""
+        def _compute_complete_name(self):
+            clean_self = self.with_context({{}})
+            labels = dict(self._fields["type"]._description_selection({receiver}))
+    """)
+    assert read_keys(node) == set()
+
+
+@pytest.mark.parametrize(
+    "clearing",
+    [
+        "self.with_context({}, lang=lang)",
+        "self.with_context({'lang': lang})",
+        "self.with_context(lang=lang)",
+        "self.with_context()",
+    ],
+)
+def test_only_an_empty_literal_with_no_overrides_clears_the_context(clearing):
+    node = _func(f"""
+        def _compute_complete_name(self):
+            clean_self = {clearing}
+            labels = dict(self._fields["type"]._description_selection(clean_self.env))
+    """)
+    assert read_keys(node) == {"lang"}
+
+
+def test_a_cleared_env_does_not_excuse_the_methods_own_env():
+    node = _func("""
+        def _compute_label(self):
+            clean_self = self.with_context({})
+            labels = dict(self._fields["type"]._description_selection(clean_self.env))
+            self.label = get_lang(self.env).code
+    """)
+    assert read_keys(node) == {"lang"}
+
+
+def test_clearing_the_context_does_not_excuse_a_uid_read():
+    node = _func("""
+        def _compute_label(self):
+            clean_self = self.with_context({})
+            self.label = clean_self.env.user.name
+    """)
+    assert read_keys(node) == {"uid"}

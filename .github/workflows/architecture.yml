@@ -790,6 +790,26 @@ jobs:
           set -e
           exit $rc
 
+      - name: Run suite-in-a-lane ratchet
+        id: suite_lane
+        # ADR-0079. Counts modules that ship tests no workflow names in
+        # `--test-tags`. Tags and not installs: `sale` is installed by the
+        # base_order lane so that suite's registry holds what its tests reach
+        # for, and `sale`'s own tests do not run there -- counting installs
+        # would call it covered.
+        #
+        # Ratcheted and not zero because the 418 at the seed are almost entirely
+        # the upstream tree, which this fork is not going to lane one by one.
+        # The property that was missing is that the number cannot grow.
+        run: |
+          set +e
+          python tooling/architecture/module_suite_lane.py | tee /tmp/suite_lane.log
+          python tooling/architecture/module_suite_lane.py --count \
+            | xargs python tooling/ratchet/ratchet.py suite_lane --count
+          rc=$?
+          set -e
+          exit $rc
+
       - name: Run Python function-length ratchet (addons)
         id: py_funclen_addons
         run: |
@@ -1275,6 +1295,50 @@ jobs:
         run: |
           set +e
           python tooling/architecture/edi_vocabulary.py --check
+          rc=$?
+          set -e
+          exit $rc
+
+      - name: Run credential storage gate
+        id: credential_storage
+        # ADR-0081. `credential.credential` encrypts at rest, fingerprints for
+        # comparison without decrypting, access-logs every read and rate-limits
+        # it -- and 19 modules found it while 105 did not. 163 stored Char/Text
+        # fields hold somebody else's secret in the clear, 77 of those modules
+        # being business modules rather than localisations.
+        #
+        # Default-deny over an allowlist that doubles as the backlog, ordered by
+        # cluster: payment_* 28, delivery_* 22, pos_* 13. The classifier excludes
+        # four things that are not credentials -- a transient wizard field, a
+        # share token we mint so a link works, a compute/inverse door onto a hash
+        # or an encrypted blob, and a *_hash companion -- and each of those has a
+        # test asserting the gate stays quiet, because a gate that fires on them
+        # gets argued down rather than obeyed.
+        run: |
+          set +e
+          python tooling/architecture/credential_storage.py --check
+          rc=$?
+          set -e
+          exit $rc
+
+      - name: Run exchange vocabulary gate
+        id: exchange_vocabulary
+        # ADR-0080. One lifecycle, not forty-seven. An AST pass over every
+        # `*state` Selection in a module that talks to a counterparty found 47
+        # distinct vocabularies over 76 fields, all spelling the same five
+        # phases -- and `l10n_mx_edi.state`'s sixteen values are
+        # {invoice, global invoice, payment} x {issue, annul} x {ok, failed}
+        # flattened into a string.
+        #
+        # Default-deny over an allowlist rather than a ratchet, because the
+        # question is per-field and has a reason attached, not a number to
+        # amortise. Entries come off as modules port. A vocabulary that is not a
+        # transmission's phase at all -- a partner's reachability, our own
+        # registration on a network, an approval workflow -- says so in its
+        # entry and stays.
+        run: |
+          set +e
+          python tooling/architecture/exchange_vocabulary.py --check
           rc=$?
           set -e
           exit $rc

@@ -95,6 +95,39 @@ class Thing(models.Model):
     )
 
 
+def test_an_annotated_field_declaration_is_read_like_any_other(tmp_path):
+    found = _measure(
+        tmp_path,
+        """
+class Thing(models.Model):
+    _name = "thing"
+
+    partner_id: ResPartner = fields.Many2one("res.partner", compute="_compute_owner")
+""",
+    )
+    assert _kinds(found) == [("misnamed", "_compute_owner")]
+
+
+def test_an_annotated_sibling_makes_a_hook_multi_field(tmp_path):
+    # The annotation is the only difference from
+    # test_a_hook_serving_several_fields_and_named_for_none_is_accepted. A scan
+    # blind to ast.AnnAssign sees one field here and demands the hook be renamed
+    # after it, which is the opposite of what §2.4.1 asks for.
+    assert (
+        _measure(
+            tmp_path,
+            """
+class Thing(models.Model):
+    _name = "thing"
+
+    label = fields.Char(compute="_compute_labels")
+    partner_ids: ResPartner = fields.Many2many("res.partner", compute="_compute_labels")
+""",
+        )
+        == []
+    )
+
+
 def test_a_hook_name_is_scoped_to_its_model(tmp_path):
     found = _measure(
         tmp_path,

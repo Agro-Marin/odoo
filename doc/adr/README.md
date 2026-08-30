@@ -248,6 +248,10 @@ enforce them.
 | [0075](0075-tools-stays-below-the-serving-tier.md) | `odoo.tools` stays below the serving tier | 2026-08-29 | Accepted |
 | [0076](0076-runtime-code-does-not-read-a-docstring.md) | Runtime code does not read a docstring | 2026-08-29 | Accepted |
 | [0077](0077-a-hook-the-orm-calls-takes-no-arguments.md) | A hook the ORM calls takes no arguments | 2026-08-29 | Accepted |
+| [0078](0078-a-document-has-representations-and-the-format-layer-is-a-registry.md) | A document has representations, and the format layer is a registry | 2026-08-29 | Accepted |
+| [0079](0079-a-suite-that-no-lane-runs-is-not-a-test.md) | A suite that no lane runs is not a test | 2026-08-30 | Accepted |
+| [0080](0080-an-exchange-has-a-counterparty-a-lifecycle-and-a-journal.md) | An exchange has a counterparty, a lifecycle and a journal, and none of the three is a localisation | 2026-08-30 | Accepted |
+| [0081](0081-a-credential-is-stored-in-the-vault-and-nowhere-else.md) | A credential is stored in the vault, and nowhere else | 2026-08-30 | Accepted |
 
 ## Template
 

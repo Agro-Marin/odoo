@@ -39,3 +39,4 @@ from . import test_bundles_assemble
 from . import test_copy_translations
 from . import test_menu_parents
 from . import test_group_refs
+from . import test_record_refs

@@ -57,24 +57,15 @@ def _python_files(roots: list[Path]) -> list[Path]:
     )
 
 
-def is_field_compute(node: ast.FunctionDef) -> bool:
-    if not node.name.startswith("_compute_"):
-        return False
-    args = node.args
-    if args.vararg or args.kwarg or args.kwonlyargs or args.posonlyargs:
-        return False
-    return len(args.args) == 1
-
-
 def _strips_context(call: ast.Call) -> bool:
-    if _called_name(call) != "with_context":
-        return False
-    if call.keywords:
-        return False
-    if not call.args:
-        return True
+    # `with_context(ctx=None, /, **overrides)` builds `dict(ctx if ctx is not
+    # None else self.env.context, **overrides)`, so only an empty literal with
+    # no overrides yields an env that cannot hold the key. A bare
+    # `with_context()` passes ctx=None and carries the whole context over.
     return (
-        len(call.args) == 1
+        _called_name(call) == "with_context"
+        and not call.keywords
+        and len(call.args) == 1
         and isinstance(call.args[0], ast.Dict)
         and not call.args[0].keys
     )
@@ -149,6 +140,23 @@ def _called_name(call: ast.Call) -> str:
     return func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
 
 
+def is_field_compute(node: ast.FunctionDef) -> bool:
+    # A field's compute= is invoked as `records._compute_x()`, so a `_compute_`
+    # taking anything beyond self is a helper the ORM never calls that way.
+    # @api.depends_context sets an attribute the field reads off its compute
+    # method, so on such a helper there is no field to declare it for and the
+    # finding could not be paid off at all.
+    if not node.name.startswith("_compute_"):
+        return False
+    args = node.args
+    return (
+        not args.vararg
+        and not args.kwarg
+        and not args.kwonlyargs
+        and len(args.posonlyargs) + len(args.args) == 1
+    )
+
+
 def read_keys(node: ast.FunctionDef) -> set[str]:
     keys: set[str] = set()
     parents = _parents(node)
@@ -159,7 +167,10 @@ def read_keys(node: ast.FunctionDef) -> set[str]:
             reads_env = (isinstance(value, ast.Attribute) and value.attr == "env") or (
                 isinstance(value, ast.Name) and value.id == "env"
             )
-            if reads_env and not _is_neutralised(sub, context_free):
+            # No neutralisation here: ENV_READS yields `uid` alone, and `uid`
+            # is the environment's user, not a context key -- clearing the
+            # context leaves it exactly as it was.
+            if reads_env:
                 for key, attrs in ENV_READS.items():
                     if sub.attr in attrs:
                         keys.add(key)
@@ -172,7 +183,9 @@ def read_keys(node: ast.FunctionDef) -> set[str]:
                     sub, parents
                 ):
                     continue
-                if _is_neutralised(sub, context_free):
+                # Only `lang` is read out of the context; `guest` comes from a
+                # helper that is handed one explicitly.
+                if key == "lang" and _is_neutralised(sub, context_free):
                     continue
                 keys.add(key)
     return keys

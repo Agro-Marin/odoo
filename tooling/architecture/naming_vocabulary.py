@@ -56,9 +56,16 @@ ABOLISHED: dict[str, tuple[str, bool]] = {
     "append": ("_add_", False),
     "delete": ("_remove_", False),
     "purge": ("_remove_", False),
+    "digitize": ("_extract_", False),
+    "interpret": ("_read_", False),
+    "derive": ("_read_", False),
+    "sniff": ("_guess_", False),
 }
 
 RESERVED = {
+    "parse": "one string in, one typed value out — a file is _read_ (§2.4.18)",
+    "decode": "an encoding with a key or a scheme — a file format is _read_ (§2.4.18)",
+    "index": "building a key→member mapping — text for a search index is _read_ (§2.4.18)",
     "drop": "SQL DDL",
     "insert": "SQL DML",
     "push": "stack / queue",

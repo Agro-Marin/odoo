@@ -267,11 +267,6 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         {
             isActive: ["mobile"],
             trigger:
-                ".modal:not(.o_inactive_modal) .modal-dialog .o_field_radio.o_field_widget[name=company_type]",
-        },
-        {
-            isActive: ["mobile"],
-            trigger:
                 ".modal:not(.o_inactive_modal) .o_field_widget[name=name]:not(.o_invisible_modifier) textarea, .modal:not(.o_inactive_modal) .o_field_widget[name=name]:not(.o_invisible_modifier) input",
             content: _t("Select a seller"),
             tooltipPosition: "top",

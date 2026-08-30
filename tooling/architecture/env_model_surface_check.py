@@ -75,7 +75,6 @@ KNOWN_MODEL_SURFACE: frozenset[str] = frozenset(
         "ir.default",
         "ir.demo_failure",
         "ir.fields.converter",
-        "ir.http",
         "ir.model",
         "ir.model.access",
         "ir.model.constraint",

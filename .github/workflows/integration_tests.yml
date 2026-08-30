@@ -59,6 +59,37 @@ on:
       # is how the pins came to sit 24-58% over the tree they measure.
       - 'addons/crm/**'
       - 'addons/sales_team/**'
+      # The document_extract lane below. The framework and its five bundled
+      # consumers were installed by module_installability.yml alone, which
+      # passes no --test-enable, so 171 tests ran in no lane at all. One glob
+      # rather than six entries, because the family grows by adding a consumer
+      # and a list that has to be extended by hand is a list that will not be.
+      - 'addons/document_extract*/**'
+      # The base_order lane below, and both halves of it: the mixins and the
+      # module whose only purpose is to exercise them.
+      - 'addons/base_order/**'
+      - 'addons/test_base_order/**'
+      # The approval lane below. 545 test methods, and `automation` is listed
+      # with it because approval builds its workflows on automation's runtime --
+      # a change there reaches approval's suite and no other.
+      - 'addons/approval/**'
+      - 'addons/automation/**'
+      # The api_ai / project_hr / mixin_encryption lane below. `credential` and
+      # `api_transport` are listed because api_ai is installed on top of them
+      # and mixin_encryption is what they store secrets through -- a change
+      # there reaches this lane even though neither module's own suite runs.
+      - 'addons/api_ai/**'
+      - 'addons/api_transport/**'
+      - 'addons/credential/**'
+      - 'addons/mixin_encryption/**'
+      - 'addons/project_hr/**'
+      # Also in that lane, and found by the gate rather than by hand: see the
+      # env block below for why a census keyed on the manifest's author missed
+      # all four.
+      - 'addons/date_range/**'
+      - 'addons/test_date_range/**'
+      - 'addons/account_coa/**'
+      - 'odoo/addons/test_performance_compare/**'
       - 'crates/**'
       - 'requirements*.txt'
       - '.github/workflows/integration_tests.yml'
@@ -303,6 +334,72 @@ env:
   # sits under that.
   ACCESS_RIGHTS_INSTALL: test_access_rights
   ACCESS_RIGHTS_TEST_TAGS: /test_access_rights
+
+  # `document_extract` is a framework with consumers, and the consumers are the
+  # only thing that tells it whether a change to the schema still means what it
+  # meant. A declaration that a list field states its row shape passed the
+  # framework's own 113 tests and deleted every skill a CV named as a bare
+  # string, because `document_extract_hr_recruitment_skills` is a separate
+  # module and was in nobody's test-tags. Naming all six is the point of the
+  # lane; `--test-tags` matches a module name exactly, so
+  # `/document_extract_hr_recruitment` does not reach `..._skills`.
+  #
+  # Six here and not the whole family: `document_extract_ai` lives in agromarin
+  # and `document_extract_account_bank_statement` in enterprise, neither of
+  # which this checkout can see, and `document_extract_barcode` and
+  # `document_extract_ocr` declare external dependencies (zxing-cpp, rapidocr,
+  # onnxruntime) that requirements-addons.txt does not carry.
+  DOCUMENT_EXTRACT_INSTALL: document_extract,document_extract_account,document_extract_account_purchase,document_extract_hr_expense,document_extract_hr_recruitment,document_extract_hr_recruitment_skills
+  DOCUMENT_EXTRACT_TEST_TAGS: /document_extract,/document_extract_account,/document_extract_account_purchase,/document_extract_hr_expense,/document_extract_hr_recruitment,/document_extract_hr_recruitment_skills
+
+  # `test_base_order` is `category: Hidden/Tests` -- a module whose entire
+  # purpose is to exercise `base_order`'s mixins against concrete models, 219
+  # test methods of it, and no workflow named it. A test-only module that
+  # nothing runs is not covered by being installable.
+  #
+  # `sale` and `purchase` are installed with it and are not optional. The
+  # manifest depends on `base_order` alone, but the tests reach past it: they
+  # assert over ORDER_MODELS = [sale.order, purchase.order, base.order.test] and
+  # read `order_lock_so`, which `sale` declares. Installed alone the suite
+  # reports 67 errors, every one of them a KeyError for a model or a field that
+  # is simply not in the registry -- a scope artefact that reads exactly like a
+  # broken module. With them: 281 tests, 0 failed.
+  #
+  # `/base_order` rides along because the mixins' own suite is in the same
+  # position and needs the same registry.
+  BASE_ORDER_INSTALL: test_base_order,sale,purchase
+  BASE_ORDER_TEST_TAGS: /test_base_order,/base_order
+
+  # `approval` is the largest suite this fork owns that no lane ran: 545 test
+  # methods over approval rules, workflow steps, delegation, cancellation and
+  # multi-company isolation, reached until now only by
+  # module_installability.yml. It passes -- 544 tests, one skipped for want of
+  # something the environment cannot provide -- so this lane is not a repair.
+  #
+  # The scope is the module's own machine_doc_v1/conventions.md, which states
+  # `-i approval --test-tags '/approval'` and is right: unlike base_order,
+  # approval's tests reach nothing past its own depends.
+  APPROVAL_INSTALL: approval
+  APPROVAL_TEST_TAGS: /approval
+
+  # The last three fork-native suites that ran nowhere, in one lane because
+  # none is large enough to be worth its own database: api_ai (231),
+  # project_hr (35), mixin_encryption (20).
+  #
+  # Installing api_ai installs `api_transport` and `credential`, whose own
+  # suites stay unrun by the decision in CLAUDE.md 9.6. That is the point of
+  # naming modules in `--test-tags` rather than counting what a lane installs:
+  # this lane holds api_ai to its tests without touching that decision.
+  # Four more the gate named that a hand census had not. The census filtered on
+  # `"author": "AgroMarin"` as an exact string, and these declare it alongside
+  # others -- "Odoo S.A., AgroMarin", "ACSONE SA/NV, Odoo Community Association
+  # (OCA), AgroMarin". That is the second way the author heuristic failed in one
+  # day; the first was `base_order`, which says "Odoo Community" and names
+  # AgroMarin nowhere. ADR-0079 rejected author-based scoping for exactly this,
+  # and `module_suite_lane` finds them because it asks whether a lane names a
+  # module rather than whether the module is ours. 68 tests, all passing.
+  SMALL_SUITES_INSTALL: api_ai,project_hr,mixin_encryption,date_range,test_date_range,account_coa,test_performance_compare,exchange
+  SMALL_SUITES_TEST_TAGS: /api_ai,/project_hr,/mixin_encryption,/date_range,/test_date_range,/account_coa,/test_performance_compare,/exchange
 
 jobs:
   base-smoke:
@@ -784,5 +881,139 @@ jobs:
           if [ "$RAN" -lt 45 ]; then
             echo "::error::only $RAN test_access_rights tests ran, below the floor of 45 —"
             echo "::error::something was skipped rather than failed."
+            exit 1
+          fi
+
+      - name: Run document_extract suite
+        # Its own database (ci_document_extract), same reasoning as the suites
+        # above.
+        run: |
+          set -o pipefail
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_document_extract \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "${DOCUMENT_EXTRACT_INSTALL}" \
+            --test-enable --test-tags "${DOCUMENT_EXTRACT_TEST_TAGS}" \
+            --stop-after-init \
+            --max-cron-threads=0 --no-http \
+            --log-level=test --logfile=/dev/stdout | tee /tmp/document-extract-suite.log
+
+      - name: Assert the document_extract suite actually ran
+        # Same guard as the suites above, and it earns its place here more than
+        # most: the failure this lane exists to catch is a consumer's tests not
+        # running, which reports as success.
+        run: |
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/document-extract-suite.log \
+                | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no test-result summary in the log — document_extract did not report a count"
+            exit 1
+          fi
+          echo "document_extract tests run: $RAN (floor: 165)"
+          if [ "$RAN" -lt 165 ]; then
+            echo "::error::only $RAN document_extract tests ran, below the floor of 165 —"
+            echo "::error::a consumer's suite was skipped rather than failed."
+            exit 1
+          fi
+
+      - name: Run base_order suite
+        # Its own database (ci_base_order), same reasoning as the suites above.
+        run: |
+          set -o pipefail
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_base_order \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "${BASE_ORDER_INSTALL}" \
+            --test-enable --test-tags "${BASE_ORDER_TEST_TAGS}" \
+            --stop-after-init \
+            --max-cron-threads=0 --no-http \
+            --log-level=test --logfile=/dev/stdout | tee /tmp/base-order-suite.log
+
+      - name: Assert the base_order suite actually ran
+        # 281 tests, one skipping for want of something the environment cannot
+        # provide; the floor sits under that. It also guards the scope: drop
+        # `sale` from the install and the suite errors rather than shrinking, but
+        # narrow the tags and it shrinks silently.
+        run: |
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/base-order-suite.log \
+                | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no test-result summary in the log — base_order did not report a count"
+            exit 1
+          fi
+          echo "base_order tests run: $RAN (floor: 270)"
+          if [ "$RAN" -lt 270 ]; then
+            echo "::error::only $RAN base_order tests ran, below the floor of 270 —"
+            echo "::error::something was skipped rather than failed."
+            exit 1
+          fi
+
+      - name: Run approval suite
+        # Its own database (ci_approval), same reasoning as the suites above.
+        run: |
+          set -o pipefail
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_approval \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "${APPROVAL_INSTALL}" \
+            --test-enable --test-tags "${APPROVAL_TEST_TAGS}" \
+            --stop-after-init \
+            --max-cron-threads=0 --no-http \
+            --log-level=test --logfile=/dev/stdout | tee /tmp/approval-suite.log
+
+      - name: Assert the approval suite actually ran
+        # 544 tests, one skipping for want of something the environment cannot
+        # provide; the floor sits under that.
+        run: |
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/approval-suite.log \
+                | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no test-result summary in the log — approval did not report a count"
+            exit 1
+          fi
+          echo "approval tests run: $RAN (floor: 535)"
+          if [ "$RAN" -lt 535 ]; then
+            echo "::error::only $RAN approval tests ran, below the floor of 535 —"
+            echo "::error::something was skipped rather than failed."
+            exit 1
+          fi
+
+      - name: Run api_ai, project_hr and mixin_encryption suites
+        # Their own database (ci_small_suites), same reasoning as the suites
+        # above.
+        run: |
+          set -o pipefail
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_small_suites \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "${SMALL_SUITES_INSTALL}" \
+            --test-enable --test-tags "${SMALL_SUITES_TEST_TAGS}" \
+            --stop-after-init \
+            --max-cron-threads=0 --no-http \
+            --log-level=test --logfile=/dev/stdout | tee /tmp/small-suites.log
+
+      - name: Assert the small suites actually ran
+        # 300 tests across the seven. The floor sits under that, and it guards
+        # the shape this lane is most likely to lose: seven tags, and dropping
+        # one shrinks the run without failing it.
+        run: |
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/small-suites.log \
+                | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no test-result summary in the log — the small suites did not report a count"
+            exit 1
+          fi
+          echo "small-suite tests run: $RAN (floor: 290)"
+          if [ "$RAN" -lt 290 ]; then
+            echo "::error::only $RAN tests ran, below the floor of 290 —"
+            echo "::error::one of the seven suites was skipped rather than failed."
             exit 1
           fi

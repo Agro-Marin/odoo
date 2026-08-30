@@ -5,6 +5,10 @@ from odoo.modules import Manifest
 from odoo.tests import tagged
 
 from . import lint_case
+from odoo.addons.base.models.ir_asset_paths import (
+    INCLUDE_DIRECTIVE,
+    REMOVE_DIRECTIVE,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -18,6 +22,7 @@ URL_FETCHED = frozenset(
         "web/static/src/module_loader.js",
         "web/static/src/public/database_manager.js",
         "web/static/src/service_worker.js",
+        "website/static/src/js/content/cookie_watcher.js",
     }
 )
 
@@ -25,7 +30,24 @@ URL_FETCHED = frozenset(
 @tagged("post_install", "-at_install")
 class TestOrphanAssets(lint_case.LintCase):
     @staticmethod
-    def _declared_paths(manifests, bundle):
+    def _expand(spec, roots):
+        """The concrete files a manifest entry or ir.asset path names."""
+        spec = spec.lstrip("/")
+        addon, _, relative = spec.partition("/")
+        root = roots.get(addon)
+        if root is None or not relative:
+            return ()
+        if any(ch in relative for ch in "*?["):
+            return {
+                f"{addon}/{p.relative_to(root).as_posix()}"
+                for p in root.glob(relative)
+                if p.is_file()
+            }
+        return {spec} if (root / relative).is_file() else ()
+
+    @classmethod
+    def _declared_paths(cls, manifests, bundle):
+        roots = {m.name: Path(m.path) for m in manifests}
         found = set()
         for manifest in manifests:
             for entry in (manifest.get("assets") or {}).get(bundle, ()):
@@ -35,19 +57,32 @@ class TestOrphanAssets(lint_case.LintCase):
                     ("http://", "https://")
                 ):
                     continue
-                spec = entry.lstrip("/")
-                addon, _, relative = spec.partition("/")
-                root = next((Path(m.path) for m in manifests if m.name == addon), None)
-                if root is None or not relative:
-                    continue
-                if any(ch in relative for ch in "*?["):
-                    found.update(
-                        f"{addon}/{p.relative_to(root).as_posix()}"
-                        for p in root.glob(relative)
-                        if p.is_file()
-                    )
-                elif (root / relative).is_file():
-                    found.add(spec)
+                found.update(cls._expand(entry, roots))
+        return found
+
+    @classmethod
+    def _inactive_declared_paths(cls, env, manifests):
+        """Files an ir.asset record declares while sitting inactive.
+
+        `active` is a runtime state, not an absence of declaration. website
+        keeps a snippet's superseded stylesheet as an inactive record and
+        activates it per website when a page still carries that version of the
+        snippet, and a theme option activates ripple_effect.scss the same way.
+        _get_asset_paths only ever resolves ACTIVE records, so without this
+        every such file reads as reaching no bundle while being served the
+        moment its record is switched on.
+        """
+        roots = {m.name: Path(m.path) for m in manifests}
+        records = (
+            env["ir.asset"]
+            .with_context(active_test=False)
+            .search([("active", "=", False)])
+        )
+        found = set()
+        for record in records:
+            if record.directive in (REMOVE_DIRECTIVE, INCLUDE_DIRECTIVE):
+                continue
+            found.update(cls._expand(record.path or "", roots))
         return found
 
     def test_static_sources_reach_a_bundle(self):
@@ -76,6 +111,9 @@ class TestOrphanAssets(lint_case.LintCase):
                 continue
             bundled.update(entry.path.lstrip("/") for entry in entries)
 
+        deferred = self._inactive_declared_paths(env, manifests)
+        bundled.update(deferred)
+
         orphans = []
         checked = 0
         for manifest in manifests:
@@ -93,10 +131,12 @@ class TestOrphanAssets(lint_case.LintCase):
                     orphans.append(relative)
 
         _logger.info(
-            "checked %s static/src file(s) of %s installed module(s) against %s bundle(s)",
+            "checked %s static/src file(s) of %s installed module(s) against %s "
+            "bundle(s); %s file(s) reached only through an inactive ir.asset record",
             checked,
             len(manifests),
             len(bundles),
+            len(deferred),
         )
         for report in sorted(unresolvable):
             _logger.warning(

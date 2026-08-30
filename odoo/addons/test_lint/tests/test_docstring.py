@@ -275,7 +275,10 @@ class TestDocstring(LintCase):
 
         class _Fake:
             def method(self):
-                pass
+                # Fixture, not documentation: this malformed docstring is the
+                # input under test. 0b64c12a5fa stripped it as prose and left
+                # the test raising AttributeError on __doc__ being None.
+                """:returns set: the ids"""
 
         offenders = []
         try:
