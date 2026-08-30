@@ -40,6 +40,6 @@ class L10nBRPortalAccount(L10nLatamBasePortalAccount):
             mandatory_fields -= {
                 "street",
                 "city",
-            }  # Brazil uses the base_extended_address fields added above
+            }  # Brazil uses the partner_address_extended fields added above
 
         return mandatory_fields
