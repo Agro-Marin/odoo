@@ -552,3 +552,145 @@ class TestRecruitment(TransactionCase):
             "987654321",
             "Phone should have been updated on the partner.",
         )
+
+    def test_create_employee_keeps_the_applicant_contact_email(self):
+        """
+        Test that hiring an applicant leaves the contact's own email alone.
+
+        ``work_email`` is a stored compute whose inverse writes back to
+        ``work_contact_id``, and the employee's work contact *is* the applicant's
+        partner, so seeding ``work_email`` with the company mailbox used to
+        replace the candidate's personal email with it.
+        """
+        self.company.email = "info@company.example.com"
+        department = self.env["hr.department"].create({"name": "Test Department"})
+        job = self.env["hr.job"].create(
+            {"name": "Test Job", "department_id": department.id}
+        )
+        applicant = self.env["hr.applicant"].create(
+            {
+                "partner_name": "Hired Applicant",
+                "email_from": "hired.applicant@example.com",
+                "job_id": job.id,
+            }
+        )
+        contact = applicant.partner_id
+
+        action = applicant.create_employee_from_applicant()
+        employee = self.env["hr.employee"].browse(action["res_id"])
+
+        self.assertEqual(
+            contact.email,
+            "hired.applicant@example.com",
+            "Hiring must not repoint the applicant's contact to the company mailbox.",
+        )
+        self.assertEqual(
+            employee.work_email,
+            "hired.applicant@example.com",
+            "The new employee must not inherit the company mailbox as work email.",
+        )
+        self.assertEqual(
+            employee.private_email,
+            "hired.applicant@example.com",
+            "The applicant's own email stays reachable as the private email.",
+        )
+
+    def test_employee_smart_button_leads_back_to_the_application(self):
+        """
+        Test that the employee form can reach the application it came from.
+        """
+        applicant = self.env["hr.applicant"].create(
+            {
+                "partner_name": "Hired Applicant",
+                "email_from": "hired.applicant@example.com",
+            }
+        )
+        action = applicant.create_employee_from_applicant()
+        employee = self.env["hr.employee"].browse(action["res_id"])
+
+        self.assertEqual(employee.applicant_name, "Hired Applicant")
+        smart_button = employee.action_view_applicant()
+        self.assertEqual(smart_button["res_model"], "hr.applicant")
+        self.assertEqual(smart_button["res_id"], applicant.id)
+
+        second = self.env["hr.applicant"].create(
+            {
+                "partner_name": "Hired Applicant",
+                "email_from": "hired.applicant.again@example.com",
+                "employee_id": employee.id,
+            }
+        )
+        employee.invalidate_recordset(["applicant_name"])
+        self.assertEqual(
+            employee.applicant_name,
+            "2",
+            "With several applications the button counts them instead of naming one.",
+        )
+        smart_button = employee.action_view_applicant()
+        self.assertNotIn("res_id", smart_button)
+        self.assertEqual(
+            self.env["hr.applicant"].search(smart_button["domain"]),
+            applicant | second,
+        )
+
+    def test_refusing_one_applicant_lets_the_recruiter_edit_the_email(self):
+        """
+        Test that a single refusal is editable without mail template rights.
+
+        Every refuse reason carries a template, and mixin.mail.composer only
+        opens the body to a mail template editor, so a recruitment officer --
+        even an administrator -- could not adjust a refusal email at all.
+        """
+        officer = self.env["res.users"].create(
+            {
+                "name": "Refusing Officer",
+                "login": "refusing_officer",
+                "email": "refusing.officer@example.com",
+                "group_ids": [
+                    Command.link(
+                        self.env.ref("hr_recruitment.group_hr_recruitment_user").id
+                    )
+                ],
+            }
+        )
+        self.assertFalse(officer.has_group("mail.group_mail_template_editor"))
+        job = self.env["hr.job"].create({"name": "Refusing Job"})
+        applicant = self.env["hr.applicant"].create(
+            {
+                "partner_name": "Jane Doe",
+                "email_from": "jane.doe@example.com",
+                "job_id": job.id,
+            }
+        )
+
+        # A batch refusal renders once per recipient, so its body stays locked.
+        batch = Form(
+            self.env["applicant.get.refuse.reason"]
+            .with_user(officer)
+            .with_context(default_applicant_ids=applicant.ids)
+        )
+        self.assertFalse(batch.can_edit_body)
+
+        action = applicant.with_user(officer).archive_applicant()
+        self.assertEqual(action["res_model"], "applicant.refuse.single")
+        wizard = Form(
+            self.env[action["res_model"]]
+            .with_user(officer)
+            .with_context(**action["context"])
+        )
+        self.assertEqual(wizard.applicant_id, applicant)
+        self.assertNotIn(
+            "t-out", wizard.body, "The body must reach the officer already rendered."
+        )
+        self.assertNotIn("{{", wizard.subject)
+        self.assertIn("Refusing Job", wizard.subject)
+
+        # The body carries no readonly modifier here, so the officer may edit it.
+        wizard.body = "<p>Thanks for your time, Jane.</p>"
+        record = wizard.save()
+        self.assertTrue(record.can_edit_body)
+        record.action_refuse_reason_apply()
+
+        self.assertFalse(applicant.active)
+        self.assertTrue(applicant.refuse_reason_id)
+        self.assertIn("Thanks for your time, Jane.", applicant.message_ids[0].body)

@@ -30,6 +30,7 @@
         "views/hr_talent_pool_views.xml",
         "views/res_config_settings_views.xml",
         "views/hr_department_views.xml",
+        "views/hr_employee_views.xml",
         "views/hr_job_views.xml",
         "views/mail_activity_views.xml",
         "views/mail_activity_plan_views.xml",
@@ -54,6 +55,10 @@
         ],
         "web.assets_unit_tests": [
             "hr_recruitment/static/tests/**/*",
+            ("remove", "hr_recruitment/static/tests/tours/**/*"),
+        ],
+        "web.assets_tests": [
+            "hr_recruitment/static/tests/tours/**/*",
         ],
     },
     "author": "Odoo S.A.",

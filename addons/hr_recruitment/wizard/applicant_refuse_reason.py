@@ -258,3 +258,68 @@ class ApplicantGetRefuseReason(models.TransientModel):
             "attachment_ids": [Command.link(att.id) for att in self.attachment_ids],
             "body_is_html": True,
         }
+
+
+class ApplicantRefuseSingle(models.TransientModel):
+    _name = "applicant.refuse.single"
+    _inherit = ["applicant.get.refuse.reason"]
+    _description = "Refuse a Single Applicant"
+
+    applicant_id = fields.Many2one(
+        "hr.applicant", "Applicant", compute="_compute_applicant_id"
+    )
+    duplicate_applicant_ids = fields.Many2many(
+        "hr.applicant",
+        # Prototype inheritance gives this wizard its own table, so the relation
+        # table of the parent cannot be reused.
+        relation="applicant_refuse_single_duplicate_applicants_rel",
+        string="Duplicate Applications",
+        compute="_compute_duplicate_applicant_ids",
+        store=True,
+        readonly=False,
+    )
+
+    @api.depends("applicant_ids")
+    def _compute_applicant_id(self):
+        for wizard in self:
+            wizard.applicant_id = wizard.applicant_ids[:1]
+
+    def _render_for_the_applicant(self, field):
+        """Replace the raw template value of ``field`` by its rendering."""
+        for wizard in self:
+            applicant = wizard.applicant_id._origin
+            if wizard.template_id and applicant:
+                lang = wizard._render_lang(applicant.ids)[applicant.id]
+                wizard[field] = wizard._render_field(
+                    field, applicant.ids, set_lang=lang
+                )[applicant.id]
+
+    # Overrides of mixin.mail.composer
+    def _compute_can_edit_body(self):
+        # The body reaches the wizard already rendered, so template syntax an
+        # officer types is sent literally and editing needs no template rights.
+        self.can_edit_body = True
+
+    @api.depends("template_id", "applicant_ids")
+    def _compute_subject(self):
+        super()._compute_subject()
+        self._render_for_the_applicant("subject")
+
+    @api.depends("template_id", "applicant_ids")
+    def _compute_body(self):
+        super()._compute_body()
+        self._render_for_the_applicant("body")
+
+    @api.depends("template_id")
+    def _compute_from_template_id(self):
+        # Unlike the parent, subject and body are left to their own computes:
+        # copying the raw template over them here would undo the rendering.
+        for wizard in self:
+            wizard.attachment_ids = wizard.template_id.attachment_ids
+            wizard.scheduled_date = wizard.template_id.scheduled_date
+
+    def _prepare_mail_values(self, applicant):
+        """Post the edited subject and body as they are, without rendering again."""
+        mail_values = super()._prepare_mail_values(applicant)
+        mail_values.update({"subject": self.subject, "body": self.body or ""})
+        return mail_values
