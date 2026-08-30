@@ -7,14 +7,7 @@ from odoo.tools import SQL, Query
 
 
 class MixinCompanySplit(models.AbstractModel):
-    """Split a record shared by several companies back into one per company.
-
-    The inverse of a merge, for models whose membership is a ``company_ids``
-    many2many. Everything here is generic over ``self._name`` and ``self._table``;
-    a model contributes two things of its own -- the values a split copy starts
-    from (``_unmerge_copy_defaults``) and the action its confirmation dialog
-    offers (``_unmerge_action_xmlid``).
-    """
+    """Split a record shared by several companies back into one per company."""
 
     _name = "mixin.company.split"
     _description = "Per-company record split"
