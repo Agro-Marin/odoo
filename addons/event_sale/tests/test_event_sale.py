@@ -441,10 +441,15 @@ class TestEventSale(TestEventSaleCommon):
             'currency_id': currency_VEF.id,
         })
 
+        # service/event: event.event.ticket refuses any other product, and has
+        # since a03fa471a64 closed the model-level gap the field's own domain
+        # left open. These fixtures predate that constraint.
         event_product = self.env['product.template'].create({
             'name': 'Event Product',
             'list_price': 10.0,
             'taxes_id': False,
+            'type': 'service',
+            'service_tracking': 'event',
         })
 
         event = self.env['event.event'].create({
@@ -491,9 +496,14 @@ class TestEventSale(TestEventSaleCommon):
             'amount': 10,
         })
 
+        # service/event: event.event.ticket refuses any other product, and has
+        # since a03fa471a64 closed the model-level gap the field's own domain
+        # left open. These fixtures predate that constraint.
         event_product = self.env['product.template'].create({
             'name': 'Event Product',
             'list_price': 10.0,
+            'type': 'service',
+            'service_tracking': 'event',
         })
 
         event_product.taxes_id = tax

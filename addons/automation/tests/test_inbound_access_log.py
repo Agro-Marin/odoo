@@ -24,11 +24,18 @@ from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
 from odoo.tools import mute_logger
 
+from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
+
 _GATE = "odoo.addons.credential.models.mixins.mixin_inbound_gate"
 
 
 @tagged("post_install", "-at_install")
-class TestInboundAccessLog(TransactionCase):
+# EncryptionKeyCase, not a bare TransactionCase: these rules store a bearer
+# token, every model on mixin.encryption refuses to store one without
+# ODOO_API_ENCRYPTION_KEY in the process environment, and a suite that does not
+# supply one does not skip -- it fails once per test that stores a secret.
+# mixin_encryption owns the variable and ships the helper that guarantees it.
+class TestInboundAccessLog(EncryptionKeyCase, TransactionCase):
     """Driven through `automation.rule`.
 
     It is the concrete gate implementer that had NO structured record of a
@@ -548,7 +555,12 @@ class TestInboundAccessLog(TransactionCase):
 
 
 @tagged("post_install", "-at_install")
-class TestInboundRateLimitScope(TransactionCase):
+# EncryptionKeyCase, not a bare TransactionCase: these rules store a bearer
+# token, every model on mixin.encryption refuses to store one without
+# ODOO_API_ENCRYPTION_KEY in the process environment, and a suite that does not
+# supply one does not skip -- it fails once per test that stores a secret.
+# mixin_encryption owns the variable and ships the helper that guarantees it.
+class TestInboundRateLimitScope(EncryptionKeyCase, TransactionCase):
     """The inbound quota belongs to the endpoint, not to the acting company.
 
     `rate.limit.bucket` keys on `model:id:company`, so whatever is passed as the

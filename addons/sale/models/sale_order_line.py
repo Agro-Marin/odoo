@@ -32,7 +32,6 @@ class SaleOrderLine(models.Model):
     _invoice_policy_field = "invoice_policy"
     _price_direction = 1
 
-
     order_id = fields.Many2one(comodel_name="sale.order")
     partner_id = fields.Many2one(string="Customer")
     user_id = fields.Many2one(string="Salesperson")
@@ -199,7 +198,6 @@ class SaleOrderLine(models.Model):
         compute="_compute_product_uom_readonly",
     )
 
-
     @api.constrains("combo_item_id")
     def _check_combo_item_id(self):
         for line in self:
@@ -220,7 +218,6 @@ class SaleOrderLine(models.Model):
                         "A sale order line's product must match its combo item's product.",
                     ),
                 )
-
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -260,7 +257,6 @@ class SaleOrderLine(models.Model):
             vals.pop("price_unit_auto")
 
         return super().write(vals)
-
 
     def _add_precomputed_values(self, vals_list):
         original_values = [
@@ -461,6 +457,9 @@ class SaleOrderLine(models.Model):
         origin_price_auto = {
             origin.id: origin.price_unit_auto for origin in self._origin
         }
+        origin_discount_auto = {
+            origin.id: origin.discount_auto for origin in self._origin
+        }
 
         for line in self:
             if line.display_type:
@@ -530,6 +529,7 @@ class SaleOrderLine(models.Model):
 
             if not line.product_id:
                 line.discount = 0.0
+                line.discount_auto = 0.0
                 continue
 
             if not (
@@ -538,25 +538,51 @@ class SaleOrderLine(models.Model):
                 continue
 
             if is_combo_item:
+                # mirrors the line it is linked to rather than any pricelist, so
+                # there is no automatic value of its own to shadow
                 line.discount = line._get_line_linked().discount
                 continue
 
-            line.discount = 0.0
+            # The automatic discount is computed into a local and only then
+            # written, through the same gate the price half above applies.
+            # `line.discount = 0.0` used to happen here unconditionally, before
+            # anything asked whether the current value was a manual override --
+            # so a discount set by hand was wiped by any recompute this method
+            # was triggered for, including one caused by an unrelated field.
+            #
+            # mixin_order_line_amount declares that contract for every order
+            # line: `discount_auto` shadows the last automatic value and
+            # `_should_update_discount` compares the two. This override
+            # reimplements the mixin's algorithm and had carried the price half
+            # of it (price_unit_auto / _should_update_price, thirty lines up)
+            # while omitting the discount half, leaving `discount_auto` a stored
+            # field that nothing on a sale line ever wrote.
+            auto_discount = 0.0
+            if line.pricelist_item_id._show_discount():
+                if not pricelist_price:
+                    line_with_company = line.with_company(line.company_id)
+                    pricelist_price = line_with_company._get_pricelist_price()
+                    base_price = (
+                        line_with_company._get_pricelist_price_before_discount()
+                    )
 
-            if not line.pricelist_item_id._show_discount():
-                continue
+                if base_price and base_price != 0:
+                    discount = (base_price - pricelist_price) / base_price * 100
+                    if (discount > 0 and base_price > 0) or (
+                        discount < 0 and base_price < 0
+                    ):
+                        auto_discount = discount
 
-            if not pricelist_price:
-                line_with_company = line.with_company(line.company_id)
-                pricelist_price = line_with_company._get_pricelist_price()
-                base_price = line_with_company._get_pricelist_price_before_discount()
+            old_auto_discount = line.discount_auto
+            if not old_auto_discount and line._origin.id:
+                old_auto_discount = origin_discount_auto.get(line._origin.id, 0.0)
 
-            if base_price and base_price != 0:
-                discount = (base_price - pricelist_price) / base_price * 100
-                if (discount > 0 and base_price > 0) or (
-                    discount < 0 and base_price < 0
-                ):
-                    line.discount = discount
+            should_update_discount = line._should_update_discount(
+                auto_discount, old_auto_discount, force_recompute
+            )
+            line.discount_auto = auto_discount
+            if should_update_discount:
+                line.discount = auto_discount
 
     @api.depends("price_unit", "discount")
     def _compute_price_unit_discounted_taxexc(self):
@@ -611,9 +637,7 @@ class SaleOrderLine(models.Model):
             qty_invoiced = 0.0
             amount_taxexc_invoiced = 0.0
             amount_taxinc_invoiced = 0.0
-            has_different_discount = (
-                False
-            )
+            has_different_discount = False
 
             invoice_lines = line._get_invoice_lines().filtered(
                 lambda x: (
@@ -779,10 +803,8 @@ class SaleOrderLine(models.Model):
         for line in self.filtered(lambda l: not l.display_type):
             line.product_uom_readonly = line.ids and line.state in ["done", "cancel"]
 
-
     def _search_product_template_id(self, operator, value):
         return [("product_id.product_tmpl_id", operator, value)]
-
 
     def _get_catalog_single_line_data(self, **kwargs):
         return {
@@ -804,7 +826,6 @@ class SaleOrderLine(models.Model):
             ),
             "uomDisplayName": self.product_id.uom_id.display_name,
         }
-
 
     def _additional_name_per_id(self):
         return {line.id: line._get_partner_display() for line in self}
@@ -886,8 +907,7 @@ class SaleOrderLine(models.Model):
         return sum(
             l.price_unit if l.move_id.move_type == "out_invoice" else -l.price_unit
             for l in self.invoice_line_ids
-            if l.move_id.state == "posted"
-            and l.move_id not in invoices
+            if l.move_id.state == "posted" and l.move_id not in invoices
         )
 
     def _get_downpayment_state(self):
@@ -1038,7 +1058,6 @@ class SaleOrderLine(models.Model):
         self.ensure_one()
         commercial_partner = self.sudo().partner_id.commercial_partner_id
         return f"({commercial_partner.ref or commercial_partner.name})"
-
 
     def _get_price_display(self, pricelist_price=None, base_price=None):
         """The price this line displays before its own discount.
@@ -1400,7 +1419,6 @@ class SaleOrderLine(models.Model):
         self.ensure_one()
         self = self.with_context(sale_write_from_compute=True)
         self._reset_price_unit()
-
 
     def _can_be_edited_on_portal(self):
         self.ensure_one()

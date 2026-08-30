@@ -14,9 +14,16 @@ rather than a person reading a credential.
 from odoo.tests import TransactionCase, tagged
 from odoo.tools import mute_logger
 
+from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
+
 
 @tagged("post_install", "-at_install")
-class TestWebhookAuthDoesNotExhaustTheDecryptionCap(TransactionCase):
+# EncryptionKeyCase, not a bare TransactionCase: these rules store a bearer
+# token, every model on mixin.encryption refuses to store one without
+# ODOO_API_ENCRYPTION_KEY in the process environment, and a suite that does not
+# supply one does not skip -- it fails once per test that stores a secret.
+# mixin_encryption owns the variable and ships the helper that guarantees it.
+class TestWebhookAuthDoesNotExhaustTheDecryptionCap(EncryptionKeyCase, TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

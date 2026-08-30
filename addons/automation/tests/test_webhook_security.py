@@ -3,9 +3,16 @@ import hmac
 
 from odoo.tests import TransactionCase, tagged
 
+from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
+
 
 @tagged("post_install", "-at_install")
-class TestWebhookSecurity(TransactionCase):
+# EncryptionKeyCase, not a bare TransactionCase: these rules store a bearer
+# token, every model on mixin.encryption refuses to store one without
+# ODOO_API_ENCRYPTION_KEY in the process environment, and a suite that does not
+# supply one does not skip -- it fails once per test that stores a secret.
+# mixin_encryption owns the variable and ships the helper that guarantees it.
+class TestWebhookSecurity(EncryptionKeyCase, TransactionCase):
     """Authentication/anti-abuse checks on the /web/hook receiver.
 
     Exercises automation.rule._verify_webhook_request (the logic the webhook

@@ -52,7 +52,16 @@ class TestEventData(TestEventSaleCommon):
         self.assertFalse(event.event_registrations_open)
 
         # at least one valid ticket -> ok is back
-        event_product = self.env['product.product'].create({'name': 'Test Registration Product New',})
+        # service/event, like TestEventProductCommon.event_product: an
+        # event.event.ticket refuses any other product, and has since
+        # a03fa471a64 closed the model-level gap the field's own domain left
+        # open. The fixture predates that constraint and was describing a
+        # product the UI would never have let anyone link.
+        event_product = self.env['product.product'].create({
+            'name': 'Test Registration Product New',
+            'type': 'service',
+            'service_tracking': 'event',
+        })
         new_ticket = self.env['event.event.ticket'].create({
             'name': 'TestTicket 2',
             'event_id': event.id,
