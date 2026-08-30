@@ -1,0 +1,8 @@
+{
+  "expected": {},
+  "note": "green; a red entry here is a regression, not debt",
+  "run_spec": "-i stock_account --test-enable --test-tags /stock_account",
+  "suite": "/stock_account",
+  "tests_total": 239,
+  "verified_at": "8a434a3a078"
+}

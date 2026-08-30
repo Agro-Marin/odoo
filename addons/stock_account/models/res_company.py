@@ -83,6 +83,27 @@ class ResCompany(models.Model):
         transaction rolled back, discarding the closings already computed.
         """
         self.ensure_one()
+        # One closing at a time per company. The draft-closing logic below is the
+        # guard against booking a period twice, and it only works against entries
+        # it can SEE: two callers running together each read a snapshot with no
+        # pending draft, and neither `account.move` INSERT conflicts with the
+        # other, so no serialization failure stops them. Both close, both compute
+        # from the same cursor -- "the latest posted one is the cursor the next
+        # closing starts from" -- and the period is booked twice. The cron and the
+        # Close button are exactly that pair, and month-end is when both are
+        # likeliest to run.
+        #
+        # `UserError` rather than a silent skip because both callers already
+        # handle it correctly: the cron logs the company as skipped and carries
+        # on, and the button tells the accountant instead of appearing to do
+        # nothing.
+        if not self.try_lock_for_update(allow_referencing=True):
+            raise UserError(
+                _(
+                    "An inventory valuation closing is already running for %s.",
+                    self.display_name,
+                ),
+            )
         if at_date and isinstance(at_date, str):
             at_date = fields.Date.from_string(at_date)
         # A draft closing is a claim on its period, and what to do with it depends
