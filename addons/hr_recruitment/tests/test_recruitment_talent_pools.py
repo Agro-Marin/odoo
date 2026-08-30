@@ -482,3 +482,52 @@ class TestRecruitmentTalentPool(TransactionCase):
             "That copy must hang from the new application.",
         )
         self.assertEqual(len(attachments.exists()), 2)
+
+    def test_properties_follow_the_applicant_into_the_pool(self):
+        """
+        Test that the properties survive a trip through the talent pool.
+
+        The definition used to hang off ``job_id``, and a talent is created
+        without a job, so every property value was dropped on the way in and a
+        spontaneous application could hold none at all.
+        """
+        definition = [{"name": "seniority", "string": "Seniority", "type": "char"}]
+        self.env.company.applicant_properties_definition = definition
+        value = dict(definition[0], value="senior")
+
+        self.t_applicant_1.applicant_properties = [value]
+        self.assertEqual(
+            self.t_applicant_1.read(["applicant_properties"])[0][
+                "applicant_properties"
+            ][0]["value"],
+            "senior",
+        )
+
+        wizard = self.env["talent.pool.add.applicants"].create(
+            {
+                "applicant_ids": self.t_applicant_1.ids,
+                "talent_pool_ids": self.t_talent_pool_1.ids,
+            }
+        )
+        talent = wizard._add_applicants_to_pool()
+
+        self.assertFalse(talent.job_id, "A talent belongs to a pool, not to a job.")
+        self.assertEqual(
+            talent.read(["applicant_properties"])[0]["applicant_properties"][0][
+                "value"
+            ],
+            "senior",
+            "The talent keeps the properties of the application it came from.",
+        )
+
+        spontaneous = self.env["hr.applicant"].create(
+            {"partner_name": "Spontaneous Application"}
+        )
+        spontaneous.applicant_properties = [dict(definition[0], value="junior")]
+        self.assertEqual(
+            spontaneous.read(["applicant_properties"])[0]["applicant_properties"][0][
+                "value"
+            ],
+            "junior",
+            "An application with no job position can still carry properties.",
+        )

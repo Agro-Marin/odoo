@@ -169,8 +169,12 @@ class HrJob(models.Model):
         groups="hr_recruitment.group_hr_recruitment_interviewer",
     )
 
+    # Superseded by res.company.applicant_properties_definition. Kept so an
+    # upgrade cannot lose a definition somebody configured per job; the 1.3
+    # post-migration folds these into the company and nothing reads it again.
     applicant_properties_definition = fields.PropertiesDefinition(
-        "Applicant Properties", groups="hr_recruitment.group_hr_recruitment_interviewer"
+        "Applicant Properties (legacy)",
+        groups="hr_recruitment.group_hr_recruitment_interviewer",
     )
     no_of_hired_employee = fields.Integer(
         compute="_compute_no_of_hired_employee",

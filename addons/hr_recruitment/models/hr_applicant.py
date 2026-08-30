@@ -279,7 +279,13 @@ class HrApplicant(models.Model):
         help="Applications with the same email or phone or mobile",
     )
     applicant_properties = fields.Properties(
-        "Properties", definition="job_id.applicant_properties_definition", copy=True
+        "Properties",
+        # From the company, not the job: a talent has no job and a spontaneous
+        # application may never get one, and both must still carry properties.
+        # This is the shape hr.employee already uses.
+        definition="company_id.applicant_properties_definition",
+        precompute=False,
+        copy=True,
     )
     applicant_notes = fields.Html()
     refuse_date = fields.Datetime("Refuse Date")
