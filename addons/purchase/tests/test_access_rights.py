@@ -126,6 +126,13 @@ class TestPurchaseInvoice(AccountTestInvoicingCommon):
         vendor_bill_user1 = Form(vendor_bill_user2.with_user(self.purchase_user))
         vendor_bill_user1 = vendor_bill_user1.save()
 
+        self.assertEqual(purchase_order_user1.partner_id, self.vendor)
+        self.assertEqual(
+            purchase_order_user1.amount_total, purchase_order_user2.amount_total
+        )
+        self.assertEqual(vendor_bill_user1.partner_id, self.vendor)
+        self.assertEqual(vendor_bill_user1.amount_total, vendor_bill_user2.amount_total)
+
     def test_create_product_purchase_user(self):
         uom = self.env.ref("uom.product_uom_gram")
         self.purchase_user.group_ids += self.env.ref("product.group_product_manager")
