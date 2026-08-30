@@ -54,10 +54,15 @@ class AccountMoveLine(models.Model):
                     ),
                 )
 
-                if len(applicable_lines) > 1:
+                move_lines = record.move_id.invoice_line_ids
+                if len(applicable_lines) > 1 and len(move_lines) == len(
+                    applicable_lines
+                ):
                     # In the case there are multiple downpayment lines with the same tax & total we'll
                     # pair them up as per their ids and get the downpayment line paired with the record.
-                    move_lines = record.move_id.invoice_line_ids
+                    # This positional pairing only holds when both sides have the same length; a
+                    # mismatch (e.g. an already-reconciled downpayment line dropped from
+                    # applicable_lines) falls back to the unpaired union below instead of guessing.
                     lines_dict = dict(
                         zip(
                             move_lines.sorted("id"),
@@ -65,7 +70,9 @@ class AccountMoveLine(models.Model):
                             strict=False,
                         )
                     )
-                    downpayment_lines |= lines_dict.get(record)
+                    downpayment_lines |= (
+                        lines_dict.get(record) or self.env["account.move.line"]
+                    )
                 else:
                     downpayment_lines |= applicable_lines
 
