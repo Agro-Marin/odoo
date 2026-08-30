@@ -1,11 +1,12 @@
-import datetime
+from datetime import UTC
 
 from requests.exceptions import RequestException
 
-from odoo import _, http
+from odoo import _, fields, http
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.http import request
+from odoo.libs.datetime import timezone
 from odoo.service.common import exp_version
 from odoo.tools import SQL, float_round, py_to_js_locale
 from odoo.tools.image import image_data_uri
@@ -44,6 +45,16 @@ class HrAttendance(http.Controller):
     def _get_employee_info_response(employee):
         response = {}
         if employee:
+            # The overtime line's `date` was written in the employee's own
+            # timezone (`hr.attendance._compute_date`), so it has to be read
+            # back the same way. The kiosk routes are `auth="public"`: the
+            # request user carries no timezone of its own to fall back on.
+            employee_today = (
+                fields.Datetime.now()
+                .replace(tzinfo=UTC)
+                .astimezone(timezone(employee.sudo()._get_tz()))
+                .date()
+            )
             response = {
                 **HrAttendance._get_user_attendance_data(employee),
                 "employee_name": employee.name,
@@ -63,7 +74,7 @@ class HrAttendance(http.Controller):
                     .search(
                         [
                             ("employee_id", "=", employee.id),
-                            ("date", "=", datetime.date.today()),
+                            ("date", "=", employee_today),
                         ]
                     )
                     .mapped("duration")

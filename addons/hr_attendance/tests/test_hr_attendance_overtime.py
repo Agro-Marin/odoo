@@ -1314,6 +1314,41 @@ class TestHrAttendanceOvertime(HttpCase):
         self.assertEqual(response.get("overtime_today"), 10)
         self.assertEqual(response.get("total_overtime"), 10)
 
+    @freeze_time("2024-02-05 20:00:00")
+    def test_kiosk_overtime_today_uses_employee_timezone(self):
+        """`overtime_today` is the employee's day, not the server's.
+
+        Sacha (Asia/Tokyo) and Susan (Pacific/Honolulu) are 19 hours apart, so
+        at 2024-02-05 20:00 UTC they are on different calendar days. No single
+        server-side "today" can be right for both, whatever the server's own
+        timezone happens to be.
+        """
+        expected_day = {
+            self.jpn_employee: date(2024, 2, 6),  # 05:00 on the 6th in Tokyo
+            self.honolulu_employee: date(2024, 2, 5),  # 10:00 on the 5th there
+        }
+        for employee, day in expected_day.items():
+            self.env["hr.attendance.overtime.line"].create(
+                {
+                    "employee_id": employee.id,
+                    "date": day,
+                    "duration": 3,
+                }
+            )
+
+        token = self.company.attendance_kiosk_key
+        for employee, day in expected_day.items():
+            response = self.make_jsonrpc_request(
+                "/hr_attendance/attendance_employee_data",
+                {"token": token, "employee_id": employee.id},
+            )
+            self.assertEqual(
+                response.get("overtime_today"),
+                3,
+                f"{employee.name} is on {day} locally: the kiosk must show the "
+                f"overtime of that day",
+            )
+
     def test_overtime_with_public_holidays(self):
         """Comapny 1 has a public holiday, while Company 2 does not.
         Employee from Company 2 should not get overtime for working that day.
