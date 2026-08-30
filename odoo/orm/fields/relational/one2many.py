@@ -259,7 +259,7 @@ class One2many(_RelationalMulti):
                 match command[0]:
                     case Command.CREATE:
                         to_create.extend(
-                            dict(command[2], **{inverse: record.id}) for record in recs
+                            {**command[2], inverse: record.id} for record in recs
                         )
                     case Command.UPDATE:
                         prefetch_ids = recs[self.name]._prefetch_ids

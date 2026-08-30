@@ -25,6 +25,7 @@ class TestTypeField:
     def test_type_field_fills_an_unannotated_parameter(self):
         def f(value):
             pass
+
         f.__doc__ = """Do a thing.
 
             :param value: what to do it to
@@ -36,6 +37,7 @@ class TestTypeField:
     def test_type_field_exports_no_other_key(self):
         def f(value):
             pass
+
         f.__doc__ = """:type value: SomeCustomType"""
 
         assert set(_params(f)["value"]) == {"annotation"}
@@ -43,6 +45,7 @@ class TestTypeField:
     def test_an_annotation_wins_over_the_type_field(self):
         def f(value: int):
             pass
+
         f.__doc__ = """:type value: str"""
 
         assert _params(f)["value"]["annotation"] == "int"
@@ -163,6 +166,7 @@ class TestInfoFields:
     def test_returns_and_rtype(self):
         def f():
             pass
+
         f.__doc__ = """Do it.
 
             :returns: the thing
@@ -176,6 +180,7 @@ class TestInfoFields:
     def test_an_annotation_wins_over_rtype(self):
         def f() -> list[int]:
             return []
+
         f.__doc__ = """:rtype: dict"""
 
         assert (
@@ -186,6 +191,7 @@ class TestInfoFields:
     def test_raises_is_collected_per_exception(self):
         def f():
             pass
+
         f.__doc__ = """
             :raises AccessError: not allowed
             :raises ValueError: bad input
@@ -198,6 +204,7 @@ class TestInfoFields:
     def test_inline_annotation_in_a_param_field(self):
         def f(a):
             pass
+
         f.__doc__ = """:param str a: the a"""
 
         param = _params(f)["a"]
@@ -207,6 +214,7 @@ class TestInfoFields:
     def test_prose_survives_as_the_doc(self):
         def f(a):
             pass
+
         f.__doc__ = """Summary line.
 
             :param a: ignored
@@ -217,6 +225,7 @@ class TestInfoFields:
     def test_a_field_for_an_unknown_parameter_is_ignored(self):
         def f(a):
             pass
+
         f.__doc__ = """:param nonexistent: nothing"""
 
         assert set(_params(f)) == {"a"}
@@ -224,6 +233,7 @@ class TestInfoFields:
     def test_var_fields_are_skipped_without_complaint(self, caplog):
         def f():
             pass
+
         f.__doc__ = """
             :ivar thing: an attribute
             :vartype thing: str
@@ -237,6 +247,7 @@ class TestInfoFields:
     def test_an_unknown_field_name_is_reported(self, caplog):
         def f():
             pass
+
         f.__doc__ = """:nonsense value: what"""
 
         with caplog.at_level(logging.WARNING, logger=docstring.__name__):
@@ -287,6 +298,7 @@ class TestBorrowedDocstring:
     def test_an_explicit_docstring_wins_over_the_callable_s_own(self):
         def override(a):
             pass
+
         override.__doc__ = """Own prose."""
 
         d = docstring.parse_signature(override, docstring="Borrowed prose.").as_dict()

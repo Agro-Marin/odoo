@@ -8,6 +8,7 @@ from ._field_stubs import _FieldStubs
 if typing.TYPE_CHECKING:
     from .._typing import ModelLike
     from ..runtime import Environment
+    from ._field_stubs import TranslateDialect
 
 
 class _FieldMetadataMixin(_FieldStubs):
@@ -17,7 +18,7 @@ class _FieldMetadataMixin(_FieldStubs):
     model_name: str = ""
 
     store: bool = True
-    translate: bool = False
+    translate: bool | TranslateDialect = False
     company_dependent: bool = False
 
     _column_type: tuple[str, str] | None = None

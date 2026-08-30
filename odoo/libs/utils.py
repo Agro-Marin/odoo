@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Self
 
 if TYPE_CHECKING:
     import types
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
 
 __all__ = [
     "discardattr",
@@ -22,13 +22,13 @@ def discardattr(obj: object, key: str) -> None:
         delattr(obj, key)
 
 
-def is_list_of(values: object, type_: type) -> bool:
+def is_list_of(values: object, type_: type | tuple[type, ...]) -> bool:
     return isinstance(values, (list, tuple)) and all(
         isinstance(item, type_) for item in values
     )
 
 
-def has_list_types(values: object, types: tuple[type, ...]) -> bool:
+def has_list_types(values: object, types: Sequence[type | tuple[type, ...]]) -> bool:
     return (
         isinstance(values, (list, tuple))
         and len(values) == len(types)

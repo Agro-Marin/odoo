@@ -18,10 +18,10 @@ class InitModelsPhase:
 
     post_init_queue: deque[Callable[[], None]] = field(default_factory=deque)
 
-    foreign_keys: dict[tuple[str, str], tuple[str, str, str, BaseModel, str]] = field(
-        default_factory=dict
+    foreign_keys: dict[tuple[str, str], tuple[str, str, str, BaseModel, str | None]] = (
+        field(default_factory=dict)
     )
 
-    relation_reflections: OrderedSet[tuple[str, str, str]] = field(
+    relation_reflections: OrderedSet[tuple[str, str, str | None]] = field(
         default_factory=OrderedSet
     )

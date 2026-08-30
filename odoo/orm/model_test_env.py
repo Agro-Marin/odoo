@@ -5,7 +5,7 @@ from collections.abc import Iterable, Mapping
 from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from operator import attrgetter
-from typing import TYPE_CHECKING, NoReturn
+from typing import TYPE_CHECKING, Any, NoReturn, cast
 
 from odoo.db import BaseCursor, FunctionStatus
 from odoo.libs.collections import Collector
@@ -181,7 +181,7 @@ class InMemoryCursor(BaseCursor):
         )
 
     @contextmanager
-    def pipeline(self):
+    def pipeline(self, log_exceptions: bool = True, query: Any = None):
         yield
 
     def commit(self) -> None:
@@ -367,14 +367,14 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
             if module:
                 modules.add(module)
 
-        all_defs: list[type[BaseModel]] = []
+        all_defs: list[Any] = []
         seen_ids: set[int] = set()
 
         for module in sorted(modules, key=lambda m: (m != "base", m)):
-            for cls in MetaModel._module_to_models__.get(module, []):
-                if id(cls) not in seen_ids:
-                    seen_ids.add(id(cls))
-                    all_defs.append(cls)
+            for registered in MetaModel._module_to_models__.get(module, []):
+                if id(registered) not in seen_ids:
+                    seen_ids.add(id(registered))
+                    all_defs.append(registered)
 
         for cls in model_defs:
             if id(cls) not in seen_ids:
@@ -396,10 +396,11 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
             key=lambda c: 0 if getattr(c, "_name", "") == "base" else 1,
         )
 
+        registry_self = cast("Registry", self)
         for model_def in all_defs:
-            registration.add_to_registry(self, model_def)
+            registration.add_to_registry(registry_self, model_def)
 
-        cr = InMemoryCursor(self)
+        cr = InMemoryCursor(registry_self)
         from .runtime.environment import Environment
 
         env = Environment(cr, SUPERUSER_ID, {})
@@ -435,18 +436,19 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
                     exc_info=True,
                 )
 
-    @staticmethod
     def _setup_fields_lenient(
+        self,
         model_cls: type[BaseModel],
         env: Environment,
     ) -> None:
         model = model_cls(env, (), ())
+        pool = registration.registry_of(model_cls)
         for name, field in model_cls._fields.items():
             try:
                 field.setup(model)
             except Exception as exc:
                 comodel = getattr(field, "comodel_name", None)
-                missing_comodel = bool(comodel) and comodel not in model_cls.pool
+                missing_comodel = bool(comodel) and comodel not in pool
                 if not missing_comodel and not isinstance(exc, KeyError):
                     raise
                 _logger.debug(
@@ -455,13 +457,11 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
                     name,
                 )
                 field._setup_done = True
-                model_cls.pool.degraded_fields[field] = (
-                    f"setup: {type(exc).__name__}: {exc}"
-                )
+                self.degraded_fields[field] = f"setup: {type(exc).__name__}: {exc}"
             else:
                 if field.is_many2one and field.company_dependent:
-                    model_cls.pool.many2one_company_dependents.add(
-                        field.comodel_name,
+                    pool.many2one_company_dependents.add(
+                        field.comodel_name or "",
                         field,
                     )
 
@@ -483,7 +483,7 @@ def model_test_env(
         with suppress(AttributeError):
             delattr(registry, attr)
 
-    cr = InMemoryCursor(registry, fixtures=fixtures)
+    cr = InMemoryCursor(cast("Registry", registry), fixtures=fixtures)
 
     _seed_fixtures(cr.storage, registry)
 
@@ -536,6 +536,5 @@ def _seed_fixtures(storage: DictBackend, registry: ModelRegistry) -> None:
         )
         field = registry["res.users"]._fields.get("company_ids")
         if field is not None and field.is_many2many and field.store and field.relation:
-            storage.insert_rows(
-                field.relation, [field.column1, field.column2], [(1, 1)]
-            )
+            relation, column1, column2 = field._get_relation_triple()
+            storage.insert_rows(relation, [column1, column2], [(1, 1)])

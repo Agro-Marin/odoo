@@ -14,7 +14,7 @@ from ._model_stubs import _ModelStubs
 if typing.TYPE_CHECKING:
     from collections.abc import Iterator, Reversible
 
-    from ..._typing import IdType
+    from ..._typing import BaseModel, IdType
     from ...runtime import Environment
 
 
@@ -46,13 +46,16 @@ class IterationMixin(_ModelStubs):
 
     @api.private
     def browse(self, ids: int | typing.Iterable[IdType] = ()) -> Self:
+        id_tuple: tuple[IdType, ...]
         if not ids:
-            ids = ()
+            id_tuple = ()
         elif ids.__class__ is int:
-            ids = (ids,)
-        elif ids.__class__ is not tuple:
-            ids = tuple(ids)
-        return self._spawn(self.env, ids, ids)
+            id_tuple = (typing.cast("IdType", ids),)
+        elif ids.__class__ is tuple:
+            id_tuple = typing.cast("tuple[IdType, ...]", ids)
+        else:
+            id_tuple = tuple(typing.cast("typing.Iterable[IdType]", ids))
+        return self._spawn(self.env, id_tuple, id_tuple)
 
     @property
     def ids(self) -> list[int]:
@@ -258,54 +261,59 @@ class IterationMixin(_ModelStubs):
         return self.browse(OrderedSet(ids))
 
     def __eq__(self, other: object) -> bool:
+        peer: typing.Any = other
         try:
-            if self._name != other._name:
+            if self._name != peer._name:
                 return False
             s_ids = self._ids
-            o_ids = other._ids
+            o_ids = peer._ids
             if s_ids is o_ids or s_ids == o_ids:
                 return True
             return set(s_ids) == set(o_ids)
         except AttributeError:
-            if other:
+            if peer:
                 warnings.warn(
-                    f"unsupported operand type(s) for \"==\": '{self._name}()' == '{other!r}'",
+                    f"unsupported operand type(s) for \"==\": '{self._name}()' == '{peer!r}'",
                     stacklevel=2,
                 )
         return NotImplemented
 
     def __lt__(self, other: object) -> bool:
+        peer: typing.Any = other
         try:
-            if self._name == other._name:
-                return set(self._ids) < set(other._ids)
+            if self._name == peer._name:
+                return set(self._ids) < set(peer._ids)
         except AttributeError:
             pass
         return NotImplemented
 
     def __le__(self, other: object) -> bool:
+        peer: typing.Any = other
         try:
-            if self._name == other._name:
-                if not self or self in other:
+            if self._name == peer._name:
+                if not self or self in peer:
                     return True
-                return set(self._ids) <= set(other._ids)
+                return set(self._ids) <= set(peer._ids)
         except AttributeError:
             pass
         return NotImplemented
 
     def __gt__(self, other: object) -> bool:
+        peer: typing.Any = other
         try:
-            if self._name == other._name:
-                return set(self._ids) > set(other._ids)
+            if self._name == peer._name:
+                return set(self._ids) > set(peer._ids)
         except AttributeError:
             pass
         return NotImplemented
 
     def __ge__(self, other: object) -> bool:
+        peer: typing.Any = other
         try:
-            if self._name == other._name:
-                if not other or other in self:
+            if self._name == peer._name:
+                if not peer or peer in self:
                     return True
-                return set(self._ids) >= set(other._ids)
+                return set(self._ids) >= set(peer._ids)
         except AttributeError:
             pass
         return NotImplemented
@@ -339,4 +347,4 @@ class IterationMixin(_ModelStubs):
             return self._spawn(self.env, ids, self._prefetch_ids)
 
     def __setitem__(self, key: str, value: typing.Any):
-        return self._fields[key].__set__(self, value)
+        return self._fields[key].__set__(typing.cast("BaseModel", self), value)

@@ -20,19 +20,25 @@ if typing.TYPE_CHECKING:
 
 
 class _ModelStubs:
-    __slots__ = ()
-
     if typing.TYPE_CHECKING:
+        __slots__ = ("_ids", "_prefetch_ids", "env")
+
         env: typing.Any
         _ids: tuple
         _prefetch_ids: typing.Any
+    else:
+        __slots__ = ()
 
+    if typing.TYPE_CHECKING:
         pool: typing.Any
         _fields: Mapping[str, Field]
         _name: str
         _table: str
         id: int
-        ids: list[int]
+
+        @property
+        def ids(self) -> list[int]: ...
+
         display_name: str | typing.Literal[False]
         _log_access: bool
         _active_name: str | None
@@ -84,6 +90,9 @@ class _ModelStubs:
             self, prefetch_ids: Reversible[IdType] | None = None
         ) -> Self: ...
         def union(self, *args: Self) -> Self: ...
+        def __sub__(self, other: typing.Any) -> Self: ...
+        def __contains__(self, item: object) -> bool: ...
+        def __int__(self) -> int: ...
         def concat(self, *args: Self) -> Self: ...
 
         def check_access(self, operation: str) -> None: ...
@@ -131,6 +140,18 @@ class _ModelStubs:
         def _compute_field_value(self, field: Field, validate: bool = True) -> None: ...
 
         def _validate_computed(self, field: Field) -> None: ...
+
+        def _sql_error_to_message(self, exc: typing.Any) -> str: ...
+
+        def _clean_properties(self) -> None: ...
+
+        def search(
+            self,
+            domain: typing.Any,
+            offset: int = 0,
+            limit: int | None = None,
+            order: str | None = None,
+        ) -> Self: ...
         def invalidate_recordset(
             self, fnames: Collection[str] | None = None, flush: bool = True
         ) -> None: ...

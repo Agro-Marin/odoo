@@ -155,15 +155,16 @@ class EnvironmentMixin(_ModelStubs):
         self,
         values: ValuesType | None = None,
         origin: Self | None = None,
-        ref: str | None = None,
+        ref: typing.Any = None,
     ) -> Self:
         if values is None:
             values = {}
-        if origin is not None:
-            origin = origin.id
+        origin_id = origin.id if origin is not None else None
+        if not isinstance(origin_id, int):
+            origin_id = None
         if not ref:
             ref = None
-        record = self.browse((NewId(origin, ref),))
+        record = self.browse((NewId(origin_id, ref),))
         record._update_cache(values, validate=False)
 
         return record

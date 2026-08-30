@@ -91,11 +91,11 @@ class BaseDate[T: date](Field[T | typing.Literal[False]]):
             case "day_of_week":
                 return lambda value: value.isoweekday() % 7
             case "hour_number" if self.is_datetime:
-                return lambda value: value.hour
+                return lambda value: typing.cast("datetime", value).hour
             case "minute_number" if self.is_datetime:
-                return lambda value: value.minute
+                return lambda value: typing.cast("datetime", value).minute
             case "second_number" if self.is_datetime:
-                return lambda value: value.second
+                return lambda value: typing.cast("datetime", value).second
             case "hour_number" | "minute_number" | "second_number":
                 return lambda value: 0
         assert property_name not in READ_GROUP_NUMBER_GRANULARITY, (
@@ -165,9 +165,7 @@ class Date(BaseDate[date]):
         return date.today()
 
     @staticmethod
-    def context_today(
-        record: BaseModel, timestamp: date | datetime | None = None
-    ) -> date:
+    def context_today(record: BaseModel, timestamp: datetime | None = None) -> date:
         today = timestamp or datetime.now()
         tz = record.env.tz
         today_utc = today.replace(tzinfo=utc)
@@ -262,12 +260,12 @@ class Datetime(BaseDate[datetime]):
             return datetime.combine(value, time.min)
 
         try:
-            value = datetime.fromisoformat(value)
+            parsed = datetime.fromisoformat(value)
         except ValueError:
-            value = datetime.strptime(value[:DATETIME_LENGTH], DATETIME_FORMAT)
-        if value.tzinfo:
-            return value.astimezone(UTC).replace(tzinfo=None)
-        return value
+            parsed = datetime.strptime(value[:DATETIME_LENGTH], DATETIME_FORMAT)
+        if parsed.tzinfo:
+            return parsed.astimezone(UTC).replace(tzinfo=None)
+        return parsed
 
     from_string = to_datetime
 
@@ -281,6 +279,8 @@ class Datetime(BaseDate[datetime]):
         if field_expr == self.name:
             return self.__get__
         _fname, property_name = parse_field_expr(field_expr)
+        if property_name is None:
+            return super().expression_getter(field_expr)
         get_property = self._expression_property_getter(property_name)
 
         def getter(record):

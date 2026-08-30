@@ -270,7 +270,7 @@ class Environment(Mapping[str, "BaseModel"]):
     def __call__(
         self,
         cr: BaseCursor | None = None,
-        user: IdType | BaseModel | None = None,
+        user: int | BaseModel | None = None,
         context: dict | None = None,
         su: bool | None = None,
     ) -> Environment:
@@ -337,7 +337,7 @@ class Environment(Mapping[str, "BaseModel"]):
         return self.transaction.backend
 
     @functools.cached_property
-    def user(self) -> BaseModel:
+    def user(self) -> ResUsersProtocol:
         return self(su=True)["res.users"].browse(self.uid)
 
     @functools.cached_property

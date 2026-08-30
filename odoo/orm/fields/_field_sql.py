@@ -18,7 +18,7 @@ from ..primitives import COLLECTION_TYPES, SQL_OPERATORS
 from ._field_stubs import _FieldStubs
 
 if typing.TYPE_CHECKING:
-    from .._typing import BaseModel, ModelLike
+    from .._typing import BaseModel, Field, ModelLike
 
     M = typing.TypeVar("M", bound=BaseModel)
 
@@ -56,7 +56,9 @@ class _FieldSqlMixin(_FieldStubs):
     def to_sql(self, model: ModelLike, alias: str) -> SQL:
         if not self.store or not self.column_type:
             raise ValueError(f"Cannot convert {self} to SQL because it is not stored")
-        sql_field = SQL.identifier(alias, self.name, to_flush=self)
+        sql_field = SQL.identifier(
+            alias, self.name, to_flush=typing.cast("Field", self)
+        )
         if self.company_dependent:
             underlying = self._column_type
             if underlying is None:

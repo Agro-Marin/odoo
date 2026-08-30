@@ -53,16 +53,16 @@ class Properties(Field):
     readonly = False
     precompute = True
 
-    definition = None
-    definition_record = None
-    definition_record_field = None
+    definition: str | None = None
+    definition_record: str | None = None
+    definition_record_field: str | None = None
 
     _description_definition_record = property(attrgetter("definition_record"))
     _description_definition_record_field = property(
         attrgetter("definition_record_field")
     )
 
-    HTML_SANITIZE_OPTIONS = {
+    HTML_SANITIZE_OPTIONS: typing.ClassVar[dict[str, typing.Any]] = {
         "sanitize_attributes": True,
         "sanitize_tags": True,
         "sanitize_style": False,
@@ -94,7 +94,17 @@ class Properties(Field):
         super()._setup_attrs__(model_class, name)
         self._setup_definition_attrs(model_class)
 
-    def _setup_definition_attrs(self, model_class: ModelClass) -> None:
+    def _get_definition_record(self) -> str:
+        if self.definition_record is None:
+            raise TypeError(f"{self} declares no definition record to read from")
+        return self.definition_record
+
+    def _get_definition_record_field(self) -> str:
+        if self.definition_record_field is None:
+            raise TypeError(f"{self} declares no definition record field")
+        return self.definition_record_field
+
+    def _setup_definition_attrs(self, model_class: ModelClass | BaseModel) -> None:
         if self.definition:
             assert self.definition.count(".") == 1
             self.definition_record, self.definition_record_field = (
@@ -167,7 +177,7 @@ class Properties(Field):
         if not any(is_recordset(value) for value in values.values()):
             return values
 
-        types_by_name: dict[str, str] = {}
+        types_by_name: dict[str, str | None] = {}
         with contextlib.suppress(AccessError, MissingError, ValueError):
             for definition in self._get_properties_definition(record) or ():
                 if definition.get("name"):
@@ -289,7 +299,7 @@ class Properties(Field):
         if isinstance(value, Property):
             value = value._values
 
-        if len(records[self.definition_record]) > 1 and value:
+        if len(records[self._get_definition_record()]) > 1 and value:
             raise UserError(
                 records.env._(
                     "Updating records with different property fields definitions is not supported. Update by separate definition instead."
@@ -312,12 +322,12 @@ class Properties(Field):
             for definition in value:
                 definition.pop("definition_changed", None)
 
-            container = records[self.definition_record]
+            container = records[self._get_definition_record()]
             if container:
                 properties_definition = fast_clone(value)
                 for property_definition in properties_definition:
                     property_definition.pop("value", None)
-                container[self.definition_record_field] = properties_definition
+                container[self._get_definition_record_field()] = properties_definition
 
                 _logger.info(
                     "Properties field: User #%i changed definition of %r",
@@ -333,7 +343,9 @@ class Properties(Field):
                 record.env,
                 {
                     self.name: record[self.name],
-                    self.definition_record: record[self.definition_record],
+                    self._get_definition_record(): record[
+                        self._get_definition_record()
+                    ],
                 },
             )
 
@@ -345,10 +357,10 @@ class Properties(Field):
         if isinstance(properties_values, Property):
             properties_values = properties_values._values
 
-        if not values.get(self.definition_record):
+        if not values.get(self._get_definition_record()):
             return {}
 
-        container_id = values[self.definition_record]
+        container_id = values[self._get_definition_record()]
         if not isinstance(container_id, int) and not hasattr(container_id, "_ids"):
             raise ValueError(f"Wrong container value {container_id!r}")
 
@@ -495,7 +507,7 @@ class Properties(Field):
         for property_definition in values_list:
             property_value = property_definition.get("value")
             property_type = property_definition.get("type")
-            res_model = property_definition.get("comodel")
+            res_model = property_definition.get("comodel") or ""
 
             if property_type not in cls.ALLOWED_TYPES:
                 raise ValueError(f"Wrong property type {property_type!r}")

@@ -1,7 +1,7 @@
 import typing
 
 if typing.TYPE_CHECKING:
-    from collections.abc import MutableMapping
+    from collections.abc import Callable, MutableMapping
 
     from odoo.tools import Query
 
@@ -9,6 +9,9 @@ if typing.TYPE_CHECKING:
     from ..domain import Domain
     from ..primitives import ContextType, IdType
     from ..runtime import Environment
+
+    type TranslateCallback = Callable[[str], str | None]
+    type TranslateDialect = Callable[[TranslateCallback, str | None], str | None]
 
 
 class _FieldStubs:
@@ -22,7 +25,7 @@ class _FieldStubs:
         type: str
         store: bool
         index: str | None
-        translate: bool
+        translate: bool | TranslateDialect
         is_text: bool
         company_dependent: bool
         aggregator: str | None
@@ -40,6 +43,13 @@ class _FieldStubs:
         falsy_value_label: str | None
         description_attrs: tuple[tuple[str, str], ...]
         related_attrs: tuple[tuple[str, str], ...]
+        _explicit: bool
+
+        def _get_relation_triple(self) -> tuple[str, str, str]: ...
+
+        def __get__(
+            self, records: typing.Any, owner: typing.Any = None
+        ) -> typing.Any: ...
 
         def _update_inverse(self, records: BaseModel, value: BaseModel) -> None: ...
 

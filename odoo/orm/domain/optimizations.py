@@ -39,6 +39,7 @@ if typing.TYPE_CHECKING:
     from collections.abc import Collection
 
     from ..models import BaseModel
+    from ..runtime import Environment
 
 _logger = logging.getLogger("odoo.domains")
 
@@ -142,7 +143,7 @@ def nary_condition_optimization(
             flush()
             return result
 
-        optimizer._match_operators = frozenset(operators)
+        optimizer._match_operators = frozenset(operators)  # type: ignore[attr-defined]
         nary_optimization(optimizer)
 
         return optimization
@@ -361,7 +362,7 @@ def _optimize_relational_name_search(condition, model):
     if not any(isinstance(v, str) for v in value):
         return condition
     str_values, other_values = partition(lambda v: isinstance(v, str), value)
-    domain = DomainCondition(
+    domain: Domain = DomainCondition(
         condition.field_expr,
         any_operator,
         DomainCondition("display_name", positive_operator, str_values),
@@ -538,7 +539,7 @@ def _optimize_boolean_in_all(condition, model):
 
 def _value_to_date(
     value: object,
-    env: object,
+    env: Environment,
     iso_only: bool = False,
 ) -> date | str | OrderedSet | SQL | typing.Literal[False] | None:
     if isinstance(value, datetime):
@@ -548,13 +549,13 @@ def _value_to_date(
     if isinstance(value, str):
         if iso_only:
             try:
-                value = parse_iso_date(value)
+                parsed: date = parse_iso_date(value)
             except ValueError:
                 resolve_date(value, env)
                 return value
         else:
-            value = resolve_date(value, env)
-        return _value_to_date(value, env)
+            parsed = resolve_date(value, env)
+        return _value_to_date(parsed, env)
     if isinstance(value, COLLECTION_TYPES):
         return OrderedSet(_value_to_date(v, env=env, iso_only=iso_only) for v in value)
     if isinstance(value, SQL):
@@ -638,7 +639,7 @@ def _optimize_type_date_relative(condition, model):
 
 def _value_to_datetime(
     value: object,
-    env: object,
+    env: Environment,
     iso_only: bool = False,
 ) -> tuple[datetime | str | OrderedSet | SQL | typing.Literal[False], bool]:
     if isinstance(value, datetime):
@@ -650,13 +651,13 @@ def _value_to_datetime(
     if isinstance(value, str):
         if iso_only:
             try:
-                value = parse_iso_date(value)
+                parsed: date = parse_iso_date(value)
             except ValueError:
                 _dt, is_date = _value_to_datetime(resolve_date(value, env), env)
                 return value, is_date
         else:
-            value = resolve_date(value, env)
-        return _value_to_datetime(value, env)
+            parsed = resolve_date(value, env)
+        return _value_to_datetime(parsed, env)
     if isinstance(value, date):
         tz = None if value.year in (1, 9999) else env.tz
         if tz == utc:
@@ -668,11 +669,11 @@ def _value_to_datetime(
     if isinstance(value, COLLECTION_TYPES):
         if not value:
             return OrderedSet(), True
-        value, is_date = zip(
+        converted, is_date = zip(
             *(_value_to_datetime(v, env=env, iso_only=iso_only) for v in value),
             strict=False,
         )
-        return OrderedSet(value), all(is_date)
+        return OrderedSet(converted), all(is_date)
     if isinstance(value, SQL):
         warnings.warn(
             "Since 19.0, use Domain.custom(to_sql=lambda model, alias, query: SQL(...))",
@@ -683,12 +684,14 @@ def _value_to_datetime(
     raise ValueError(f"Failed to cast {value!r} into a datetime")
 
 
-def _end_of_local_day(start: datetime, env: typing.Any) -> datetime:
+def _end_of_local_day(start: datetime, env: Environment) -> datetime:
     tz = env.tz
     if tz is None or tz == utc:
         return start + timedelta(days=1)
     local_date = start.replace(tzinfo=UTC).astimezone(tz).date()
     end, _is_date = _value_to_datetime(local_date + timedelta(days=1), env)
+    if not isinstance(end, datetime):
+        raise TypeError(f"a date did not convert to a datetime: {end!r}")
     return end
 
 
@@ -834,6 +837,7 @@ def _optimize_type_binary_attachment(condition, model):
 
 @operator_optimization(["parent_of", "child_of"], OptimizationLevel.FULL)
 def _operator_hierarchy(condition, model):
+    hierarchy: typing.Callable[..., typing.Any]
     if condition.operator == "parent_of":
         hierarchy = _operator_parent_of_domain
     else:
@@ -870,7 +874,7 @@ def _operator_hierarchy(condition, model):
             condition._raise("True is not a valid hierarchy value")
         value = [v for v in value if v is not False]
     coids, other_values = partition(lambda v: isinstance(v, int), value)
-    search_domain = _FALSE_DOMAIN
+    search_domain: Domain = _FALSE_DOMAIN
     if field.is_many2many:
         search_domain |= DomainCondition("id", "in", coids)
         coids = []
@@ -950,6 +954,7 @@ def _optimize_m2o_bypass_comodel_id_lookup(condition, model):
         and (suboperator := subdomain.operator) in ("in", "not in", "any!", "not any!")
     ):
         val = subdomain.value
+        domain: Domain
         match suboperator:
             case "in":
                 domain = DomainCondition(condition.field_expr, "in", val - {False})
@@ -982,11 +987,11 @@ def _merge_set_conditions(
 
     if cls.OPERATOR == "&":
         if in_sets:
-            return merged("in", intersection(in_sets) - union(not_in_sets))
+            return merged("in", OrderedSet(intersection(in_sets) - union(not_in_sets)))
         else:
             return merged("not in", union(not_in_sets))
     elif not_in_sets:
-        return merged("not in", intersection(not_in_sets) - union(in_sets))
+        return merged("not in", OrderedSet(intersection(not_in_sets) - union(in_sets)))
     else:
         return merged("in", union(in_sets))
 
@@ -1098,7 +1103,12 @@ def _optimize_same_conditions(cls, conditions, model):
         return conditions
 
     seen.clear()
-    return [c for c in conditions if not (c in seen or seen.add(c))]
+    kept = []
+    for condition in conditions:
+        if condition not in seen:
+            seen.add(condition)
+            kept.append(condition)
+    return kept
 
 
 __all__ = [

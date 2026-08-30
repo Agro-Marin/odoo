@@ -233,9 +233,9 @@ class AccessMixin(_ModelStubs):
                     companies = (
                         record
                         if self._name == "res.company"
-                        else record.company_id
+                        else record["company_id"]
                         if "company_id" in self
-                        else record.company_ids
+                        else record["company_ids"]
                     )
                 else:
                     companies = fixed_companies
@@ -324,13 +324,13 @@ class AccessMixin(_ModelStubs):
                 if record._name == "res.company":
                     msg, companies = company_msg, record
                 elif record == corecords and name == "company_id":
-                    msg, companies = root_company_msg, record.company_id
+                    msg, companies = root_company_msg, record["company_id"]
                 else:
                     msg = record_msg
                     companies = (
-                        record.company_id
+                        record["company_id"]
                         if "company_id" in record
-                        else record.company_ids
+                        else record["company_ids"]
                     )
                 field = self.env["ir.model.fields"]._get(self._name, name)
                 lines.append(
@@ -338,7 +338,7 @@ class AccessMixin(_ModelStubs):
                     % {
                         "record": record.display_name,
                         "company": ", ".join(
-                            company.display_name for company in companies
+                            company.display_name or "" for company in companies
                         ),
                         "field": field.field_description,
                         "fname": field.name,

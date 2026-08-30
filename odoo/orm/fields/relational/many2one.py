@@ -170,6 +170,7 @@ class Many2one(_Relational):
     def convert_to_cache(
         self, value: typing.Any, record: ModelLike, validate: bool = True
     ) -> int | NewId | None:
+        id_: int | NewId | None
         if type(value) is int or type(value) is NewId:
             id_ = value
         elif is_recordset(value):
@@ -189,8 +190,8 @@ class Many2one(_Relational):
         else:
             id_ = None
 
-        if self.delegate and record and not any(record._ids):
-            id_ = id_ and NewId(id_)
+        if self.delegate and record and not any(record._ids) and isinstance(id_, int):
+            id_ = NewId(id_)
 
         return id_
 
@@ -266,7 +267,8 @@ class Many2one(_Relational):
         if not value:
             return False
         if is_recordset(value) and value._name == self.comodel_name:
-            return value.id
+            record_id = value.id
+            return record_id if isinstance(record_id, (int, NewId)) else False
         if isinstance(value, tuple):
             self._reject_command_tuple(value)
             return value[0] if value else False
@@ -284,7 +286,7 @@ class Many2one(_Relational):
 
     @override
     def convert_to_export(self, value: BaseModel, record: ModelLike) -> str:
-        return value.display_name if value else ""
+        return value.display_name or "" if value else ""
 
     @override
     def convert_to_display_name(

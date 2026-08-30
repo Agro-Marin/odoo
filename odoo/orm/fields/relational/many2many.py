@@ -120,9 +120,7 @@ class Many2many(_RelationalMulti):
             self.relation = self.column1 = self.column2 = None
 
         if self.relation:
-            fields = model.pool.many2many_relations[
-                self.relation, self.column1, self.column2
-            ]
+            fields = model.pool.many2many_relations[self._get_relation_triple()]
             for mname, fname in fields:
                 field = model.pool[mname]._fields[fname]
                 if (
@@ -144,13 +142,22 @@ class Many2many(_RelationalMulti):
                 )
             fields.add((self.model_name, self.name))
 
+    def _get_relation_triple(self) -> tuple[str, str, str]:
+        if not (self.relation and self.column1 and self.column2):
+            raise TypeError(
+                f"{self} has no relation table: the three of relation, column1 and "
+                f"column2 are set together, and are None on a field that is not stored"
+            )
+        return self.relation, self.column1, self.column2
+
     @override
     def setup_inverses(
         self, registry: Registry, inverses: Collector[Field, Field]
     ) -> None:
         if self.relation:
+            relation, column1, column2 = self._get_relation_triple()
             for mname, fname in registry.many2many_relations[
-                self.relation, self.column2, self.column1
+                relation, column2, column1
             ]:
                 field = registry[mname]._fields[fname]
                 inverses.add(self, field)
@@ -161,10 +168,11 @@ class Many2many(_RelationalMulti):
         self, model: ModelLike, columns: dict[str, dict[str, typing.Any]]
     ) -> bool:
         cr = model.env.cr
+        relation, column1, column2 = self._get_relation_triple()
         if not self.manual:
-            model.pool.add_relation_reflection(model._name, self.relation, self._module)
+            model.pool.add_relation_reflection(model._name, relation, self._module)
         comodel = model.env[self.comodel_name]
-        if not sql.table_exists(cr, self.relation):
+        if not sql.table_exists(cr, relation):
             cr.execute(
                 SQL(
                     """ CREATE TABLE %(rel)s (%(id1)s INTEGER NOT NULL,
@@ -172,15 +180,15 @@ class Many2many(_RelationalMulti):
                                           PRIMARY KEY(%(id1)s, %(id2)s));
                     COMMENT ON TABLE %(rel)s IS %(comment)s;
                     CREATE INDEX ON %(rel)s (%(id2)s, %(id1)s); """,
-                    rel=SQL.identifier(self.relation),
-                    id1=SQL.identifier(self.column1),
-                    id2=SQL.identifier(self.column2),
+                    rel=SQL.identifier(relation),
+                    id1=SQL.identifier(column1),
+                    id2=SQL.identifier(column2),
                     comment=f"RELATION BETWEEN {model._table} AND {comodel._table}",
                 )
             )
             _schema.debug(
                 "Create table %r: m2m relation between %r and %r",
-                self.relation,
+                relation,
                 model._table,
                 comodel._table,
             )
@@ -192,10 +200,11 @@ class Many2many(_RelationalMulti):
 
     def update_db_foreign_keys(self, model: BaseModel) -> None:
         comodel = model.env[self.comodel_name]
+        relation, column1, column2 = self._get_relation_triple()
         if model._is_an_ordinary_table() and not model._is_table_inheritance_root():
             model.pool.add_foreign_key(
-                self.relation,
-                self.column1,
+                relation,
+                column1,
                 model._table,
                 "id",
                 "cascade",
@@ -205,11 +214,11 @@ class Many2many(_RelationalMulti):
             )
         if comodel._is_an_ordinary_table() and not comodel._is_table_inheritance_root():
             model.pool.add_foreign_key(
-                self.relation,
-                self.column2,
+                relation,
+                column2,
                 comodel._table,
                 "id",
-                self.ondelete,
+                self.ondelete or "cascade",
                 model,
                 self._module,
             )
@@ -268,9 +277,9 @@ class Many2many(_RelationalMulti):
             corecord_ids = OrderedSet(id_ for ids in group.values() for id_ in ids)
             accessible_corecords = comodel.browse(corecord_ids)._filtered_access("read")
             if len(accessible_corecords) < len(corecord_ids):
-                corecord_ids = set(accessible_corecords._ids)
+                accessible_ids = set(accessible_corecords._ids)
                 for id1, ids in group.items():
-                    group[id1] = [id_ for id_ in ids if id_ in corecord_ids]
+                    group[id1] = [id_ for id_ in ids if id_ in accessible_ids]
 
         values = [tuple(group[id_]) for id_ in records._ids]
         self._insert_cache(records, values)
@@ -296,7 +305,7 @@ class Many2many(_RelationalMulti):
                     records, *self._relation_columns(), pairs
                 )
 
-            y_to_xs: defaultdict[typing.Any, OrderedSet] = defaultdict(OrderedSet)
+            y_to_xs: defaultdict[typing.Any, typing.Any] = defaultdict(OrderedSet)
             for x, y in pairs:
                 y_to_xs[y].add(x)
                 modified_corecord_ids.add(y)

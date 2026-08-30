@@ -235,8 +235,11 @@ class Domain:
 
     def __new__(cls, *args: object, internal: bool = False) -> Domain:  # noqa: PYI034  can return an existing Domain, _TRUE_DOMAIN, _FALSE_DOMAIN or a DomainCondition, not always an instance of cls, so Self would be wrong
         if len(args) > 1:
-            if isinstance(args[0], str):
-                return DomainCondition(*args).checked()
+            if isinstance(field_expr := args[0], str):
+                _first, operator, value = args
+                return DomainCondition(
+                    field_expr, typing.cast("str", operator), value
+                ).checked()
             if args == TRUE_LEAF:
                 return _TRUE_DOMAIN
             if args == FALSE_LEAF:
@@ -755,6 +758,7 @@ class DomainCondition(Domain):
         "value",
     )
     _field_instance: Field | None
+    _hash: int
     field_expr: str
     operator: str
     value: typing.Any
@@ -819,7 +823,7 @@ class DomainCondition(Domain):
 
     def _negate(self, model: BaseModel) -> Domain:
         if neg_op := INVERSE_INEQUALITY.get(self.operator):
-            condition = DomainCondition(self.field_expr, neg_op, self.value)
+            condition: Domain = DomainCondition(self.field_expr, neg_op, self.value)
             if self._field(model).falsy_value is None:
                 is_null = DomainCondition(self.field_expr, "in", OrderedSet([False]))
                 condition = is_null | condition
@@ -1053,6 +1057,7 @@ class DomainCondition(Domain):
         positive_operator = NEGATIVE_CONDITION_OPERATORS.get(op, op)
 
         if isinstance(value, SQL):
+            condition: Domain
             if positive_operator == op:
                 condition = self
                 op = "any!"

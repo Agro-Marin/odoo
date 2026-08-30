@@ -141,37 +141,55 @@ class Command(enum.IntEnum):
     SET = 6
 
     @classmethod
-    def create(cls, values: ValuesType) -> CommandValue:
+    def create(cls, values: ValuesType) -> CommandCreate:
         return (cls.CREATE, 0, values)
 
     @classmethod
-    def update(cls, id: int, values: ValuesType) -> CommandValue:
+    def update(cls, id: IdType, values: ValuesType) -> CommandUpdate:
         return (cls.UPDATE, id, values)
 
     @classmethod
-    def delete(cls, id: int) -> CommandValue:
+    def delete(cls, id: IdType) -> CommandDelete:
         return (cls.DELETE, id, 0)
 
     @classmethod
-    def unlink(cls, id: int) -> CommandValue:
+    def unlink(cls, id: IdType) -> CommandUnlink:
         return (cls.UNLINK, id, 0)
 
     @classmethod
-    def link(cls, id: int) -> CommandValue:
+    def link(cls, id: IdType) -> CommandLink:
         return (cls.LINK, id, 0)
 
     @classmethod
-    def clear(cls) -> CommandValue:
+    def clear(cls) -> CommandClear:
         return (cls.CLEAR, 0, 0)
 
     @classmethod
-    def set(cls, ids: Collection[int]) -> CommandValue:
+    def set(cls, ids: Collection[IdType]) -> CommandSet:
         return (cls.SET, 0, ids)
 
 
-type CommandValue = tuple[
-    Command, int, typing.Literal[0] | ValuesType | Collection[int]
+type CommandCreate = tuple[typing.Literal[Command.CREATE], IdType, ValuesType]
+type CommandUpdate = tuple[typing.Literal[Command.UPDATE], IdType, ValuesType]
+type CommandDelete = tuple[typing.Literal[Command.DELETE], IdType, typing.Literal[0]]
+type CommandUnlink = tuple[typing.Literal[Command.UNLINK], IdType, typing.Literal[0]]
+type CommandLink = tuple[typing.Literal[Command.LINK], IdType, typing.Literal[0]]
+type CommandClear = tuple[
+    typing.Literal[Command.CLEAR], typing.Literal[0], typing.Literal[0]
 ]
+type CommandSet = tuple[
+    typing.Literal[Command.SET], typing.Literal[0], Collection[IdType]
+]
+
+type CommandValue = (
+    CommandCreate
+    | CommandUpdate
+    | CommandDelete
+    | CommandUnlink
+    | CommandLink
+    | CommandClear
+    | CommandSet
+)
 
 
 SUPERUSER_ID = 1

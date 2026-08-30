@@ -23,13 +23,16 @@ _logger = logging.getLogger("odoo.models")
 
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Callable, Generator
+    from collections.abc import Callable, Generator, Sequence
+
+
+type FieldPaths = Sequence[Sequence[str | None]]
 
 
 class LoadMixin(_ModelStubs):
     __slots__ = ()
 
-    def _load_creatable_models(self, fields: list[list[str]]) -> set[str]:
+    def _load_creatable_models(self, fields: FieldPaths) -> set[str]:
         from ...fields.relational import One2many
 
         creatable_models = {self._name}
@@ -140,17 +143,18 @@ class LoadMixin(_ModelStubs):
 
         cr = self.env.cr
 
-        fields = [fix_import_export_id_paths(f) for f in fields]
+        field_paths = [fix_import_export_id_paths(f) for f in fields]
 
-        ids: list[int] | typing.Literal[False] = []
+        ids: list[int] = []
+        failed = False
         messages: list[dict] = []
 
         batch: list[tuple] = []
         batch_xml_ids: set[str] = set()
-        if invalid := self._invalid_load_paths(fields):
+        if invalid := self._invalid_load_paths(field_paths):
             return {"ids": False, "messages": invalid, "nextrow": 0}
 
-        creatable_models = self._load_creatable_models(fields)
+        creatable_models = self._load_creatable_models(field_paths)
 
         def flush(*, xml_id=None, model=None):
             if not batch:
@@ -183,7 +187,7 @@ class LoadMixin(_ModelStubs):
         savepoint = cr.savepoint()
         try:
             extracted = flush_recordset._extract_records(
-                fields, data, log=messages.append, limit=limit
+                field_paths, data, log=messages.append, limit=limit
             )
             converted = flush_recordset._convert_records(extracted, log=messages.append)
             info = self._collect_load_batch(
@@ -192,7 +196,7 @@ class LoadMixin(_ModelStubs):
             flush()
             if any(message["type"] == "error" for message in messages):
                 savepoint.rollback()
-                ids = False
+                failed = True
                 self.pool.reset_changes()
         except Exception:
             savepoint.close(rollback=True)
@@ -203,15 +207,13 @@ class LoadMixin(_ModelStubs):
         if nextrow < limit:
             nextrow = 0
         return {
-            "ids": ids,
+            "ids": False if failed else ids,
             "messages": messages,
             "nextrow": nextrow,
         }
 
     @api.model
-    def _invalid_load_paths(
-        self, field_paths: list[tuple[str | None, ...]]
-    ) -> list[dict]:
+    def _invalid_load_paths(self, field_paths: FieldPaths) -> list[dict]:
         messages = []
         for field_path in field_paths:
             if not field_path or field_path[0] in (None, "id", ".id"):
@@ -234,8 +236,8 @@ class LoadMixin(_ModelStubs):
                             "message": _(
                                 "Column %(path)s cannot be imported: %(field)s is not a "
                                 "relation on model %(model)s, so it has no sub-fields.",
-                                path="/".join(field_path),
-                                field="/".join(field_path[: index + 1]),
+                                path="/".join(map(str, field_path)),
+                                field="/".join(map(str, field_path[: index + 1])),
                                 model=model._name,
                             ),
                         }
@@ -261,7 +263,7 @@ class LoadMixin(_ModelStubs):
         return info
 
     def _o2m_only_row_predicate(
-        self, field_paths: list[list[str | None]]
+        self, field_paths: FieldPaths
     ) -> Callable[[list[str]], bool]:
         fields = self._fields
 
@@ -284,7 +286,7 @@ class LoadMixin(_ModelStubs):
         return only_o2m_values
 
     def _extract_property_definitions(
-        self, field_paths: list[list[str | None]]
+        self, field_paths: FieldPaths
     ) -> tuple[dict, dict[str, list[str]]]:
         fields = self._fields
         property_definitions: dict = {}
@@ -311,7 +313,7 @@ class LoadMixin(_ModelStubs):
     def _extract_relational_values(
         self,
         relfield: str,
-        field_paths: list[list[str | None]],
+        field_paths: FieldPaths,
         record_span: list[list[str]],
         property_definitions: dict,
         log: Callable,
@@ -354,7 +356,7 @@ class LoadMixin(_ModelStubs):
 
     def _extract_records(
         self,
-        field_paths: list[list[str | None]],
+        field_paths: FieldPaths,
         data: list[list[str]],
         log: Callable = lambda a: None,
         limit: float = float("inf"),
@@ -379,17 +381,17 @@ class LoadMixin(_ModelStubs):
         while index < len(data) and index < limit:
             row = data[index]
 
-            record = {
+            record: dict[typing.Any, typing.Any] = {
                 fnames[0]: value
                 for fnames, value in zip(field_paths, row, strict=False)
                 if not is_relational(fnames[0])
             }
 
-            record_span = itertools.takewhile(
+            following = itertools.takewhile(
                 only_o2m_values,
                 (data[j] for j in range(index + 1, len(data))),
             )
-            record_span = list(itertools.chain([row], record_span))
+            record_span = list(itertools.chain([row], following))
 
             for relfield, *__ in field_paths:
                 if relfield is None or not is_relational(relfield):
@@ -460,7 +462,7 @@ class LoadMixin(_ModelStubs):
 
         for stream_index, (record, extras) in enumerate(stream):
             xid = record.get("id", False)
-            dbid = False
+            dbid: typing.Any = False
             if record.get(".id"):
                 try:
                     dbid = int(record[".id"])
@@ -566,15 +568,15 @@ class LoadMixin(_ModelStubs):
 
         if to_create:
             records = self._load_records_create([data["values"] for data in to_create])
-            for data, record in zip(to_create, records, strict=True):
-                data["record"] = record
+            for data, created in zip(to_create, records, strict=True):
+                data["record"] = created
                 if data.get("xml_id"):
                     for parent_model, parent_field in self._inherits.items():
                         if not data["values"].get(parent_field):
                             imd_data_list.append(
                                 {
                                     "xml_id": f"{data['xml_id']}_{parent_model.replace('.', '_')}",
-                                    "record": record[parent_field],
+                                    "record": created[parent_field],
                                     "noupdate": data.get("noupdate", False),
                                 }
                             )

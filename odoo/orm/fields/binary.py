@@ -4,6 +4,7 @@ import contextlib
 import functools
 import typing
 import warnings
+from collections.abc import Sequence
 from operator import attrgetter
 from typing import override
 
@@ -186,7 +187,7 @@ class Binary(Field[bytes | typing.Literal[False]]):
         self._insert_cache(records, map(data.get, records._ids))
 
     @override
-    def create(self, record_values: list[tuple[BaseModel, typing.Any]]) -> None:
+    def create(self, record_values: Sequence[tuple[BaseModel, typing.Any]]) -> None:
         assert self.attachment
         if not record_values:
             return
@@ -296,7 +297,7 @@ class Image(Binary):
             )
 
     @override
-    def create(self, record_values: list[tuple[BaseModel, typing.Any]]) -> None:
+    def create(self, record_values: Sequence[tuple[BaseModel, typing.Any]]) -> None:
         new_record_values: list[tuple[BaseModel, typing.Any]] = []
         for record, value in record_values:
             new_value = self._image_process(value, record.env)
@@ -346,7 +347,7 @@ class Image(Binary):
         ):
             return value
         try:
-            img = base64.b64decode(value or "") or False
+            img = base64.b64decode(value or "")
         except Exception as e:
             raise UserError(env._("Image is not encoded in base64.")) from e
 
@@ -381,7 +382,7 @@ class Image(Binary):
         return (
             base64.b64encode(
                 image_process(
-                    img,
+                    img or None,
                     size=(self.max_width, self.max_height),
                     verify_resolution=self.verify_resolution,
                 )

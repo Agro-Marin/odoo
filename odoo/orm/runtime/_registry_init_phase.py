@@ -30,6 +30,6 @@ class _RegistryInitPhaseMixin(_RegistryStubs):
         self.init_phase.post_init_queue.append(partial(func, *args, **kwargs))
 
     def add_relation_reflection(
-        self, model_name: str, relation: str, module: str
+        self, model_name: str, relation: str, module: str | None
     ) -> None:
         self.init_phase.relation_reflections.add((model_name, relation, module))

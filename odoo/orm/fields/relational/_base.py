@@ -19,7 +19,7 @@ from ..._recordset import is_recordset
 from ...constants import READ_GROUP_NUMBER_GRANULARITY
 from ...domain import Domain
 from ...domain.constants import SUBDOMAIN_OPERATORS
-from ...primitives import COLLECTION_TYPES, PREFETCH_MAX, Command, NewId
+from ...primitives import COLLECTION_TYPES, PREFETCH_MAX, Command, IdType, NewId
 from ..base import Field, _logger
 
 
@@ -223,7 +223,7 @@ class _Relational(Field["BaseModel"]):
         if callable(domain):
             domain = domain(env[self.model_name])
         if isinstance(domain, Domain):
-            domain = list(domain)
+            return list(domain) or []
         return domain or []
 
     @override
@@ -330,34 +330,36 @@ class _RelationalMulti(_Relational):
             else:
                 browse = comodel.browse
             if record._has_origin:
-                ids = OrderedSet(record.with_context(active_test=False)[self.name]._ids)
+                id_set = OrderedSet(
+                    record.with_context(active_test=False)[self.name]._ids
+                )
             else:
-                ids = OrderedSet()
+                id_set = OrderedSet()
             for command in value:
                 if isinstance(command, (tuple, list)):
                     match command[0]:
                         case Command.CREATE:
-                            ids.add(comodel.new(command[2], ref=command[1]).id)
+                            id_set.add(comodel.new(command[2], ref=command[1]).id)
                         case Command.UPDATE:
                             line = browse(command[1])
                             if validate:
                                 line.update(command[2])
                             else:
                                 line._update_cache(command[2], validate=False)
-                            ids.add(line.id)
+                            id_set.add(line.id)
                         case Command.DELETE | Command.UNLINK:
-                            ids.discard(browse(command[1]).id)
+                            id_set.discard(browse(command[1]).id)
                         case Command.LINK:
-                            ids.add(browse(command[1]).id)
+                            id_set.add(browse(command[1]).id)
                         case Command.CLEAR:
-                            ids.clear()
+                            id_set.clear()
                         case Command.SET:
-                            ids = OrderedSet(browse(it).id for it in command[2])
+                            id_set = OrderedSet(browse(it).id for it in command[2])
                 elif isinstance(command, dict):
-                    ids.add(comodel.new(command).id)
+                    id_set.add(comodel.new(command).id)
                 else:
-                    ids.add(browse(command).id)
-            return tuple(ids)
+                    id_set.add(browse(command).id)
+            return tuple(id_set)
 
         elif not value:
             return ()
@@ -418,7 +420,8 @@ class _RelationalMulti(_Relational):
                 return val._origin if hasattr(val, "_origin") else val
 
             inv_names = {field.name for field in record.pool.field_inverses[self]}
-            result = [Command.set([])]
+            linked_ids: list[IdType] = []
+            result: list[CommandValue] = [Command.set(linked_ids)]
             for rec in value:
                 origin = rec._origin
                 if not origin:
@@ -431,7 +434,7 @@ class _RelationalMulti(_Relational):
                     )
                     result.append(Command.create(values))
                 else:
-                    result[0][2].append(origin.id)
+                    linked_ids.append(origin.id)
                     if rec != origin:
                         values = rec._convert_to_write(
                             {
@@ -487,7 +490,7 @@ class _RelationalMulti(_Relational):
 
     def write_batch(
         self,
-        records_commands_list: Sequence[tuple[BaseModel, typing.Any]],
+        records_commands_list: Collection[tuple[BaseModel, typing.Any]],
         create: bool = False,
     ) -> None:
         normalized: list[tuple[BaseModel, list]] = []

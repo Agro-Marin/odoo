@@ -2,7 +2,7 @@ import logging
 import os
 import threading
 from collections.abc import Collection, Generator, Iterable
-from contextlib import ExitStack, contextmanager, suppress
+from contextlib import AbstractContextManager, ExitStack, contextmanager, suppress
 from datetime import datetime
 from inspect import currentframe
 from time import monotonic
@@ -107,6 +107,15 @@ class BaseCursor:
 
     def discard_cached_plans(self) -> None:
         pass
+
+    if TYPE_CHECKING:
+
+        @property
+        def description(self) -> list[Any] | None: ...
+
+        def pipeline(
+            self, log_exceptions: bool = True, query: Any = None
+        ) -> AbstractContextManager[None]: ...
 
     def _before_statement(self) -> None:
         pass

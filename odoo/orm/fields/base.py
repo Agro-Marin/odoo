@@ -12,6 +12,7 @@ from collections.abc import (
     Iterator,
     Mapping,
     MutableMapping,
+    Sequence,
 )
 from operator import attrgetter
 
@@ -939,7 +940,7 @@ class Field[T](
         if not self.column_type:
             raise NotImplementedError(f"Method read() undefined on {self}")
 
-    def create(self, record_values: Collection[tuple[BaseModel, typing.Any]]) -> None:
+    def create(self, record_values: Sequence[tuple[BaseModel, typing.Any]]) -> None:
         for record, value in record_values:
             self.mark_dirty(record, value)
 

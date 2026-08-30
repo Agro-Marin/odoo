@@ -223,7 +223,7 @@ class _RegistrySchemaMixin(_RegistryStubs):
         column2: str,
         ondelete: str,
         model: BaseModel,
-        module: str,
+        module: str | None,
         force: bool = True,
     ) -> None:
         key = (table1, column1)

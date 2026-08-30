@@ -10,6 +10,12 @@ if typing.TYPE_CHECKING:
     from ._typing import BaseModel, ValuesType
 
 
+def stamp[F](method: F, **markers: object) -> F:
+    for name, value in markers.items():
+        setattr(method, name, value)
+    return method
+
+
 def attrsetter(attr: str, value: object) -> Decorator:
 
     def setter(method: C) -> C:
@@ -44,9 +50,7 @@ def constrains(*args, sudo: bool = True) -> Decorator:
         )
 
     def decorator(method: C) -> C:
-        method._constrains = args
-        method._constrains_sudo = sudo
-        return method
+        return stamp(method, _constrains=args, _constrains_sudo=sudo)
 
     return decorator
 
@@ -78,6 +82,7 @@ def depends(*args: str) -> Decorator: ...
 
 
 def depends(*args) -> Decorator:
+    marker: typing.Any
     if args and callable(args[0]):
         if len(args) > 1:
             raise TypeError(
@@ -93,7 +98,7 @@ def depends(*args) -> Decorator:
             _check_depends_id(deps)
             return deps
 
-        args = _depends_callable
+        marker = _depends_callable
     else:
         if not all(isinstance(arg, str) for arg in args):
             raise TypeError(
@@ -101,7 +106,8 @@ def depends(*args) -> Decorator:
                 f"strings, got {args!r}"
             )
         _check_depends_id(args)
-    return attrsetter("_depends", args)
+        marker = args
+    return attrsetter("_depends", marker)
 
 
 def depends_context(*args: str) -> Decorator:
@@ -117,8 +123,7 @@ def autovacuum[C: Callable](method: C) -> C:
         raise TypeError(
             f"{method.__name__}: autovacuum methods must be private (start with '_')"
         )
-    method._autovacuum = True
-    return method
+    return stamp(method, _autovacuum=True)
 
 
 def job(
@@ -136,13 +141,15 @@ def job(
             raise TypeError(
                 f"{func.__name__}: job methods must be private (start with '_')"
             )
-        func._job_config = {
-            "channel": channel,
-            "priority": priority,
-            "max_retries": max_retries,
-            "max_defers": max_defers,
-        }
-        return func
+        return stamp(
+            func,
+            _job_config={
+                "channel": channel,
+                "priority": priority,
+                "max_retries": max_retries,
+                "max_defers": max_defers,
+            },
+        )
 
     if method is not None:
         return decorate(method)
@@ -150,18 +157,15 @@ def job(
 
 
 def model[C: Callable](method: C) -> C:
-    method._api_model = True
-    return method
+    return stamp(method, _api_model=True)
 
 
 def private[C: Callable](method: C) -> C:
-    method._api_private = True
-    return method
+    return stamp(method, _api_private=True)
 
 
 def readonly[C: Callable](method: C) -> C:
-    method._readonly = True
-    return method
+    return stamp(method, _readonly=True)
 
 
 def deprecated(reason: str) -> Decorator:
@@ -182,8 +186,7 @@ def deprecated(reason: str) -> Decorator:
             )
             return method(*args, **kwargs)
 
-        wrapper.__deprecated__ = reason
-        return wrapper
+        return typing.cast("C", stamp(wrapper, __deprecated__=reason))
 
     return decorator
 
@@ -198,5 +201,4 @@ def model_create_multi[T](
             vals_list = [vals_list]
         return method(self, vals_list)
 
-    create._api_model = True
-    return create
+    return stamp(create, _api_model=True)

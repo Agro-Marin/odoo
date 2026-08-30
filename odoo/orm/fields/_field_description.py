@@ -66,7 +66,7 @@ class _FieldDescriptionMixin(_FieldStubs):
         except ValueError, AccessError, NotImplementedError:
             return None
 
-    def _description_string(self, env: Environment) -> str:
+    def _description_string(self, env: Environment) -> str | None:
         if self.string and env.lang:
             model_name = self.base_field.model_name
             field_string = env["ir.model.fields"].get_field_string(model_name)

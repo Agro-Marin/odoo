@@ -21,7 +21,7 @@ from odoo.tools import SQL, html_normalize, html_sanitize
 from odoo.tools.misc import PENDING, SENTINEL, OrderedSet, Sentinel
 from odoo.tools.translate import html_translate
 
-from ..primitives import COLLECTION_TYPES, SQL_OPERATORS
+from ..primitives import COLLECTION_TYPES, SQL_OPERATORS, NewId
 from .base import Field, _logger
 
 _EN_US_KEY = ("en_US",)
@@ -31,13 +31,20 @@ if typing.TYPE_CHECKING:
 
     from odoo.tools import Query
 
-    from .._typing import IdType, ModelClass, ModelLike
+    from .._typing import IdType, ModelClass, ModelLike, ModelType
     from ..models import BaseModel
     from ..runtime import Environment
+    from ._field_stubs import TranslateDialect
+
+
+def _term_lookup(
+    dictionary: dict[str, dict[str, str]], lang: str
+) -> typing.Callable[[str], str | None]:
+    return lambda term: dictionary.get(term, {lang: None})[lang]
 
 
 class BaseString(Field[str | typing.Literal[False]]):
-    translate: bool | Callable[[Callable[[str], str], str], str] = False
+    translate: bool | TranslateDialect = False
     size = None
     is_text = True
     falsy_value = ""
@@ -205,7 +212,7 @@ class BaseString(Field[str | typing.Literal[False]]):
         if self.size is not None:
             s = s[: self.size]
         if validate and callable(self.translate):
-            s = self.translate(lambda t: None, s)
+            return self.translate(lambda t: None, s)
         return s
 
     @override
@@ -228,7 +235,7 @@ class BaseString(Field[str | typing.Literal[False]]):
             lang = self.translation_lang(record.env)
             value = value[lang]
         field_ = self
-        record_ = record
+        record_: typing.Any = record
         while not field_.store and field_.related and field_.related_field is not None:
             path = ".".join(field_._related_names[:-1])
             record_ = record_.mapped(path)[:1] if path else record_
@@ -305,14 +312,10 @@ class BaseString(Field[str | typing.Literal[False]]):
     ) -> dict[str, dict[str, str]]:
 
         from_lang_terms = self.get_trans_terms(from_lang_value)
-        dictionary: defaultdict[str, defaultdict[str, dict]] = defaultdict(
-            lambda: defaultdict(dict)
-        )
+        dictionary: defaultdict[str, dict[str, str]] = defaultdict(dict)
         if not from_lang_terms:
             return dictionary
-        dictionary.update(
-            {from_lang_term: defaultdict(dict) for from_lang_term in from_lang_terms}
-        )
+        dictionary.update({from_lang_term: {} for from_lang_term in from_lang_terms})
 
         for lang, to_lang_value in to_lang_values.items():
             to_lang_terms = self.get_trans_terms(to_lang_value)
@@ -367,7 +370,7 @@ class BaseString(Field[str | typing.Literal[False]]):
             records = records.with_context(prefetch_langs=False)
         return super()._cache_missing_ids(records)
 
-    def _to_prefetch(self, record: BaseModel) -> BaseModel:
+    def _to_prefetch(self, record: ModelType) -> ModelType:
         if callable(self.translate) and record.env.context.get("prefetch_langs"):
             return (
                 super()
@@ -618,7 +621,10 @@ class BaseString(Field[str | typing.Literal[False]]):
     def _mark_dirty_model_term_translation(
         self, records: BaseModel, cache_value: typing.Any, lang: str
     ) -> None:
-        new_translations_list = []
+        dialect = self.translate
+        if not callable(dialect):
+            raise TypeError(f"{self} has no translation dialect to mark terms with")
+        new_translations_list: list[dict[str, typing.Any]] = []
         new_terms = set(self.get_trans_terms(cache_value))
         delay_translations = records.env.context.get("delay_translations")
         for record in records:
@@ -644,13 +650,8 @@ class BaseString(Field[str | typing.Literal[False]]):
             self._reconcile_obsolete_terms(
                 translation_dictionary, new_terms, lang, records.env
             )
-            new_translations = {
-                l: self.translate(
-                    lambda term, td=translation_dictionary, l=l: td.get(
-                        term, {l: None}
-                    )[l],
-                    cache_value,
-                )
+            new_translations: dict[str, typing.Any] = {
+                l: dialect(_term_lookup(translation_dictionary, l), cache_value)
                 for l in old_translations
             }
             if delay_translations:
@@ -815,21 +816,21 @@ class Char(BaseString):
         )
 
     @property
-    def _column_type(self) -> tuple[str, str]:
+    def _column_type(self) -> tuple[str, str]:  # type: ignore[override]
         return ("varchar", pg_varchar(self.size))
 
     @override
     def update_db_column(self, model: ModelLike, column: dict[str, typing.Any]) -> None:
+        column_type = self.column_type
         if (
             column
-            and self.column_type[0] == "varchar"
+            and column_type is not None
+            and column_type[0] == "varchar"
             and column["udt_name"] == "varchar"
             and column["character_maximum_length"]
             and (self.size is None or column["character_maximum_length"] < self.size)
         ):
-            sql.convert_column(
-                model.env.cr, model._table, self.name, self.column_type[1]
-            )
+            sql.convert_column(model.env.cr, model._table, self.name, column_type[1])
         super().update_db_column(model, column)
 
     _related_size = property(attrgetter("size"))
@@ -960,7 +961,7 @@ class Html(BaseString):
         if not validate or not self.sanitize:
             return value
 
-        sanitize_vals = {
+        sanitize_vals: dict[str, typing.Any] = {
             "silent": True,
             "sanitize_tags": self.sanitize_tags,
             "sanitize_attributes": self.sanitize_attributes,
@@ -982,7 +983,7 @@ class Html(BaseString):
         return html_sanitize(value, **sanitize_vals)
 
     def _check_overridable_content(
-        self, record: ModelLike, sanitize_vals: dict
+        self, record: ModelLike, sanitize_vals: dict[str, typing.Any]
     ) -> None:
         original_value = record[self.name]
         if original_value:
@@ -1047,10 +1048,16 @@ class Html(BaseString):
         return list(map(str, super().get_trans_terms(value)))
 
 
+def _id_or_origin(key: IdType) -> IdType | None:
+    return key or (key.origin if isinstance(key, NewId) else None)
+
+
 class LangProxyDict(collections.abc.MutableMapping):
     __slots__ = ("_cache", "_field", "_lang")
 
-    def __init__(self, field: BaseString, cache: dict, lang: str) -> None:
+    def __init__(
+        self, field: BaseString, cache: MutableMapping[IdType, typing.Any], lang: str
+    ) -> None:
         super().__init__()
         self._field = field
         self._cache = cache
@@ -1062,7 +1069,7 @@ class LangProxyDict(collections.abc.MutableMapping):
             return default
         if vals is None:
             return None
-        if not (self._field.compute or (self._field.store and (key or key.origin))):
+        if not (self._field.compute or (self._field.store and _id_or_origin(key))):
             return vals.get(self._lang, vals.get("en_US", default))
         return vals.get(self._lang, default)
 
@@ -1070,7 +1077,7 @@ class LangProxyDict(collections.abc.MutableMapping):
         vals = self._cache[key]
         if vals is None:
             return None
-        if not (self._field.compute or (self._field.store and (key or key.origin))):
+        if not (self._field.compute or (self._field.store and _id_or_origin(key))):
             return vals.get(self._lang, vals.get("en_US"))
         return vals[self._lang]
 
@@ -1083,7 +1090,7 @@ class LangProxyDict(collections.abc.MutableMapping):
             self._cache[key] = vals = {self._lang: value}
         else:
             vals[self._lang] = value
-        if not (self._field.compute or (self._field.store and (key or key.origin))):
+        if not (self._field.compute or (self._field.store and _id_or_origin(key))):
             vals.setdefault("en_US", value)
 
     def __delitem__(self, key: IdType) -> None:
