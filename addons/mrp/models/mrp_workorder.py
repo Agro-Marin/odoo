@@ -934,6 +934,14 @@ class MrpWorkorder(models.Model):
             workorder.reservation_id.resource_id = new_workcenter.resource_id
             if workorder.state != "progress":
                 previous_workcenter_by_id[workorder.id] = workorder.workcenter_id
+            else:
+                # The running timer was created against the old workcenter
+                # and is never otherwise rewritten -- left alone, the time
+                # already logged on it split one workorder's history across
+                # two workcenters for OEE/cost purposes.
+                workorder.time_ids.filtered(
+                    lambda time: not time.date_end
+                ).workcenter_id = new_workcenter
         return new_workcenter, previous_workcenter_by_id
 
     def _get_write_date_vals(self, values, new_workcenter):
