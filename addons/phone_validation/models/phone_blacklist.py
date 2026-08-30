@@ -36,6 +36,12 @@ class PhoneBlacklist(models.Model):
         to_create = []
         done = set()
         for value in vals_list:
+            if not value.get("number"):
+                # _phone_format derives a number from self when none is
+                # given; self here is env.user, so a falsy number must be
+                # rejected before delegating, or it silently resolves to
+                # the acting user's own phone/mobile.
+                raise UserError(_("A phone number is required."))
             try:
                 sanitized_value = self.env.user._phone_format(
                     number=value["number"], raise_exception=True
@@ -77,6 +83,8 @@ class PhoneBlacklist(models.Model):
 
     def write(self, vals):
         if "number" in vals:
+            if not vals["number"]:
+                raise UserError(_("A phone number is required."))
             try:
                 sanitized = self.env.user._phone_format(
                     number=vals["number"], raise_exception=True
@@ -92,14 +100,24 @@ class PhoneBlacklist(models.Model):
         return super().write(vals)
 
     def _search_number(self, operator, value):
+        # _phone_format derives a number from self when none is given;
+        # self here is env.user, so a falsy number must be rejected before
+        # delegating, or it silently resolves to the acting user's own
+        # phone/mobile instead of the number actually being searched for.
         sanitize = self.env.user._phone_format
         if operator in ("in", "not in"):
+            if not all(value):
+                raise UserError(_("A phone number is required."))
             value = [sanitize(number=number) or number for number in value]
         else:
+            if not value:
+                raise UserError(_("A phone number is required."))
             value = sanitize(number=value) or value
         return [("number", operator, value)]
 
     def add(self, number, message=None):
+        if not number:
+            raise UserError(_("A phone number is required."))
         sanitized = self.env.user._phone_format(number=number)
         return self._add([sanitized], message=message)
 
@@ -130,6 +148,8 @@ class PhoneBlacklist(models.Model):
         return records
 
     def remove(self, number, message=None):
+        if not number:
+            raise UserError(_("A phone number is required."))
         sanitized = self.env.user._phone_format(number=number)
         return self._remove([sanitized], message=message)
 

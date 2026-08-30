@@ -61,6 +61,51 @@ class TestPhoneBlacklistOps(TransactionCase):
 
 
 @tagged("post_install", "-at_install")
+class TestPhoneBlacklistDoesNotDeriveFromActingUser(TransactionCase):
+    """A falsy/unparseable number must never resolve to env.user's own.
+
+    ``_phone_format``'s "no number given" fallback is meant for a record
+    looking up its own field; ``phone.blacklist`` misuses it by sanitizing
+    through ``self.env.user._phone_format(...)``, where ``self`` (the
+    acting user) is unrelated to the entry being created/searched/removed.
+    Every method must reject a falsy/unparseable number outright instead of
+    silently substituting the acting user's own phone/mobile.
+    """
+
+    @property
+    def Blacklist(self):
+        return self.env["phone.blacklist"]
+
+    def setUp(self):
+        super().setUp()
+        self.env.user.write({"phone": "+32485001122", "mobile": False})
+
+    def test_create_with_falsy_number_raises(self):
+        with self.assertRaises(UserError):
+            self.Blacklist.create([{"number": False}])
+        self.assertFalse(self.Blacklist.search([("number", "=", "+32485001122")]))
+
+    def test_write_with_falsy_number_raises(self):
+        entry = self.Blacklist.add("+33612345678")
+        with self.assertRaises(UserError):
+            entry.write({"number": False})
+
+    def test_search_number_with_falsy_value_raises(self):
+        with self.assertRaises(UserError):
+            self.Blacklist.search([("number", "=", "")])
+
+    def test_add_with_unparseable_number_raises(self):
+        with self.assertRaises(UserError):
+            self.Blacklist.add("garbage-not-a-number")
+        self.assertFalse(self.Blacklist.search([("number", "=", "+32485001122")]))
+
+    def test_remove_with_unparseable_number_raises(self):
+        with self.assertRaises(UserError):
+            self.Blacklist.remove("garbage-not-a-number")
+        self.assertFalse(self.Blacklist.search([("number", "=", "+32485001122")]))
+
+
+@tagged("post_install", "-at_install")
 class TestPortalUserBlacklistOnDeactivate(TransactionCase):
     """Deactivating a portal user optionally blacklists their phone."""
 
