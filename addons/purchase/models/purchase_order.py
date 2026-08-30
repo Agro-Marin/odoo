@@ -4,7 +4,7 @@ from dateutil.relativedelta import relativedelta
 from markupsafe import Markup, escape
 
 from odoo import api, fields, models
-from odoo.exceptions import AccessDenied, UserError, ValidationError
+from odoo.exceptions import AccessDenied, AccessError, UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.libs.datetime import timezone
 from odoo.tools import (
@@ -355,7 +355,21 @@ class PurchaseOrder(models.Model):
         )
 
     def action_lock(self):
+        for order in self:
+            if not order._should_be_locked() and not self.env.user.has_group(
+                "purchase.group_order_lock"
+            ):
+                raise AccessError(
+                    _("You are not allowed to lock a purchase order."),
+                )
         self.write({"locked": True, "priority": "0"})
+
+    def action_unlock(self):
+        if not self.env.user.has_group("purchase.group_order_unlock"):
+            raise AccessError(
+                _("You are not allowed to unlock a purchase order."),
+            )
+        return super().action_unlock()
 
     def _merge_validate_selection(self, orders):
         if len(orders) < 2:
