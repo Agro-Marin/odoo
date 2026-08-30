@@ -26,12 +26,14 @@ odoo/
 ├── db/             Decomposed sql_db.py + the resilience tier (flat modules)
 │   ├── [foundation]   errors, dsn, utils
 │   ├── [connectivity] pool, cursor, ddl, schema, savepoint, schema_cache,
-│   │                  bulk, lifecycle
+│   │                  bulk, lifecycle,
+│   │                  endpoints (the endpoint-keyed pool/budget registry)
 │   └── [resilience]   breaker (circuit breaker w/ backoff + single prober),
 │                      lag (replica apply-lag ceiling, db_replica_max_lag),
 │                      budget (process-wide connection semaphore),
 │                      leaks (who holds a checked-out connection),
 │                      reaper (idle per-DSN pool reaping),
+│                      probe (is this DSN reachable, permanently or not),
 │                      metrics (SQL per cursor) · stats (what the pool did)
 ├── http/           Decomposed http.py (flat modules)
 │   ├── [serving]   application, dispatcher, routing, session, request_class,
@@ -51,7 +53,8 @@ odoo/
 │   │                       lifecycle -> listing}
 │   └── transaction (the retrying() primitive), model, security, common,
 │       _dispatch (one arity policy for the common/db RPC tables),
-│       _env, _helpers, _db_helpers, _dump_scanner, _metrics
+│       _env, _limits (time/memory/back-off budgets),
+│       _db_helpers, _dump_scanner, _metrics
 ├── modules/        The module graph (iterated by phase, dependency depth,
 │   │               then name) and what loads it
 │   └── module_graph, module, loading, migration, db, neutralize,
@@ -293,7 +296,7 @@ definition that runs.
 | `orm-seams-stay-below-models-and-runtime` | `orm/_recordset` & `orm/decorators` must not import `orm/models` or `orm/runtime` | ✅ clean |
 | `facade-boundary` | addon code (`odoo/addons/**` **and** the repo-root `addons/**`) must not import `odoo.orm.*` (use `odoo.api`/`odoo.fields`/`odoo.models`) | ✅ clean |
 | `core-does-not-depend-on-addons` | core packages must not import `odoo.addons.<module>` (bare `odoo.addons` for `__path__` discovery is fine) | ✅ 0 new, 2 pinned rules |
-| `db-resilience-below-connectivity` | `db/` `[resilience]` (breaker, lag, budget, leaks, reaper, metrics, stats) must not import `[connectivity]` (pool, cursor, ddl, schema, savepoint, schema_cache, bulk, lifecycle) | ✅ clean |
+| `db-resilience-below-connectivity` | `db/` `[resilience]` (breaker, lag, budget, leaks, reaper, probe, metrics, stats) must not import `[connectivity]` (pool, cursor, ddl, schema, savepoint, schema_cache, bulk, lifecycle, endpoints) | ✅ clean |
 | `http-features-below-serving` | `http/` `[features]` (openapi, `_params`, geoip, constants, exceptions, `_protocols`) must not import `[serving]` | ✅ clean |
 | `orm-below-the-serving-tier` | `odoo/orm/**` must not import `odoo.service`, `odoo.http` or `odoo.cli` — the serving tier runs on the ORM, never the reverse | ✅ clean |
 | `transaction-primitive-is-transport-agnostic` | `odoo/service/transaction.py` must not import `odoo.http` — the transport injects a `RetryParticipant` instead (ADR-0003's seam shape) | ✅ clean |
@@ -453,7 +456,7 @@ are clean and always will be, because that reach produces no import edge.
 | `pool[<model>]` subscripts | 5 | **5** |
 | distinct `Registry` members | 9 | **15** |
 | unsanctioned `Environment` privates | **4** | 2 |
-| accesses to those privates | **10** | 3 |
+| accesses to those privates | **10** | 2 |
 
 The inversion is one of kind, not of volume: the two reach the Registry equally
 often, and Layer 2 reaches more *distinct* members and has private reaches of its

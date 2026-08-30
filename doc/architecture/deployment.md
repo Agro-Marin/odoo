@@ -107,14 +107,15 @@ long-lived Python process accumulates; recycling is the design, not a workaround
 | `breaker.py` | `CircuitBreaker` — failure gating with exponential backoff for an optional endpoint (the read replica) |
 | `lag.py` | `ReplicaLagGate` + `LAG_SQL` — a sampled apply-lag ceiling that **demotes stale reads to the primary** |
 | `reaper.py` | `IdlePoolReaper` — which quiet per-DSN pools to close, and how often to look |
+| `probe.py` | `ReachabilityProbe` — is this DSN connectable, and **permanently or not**: a pre-flight connect that turns a missing database or a rejected password into a millisecond error instead of a `PoolTimeout` at the end of the borrow budget, plus the per-key proof that stops it re-asking |
 | `leaks.py` | `CheckoutTracker` — which connections are out, since when, from which thread and borrow site |
 | `metrics.py` | `_MetricsMixin` — the per-cursor SQL counters (`sql_from_log`, `sql_into_log`, `sql_log_count`), so a slow request can name its statements rather than report a total |
 | `stats.py` | `PoolStats` — the counters behind `ConnectionPool.health()`: borrows, failures, and a bucketed borrow-wait histogram, each written under one lock because `x += 1` lost increments in exactly the concurrency they exist to diagnose |
 
-**Four of the seven act and three only observe**, and the two this table
-omitted until 2026-08-28 were both observers: `breaker`, `lag`, `budget` and
-`reaper` change what a request gets, while `leaks`, `metrics` and `stats` only
-say what happened. A table about degradation is where an observer is easiest to
+**Five of the eight act and three only observe**, and the two this table
+omitted until 2026-08-28 were both observers: `breaker`, `lag`, `budget`,
+`reaper` and `probe` change what a request gets, while `leaks`, `metrics` and
+`stats` only say what happened. A table about degradation is where an observer is easiest to
 leave out and hardest to miss, since the observers are what a capacity decision
 is made from. The tier is `db-resilience-below-connectivity`'s `source` list —
 a contract that runs — and this table is read against it.
