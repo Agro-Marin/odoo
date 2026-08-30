@@ -1145,9 +1145,12 @@ Versions:
         # group covers both officers and administrators.
         is_officer = self.env.user.has_group("hr_holidays.group_hr_holidays_user")
         for leave in self:
-            leave.attachment_is_visible = is_officer or self.env.uid in (
-                leave.user_id.id,
-                leave.create_uid.id,
+            leave.attachment_is_visible = (
+                is_officer
+                # A request that is still being typed has no create_uid to
+                # match yet, and whoever is filing it is about to become one.
+                or not leave.id
+                or self.env.uid in (leave.user_id.id, leave.create_uid.id)
             )
 
     @api.depends("employee_id", "holiday_status_id")

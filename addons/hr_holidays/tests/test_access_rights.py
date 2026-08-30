@@ -258,6 +258,25 @@ class TestAccessRightsRead(TestHrHolidaysAccessRightsCommon):
             "The approver who is only the employee's responsible does not.",
         )
 
+    def test_supporting_document_is_visible_while_filing_the_request(self):
+        """Whoever is filing the request has to be able to attach the file.
+
+        On a record that does not exist yet there is no create_uid to match,
+        and the same widget is the upload box, so the person typing the
+        request would have had nowhere to put the document -- and would then
+        have seen it reappear the moment they saved, since saving makes them
+        the create_uid.
+        """
+        draft = (
+            self.env["hr.leave"]
+            .with_user(self.user_responsible)
+            .new({"employee_id": self.employee_emp.id})
+        )
+        self.assertTrue(
+            draft.attachment_is_visible,
+            "The person filing the request can attach its document.",
+        )
+
 
 @tests.tagged("access_rights", "access_rights_write")
 class TestAccessRightsWrite(TestHrHolidaysAccessRightsCommon):
