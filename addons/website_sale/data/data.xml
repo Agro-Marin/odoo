@@ -229,7 +229,7 @@ response = DynamicFilter._prepare_category_list_data(parent_id=request.params.ge
             <value eval="[
                 'name', 'phone', 'email',
                 'city', 'zip', 'street', 'street2', 'state_id', 'country_id',
-                'vat', 'company_name'
+                'vat'
             ]"/>
         </function>
     </data>

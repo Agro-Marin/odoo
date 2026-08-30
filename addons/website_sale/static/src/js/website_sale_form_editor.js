@@ -24,11 +24,5 @@ registry.category("website.form_editor_actions").add("create_customer", {
             name: "phone",
             string: _t("Phone Number"),
         },
-        {
-            type: "char",
-            name: "company_name",
-            fillWith: "commercial_company_name",
-            string: _t("Company Name"),
-        },
     ],
 });
