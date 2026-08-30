@@ -1010,6 +1010,16 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
             login="accountman",
         )
 
+        # The tour only settles the order up to the review screen (it never
+        # pays/validates), so it must not have touched the down-payment
+        # invoice created above: the backend state it proves the numpad math
+        # against (order total 980 = 1000 - the already-invoiced 20) must
+        # still be backed by exactly that one invoice.
+        self.assertEqual(len(down_payment_invoices), 1)
+        self.assertEqual(down_payment_invoices.amount_total, 20.0)
+        self.assertEqual(so.invoice_ids, down_payment_invoices)
+        self.assertEqual(so.amount_unpaid, 980.0)
+
     def test_downpayment_with_taxed_product(self):
         tax_1 = self.env["account.tax"].create(
             {
