@@ -344,6 +344,7 @@
             <sheet>
                 <field name="dashboard_warning_message" class="alert alert-danger d-flex mt-2" role="alert" style="white-space: pre-wrap;" invisible="not dashboard_warning_message"/>
                 <field name="leave_type_increases_duration" class="alert alert-info d-flex mt-2" role="alert" style="white-space: pre-wrap;" invisible="not leave_type_increases_duration"/>
+                <field name="leave_type_support_document_message" class="alert alert-info d-flex mt-2" role="alert" style="white-space: pre-wrap;" invisible="not leave_type_support_document_message"/>
                 <div class="o_hr_leave_content row">
                     <div class="o_hr_leave_column col_left col-md-6 col-12">
                         <widget name="web_ribbon" title="Cancelled" bg_color="text-bg-danger" invisible="state != 'cancel'"/>
@@ -473,7 +474,7 @@
         <field name="mode">primary</field>
         <field name="priority">17</field>
         <field name="arch" type="xml">
-            <xpath expr="//field[@widget='many2one_avatar_employee']" position="attributes"> 
+            <xpath expr="//field[@widget='many2one_avatar_employee']" position="attributes">
                 <attribute name="readonly">0</attribute>
             </xpath>
             <field name="holiday_status_id" position="before">
