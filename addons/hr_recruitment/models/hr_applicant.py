@@ -1436,10 +1436,17 @@ class HrApplicant(models.Model):
             raise UserError(_("You are not allowed to perform this action."))
 
     def archive_applicant(self):
+        # One applicant gets the dedicated wizard, whose body is rendered up
+        # front and therefore editable without mail template rights.
+        res_model = (
+            "applicant.refuse.single"
+            if len(self) == 1
+            else "applicant.get.refuse.reason"
+        )
         return {
             "type": "ir.actions.act_window",
             "name": _("Refuse Reason"),
-            "res_model": "applicant.get.refuse.reason",
+            "res_model": res_model,
             "view_mode": "form",
             "target": "new",
             "context": {

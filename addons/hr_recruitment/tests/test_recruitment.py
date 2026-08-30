@@ -632,3 +632,65 @@ class TestRecruitment(TransactionCase):
             self.env["hr.applicant"].search(smart_button["domain"]),
             applicant | second,
         )
+
+    def test_refusing_one_applicant_lets_the_recruiter_edit_the_email(self):
+        """
+        Test that a single refusal is editable without mail template rights.
+
+        Every refuse reason carries a template, and mixin.mail.composer only
+        opens the body to a mail template editor, so a recruitment officer --
+        even an administrator -- could not adjust a refusal email at all.
+        """
+        officer = self.env["res.users"].create(
+            {
+                "name": "Refusing Officer",
+                "login": "refusing_officer",
+                "email": "refusing.officer@example.com",
+                "group_ids": [
+                    Command.link(
+                        self.env.ref("hr_recruitment.group_hr_recruitment_user").id
+                    )
+                ],
+            }
+        )
+        self.assertFalse(officer.has_group("mail.group_mail_template_editor"))
+        job = self.env["hr.job"].create({"name": "Refusing Job"})
+        applicant = self.env["hr.applicant"].create(
+            {
+                "partner_name": "Jane Doe",
+                "email_from": "jane.doe@example.com",
+                "job_id": job.id,
+            }
+        )
+
+        # A batch refusal renders once per recipient, so its body stays locked.
+        batch = Form(
+            self.env["applicant.get.refuse.reason"]
+            .with_user(officer)
+            .with_context(default_applicant_ids=applicant.ids)
+        )
+        self.assertFalse(batch.can_edit_body)
+
+        action = applicant.with_user(officer).archive_applicant()
+        self.assertEqual(action["res_model"], "applicant.refuse.single")
+        wizard = Form(
+            self.env[action["res_model"]]
+            .with_user(officer)
+            .with_context(**action["context"])
+        )
+        self.assertEqual(wizard.applicant_id, applicant)
+        self.assertNotIn(
+            "t-out", wizard.body, "The body must reach the officer already rendered."
+        )
+        self.assertNotIn("{{", wizard.subject)
+        self.assertIn("Refusing Job", wizard.subject)
+
+        # The body carries no readonly modifier here, so the officer may edit it.
+        wizard.body = "<p>Thanks for your time, Jane.</p>"
+        record = wizard.save()
+        self.assertTrue(record.can_edit_body)
+        record.action_refuse_reason_apply()
+
+        self.assertFalse(applicant.active)
+        self.assertTrue(applicant.refuse_reason_id)
+        self.assertIn("Thanks for your time, Jane.", applicant.message_ids[0].body)
