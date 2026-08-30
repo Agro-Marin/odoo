@@ -21,13 +21,17 @@ MAPPED_RATES = {
     10: RATING_HAPPY_VALUE,
 }
 
-class Rating(http.Controller):
 
-    @http.route('/rate/<string:token>/<int:rate>', type='http', auth="public", website=True)
+class Rating(http.Controller):
+    @http.route(
+        "/rate/<string:token>/<int:rate>", type="http", auth="public", website=True
+    )
     def action_view_rating(self, token, rate, **kwargs):
         if rate not in (RATING_HAPPY_VALUE, RATING_NEUTRAL_VALUE, RATING_UNHAPPY_VALUE):
             raise ValueError(
-                _("Incorrect rating: should be %(rating_unhappy)d, %(rating_neutral)d or %(rating_happy)d (received %(rate)d)"),
+                _(
+                    "Incorrect rating: should be %(rating_unhappy)d, %(rating_neutral)d or %(rating_happy)d (received %(rate)d)"
+                ),
                 rating_unhappy=RATING_UNHAPPY_VALUE,
                 rating_neutral=RATING_NEUTRAL_VALUE,
                 rating_happy=RATING_HAPPY_VALUE,
@@ -39,35 +43,62 @@ class Rating(http.Controller):
         # has been removed.
         rating, record_sudo = self._get_rating_and_record(token)
 
-        if not request.env.user._is_public() and \
-                request.env.user.partner_id.commercial_partner_id != rating.partner_id.commercial_partner_id:
-            return request.render('rating.rating_external_page_invalid_partner', {
-                'model_name': request.env['ir.model']._get(rating.res_model).display_name,
-                'name': record_sudo.display_name,
-                'web_base_url': rating.get_base_url(),
-            })
+        if (
+            not request.env.user._is_public()
+            and request.env.user.partner_id.commercial_partner_id
+            != rating.partner_id.commercial_partner_id
+        ):
+            return request.render(
+                "rating.rating_external_page_invalid_partner",
+                {
+                    "model_name": request.env["ir.model"]
+                    ._get(rating.res_model)
+                    .display_name,
+                    "name": record_sudo.display_name,
+                    "web_base_url": rating.get_base_url(),
+                },
+            )
 
         lang = rating.partner_id.lang or get_lang(request.env).code
-        return request.env['ir.ui.view'].with_context(lang=lang)._render_template('rating.rating_external_page_submit', {
-            'rating': rating,
-            'token': token,
-            'rate_names': {
-                RATING_HAPPY_VALUE: _("Happy"),
-                RATING_NEUTRAL_VALUE: _("Neutral"),
-                RATING_UNHAPPY_VALUE: _("Unhappy"),
-            },
-            'rate': rate,
-        })
+        return (
+            request.env["ir.ui.view"]
+            .with_context(lang=lang)
+            ._render_template(
+                "rating.rating_external_page_submit",
+                {
+                    "rating": rating,
+                    "token": token,
+                    "rate_names": {
+                        RATING_HAPPY_VALUE: _("Happy"),
+                        RATING_NEUTRAL_VALUE: _("Neutral"),
+                        RATING_UNHAPPY_VALUE: _("Unhappy"),
+                    },
+                    "rate": rate,
+                },
+            )
+        )
 
-    @http.route(['/rate/<string:token>/submit_feedback'], type="http", auth="public", methods=['post', 'get'], website=True)
+    @http.route(
+        ["/rate/<string:token>/submit_feedback"],
+        type="http",
+        auth="public",
+        methods=["post", "get"],
+        website=True,
+    )
     def action_submit_rating(self, token, rate=0, **kwargs):
 
         rating, record_sudo = self._get_rating_and_record(token)
         if request.httprequest.method == "POST":
             rate = int(rate)
-            if rate not in (RATING_HAPPY_VALUE, RATING_NEUTRAL_VALUE, RATING_UNHAPPY_VALUE):
+            if rate not in (
+                RATING_HAPPY_VALUE,
+                RATING_NEUTRAL_VALUE,
+                RATING_UNHAPPY_VALUE,
+            ):
                 raise ValueError(
-                    _("Incorrect rating: should be %(rating_unhappy)d, %(rating_neutral)d or %(rating_happy)d (received %(rate)d)"),
+                    _(
+                        "Incorrect rating: should be %(rating_unhappy)d, %(rating_neutral)d or %(rating_happy)d (received %(rate)d)"
+                    ),
                     rating_unhappy=RATING_UNHAPPY_VALUE,
                     rating_neutral=RATING_NEUTRAL_VALUE,
                     rating_happy=RATING_HAPPY_VALUE,
@@ -76,22 +107,33 @@ class Rating(http.Controller):
             record_sudo.rating_apply(
                 rate,
                 rating=rating,
-                feedback=kwargs.get('feedback'),
+                feedback=kwargs.get("feedback"),
                 subtype_xmlid=None,  # force default subtype choice
             )
 
         lang = rating.partner_id.lang or get_lang(request.env).code
-        return request.env['ir.ui.view'].with_context(lang=lang)._render_template('rating.rating_external_page_view', {
-            'web_base_url': rating.get_base_url(),
-            'rating': rating,
-        })
+        return (
+            request.env["ir.ui.view"]
+            .with_context(lang=lang)
+            ._render_template(
+                "rating.rating_external_page_view",
+                {
+                    "web_base_url": rating.get_base_url(),
+                    "rating": rating,
+                },
+            )
+        )
 
     def _get_rating_and_record(self, token):
-        rating_sudo = request.env['rating.rating'].sudo().search([('access_token', '=', token)])
+        rating_sudo = (
+            request.env["rating.rating"].sudo().search([("access_token", "=", token)])
+        )
         if not rating_sudo:
             raise werkzeug.exceptions.NotFound
 
-        record_sudo = request.env[rating_sudo.res_model].sudo().browse(rating_sudo.res_id)
+        record_sudo = (
+            request.env[rating_sudo.res_model].sudo().browse(rating_sudo.res_id)
+        )
         if not record_sudo.exists():
             raise werkzeug.exceptions.NotFound
         return rating_sudo, record_sudo
