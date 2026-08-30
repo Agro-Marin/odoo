@@ -34,6 +34,19 @@ class ResourceReservation(models.Model):
     # ``_check_company`` from create/write when the model opts in here.
     _check_company_auto = True
 
+    # Columns the overlap sweep reads straight from the table (see
+    # ``_overlap_rows``): every one of ``_conflicting_reservations``,
+    # ``_prospective_conflicts`` and ``_search_schedule_overlap_count``
+    # flushes exactly this set first, so a pending write is never invisible
+    # to the sweep.
+    _OVERLAP_SWEEP_FIELDS = [
+        "date_start",
+        "date_end",
+        "resource_id",
+        "allocated_percentage",
+        "active",
+    ]
+
     # ---- Identity ----
     name = fields.Char(required=True)
     active = fields.Boolean(default=True)
@@ -459,9 +472,7 @@ class ResourceReservation(models.Model):
         # pending change to those columns — not just on ``stored`` — must be
         # flushed first, otherwise an unflushed archive/allocation edit on
         # another reservation would be invisible to the sweep.
-        self.flush_model(
-            ["date_start", "date_end", "resource_id", "allocated_percentage", "active"]
-        )
+        self.flush_model(self._OVERLAP_SWEEP_FIELDS)
         # Fetch the potentially-conflicting rows in a single query, then sweep
         # each resource's timeline in Python.
         #
@@ -559,9 +570,7 @@ class ResourceReservation(models.Model):
         # Same reason as the compute: the fetch below reads sibling rows
         # straight from the table, so pending writes to those columns must be
         # on disk first.
-        self.flush_model(
-            ["date_start", "date_end", "resource_id", "allocated_percentage", "active"]
-        )
+        self.flush_model(self._OVERLAP_SWEEP_FIELDS)
 
         resource_ids = list({row[1] for row in prospective})
         window_start = min(row[2] for row in prospective)
@@ -606,9 +615,7 @@ class ResourceReservation(models.Model):
 
         # Same reason as in the compute: the sweep reads sibling rows straight
         # from the table, so pending writes must reach it first.
-        self.flush_model(
-            ["date_start", "date_end", "resource_id", "allocated_percentage", "active"]
-        )
+        self.flush_model(self._OVERLAP_SWEEP_FIELDS)
         partners = self._sweep_overlap_partners(self._overlap_rows())
         conflicted = {res_id: len(peers) for res_id, peers in partners.items()}
 
