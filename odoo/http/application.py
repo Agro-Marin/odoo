@@ -24,6 +24,7 @@ from odoo.modules import module as module_manager
 from odoo.tools import config, file_path
 from odoo.tools.misc import real_time
 
+from ._protocols import ir_http
 from .constants import (
     REJECTED_HTTP_METHODS,
     STATIC_ALLOWED_METHODS,
@@ -163,7 +164,7 @@ class Application:
             return self.nodb_routing_map
         router_env = env if env is not None else request.env
         assert router_env is not None, "a database router needs a bound environment"
-        return router_env["ir.http"].routing_map()
+        return ir_http(router_env).routing_map()
 
     @_locked_cached_property
     def geoip_city_db(self):

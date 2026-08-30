@@ -48,6 +48,10 @@ ENV_MODEL_ACCESSORS: dict[str, str] = {
     "_ir_defaults": "ir.default",
 }
 
+MODEL_ACCESSOR_FUNCTIONS: dict[str, str] = {
+    "ir_http": "ir.http",
+}
+
 ENV_INTERNAL_MODEL_LOOKUPS: frozenset[str] = frozenset({"ir.model.data"})
 
 SUBTREES_WITH_NO_MODEL_REACH: tuple[str, ...] = (
@@ -163,6 +167,11 @@ class _EnvModelCollector(ast.NodeVisitor):
         self.generic_visit(node)
         model = ENV_MODEL_ACCESSORS.get(node.attr)
         if model is not None and _is_env_expression(node.value):
+            self.hits.append((model, node.lineno))
+
+    def visit_Name(self, node: ast.Name) -> None:
+        model = MODEL_ACCESSOR_FUNCTIONS.get(node.id)
+        if model is not None:
             self.hits.append((model, node.lineno))
 
     def visit_Call(self, node: ast.Call) -> None:

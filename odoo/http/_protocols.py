@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
 
 if TYPE_CHECKING:
     from types import MethodType
@@ -144,3 +144,21 @@ class HttpExtension(Protocol):
 
     def _apply_max_upload_size(self) -> None:
         pass
+
+
+def ir_http(source: Registry | odoo.api.Environment) -> HttpExtension:
+    """`ir.http`, carrying the protocol its implementation is pinned to.
+
+    Both spellings reach the same object. Every hook `HttpExtension` declares is
+    a `classmethod` on `ir.http`, so `registry["ir.http"]._match` and
+    `env["ir.http"]._match` are the same bound callable, and the protocol
+    describes exactly that bound surface -- `test_ir_http_contract` compares it
+    against the model hook by hook, dropping the leading `self`. One return type
+    therefore serves a registry and an environment alike.
+
+    Neither container can carry the type on its own. `Registry.__getitem__` is
+    `str -> type[BaseModel]`, and the per-model `Literal` overloads on
+    `Environment.__getitem__` reach only protocols that `odoo/orm` owns, which
+    `HttpExtension` is not and must not become: `orm` may not import `http`.
+    """
+    return cast("HttpExtension", source["ir.http"])

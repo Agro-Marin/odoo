@@ -606,9 +606,9 @@ class TestEdgeCountConventions(unittest.TestCase):
     def test_http_figures_are_per_statement_and_the_symbol_count_is_given(self) -> None:
         per_statement = self._edges("http", per_symbol=False)
         per_symbol = self._edges("http", per_symbol=True)
-        self.assertEqual(per_statement[("serving", "features")], 22)
+        self.assertEqual(per_statement[("serving", "features")], 27)
         self.assertEqual(per_statement[("features", "serving")], 1)
-        self.assertIn("22 serving", DOC_FLAT)
+        self.assertIn("27 serving", DOC_FLAT)
         self.assertIn(
             f"by symbol it is {per_symbol[('serving', 'features')]} against "
             f"{per_symbol[('features', 'serving')]}",

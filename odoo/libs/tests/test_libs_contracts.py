@@ -5,6 +5,7 @@ import threading
 import zipfile
 from collections import OrderedDict
 from datetime import date, datetime
+from typing import Any
 
 import pytest
 from dateutil.relativedelta import relativedelta
@@ -732,11 +733,12 @@ class TestEmailDomainExtractUsesTheLastAt:
 
 class TestWorkingOnDatabaseRestoresAnExplicitNone:
     def test_an_explicit_none_is_put_back_not_deleted(self):
-        import threading
+        from odoo.libs.worker_thread import (
+            current_worker_thread,
+            working_on_database,
+        )
 
-        from odoo.libs.worker_thread import working_on_database
-
-        thread = threading.current_thread()
+        thread = current_worker_thread()
         thread.dbname = None
         try:
             with working_on_database("scratch"):
@@ -747,22 +749,24 @@ class TestWorkingOnDatabaseRestoresAnExplicitNone:
             del thread.dbname
 
     def test_an_absent_attribute_is_still_removed(self):
-        import threading
+        from odoo.libs.worker_thread import (
+            current_worker_thread,
+            working_on_database,
+        )
 
-        from odoo.libs.worker_thread import working_on_database
-
-        thread = threading.current_thread()
+        thread = current_worker_thread()
         assert not hasattr(thread, "dbname")
         with working_on_database("scratch"):
             assert thread.dbname == "scratch"
         assert not hasattr(thread, "dbname")
 
     def test_a_real_previous_value_is_restored(self):
-        import threading
+        from odoo.libs.worker_thread import (
+            current_worker_thread,
+            working_on_database,
+        )
 
-        from odoo.libs.worker_thread import working_on_database
-
-        thread = threading.current_thread()
+        thread = current_worker_thread()
         thread.dbname = "outer"
         try:
             with working_on_database("inner"):
@@ -850,14 +854,26 @@ class TestSqlJoinKeepsTheSeparatorsToFlush:
         def __repr__(self):
             return "<field>"
 
+    @classmethod
+    def _a_field(cls) -> Any:
+        """A stand-in for a `Field`, deliberately opaque.
+
+        `SQL` only stores `to_flush` and hands it back, so what this suite
+        asserts -- that `join` keeps the separator's own fields -- holds for any
+        object. `Any` is the type that says so, and it keeps `odoo/libs` free of
+        the ORM: naming `Field` here, even under `TYPE_CHECKING`, would point a
+        package that is Odoo-agnostic at one that is not.
+        """
+        return cls._Field()
+
     def test_a_separator_without_params_reports_its_fields(self):
-        field = self._Field()
+        field = self._a_field()
         joined = SQL(" AND ", to_flush=field).join([SQL("a=1"), SQL("b=2")])
         assert list(joined.to_flush) == [field]
         assert joined.code == "a=1 AND b=2"
 
     def test_the_two_branches_agree(self):
-        field = self._Field()
+        field = self._a_field()
         items = [SQL("a"), SQL("b"), SQL("c")]
         flat = SQL(", ", to_flush=field).join(items)
         parameterised = SQL("%s", ", ", to_flush=field).join(items)
@@ -866,20 +882,20 @@ class TestSqlJoinKeepsTheSeparatorsToFlush:
 
 class TestCollectorInvariantHoldsForEveryWriter:
     def test_construction_from_a_mapping(self):
-        collector = Collector({"a": [], "b": [1, 2]})
+        collector = Collector[str, int]({"a": [], "b": [1, 2]})
         assert dict(collector) == {"b": (1, 2)}
         assert collector["a"] == ()
         assert "a" not in collector
 
     def test_update_and_setdefault(self):
-        collector = Collector()
+        collector = Collector[str, int]()
         collector.update({"a": [], "b": [1]})
         collector.setdefault("c", [])
         collector.setdefault("d", [2])
         assert dict(collector) == {"b": (1,), "d": (2,)}
 
     def test_add_works_on_a_collector_built_from_a_mapping(self):
-        collector = Collector({"b": [1, 2]})
+        collector = Collector[str, int]({"b": [1, 2]})
         collector.add("b", 3)
         assert collector["b"] == (1, 2, 3)
 
@@ -889,7 +905,7 @@ class TestCollectorInvariantHoldsForEveryWriter:
 
 class TestLruViewsDoNotWalkThroughGetitem:
     def test_items_does_not_touch_the_recency_order(self):
-        cache = LRU(3)
+        cache = LRU[str, int](3)
         cache["a"], cache["b"], cache["c"] = 1, 2, 3
         moved = []
 
@@ -905,7 +921,7 @@ class TestLruViewsDoNotWalkThroughGetitem:
         assert moved == []
 
     def test_iteration_survives_concurrent_eviction(self):
-        cache = LRU(50)
+        cache = LRU[int, int](50)
         for i in range(50):
             cache[i] = i
         errors: list[str] = []

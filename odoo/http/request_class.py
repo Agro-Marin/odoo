@@ -16,6 +16,7 @@ from odoo.modules.registry import Registry
 from odoo.tools import profiler
 
 from ._csrf import _RequestCsrfMixin
+from ._protocols import ir_http
 from ._response import _RequestResponseMixin
 from ._serve import _RequestServeMixin
 from .constants import (
@@ -200,7 +201,7 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
 
         cookies = werkzeug.datastructures.MultiDict(self.httprequest.cookies)
         if registry is not None:
-            registry["ir.http"]._sanitize_cookies(cookies)
+            ir_http(registry)._sanitize_cookies(cookies)
         result = werkzeug.datastructures.ImmutableMultiDict(cookies)
         self._cookies_memo = (sanitized, result)
         return result

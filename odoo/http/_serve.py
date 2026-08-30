@@ -21,7 +21,7 @@ from odoo.modules.registry import Registry
 from odoo.service.transaction import retrying
 from odoo.tools import config
 
-from ._protocols import RequestState
+from ._protocols import RequestState, ir_http
 from ._retry import RequestRetryParticipant
 from .constants import NOT_FOUND_NODB, NOT_FOUND_NODB_TEXT, STATIC_CACHE
 from .core import borrow_request
@@ -168,7 +168,7 @@ class _RequestServeMixin(RequestState):
 
     def _resolve_serve_target(self, registry: Registry) -> tuple[Any, bool]:
         try:
-            rule, args = registry["ir.http"]._match(self.httprequest.path)
+            rule, args = ir_http(registry)._match(self.httprequest.path)
         except NotFound as not_found_exc:
             self.dispatcher = infer_dispatcher_for_unmatched(self)(self)
             return functools.partial(self._serve_ir_http_fallback, not_found_exc), True
@@ -180,16 +180,20 @@ class _RequestServeMixin(RequestState):
         return functools.partial(self._serve_ir_http, rule, args), bool(readonly)
 
     def _run_serve_func(self, serve_func: Any) -> Response:
+        env = self.env
+        assert env is not None, "a database-bound request has an environment"
         try:
-            return retrying(serve_func, env=self.env)
+            return retrying(serve_func, env=env)
         except Exception as exc:
             self._update_served_exception(exc)
             raise
 
     def _serve_readonly(self, serve_func: Any) -> Any:
         current_worker_thread().cursor_mode = "ro"
+        env = self.env
+        assert env is not None, "a database-bound request has an environment"
         try:
-            return retrying(serve_func, env=self.env)
+            return retrying(serve_func, env=env)
         except psycopg.errors.ReadOnlySqlTransaction as exc:
             _logger.warning(
                 "%s, retrying with a read/write cursor — readonly route "
@@ -277,7 +281,7 @@ class _RequestServeMixin(RequestState):
             if isinstance(exc, AccessDenied):
                 exc.suppress_traceback()
             registry = self._bound_registry()
-            set_error_response(exc, registry["ir.http"]._handle_error(exc))
+            set_error_response(exc, ir_http(registry)._handle_error(exc))
 
     def _bound_registry(self) -> Registry:
         registry = self.registry
@@ -292,24 +296,24 @@ class _RequestServeMixin(RequestState):
 
     def _serve_ir_http_fallback(self, not_found: NotFound) -> Response:
         registry = self._bound_registry()
-        registry["ir.http"]._apply_max_upload_size()
+        ir_http(registry)._apply_max_upload_size()
         self._reject_oversized_body()
         self._params_source = self.get_http_params
-        registry["ir.http"]._auth_method_public()
-        response = registry["ir.http"]._serve_fallback()
+        ir_http(registry)._auth_method_public()
+        response = ir_http(registry)._serve_fallback()
         if response:
-            registry["ir.http"]._post_dispatch(response)
+            ir_http(registry)._post_dispatch(response)
             return response
 
         no_fallback = NotFound()
         no_fallback.__context__ = not_found
-        set_error_response(no_fallback, registry["ir.http"]._handle_error(no_fallback))
+        set_error_response(no_fallback, ir_http(registry)._handle_error(no_fallback))
         raise no_fallback
 
     def _serve_ir_http(self, rule: Any, args: dict[str, Any]) -> Response:
         registry = self._bound_registry()
-        registry["ir.http"]._authenticate(rule.endpoint)
-        registry["ir.http"]._pre_dispatch(rule, args)
+        ir_http(registry)._authenticate(rule.endpoint)
+        ir_http(registry)._pre_dispatch(rule, args)
         response = self.dispatcher.dispatch(rule.endpoint, args)
-        registry["ir.http"]._post_dispatch(response)
+        ir_http(registry)._post_dispatch(response)
         return response

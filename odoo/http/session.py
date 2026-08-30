@@ -14,6 +14,7 @@ from odoo.libs._vendor import sessions
 from odoo.libs.json import dumps_bytes as _dumps_bytes
 from odoo.tools import get_lang
 
+from ._protocols import ir_http
 from .constants import (
     DEFAULT_LANG,
     SESSION_DELETION_TIMER,
@@ -377,7 +378,7 @@ class Session(collections.abc.MutableMapping):
         self.should_rotate = True
 
         if request and request.env is not None:
-            request.env["ir.http"]._post_logout()
+            ir_http(request.env)._post_logout()
 
     def touch(self) -> None:
         self.is_dirty = True

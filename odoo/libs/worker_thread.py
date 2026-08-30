@@ -40,19 +40,16 @@ def current_worker_thread() -> WorkerThread:
     return as_worker_thread(threading.current_thread())
 
 
-_ABSENT = object()
-
-
 @contextmanager
 def working_on_database(db_name: str) -> Iterator[None]:
     worker = as_worker_thread(threading.current_thread())
-    previous = getattr(worker, "dbname", _ABSENT)
+    was_set = hasattr(worker, "dbname")
+    previous = worker.dbname if was_set else None
     worker.dbname = db_name
     try:
         yield
     finally:
-        if previous is _ABSENT:
-            if hasattr(worker, "dbname"):
-                del worker.dbname
-        else:
+        if was_set:
             worker.dbname = previous
+        elif hasattr(worker, "dbname"):
+            del worker.dbname

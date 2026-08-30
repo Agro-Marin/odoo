@@ -38,9 +38,15 @@ class SetDefinitions:
             self.__leaves[leaf_id] = leaf
             self.__leaves[ref] = leaf
 
-        by_id = {leaf_id: self.__leaves[leaf_id] for leaf_id in definitions}
-        subsets = {leaf_id: leaf.subsets for leaf_id, leaf in by_id.items()}
-        supersets = {leaf_id: leaf.supersets for leaf_id, leaf in by_id.items()}
+        by_id: dict[LeafIdType, Leaf] = {
+            leaf_id: self.__leaves[leaf_id] for leaf_id in definitions
+        }
+        subsets: dict[LeafIdType, set[LeafIdType]] = {
+            leaf_id: leaf.subsets for leaf_id, leaf in by_id.items()
+        }
+        supersets: dict[LeafIdType, set[LeafIdType]] = {
+            leaf_id: leaf.supersets for leaf_id, leaf in by_id.items()
+        }
         for leaf_id, info in definitions.items():
             for direct_greater_id in info.get("supersets", ()):
                 if direct_greater_id not in supersets:
@@ -55,7 +61,9 @@ class SetDefinitions:
                 for greater_id in greater_ids:
                     subsets[greater_id].update(smaller_ids)
 
-        disjoints = {leaf_id: leaf.disjoints for leaf_id, leaf in by_id.items()}
+        disjoints: dict[LeafIdType, set[LeafIdType]] = {
+            leaf_id: leaf.disjoints for leaf_id, leaf in by_id.items()
+        }
         for leaf_id, info in definitions.items():
             for distinct_id in info.get("disjoints", set()):
                 if distinct_id not in subsets:

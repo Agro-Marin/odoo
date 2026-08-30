@@ -17,9 +17,10 @@ def _endpoint(**routing):
         seen.update(params)
         return "handled"
 
-    handler.routing = {"type": "http", **routing}
-    handler.seen = seen
-    return handler
+    endpoint: Any = handler
+    endpoint.routing = {"type": "http", **routing}
+    endpoint.seen = seen
+    return endpoint
 
 
 def _request(method="POST", params=None, db="db", valid=True, mimetype="", body=b""):

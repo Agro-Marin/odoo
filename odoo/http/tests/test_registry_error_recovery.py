@@ -27,6 +27,11 @@ class _Session:
 
 def _request(path="/whatever", args=None):
     served = []
+
+    def _serve_nodb():
+        served.append(1)
+        return "nodb"
+
     httprequest: Any = types.SimpleNamespace(
         path=path,
         args=werkzeug.datastructures.MultiDict(args or {}),
@@ -36,7 +41,7 @@ def _request(path="/whatever", args=None):
         session=_Session(),
         httprequest=httprequest,
         rerouted=None,
-        _serve_nodb=lambda: served.append(1) or "nodb",
+        _serve_nodb=_serve_nodb,
     )
     this.reroute = lambda p, q=None: setattr(this, "rerouted", (p, q))
     return this, httprequest

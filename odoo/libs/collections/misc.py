@@ -1,5 +1,6 @@
 __all__ = ["Collector", "ReversedIterable", "StackMap"]
 
+import itertools
 import typing
 from collections.abc import Iterable, Iterator, MutableMapping, Reversible
 from typing import Any
@@ -14,9 +15,7 @@ class Collector[K, T](dict[K, tuple[T, ...]]):
 
     def update(self, mapping: Any = (), /, **kwargs: Iterable[T]) -> None:  # type: ignore[override]
         items = mapping.items() if hasattr(mapping, "items") else mapping
-        for key, val in items:
-            self[key] = val
-        for key, val in kwargs.items():  # type: ignore[assignment]
+        for key, val in itertools.chain(items, kwargs.items()):
             self[key] = val
 
     def setdefault(self, key: K, default: Iterable[T] = (), /) -> tuple[T, ...]:  # type: ignore[override]
@@ -27,7 +26,7 @@ class Collector[K, T](dict[K, tuple[T, ...]]):
     def __getitem__(self, key: K) -> tuple[T, ...]:
         return dict.get(self, key, ())
 
-    @typing.overload
+    @typing.overload  # type: ignore[override]
     def get(self, key: K, /) -> tuple[T, ...]: ...
     @typing.overload
     def get[D](self, key: K, /, default: D) -> tuple[T, ...] | D: ...

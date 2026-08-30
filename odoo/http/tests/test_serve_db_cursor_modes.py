@@ -39,7 +39,7 @@ def _serve_db(this):
 
 
 def _make(readonly_route=True, replica=True):
-    calls = {"served": 0, "reset_for_replay": [], "opened": []}
+    calls: dict[str, Any] = {"served": 0, "reset_for_replay": [], "opened": []}
     first = _Cursor(readonly=replica)
 
     endpoint = types.SimpleNamespace(

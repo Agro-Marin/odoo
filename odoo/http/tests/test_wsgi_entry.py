@@ -1,4 +1,5 @@
 import io
+from typing import Any
 from unittest import mock
 
 import pytest
@@ -135,7 +136,7 @@ def test_a_nul_in_the_path_is_a_404_and_never_reaches_the_resolver():
 
 def test_a_registry_error_falls_back_to_serving_without_a_database():
     app = application.Application()
-    req = _FakeRequest(None, app, db="db")
+    req: Any = _FakeRequest(None, app, db="db")
 
     def boom():
         req.calls.append("db")
@@ -154,7 +155,7 @@ def test_a_registry_error_falls_back_to_serving_without_a_database():
 
 def test_a_failure_still_answers_and_empties_the_stack():
     app = application.Application()
-    req = _FakeRequest(None, app, db="db")
+    req: Any = _FakeRequest(None, app, db="db")
     req._serve_db = mock.Mock(side_effect=ValueError("boom"))
     req.dispatcher.handle_error.side_effect = RuntimeError("and the handler too")
     req.dispatcher.post_dispatch.side_effect = None
@@ -166,7 +167,7 @@ def test_a_failure_still_answers_and_empties_the_stack():
 
 def test_a_rerouted_request_has_its_second_httprequest_closed():
     app = application.Application()
-    req = _FakeRequest(None, app, db=None)
+    req: Any = _FakeRequest(None, app, db=None)
     rerouted = mock.Mock()
 
     def serve_nodb():

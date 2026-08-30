@@ -12,7 +12,7 @@ from odoo.libs.json import dumps_bytes as _fast_dumps_bytes
 from odoo.libs.worker_thread import current_worker_thread
 from odoo.tools.json import orjson_default
 
-from ._protocols import RequestState
+from ._protocols import RequestState, ir_http
 from .wrappers import HTTPRequest, Response
 
 
@@ -57,7 +57,7 @@ class _RequestResponseMixin(RequestState):
             else:
                 location = "/" + urlunsplit(stripped).lstrip("/\\")
         if self.db and self.env is not None:
-            return self.env["ir.http"]._redirect(location, code)
+            return ir_http(self.env)._redirect(location, code)
         return werkzeug.utils.redirect(location, code, Response=Response)
 
     def redirect_query(

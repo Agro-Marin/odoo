@@ -83,7 +83,7 @@ def test_a_json_client_gets_the_nodb_message_as_json(nodb_app):
 def test_json2_error_responses_are_the_package_response_type():
     exc = werkzeug.exceptions.NotFound()
     exc.response = werkzeug.wrappers.Response(b"raw", status=404)
-    dispatcher = Json2Dispatcher.__new__(Json2Dispatcher)
+    dispatcher: Any = Json2Dispatcher.__new__(Json2Dispatcher)
     dispatcher.request = None
 
     assert isinstance(dispatcher.handle_error(exc), Response)
