@@ -74,3 +74,22 @@ class TestDashboard(TestHrHolidaysCommon):
             {d["title"] for d in dashboard_data["bankHolidays"]},
             {"Public holiday (employee schedule)", "Public holiday (no schedule)"},
         )
+
+    def test_pending_allocations_action_can_open_a_record(self):
+        """The dashboard's pending allocation counter must open onto a form.
+
+        Clicking "Allocation Requests" on the time off dashboard hands the web
+        client an action. With a list view alone the rows are inert: there is
+        nowhere for the client to navigate to, so an employee can see that they
+        have pending allocations but cannot open a single one of them.
+        """
+        action = (
+            self.env["hr.leave"].with_user(self.user_employee).open_pending_requests()
+        )
+
+        self.assertEqual(action["res_model"], "hr.leave.allocation")
+        self.assertIn(
+            "form",
+            [view_mode for __, view_mode in action["views"]],
+            "The action must carry a form view or its list rows cannot be opened.",
+        )

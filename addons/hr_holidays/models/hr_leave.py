@@ -2113,7 +2113,9 @@ is approved, validated or refused."
             "name": _("Allocation Requests"),
             "type": "ir.actions.act_window",
             "res_model": "hr.leave.allocation",
-            "views": [[self.env.ref(view_name).id, "list"]],
+            # The form view is what makes the list rows clickable; without it
+            # the dashboard can only show the count, never open a request.
+            "views": [(self.env.ref(view_name).id, "list"), (False, "form")],
             "domain": domain,
             "context": context,
         }
