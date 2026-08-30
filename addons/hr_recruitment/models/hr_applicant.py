@@ -1394,8 +1394,10 @@ class HrApplicant(models.Model):
                 "job_id": self.job_id.id,
                 "job_title": self.job_id.name,
                 "department_id": self.department_id.id,
-                "work_email": self.department_id.company_id.email
-                or self.email_from,  # To have a valid email address by default
+                # Seeded from the applicant, never from the company: work_phone
+                # protects the whole compute pair, so a work_email left empty
+                # here is written straight back onto the applicant's own contact.
+                "work_email": self.email_from or self.partner_id.email,
                 "work_phone": self.department_id.company_id.phone,
             }
         )
@@ -1421,8 +1423,7 @@ class HrApplicant(models.Model):
             "lang": address_sudo.lang,
             "department_id": self.department_id.id,
             "address_id": self.company_id.partner_id.id,
-            "work_email": self.department_id.company_id.email
-            or self.email_from,  # To have a valid email address by default
+            "work_email": self.email_from or self.partner_id.email,
             "work_phone": self.department_id.company_id.phone,
             "applicant_ids": self.ids,
             "phone": self.partner_phone,

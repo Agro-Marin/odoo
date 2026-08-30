@@ -552,3 +552,45 @@ class TestRecruitment(TransactionCase):
             "987654321",
             "Phone should have been updated on the partner.",
         )
+
+    def test_create_employee_keeps_the_applicant_contact_email(self):
+        """
+        Test that hiring an applicant leaves the contact's own email alone.
+
+        ``work_email`` is a stored compute whose inverse writes back to
+        ``work_contact_id``, and the employee's work contact *is* the applicant's
+        partner, so seeding ``work_email`` with the company mailbox used to
+        replace the candidate's personal email with it.
+        """
+        self.company.email = "info@company.example.com"
+        department = self.env["hr.department"].create({"name": "Test Department"})
+        job = self.env["hr.job"].create(
+            {"name": "Test Job", "department_id": department.id}
+        )
+        applicant = self.env["hr.applicant"].create(
+            {
+                "partner_name": "Hired Applicant",
+                "email_from": "hired.applicant@example.com",
+                "job_id": job.id,
+            }
+        )
+        contact = applicant.partner_id
+
+        action = applicant.create_employee_from_applicant()
+        employee = self.env["hr.employee"].browse(action["res_id"])
+
+        self.assertEqual(
+            contact.email,
+            "hired.applicant@example.com",
+            "Hiring must not repoint the applicant's contact to the company mailbox.",
+        )
+        self.assertEqual(
+            employee.work_email,
+            "hired.applicant@example.com",
+            "The new employee must not inherit the company mailbox as work email.",
+        )
+        self.assertEqual(
+            employee.private_email,
+            "hired.applicant@example.com",
+            "The applicant's own email stays reachable as the private email.",
+        )
