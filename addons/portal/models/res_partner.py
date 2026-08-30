@@ -19,7 +19,6 @@ class ResPartner(models.Model):
             "country_id",
             "zip",
             "vat",
-            "company_name",
         }
 
     def _can_edit_country(self):

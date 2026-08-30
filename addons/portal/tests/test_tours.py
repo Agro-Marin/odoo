@@ -11,7 +11,6 @@ class TestUi(HttpCaseWithUserDemo, HttpCaseWithUserPortal):
         cls.partner_portal.write(
             {
                 "city": "Bayonne",
-                "company_name": "YourCompany",
                 "country_id": cls.env.ref("base.us").id,
                 "phone": "(683)-556-5104",
                 "street": "858 Lynn Street",

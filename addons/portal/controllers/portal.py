@@ -528,17 +528,13 @@ class CustomerPortal(Controller):
             ):
                 partner_sudo._onchange_phone_validation()
 
-        if (
-            "company_name" in address_values
-            and partner_sudo.commercial_partner_id != partner_sudo
-            and partner_sudo.commercial_partner_id.is_company
-        ):
-            company_name = address_values["company_name"]
-            parent_company = partner_sudo.commercial_partner_id
-            partner_sudo.company_name = False
-
-            if company_name and parent_company and parent_company.name != company_name:
-                parent_company.name = company_name
+        if company_name := (extra_form_data.get("company_name") or "").strip():
+            commercial_partner = partner_sudo.commercial_partner_id
+            if commercial_partner != partner_sudo and commercial_partner.is_company:
+                if commercial_partner.name != company_name:
+                    commercial_partner.name = company_name
+            elif not partner_sudo.is_company:
+                partner_sudo._create_parent_from_name(company_name)
 
         self._handle_extra_form_data(extra_form_data, address_values)
 
@@ -967,7 +963,7 @@ class CustomerPortal(Controller):
             values["errors"] = {"deactivate": "validation"}
         else:
             try:
-                request.env["res.users"]._check_credentials(
+                request.env.user._check_credentials(
                     credential, {"interactive": True}
                 )
                 request.env.user.sudo()._deactivate_portal_user(**post)
