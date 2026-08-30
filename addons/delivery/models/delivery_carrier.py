@@ -9,25 +9,17 @@ from odoo.tools.safe_eval import safe_eval
 
 
 class DeliveryCarrier(models.Model):
+    """Shipping carrier: rate computation and delivery-method configuration."""
+
     _name = "delivery.carrier"
     _description = "Shipping Methods"
     _order = "sequence, id"
 
-    """ A Shipping Provider
-
-    In order to add your own external provider, follow these steps:
-
-    1. Create your model MyProvider that _inherit 'delivery.carrier'
-    2. Extend the selection of the field "delivery_type" with a pair
-       ('<my_provider>', 'My Provider')
-    3. Add your methods:
-       <my_provider>_rate_shipment
-       <my_provider>_send_shipping
-       <my_provider>_get_tracking_link
-       <my_provider>_cancel_shipment
-       _<my_provider>_get_default_custom_package_code
-       (they are documented hereunder)
-    """
+    # To add an external provider: inherit this model, extend the
+    # "delivery_type" selection with a ('<my_provider>', 'My Provider') pair,
+    # and add <my_provider>_rate_shipment, <my_provider>_send_shipping,
+    # <my_provider>_get_tracking_link, <my_provider>_cancel_shipment and
+    # _<my_provider>_get_default_custom_package_code (documented hereunder).
 
     # -------------------------------- #
     # Internals for shipping providers #
