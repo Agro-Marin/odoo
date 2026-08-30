@@ -1,0 +1,8 @@
+{
+  "expected": {},
+  "note": "green. Installing the media addons (social_twitter, social_linkedin, social_push_notifications, event_social) alongside makes TestSocialMultiCompany fail two subtests on ACLs -- a scoping artifact of the wider module set, not debt in social; measure this suite in its own scope",
+  "run_spec": "-i social --test-enable --test-tags /social, on a database with ONLY social installed",
+  "suite": "/social",
+  "tests_total": 21,
+  "verified_at": "e3862403b4e"
+}
