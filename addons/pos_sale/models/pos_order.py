@@ -324,9 +324,17 @@ class PosOrderLine(models.Model):
         return params
 
     def _launch_stock_rule_from_pos_order_lines(self):
-        orders = self.mapped("order_id")
-        for order in orders:
-            self.env["stock.move"].browse(
-                order.lines.sale_order_line_id.move_ids._rollup_move_origs()
-            ).filtered(lambda ml: ml.state not in ["cancel", "done"])._action_cancel()
+        # `move_ids` on sale.order.line only exists when `sale_stock` is
+        # installed (pos_sale does not depend on it). Without it there is no
+        # stock-move origin to cancel, same reasoning as
+        # StockPicking._create_move_from_pos_order_lines (pos_sale ledger
+        # finding F01).
+        if "move_ids" in self.env["sale.order.line"]._fields:
+            orders = self.mapped("order_id")
+            for order in orders:
+                self.env["stock.move"].browse(
+                    order.lines.sale_order_line_id.move_ids._rollup_move_origs()
+                ).filtered(
+                    lambda ml: ml.state not in ["cancel", "done"]
+                )._action_cancel()
         return super()._launch_stock_rule_from_pos_order_lines()
