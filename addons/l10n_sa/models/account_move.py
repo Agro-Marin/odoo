@@ -136,8 +136,5 @@ class AccountMove(models.Model):
         """
         self.ensure_one()
 
-        return (
-            self.partner_id.commercial_partner_id.company_type == "person"
-            if self.partner_id.commercial_partner_id
-            else self.partner_id.company_type == "person"
-        )
+        commercial_partner = self.partner_id.commercial_partner_id
+        return bool(commercial_partner) and not commercial_partner.is_company

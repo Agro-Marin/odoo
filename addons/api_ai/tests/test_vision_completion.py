@@ -8,12 +8,13 @@ from odoo.addons.api_ai.tools.ai_clients.deepseek import DeepSeekClient
 from odoo.addons.api_ai.tools.ai_clients.gemini import GeminiClient
 from odoo.addons.api_ai.tools.vendor_catalog import PROVIDERS
 from odoo.addons.api_transport.tools.exceptions import CommError
+from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
 
 _IMAGE = "aGVsbG8="
 
 
 @tagged("post_install", "-at_install")
-class TestVisionCompletion(TransactionCase):
+class TestVisionCompletion(EncryptionKeyCase, TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

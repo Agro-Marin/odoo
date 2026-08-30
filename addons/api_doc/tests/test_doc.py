@@ -81,7 +81,7 @@ class TestDoc(HttpCaseWithUserDemo):
         res_partner_fields = res_partner.pop('fields')
         res_partner_methods = res_partner.pop('methods')
         self.assertEqual(res_partner, {'name': "Contact", 'model': 'res.partner'})
-        self.assertGreater(set(res_partner_methods), {'search', 'create_company'})
+        self.assertGreater(set(res_partner_methods), {'search', 'open_commercial_entity'})
         self.assertGreater(set(res_partner_fields), {'id', 'create_uid', 'lang', 'tz'})
 
     def test_doc_model_user(self):
@@ -132,7 +132,7 @@ class TestDoc(HttpCaseWithUserDemo):
         # docstring: pinning the rendered docstring of an ORM method makes this
         # module's suite fail whenever the ORM edits a sentence, which is what
         # it did until this was rewritten.
-        self.assertGreater(set(methods), {'search', 'create_company'})
+        self.assertGreater(set(methods), {'search', 'open_commercial_entity'})
         search = methods['search']
         self.assertEqual(search['model'], 'core')
         self.assertEqual(search['module'], 'core')

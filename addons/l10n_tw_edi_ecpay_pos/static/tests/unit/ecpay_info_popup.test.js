@@ -37,7 +37,6 @@ test("set the default customer and check the invoice button by default", async (
 
     const walkInCustomerRecord = store.models["res.partner"].create({
         name: "Walk-in Customer",
-        company_type: "individual",
         is_company: false,
     });
 

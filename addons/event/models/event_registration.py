@@ -242,7 +242,7 @@ class EventRegistration(models.Model):
                 ret_vals[field] = utm_mixin_defaults[mixin_field]
         return ret_vals
 
-    def _compute_from_partner(self, fname):
+    def _compute_from_partner(self, fname, partner_fname=None):
         """Fill `fname` from the booking contact when the attendee left it blank.
 
         Kept as one helper behind four one-line computes rather than a single
@@ -250,13 +250,14 @@ class EventRegistration(models.Model):
         record that supplies one of its fields, which would break the
         "give the name, take the rest from the partner" case the form relies on.
         """
+        partner_fname = partner_fname or fname
         for registration in self:
             if not registration[fname] and registration.partner_id:
                 registration[fname] = (
                     registration._synchronize_partner_values(
                         registration.partner_id,
-                        fnames={fname},
-                    ).get(fname)
+                        fnames={partner_fname},
+                    ).get(partner_fname)
                     or False
                 )
 
@@ -274,7 +275,9 @@ class EventRegistration(models.Model):
 
     @api.depends("partner_id")
     def _compute_company_name(self):
-        self._compute_from_partner("company_name")
+        # res.partner.company_name is gone; the employer a contact belongs to
+        # is now its commercial entity's name.
+        self._compute_from_partner("company_name", "commercial_company_name")
 
     @api.depends("state")
     def _compute_date_closed(self):

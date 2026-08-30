@@ -1,21 +1,18 @@
-import os
 import tempfile
 from pathlib import Path
-
-from cryptography.fernet import Fernet
 
 from odoo.exceptions import UserError
 from odoo.tests.common import TransactionCase, tagged
 
 from odoo.addons.api_ai.tools.claude_sdk import _resolve_work_dir, get_claude_api_token
+from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
 
 
 @tagged("post_install", "-at_install")
-class TestClaudeCredentialLookup(TransactionCase):
+class TestClaudeCredentialLookup(EncryptionKeyCase, TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        os.environ.setdefault("ODOO_API_ENCRYPTION_KEY", Fernet.generate_key().decode())
         cls.service = cls.env["api.endpoint.outbound"].search(
             [("code", "=", "claude")], limit=1
         )

@@ -181,7 +181,7 @@ class WebsiteSaleL10nTW(WebsiteSale):
                 if not re.fullmatch(r'[\d]+', formatted_phone):
                     invalid_fields.add('phone')
                     error_messages.append(request.env._("Phone number contains invalid characters! It should be in the format: '+886 0997624293'."))
-            if address_values.get('company_name'):  # B2B customer
+            if kwargs.get('company_name'):  # B2B customer
                 if not address_values.get('vat'):
                     missing_fields.add('vat')
                 if not self._is_valid_tax_id(address_values.get('vat'), request.cart):
@@ -195,23 +195,23 @@ class WebsiteSaleL10nTW(WebsiteSale):
 
         if request.website.sudo().company_id.country_id.code == 'TW' and request.website.sudo().company_id._is_ecpay_enabled():
             order_sudo = request.cart
-            if address_values.get('company_name'):
+            if extra_form_data.get('company_name'):
                 l10n_tw_edi_is_print = True
             else:
                 l10n_tw_edi_is_print = extra_form_data.get('l10n_tw_edi_require_paper_format') == "1"
-            if address_values.get('company_name'):  # B2B customer
+            if extra_form_data.get('company_name'):  # B2B customer
                 # Create company contact if it does not exist
                 if not order_sudo.partner_id.parent_id:
                     company_contact = request.env['res.partner'].sudo().create({
-                        'name': address_values.get('company_name'),
+                        'name': extra_form_data.get('company_name'),
                         'vat': address_values.get('vat'),
-                        'company_type': 'company',
+                        'is_company': True,
                         'l10n_tw_edi_require_paper_format': l10n_tw_edi_is_print,
                     })
                     order_sudo.partner_id.parent_id = company_contact
                 else:
                     order_sudo.partner_id.parent_id.write({
-                        'name': address_values.get('company_name'),
+                        'name': extra_form_data.get('company_name'),
                         'vat': address_values.get('vat'),
                         'l10n_tw_edi_require_paper_format': l10n_tw_edi_is_print,
                     })

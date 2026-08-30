@@ -189,6 +189,7 @@ class TestUBLRO(TestUBLCommon):
                 "partner_id": cls.company_data["company"].partner_id.id,
                 "acc_number": "RO98RNCB1234567890123456",
                 "bank_id": cls.bank.id,
+                "allow_out_payment": True,
             }
         )
 

@@ -1,26 +1,17 @@
-import os
 from unittest.mock import patch
 
 from odoo.tests.common import TransactionCase, tagged
 from odoo.tools import mute_logger
 
+from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
+
 
 @tagged("post_install", "-at_install")
-class HealthValidationCommon(TransactionCase):
+class HealthValidationCommon(EncryptionKeyCase, TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.test_key = "7ftr9ALjwK7f4IqWwnpFxWx4Wn8vetsznoGT3Oh46eU="
-        cls.env_patcher = patch.dict(
-            os.environ, {"ODOO_API_ENCRYPTION_KEY": cls.test_key}
-        )
-        cls.env_patcher.start()
         cls.category_custom = cls.env.ref("credential.credential_category_custom")
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.env_patcher.stop()
-        super().tearDownClass()
 
     @classmethod
     def _make_credential(cls, name, **vals):

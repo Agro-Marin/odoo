@@ -12,9 +12,17 @@ runs either suite, so nobody sees them go green anywhere else. Sixty-one red tes
 in the two modules a change was just made to is exactly the shape of an
 unattributable failure, and it costs a diagnostic detour every time.
 
-Seventeen test files already carry their own copy of the same eight lines. This is
-where the copy belongs: the module that owns the variable is the one that should
-say how a test gets one.
+This is where the copy belongs: the module that owns the variable is the one that
+should say how a test gets one. Seventeen test files carried their own when that
+was written; what is left references the variable for a reason this cannot serve
+-- rotating between two named keys, or asserting what an invalid one does -- and
+those keep managing their own.
+
+One shape in particular is worth not going back to. A class that called
+``os.environ.setdefault`` installed a key for the rest of the process and never
+removed it, so three other suites in the same module passed only while it ran
+before them, and a suite that should have failed for want of a key could not.
+``patch.dict`` through ``enterClassContext`` ends with the class.
 
 Usage::
 

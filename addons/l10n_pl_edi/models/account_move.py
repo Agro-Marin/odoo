@@ -768,7 +768,7 @@ class AccountMove(models.Model):
                     return self._handle_download_bills_from_ksef_error(response['error'])
 
                 bill_data = self.l10n_pl_edi_get_ksef_bill_vals_from_xml(response['xml_content'])
-                with mute_logger('odoo.sql_db'), self.env.cr.savepoint():
+                with mute_logger('odoo.db.cursor'), self.env.cr.savepoint():
                     bill.write({
                         'l10n_pl_edi_status': 'fetched',
                         'l10n_pl_edi_header': 'Fetched From KSeF',

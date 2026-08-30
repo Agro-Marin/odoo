@@ -8,6 +8,7 @@ from odoo.addons.api_ai.tools.ai_clients import (
     register_ai_client,
 )
 from odoo.addons.api_transport.tools.api_client import OutboundAPIClient
+from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
 
 
 class _StubClient(BaseAIClient):
@@ -18,7 +19,7 @@ class _StubClient(BaseAIClient):
 
 
 @tagged("post_install", "-at_install")
-class TestOrchestratorEventLog(TransactionCase):
+class TestOrchestratorEventLog(EncryptionKeyCase, TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

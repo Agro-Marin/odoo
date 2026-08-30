@@ -5,9 +5,10 @@ from odoo.tests.common import TransactionCase
 
 from odoo.addons.api_ai.tools.ai_clients import get_deepseek_client
 from odoo.addons.api_transport.tools.exceptions import CommError
+from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
 
 
-class TestDeepSeekClient(TransactionCase):
+class TestDeepSeekClient(EncryptionKeyCase, TransactionCase):
     def setUp(self):
         super().setUp()
 
@@ -165,7 +166,7 @@ class TestDeepSeekClient(TransactionCase):
         self.assertEqual(usage["total_tokens"], 0)
 
 
-class TestDeepSeekVisionFix(TransactionCase):
+class TestDeepSeekVisionFix(EncryptionKeyCase, TransactionCase):
     def setUp(self):
         super().setUp()
 

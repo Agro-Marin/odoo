@@ -33,7 +33,7 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
             'city': '中正區',
             'state_id': cls.env.ref('base.state_tw_tpc').id,
             'country_id': cls.env.ref('base.tw').id,
-            'company_type': 'person',
+            'is_company': False,
         })
         cls.partner_b.write({
             'phone': '+886 123 456 789',
@@ -42,7 +42,7 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
             'state_id': cls.env.ref('base.state_tw_klc').id,
             'country_id': cls.env.ref('base.tw').id,
             'vat': '24153791',
-            'company_type': 'company',
+            'is_company': True,
         })
         # We can reuse this invoice for the flow tests.
         cls.basic_invoice = cls.init_invoice(
@@ -217,7 +217,7 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
             'street': 'street七美',
             'city': '中正區',
             'state_id': self.env.ref('base.state_tw_tpc').id,
-            'company_type': 'company',
+            'is_company': True,
         })
         invoice_a = self.init_invoice(
             'out_invoice', partner=test_partner, products=self.product_a,

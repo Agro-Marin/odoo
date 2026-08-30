@@ -1,22 +1,16 @@
-import os
 from datetime import timedelta
-from unittest.mock import patch
 
 from odoo import fields
 from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
 
+from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
 
-class TestExpiryWarning(TransactionCase):
+
+class TestExpiryWarning(EncryptionKeyCase, TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.env_patcher = patch.dict(
-            os.environ,
-            {"ODOO_API_ENCRYPTION_KEY": "7ftr9ALjwK7f4IqWwnpFxWx4Wn8vetsznoGT3Oh46eU="},
-        )
-        cls.env_patcher.start()
-        cls.addClassCleanup(cls.env_patcher.stop)
         cls.category = cls.env.ref("credential.credential_category_api_key")
 
     def _credential(self, name, expires_in_days=None, **vals):

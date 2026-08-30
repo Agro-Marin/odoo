@@ -1,28 +1,14 @@
 import logging
-from difflib import SequenceMatcher
 from itertools import batched
 
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
+from odoo.libs.text import name_length_band, similarity_ratio
 from odoo.models import PREFETCH_MAX
 from odoo.tools import SQL, format_amount
 
 _logger = logging.getLogger(__name__)
-
-
-def name_length_band(searched_length, threshold):
-    """Lengths a candidate name must fall within to be able to reach `threshold`.
-
-    `SequenceMatcher(a, b).ratio()` is `2 * matches / (len(a) + len(b))` and
-    `matches <= min(len(a), len(b))`, so anything outside this band is provably
-    below the threshold. Testing two integers is far cheaper than the quadratic
-    comparison it replaces.
-    """
-    return (
-        searched_length * threshold / (2 - threshold),
-        searched_length * (2 - threshold) / threshold,
-    )
 
 
 DEFAULT_NAME_SIMILARITY_THRESHOLD = 0.9
@@ -452,7 +438,7 @@ class ProductProduct(models.Model):
                 candidate = product.name
                 if not shortest <= len(candidate) <= longest:
                     continue
-                ratio = SequenceMatcher(None, lowered_name, candidate.lower()).ratio()
+                ratio = similarity_ratio(lowered_name, candidate.lower())
                 if ratio >= threshold and ratio > best_ratio:
                     best_ratio = ratio
                     best_product = product
