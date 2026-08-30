@@ -1,4 +1,5 @@
-from odoo import fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class MrpProductionGroup(models.Model):
@@ -26,3 +27,8 @@ class MrpProductionGroup(models.Model):
         "parent_group_id",
         string="Parent Manufacturing Orders",
     )
+
+    @api.constrains("child_ids")
+    def _check_no_cyclic_dependencies(self):
+        if self._has_cycle("child_ids"):
+            raise ValidationError(_("You cannot create cyclic dependency."))
