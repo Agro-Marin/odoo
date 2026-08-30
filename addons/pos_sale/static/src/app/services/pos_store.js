@@ -375,13 +375,25 @@ patch(PosStore.prototype, {
             grouping_key: { product_id: downPaymentProduct },
             raw_grouping_key: { product_id: downPaymentProduct.id },
         });
+        // Keep the exact "down_payment" token first so account_move.py's
+        // _is_downpayment() ('down_payment' in computation_key.split(','))
+        // still matches, but make the key unique per application on this
+        // sale order so multiple down payments on the same order don't
+        // share one computation_key.
+        const existingDownPaymentCount = this.getOrder()
+            .getOrderlines()
+            .filter(
+                (l) =>
+                    l.sale_order_origin_id?.id === saleOrder.id &&
+                    l.down_payment_details,
+            ).length;
         const downPaymentBaseLines = accountTaxHelpers.prepare_down_payment_lines(
             baseLines,
             this.company,
             "fixed",
             amount,
             {
-                computation_key: "down_payment", // TODO: won't work with multiple down payment on the same order... is it a problem?
+                computation_key: `down_payment,so-${saleOrder.id}-dp-${existingDownPaymentCount}`,
                 grouping_function: groupingFunction,
             },
         );
