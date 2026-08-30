@@ -18,7 +18,7 @@ a question — those live at the bottom of the view that owns the subject, under
 | R1 | `Registry._relation_reflections` has an undeclared lifetime | High | 2026-08-08 | **2026-08-09** |
 | R2 | The layering is true of imports and false of the runtime graph | Medium | 2026-08-08 | — |
 | R3 | Migration stage (`pre`/`post`) is unenforced and unrecoverable | High | 2026-08-08 | — |
-| R4 | "Enforced" means structural only — 60 gates cannot see behaviour | High | 2026-08-08 | — |
+| R4 | "Enforced" means structural only — 63 gates cannot see behaviour | High | 2026-08-08 | — |
 | R5 | Two ADRs describe a subsystem the repository has never contained | Low | 2026-08-08 | **2026-08-14** |
 | R6 | Sibling-repo public-surface exposure is recorded, not paid down | Medium | 2026-08-08 | — |
 | R7 | Every measured figure is single-process | Medium | 2026-08-08 | **2026-08-28** |
@@ -108,7 +108,7 @@ needs the previous representation and is filed as `post-` has nothing to read.
 [`scenarios.md`](scenarios.md#scenario-b--upgrading-a-database-that-holds-data).
 
 **Cost.** Silent data loss on upgrade of a populated database. Not caught by any
-gate — all 60 are structural and DB-free — and not caught by either DB-free test
+gate — all 62 are structural and DB-free — and not caught by either DB-free test
 tier.
 
 **Narrowed 2026-08-09: the syntactic half is caught, the semantic half is the
@@ -123,7 +123,7 @@ happen, and it needed no schema knowledge to detect.
 than an error, because an addon may legitimately keep a helper module beside its
 scripts. Measured across this repository's two addon trees — the scope CI
 reproduces, a workspace reading being whatever checkouts happened to be on
-disk: **236** scripts in `migrations/` and **5** in `upgrades/`, all correctly
+disk: **242** scripts in `migrations/` and **5** in `upgrades/`, all correctly
 prefixed, **0** dropped.
 
 A risk stated at the level of its hardest half hides the half that is cheap to
@@ -164,9 +164,9 @@ why this entry stays open at High rather than closing on the test above.
 
 ## R4 — "Enforced" means structural only
 
-**What.** The 60 boundary checkers read import graphs, call graphs,
+**What.** The 63 boundary checkers read import graphs, call graphs,
 reached-member sets and documents. None executes the framework. A change can
-satisfy all 60 and both DB-free tiers and still be wrong.
+satisfy all 63 and both DB-free tiers and still be wrong.
 
 **Evidence.** Recorded in [`gates.md`](gates.md#the-limits-of-enforced): renaming
 `OrmCore`'s slots (`cache`/`engine` → `_cache`/`_engine`) broke two DB-backed
@@ -200,7 +200,7 @@ record to learn what `ir.attachment`'s dual storage costs.
 
 **What.** `web` publishes no API: everything under `static/src` is reachable as
 `@web/<path>`. The pin records which specifiers each consumer scope reaches, so
-the surface can only shrink. It stands at **224 specifiers**
+the surface can only shrink. It stands at **225 specifiers**
 (`tooling/architecture/public_surface_web.txt`). What remains is *recorded*, not
 resolved.
 

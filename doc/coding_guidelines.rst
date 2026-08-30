@@ -932,7 +932,7 @@ the decorator and no field declaration mentions the method -- so four families a
 measured by nothing.
 
 **``@api.onchange``** ``[review]``: a hook bound to one field is
-``_onchange_<field>``. **271** of **383** single-field onchange hooks are spelled
+``_onchange_<field>``. **270** of **382** single-field onchange hooks are spelled
 for their field. Four of the rest carry the **pre-9.0 public spelling**
 (``on_change_login``, ``onchange_parent_id``), reachable over RPC by accident.
 
@@ -1275,8 +1275,8 @@ more than half its floor, and is owed its own record.
 
 **The assemble verbs are abolished on paper and enforced for one shape**
 ``[review]``: ``naming_vocabulary.py`` reports one only when the name also ends in
-a payload suffix. **23** model methods open with one of those four verbs and the
-ratchet flags **4**. The gap hides two things -- the suffix list is short, and
+a payload suffix. **24** model methods open with one of those four verbs and the
+ratchet flags **5**. The gap hides two things -- the suffix list is short, and
 *object construction takes ``_prepare_`` too*, a factory having a consumer like
 anything else.
 
@@ -1342,7 +1342,7 @@ is a hypothesis, not a verdict.** Where the body disagrees, the body wins.
 ~~~~~~~~~~~~~~~~~~~~~
 
 **Do not name a method for the act of running** -- *provisional*. ``_do_``,
-``_run_``, ``_perform_``, ``_execute_``, ``_process_`` and ``_handle_`` (194
+``_run_``, ``_perform_``, ``_execute_``, ``_process_`` and ``_handle_`` (196
 definitions) describe execution rather than behaviour; every method executes. Name
 the domain operation: ``_post_entries``, not ``_do_posting``. No mechanical
 rewrite exists.
@@ -1474,7 +1474,7 @@ near-evenly split, so this is a backlog rather than a tidy-up. Three carve-outs,
 all bindings:
 
 * an ``inverse=`` target is ``_inverse_<field>`` and was never a ``_set_``
-  question -- 238 against 3 now that the count is drained;
+  question -- 243 against 3 now that the count is drained;
 * ``set_values`` / ``get_values`` on ``res.config.settings`` are *bound by name,
   not by inheritance* (§2.4.14);
 * ``set_param`` on ``ir.config_parameter`` is public and reached from JS and XML
@@ -1573,8 +1573,8 @@ binding and no prose.
 
 **A private method can be reached from outside the workspace**
 ``[gate doc_restated_counts]``. ``ir.actions.server`` stores **Python source in a
-database column**: **108** distinct private method names are reached that way from
-**117** code blocks in **70** shipped data files of this repository -- and the
+database column**: **109** distinct private method names are reached that way from
+**118** code blocks in **70** shipped data files of this repository -- and the
 shipped files are only the half a grep can see, since the field is edited in the
 UI. **The question is not public against private, but whether a name is written
 down anywhere this workspace cannot rewrite.** ``_for_xml_id`` is the case, and it
@@ -1767,6 +1767,135 @@ would honestly need two of them is doing two things.
 * **``_impl`` names the implementation, which is not a fact about the operation**
   ``[review]``. Every method implements itself; where the suffix appears there is
   a real discriminator left unsaid. The family is at 0 here.
+
+2.4.18 The ingestion vocabulary
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Reading an external document into records is one cycle, and this repository
+implements it eight times. The census is in
+``agromarin-knowledge/research/2026-08-29-document-ingestion-census.md``; the
+finding that belongs here is *why* the duplication stayed invisible for so long.
+Every implementation spelled the same four operations differently, so no search
+and no reviewer could put two of them side by side. ``file_data``,
+``DocumentSource`` and ``raw_file`` are one concept under three names, in three
+modules, none of which cites another.
+
+**The cycle has four operations, and the stages after them are already
+governed** ``[review]``. Mapping values onto a record is a payload operation
+(``_prepare_*``, §2.4.7), writing them is a mutation (``_update_*``), checking
+them raises (``_check_*``) or answers (``_is_``/``_has_``), and reporting what
+happened is a read (``_get_*``). Nothing new is needed for those, and inventing
+a verb for them is how a seventh dialect starts.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 12 15 35 38
+
+   * - Operation
+     - Canonical
+     - Operand → result
+     - Abolished
+   * - Identify
+     - ``_guess_*``
+     - bytes → a name for what they are: mimetype, encoding, separator,
+       document type
+     - ``_sniff_`` ``_detect_`` (of a format)
+   * - Unwrap
+     - ``_unwrap_*``
+     - document → the documents inside it: PDF attachments, archive members,
+       one XML split on a repeated tag
+     - ``_split_`` ``_explode_`` ``_expand_`` (of a document)
+   * - Read
+     - ``_read_*``
+     - document → **one representation**: rows, text, tree, data, images,
+       barcodes
+     - ``_parse_`` ``_decode_`` ``_load_`` ``_index_`` (of a file)
+       ``_derive_`` ``_interpret_``
+   * - Extract
+     - ``_extract_*``
+     - representations → **candidate field values**, with where each came from
+     - ``_digitize_`` ``_mine_`` ``_pull_`` ``_ocr_``
+
+**The Read/Extract line is the one that keeps being crossed** ``[review]``, and
+crossing it is what made the eight implementations impossible to compare.
+``_read_*`` knows formats and no business; ``_extract_*`` knows a document type
+and no formats. A method doing both is why ``_parse_bank_statement_file``
+cannot be reused by anything that is not a bank statement, though half of it is
+an OFX reader. Split it, and the half that reads becomes everyone's.
+
+**The nouns matter more than the verbs here** ``[review]``, because a
+concept named three ways is a concept nobody can grep for.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 26 16 58
+
+   * - Concept
+     - Canonical
+     - Abolished
+   * - the bytes, plus what they are
+     - ``document``
+     - ``file_data`` ``source`` ``raw_file`` ``blob`` ``payload`` ``upload``
+   * - one derived view of a document
+     - ``representation``
+     - ``format`` ``rendering`` ``form`` ``view``
+   * - document → representation
+     - ``reader``
+     - ``parser`` ``decoder`` ``loader`` ``indexer`` ``handler``
+   * - representations → values
+     - ``extractor``
+     - ``decoder`` ``strategy`` ``engine`` ``provider`` ``digitizer``
+   * - what a document type must yield
+     - ``schema``
+     - ``spec`` ``shape`` ``definition`` ``template``
+   * - a requirement between its fields
+     - ``rule``
+     - ``constraint`` ``invariant`` ``validator``
+   * - one strategy's proposed value
+     - ``candidate``
+     - ``guess`` ``suggestion`` ``proposal`` ``hit``
+   * - values plus provenance, against the schema
+     - ``result``
+     - ``output`` ``values`` ``data`` ``payload``
+   * - the ordered run of extractors
+     - ``cascade``
+     - ``chain`` ``pipeline`` ``waterfall`` ``fallback``
+
+``attachment`` is **not** a synonym for ``document``: it is the ORM record that
+may carry one. A function taking bytes takes a ``document``; a method reaching
+for ``self.attachment_id`` is doing acquisition, which is the one stage that
+legitimately differs per consumer.
+
+**Four of these are mechanical and the rest are not** ``[ratchet naming]``.
+``naming_vocabulary.py`` carries ``digitize``, ``interpret``, ``derive`` and
+``sniff``: each has no second sense in this tree, so a name containing one is
+wrong wherever it appears. The others keep a legitimate meaning elsewhere and a
+stem test would flag it, so they are ``[review]`` and widen no gate:
+
+* ``_parse_`` is **reserved for a scalar**: one string in, one typed value out --
+  ``_parse_float_from_data``, ``_parse_datetime``, ``parse_version``. Reading a
+  *file* is ``_read_``, whatever its format.
+* ``_decode_`` is **reserved for an encoding with a key or a scheme** --
+  ``_decode_connect_token``, ``_decode_certificate_for_be_dmfa_xml``. A document
+  in a file format is not encoded, it is written; reading it is ``_read_``.
+* ``_load_`` is **reserved for the ORM operation and for module loading**. It is
+  the most-borrowed verb in the tree, which is exactly why reading a file must
+  not borrow it.
+* ``_index_`` is **reserved for building an index** -- a mapping from key to
+  member, ``_index_by_grouping_key``. Producing the text a search index will
+  hold is ``_read_``: ``_index_pdf`` returns a string, indexes nothing, and is
+  ``_read_pdf_text``.
+* ``_split_``, ``_scan_``, ``_detect_`` and ``_ingest_`` each name something real
+  away from documents -- splitting a string, sweeping a directory, finding a
+  bounce in a mail, accepting a bulk payload from a device. Against a document
+  they are the canonical above.
+
+**A registry, not a dispatch table** ``[review]``. A ``mimetype``-keyed ``dict``
+naming methods is the shape every one of the eight grew independently, and it is
+what makes a format unaddable from outside the module. A reader declares the
+mimetypes it accepts and the representation it yields, and registers itself;
+``get_readers`` is the only dispatch. The same holds for extractors, which
+additionally declare what they cost, so the cheap one is tried first.
 
 2.5 Docstrings and comments
 ---------------------------
@@ -2180,7 +2309,7 @@ user sees. No linter reads it -- ``test_translated_unique`` checks the *column* 
 so a constraint can name a column the table lost four major versions ago
 (``ir.model``'s ``_obj_name_uniq``, declared ``UNIQUE (model)``). Name the columns
 the definition names, in the order it names them, and keep the predicate in the
-tail -- the tree spells that tail ``_uniq`` **82** times against ``_unique``'s
+tail -- the tree spells that tail ``_uniq`` **83** times against ``_unique``'s
 **52**, so prefer ``_uniq`` for a new one and do not sweep the others for it.
 
 **A constraint rename is carried by module-data cleanup, not by a migration**
