@@ -4,7 +4,7 @@ import logging
 import os
 from typing import Any
 
-from odoo.tools import config
+from odoo.tools.config import config
 
 _logger = logging.getLogger("odoo.service.server")
 

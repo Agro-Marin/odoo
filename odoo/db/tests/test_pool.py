@@ -431,7 +431,7 @@ class TestABugIsNotLaunderedIntoAPoolError(unittest.TestCase):
                 raise exc
 
         pool = ConnectionPool(maxconn=4, borrow_timeout=1.0)
-        pool._probe.probe_connectable = lambda *a, **k: None
+        pool._probe.probe_connectable = lambda *a, **k: None  # type: ignore[method-assign]
         info = {"dbname": "bugdb", "host": "h"}
         with patch("odoo.db.pool._PsycopgPool", lambda *a, **k: Broken()):
             with self.assertRaises(type(exc)) as caught:
@@ -460,7 +460,7 @@ class TestABugIsNotLaunderedIntoAPoolError(unittest.TestCase):
 
     def test_an_operational_failure_is_unaffected(self):
         pool = ConnectionPool(maxconn=4, borrow_timeout=1.0)
-        pool._probe.probe_connectable = lambda *a, **k: None
+        pool._probe.probe_connectable = lambda *a, **k: None  # type: ignore[method-assign]
 
         class Timing(_FakePool):
             def getconn(self, timeout=None):

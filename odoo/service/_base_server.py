@@ -71,6 +71,12 @@ class CommonServer:
         self.logger = _logger.getChild(self.__class__.__name__)
         self._process_handle = psutil.Process(self.pid)
 
+    def run(self, preload: list[str] | None = None, stop: bool = False) -> int | None:
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement run(); every concrete "
+            f"server flavour has to"
+        )
+
     def metrics(self) -> dict[str, Any]:
         return {}
 

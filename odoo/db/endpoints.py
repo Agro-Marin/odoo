@@ -15,7 +15,7 @@ DEFAULT_PG_PORT = 5432
 
 def _port(port: object) -> int:
     try:
-        return int(port)  # type: ignore[arg-type]
+        return int(port)  # type: ignore[call-overload]
     except TypeError, ValueError:
         return DEFAULT_PG_PORT
 

@@ -339,7 +339,7 @@ class TestTheDiscardPathTellsAnOutageFromAFault(unittest.TestCase):
         cur._obj = MagicMock()
         cur._cnx = MagicMock()
         cur.cache = MagicMock()
-        cur._Cursor__pool = MagicMock()
+        cur._Cursor__pool = MagicMock()  # type: ignore[attr-defined]
         records = []
 
         class _Grab(logging.Handler):

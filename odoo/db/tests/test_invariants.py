@@ -2,6 +2,7 @@ import ast
 import inspect
 import pathlib
 import textwrap
+import typing
 import unittest
 
 import psycopg
@@ -26,6 +27,13 @@ _DB_PACKAGE = pathlib.Path(pool.__file__).parent
 
 def _callees(func) -> set[str]:
     return set(inspect.unwrap(func).__code__.co_names)
+
+
+def _def_ast(source: str) -> ast.FunctionDef | ast.ClassDef:
+    node = ast.parse(textwrap.dedent(source)).body[0]
+    if not isinstance(node, (ast.FunctionDef, ast.ClassDef)):
+        raise TypeError(f"expected a def or a class, parsed {type(node).__name__}")
+    return node
 
 
 def _calls_on(func, receiver: str) -> set[str]:
@@ -599,9 +607,7 @@ class TestPipelineModeCannotBypassTheFailureSeam(unittest.TestCase):
         )
 
     def test_only_the_outermost_block_hooks_the_sync(self):
-        fn = ast.parse(
-            textwrap.dedent(inspect.getsource(inspect.unwrap(cursor.Cursor.pipeline)))
-        ).body[0]
+        fn = _def_ast(inspect.getsource(inspect.unwrap(cursor.Cursor.pipeline)))
         nested = next(node for node in fn.body if isinstance(node, ast.If))
         self.assertNotIn(
             "_statement_failed",
@@ -614,29 +620,28 @@ class TestPipelineModeCannotBypassTheFailureSeam(unittest.TestCase):
         )
 
     def test_the_seam_short_circuits_before_it_does_any_work(self):
-        fn = ast.parse(
-            textwrap.dedent(inspect.getsource(cursor.Cursor._statement_failed))
-        ).body[0]
+        fn = _def_ast(inspect.getsource(cursor.Cursor._statement_failed))
         body = [n for n in fn.body if not isinstance(n, ast.Expr)]
         self.assertIsInstance(
             body[0],
             ast.If,
             "the idempotence check must be the first thing the seam does",
         )
+        guard = typing.cast("ast.If", body[0])
         self.assertIsInstance(
-            body[0].test,
+            guard.test,
             ast.Call,
             "the guard must be the bare question, not a condition that can be "
             "disabled beside it",
         )
         self.assertEqual(
-            getattr(body[0].test.func, "id", None),
+            getattr(typing.cast("ast.Call", guard.test).func, "id", None),
             "is_handled_by_seam",
             "the guard must be the bare question, not a condition that can be "
             "disabled beside it",
         )
         self.assertIsInstance(
-            body[0].body[-1], ast.Return, "the check must actually short-circuit"
+            guard.body[-1], ast.Return, "the check must actually short-circuit"
         )
         self.assertIn(
             "mark_handled_by_seam",
@@ -683,18 +688,17 @@ class TestASavepointIsNeverOpenedInsideAPipeline(unittest.TestCase):
 
 class TestEveryFailedBorrowIsCounted(unittest.TestCase):
     def _final_guard(self, name):
-        fn = ast.parse(
-            textwrap.dedent(inspect.getsource(getattr(pool.ConnectionPool, name)))
-        ).body[0]
+        fn = _def_ast(inspect.getsource(getattr(pool.ConnectionPool, name)))
         self.assertIsInstance(
             fn.body[-1],
             ast.Try,
             f"{name} must end with the guarded block; a statement after it is "
             f"by definition outside the release path",
         )
+        guarded = typing.cast("ast.Try", fn.body[-1])
         return {
             node.func.attr
-            for handler in fn.body[-1].handlers
+            for handler in guarded.handlers
             for node in ast.walk(handler)
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
         }
@@ -707,10 +711,8 @@ class TestEveryFailedBorrowIsCounted(unittest.TestCase):
                 self.assertIn("_unwind_failed_borrow", handler_calls)
 
     def test_the_direct_path_takes_its_permit_before_that_guard(self):
-        fn = ast.parse(
-            textwrap.dedent(inspect.getsource(pool.ConnectionPool._borrow_direct))
-        ).body[0]
-        guard = fn.body[-1]
+        fn = _def_ast(inspect.getsource(pool.ConnectionPool._borrow_direct))
+        guard = typing.cast("ast.Try", fn.body[-1])
         self.assertNotIn(
             "acquire",
             {
@@ -792,7 +794,9 @@ class TestTheBreakerLockIsNotReentrant(unittest.TestCase):
 
     def test_the_cooldown_maths_exists_once(self):
         members = {
-            "cooldown_remaining": breaker.CircuitBreaker.cooldown_remaining.fget,
+            "cooldown_remaining": typing.cast(
+                "property", breaker.CircuitBreaker.__dict__["cooldown_remaining"]
+            ).fget,
             "snapshot": breaker.CircuitBreaker.snapshot,
         }
         for name, fn in members.items():
@@ -947,7 +951,7 @@ class TestNoSelfLockIsTakenTwice(unittest.TestCase):
 
     def test_no_method_called_under_a_lock_takes_that_lock(self):
         for cls in self.LOCKED_CLASSES:
-            tree = ast.parse(textwrap.dedent(inspect.getsource(cls))).body[0]
+            tree = _def_ast(inspect.getsource(cls))
             methods = {
                 n.name: n
                 for n in tree.body
@@ -982,7 +986,7 @@ class TestNoSelfLockIsTakenTwice(unittest.TestCase):
                     with self._lock:
                         return 1
         """)
-        tree = ast.parse(src).body[0]
+        tree = _def_ast(src)
         methods = {n.name: n for n in tree.body if isinstance(n, ast.FunctionDef)}
         under_lock = self._self_calls_inside_locks(methods["outer"])
         for name in ("inner", "prop"):

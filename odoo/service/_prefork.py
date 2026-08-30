@@ -62,6 +62,8 @@ CENSUS_MAX_AGE_S = 60.0
 class PreforkServer(CommonServer):
     flavor = "prefork"
 
+    _census_written_at: float
+
     def metrics(self) -> dict[str, Any]:
         if os.getpid() != self.pid:
             return self._read_census()

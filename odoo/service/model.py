@@ -80,7 +80,7 @@ def get_public_method(model: BaseModel, name: str) -> Callable:
 
     if not callable(method):
         error = AttributeError(f"The method '{model._name}.{name}' does not exist")
-        error.loglevel = logging.WARNING
+        error.loglevel = logging.WARNING  # type: ignore[attr-defined]
         raise error
 
     if method == getattr(model, name, None):
@@ -269,7 +269,7 @@ def _forced_sequence(val: Sequence) -> Sequence:
         for item in val
     ]
     if any(new is not old for new, old in zip(items, val, strict=True)):
-        return tuple(items) if type(val) is tuple else type(val)(items)
+        return tuple(items) if type(val) is tuple else type(val)(items)  # type: ignore[call-arg]
     return val
 
 

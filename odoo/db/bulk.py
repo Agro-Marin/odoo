@@ -60,7 +60,8 @@ if TYPE_CHECKING:
             log_exceptions: bool = True,
         ) -> None: ...
 
-        in_pipeline: bool
+        @property
+        def in_pipeline(self) -> bool: ...
 
         def pipeline(
             self, log_exceptions: bool = True, query: Any = None

@@ -390,7 +390,8 @@ class FSWatcherInotify(FSWatcherBase):
         self._release_watcher()
 
     def _release_watcher(self) -> None:
-        internals, self.internals = getattr(self, "internals", None), None
+        internals = getattr(self, "internals", None)
+        self.internals = None  # type: ignore[assignment]
         self.watcher = None
         if internals is None:
             return
