@@ -60,6 +60,25 @@ class TestHrEmployee(TestHrCommon):
             "15 March",
         )
 
+    def test_every_employee_phone_is_formatted_the_same_way(self):
+        """All four employee phone numbers, not just the two work ones.
+
+        `work_phone` and `mobile_phone` were normalised on edit and
+        `private_phone` and `emergency_phone` were stored exactly as typed, so
+        the same number looked different depending on which field it landed in.
+        """
+        form = Form(self.env["hr.employee"])
+        form.name = "Telefonista"
+        form.country_id = self.env.ref("base.mx")
+        form.work_phone = "5512345678"
+        form.private_phone = "5512345678"
+        form.emergency_phone = "5512345678"
+
+        # Guard against the test passing because nothing is formatted at all.
+        self.assertTrue(form.work_phone.startswith("+52"))
+        self.assertEqual(form.private_phone, form.work_phone)
+        self.assertEqual(form.emergency_phone, form.work_phone)
+
     def test_employee_must_have_active_version(self):
         employee = self.env["hr.employee"].create({"name": "Batman"})
         self.assertEqual(len(employee.version_ids), 1)

@@ -870,20 +870,26 @@ class HrEmployee(models.Model):
         if self.private_state_id:
             self.private_country_id = self.private_state_id.country_id
 
-    @api.onchange("work_phone", "mobile_phone", "company_country_id", "company_id")
+    # Every phone the employee form offers, so the same number does not end up
+    # stored two different ways depending on which field it was typed into. The
+    # country comes from ``_phone_get_country``, the same resolution the work
+    # numbers have always used; ``_phone_format`` answers False when it cannot
+    # parse, and the original value is kept in that case.
+    _PHONE_FIELDS_TO_FORMAT = (
+        "work_phone",
+        "mobile_phone",
+        "private_phone",
+        "emergency_phone",
+    )
+
+    @api.onchange(*_PHONE_FIELDS_TO_FORMAT, "company_country_id", "company_id")
     def _onchange_phone_validation_employee(self):
-        if self.work_phone:
-            self.work_phone = (
-                self._phone_format(number=self.work_phone, force_format="INTERNATIONAL")
-                or self.work_phone
-            )
-        if self.mobile_phone:
-            self.mobile_phone = (
-                self._phone_format(
-                    number=self.mobile_phone, force_format="INTERNATIONAL"
+        for fname in self._PHONE_FIELDS_TO_FORMAT:
+            if self[fname]:
+                self[fname] = (
+                    self._phone_format(number=self[fname], force_format="INTERNATIONAL")
+                    or self[fname]
                 )
-                or self.mobile_phone
-            )
 
     @api.model
     def _get_new_hire_field(self):
