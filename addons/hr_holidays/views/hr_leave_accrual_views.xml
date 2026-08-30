@@ -51,6 +51,15 @@
                                     <field nolabel="1" name="yearly_month" class="o_field_accrual" required="frequency == 'yearly'" placeholder="select a month"/>
                                 </span>
                             </span>
+                            <span name="yearly_gain" class="text-muted">
+                                <label class="fw-bold" for="yearly_gain" string="Gain for the year :" invisible="is_based_on_worked_time"/>
+                                <label class="fw-bold" for="yearly_gain" string="Maximum gain for the year :" invisible="not is_based_on_worked_time"/>
+                            </span>
+                            <span class="text-muted">
+                                <field nolabel="1" name="yearly_gain" class="me-1 o_field_accrual" widget="float_without_trailing_zeros"/>
+                                <field nolabel="1" name="added_value_type" class="o_field_accrual" readonly="1"/>
+                                <span invisible="not cap_accrued_time_yearly and not cap_accrued_time" class="ms-3">(Caps can affect that gain)</span>
+                            </span>
                             <label class="fw-bold" for="milestone_date" string="This milestone will be reached :"/>
                             <span name="milestone_date">
                                 <field nolabel="1" class="ms-1" name="milestone_date"
