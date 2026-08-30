@@ -1,0 +1,8 @@
+{
+  "expected": {},
+  "note": "Green. 11 -> 20 with the port onto exchange, then 24 when the inbox moved onto the framework's _read_inbox / _add_from_inbox.",
+  "run_spec": "-i l10n_gr_edi --test-enable --test-tags '/l10n_gr_edi', fresh DB, ~13s",
+  "suite": "/l10n_gr_edi",
+  "tests_total": 24,
+  "verified_at": "aa24b1b877b"
+}

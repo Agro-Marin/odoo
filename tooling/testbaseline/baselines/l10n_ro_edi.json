@@ -1,0 +1,8 @@
+{
+  "expected": {},
+  "note": "Green. Was 15 of 18 red until 2026-08-30: 14 on an untrusted fixture bank account (this fork requires allow_out_payment before posting; every sibling UBL suite sets it and this one did not), and the last on Query.add_where's arity in account_accountant._predict_specific_tax, which the UBL import path swallows as an empty bill.",
+  "run_spec": "-i l10n_ro_edi --test-enable --test-tags '/l10n_ro_edi', fresh DB, ~10s",
+  "suite": "/l10n_ro_edi",
+  "tests_total": 18,
+  "verified_at": "26c6ccd72c7"
+}

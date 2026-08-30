@@ -1,0 +1,10 @@
+{
+  "expected": {
+    "test_import_export/TestPropertiesExportImport.test_import_properties": "FAIL"
+  },
+  "note": "One failure of 330: TestPropertiesExportImport.test_import_properties, asserting that an import of `properties.m2o_prop/.id` produces no messages. It produces one: \"Column properties.m2o_prop/.id cannot be imported: properties.m2o_prop is not a relation on model import.properties, so it has no sub-fields.\" A sub-field path on a properties field is not resolving, which is `_check_import_paths` / `_resolve_import_path` / `_expand_properties_fields`, not the reader or the coercion layer.\n\nPre-existing and seeded here rather than fixed because it was found while attributing an unrelated change: it reproduces identically in a detached worktree at HEAD with none of that change in it, and again with only that change's files copied in -- 1 of 330 in all three trees. Seeding it now is what stops the next person spending an hour re-establishing that, which is the failure mode CLAUDE.md section 4 is about.\n\nMeasured at the commit named above, in a worktree carrying the ingestion-vocabulary change's files (odoo/libs/documents, base_import, document_extract, product_expiry, test_import_export tests). Those move the count by nothing; HEAD alone reads the same 1 of 330.",
+  "run_spec": "-i test_import_export --test-enable --test-tags '/test_import_export'",
+  "suite": "/test_import_export",
+  "tests_total": 330,
+  "verified_at": "d27011ab39f"
+}

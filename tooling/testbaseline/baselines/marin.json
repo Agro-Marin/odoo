@@ -1,0 +1,13 @@
+{
+  "expected": {
+    "marin/TestSaleTarget.test_compute_target_amount_from_lines": "FAIL",
+    "marin/TestSaleTarget.test_create_sale_target_basic": "FAIL",
+    "marin/TestSaleTargetLine.test_line_compute_target_quantity": "FAIL",
+    "marin/TestSaleTargetWizard.test_wizard_generate_targets_success": "FAIL"
+  },
+  "note": "marin could not install between enterprise 885e21c504c (2026-08-28) and 2026-08-29 -- it imports TERMINAL_SAT_STATES, which that commit deleted -- so this suite had not run in that window. It now runs 453 tests with 4 failures, all in the sale-target group and all one cause: a target reads its factor through partner_id.partner_profile_id, the profile is matched on score_pct, and the fixture partner is not reaching the score its 100-point attribute should give it. That is downstream of e0edd585a, which split the scoring engine out of agronomy, and following it means understanding that split rather than renaming anything -- so it is recorded here rather than guessed at. The workcenter errors that stood beside them are fixed: theoretical_performance, actual_performance and performance_deviation became theoretical_fuel_efficiency, actual_fuel_efficiency and fuel_efficiency_deviation, and the first of those is now related to the machinery product rather than written on the workcenter.",
+  "run_spec": "odoo-bin -i marin --test-enable --test-tags '/marin' --stop-after-init",
+  "suite": "/marin",
+  "tests_total": 453,
+  "verified_at": "89c78fb9764"
+}

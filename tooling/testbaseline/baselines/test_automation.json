@@ -1,0 +1,10 @@
+{
+  "expected": {
+    "test_automation/TestHttp.test_webhook_send_and_receive": "FAIL"
+  },
+  "note": "test_webhook_send_and_receive asserts the outbound payload carries no 'id' beside its '_id'; it now carries both. Red at clean HEAD in a detached worktree, so it predates the Phase 2/4 work here. THE WHOLE AutomationRuleTestUi TOUR CLASS IS FLAKY and is deliberately NOT banked: across six runs its failing set was {custom_reference_field, mail_triggers}, {custom_reference_field}, {mail_triggers}, {model_id}, {}, {} -- the NAMES rotate, not just the count, so a run that fails one of them has told you nothing. Clean HEAD failed two of the same four. Reproduction traps: these tests are post_install, so --test-tags without -i/-u runs ZERO of them and still reports success; and a detached worktree needs node_modules symlinked or the post_install phase runs nothing. Both look exactly like a clean control.",
+  "run_spec": "odoo-bin -i test_automation --test-enable --test-tags '/test_automation' --stop-after-init",
+  "suite": "/test_automation",
+  "tests_total": 143,
+  "verified_at": "b20bc5beab0"
+}

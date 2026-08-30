@@ -1,0 +1,8 @@
+{
+  "expected": {},
+  "note": "Green. Banked before any exchange-layer work on this module, which is the largest transmission in a business module and the census's biggest single deletion when paired with l10n_dk_nemhandel.",
+  "run_spec": "-i account_peppol --test-enable --test-tags '/account_peppol', fresh DB, ~40s",
+  "suite": "/account_peppol",
+  "tests_total": 41,
+  "verified_at": "36731f25da2"
+}

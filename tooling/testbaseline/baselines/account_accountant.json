@@ -1,0 +1,11 @@
+{
+  "expected": {
+    "account_accountant/TestAccountBankStatement.test_auto_activate_currency_with_xml_file": "FAIL",
+    "account_accountant/TestAccountBankStatement.test_upload_xml": "FAIL"
+  },
+  "note": "Two UBL-upload-onto-a-statement-line tests. Both call create_document_from_attachment with an <Invoice> XML on a bank statement line and expect the created bill's counterpart to land on default_account_payable and come back reconciled=True; both get a different account and reconciled=False, with an otherwise identical first line. Not caused by document_extract: isolated 2026-08-29 by reverting the only account_accountant change in the tree (debit/credit fields relocated out of the retired account_bank_statement_extract) and re-running test_auto_activate_currency_with_xml_file alone in CI-shaped scope -- it fails identically without the change, and fails the same way with account_accountant installed alone as with document_extract_account co-installed, so it is neither the relocation nor a module-combination artifact. The account ids in the assertion are transient, so they cannot be identified after the run rolls back; whoever picks this up should print the account_type of the counterpart rather than chase the id. Reported for the first time here because no /account_accountant baseline existed.",
+  "run_spec": "-i account_accountant --test-enable --test-tags '/account_accountant'",
+  "suite": "/account_accountant",
+  "tests_total": 311,
+  "verified_at": "91d5ccd8a81"
+}

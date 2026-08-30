@@ -1,0 +1,8 @@
+{
+  "expected": {},
+  "note": "Green across all five modules. The balance-reconciliation check landed 2026-08-30 with 8 tests of its own; two CAMT fixtures did not add up and one of them was corrected.",
+  "run_spec": "-i account_bank_statement_import_{camt,ofx,qif,csv} --test-enable --test-tags '/account_bank_statement_import*', fresh DB, ~17s",
+  "suite": "/account_bank_statement_import",
+  "tests_total": 59,
+  "verified_at": "ab19768c7b8"
+}
