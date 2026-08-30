@@ -57,7 +57,7 @@ class TestPointOfSaleFlow(CommonPosTest):
                                 "product_id": self.twenty_dollars_no_tax.product_variant_id.id,
                                 "name": self.twenty_dollars_no_tax.product_variant_id.name,
                                 "price_unit": self.twenty_dollars_no_tax.product_variant_id.lst_price,
-                                "product_uom_qty": 2,
+                                "product_qty": 2,
                             },
                         )
                     ],
