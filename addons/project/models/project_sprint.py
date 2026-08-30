@@ -117,6 +117,8 @@ class ProjectSprint(models.Model):
         "task_ids.story_points",
         "state",
         "carried_over_count",
+        "carried_over_hours",
+        "carried_over_story_points",
     )
     def _compute_task_metrics(self) -> None:
         for sprint in self:
