@@ -1,67 +1,24 @@
-"""Spend the cheapest strategy that can answer, and stop when the answer holds.
-
-This generalizes the layered ladder several modules grew independently -- try
-the structured source, then a template, then an OCR service -- with two
-differences that came out of measuring the existing one.
-
-It stops on *satisfaction*, not on a strategy having returned something. A
-parser that returns a dict has not necessarily read the document: measured on a
-real utility bill, a reworded label dropped the subtotal, tax, surcharge and
-total together while twenty-eight other fields came back intact and the parser
-reported success. Satisfaction is the schema's business -- required fields
-present, consistency rules holding -- and it is checked after every strategy.
-
-And it escalates per field rather than per document. The nine fields a free
-strategy read are kept; only what is missing or contradictory is asked of the
-next one, which is where the cost is.
-
-Some strategies answer later
-----------------------------
-A service that accepts a document and prepares an answer over seconds or
-minutes cannot be expressed as a function that returns one. Such a strategy
-implements ``submit`` and ``poll`` instead of ``extract``, and the cascade
-reaches it only when the caller says it can wait -- which in practice means the
-background queue, where waiting is a deferral rather than a held transaction.
-
-A synchronous caller skips them exactly as it skips a strategy whose ``needs``
-the document cannot provide: not an error, just not applicable here.
-"""
-
 from __future__ import annotations
 
 import logging
 
+from odoo.libs.documents import Document
+
 from .candidates import ExtractionResult
 from .extractors import GENERATIVE, PENDING, get_extractors
 from .schema import get_schema
-from .source import DocumentSource
 
 _logger = logging.getLogger(__name__)
 
 
 def run(
-    source: DocumentSource,
+    source: Document,
     doc_type: str,
     env=None,
     up_to: int = GENERATIVE,
     allow_pending: bool = False,
     pending: dict | None = None,
 ) -> ExtractionResult:
-    """Extract ``doc_type`` from ``source``, spending no more than ``up_to``.
-
-    :param source: the document, in whatever format it arrived
-    :param doc_type: a registered schema name
-    :param env: the Odoo environment, for strategies that reach a service
-    :param up_to: the most expensive strategy that may run. ``FREE`` is what a
-        posting path wants: structured strategies only, no network, no meter.
-    :param allow_pending: whether the caller can be handed an unfinished result
-        and come back for it. Only a queued caller can.
-    :param pending: what a previous call was waiting on, asked again before
-        anything else is tried.
-    :return: an :class:`ExtractionResult`, always -- an unsatisfied one reports
-        what is missing rather than raising, because a document that yields
-        nine fields of eleven is worth more than an exception.
-    """
     schema = get_schema(doc_type)
     result = ExtractionResult(schema)
 
@@ -112,12 +69,6 @@ def _is_two_phase(extractor) -> bool:
 
 
 def _resume(result, pending: dict, allow_pending: bool, env) -> bool:
-    """Ask again for an answer a previous call is still waiting on.
-
-    Returns False when the answer is still not ready, which leaves ``result``
-    waiting and ends the run: nothing cheaper is worth trying, because
-    everything cheaper was already tried before the service was asked.
-    """
     name = pending.get("strategy")
     extractor = next((e for e in get_extractors() if e.name == name), None)
     if extractor is None or not _is_two_phase(extractor):
@@ -149,7 +100,6 @@ def _resume(result, pending: dict, allow_pending: bool, env) -> bool:
 
 
 def _submit(result, extractor, source, doc_type, wanted, env) -> bool:
-    """Hand the document to a service. True when we are now waiting on it."""
     try:
         handle = extractor.submit(source, doc_type, wanted, env=env)
     except Exception:
@@ -167,7 +117,6 @@ def _submit(result, extractor, source, doc_type, wanted, env) -> bool:
 
 
 def _wanted(result: ExtractionResult) -> tuple[str, ...]:
-    """Fields the next strategy should spend its budget on."""
     if not result.ran:
         return tuple(result.schema.fields)
     rule_fields = {
@@ -180,13 +129,6 @@ def _wanted(result: ExtractionResult) -> tuple[str, ...]:
 
 
 def _run_one(extractor, source, doc_type, wanted, env):
-    """Run one strategy, treating its failure as "no answer".
-
-    A strategy that raises must not take the document with it: the next one may
-    well read it, and a caller holding a partial result is better off than one
-    holding a traceback. The failure is logged with the strategy named, so a
-    silent one cannot masquerade as a document that had nothing to give.
-    """
     try:
         return extractor.extract(source, doc_type, wanted, env=env)
     except Exception:

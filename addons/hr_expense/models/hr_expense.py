@@ -1600,7 +1600,7 @@ class HrExpense(models.Model):
 
     @api.model
     def _get_untitled_expense_name(self, *args):
-        """Done in a specific function to be called by hr_expense_extract to keep the same translation"""
+        """Its own function so document_extract_hr_expense can recognise the name it produced, under the same translation."""
         return _("Untitled Expense %s", *args)
 
     @api.model

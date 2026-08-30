@@ -1,14 +1,6 @@
-"""Which strategy runs, when it stops, and what it stops on.
-
-The central test is `test_a_complete_looking_answer_that_breaks_a_rule_escalates`.
-It encodes the finding that reshaped this design: a parser can return a full
-set of fields and still not have read the document. Stopping on "a strategy
-returned something" was measured accepting a real utility bill that had lost
-its subtotal, tax, surcharge and total together.
-"""
-
 import contextlib
 
+from odoo.libs.documents import Document
 from odoo.tests.common import BaseCase, tagged
 
 from odoo.addons.document_extract.tools import cascade
@@ -27,10 +19,9 @@ from odoo.addons.document_extract.tools.schema import (
     register_schema,
     sums_to,
 )
-from odoo.addons.document_extract.tools.source import DocumentSource
 
-_TEXT_DOC = DocumentSource(b"a bill with words on it", "text/plain")
-_IMAGE_DOC = DocumentSource(b"\x89PNG\r\n\x1a\n" + b"\x00" * 32, "image/png")
+_TEXT_DOC = Document(b"a bill with words on it", "text/plain")
+_IMAGE_DOC = Document(b"\x89PNG\r\n\x1a\n" + b"\x00" * 32, "image/png")
 
 
 class _Stub(BaseExtractor):
@@ -107,7 +98,6 @@ class TestCascade(BaseCase):
         self.assertEqual(result["number"].source, "pricey")
 
     def test_only_the_gaps_are_asked_for(self):
-        """Escalation is per field: what was read is not paid for twice."""
         partial = _Stub("partial", {"total": 116.0})
         pricey = _Stub("pricey", {"number": "A1"}, cost=GENERATIVE)
 
@@ -117,11 +107,6 @@ class TestCascade(BaseCase):
         self.assertEqual(pricey.calls, [("number",)])
 
     def test_a_complete_looking_answer_that_breaks_a_rule_escalates(self):
-        """Every required field present, and the numbers still contradict.
-
-        This is the case that "did a strategy return something" cannot see,
-        and the reason satisfaction is the schema's business.
-        """
         wrong = _Stub(
             "wrong", {"subtotal": 100.0, "tax": 16.0, "total": 999.0, "number": "A1"}
         )
@@ -147,7 +132,6 @@ class TestCascade(BaseCase):
         self.assertEqual(set(better.calls[0]), {"subtotal", "tax", "total"})
 
     def test_a_cost_ceiling_keeps_the_expensive_strategy_out(self):
-        """What a posting path asks for: structured only, no network."""
         partial = _Stub("partial", {"total": 116.0})
         pricey = _Stub("pricey", {"number": "A1"}, cost=GENERATIVE)
 
@@ -215,9 +199,6 @@ class TestCascade(BaseCase):
         self.assertEqual(result.missing, ("total",))
 
     def test_a_field_the_schema_does_not_know_is_kept(self):
-        """A strategy reading more than the schema declares is a reason to
-        extend the schema, and dropping it silently is how that never
-        happens."""
         with _registered(
             _Stub("rich", {"total": 116.0, "number": "A1", "vendor_note": "x"})
         ):
@@ -245,31 +226,23 @@ class TestCascade(BaseCase):
 
 @tagged("post_install", "-at_install")
 class TestUnhashableValues(BaseCase):
-    """A schema field may be a list or a dict, and comparing is not hashing.
-
-    `disputed` built a set of candidate values, which raises rather than
-    answering for an invoice's lines or a bill's meter registers. It surfaced
-    only when a result was serialised onto a record, so every cascade test
-    passed while the mixin could not store what the cascade produced.
-    """
-
     def test_a_list_valued_field_can_be_compared(self):
         result = ExtractionResult(get_schema("invoice"))
-        result.add("lines", [{"a": 1}], "one", 0.9)
+        result.add("lines", [{"description": "One"}], "one", 0.9)
 
         self.assertFalse(result["lines"].disputed)
 
     def test_two_readers_disagreeing_about_a_list_is_a_dispute(self):
         result = ExtractionResult(get_schema("invoice"))
-        result.add("lines", [{"a": 1}], "one", 0.9)
-        result.add("lines", [{"a": 2}], "other", 0.5)
+        result.add("lines", [{"description": "One"}], "one", 0.9)
+        result.add("lines", [{"description": "Other"}], "other", 0.5)
 
         self.assertTrue(result["lines"].disputed)
-        self.assertEqual(result["lines"].value, [{"a": 1}])
+        self.assertEqual(result["lines"].value, [{"description": "One"}])
 
     def test_two_readers_agreeing_about_a_list_is_not(self):
         result = ExtractionResult(get_schema("invoice"))
-        result.add("lines", [{"a": 1}], "one", 0.9)
-        result.add("lines", [{"a": 1}], "other", 0.5)
+        result.add("lines", [{"description": "One"}], "one", 0.9)
+        result.add("lines", [{"description": "One"}], "other", 0.5)
 
         self.assertFalse(result["lines"].disputed)

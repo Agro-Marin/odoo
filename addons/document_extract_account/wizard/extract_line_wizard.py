@@ -5,14 +5,6 @@ from odoo.exceptions import UserError
 
 
 def _read_untaxed_total(result: dict) -> float:
-    """What the document says its own lines add up to, before tax.
-
-    The schema's ``total`` is gross -- it declares subtotal + tax_amount =
-    total -- while this screen sums untaxed line amounts. Comparing the two
-    flags every bill that carries tax, which in Mexico is every bill. Prefer
-    the stated subtotal, fall back to total minus the stated tax, and only
-    then to the gross total.
-    """
     subtotal = (result.get("subtotal") or {}).get("value")
     if subtotal is not None:
         return subtotal
@@ -78,8 +70,6 @@ class ExtractLineWizard(models.TransientModel):
     @api.depends("proposed_total", "read_untaxed_total", "currency_id")
     def _compute_totals_agree(self) -> None:
         for wizard in self:
-            # The currency's own rounding, not a hardcoded 0.01: a currency
-            # that rounds to the unit would call every bill a disagreement.
             currency = wizard.currency_id or wizard.move_id.company_id.currency_id
             wizard.totals_agree = (
                 currency.compare_amounts(

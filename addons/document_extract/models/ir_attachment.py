@@ -1,20 +1,8 @@
-"""The framework's own consumer: an attachment can be read.
-
-The most general record that carries a document, and therefore the honest first
-consumer of the mixin -- a model whose whole content is the document, with no
-business fields to fill and nothing to predict. If the mixin needs anything an
-attachment cannot provide, the mixin is wrong.
-
-An attachment has no idea what kind of document it holds, so unlike a vendor
-bill it names its type per record rather than per model. The selection comes
-from the schema registry, so a module that registers a document type gets it
-here without touching this file.
-"""
-
 from odoo import api, fields, models
+from odoo.libs.documents import Document
 
 from ..tools.schema import known_schemas
-from ..tools.source import DocumentSource
+from ..tools.source import document_of
 
 
 class IrAttachment(models.Model):
@@ -35,9 +23,8 @@ class IrAttachment(models.Model):
     def _get_extract_document_type(self) -> str:
         return self.extract_document_type or ""
 
-    def _get_extract_source(self) -> DocumentSource | None:
-        """An attachment is its own document; there is nothing to look up."""
+    def _get_extract_source(self) -> Document | None:
         self.ensure_one()
         if not self.raw:
             return None
-        return DocumentSource.of(self)
+        return document_of(self)

@@ -72,7 +72,6 @@ class TestApplicantExtraction(TransactionCase):
         self.assertEqual(applicant.extract_state, "done")
 
     def test_it_does_not_overwrite_what_a_recruiter_typed(self):
-        """The replaced module preferred the reading; this one prefers the person."""
         with _only(_Stub(_READ)):
             applicant = self._applicant(partner_name="the name I was told")
 
@@ -108,7 +107,6 @@ class TestApplicantExtraction(TransactionCase):
             applicant.action_extract_document()
 
     def test_the_document_type_is_a_resume_whatever_the_stage(self):
-        """The type says what the document is; the stage says whether to read."""
         applicant = self._applicant()
         later = self.env["hr.recruitment.stage"].search(
             [("fold", "=", False)], order="sequence desc", limit=1

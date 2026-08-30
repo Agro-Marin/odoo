@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+
+    <t t-name="document_extract.ExtractionField">
+        <div class="o_document_extraction">
+            <div t-if="isEmpty" class="text-muted">
+                This document has not been read.
+            </div>
+            <t t-else="">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <span class="badge" t-att-class="stateBadge" t-esc="stateLabel"/>
+                    <span t-if="error" class="text-danger small" t-esc="error"/>
+                </div>
+
+                <div t-if="missingFields.length or brokenRules.length"
+                     class="alert alert-warning py-2 mb-2" role="alert">
+                    <div t-if="missingFields.length">
+                        <span class="fw-bold">Nobody could read:</span>
+                        <span t-foreach="missingFields" t-as="name" t-key="name"
+                              class="badge text-bg-light ms-1" t-esc="name"/>
+                    </div>
+                    <div t-if="brokenRules.length" class="mt-1">
+                        <span class="fw-bold">What does not add up:</span>
+                        <span t-foreach="brokenRules" t-as="rule" t-key="rule"
+                              class="badge text-bg-light ms-1" t-esc="rule"/>
+                    </div>
+                </div>
+
+                <table t-if="readings.length" class="table table-sm o_document_extraction_read">
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            <th>Value</th>
+                            <th>Read by</th>
+                            <th class="text-end">Confidence</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <t t-foreach="readings" t-as="reading" t-key="reading.name">
+                            <tr t-att-class="reading.disputed ? 'table-warning' : ''">
+                                <td t-esc="reading.name"/>
+                                <td class="fw-bold" t-esc="reading.value"/>
+                                <td class="text-muted" t-esc="reading.source"/>
+                                <td class="text-end text-muted">
+                                    <t t-if="reading.confidence !== null">
+                                        <t t-esc="reading.confidence"/>%
+                                    </t>
+                                </td>
+                            </tr>
+                            <tr t-foreach="reading.rejected" t-as="other"
+                                t-key="reading.name + '/' + other_index"
+                                class="text-muted small">
+                                <td/>
+                                <td>
+                                    <span class="text-decoration-line-through"
+                                          t-esc="other.value"/>
+                                </td>
+                                <td t-esc="other.source"/>
+                                <td class="text-end">
+                                    <t t-if="other.confidence !== null">
+                                        <t t-esc="other.confidence"/>%
+                                    </t>
+                                </td>
+                            </tr>
+                        </t>
+                    </tbody>
+                </table>
+
+                <table t-if="corrections.length"
+                       class="table table-sm o_document_extraction_corrections">
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            <th>Was read as</th>
+                            <th>Corrected to</th>
+                            <th>Read by</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr t-foreach="corrections" t-as="correction" t-key="correction.name">
+                            <td t-esc="correction.name"/>
+                            <td class="text-decoration-line-through text-muted"
+                                t-esc="correction.read"/>
+                            <td class="fw-bold" t-esc="correction.correctedTo"/>
+                            <td class="text-muted" t-esc="correction.readBy"/>
+                        </tr>
+                    </tbody>
+                </table>
+            </t>
+        </div>
+    </t>
+
+</templates>

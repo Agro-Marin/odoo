@@ -2,17 +2,8 @@ import logging
 
 _logger = logging.getLogger(__name__)
 
-#: States a row under the *new* name can be in and still be a placeholder the
-#: module-list scan created rather than a module carrying data. `uninstalled` is
-#: what the scan writes; `to install` is that same row one step further on,
-#: promoted by dependency resolution because an installed module already lists
-#: the new name in its `depends`. Neither holds anything to lose.
 _PLACEHOLDER_STATES = ("uninstalled", "to install")
 
-#: The consumers were named after the model they extend and now carry the
-#: framework's own prefix, so the family sorts and reads as one -- the shape
-#: `documents_account` / `documents_hr` already uses. This module is where the
-#: rename lives because it is installed wherever any of them is.
 _RENAMES = {
     "account_document_extract": "document_extract_account",
     "account_document_extract_purchase": "document_extract_account_purchase",
@@ -39,11 +30,6 @@ def _rename_module(cr, old, new):
         return
     old_id = old_row[0]
 
-    # A module-list update runs before migrations and creates a row for every
-    # module it finds on disk, so the new name is normally already there. See
-    # `_PLACEHOLDER_STATES` for the two shapes that row takes. Any other state
-    # means a real module carrying data, and merging onto it would lose one of
-    # the two. Say so and leave both alone.
     cr.execute("SELECT id, state FROM ir_module_module WHERE name = %s", (new,))
     existing = cr.fetchone()
     if existing and existing[1] not in _PLACEHOLDER_STATES:
@@ -57,8 +43,6 @@ def _rename_module(cr, old, new):
         )
         return
 
-    # Everything the old module owns answers to the new name from here on. This
-    # runs before either row is touched, so it is the same work in both branches.
     cr.execute("UPDATE ir_model_data SET module = %s WHERE module = %s", (new, old))
     _logger.info(
         "Renamed ir_model_data module: %s -> %s (%d rows)", old, new, cr.rowcount
@@ -77,14 +61,9 @@ def _rename_module(cr, old, new):
 
 
 def _rename_row(cr, old, new, old_id):
-    """Carry the old row onto the new name; nothing else claims it."""
     cr.execute("UPDATE ir_module_module SET name = %s WHERE id = %s", (new, old_id))
     _logger.info("Renamed ir_module_module: %s -> %s (id %s)", old, new, old_id)
 
-    # Every module owns an xmlid of its own, `base.module_<name>`, created by
-    # the module-list scan. Renaming the row without it leaves that xmlid
-    # naming a module nobody can find, and the next scan creates a second one
-    # for the new name pointing at the same row.
     cr.execute(
         """
         UPDATE ir_model_data SET name = %s
@@ -96,20 +75,6 @@ def _rename_row(cr, old, new, old_id):
 
 
 def _adopt_placeholder(cr, old, new, old_row, existing):
-    """Keep the placeholder's row and give it the old module's history.
-
-    The obvious move -- drop the placeholder, rename the old row onto the free
-    name -- is wrong once the placeholder is `to install`: it is already a node
-    in the module graph this upgrade is walking, and `load_data_and_demo`
-    browses it by id. Deleting it raises `MissingError: Record does not exist`
-    when the loader reaches that node, which takes the registry down as surely
-    as the collision this guard was written to avoid.
-
-    So the placeholder's id survives and inherits `state` and `db_version`, and
-    the *old* row is the one dropped: its code is gone from disk, so the graph
-    skipped it and nothing will browse it. Its xmlid goes with it -- the
-    placeholder already has its own `base.module_<new>` from the scan.
-    """
     old_id, old_state, old_db_version = old_row
     new_id, new_state = existing
 

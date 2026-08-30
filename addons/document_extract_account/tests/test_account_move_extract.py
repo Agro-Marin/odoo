@@ -263,9 +263,6 @@ class TestBillExtraction(TransactionCase):
         self.assertEqual(bill.invoice_payment_term_id, term)
         self.assertNotEqual(str(bill.invoice_date_due), "2026-02-15")
 
-        # Terms are computed from what the bill owes, so the agreed date only
-        # appears once the bill has lines. What matters is that the printed
-        # date never displaced the agreement on the way there.
         bill.write(
             {"invoice_line_ids": [(0, 0, {"name": "algo", "price_unit": 1000.0})]}
         )

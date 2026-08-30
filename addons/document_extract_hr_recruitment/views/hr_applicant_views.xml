@@ -15,6 +15,17 @@
                 <field name="extract_can_be_read" invisible="1" />
                 <field name="extract_state" invisible="1" />
             </header>
+            <page name="application_details" position="after">
+                <page
+                    name="document_extract"
+                    string="Extraction"
+                    invisible="extract_state == 'none'">
+                    <field
+                        name="extract_result"
+                        widget="document_extraction"
+                        nolabel="1" />
+                </page>
+            </page>
         </field>
     </record>
 

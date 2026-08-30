@@ -1,16 +1,3 @@
-"""What a record gets by inheriting the mixin, tested on an attachment.
-
-``ir.attachment`` is the framework's own consumer and the right subject for
-these: a record whose entire content is the document, with no business fields
-to fill and nothing to predict. Anything the mixin needs that an attachment
-cannot give would mean the mixin is asking for too much.
-
-The queued path is tested by what it enqueues rather than by running a worker.
-``ir.job`` has its own suite in ``base`` for the running; what belongs here is
-that this module hands it the right job -- on its channel, with an identity key
-that makes a second enqueue a no-op.
-"""
-
 import contextlib
 
 import pymupdf
@@ -86,8 +73,6 @@ class TestExtractMixin(TransactionCase):
             }
         )
 
-    # -- states -------------------------------------------------------
-
     def test_a_complete_reading_is_done(self):
         with _only(_Stub({"total": 139.86, "reference": "A1"})):
             attachment = self._attachment()
@@ -98,7 +83,6 @@ class TestExtractMixin(TransactionCase):
         self.assertEqual(attachment.extract_missing["fields"], [])
 
     def test_an_incomplete_reading_is_partial_and_names_what_is_missing(self):
-        """The state that exists so nine fields of eleven are not thrown away."""
         with _only(_Stub({"total": 139.86})):
             attachment = self._attachment()
 
@@ -134,8 +118,6 @@ class TestExtractMixin(TransactionCase):
         with self.assertRaises(ValueError):
             attachment.action_extract()
 
-    # -- provenance ---------------------------------------------------
-
     def test_the_result_keeps_which_strategy_read_each_field(self):
         with _only(_Stub({"total": 139.86, "reference": "A1"})):
             attachment = self._attachment()
@@ -148,13 +130,6 @@ class TestExtractMixin(TransactionCase):
         self.assertEqual(attachment.extract_result["total"]["confidence"], 0.9)
 
     def test_a_disagreement_between_strategies_is_kept_not_resolved_away(self):
-        """Both answers survive; the more confident one is the value.
-
-        The cheap strategy has to leave the schema unsatisfied for the second
-        one to run at all -- which is the cascade working, and the reason this
-        test reads the way it does rather than by giving both strategies a
-        complete answer.
-        """
         cheap = _Stub({"total": 100.0})
         careful = _Stub({"total": 139.86, "reference": "A1"})
         careful.name = "careful"
@@ -173,10 +148,7 @@ class TestExtractMixin(TransactionCase):
         self.assertEqual(total["source"], "careful")
         self.assertEqual(attachment.extract_state, "done")
 
-    # -- corrections --------------------------------------------------
-
     def test_a_person_disagreeing_with_the_reader_is_recorded(self):
-        """The labelled example other extraction systems throw away."""
         with _only(_Stub({"total": 139.86, "reference": "A1", "title": "Bill"})):
             attachment = self._attachment()
             attachment.action_extract()
@@ -208,7 +180,6 @@ class TestExtractMixin(TransactionCase):
 
     @contextlib.contextmanager
     def _targeting(self, mapping):
-        """Give ir.attachment a field mapping for the length of a test."""
         model = self.env["ir.attachment"]
         saved = type(model)._extract_target
         type(model)._extract_target = mapping
@@ -216,8 +187,6 @@ class TestExtractMixin(TransactionCase):
             yield
         finally:
             type(model)._extract_target = saved
-
-    # -- the queue ----------------------------------------------------
 
     def test_queueing_produces_a_pending_job_on_our_channel(self):
         attachment = self._attachment()
@@ -231,7 +200,6 @@ class TestExtractMixin(TransactionCase):
         self.assertEqual(attachment.extract_state, "queued")
 
     def test_queueing_twice_does_not_produce_two_jobs(self):
-        """A sweep that runs hourly must not collect a second job per document."""
         attachment = self._attachment()
 
         first = attachment._extract_later()

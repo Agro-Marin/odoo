@@ -1,26 +1,11 @@
-"""What a document type is supposed to yield, declared once.
-
-Without this, every producer invents the shape of its own output and every
-consumer guesses. That is not hypothetical: a utility bill in this workspace
-is stored as a bare JSON column written by three independent parsers with no
-declaration between them, which is why the OCR bridge maps three fields and
-leaves the rest to a comment.
-
-A schema declares the fields, which of them are required, and the rules that
-must hold between them. Both halves matter, because "the extractor returned
-something" is not a usable definition of success -- measured on a real bill,
-a one-word layout change dropped the subtotal, tax, surcharge and total
-together while the parser returned twenty-eight other fields and reported
-success. Required fields catch the absence; consistency rules catch the
-subtler case where every field is present and they contradict each other.
-"""
-
 from __future__ import annotations
 
 import datetime
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field, replace
 from typing import Any
+
+from odoo.libs.documents import to_date, to_float
 
 TYPES: dict[str, type | tuple[type, ...]] = {
     "str": str,
@@ -35,11 +20,10 @@ TYPES: dict[str, type | tuple[type, ...]] = {
 
 @dataclass(frozen=True)
 class FieldSpec:
-    """One field of a document type."""
-
     type: str = "str"
     required: bool = False
     help: str = ""
+    items: dict[str, FieldSpec] | None = None
 
     def __post_init__(self) -> None:
         if self.type not in TYPES:
@@ -47,27 +31,92 @@ class FieldSpec:
                 f"Unknown field type {self.type!r}; expected one of "
                 f"{', '.join(sorted(TYPES))}"
             )
+        if self.items is None:
+            return
+        if self.type != "list":
+            raise ValueError(f"Only a list declares items; this one is a {self.type!r}")
+        if not self.items:
+            raise ValueError("A list that declares items must name at least one")
+        nested = sorted(k for k, spec in self.items.items() if spec.items is not None)
+        if nested:
+            raise ValueError(
+                f"A row is one level deep; {', '.join(nested)} declares items of "
+                "its own"
+            )
 
     def accepts(self, value: Any) -> bool:
         if value is None:
             return True
         if self.type in ("int", "float") and isinstance(value, bool):
-            # bool is a subclass of int; without this a True/False value would
-            # pass as a valid numeric candidate for total/consumption/etc.
             return False
         return isinstance(value, TYPES[self.type])
+
+    def coerce(self, value: Any) -> Any:
+        if value is None:
+            return None
+        if self.type == "date":
+            # Never short-circuited on `accepts`, which passes any str -- that
+            # looseness is the whole reason a date needs coercing, and
+            # returning "12/03/2026" untouched is how an unparseable date
+            # reaches the consistency rules and raises inside one.
+            return to_date(value).isoformat()
+        if self.type in ("float", "int"):
+            if isinstance(value, bool):
+                raise ValueError(f"{value!r} is a boolean, not a number")
+            if isinstance(value, (int, float)):
+                return value
+            number = to_float(value)
+            if self.type == "int":
+                if number != int(number):
+                    raise ValueError(f"{value!r} is not a whole number")
+                return int(number)
+            return number
+        if not self.accepts(value):
+            raise ValueError(f"{value!r} is not a {self.type}")
+        if self.type == "list" and self.items is not None:
+            rows = [row for row in map(self._coerce_row, value) if row is not None]
+            # None and not [], so a required list whose every row was unreadable
+            # is reported missing. `Schema.missing` asks `is None`, and an empty
+            # list satisfies a requirement while carrying nothing.
+            return rows or None
+        return value
+
+    def _coerce_row(self, row: Any) -> dict[str, Any] | None:
+        # A row that cannot be read is dropped and the rest of the list is kept.
+        # Raising instead would discard every row because one of them was
+        # unreadable, and send the cascade back to a more expensive strategy for
+        # a list it had already read.
+        if not isinstance(row, dict):
+            row = self._row_of(row)
+            if row is None:
+                return None
+        read: dict[str, Any] = {k: v for k, v in row.items() if k not in self.items}
+        for name, spec in self.items.items():
+            try:
+                value = spec.coerce(row.get(name))
+            except TypeError, ValueError:
+                value = None
+            if value is None and spec.required:
+                return None
+            if value is not None:
+                read[name] = value
+        return read or None
+
+    def _row_of(self, value: Any) -> dict[str, Any] | None:
+        # A skill is "Python" as readily as {"name": "Python"}, and a row with
+        # exactly one required key has exactly one place the bare value can go.
+        # With two, there is no such place and guessing one would be the
+        # unwritten contract this declaration exists to end.
+        if value is None:
+            return None
+        required = [name for name, spec in self.items.items() if spec.required]
+        if len(required) != 1:
+            return None
+        return {required[0]: value}
 
 
 @dataclass(frozen=True)
 class Rule:
-    """A consistency requirement between fields of one document.
-
-    ``check`` receives the flat values and returns True when the document is
-    coherent. A rule whose fields are not all present is skipped rather than
-    failed: an incomplete extraction is the business of ``required``, and
-    reporting it twice would make a missing field look like a contradiction.
-    """
-
     name: str
     fields: tuple[str, ...]
     check: Callable[[dict[str, Any]], bool]
@@ -104,7 +153,6 @@ def register_schema(
     fields: dict[str, FieldSpec],
     rules: Iterable[Rule] = (),
 ) -> Schema:
-    """Declare a document type. Raises if it is already declared."""
     if name in _SCHEMAS:
         raise ValueError(f"Schema {name!r} is already registered")
     _SCHEMAS[name] = Schema(name=name, fields=dict(fields), rules=tuple(rules))
@@ -116,14 +164,6 @@ def extend_schema(
     fields: dict[str, FieldSpec] | None = None,
     rules: Iterable[Rule] = (),
 ) -> Schema:
-    """Add fields or rules to a declared type.
-
-    How a localization adds what only it knows -- a Mexican invoice's fiscal
-    UUID, a utility bill's meter number -- without forking the type or
-    teaching the core about a country. Redeclaring an existing field is an
-    error: two modules disagreeing about what ``total`` means is a bug, and a
-    silent last-one-wins would hide it.
-    """
     schema = get_schema(name)
     added = dict(fields or {})
     clashing = sorted(set(added) & set(schema.fields))
@@ -157,7 +197,6 @@ def known_schemas() -> tuple[str, ...]:
 def sums_to(
     name: str, parts: Iterable[str], total: str, tolerance: float = 0.01
 ) -> Rule:
-    """The commonest consistency rule: some fields add up to another."""
     parts = tuple(parts)
 
     def _check(values: dict[str, Any]) -> bool:
@@ -172,7 +211,6 @@ def sums_to(
 
 
 def not_after(name: str, earlier: str, later: str) -> Rule:
-    """A date ordering rule, tolerant of dates written as strings."""
 
     def _check(values: dict[str, Any]) -> bool:
         return _as_date(values[earlier]) <= _as_date(values[later])
@@ -186,12 +224,6 @@ def not_after(name: str, earlier: str, later: str) -> Rule:
 
 
 def _as_date(value: datetime.date | str) -> datetime.date:
-    """Parse a ``"date"`` field's value for ordering comparison.
-
-    ``FieldSpec("date")`` accepts any ``str``, so comparing raw strings (as
-    ``not_after`` used to) is only correct for the ISO form; a non-ISO date
-    string from an extractor would order lexically rather than chronologically.
-    """
     if isinstance(value, datetime.date):
         return value
     return datetime.date.fromisoformat(str(value)[:10])

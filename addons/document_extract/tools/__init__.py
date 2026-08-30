@@ -1,3 +1,4 @@
+from . import readers
 from . import source
 from . import schema
 from . import candidates
@@ -29,10 +30,11 @@ from .schema import (
     register_schema,
     sums_to,
 )
-from .source import (
-    DocumentSource,
+from .readers import (
     known_barcode_readers,
     known_text_readers,
+    page_count,
     register_barcode_reader,
     register_text_reader,
 )
+from .source import document_of

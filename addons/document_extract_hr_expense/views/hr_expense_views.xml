@@ -15,6 +15,14 @@
                 <field name="extract_can_be_read" invisible="1" />
                 <field name="extract_state" invisible="1" />
             </header>
+            <sheet position="inside">
+                <group string="Extraction" invisible="extract_state == 'none'">
+                    <field
+                        name="extract_result"
+                        widget="document_extraction"
+                        nolabel="1" />
+                </group>
+            </sheet>
         </field>
     </record>
 

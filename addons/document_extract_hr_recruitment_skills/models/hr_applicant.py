@@ -20,19 +20,13 @@ class HrApplicant(models.Model):
             self._add_extracted_skills(names)
 
     def _get_extract_skill_names(self, skills) -> list[str]:
-        if not skills:
-            return []
-        names = []
-        for skill in skills:
-            name = skill.get("name") if isinstance(skill, dict) else skill
-            if isinstance(name, str) and name.strip():
-                names.append(name.strip())
-        return names
+        # `resume.skills` declares a row and requires its name, and a bare
+        # "Python" is read as that one required key, so both shapes a model
+        # might answer with arrive here as a row that has a name.
+        return [name for skill in skills or () if (name := skill["name"].strip())]
 
     def _add_extracted_skills(self, names: list[str]) -> None:
         self.ensure_one()
-        # `in` is case-sensitive in SQL, so it would filter the catalogue down
-        # before the case-insensitive match below ever runs.
         catalogue = self.env["hr.skill"].search(
             Domain.OR([Domain("name", "=ilike", name) for name in names])
         )

@@ -40,16 +40,9 @@ class TestExpenseExtraction(TransactionCase):
         super().setUpClass()
         cls.employee = cls.env["hr.employee"].create({"name": "Grace Hopper"})
         cls.company_currency = cls.env.company.currency_id
-        # hr_expense ships this one; a second EXP_GEN would shadow it.
         cls.generic = cls.env.ref("hr_expense.product_product_no_cost")
 
     def _expense(self, **values):
-        """An expense as `create_expense_from_attachments` makes one.
-
-        `name` is required and computes to `name or product_id.display_name`, so
-        an expense with neither cannot be stored; and the upload path always
-        supplies both -- an untitled name and a generic product.
-        """
         vals = {
             "employee_id": self.employee.id,
             "name": self.env["hr.expense"]._get_untitled_expense_name("2026-03-01"),
@@ -108,9 +101,6 @@ class TestExpenseExtraction(TransactionCase):
         self.assertEqual(expense.total_amount_currency, 0.0)
 
     def test_it_reads_the_currency_the_receipt_names(self):
-        # A fresh database activates one currency; the rest exist but are not
-        # searchable without active_test, and _get_extract_currency looks past
-        # `active` deliberately -- a receipt names what it names.
         other = (
             self.env["res.currency"]
             .with_context(active_test=False)

@@ -18,10 +18,15 @@ a new format means a new parser, a new document type means a new integration.
 
 Separating them is the whole module.
 
-``DocumentSource``
-------------------
-Where formats collapse. Holds the bytes and derives ``text``, ``images``,
-``tree``, ``data`` and ``barcodes`` on first access, each at most once. PDF,
+``Document``
+------------
+Where formats collapse. It lives in ``odoo.libs.documents``, because deciding
+what bytes are has no business knowledge in it and every framework in this tree
+was answering it separately (ADR-0078). This module registers the readers whose
+libraries it owns -- PDF text, page images, barcodes -- and gets the rest.
+
+Holds the bytes and derives ``text``, ``images``,
+``tree``, ``data``, ``rows`` and ``barcodes`` on first access, each at most once. PDF,
 PNG, JPEG, WebP, GIF, BMP, XML and JSON today; a format is added by teaching
 one class to read it, and every strategy gains it.
 
@@ -75,11 +80,32 @@ give would mean the mixin is wrong.
 
 The strategies -- structured parsers, templates, Odoo's own extraction service,
 and generative models -- arrive as separate modules, each registering itself.
+
+One widget, so a consumer does not build its own
+------------------------------------------------
+``extract_result`` carries what was read, which strategy proposed it, how
+confident it was and which candidates lost; ``extract_missing`` carries the
+required fields nobody could read and the rules that do not hold;
+``extract_corrections`` carries what a person changed afterwards. Rendered with
+``widget="document_extraction"`` those become a table a person can act on,
+rather than the three raw JSON dumps the first consumer put in front of an
+accountant. That widget is why this module depends on ``web``: the fields are
+declared here, so the one place that knows how to read them is here too, and a
+separate UI module holding nothing but a template would be the dependency shim
+this fork has just finished deleting elsewhere.
     """,
     "author": "AgroMarin",
     "license": "LGPL-3",
-    "depends": ["base"],
+    "depends": ["base", "web"],
     "data": ["data/ir_job_channel.xml"],
+    "assets": {
+        "web.assets_backend": [
+            "document_extract/static/src/**/*",
+        ],
+        "web.assets_unit_tests": [
+            "document_extract/static/tests/**/*.test.js",
+        ],
+    },
     "external_dependencies": {"python": ["pymupdf"]},
     "installable": True,
 }

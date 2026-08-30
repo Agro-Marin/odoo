@@ -1,16 +1,3 @@
-"""The document types the framework ships with.
-
-Deliberately thin. A field belongs here when every instance of the type has it
-in every country -- an invoice has a total, a receipt has a merchant. Anything
-narrower belongs in the module that knows it: a fiscal UUID is Mexican, a meter
-number is a utility's, and both arrive through ``extend_schema``.
-
-Required is used sparingly and means "the extraction is not usable without
-this", because a required field is what makes the cascade spend money. Marking
-a nice-to-have required is how a framework teaches itself to call an LLM for
-every document.
-"""
-
 from .schema import FieldSpec, not_after, register_schema, sums_to
 
 _MONEY = "float"
@@ -27,7 +14,15 @@ register_schema(
         "subtotal": FieldSpec(_MONEY),
         "tax_amount": FieldSpec(_MONEY),
         "total": FieldSpec(_MONEY, required=True),
-        "lines": FieldSpec("list"),
+        "lines": FieldSpec(
+            "list",
+            items={
+                "description": FieldSpec("str", required=True),
+                "quantity": FieldSpec("float"),
+                "unit_price": FieldSpec(_MONEY),
+                "amount": FieldSpec(_MONEY),
+            },
+        ),
     },
     rules=[
         sums_to("invoice_totals", ("subtotal", "tax_amount"), "total"),
@@ -46,7 +41,15 @@ register_schema(
         "tip_amount": FieldSpec(_MONEY),
         "total": FieldSpec(_MONEY, required=True),
         "payment_method": FieldSpec("str"),
-        "items": FieldSpec("list"),
+        "items": FieldSpec(
+            "list",
+            items={
+                "description": FieldSpec("str", required=True),
+                "quantity": FieldSpec("float"),
+                "unit_price": FieldSpec(_MONEY),
+                "amount": FieldSpec(_MONEY),
+            },
+        ),
     },
     rules=[
         sums_to("receipt_totals", ("subtotal", "tax_amount", "tip_amount"), "total")
@@ -81,7 +84,15 @@ register_schema(
         "currency": FieldSpec("str"),
         "opening_balance": FieldSpec(_MONEY),
         "closing_balance": FieldSpec(_MONEY),
-        "transactions": FieldSpec("list", required=True),
+        "transactions": FieldSpec(
+            "list",
+            required=True,
+            items={
+                "date": FieldSpec("date"),
+                "description": FieldSpec("str", required=True),
+                "amount": FieldSpec(_MONEY, required=True),
+            },
+        ),
     },
     rules=[not_after("statement_period", "period_start", "period_end")],
 )
@@ -118,9 +129,32 @@ register_schema(
         "email": FieldSpec("str"),
         "phone": FieldSpec("str"),
         "summary": FieldSpec("str"),
-        "experience": FieldSpec("list"),
-        "education": FieldSpec("list"),
-        "skills": FieldSpec("list"),
+        "experience": FieldSpec(
+            "list",
+            items={
+                "employer": FieldSpec("str", required=True),
+                "title": FieldSpec("str"),
+                "start_date": FieldSpec("date"),
+                "end_date": FieldSpec("date"),
+                "summary": FieldSpec("str"),
+            },
+        ),
+        "education": FieldSpec(
+            "list",
+            items={
+                "institution": FieldSpec("str", required=True),
+                "qualification": FieldSpec("str"),
+                "start_date": FieldSpec("date"),
+                "end_date": FieldSpec("date"),
+            },
+        ),
+        "skills": FieldSpec(
+            "list",
+            items={
+                "name": FieldSpec("str", required=True),
+                "level": FieldSpec("str"),
+            },
+        ),
     },
 )
 
