@@ -178,8 +178,10 @@ class ProductProduct(models.Model):
         )
 
         # Force the compute of all records to bypass the limit compute batching (PREFETCH_MAX)
+        # This line will compute all fields having _compute_product_margin_fields_values
+        # as compute method.
         all_records = self.concat(*(item[-1] for row in base_result for item in row))
-        all_records._compute_product_margin_fields_values()
+        self._fields["turnover"].compute_value(all_records)
 
         # base_result = [[(a1, b1, records), (a2, b2, records), ...], [(a1, b1, c1, records), (a2, b2, c2, records), ...] ...]
         result = []
