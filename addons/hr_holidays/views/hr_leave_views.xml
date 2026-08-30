@@ -331,6 +331,7 @@
         <field name="arch" type="xml">
             <form string="Time Off Request" class="o_hr_leave_form" duplicate="false">
             <field name="employee_id" invisible="1"/> <!-- for the employee's default value-->
+            <field name="allowed_holiday_status_ids" invisible="1"/> <!-- narrows the type domain to the company country-->
             <field name="user_id" invisible="1"/> <!-- for conditional rendering of buttons on card -->
             <header>
                 <button string="Approve" name="action_approve" type="object" class="oe_highlight" invisible="not can_approve or not id"/>
@@ -353,15 +354,17 @@
                         <group name="col_left" class="m-0">
                             <field name="holiday_status_id" force_save="1"
                                 domain="[
-                                    '|',
-                                        ('requires_allocation', '=', False),
-                                        '&amp;',
-                                            ('has_valid_allocation', '=', True),
-                                            '|',
-                                                ('allows_negative', '=', True),
-                                                '&amp;',
-                                                    ('virtual_remaining_leaves', '&gt;', 0),
-                                                    ('allows_negative', '=', False),
+                                    '&amp;',
+                                        ('id', 'in', allowed_holiday_status_ids),
+                                        '|',
+                                            ('requires_allocation', '=', False),
+                                            '&amp;',
+                                                ('has_valid_allocation', '=', True),
+                                                '|',
+                                                    ('allows_negative', '=', True),
+                                                    '&amp;',
+                                                        ('virtual_remaining_leaves', '&gt;', 0),
+                                                        ('allows_negative', '=', False),
                                 ]"
                                 context="{'employee_id': employee_id, 'default_date_from': date_from, 'default_date_to': date_to}"
                                 options="{'no_create': True, 'request_type': 'leave'}"
@@ -473,7 +476,7 @@
         <field name="mode">primary</field>
         <field name="priority">17</field>
         <field name="arch" type="xml">
-            <xpath expr="//field[@widget='many2one_avatar_employee']" position="attributes"> 
+            <xpath expr="//field[@widget='many2one_avatar_employee']" position="attributes">
                 <attribute name="readonly">0</attribute>
             </xpath>
             <field name="holiday_status_id" position="before">

@@ -202,6 +202,14 @@ class HrLeave(models.Model):
     holiday_status_requires_allocation = fields.Boolean(
         related="holiday_status_id.requires_allocation"
     )
+    allowed_holiday_status_ids = fields.Many2many(
+        "hr.leave.type",
+        string="Time Off Types of the Company Country",
+        compute="_compute_allowed_holiday_status_ids",
+        export_string_translation=False,
+        help="Technical field narrowing the Time Off Type drop-down to the "
+        "types that apply where the company is established.",
+    )
     color = fields.Integer("Color", related="holiday_status_id.color")
     validation_type = fields.Selection(
         string="Validation Type",
@@ -762,6 +770,27 @@ Versions:
                     ).has_valid_allocation
                 ):
                     holiday.holiday_status_id = False
+
+    @api.depends("company_id.country_id")
+    def _compute_allowed_holiday_status_ids(self):
+        """The types on offer: the company's own country, plus the global ones.
+
+        hr_leave_type_data.xml ships a type per country it covers and archives
+        none of them, so without this every company is offered every country's
+        types. Grouped by country rather than searched per record, since a list
+        of leaves shares one company far more often than not.
+        """
+        leave_types = self.env["hr.leave.type"]
+        global_types = leave_types.search([("country_id", "=", False)])
+        by_country = {
+            country.id: global_types
+            | leave_types.search([("country_id", "=", country.id)])
+            for country in self.company_id.country_id
+        }
+        for leave in self:
+            leave.allowed_holiday_status_ids = by_country.get(
+                leave.company_id.country_id.id, global_types
+            )
 
     @api.depends("employee_id")
     def _compute_department_id(self):
