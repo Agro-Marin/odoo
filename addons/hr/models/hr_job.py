@@ -59,6 +59,7 @@ class HrJob(models.Model):
         "res.company",
         string="Company",
         default=lambda self: self.env.company,
+        domain=lambda self: [("id", "in", self.env.companies.ids)],
         tracking=True,
     )
     contract_type_id = fields.Many2one(

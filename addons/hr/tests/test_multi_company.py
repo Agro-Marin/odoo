@@ -36,6 +36,28 @@ class TestMultiCompanyReport(TestHrCommon):
         self.assertIn(b"Bidule", content)
         self.assertIn(b"Machin", content)
 
+    def test_job_company_selector_is_limited_to_active_companies(self):
+        """The Job Position company picker must offer only active companies.
+
+        `hr.job.company_id` carried no domain, so the only filter was the
+        `res.company` record rule. For `base.group_user` that rule is
+        `[('id','in', company_ids)]` (allowed companies, not active ones), and
+        for `base.group_erp_manager` it is `[(1,'=',1)]` — no filter at all.
+        Picking a company outside the active set creates a job that
+        `hr_job_comp_rule` then hides from the very user who created it.
+        """
+        HrJob = (
+            self.env["hr.job"]
+            .with_user(self.res_users_hr_officer)
+            .with_context(allowed_company_ids=[self.company_1.id])
+        )
+        # The officer belongs to company_2 but has not activated it.
+        self.assertIn(self.company_2, self.res_users_hr_officer.company_ids)
+        self.assertEqual(HrJob.env.companies, self.company_1)
+
+        domain = HrJob.fields_get(["company_id"])["company_id"]["domain"]
+        self.assertEqual(domain, [("id", "in", [self.company_1.id])])
+
     def test_single_company_report(self):
         with self.assertRaises(AccessError):  # CacheMiss followed by AccessError
             self.env["ir.actions.report"].with_user(
