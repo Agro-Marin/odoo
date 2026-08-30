@@ -44,8 +44,8 @@ class ResCompany(models.Model):
             for company in self.filtered(
                 lambda company: not company.iap_enrich_auto_done
             ):
-                company._enrich()
-            self.iap_enrich_auto_done = True
+                if company._enrich():
+                    company.iap_enrich_auto_done = True
         return True
 
     def _enrich(self):
