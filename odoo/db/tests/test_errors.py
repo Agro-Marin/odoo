@@ -11,7 +11,9 @@ from odoo.db.errors import (
     PG_STALE_PLAN_EXCEPTIONS,
     PG_USER_FAULT_EXCEPTIONS,
     _log_sql_error,
+    is_handled_by_seam,
     is_stale_cached_plan,
+    mark_handled_by_seam,
     mark_stale_cached_plan,
     reached_the_server,
 )
@@ -157,6 +159,44 @@ class TestLogSqlErrorLevels(unittest.TestCase):
         with self.assertLogs(CURSOR_LOGGER_NAME, level="ERROR") as cm:
             _log_sql_error(ValueError("boom"), "COPY t FROM STDIN", label="COPY")
         self.assertIn("bad COPY", cm.records[0].getMessage())
+
+
+class TestRetrySqlstatesAreDerived(unittest.TestCase):
+    def test_the_sqlstates_are_a_projection_of_the_exception_tuple(self):
+        self.assertEqual(
+            PG_RETRY_SQLSTATES,
+            tuple(exc.sqlstate for exc in PG_RETRY_EXCEPTIONS),
+            "these were two hand-maintained encodings of one fact; a drift "
+            "between them is a silent split in the retry policy",
+        )
+
+    def test_every_retryable_sqlstate_is_still_a_real_postgres_code(self):
+        for sqlstate in PG_RETRY_SQLSTATES:
+            self.assertRegex(sqlstate, r"^[0-9A-Z]{5}$", sqlstate)
+
+
+class TestSeamMarker(unittest.TestCase):
+    """The mark that keeps the failure seam idempotent across a pipeline sync."""
+
+    def test_an_unmarked_exception_has_not_been_seen(self):
+        self.assertFalse(is_handled_by_seam(psycopg.errors.CheckViolation("x")))
+        self.assertFalse(is_handled_by_seam(ValueError("x")))
+
+    def test_marking_is_readable_back(self):
+        exc = psycopg.errors.CheckViolation("x")
+        mark_handled_by_seam(exc)
+        self.assertTrue(is_handled_by_seam(exc))
+
+    def test_it_is_independent_of_the_stale_plan_mark(self):
+        exc = psycopg.errors.FeatureNotSupported("x")
+        mark_handled_by_seam(exc)
+        self.assertFalse(
+            is_stale_cached_plan(exc),
+            "the two marks answer different questions and must not alias",
+        )
+        other = psycopg.errors.FeatureNotSupported("y")
+        mark_stale_cached_plan(other)
+        self.assertFalse(is_handled_by_seam(other))
 
 
 if __name__ == "__main__":

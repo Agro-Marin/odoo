@@ -289,5 +289,125 @@ def _marks_statements() -> set:
     }
 
 
+class TestWhatTheFlushPassLimitDoesNotCover(unittest.TestCase):
+    """Stated as a property, because it reads like a guarantee and is not.
+
+    `_MAX_FLUSH_PASSES` bounds hooks whose ORM writes make the NEXT
+    `transaction.flush()` produce more work -- the case the tests above pin.
+    A hook that calls `precommit.add` itself is drained by `Callbacks.run`
+    inside the same pass and never reaches the loop's counter, so an
+    unconditional self-re-arm hangs with no error. Bounded here so the suite
+    cannot hang while still showing the shape.
+    """
+
+    def test_a_rearming_hook_is_drained_in_one_pass(self):
+        cr = _Cursor()
+        txn = _attach(cr)
+        runs = {"n": 0}
+        limit = BaseCursor._MAX_FLUSH_PASSES * 10
+
+        def rearm():
+            runs["n"] += 1
+            if runs["n"] < limit:
+                cr.precommit.add(rearm)
+
+        cr.precommit.add(rearm)
+        cr.flush()
+
+        self.assertEqual(
+            runs["n"],
+            limit,
+            "Callbacks.run drains re-armed work in the same call, so the "
+            "hook runs to its own bound rather than to the pass limit",
+        )
+        self.assertEqual(
+            txn.flush_calls,
+            2,
+            "one flush before the hooks and one after they converged -- the "
+            "pass counter never advanced, which is exactly why it cannot "
+            "bound this shape",
+        )
+
+    def test_the_limit_still_catches_the_shape_it_names(self):
+        cr = _Cursor()
+        _attach(cr, rounds=BaseCursor._MAX_FLUSH_PASSES + 1)
+        with self.assertRaises(RuntimeError) as ctx:
+            cr.flush()
+        self.assertIn("did not converge", str(ctx.exception))
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTheDiscardPathTellsAnOutageFromAFault(unittest.TestCase):
+    """A rollback that never reached PostgreSQL is an outage, not a bug.
+
+    `_close` rolls back before handing the connection back.  When that fails
+    and the connection is not clean the connection can only be discarded, and
+    the level that reports it decides whether an operator reads ERROR as
+    meaning something.  A client-side failure carries no SQLSTATE -- which is
+    what `reached_the_server` reads -- so the two cases are distinguishable.
+
+    Measured on a live server whose cron and job backends were terminated
+    server-side: two ERROR tracebacks per outage before this, none after,
+    with recovery unchanged in both cases.
+    """
+
+    def _close_with(self, rollback_error, *, clean):
+        import logging
+        from unittest.mock import MagicMock, patch
+
+        from odoo.db import cursor as cursor_mod
+
+        cur = cursor_mod.Cursor.__new__(cursor_mod.Cursor)
+        cur._closed = False
+        cur._obj = MagicMock()
+        cur._cnx = MagicMock()
+        cur.cache = MagicMock()
+        cur._Cursor__pool = MagicMock()
+        records = []
+
+        class _Grab(logging.Handler):
+            def emit(self, record):
+                records.append(record)
+
+        handler = _Grab()
+        cursor_mod._logger.addHandler(handler)
+        try:
+            with (
+                patch.object(
+                    type(cur), "_do_rollback", side_effect=rollback_error, create=True
+                ),
+                patch.object(type(cur), "print_log", MagicMock(), create=True),
+                patch.object(
+                    type(cur), "_connection_is_clean", return_value=clean, create=True
+                ),
+                patch.object(cur, "_Cursor__pool", MagicMock(), create=True),
+            ):
+                cur._close()
+        finally:
+            cursor_mod._logger.removeHandler(handler)
+        return records
+
+    def test_a_lost_connection_is_a_warning_without_a_traceback(self):
+        import psycopg
+
+        exc = psycopg.OperationalError("the connection is lost")
+        self.assertIsNone(getattr(exc, "sqlstate", None), "premise: no SQLSTATE")
+        records = self._close_with(exc, clean=False)
+        loud = [r for r in records if r.levelno >= 40]
+        self.assertEqual(loud, [], "an outage was reported as a fault")
+        said = [r for r in records if "backend is gone" in r.getMessage()]
+        self.assertTrue(said, f"nothing said the connection was discarded: {records}")
+        self.assertIsNone(said[0].exc_info, "a traceback adds nothing here")
+
+    def test_a_server_side_failure_is_still_an_exception(self):
+        import psycopg
+
+        exc = psycopg.errors.InsufficientPrivilege("nope")
+        self.assertIsNotNone(getattr(exc, "sqlstate", None), "premise: has a SQLSTATE")
+        records = self._close_with(exc, clean=False)
+        loud = [r for r in records if r.levelno >= 40]
+        self.assertTrue(loud, "a genuine rollback fault stopped being reported")
+        self.assertIsNotNone(loud[0].exc_info, "and it kept its traceback")

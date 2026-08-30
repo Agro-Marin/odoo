@@ -153,8 +153,60 @@ class TestLagSql(unittest.TestCase):
             "the caught-up check must come first, or an idle primary reads as lag",
         )
 
+    def test_the_sample_and_the_verdict_are_published_together(self):
+        """The pair tears on the GIL, and this is the shape it tears into.
+
+        `record` writes `last_lag` and `_lagging` from one measurement and
+        `snapshot` renders them side by side, so two unguarded stores let an
+        operator read a 99 s lag beside `lagging: false`. That exact pair was
+        observed within 2 s of one writer against one reader before the lock;
+        with it, none in the same window.
+        """
+        gate = ReplicaLagGate(10.0)
+        stop = threading.Event()
+        torn = []
+
+        def writer():
+            i = 0
+            while not stop.is_set():
+                gate.record(99.0 if i % 2 else 0.0)
+                i += 1
+
+        def reader():
+            while not stop.is_set():
+                snap = gate.snapshot()
+                if (snap["last_lag_seconds"] > gate.max_lag) != snap["lagging"]:
+                    torn.append(snap)
+                    stop.set()
+                    return
+
+        threads = [threading.Thread(target=writer), threading.Thread(target=reader)]
+        for t in threads:
+            t.start()
+        timer = threading.Timer(1.0, stop.set)
+        timer.start()
+        for t in threads:
+            t.join()
+        timer.cancel()
+        self.assertEqual(torn, [], "snapshot rendered a sample against a stale verdict")
+
     def test_it_never_returns_null(self):
         self.assertIn("coalesce(", LAG_SQL)
+
+    def test_a_null_receive_lsn_reads_as_caught_up_not_as_lag(self):
+        """`NULL = x` is NULL, not false, so the CASE falls through without this.
+
+        A standby in archive-only recovery has no walreceiver and
+        `pg_last_wal_receive_lsn()` is NULL there, which took the ELSE branch
+        and reported the idle primary's elapsed replay time as lag -- the
+        exact false positive the caught-up check exists to prevent.
+        """
+        null_check = LAG_SQL.index("pg_last_wal_receive_lsn() IS NULL")
+        self.assertLess(
+            null_check,
+            LAG_SQL.index("pg_last_xact_replay_timestamp"),
+            "the unanswerable case must be settled before the fallback",
+        )
 
     def test_it_never_returns_a_negative(self):
         self.assertIn("greatest(", LAG_SQL)

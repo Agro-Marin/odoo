@@ -1,22 +1,32 @@
+import threading
+import time
 import unittest
+import unittest.mock
 
 import odoo.db as D
+from odoo import tools
 from odoo.db.budget import ConnectionBudget
+from odoo.db.endpoints import EndpointRegistry
 
 
 class _BudgetCase(unittest.TestCase):
-    def setUp(self):
-        self._saved = (dict(D._pools), dict(D._budgets))
-        D._pools.clear()
-        D._budgets.clear()
-        self.addCleanup(self._restore)
+    """Each case gets its own registry.
 
-    def _restore(self):
-        pools, budgets = self._saved
-        D._pools.clear()
-        D._pools.update(pools)
-        D._budgets.clear()
-        D._budgets.update(budgets)
+    This used to save, clear and restore `self.reg._pools` and `self.reg._budgets` around
+    every test, because the registry was module state in `odoo/db/__init__.py`.
+    A registry is an object now, so an isolated one costs a constructor and
+    cannot leak into another test or into the process's real pools.
+    """
+
+    def setUp(self):
+        self.reg = EndpointRegistry()
+        # The package's own entry points resolve `registry` by name at call
+        # time, so swapping the one object routes `db_connect` and
+        # `pool_health` through this case's registry too. Swapping an object
+        # replaces clearing and restoring two module dicts.
+        patcher = unittest.mock.patch.object(D, "registry", self.reg)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def _config(self, **overrides):
         base = {
@@ -36,36 +46,36 @@ class _BudgetCase(unittest.TestCase):
             "db_app_name": "odoo",
         }
         base.update(overrides)
-        return D.tools.config.patch(**base)
+        return tools.config.patch(**base)
 
 
 class TestOneBudgetPerServer(_BudgetCase):
     def test_no_replica_means_one_shared_budget(self):
         with self._config():
-            self.assertIs(D._budget_for(False), D._budget_for(True))
+            self.assertIs(self.reg.budget_for(False), self.reg.budget_for(True))
 
     def test_a_distinct_replica_gets_its_own_budget(self):
         with self._config(db_replica_host="replica.example"):
-            self.assertIsNot(D._budget_for(False), D._budget_for(True))
+            self.assertIsNot(self.reg.budget_for(False), self.reg.budget_for(True))
 
     def test_a_replica_on_the_same_host_but_another_port_is_distinct(self):
         with self._config(
             db_host="pg.example", db_replica_host="pg.example", db_replica_port=5433
         ):
-            self.assertIsNot(D._budget_for(False), D._budget_for(True))
+            self.assertIsNot(self.reg.budget_for(False), self.reg.budget_for(True))
 
     def test_a_replica_pointed_back_at_the_primary_shares_its_budget(self):
         with self._config(db_host="pg.example", db_replica_host="pg.example"):
-            self.assertIs(D._budget_for(False), D._budget_for(True))
+            self.assertIs(self.reg.budget_for(False), self.reg.budget_for(True))
 
     def test_asking_twice_returns_the_same_object(self):
         with self._config(db_replica_host="replica.example"):
-            self.assertIs(D._budget_for(True), D._budget_for(True))
-            self.assertEqual(len(D._budgets), 1)
+            self.assertIs(self.reg.budget_for(True), self.reg.budget_for(True))
+            self.assertEqual(len(self.reg._budgets), 1)
 
     def test_a_uri_to_the_configured_server_shares_its_budget(self):
         with self._config(db_host="pg.example", db_port=5432):
-            configured = D._budget_for(False)
+            configured = self.reg.budget_for(False)
             for uri in (
                 "postgresql://pg.example/db",
                 "postgresql://pg.example/db?user=someone",
@@ -74,7 +84,7 @@ class TestOneBudgetPerServer(_BudgetCase):
                 with self.subTest(uri=uri):
                     _, info = D.connection_info_for(uri)
                     self.assertIs(
-                        D._budget_at(D._endpoint_key(info)),
+                        self.reg.budget_at(D.endpoint_key(info)),
                         configured,
                         "a URI that omits ?port= names the same server; filing "
                         "it apart hands one server two budgets and lets a "
@@ -85,8 +95,8 @@ class TestOneBudgetPerServer(_BudgetCase):
         with self._config(db_host="pg.example", db_port=5432):
             _, info = D.connection_info_for("postgresql:///db")
             self.assertEqual(
-                D._endpoint_key(info),
-                D._endpoint_of(False),
+                D.endpoint_key(info),
+                self.reg.endpoint_of(False),
                 "a URI spells only what it spells; the rest has to default the "
                 "way the configured endpoint does, or the same server is filed "
                 "twice and gets two budgets",
@@ -97,7 +107,7 @@ class TestOneBudgetPerServer(_BudgetCase):
         import inspect
         import textwrap
 
-        tree = ast.parse(textwrap.dedent(inspect.getsource(D._endpoint_key)))
+        tree = ast.parse(textwrap.dedent(inspect.getsource(D.endpoint_key)))
         reads = {
             ast.unparse(n.func)
             for n in ast.walk(tree)
@@ -116,12 +126,14 @@ class TestOneBudgetPerServer(_BudgetCase):
     def test_a_uri_to_another_server_still_gets_its_own_budget(self):
         with self._config(db_host="pg.example", db_port=5432):
             _, info = D.connection_info_for("postgresql://other.example/db")
-            self.assertIsNot(D._budget_at(D._endpoint_key(info)), D._budget_for(False))
+            self.assertIsNot(
+                self.reg.budget_at(D.endpoint_key(info)), self.reg.budget_for(False)
+            )
 
 
 class TestTheOvershootCannotComeBack(_BudgetCase):
     def _ceiling_across_pools(self):
-        rw, ro = D._budget_for(False), D._budget_for(True)
+        rw, ro = self.reg.budget_for(False), self.reg.budget_for(True)
         seen = {id(rw): rw, id(ro): ro}
         return sum(b.maxconn for b in seen.values())
 
@@ -153,9 +165,9 @@ class TestTheOvershootCannotComeBack(_BudgetCase):
             budgets = {
                 id(b): b
                 for b in (
-                    D._budget_for(False),
-                    D._budget_for(True),
-                    D._budget_at(D._endpoint_key(info)),
+                    self.reg.budget_for(False),
+                    self.reg.budget_for(True),
+                    self.reg.budget_at(D.endpoint_key(info)),
                 )
             }
             self.assertEqual(
@@ -168,10 +180,10 @@ class TestTheOvershootCannotComeBack(_BudgetCase):
 
     def test_a_uri_to_the_primary_shares_its_pool(self):
         with self._config(db_host="pg.example", db_port=5432):
-            configured = D._get_pool(False)
+            configured = self.reg.pool_for(False)
             self.addCleanup(configured.close_all)
             _, info = D.connection_info_for("postgresql://pg.example/db")
-            self.assertIs(D._pool_at(D._endpoint_key(info), False), configured)
+            self.assertIs(self.reg.pool_at(D.endpoint_key(info), False), configured)
 
 
 class TestOnePoolRegistry(_BudgetCase):
@@ -180,16 +192,21 @@ class TestOnePoolRegistry(_BudgetCase):
 
         for name in ("is_pooled", "close_db", "close_all", "drain_db", "drain_all"):
             with self.subTest(function=name):
-                src = inspect.getsource(getattr(D, name))
+                src = inspect.getsource(getattr(EndpointRegistry, name))
                 self.assertIn(
-                    "_all_pools()",
+                    "self.all_pools()",
                     src,
                     "iterating the registry bare while another thread creates "
                     "a pool raises RuntimeError: dictionary changed size "
                     "during iteration",
                 )
-        self.assertIn("_pool_lock", inspect.getsource(D._all_pools))
-        self.assertIn("_pool_lock", inspect.getsource(D.pool_health))
+        for name in ("all_pools", "health"):
+            with self.subTest(function=name):
+                self.assertIn(
+                    "with self._lock:",
+                    inspect.getsource(getattr(EndpointRegistry, name)),
+                    "the snapshot itself must be taken under the lock",
+                )
 
     def test_there_is_one_registry_and_one_factory(self):
         for gone in ("_uri_pools", "_uri_budgets", "_Pool", "_Pool_readonly"):
@@ -202,9 +219,9 @@ class TestOnePoolRegistry(_BudgetCase):
 
     def test_a_pool_at_another_endpoint_is_labelled_by_that_endpoint(self):
         with self._config(db_host="pg.example", db_port=5432):
-            D._get_pool(False)
+            self.reg.pool_for(False)
             _, info = D.connection_info_for("postgresql://elsewhere.example:5433/db")
-            other = D._pool_at(D._endpoint_key(info), False)
+            other = self.reg.pool_at(D.endpoint_key(info), False)
             self.addCleanup(other.close_all)
             health = D.pool_health()
             self.assertIn(
@@ -221,7 +238,7 @@ class TestOnePoolRegistry(_BudgetCase):
             with self.assertRaises(ValueError):
                 D.db_connect("postgresql://elsewhere.example/db")
             conn = D.db_connect("postgresql://elsewhere.example/db", allow_uri=True)
-            self.addCleanup(D._pools.clear)
+            self.addCleanup(self.reg._pools.clear)
             self.assertEqual(
                 conn.dbname,
                 "db",
@@ -230,7 +247,7 @@ class TestOnePoolRegistry(_BudgetCase):
 
     def test_pool_health_still_names_the_configured_endpoints(self):
         with self._config():
-            rw = D._get_pool(False)
+            rw = self.reg.pool_for(False)
             self.addCleanup(rw.close_all)
             health = D.pool_health()
             self.assertIsNotNone(health["read_write"])
@@ -240,25 +257,25 @@ class TestOnePoolRegistry(_BudgetCase):
 class TestReplicaSizing(_BudgetCase):
     def test_the_replica_defaults_to_db_maxconn(self):
         with self._config(db_maxconn=64, db_replica_host="replica.example"):
-            self.assertEqual(D._budget_for(True).maxconn, 64)
+            self.assertEqual(self.reg.budget_for(True).maxconn, 64)
 
     def test_db_maxconn_replica_sizes_the_replica_alone(self):
         with self._config(
             db_maxconn=64, db_maxconn_replica=16, db_replica_host="replica.example"
         ):
-            self.assertEqual(D._budget_for(True).maxconn, 16)
-            self.assertEqual(D._budget_for(False).maxconn, 64)
+            self.assertEqual(self.reg.budget_for(True).maxconn, 16)
+            self.assertEqual(self.reg.budget_for(False).maxconn, 64)
 
     def test_it_is_ignored_when_the_replica_is_the_primary(self):
         with self._config(db_maxconn=64, db_maxconn_replica=16):
-            self.assertIs(D._budget_for(False), D._budget_for(True))
-            self.assertEqual(D._budget_for(True).maxconn, 64)
+            self.assertIs(self.reg.budget_for(False), self.reg.budget_for(True))
+            self.assertEqual(self.reg.budget_for(True).maxconn, 64)
 
 
 class TestPermitsAreNoLongerShared(_BudgetCase):
     def test_replica_checkouts_do_not_consume_primary_permits(self):
         with self._config(db_maxconn=2, db_replica_host="replica.example"):
-            primary, replica = D._budget_for(False), D._budget_for(True)
+            primary, replica = self.reg.budget_for(False), self.reg.budget_for(True)
             self.assertTrue(replica.acquire(0))
             self.assertTrue(replica.acquire(0))
             self.assertEqual(replica.available, 0)
@@ -272,7 +289,7 @@ class TestPermitsAreNoLongerShared(_BudgetCase):
 
     def test_a_shared_endpoint_still_shares_permits(self):
         with self._config(db_maxconn=2):
-            primary, readonly = D._budget_for(False), D._budget_for(True)
+            primary, readonly = self.reg.budget_for(False), self.reg.budget_for(True)
             self.assertTrue(readonly.acquire(0))
             self.assertEqual(primary.available, 1, "one server, one pool of permits")
             readonly.release()
@@ -281,17 +298,17 @@ class TestPermitsAreNoLongerShared(_BudgetCase):
 class TestBudgetIdentity(_BudgetCase):
     def test_the_budget_handed_to_a_pool_is_the_endpoint_budget(self):
         with self._config(db_replica_host="replica.example"):
-            rw, ro = D._get_pool(False), D._get_pool(True)
+            rw, ro = self.reg.pool_for(False), self.reg.pool_for(True)
             self.addCleanup(rw.close_all)
             self.addCleanup(ro.close_all)
-            self.assertIs(rw._budget, D._budget_for(False))
-            self.assertIs(ro._budget, D._budget_for(True))
+            self.assertIs(rw._budget, self.reg.budget_for(False))
+            self.assertIs(ro._budget, self.reg.budget_for(True))
             self.assertIsNot(rw._budget, ro._budget)
 
     def test_each_budget_is_a_real_ConnectionBudget(self):
         with self._config(db_replica_host="replica.example"):
             for readonly in (False, True):
-                self.assertIsInstance(D._budget_for(readonly), ConnectionBudget)
+                self.assertIsInstance(self.reg.budget_for(readonly), ConnectionBudget)
 
 
 class TestBudgetAcquireTimeout(unittest.TestCase):
@@ -321,3 +338,90 @@ class TestBudgetAcquireTimeout(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTheCapHoldsUnderRealContention(unittest.TestCase):
+    """The one thing the budget exists to guarantee, driven until it saturates.
+
+    Every other test here is about how budgets are KEYED. This is about the
+    cap itself, and the property it has to have is not "no exception" but
+    "never more than `maxconn` permits out at once" -- which only means
+    something if the run actually reaches `maxconn`, so the peak is asserted
+    to equal it rather than merely stay under it. A holder that returns
+    immediately never saturates: measured, the same test without the hold
+    peaked at 2 of 4 and would have passed against a broken cap.
+    """
+
+    MAXCONN = 4
+    THREADS = 40
+    ROUNDS = 25
+    HOLD = 0.002
+
+    def test_permits_out_never_exceed_maxconn(self):
+        budget = ConnectionBudget(self.MAXCONN)
+        lock = threading.Lock()
+        state = {"cur": 0, "peak": 0}
+        failures: list[str] = []
+
+        def worker():
+            for _ in range(self.ROUNDS):
+                if not budget.acquire(30.0):
+                    failures.append("acquire timed out with permits available")
+                    return
+                with lock:
+                    state["cur"] += 1
+                    state["peak"] = max(state["peak"], state["cur"])
+                    if state["cur"] > self.MAXCONN:
+                        failures.append(f"{state['cur']} permits out")
+                time.sleep(self.HOLD)
+                with lock:
+                    state["cur"] -= 1
+                budget.release()
+
+        threads = [threading.Thread(target=worker) for _ in range(self.THREADS)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=120)
+
+        self.assertEqual(failures, [], "the cap was breached or a waiter starved")
+        self.assertEqual(
+            state["peak"],
+            self.MAXCONN,
+            "the run never saturated, so it proves nothing about the cap",
+        )
+        self.assertEqual(budget.in_use, 0, "every permit was returned")
+        self.assertEqual(budget.available, self.MAXCONN)
+
+    def test_a_release_wakes_a_waiter(self):
+        """A lost wakeup is a hang, and a hang is what `db_borrow_timeout` is."""
+        budget = ConnectionBudget(1)
+        self.assertTrue(budget.acquire(1.0))
+        served: list[int] = []
+
+        def waiter(i):
+            if budget.acquire(20.0):
+                served.append(i)
+                budget.release()
+
+        threads = [threading.Thread(target=waiter, args=(i,)) for i in range(8)]
+        for t in threads:
+            t.start()
+        time.sleep(0.2)
+        budget.release()
+        for t in threads:
+            t.join(timeout=30)
+        self.assertEqual(len(served), 8, f"a waiter was never woken: {sorted(served)}")
+
+    def test_a_zero_timeout_still_takes_a_free_permit(self):
+        """`borrow` derives its timeout from a deadline that can reach zero.
+
+        Refusing a permit that is sitting there would turn a slow-but-fine
+        borrow into a spurious `PoolError`.
+        """
+        budget = ConnectionBudget(1)
+        self.assertTrue(budget.acquire(0))
+        self.assertFalse(budget.acquire(0))
+        self.assertFalse(budget.acquire(-5))
+        budget.release()
+        self.assertTrue(budget.acquire(0))

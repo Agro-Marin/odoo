@@ -574,10 +574,23 @@ def create_index(
     *,
     comment: str | None = None,
     unique: bool = False,
+    check_exists: bool = True,
 ) -> None:
+    """Create an index, unless it is already there.
+
+    `check_exists=False` for a caller that has already established absence.
+    `orm/runtime/_registry_schema.py::check_indexes` reads every expected index
+    out of `pg_index` in one query and calls this only for the ones it found
+    missing or stale, so the probe below re-asked, per index, a question it had
+    just answered in batch: measured on a `base`-only install, 93 creations and
+    93 redundant catalog round trips. The cost is small -- 4.5 ms, 0.07% of a
+    6.5 s registry load -- so this is about the duplicated question rather than
+    the time. The guard stays on by default because the five addon callers have
+    no batch behind them.
+    """
     if not expressions:
         raise ValueError("Missing expressions")
-    if index_exists(cr, indexname):
+    if check_exists and index_exists(cr, indexname):
         return
     definition = SQL(
         "USING %s (%s)%s",

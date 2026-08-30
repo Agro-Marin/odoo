@@ -41,18 +41,32 @@ class CircuitBreaker:
 
     @property
     def closed(self) -> bool:
+        """Whether the breaker is letting traffic through.
+
+        Deliberately lock-free, and `allow` below deliberately does NOT use
+        it. `self._lock` is a plain `threading.Lock`, which is not reentrant,
+        so a `closed` that took the lock would deadlock every caller of
+        `allow` -- demonstrated: giving this property the lock leaves
+        `allow()` hung past a 2 s join. That is a trap laid for whoever next
+        decides the read "should" be guarded, so the lock-held path reads
+        `_open` directly and this property exists only for callers outside
+        the lock.
+        """
         return not self._open
 
     @property
     def cooldown_remaining(self) -> float:
         with self._lock:
-            if not self._open:
-                return 0.0
-            return max(0.0, self._opened_at + self._cooldown - monotonic())
+            return self._cooldown_remaining_locked()
+
+    def _cooldown_remaining_locked(self) -> float:
+        if not self._open:
+            return 0.0
+        return max(0.0, self._opened_at + self._cooldown - monotonic())
 
     def allow(self) -> bool:
         with self._lock:
-            if self.closed:
+            if not self._open:
                 return True
             now = monotonic()
             if now - self._opened_at < self._cooldown:
@@ -88,11 +102,7 @@ class CircuitBreaker:
     def snapshot(self) -> dict:
         with self._lock:
             closed = not self._open
-            remaining = (
-                0.0
-                if closed
-                else max(0.0, self._opened_at + self._cooldown - monotonic())
-            )
+            remaining = self._cooldown_remaining_locked()
             return {
                 "closed": closed,
                 "failures": self.failures,

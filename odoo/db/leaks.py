@@ -19,11 +19,12 @@ class Checkout(NamedTuple):
 
 
 class CheckoutTracker:
-    __slots__ = ("_last_report", "_out")
+    __slots__ = ("_last_report", "_out", "_report_lock")
 
     def __init__(self) -> None:
         self._out: dict[object, Checkout] = {}
         self._last_report = 0.0
+        self._report_lock = threading.Lock()
 
     def track(self, conn: object, caller: str | None = None) -> None:
         self._out[conn] = Checkout(monotonic(), threading.current_thread().name, caller)
@@ -46,11 +47,29 @@ class CheckoutTracker:
         return max((c.age() for c in entries), default=0.0)
 
     def due_for_report(self, interval: float) -> bool:
+        """Claim the reporting slot, or report that someone else has it.
+
+        A throttle is a read-modify-write and this one had no lock. **No loss
+        is observable on this interpreter and the fix does not pretend
+        otherwise**: 16 threads released from a barrier onto the unguarded
+        body still produced exactly one winner over five rounds, because the
+        compare and the store are adjacent bytecodes with no call between them
+        and CPython 3.14's GIL does not preempt there. The guard is taken on
+        the terms the rest of this package states -- `PoolStats` owns its lock
+        for the same reason -- and on a free-threaded build it is the
+        difference between a throttle and none.
+
+        It is a separate lock from nothing: `track` and `release` are single
+        dict operations and stay lock-free. It is taken only when
+        `db_leak_detection` is set, because `_warn_about_leaks` returns before
+        reaching this otherwise.
+        """
         now = monotonic()
-        if now - self._last_report < interval:
-            return False
-        self._last_report = now
-        return True
+        with self._report_lock:
+            if now - self._last_report < interval:
+                return False
+            self._last_report = now
+            return True
 
     def describe(self, limit: int = 3, older_than: float = 0.0) -> str:
         held = self.outstanding(older_than)

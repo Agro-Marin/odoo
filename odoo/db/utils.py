@@ -27,6 +27,26 @@ def is_maintenance_db(db_name: str) -> bool:
     return db_name in SYSTEM_DBS or db_name == tools.config["db_template"]
 
 
+def find_value_markers(query: str) -> list[int]:
+    """Offsets of every literal `%s` placeholder, skipping the `%%` escape.
+
+    Shared by the DDL parameter inliner and by `execute_values`, which needs to
+    locate the single marker standing for its VALUES list.  It lived in `ddl.py`
+    and is not about DDL, which made `bulk.py` import a DDL module for a reason
+    that had nothing to do with DDL.
+    """
+    out = []
+    i, n = 0, len(query)
+    while i < n - 1:
+        if query[i] == "%":
+            if query[i + 1] == "s":
+                out.append(i)
+            i += 2
+        else:
+            i += 1
+    return out
+
+
 re_from = re.compile(
     r'\bfrom\s+(?:"?[a-zA-Z_0-9]+"?\.)?"?([a-zA-Z_0-9]+)\b', re.IGNORECASE
 )
@@ -77,6 +97,63 @@ def _skip_ctes(decoded_query: str) -> int:
         pos = m_comma.end()
 
 
+_NESTED = "\x00"
+
+re_from_keyword = re.compile(r"\bfrom\b", re.IGNORECASE)
+
+
+def _mask_nested(sql_text: str) -> str:
+    r"""Blank out everything inside parentheses, keeping offsets and length.
+
+    `re_from` takes the first `FROM` anywhere, and SQL puts `FROM` inside
+    parentheses for reasons that have nothing to do with the table being read:
+    `EXTRACT(epoch FROM now())`, `SUBSTRING(x FROM y)`, `TRIM(BOTH ' ' FROM x)`.
+    Measured before this masking, `SELECT extract(epoch FROM now() - x) FROM
+    res_partner` was filed under a table called `now`, and so was `lag.LAG_SQL`
+    -- this package's own replica probe, which has no FROM clause at all -- and
+    the per-table timings this feeds are what a slow-query hunt reads first.
+
+    The filler is NUL rather than a space on purpose. `re_from` spells the gap
+    between the keyword and the table `\s+`, so masking a subquery to blanks
+    lets `FROM (SELECT b FROM inner_t) s` match straight through the hole and
+    capture the *alias*: measured, `('from', 's')`. NUL is neither whitespace
+    nor an identifier character, so the match simply fails there and the
+    subquery falls to the unmasked search below, which answers as it always did.
+    """
+    out = []
+    depth = 0
+    for char in sql_text:
+        if char == "(":
+            depth += 1
+            out.append(_NESTED)
+        elif char == ")":
+            depth -= 1
+            out.append(_NESTED)
+        else:
+            out.append(_NESTED if depth > 0 else char)
+    return "".join(out)
+
+
+def _search_from(body: str) -> re.Match | None:
+    """The FROM that names the table being read, or None if there is not one.
+
+    Three outcomes, and the third is the one the old single `search` could not
+    express. A depth-0 `FROM` with a plain table after it answers directly. A
+    depth-0 `FROM` whose target is a parenthesised subquery answers from the
+    unmasked text, naming the inner table -- unchanged behaviour, pinned by
+    `test_select_from_subquery`. No depth-0 `FROM` keyword at all means the
+    statement has no FROM clause, and reaching into a function's arguments for
+    one is how `now` became a table name.
+    """
+    masked = _mask_nested(body)
+    match = re_from.search(masked)
+    if match is not None:
+        return match
+    if re_from_keyword.search(masked) is not None:
+        return re_from.search(body)
+    return None
+
+
 def categorize_query(decoded_query: str) -> tuple[str, str] | tuple[str, None]:
     body = decoded_query[_skip_ctes(decoded_query) :]
 
@@ -85,14 +162,14 @@ def categorize_query(decoded_query: str) -> tuple[str, str] | tuple[str, None]:
         return "into", res_update.group(1)
 
     if re_delete.match(body):
-        res_from = re_from.search(body)
+        res_from = _search_from(body)
         return ("into", res_from.group(1)) if res_from else ("other", None)
 
     res_into = re_into.search(body)
     if res_into:
         return "into", res_into.group(1)
 
-    res_from = re_from.search(body)
+    res_from = _search_from(body)
     if res_from:
         return "from", res_from.group(1)
 

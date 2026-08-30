@@ -6,6 +6,7 @@ from odoo.db.utils import (
     _HEALTH_PARAMS,
     categorize_query,
     connection_info_for,
+    find_value_markers,
     is_maintenance_db,
 )
 
@@ -248,6 +249,62 @@ class TestCategorizeQuery(unittest.TestCase):
         qtype, table = categorize_query("SELECT id\n  FROM res_partner\n WHERE active")
         self.assertEqual(qtype, "from")
         self.assertEqual(table, "res_partner")
+
+
+class TestFromInsideAFunctionCall(unittest.TestCase):
+    """SQL spells `FROM` inside parentheses for things that are not tables.
+
+    `re_from` took the first `FROM` anywhere, so `EXTRACT(epoch FROM now())`
+    named a table called `now`.  These pin the three outcomes `_search_from`
+    now distinguishes: a depth-0 FROM, a depth-0 FROM over a subquery, and no
+    FROM clause at all.
+    """
+
+    def test_extract_does_not_shadow_the_real_from(self):
+        qtype, table = categorize_query(
+            "SELECT extract(epoch FROM now() - x) FROM res_partner"
+        )
+        self.assertEqual((qtype, table), ("from", "res_partner"))
+
+    def test_substring_and_trim_do_not_shadow_it_either(self):
+        for query in (
+            "SELECT substring(x FROM 2) FROM t",
+            "SELECT trim(BOTH ' ' FROM x) FROM t",
+        ):
+            self.assertEqual(categorize_query(query), ("from", "t"), query)
+
+    def test_a_statement_with_no_from_clause_names_no_table(self):
+        from odoo.db.lag import LAG_SQL
+
+        self.assertEqual(
+            categorize_query(LAG_SQL),
+            ("other", None),
+            "the replica lag probe has no FROM clause; reaching into a "
+            "function's arguments for one is how `now` became a table",
+        )
+
+    def test_a_from_clause_subquery_still_names_the_inner_table(self):
+        self.assertEqual(
+            categorize_query("SELECT a FROM (SELECT b FROM inner_t) s"),
+            ("from", "inner_t"),
+            "masking must not let the FROM match run through the hole and "
+            "capture the alias instead",
+        )
+
+    def test_delete_with_a_subquery_names_the_deleted_table(self):
+        self.assertEqual(
+            categorize_query("DELETE FROM res_partner WHERE id IN (SELECT id FROM o)"),
+            ("into", "res_partner"),
+        )
+
+
+class TestFindValueMarkers(unittest.TestCase):
+    def test_basic_and_escapes(self):
+        self.assertEqual(find_value_markers("%s and %s"), [0, 7])
+        self.assertEqual(find_value_markers("LIKE 'a%%s'"), [])
+        self.assertEqual(find_value_markers("x %s y %% z %s"), [2, 12])
+        self.assertEqual(find_value_markers("%%"), [])
+        self.assertEqual(find_value_markers("ends %s"), [5])
 
 
 if __name__ == "__main__":

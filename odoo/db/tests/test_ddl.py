@@ -1,14 +1,18 @@
 import inspect
 import unittest
 
+from odoo.db import ddl as ddl_mod
 from odoo.db.ddl import (
     _SCHEMA_CHANGING_DDL,
     _changes_schema,
     _ddl_keyword,
-    _find_value_markers,
     _inline_ddl_params,
-    _is_rollback_to_savepoint,
+    classify_statement,
 )
+
+
+def _is_rollback_to_savepoint(qs):
+    return classify_statement(qs)[1]
 
 
 def _classify_ddl(qs):
@@ -21,8 +25,68 @@ class TestClassifyDdl(unittest.TestCase):
             self.assertTrue(_classify_ddl(f"{kw} something"), kw)
 
     def test_dml_not_detected(self):
-        for kw in ("SELECT", "INSERT", "UPDATE", "DELETE", "WITH", "TRUNCATE", "SET"):
+        # TRUNCATE stays out deliberately: its `%s` stands for an identifier,
+        # and inlining quotes it into a literal, so `TRUNCATE TABLE 'vp_t'` is
+        # a syntax error just as `$1` was. Nothing is gained by claiming it.
+        for kw in ("SELECT", "INSERT", "UPDATE", "DELETE", "WITH", "TRUNCATE"):
             self.assertFalse(_classify_ddl(f"{kw} something"), kw)
+
+
+class TestSetTakesClientSideParams(unittest.TestCase):
+    """`SET x = %s` is a VALUE slot, which is what makes it worth claiming.
+
+    PostgreSQL rejects `$N` there as in any DDL position, and unlike the
+    identifier slots of TRUNCATE/LOCK/ANALYZE, inlining actually rescues it:
+    `SET statement_timeout = '5s'` runs. Verified against PG 18.
+    """
+
+    def test_set_is_claimed(self):
+        for qs in (
+            "SET statement_timeout = %s",
+            "SET LOCAL work_mem = %s",
+            "set local statement_timeout = %s",
+            "  \n\t SET SESSION x = %s",
+            " " * 70 + "SET x = %s",
+        ):
+            self.assertEqual(classify_statement(qs), ("SET", False), qs)
+
+    def test_select_is_not(self):
+        for qs in (
+            "SELECT 1",
+            "select 1",
+            "  SELECT id FROM t",
+            " " * 70 + "SELECT 1",
+            "SE",
+            "SELECT setting FROM pg_settings",
+        ):
+            self.assertEqual(classify_statement(qs), (None, False), qs)
+
+    def test_set_changes_no_schema(self):
+        self.assertNotIn("SET", _SCHEMA_CHANGING_DDL)
+        self.assertFalse(_changes_schema("SET statement_timeout = '5s'", "SET"))
+        self.assertFalse(
+            _changes_schema("SELECT 1; SET x = 1", None),
+            "a hidden SET must not drain the pool either",
+        )
+
+    def test_the_se_branch_runs_no_regex(self):
+        """The point of the third-character test is that it is not a regex.
+
+        `SET` in `_DDL_KEYWORDS` puts every SELECT through `_RE_DDL` -- 152.5
+        ns -> 370.7 ns measured -- and a dedicated `SE`-only regex still costs
+        301 ns for the leading-comment group. The slice costs +5.4 ns.
+        """
+        src = inspect.getsource(classify_statement)
+        branch = src[src.index('if c == "SE":') :]
+        branch = branch[: branch.index("\n    if ")]
+        self.assertNotIn("match(", branch, "the SE branch must stay regex-free")
+        self.assertNotIn(
+            "SET", ddl_mod._DDL_KEYWORDS, "SET in the keyword list is the cost"
+        )
+
+    def test_inlining_a_set_produces_runnable_sql(self):
+        out = _inline_ddl_params("SET statement_timeout = %s", ("5s",), None)
+        self.assertEqual(out, "SET statement_timeout = '5s'")
 
     def test_leading_whitespace_and_comments(self):
         self.assertTrue(_classify_ddl("\n   CREATE TABLE t (id int)"))
@@ -177,9 +241,9 @@ class TestRollbackPrefixGate(unittest.TestCase):
         )
         self.assertNotIn(
             "_COMMENT_PREFIXES)",
-            inspect.getsource(ddl_mod._is_rollback_to_savepoint),
-            "_is_rollback_to_savepoint rebuilds its prefix container per call "
-            "again; use the hoisted _ROLLBACK_PREFIXES.",
+            inspect.getsource(ddl_mod.classify_statement),
+            "classify_statement rebuilds a prefix container per call again; "
+            "use the hoisted _ROLLBACK_PREFIXES / _DDL_PREFIXES.",
         )
 
     def test_prefixes_are_derived_from_the_same_sources_as_the_ddl_gate(self):
@@ -271,15 +335,6 @@ class TestInlineDdlParams(unittest.TestCase):
         self.assertEqual(
             _inline_ddl_params("(%s, %s, %s)", (1, 2, 3), None), "(1, 2, 3)"
         )
-
-
-class TestFindValueMarkers(unittest.TestCase):
-    def test_basic_and_escapes(self):
-        self.assertEqual(_find_value_markers("%s and %s"), [0, 7])
-        self.assertEqual(_find_value_markers("LIKE 'a%%s'"), [])
-        self.assertEqual(_find_value_markers("x %s y %% z %s"), [2, 12])
-        self.assertEqual(_find_value_markers("%%"), [])
-        self.assertEqual(_find_value_markers("ends %s"), [5])
 
 
 class TestChangesSchema(unittest.TestCase):

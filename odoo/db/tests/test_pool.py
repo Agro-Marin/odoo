@@ -5,20 +5,18 @@ import unittest
 from time import monotonic
 from unittest.mock import patch
 
-import psycopg
+from psycopg_pool import PoolTimeout
 
-from odoo.db.dsn import _normalize_dsn_key
 from odoo.db.pool import (
     _DIRECT_CONNECTION,
-    _PROBE_CONNECT_TIMEOUT,
     ConnectionBudget,
     ConnectionPool,
     PoolError,
     _base_conn_options,
-    _libpq_connect_timeout,
     _remaining,
     _SuppressKnownPoolWarnings,
 )
+from odoo.db.probe import PROBE_CONNECT_TIMEOUT, libpq_connect_timeout
 from odoo.db.reaper import _LAST_BORROW_ATTR, note_activity
 
 
@@ -35,18 +33,18 @@ class TestBorrowBudgetHelpers(unittest.TestCase):
         self.assertLess(_remaining(monotonic() - 1), 0)
 
     def test_no_deadline_keeps_the_cap(self):
-        self.assertEqual(_libpq_connect_timeout(None, _PROBE_CONNECT_TIMEOUT), 5)
+        self.assertEqual(libpq_connect_timeout(None, PROBE_CONNECT_TIMEOUT), 5)
 
     def test_ample_budget_keeps_the_cap(self):
-        self.assertEqual(_libpq_connect_timeout(monotonic() + 60, 5), 5)
+        self.assertEqual(libpq_connect_timeout(monotonic() + 60, 5), 5)
 
     def test_tight_budget_shrinks_below_the_cap(self):
-        self.assertEqual(_libpq_connect_timeout(monotonic() + 3.9, 5), 3)
+        self.assertEqual(libpq_connect_timeout(monotonic() + 3.9, 5), 3)
 
     def test_exhausted_budget_returns_zero_not_a_libpq_forever(self):
         for deadline in (monotonic() + 0.9, monotonic(), monotonic() - 10):
             with self.subTest(deadline=deadline):
-                self.assertEqual(_libpq_connect_timeout(deadline, 5), 0)
+                self.assertEqual(libpq_connect_timeout(deadline, 5), 0)
 
 
 class TestBaseConnOptions(unittest.TestCase):
@@ -422,146 +420,69 @@ class TestConnectionBudgetSharing(unittest.TestCase):
         self.assertIsInstance(getattr(p, _LAST_BORROW_ATTR), float)
 
 
-class TestReachabilityProof(unittest.TestCase):
-    def _pool_with_probe_counter(self, **kw):
-        pool = ConnectionPool(maxconn=2, **kw)
-        calls = []
-        pool._probe_connectable = lambda *a, **k: calls.append(a)  # type: ignore[method-assign]
-        return pool, calls
-
-    def test_first_cold_start_probes(self):
-        pool, calls = self._pool_with_probe_counter()
-        key = _normalize_dsn_key({"dbname": "d"})
-        with patch("odoo.db.pool._PsycopgPool", _fake_pool_factory):
-            pool._get_or_create_pool(key, {"dbname": "d"})
-        self.assertEqual(len(calls), 1, "an unseen DSN must be probed")
-
-    def test_rebuild_after_a_proven_connect_skips_the_probe(self):
-        pool, calls = self._pool_with_probe_counter()
-        key = _normalize_dsn_key({"dbname": "d"})
-        pool._mark_reachable(key)
-        pool._pools.clear()
-        with patch("odoo.db.pool._PsycopgPool", _fake_pool_factory):
-            pool._get_or_create_pool(key, {"dbname": "d"})
-        self.assertEqual(calls, [], "a proven DSN must not be re-probed")
-
-    def test_close_database_revokes_the_proof(self):
-        pool, calls = self._pool_with_probe_counter()
-        key = _normalize_dsn_key({"dbname": "d"})
-        pool._mark_reachable(key)
-        pool.close_database("d")
-        self.assertFalse(pool._is_proven_reachable(key))
-        with patch("odoo.db.pool._PsycopgPool", _fake_pool_factory):
-            pool._get_or_create_pool(key, {"dbname": "d"})
-        self.assertEqual(len(calls), 1, "a closed database must be probed again")
-
-    def test_close_database_revokes_proofs_with_no_live_pool(self):
-        pool, _ = self._pool_with_probe_counter()
-        key = _normalize_dsn_key({"dbname": "d", "host": "h"})
-        pool._mark_reachable(key)
-        self.assertEqual(pool._pools, {})
-        pool.close_database("d")
-        self.assertFalse(pool._is_proven_reachable(key))
-
-    def test_other_databases_keep_their_proof(self):
-        pool, _ = self._pool_with_probe_counter()
-        keep = _normalize_dsn_key({"dbname": "other"})
-        pool._mark_reachable(keep)
-        pool._mark_reachable(_normalize_dsn_key({"dbname": "d"}))
-        pool.close_database("d")
-        self.assertTrue(pool._is_proven_reachable(keep))
-
-    def test_a_connect_failure_revokes_the_proof(self):
-        pool = ConnectionPool(maxconn=2, borrow_timeout=0.05)
-        key = _normalize_dsn_key({"dbname": "d"})
-        pool._mark_reachable(key)
-        failing = _FakePool(getconn_raises=psycopg.errors.InvalidCatalogName("gone"))
-        with self.assertRaises(psycopg.Error):
-            pool._getconn_with_retry(failing, key, {"dbname": "d"}, monotonic() + 0.05)
-        self.assertFalse(pool._is_proven_reachable(key))
-
-    def test_rotated_credentials_revoke_the_old_proof(self):
-        pool, _ = self._pool_with_probe_counter()
-        old = _normalize_dsn_key({"dbname": "d", "password": "old"})
-        new = _normalize_dsn_key({"dbname": "d", "password": "new"})
-        pool._mark_reachable(old)
-        pool._pools[old] = _FakePool()
-        with patch("odoo.db.pool._PsycopgPool", _fake_pool_factory):
-            pool._get_or_create_pool(new, {"dbname": "d", "password": "new"})
-        self.assertFalse(pool._is_proven_reachable(old))
-
-
-class TestTheDedupedProbeDoesNotShareATraceback(unittest.TestCase):
-    """Every follower raises the ONE exception the leader recorded.
-
-    A `raise` appends to that object's traceback, so without clearing it first
-    the shared exception grows by a frame per follower -- on a dead DSN, which
-    is the case this dedup exists for, and with frames from unrelated threads
-    interleaved.
-    """
-
-    def _run(self, followers=8):
-        import threading
-        import time
-
-        pool = ConnectionPool(maxconn=8)
-        key = _normalize_dsn_key({"dbname": "unreachable"})
-        go = threading.Event()
-        caught: dict = {}
-
-        def slow_failing_probe(*_a, **_k):
-            go.wait(20)
-            raise RuntimeError("unreachable host")
-
-        pool._probe_connectable = slow_failing_probe  # type: ignore[method-assign]
-
-        def call(tag):
-            try:
-                pool._probe_connectable_deduped(key, "", {})
-            except Exception as exc:
-                caught[tag] = exc
-
-        leader = threading.Thread(target=call, args=("leader",), daemon=True)
-        leader.start()
-        time.sleep(0.2)
-        threads = [
-            threading.Thread(target=call, args=(i,), daemon=True)
-            for i in range(followers)
-        ]
-        for t in threads:
-            t.start()
-        time.sleep(0.2)
-        go.set()
-        leader.join(20)
-        for t in threads:
-            t.join(20)
-        return caught
-
-    @staticmethod
-    def _frames(exc):
-        n, tb = 0, exc.__traceback__
-        while tb is not None:
-            n += 1
-            tb = tb.tb_next
-        return n
-
-    def test_every_follower_still_gets_the_leaders_failure(self):
-        caught = self._run()
-        self.assertEqual(len(caught), 9, "leader plus every follower must raise")
-        self.assertTrue(all(isinstance(e, RuntimeError) for e in caught.values()))
-
-    def test_the_shared_traceback_does_not_grow_with_the_followers(self):
-        few = self._run(followers=2)
-        many = self._run(followers=8)
-        self.assertEqual(
-            self._frames(few["leader"]),
-            self._frames(many["leader"]),
-            "the traceback grew with the number of waiters: each follower "
-            "raises the same object and a raise appends to it, so a dead DSN "
-            "under load produced a stack of repeated frames from unrelated "
-            "threads, each keeping its thread's locals alive",
-        )
-
-
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestABugIsNotLaunderedIntoAPoolError(unittest.TestCase):
+    """`PoolError` means "the database is unavailable" to four call sites.
+
+    `ir_cron`, `ir_job`, `orm/runtime/registry.py` and `bus/websocket.py` all
+    catch it and carry on, so converting an arbitrary exception into one turns
+    a programming error into an expected operational condition and loses both
+    the type and the traceback.
+
+    Nothing operational needs the conversion. Everything `psycopg_pool` raises
+    from `getconn` for a real reason is a `psycopg.Error`: `PoolTimeout` and
+    `PoolClosed` both subclass `OperationalError`, "the pool is not open yet"
+    is a `PoolClosed` rather than the `RuntimeError` it reads like, a failed
+    connect arrives as the error the worker recorded, and a `check` callback
+    that raises is swallowed by psycopg_pool's own retry loop until it gives
+    up with `PoolTimeout`.
+    """
+
+    def _borrow_against(self, exc):
+        class Broken(_FakePool):
+            def getconn(self, timeout=None):
+                raise exc
+
+        pool = ConnectionPool(maxconn=4, borrow_timeout=1.0)
+        pool._probe.probe_connectable = lambda *a, **k: None
+        info = {"dbname": "bugdb", "host": "h"}
+        with patch("odoo.db.pool._PsycopgPool", lambda *a, **k: Broken()):
+            with self.assertRaises(type(exc)) as caught:
+                pool.borrow(info)
+        return pool, caught.exception
+
+    def test_a_bug_keeps_its_type(self):
+        bug = AttributeError("'NoneType' object has no attribute 'x'")
+        _pool, raised = self._borrow_against(bug)
+        self.assertIs(raised, bug)
+        self.assertNotIsInstance(
+            raised,
+            PoolError,
+            "as a PoolError it is swallowed by every caller that treats one "
+            "as an unavailable database",
+        )
+
+    def test_the_permit_is_still_released(self):
+        pool, _raised = self._borrow_against(KeyError("boom"))
+        self.assertEqual(
+            pool._budget.in_use,
+            0,
+            "the guard releases on BaseException; letting the type through "
+            "must not change that",
+        )
+
+    def test_an_operational_failure_is_unaffected(self):
+        pool = ConnectionPool(maxconn=4, borrow_timeout=1.0)
+        pool._probe.probe_connectable = lambda *a, **k: None
+
+        class Timing(_FakePool):
+            def getconn(self, timeout=None):
+                raise PoolTimeout("couldn't get a connection")
+
+        with patch("odoo.db.pool._PsycopgPool", lambda *a, **k: Timing()):
+            with self.assertRaises(PoolError):
+                pool.borrow({"dbname": "slowdb", "host": "h"})
+        self.assertEqual(pool._budget.in_use, 0)

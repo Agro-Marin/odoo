@@ -3,6 +3,8 @@ from typing import Any
 
 from psycopg import sql as _sql
 
+from .utils import find_value_markers
+
 _DDL_KEYWORDS: tuple[str, ...] = (
     "CREATE",
     "ALTER",
@@ -33,15 +35,8 @@ _RE_ROLLBACK_TO_SAVEPOINT = _re.compile(
 _ROLLBACK_PREFIXES: frozenset[str] = frozenset(("RO",)) | _COMMENT_PREFIXES
 
 
-def _significant_head(qs: str) -> str:
-    head = qs[:64].lstrip()
-    if len(head) < 2 and len(qs) > 64:
-        head = qs.lstrip()
-    return head[:2].upper()
-
-
 def classify_statement(qs: str) -> tuple[str | None, bool]:
-    """(leading DDL keyword, is this a ROLLBACK TO) in one pass.
+    """(leading keyword needing client-side params, is this a ROLLBACK TO).
 
     `Cursor.execute` asks both questions of every statement it runs, and each
     answer used to do its own `lstrip`, its own two-character prefix test and
@@ -53,11 +48,37 @@ def classify_statement(qs: str) -> tuple[str | None, bool]:
     is invisible through a live round trip (~14 us), which is why
     it has to be measured here rather than end to end.
 
-    Only a comment-led statement can need both regexes: the DDL keywords and
+    Only a comment-led statement can need both regexes: `_DDL_KEYWORDS` and
     `ROLLBACK` share no two-character prefix (`RE`VOKE against `RO`LLBACK), so
     an ordinary statement still runs at most one.
+
+    **`SET` is answered without a regex, and that shape is the whole reason it
+    is answered at all.** PostgreSQL rejects `$N` in a `SET` value as it does
+    in every DDL position — `SET LOCAL statement_timeout = %s` reaches the
+    server only to come back `syntax error at or near "$1"` — and unlike
+    `TRUNCATE TABLE %s` or `LOCK TABLE %s`, whose `%s` stands for an
+    *identifier* that inlining would quote into a literal and still fail, a
+    `SET` value is a value: inlined, `SET statement_timeout = '5s'` runs.
+    Verified against PG 18 for both directions.
+
+    Putting `SET` in `_DDL_KEYWORDS` is what costs: it shares `SE` with
+    `SELECT`, so every SELECT in the tree would enter `_RE_DDL`, measured
+    152.5 ns -> 370.7 ns, and a dedicated `SE`-only regex still costs 301 ns
+    because the leading-comment group has to be tried. `SELECT` and `SET`
+    part at the *third character*, and nothing else in SQL begins `SE` in
+    statement position, so one slice settles it. Reading the head here rather
+    than through a helper pays for that slice and more — measured against the
+    version this replaces: SELECT +5.4 ns, UPDATE -11.5, INSERT -15.9,
+    CREATE -12.4, `ROLLBACK TO` -19.5.
+
+    A comment can never lead a `SET` seen by this branch: `--` and `/*` are in
+    `_DDL_PREFIXES`, so a commented statement has already taken the branch
+    above and been matched by `_RE_DDL` against the real keyword list.
     """
-    c = _significant_head(qs)
+    head = qs[:64].lstrip()
+    if len(head) < 3 and len(qs) > 64:
+        head = qs.lstrip()
+    c = head[:2].upper()
     if c in _DDL_PREFIXES:
         m = _RE_DDL.match(qs)
         if m is not None:
@@ -65,6 +86,8 @@ def classify_statement(qs: str) -> tuple[str | None, bool]:
         if c in _COMMENT_PREFIXES:
             return None, _RE_ROLLBACK_TO_SAVEPOINT.match(qs) is not None
         return None, False
+    if c == "SE":
+        return ("SET", False) if head[2:3] in ("T", "t") else (None, False)
     if c in _ROLLBACK_PREFIXES:
         return None, _RE_ROLLBACK_TO_SAVEPOINT.match(qs) is not None
     return None, False
@@ -72,10 +95,6 @@ def classify_statement(qs: str) -> tuple[str | None, bool]:
 
 def _ddl_keyword(qs: str) -> str | None:
     return classify_statement(qs)[0]
-
-
-def _is_rollback_to_savepoint(qs: str) -> bool:
-    return classify_statement(qs)[1]
 
 
 def _changes_schema(qs: str, leading: str | None) -> bool:
@@ -107,19 +126,6 @@ def _changes_schema(qs: str, leading: str | None) -> bool:
     return any(_ddl_keyword(part) in _SCHEMA_CHANGING_DDL for part in qs.split(";")[1:])
 
 
-def _find_value_markers(query: str) -> list[int]:
-    out = []
-    i, n = 0, len(query)
-    while i < n - 1:
-        if query[i] == "%":
-            if query[i + 1] == "s":
-                out.append(i)
-            i += 2
-        else:
-            i += 1
-    return out
-
-
 _DICT_MARKER_RE = _re.compile(r"%(?:%|\(([^)]+)\)s)")
 
 
@@ -143,7 +149,7 @@ def _inline_ddl_params(qs: str, params: tuple | list | dict, ctx: Any) -> str:
             return _sql.quote(params[name], ctx)
 
         return _DICT_MARKER_RE.sub(_sub_named, qs)
-    markers = _find_value_markers(qs)
+    markers = find_value_markers(qs)
     if len(markers) != len(params):
         raise ValueError(
             f"DDL parameter count mismatch: {len(markers)} '%s' "

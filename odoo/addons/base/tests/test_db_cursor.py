@@ -17,10 +17,11 @@ from unittest.mock import MagicMock, patch
 import psycopg
 from psycopg import IsolationLevel
 from psycopg.postgres import types as _pg_types
+from psycopg.pq import TransactionStatus as _TxStatus
 from psycopg_pool import PoolTimeout
 
 import odoo
-from odoo import api
+from odoo import api, tools
 from odoo.db import db_connect, insert_or_existing
 from odoo.db import pool as pool_module
 from odoo.db import schema as sql_schema
@@ -29,6 +30,7 @@ from odoo.db.cursor import (
     Cursor,
     _FlushingSavepoint,
 )
+from odoo.db.errors import is_stale_cached_plan
 from odoo.db.lifecycle import (
     _IDLE_SINCE_ATTR,
     _RESET_SESSION_STATE_SQL,
@@ -49,11 +51,14 @@ from odoo.exceptions import ConcurrencyError
 from odoo.modules.registry import Registry
 from odoo.orm.models.mixins._crud_common import COPY_THRESHOLD
 from odoo.service.db import exp_drop
+from odoo.service.transaction import retrying
 from odoo.tests import common
 from odoo.tests.common import BaseCase, HttpCase
 from odoo.tests.cursor import TestCursor
 from odoo.tools import SQL
 from odoo.tools.misc import mute_logger
+
+_TX_IDLE = _TxStatus.IDLE
 
 ADMIN_USER_ID = common.ADMIN_USER_ID
 
@@ -908,6 +913,232 @@ def _merge(cr, table, columns, rows, on_columns, *, returning="NEW.id"):
     return cr.fetchall()
 
 
+class TestPipelineModeRoutesFailuresThroughTheSeam(BaseCase):
+    """A pipelined statement's error must reach `_statement_failed` too.
+
+    psycopg does not raise where a pipelined statement was issued: it queues
+    the command and surfaces the server's error at the next sync, which is
+    `Cursor.pipeline`'s exit -- outside every entry point's own `try/except`.
+    The seam was therefore skipped for the whole of pipeline mode, and the
+    ORM's write path is pipelined (`orm/models/mixins/write.py::_write`,
+    `orm/runtime/environment.py::flush_all`).
+    """
+
+    def _warm_a_prepared_plan(self, cr, table):
+        query = f"SELECT id, a FROM {table} WHERE a = %s"
+        for _ in range(3):  # prepare_threshold is 2
+            cr.execute(query, (1,))
+            cr.fetchall()
+        cr.commit()
+        return query
+
+    def test_a_stale_cached_plan_is_marked_inside_a_pipeline(self):
+        table = "_stale_plan_pipeline"
+        with registry().cursor() as writer, registry().cursor() as cr:
+            writer.execute(f"DROP TABLE IF EXISTS {table}")
+            writer.execute(f"CREATE TABLE {table} (id serial PRIMARY KEY, a int)")
+            writer.commit()
+            try:
+                query = self._warm_a_prepared_plan(cr, table)
+                writer.execute(f"ALTER TABLE {table} ALTER COLUMN a TYPE bigint")
+                writer.commit()
+
+                with self.assertRaises(psycopg.Error) as caught, cr.pipeline():
+                    cr.execute("SELECT 1")
+                    cr.execute("SELECT 1")
+                    cr.execute(query, (1,), log_exceptions=False)
+                cr.rollback()
+            finally:
+                writer.execute(f"DROP TABLE IF EXISTS {table}")
+                writer.commit()
+
+        self.assertTrue(
+            is_stale_cached_plan(caught.exception),
+            "unmarked, service.transaction.retrying does not replay it: the "
+            "same statement outside a pipeline recovers and this one does not",
+        )
+
+    def test_retrying_replays_a_pipelined_stale_plan(self):
+        """The end-to-end difference, at the layer that decides the request.
+
+        `retrying()` dispatches on the mark: unmarked, a `FeatureNotSupported`
+        falls to its `else` and is re-raised. Measured across one committed
+        `ALTER COLUMN … TYPE`, the same callable -- raised on attempt 1
+        without the seam hook, recovered on attempt 2 with it.
+
+        The shape is the one the ORM actually produces. Counted over `/base`
+        + `/test_orm` + `/test_new_api`, result-returning statements DO run
+        inside armed pipelines: `orm/runtime/environment.py::execute_query`,
+        `addons/base/models/ir_default.py`, the parent-store
+        `UPDATE … RETURNING`. Plain UPDATEs, which are the bulk of what the
+        ORM pipelines, cannot reach this at all -- PostgreSQL raises only when
+        the altered column is in the statement's result descriptor.
+        """
+        table = "_retrying_pipelined_plan"
+        with registry().cursor() as writer:
+            writer.execute(f"DROP TABLE IF EXISTS {table}")
+            writer.execute(f"CREATE TABLE {table} (id serial PRIMARY KEY, a int)")
+            writer.execute(f"INSERT INTO {table} (a) VALUES (1)")
+            writer.commit()
+            try:
+                with registry().cursor() as cr:
+                    env = api.Environment(cr, ADMIN_USER_ID, {})
+                    query = f"SELECT id, a FROM {table} WHERE a = %s"
+                    for _ in range(3):  # prepare_threshold is 2
+                        cr.execute(query, (1,))
+                        cr.fetchall()
+                    cr.commit()
+
+                    writer.execute(f"ALTER TABLE {table} ALTER COLUMN a TYPE bigint")
+                    writer.commit()
+
+                    attempts = []
+
+                    def request():
+                        attempts.append(1)
+                        with cr.pipeline():
+                            cr.execute("SELECT 1")
+                            cr.execute("SELECT 1")
+                            cr.execute(query, (1,), log_exceptions=False)
+                            return cr.fetchall()
+
+                    rows = retrying(request, env)
+                    self.assertEqual(rows, [(1, 1)])
+                    self.assertEqual(
+                        len(attempts),
+                        2,
+                        "the first attempt must fail and the second succeed; "
+                        "one attempt means the plan never went stale and the "
+                        "test proves nothing",
+                    )
+            finally:
+                writer.execute(f"DROP TABLE IF EXISTS {table}")
+                writer.commit()
+
+    def test_a_constraint_violation_inside_a_pipeline_is_tiered_and_logged_once(self):
+        with registry().cursor() as cr:
+            cr.execute("CREATE TEMP TABLE _pipe_chk (n int CHECK (n < 10))")
+            with (
+                self.assertLogs("odoo.db.cursor", level="WARNING") as cm,
+                self.assertRaises(psycopg.errors.CheckViolation),
+                cr.pipeline(),
+            ):
+                cr.execute("INSERT INTO _pipe_chk VALUES (1)")
+                cr.execute("INSERT INTO _pipe_chk VALUES (2)")
+                cr.execute("INSERT INTO _pipe_chk VALUES (99)")
+            cr.rollback()
+
+        violations = [r for r in cm.records if "constraint violation" in r.getMessage()]
+        self.assertEqual(
+            len(violations),
+            1,
+            f"the seam is reached from the entry point and from the pipeline "
+            f"sync; exactly one of them may log: {cm.output}",
+        )
+
+    def test_a_caller_error_inside_a_pipeline_is_not_reported_as_sql(self):
+        with registry().cursor() as cr:
+            with self.assertRaises(ValueError), cr.pipeline():
+                cr.execute("SELECT 1")
+                cr.execute("SELECT 1")
+                raise ValueError("caller bug")
+            cr.rollback()
+        # No assertLogs: a plain Python error carries no SQLSTATE, so
+        # `reached_the_server` keeps it out of the seam entirely. Reaching for
+        # assertNoLogs here would pass for the wrong reason under a raised log
+        # level, so the assertion is that nothing raised on the way out.
+
+
+class TestCursorConstructionNeverLeaksAPermit(BaseCase):
+    def test_a_baseexception_during_construction_returns_the_connection(self):
+        """Everything between `pool.borrow` and `_closed = False` is unowned.
+
+        `__del__` short-circuits on `_closed`, which is True for the whole of
+        `__init__`, so a failure there is the one case no `close()` can clean
+        up. Measured under the `except Exception` this replaces: the injected
+        interrupt left `budget_in_use=1, checked_out=1` permanently.
+        """
+        registry_ = registry()
+        pool = registry_._db._Connection__pool
+        before = pool.stats.snapshot(budget=pool._budget, checkouts=pool._checkouts)
+
+        real = psycopg.Connection.cursor
+        seen = []
+
+        def interrupted(conn, *args, **kwargs):
+            if not seen:
+                seen.append(True)
+                raise KeyboardInterrupt("watchdog")
+            return real(conn, *args, **kwargs)
+
+        with patch.object(psycopg.Connection, "cursor", interrupted):
+            with self.assertRaises(KeyboardInterrupt):
+                registry_.cursor()
+
+        after = pool.stats.snapshot(budget=pool._budget, checkouts=pool._checkouts)
+        self.assertEqual(after["budget_in_use"], before["budget_in_use"])
+        self.assertEqual(after["checked_out"], before["checked_out"])
+
+        with registry_.cursor() as cr:
+            cr.execute("SELECT 1")
+            self.assertEqual(cr.fetchone(), (1,))
+
+
+class TestASavepointIsNeverOpenedInsideAPipeline(BaseCase):
+    """PostgreSQL discards the queued ROLLBACK TO with the rest of the batch.
+
+    Measured on a live cursor before the guard: the same UniqueViolation under
+    the same savepoint left the transaction usable outside a pipeline and
+    `InFailedSqlTransaction` inside one -- silently, because the caller's
+    `except` ran exactly as written and the transaction it believed it had
+    repaired was dead.
+    """
+
+    def test_it_is_refused_with_a_reason(self):
+        with registry().cursor() as cr:
+            with cr.pipeline():
+                cr.execute("SELECT 1")
+                cr.execute("SELECT 1")
+                with self.assertRaises(RuntimeError) as caught:
+                    cr.savepoint(flush=False)
+            self.assertIn("cr.pipeline()", str(caught.exception))
+            self.assertIn("ROLLBACK TO SAVEPOINT", str(caught.exception))
+
+    def test_the_transaction_is_still_usable_after_the_refusal(self):
+        with registry().cursor() as cr:
+            cr.execute("CREATE TEMP TABLE _pipe_sp (k int UNIQUE)")
+            cr.execute("INSERT INTO _pipe_sp VALUES (1)")
+            with contextlib.suppress(RuntimeError), cr.pipeline():
+                cr.execute("SELECT 1")
+                cr.execute("SELECT 1")
+                with cr.savepoint(flush=False):
+                    cr.execute("INSERT INTO _pipe_sp VALUES (1)")
+            cr.execute("SELECT count(*) FROM _pipe_sp")
+            self.assertEqual(cr.fetchone(), (1,))
+            cr.rollback()
+
+    def test_a_savepoint_around_the_pipeline_still_recovers(self):
+        with registry().cursor() as cr:
+            cr.execute("CREATE TEMP TABLE _pipe_sp2 (k int UNIQUE)")
+            cr.execute("INSERT INTO _pipe_sp2 VALUES (1)")
+            with (
+                self.assertRaises(psycopg.errors.UniqueViolation),
+                cr.savepoint(flush=False),
+                cr.pipeline(),
+            ):
+                cr.execute("SELECT 1")
+                cr.execute("SELECT 1")
+                cr.execute("INSERT INTO _pipe_sp2 VALUES (1)")
+            cr.execute("SELECT count(*) FROM _pipe_sp2")
+            self.assertEqual(
+                cr.fetchone(),
+                (1,),
+                "the supported shape -- savepoint outside, pipeline inside -- "
+                "must keep working; the pipeline syncs before the ROLLBACK TO",
+            )
+            cr.rollback()
+
+
 class TestCreateInsidePipeline(common.TransactionCase):
     def test_create_above_the_copy_threshold_inside_a_pipeline(self):
         Partner = self.env["res.partner"]
@@ -1111,6 +1342,178 @@ class TestCopyFrom(BaseCase):
             )
             cr.execute("SELECT data->>'key' FROM _test_cpj")
             self.assertEqual(cr.fetchone()[0], "value")
+
+
+class TestInsertOrExistingUnderARealRace(BaseCase):
+    """The loser gets `ConcurrencyError`, not the row, and that is the design.
+
+    `Cursor.__init__` sets REPEATABLE READ, so `find()` reads the snapshot the
+    transaction opened with and cannot see a row the winner committed after
+    it. The error is the retry signal `service.transaction.retrying` replays
+    on; the `(existing, False)` branch answers the ordinary case of a row
+    already committed before this transaction began.
+
+    Cursors come from `db_connect`, not `registry().cursor()`: under
+    `--test-enable` the latter hands back a `TestCursor`, which serialises
+    every caller on one lock, and a race test whose racers cannot race proves
+    nothing. `TestConcurrentDdlDuringBinaryCopy` below takes its cursors the
+    same way for the same reason.
+    """
+
+    TABLE = "_ioe_race"
+
+    @property
+    def threads(self):
+        """Sized from the budget, because every racer holds a cursor at once.
+
+        The barrier is the point -- all of them must be inside
+        `insert_or_existing` together -- so the test needs that many permits
+        simultaneously, plus room for the setup and check cursors. Hard-coded
+        at 8 it passed under `--db_maxconn=16` and failed under 8, which is a
+        test that measures the configuration rather than the helper.
+        """
+        budget = int(tools.config["db_maxconn"] or 8)
+        return max(2, min(6, budget - 2))
+
+    def test_one_creator_one_row_and_the_rest_are_retryable(self):
+        threads_wanted = self.threads
+        db_name = common.get_db_name()
+        setup = db_connect(db_name).cursor()
+        setup.execute(f"DROP TABLE IF EXISTS {self.TABLE}")
+        setup.execute(
+            f"CREATE TABLE {self.TABLE} (id serial PRIMARY KEY, k text UNIQUE, v int)"
+        )
+        setup.commit()
+        setup.close()
+
+        barrier = threading.Barrier(threads_wanted)
+        outcomes: list = []
+        lock = threading.Lock()
+
+        def worker(i):
+            cr = db_connect(db_name).cursor()
+            try:
+
+                def insert():
+                    cr.execute(
+                        f"INSERT INTO {self.TABLE} (k, v) VALUES ('same', %s) "
+                        f"RETURNING id",
+                        (i,),
+                    )
+                    return cr.fetchone()[0]
+
+                def find():
+                    cr.execute(f"SELECT id FROM {self.TABLE} WHERE k = 'same'")
+                    row = cr.fetchone()
+                    return row[0] if row else None
+
+                barrier.wait(timeout=30)
+                _row, created = insert_or_existing(cr, insert, find, conflict="ioe key")
+                cr.commit()
+                outcome = "created" if created else "found"
+            except ConcurrencyError:
+                outcome = "concurrency"
+            except Exception as exc:
+                outcome = f"unexpected:{type(exc).__name__}"
+            finally:
+                with contextlib.suppress(Exception):
+                    cr.close()
+            with lock:
+                outcomes.append(outcome)
+
+        threads = [
+            threading.Thread(target=worker, args=(i,)) for i in range(threads_wanted)
+        ]
+        try:
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join(timeout=60)
+
+            check = db_connect(db_name).cursor()
+            check.execute(f"SELECT count(*) FROM {self.TABLE}")
+            rows = check.fetchone()[0]
+            check.close()
+
+            self.assertEqual(rows, 1, "the unique key must admit exactly one row")
+            self.assertEqual(
+                outcomes.count("created"), 1, f"exactly one creator: {outcomes}"
+            )
+            self.assertFalse(
+                [o for o in outcomes if o.startswith("unexpected")],
+                f"every loser must be retryable, not an arbitrary error: {outcomes}",
+            )
+            self.assertEqual(
+                len(outcomes), threads_wanted, f"every thread reported: {outcomes}"
+            )
+        finally:
+            cleanup = db_connect(db_name).cursor()
+            cleanup.execute(f"DROP TABLE IF EXISTS {self.TABLE}")
+            cleanup.commit()
+            cleanup.close()
+
+
+class TestBinaryCopyIsSafeAgainstColumnsNotValues(BaseCase):
+    """`binary=True` is a hint about the COLUMN type, not about the value.
+
+    The degradation in `_can_dump_binary` means a caller never has to know what
+    its columns are. It does have to hand over the right Python values: binary
+    encodes client-side from the column OIDs, where text hands the string to
+    PostgreSQL to parse. Measured, same table and same rows in both modes ---
+    `uuid <- str`, `int <- "42"`, `date <- str` and `inet <- str` all insert as
+    text and raise as binary. Re-running as text would be the wrong repair: a
+    caller passing `"42"` for an `int4` has a bug that text COPY only hides.
+    """
+
+    def test_text_accepts_a_string_where_binary_does_not(self):
+        with registry().cursor() as cr:
+            cr.execute("CREATE TEMP TABLE _bin_vs_text (a int)")
+            cr.copy_from("_bin_vs_text", ["a"], [("42",)], binary=False)
+            cr.execute("SELECT a FROM _bin_vs_text")
+            self.assertEqual(cr.fetchall(), [(42,)])
+
+            with self.assertRaises(TypeError):
+                cr.copy_from(
+                    "_bin_vs_text", ["a"], [("42",)], binary=True, log_exceptions=False
+                )
+            cr.rollback()
+
+    def test_the_failure_says_which_mode_rejected_it(self):
+        with registry().cursor() as cr:
+            cr.execute("CREATE TEMP TABLE _bin_note (a int)")
+            with self.assertRaises(TypeError) as caught:
+                cr.copy_from(
+                    "_bin_note", ["a"], [("42",)], binary=True, log_exceptions=False
+                )
+            notes = " ".join(getattr(caught.exception, "__notes__", []))
+            self.assertIn("binary=True", notes)
+            self.assertIn("_bin_note", notes)
+            self.assertIn("['a']", notes, "the note must name the columns")
+            cr.rollback()
+
+    def test_a_server_side_failure_gets_no_such_note(self):
+        """The note explains client-side encoding; a constraint is not that."""
+        with registry().cursor() as cr:
+            cr.execute("CREATE TEMP TABLE _bin_chk (a int CHECK (a < 10))")
+            with self.assertRaises(psycopg.errors.CheckViolation) as caught:
+                cr.copy_from(
+                    "_bin_chk", ["a"], [(99,)], binary=True, log_exceptions=False
+                )
+            self.assertEqual(
+                getattr(caught.exception, "__notes__", []),
+                [],
+                "reached_the_server is what separates the two; a violation the "
+                "server reported is not a value the client could not encode",
+            )
+            cr.rollback()
+
+    def test_a_typed_value_still_goes_binary(self):
+        with registry().cursor() as cr:
+            cr.execute("CREATE TEMP TABLE _bin_ok (a int, b text)")
+            cr.copy_from("_bin_ok", ["a", "b"], [(42, "x")], binary=True)
+            cr.execute("SELECT a, b FROM _bin_ok")
+            self.assertEqual(cr.fetchall(), [(42, "x")])
+            cr.rollback()
 
 
 class TestCopyFromBinaryTypeResolution(BaseCase):
@@ -1636,6 +2039,21 @@ class TestConnectionStateReset(BaseCase):
 
     @staticmethod
     def _dirty(conn):
+        # `CLOSE ALL` and `DISCARD SEQUENCES` were pinned only as text in
+        # `TestResetSessionStateSql`, which proves the clause is present and
+        # not that it does anything. These two make them effect assertions --
+        # and they run FIRST, because the `search_path` below names one schema
+        # that does not exist, after which `CREATE SEQUENCE` has nowhere to go
+        # ("no schema has been selected to create in").
+        conn.execute("DROP SEQUENCE IF EXISTS _leak_seq")
+        conn.execute("CREATE SEQUENCE _leak_seq")
+        conn.execute("SELECT nextval('_leak_seq')")
+        was_autocommit = conn.autocommit
+        conn.autocommit = False
+        conn.execute("DECLARE _leak_cursor CURSOR WITH HOLD FOR SELECT 1")
+        conn.commit()
+        conn.autocommit = was_autocommit
+
         conn.execute("SET application_name = 'tenant_leak_probe'")
         conn.execute("SET search_path = 'leak_schema, public'")
         conn.execute("CREATE TEMP TABLE _leak_probe (x int)")
@@ -1657,6 +2075,18 @@ class TestConnectionStateReset(BaseCase):
             ),
             0,
         )
+        # Filtered by NAME, not `count(*)`: a bare count over `pg_cursors`
+        # counts its own portal once psycopg has auto-prepared it
+        # (`prepare_threshold` is 2), so the third execution of the same probe
+        # answers 1 against an empty view. Measured, and it cost an hour.
+        self.assertEqual(
+            get("SELECT count(*) FROM pg_cursors WHERE name = '_leak_cursor'"),
+            0,
+            "CLOSE ALL did not close the held cursor",
+        )
+        with self.assertRaises(psycopg.errors.ObjectNotInPrerequisiteState):
+            conn.execute("SELECT currval('_leak_seq')")
+        conn.execute("DROP SEQUENCE IF EXISTS public._leak_seq")
 
     def test_reset_sql_resets_role(self):
         self.assertIn("RESET SESSION AUTHORIZATION", _RESET_SESSION_STATE_SQL)
@@ -2963,21 +3393,21 @@ class TestTheModuleLevelFanOut(BaseCase):
 
     def test_close_db_reaches_every_endpoint_and_both_modes(self):
         pools, made = self._fake_registry()
-        with patch.dict(odoo.db._pools, pools, clear=True):
+        with patch.dict(odoo.db.registry._pools, pools, clear=True):
             odoo.db.close_db("dbz")
         for m in made:
             m.close_database.assert_called_once_with("dbz")
 
     def test_drain_db_reaches_every_endpoint_and_both_modes(self):
         pools, made = self._fake_registry()
-        with patch.dict(odoo.db._pools, pools, clear=True):
+        with patch.dict(odoo.db.registry._pools, pools, clear=True):
             odoo.db.drain_db("dbz")
         for m in made:
             m.drain_database.assert_called_once_with("dbz")
 
     def test_drain_all_drains_every_pool(self):
         pools, made = self._fake_registry()
-        with patch.dict(odoo.db._pools, pools, clear=True):
+        with patch.dict(odoo.db.registry._pools, pools, clear=True):
             odoo.db.drain_all()
         for m in made:
             m.drain.assert_called_once_with()
@@ -2986,7 +3416,7 @@ class TestTheModuleLevelFanOut(BaseCase):
         pools, made = self._fake_registry()
         for m in made:
             m.has_database.side_effect = lambda n: False
-        with patch.dict(odoo.db._pools, pools, clear=True):
+        with patch.dict(odoo.db.registry._pools, pools, clear=True):
             self.assertFalse(odoo.db.is_pooled("dbz"))
         self.assertTrue(
             all(m.has_database.called for m in made),
@@ -3067,7 +3497,12 @@ class TestPoolFailsFastOnMissingDatabase(BaseCase):
 
     def test_probe_is_wired_into_pool_creation(self):
         src = inspect.getsource(ConnectionPool._get_or_create_pool)
-        self.assertIn("_probe_connectable", src)
+        self.assertIn(
+            "self._probe.ensure_connectable",
+            src,
+            "the pre-flight probe moved to db/probe.py; pool creation must "
+            "still go through it or a missing database costs a PoolTimeout",
+        )
 
 
 class TestBorrowReturnsConnectionOnPostGetconnFailure(BaseCase):
@@ -3286,7 +3721,7 @@ class TestProbeDoesNotBlockOtherDatabases(BaseCase):
 
         with (
             patch("odoo.db.pool._PsycopgPool", _StubPool),
-            patch.object(pool, "_probe_connectable", side_effect=slow_probe),
+            patch.object(pool._probe, "probe_connectable", side_effect=slow_probe),
         ):
             t_a = threading.Thread(target=create, args=("a", {"database": "a"}))
             t_b = threading.Thread(target=create, args=("b", {"database": "b"}))
@@ -3309,7 +3744,7 @@ class TestProbeDoesNotBlockOtherDatabases(BaseCase):
         )
 
     def test_probe_uses_short_connect_timeout(self):
-        from odoo.db.pool import _PROBE_CONNECT_TIMEOUT
+        from odoo.db.probe import PROBE_CONNECT_TIMEOUT
 
         pool = ConnectionPool(maxconn=2)
         captured = {}
@@ -3319,10 +3754,10 @@ class TestProbeDoesNotBlockOtherDatabases(BaseCase):
             raise psycopg.OperationalError("connection refused")
 
         with patch("psycopg.connect", side_effect=fake_connect):
-            pool._probe_connectable(
+            pool._probe.probe_connectable(
                 "", {"dbname": "x", "connect_timeout": "10", "options": "-c jit=off"}
             )
-        self.assertEqual(captured.get("connect_timeout"), _PROBE_CONNECT_TIMEOUT)
+        self.assertEqual(captured.get("connect_timeout"), PROBE_CONNECT_TIMEOUT)
 
 
 class TestAdapterIsolationPerConnection(BaseCase):
@@ -3429,7 +3864,7 @@ class TestPoolSessionGucOptions(BaseCase):
         key = _normalize_dsn_key(connection_info)
         with (
             patch.object(pool_module, "_PsycopgPool", _FakePool),
-            patch.object(pool, "_probe_connectable"),
+            patch.object(pool._probe, "probe_connectable"),
         ):
             try:
                 pool._get_or_create_pool(key, dict(connection_info))
@@ -3722,7 +4157,48 @@ class TestCursorInitCursorFailureReturnsConnection(BaseCase):
             "Cursor.__init__ masked the real cursor() failure with a different "
             "exception (the __getattr__-via-getattr regression)",
         )
-        pool.give_back.assert_called_once_with(conn)
+        pool.give_back.assert_called_once()
+        (returned,), kwargs = pool.give_back.call_args
+        self.assertIs(returned, conn)
+        self.assertIn(
+            "keep_in_pool",
+            kwargs,
+            "the construction guard decides poolability the way _close does: "
+            "a constructor that raised after a statement leaves a failed "
+            "transaction behind",
+        )
+
+    def test_a_clean_connection_is_still_pooled(self):
+        conn = MagicMock()
+        conn.closed = False
+        conn.info.transaction_status = _TX_IDLE
+        conn.cursor.side_effect = psycopg.OperationalError("simulated")
+        pool = MagicMock()
+        pool.readonly = False
+        pool.borrow.return_value = conn
+
+        with self.assertRaises(psycopg.OperationalError):
+            Cursor(pool, "somedb", {"dbname": "somedb"})
+
+        self.assertTrue(
+            pool.give_back.call_args.kwargs["keep_in_pool"],
+            "nothing ran on this connection, so discarding it would throw away "
+            "a warm backend for an error that never touched it",
+        )
+
+    def test_a_damaged_connection_is_discarded(self):
+        conn = MagicMock()
+        conn.closed = False
+        conn.info.transaction_status = _TxStatus.INERROR
+        conn.cursor.side_effect = psycopg.OperationalError("simulated")
+        pool = MagicMock()
+        pool.readonly = False
+        pool.borrow.return_value = conn
+
+        with self.assertRaises(psycopg.OperationalError):
+            Cursor(pool, "somedb", {"dbname": "somedb"})
+
+        self.assertFalse(pool.give_back.call_args.kwargs["keep_in_pool"])
 
 
 class TestPasswordRotationEvictsStalePool(BaseCase):
@@ -3737,7 +4213,7 @@ class TestPasswordRotationEvictsStalePool(BaseCase):
 
     def test_rotation_evicts_and_closes_old_pool(self):
         pool = ConnectionPool(maxconn=4)
-        pool._probe_connectable = lambda *a, **k: None
+        pool._probe.probe_connectable = lambda *a, **k: None
         base = {"dbname": "rotdb", "host": "h", "user": "u"}
         info_old = {**base, "password": "old"}
         info_new = {**base, "password": "new"}
@@ -3754,7 +4230,7 @@ class TestPasswordRotationEvictsStalePool(BaseCase):
 
     def test_different_user_pool_is_preserved(self):
         pool = ConnectionPool(maxconn=4)
-        pool._probe_connectable = lambda *a, **k: None
+        pool._probe.probe_connectable = lambda *a, **k: None
         base = {"dbname": "rotdb", "host": "h", "password": "p"}
         info_u1 = {**base, "user": "u1"}
         info_u2 = {**base, "user": "u2"}
@@ -4566,8 +5042,17 @@ class TestStaleCachedPlanIsRecoverable(BaseCase):
             cr.execute("DROP TABLE IF EXISTS _test_perm CASCADE")
             cr.execute("CREATE TABLE _test_perm (a int)")
             cr.execute("CREATE VIEW _test_perm_v AS SELECT a FROM _test_perm")
-            cr.execute("SELECT a FROM _test_perm")
-            cr.fetchall()
+            # Past prepare_threshold (2), so the statement is genuinely in the
+            # connection's auto-prepare cache.  Running it ONCE leaves the cache
+            # empty, which made this test pass without ever reaching the branch
+            # it is meant to guard.
+            for _ in range(3):
+                cr.execute("SELECT a FROM _test_perm")
+                cr.fetchall()
+            self.assertTrue(
+                cr._cnx._prepared._names,
+                "the cache must be warm or this test asserts nothing",
+            )
             with self.assertRaises(psycopg.errors.FeatureNotSupported) as caught:
                 cr.execute(
                     "ALTER TABLE _test_perm ALTER COLUMN a TYPE bigint",
@@ -4578,6 +5063,11 @@ class TestStaleCachedPlanIsRecoverable(BaseCase):
                 "a column-used-by-a-view failure is permanent; marking it "
                 "would spend the whole retry budget on a request that can "
                 "never succeed",
+            )
+            self.assertTrue(
+                cr._cnx._prepared._names,
+                "and it must not discard the connection's prepared statements "
+                "either: nothing about this failure invalidates them",
             )
         finally:
             cr.rollback()

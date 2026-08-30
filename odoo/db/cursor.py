@@ -24,9 +24,12 @@ from .ddl import _changes_schema, _inline_ddl_params, classify_statement
 from .errors import (
     PG_STALE_PLAN_EXCEPTIONS,
     _log_sql_error,
+    is_handled_by_seam,
+    mark_handled_by_seam,
     mark_stale_cached_plan,
     reached_the_server,
 )
+from .lifecycle import clear_prepared_cache
 from .metrics import _MetricsMixin
 from .pool import ConnectionPool
 from .savepoint import Savepoint, _FlushingSavepoint
@@ -39,6 +42,33 @@ if TYPE_CHECKING:
 _logger = logging.getLogger(__name__)
 
 _TX_IDLE = _TxStatus.IDLE
+
+
+def _statement_text(query: Any) -> str:
+    """The text `classify_statement` reads, whatever the entry point was handed.
+
+    One function because there were two, and they had drifted. `execute`
+    decoded a `bytes` query; `executemany` spelled it `str(query)`, which for
+    bytes yields a repr whose first two significant characters are `B` and a
+    quote -- so `classify_statement` reports no DDL and no `ROLLBACK TO`,
+    `_after_statement` skips `_invalidate_caches_after_ddl`, and
+    `_schema_changed` stays False. That is exactly the asymmetry between the
+    two entry points which `_after_statement` exists to close, reintroduced one
+    level down, in the step that turns the argument into text.
+
+    **This is defence, not a bug report.** `executemany`'s signature does not
+    admit `bytes` and nothing in the tree passes it any; `execute`'s bytes
+    handling exists because `test_db_cursor` pins it, and there is no
+    equivalent caller for the other entry point. What makes the drift worth
+    removing anyway is that a seam whose whole purpose is to keep two callers
+    identical should not be fed by two different readers.
+    """
+    if isinstance(query, bytes):
+        try:
+            return query.decode()
+        except UnicodeDecodeError:
+            return ""
+    return query if isinstance(query, str) else str(query)
 
 
 def _rendered(query: Any) -> Any:
@@ -75,6 +105,23 @@ class BaseCursor:
         self.commit_count = 0
 
     def flush(self) -> None:
+        """Drive ORM writes and precommit hooks until neither produces more.
+
+        **The pass limit bounds ONE shape of non-convergence, and the message
+        it raises names that shape exactly.** A hook whose ORM writes make the
+        next `transaction.flush()` produce more precommit work is caught: each
+        round trip costs one pass and the eleventh raises.
+
+        It cannot bound the other shape. `Callbacks.run` is
+        `while self._funcs: popleft()(...)`, so a hook that calls
+        `precommit.add` is drained inside the SAME `run()` -- measured, a hook
+        re-arming itself ran 100 000 times in one call and never returned to
+        this loop. That is deliberate where it matters (a hook enqueueing
+        follow-up work should not wait a pass for it), and it means an
+        unconditionally self-re-arming hook hangs the worker with no error
+        rather than raising below. Bounding it belongs to `Callbacks`, which
+        the whole framework shares, not here.
+        """
         for _ in range(self._MAX_FLUSH_PASSES):
             if self.transaction is not None:
                 self.transaction.flush()
@@ -152,6 +199,52 @@ class BaseCursor:
         def connection(self) -> psycopg.Connection: ...
 
     def savepoint(self, flush: bool = True) -> Savepoint:
+        """Open a subtransaction. Never inside pipeline mode -- see below.
+
+        A savepoint exists to make the next failure recoverable, and in
+        pipeline mode it cannot: psycopg queues the commands and PostgreSQL
+        discards everything after an error until the next sync, so the
+        `ROLLBACK TO SAVEPOINT` the failure is supposed to trigger is one of
+        the statements thrown away. Measured on a live cursor, the same
+        UniqueViolation under the same savepoint:
+
+            outside a pipeline   caught, `SELECT count(*)` answers -> (1,)
+            inside a pipeline    caught, next statement raises
+                                 InFailedSqlTransaction
+
+        That is silent: the caller's `except UniqueViolation` runs exactly as
+        written, and the transaction it thinks it repaired is dead. It takes
+        out `insert_or_existing`, whose whole contract is that branch.
+
+        **Refusing is not free, and the cost is measured rather than assumed.**
+        `insert_or_existing` inside a pipeline WORKS today on the happy path
+        -- verified: `ir.config_parameter.set_param` inside a `cr.pipeline()`
+        returns normally when no conflict occurs, because the savepoint is
+        opened and released without ever having to roll back. This turns that
+        into a `RuntimeError`. It is still the right trade: the case that
+        works is the one where the savepoint was never needed, and the case it
+        exists for -- a concurrent insert -- is the one that corrupts the
+        transaction. A helper whose error branch is broken is broken. Nothing
+        in the tree composes the two (4870 tests across `/base`, `/test_orm`
+        and `/test_new_api` pass with this in place), and failing at the
+        composition point is far easier to read than `InFailedSqlTransaction`
+        three frames later. `copy_from` refuses pipeline mode for its own
+        reasons and sets the precedent for the shape.
+
+        `getattr` rather than a `BaseCursor` attribute: `odoo.tests.cursor.
+        TestCursor` forwards to the real cursor through `__getattr__`, which
+        runs only for names the class does NOT have, so declaring a default
+        here would answer False for a test cursor whose wrapped cursor is
+        pipelining.
+        """
+        if getattr(self, "in_pipeline", False):
+            raise RuntimeError(
+                "cannot open a savepoint inside cr.pipeline(): PostgreSQL "
+                "discards every queued statement after an error, so the "
+                "ROLLBACK TO SAVEPOINT is discarded too and the transaction "
+                "stays aborted. Take the savepoint around the pipeline block, "
+                "not inside it."
+            )
         if flush:
             cls = self._flushing_savepoint_cls
             if self.transaction is not None and not cls._restores_orm_state:
@@ -256,12 +349,36 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 self._cnx.commit()
 
             self._closed = False
-        except Exception:
+        except BaseException:
+            # BaseException, not Exception: everything between `pool.borrow`
+            # above and `_closed = False` here runs while this cursor owns a
+            # permit and a connection that no `close()` will ever reach --
+            # `__del__` short-circuits on `_closed`, which is True for the
+            # whole constructor. Measured with a KeyboardInterrupt injected at
+            # `_cnx.cursor()`: `budget_in_use=1, checked_out=1` afterwards with
+            # nothing left to release them, and `maxconn` of those leave every
+            # later borrow timing out on "connection budget reached".
+            #
+            # NO REACHABLE TRIGGER IS KNOWN, and the obvious guesses were
+            # checked and are wrong. `signal_time_expired_handler` raises
+            # `CpuTimeLimitExceeded`, which subclasses `Exception` and the old
+            # guard already caught; the work thread that opens cursors blocks
+            # SIGXCPU/SIGINT/SIGQUIT/SIGUSR1/SIGUSR2 outright
+            # (`service/_worker.py::_runloop`), so no Python signal handler
+            # runs in this frame at all; and `limit_time_real` is a parent-side
+            # SIGKILL, which no handler could intercept. This is kept on the
+            # same terms `ConnectionPool.borrow`'s guard is kept on: it costs
+            # nothing, the failure it prevents needs a restart to clear, and
+            # "nothing raises here today" is not a property anyone can hold
+            # still.
             obj = self.__dict__.get("_obj")
             if obj is not None:
                 with suppress(Exception):
                     obj.close()
-            pool.give_back(self._cnx)
+            # Same question `_close` asks: a connection whose setup raised
+            # after a statement is sitting in a failed transaction, and
+            # handing it back as warm is how the next borrower inherits it.
+            pool.give_back(self._cnx, keep_in_pool=self._connection_is_clean())
             raise
 
     def dictfetchone(self) -> dict[str, Any] | None:
@@ -341,7 +458,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 yield copy
             counts = True
         except Exception as e:
-            counts = self._statement_failed(e, statement, label="COPY")
+            counts = self._statement_failed(e, statement, label="COPY", prepared=False)
             raise
         finally:
             self._statement_done(
@@ -389,6 +506,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         *,
         label: str = "query",
         log_exceptions: bool = True,
+        prepared: bool = True,
     ) -> bool:
         """What a statement entry point owes a statement that raised.
 
@@ -424,7 +542,13 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         been thought worth banking. The pair costs one call each and keeps
         every drift-prone decision in one place all the same.
         """
-        self._note_stale_cached_plan(exc)
+        if is_handled_by_seam(exc):
+            # Reached twice for one error only when pipeline mode defers it
+            # past the entry point that issued it; see `mark_handled_by_seam`.
+            return reached_the_server(exc)
+        mark_handled_by_seam(exc)
+        if prepared:
+            self._note_stale_cached_plan(exc)
         if log_exceptions:
             _log_sql_error(exc, _rendered(query), label=label)
         return reached_the_server(exc)
@@ -513,7 +637,9 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             obj.execute(query, params, prepare=prepare)
             counts = True
         except Exception as e:
-            counts = self._statement_failed(e, query, log_exceptions=log_exceptions)
+            counts = self._statement_failed(
+                e, query, log_exceptions=log_exceptions, prepared=prepare is not False
+            )
             raise
         finally:
             delay = monotonic() - t0
@@ -527,14 +653,28 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 debug=debug,
             )
 
-        if _changes_schema(qs, ddl_kw):
-            self._invalidate_caches_after_ddl()
-        elif rollback_to:
-            self._on_rollback_to_savepoint()
+        self._after_statement(qs, ddl_kw, rollback_to)
 
         if debug:
             query_type, table = categorize_query(qs)
             self._record_sql_log(query_type, table, delay)
+
+    def _after_statement(self, qs: str, ddl_kw: str | None, rollback_to: bool) -> None:
+        """What every statement owes the connection once it has succeeded.
+
+        Shared with `executemany`, which classified nothing at all: a DDL run
+        through it left `_schema_changed` False, so sibling connections were
+        never drained and cached plans were never discarded. Nothing in the tree
+        issues DDL that way today, but the same asymmetry between the two entry
+        points was a real defect once before -- `_statement_failed`'s docstring
+        records `executemany` skipping the stale-plan mark on the `res_users`
+        write path -- and it was reintroduced one level up, in the seam that
+        decides what a statement *was* rather than what to do when it failed.
+        """
+        if _changes_schema(qs, ddl_kw):
+            self._invalidate_caches_after_ddl()
+        elif rollback_to:
+            self._on_rollback_to_savepoint()
 
     def _resolve_ddl(
         self,
@@ -542,13 +682,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         params: tuple | list | dict | None,
         prepare: bool | None,
     ) -> tuple[Any, tuple | list | dict | None, bool | None, str, str | None, bool]:
-        if isinstance(query, bytes):
-            try:
-                qs = query.decode()
-            except UnicodeDecodeError:
-                qs = ""
-        else:
-            qs = query
+        qs = _statement_text(query)
         ddl_kw, rollback_to = classify_statement(qs)
         if ddl_kw is not None:
             if params:
@@ -559,9 +693,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         return query, params, prepare, qs, ddl_kw, rollback_to
 
     def discard_cached_plans(self) -> None:
-        try:
-            self._cnx._prepared.clear()
-        except AttributeError:
+        if not clear_prepared_cache(self._cnx):
             _logger.warning(
                 "psycopg no longer exposes Connection._prepared.clear(); "
                 "auto-prepare is off for the rest of this cursor's life "
@@ -581,8 +713,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         prepared = getattr(self._cnx, "_prepared", None)
         if prepared is None or not getattr(prepared, "_names", None):
             return False
-        with suppress(Exception):
-            prepared.clear()
+        clear_prepared_cache(self._cnx)
         self._schema_cache.clear_catalog_facts()
         mark_stale_cached_plan(exc)
         return True
@@ -615,11 +746,28 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         elif isinstance(query, _sql.Composable):
             query = query.as_string(self._cnx)
 
+        qs = _statement_text(query)
+        ddl_kw, rollback_to = classify_statement(qs)
+
         rows: Collection[tuple | list | dict] = (
             params_seq if isinstance(params_seq, Collection) else list(params_seq)
         )
         if not rows:
             return
+
+        if ddl_kw is not None and any(rows):
+            # psycopg binds server-side and DDL takes no parameters, so this
+            # reaches the server only to come back as `IndeterminateDatatype:
+            # could not determine data type of parameter $1`, which names
+            # neither the statement kind nor the entry point. `execute` inlines
+            # DDL parameters instead (`_resolve_ddl`); there is no per-row
+            # equivalent, because a DDL statement run once per row is not a
+            # thing anyone means.
+            raise ValueError(
+                f"executemany() cannot run parameterised DDL ({ddl_kw}); "
+                f"DDL takes no bound parameters. Issue it once with "
+                f"cr.execute(), which inlines them."
+            )
 
         if self._pipeline_stack is not None:
             self._arm_pipeline()
@@ -648,8 +796,10 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 debug=debug,
             )
 
+        self._after_statement(qs, ddl_kw, rollback_to)
+
         if debug:
-            query_type, table = categorize_query(query)
+            query_type, table = categorize_query(qs)
             self._record_sql_log(query_type, table, delay)
 
     @property
@@ -663,8 +813,59 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             self._pipeline_entered = True
 
     @contextmanager
-    def pipeline(self) -> Generator[None]:
+    def pipeline(
+        self, log_exceptions: bool = True, query: Any = None
+    ) -> Generator[None]:
+        """Batch this block's statements, and route the deferred error home.
+
+        In pipeline mode psycopg does not raise where the statement was
+        issued: it queues the command and surfaces the server's error at the
+        next sync, which for this block is the `ExitStack` exit below --
+        outside every entry point's own `try/except`, and therefore outside
+        the failure seam that `_statement_failed` exists to be. Measured on
+        one connection across one committed `ALTER COLUMN … TYPE`, with the
+        SAME statement:
+
+            plain cr.execute                raised FeatureNotSupported, marked
+            cr.execute inside cr.pipeline() raised FeatureNotSupported, UNMARKED
+
+        The mark is what `service.transaction.retrying` dispatches on, and
+        end to end that is the whole difference: the same pipelined SELECT
+        through `retrying()` raised `FeatureNotSupported` on its first attempt
+        before this, and recovers on its second after.
+
+        Which statements can reach it is narrower than "everything the ORM
+        pipelines", and the first draft of this note got it wrong. PostgreSQL
+        raises `cached plan must not change result type` only when the altered
+        column is in the statement's RESULT descriptor: measured, a plain
+        `UPDATE` and an `INSERT` without `RETURNING` are silently revalidated,
+        and `UPDATE … RETURNING id` is too when `id` is not the altered
+        column. So the 748 plain UPDATEs that `write.py::_update_rows_*_sql`
+        contributes cannot reach it at all. What can, counted over `/base` +
+        `/test_orm` + `/test_new_api`, is every result-returning statement the
+        ORM runs inside an armed block: 44 SELECTs from
+        `orm/runtime/environment.py::execute_query`, 25 and 9 from
+        `addons/base/models/ir_default.py`, 26 `UPDATE … RETURNING` from the
+        parent-store maintenance, and `create.py::_prepare_create_values`.
+
+        The seam is idempotent (`is_handled_by_seam`),
+        so a statement whose error DID surface at its own entry point -- an
+        unarmed first statement, a client-side rejection -- passes through
+        here untouched.
+
+        `reached_the_server` gates it because this `except` also sees whatever
+        the caller's block raised: a plain Python error carries no SQLSTATE
+        and is none of the seam's business.
+
+        `query` is what the error names. psycopg reports *that* a queued
+        command failed and not *which*, so a block of unrelated statements can
+        only say so; a block whose statements share one template --
+        `execute_values` -- should pass it, or the log loses the SQL it used to
+        carry.
+        """
         if self._pipeline_depth:
+            # Only the outermost block syncs, so only it can observe the
+            # deferred error; a nested one would see nothing to route.
             self._pipeline_depth += 1
             try:
                 yield
@@ -678,6 +879,17 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             with ExitStack() as stack:
                 self._pipeline_stack = stack
                 yield
+        except Exception as e:
+            if reached_the_server(e):
+                self._statement_failed(
+                    e,
+                    query
+                    if query is not None
+                    else "<pipelined statement; psycopg does not report which>",
+                    label="pipelined statement",
+                    log_exceptions=log_exceptions,
+                )
+            raise
         finally:
             self._pipeline_stack = None
             self._pipeline_depth = 0
@@ -696,10 +908,29 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             finally:
                 try:
                     self._do_rollback()
-                except Exception:
+                except Exception as exc:
                     keep_in_pool = self._connection_is_clean()
                     if keep_in_pool:
                         _logger.warning("Failed to roll back on cursor close")
+                    elif not reached_the_server(exc):
+                        # An outage, not a fault.  A rollback that never
+                        # reached PostgreSQL carries no SQLSTATE, which is
+                        # what `reached_the_server` reads -- the backend is
+                        # gone and discarding the connection is the only
+                        # thing left to do, so a traceback says nothing the
+                        # message does not.  This is not a rare path: it is
+                        # what BOTH cron loops hit every time PostgreSQL
+                        # drops them, and each one has already reported it at
+                        # WARNING ("Postgres connection lost, reconnecting").
+                        # Measured on a live server whose cron/job backends
+                        # were terminated: two ERROR tracebacks per outage,
+                        # for an event the server handled correctly. Reporting
+                        # handled operations as faults is what teaches an
+                        # operator to skip ERROR.
+                        _logger.warning(
+                            "Discarding a connection whose backend is gone: %s",
+                            exc,
+                        )
                     else:
                         _logger.exception(
                             "Failed to roll back on cursor close; discarding connection"

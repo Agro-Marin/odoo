@@ -17,18 +17,14 @@ from odoo import tools
 from odoo.release import MIN_PG_VERSION
 
 from .budget import ConnectionBudget
-from .dsn import (
-    _NON_RETRYABLE_CONNECT_ERRORS,
-    _expand_conninfo,
-    _normalize_dsn_key,
-    _translate_connect_error,
-)
+from .dsn import _expand_conninfo, _normalize_dsn_key
 from .leaks import CheckoutTracker
 from .lifecycle import (
     _check_connection,
     _configure_connection,
     _reset_connection,
 )
+from .probe import PROBE_CONNECT_TIMEOUT, ReachabilityProbe, libpq_connect_timeout
 from .reaper import IdlePoolReaper, note_activity
 from .stats import PoolStats
 from .utils import is_maintenance_db
@@ -61,7 +57,15 @@ _DEFAULT_MAX_LIFETIME = 3600
 _DEFAULT_BORROW_TIMEOUT = 30.0
 _DEFAULT_REAP_IDLE_TTL = 300.0
 
-_PROBE_CONNECT_TIMEOUT = 5
+# psycopg's own default is 3, which is a per-POOL number being spent at
+# per-DATABASE granularity here: this class holds one `_PsycopgPool` per
+# database, each with its own workers plus a scheduler thread. Measured, 12
+# databases in one process held 49 threads and 40 held 161 -- 4.0 per database
+# -- against +135 KB RSS and 0.35% of one core while completely idle. The
+# workers serve AddConnection and ReturnConnection tasks, and psycopg already
+# runs returns off the caller's thread, so the second and third worker only buy
+# parallelism between returns *of the same database*. `db_pool_workers` sizes it.
+_DEFAULT_POOL_WORKERS = 1
 
 _DIRECT_CONNECTION = object()
 
@@ -72,15 +76,6 @@ _LEAK_REPORT_INTERVAL = 60.0
 
 def _remaining(deadline: float | None) -> float:
     return float("inf") if deadline is None else deadline - monotonic()
-
-
-def _libpq_connect_timeout(deadline: float | None, cap: int) -> int:
-    if deadline is None:
-        return cap
-    remaining = int(deadline - monotonic())
-    if remaining < 1:
-        return 0
-    return min(cap, remaining)
 
 
 def _base_conn_options(conninfo: str, kwargs: dict) -> str:
@@ -98,13 +93,12 @@ _GUC_NAME_RE = re.compile(r"-c\s*([A-Za-z_][A-Za-z0-9_.]*)\s*=")
 def _session_gucs(base_options: str) -> str:
     already_set = set(_GUC_NAME_RE.findall(base_options))
     configured = tools.config["db_session_gucs"] or ""
-    gucs = [
-        f"-c {name}={value}"
-        for entry in configured.split(",")
-        if (name := entry.partition("=")[0].strip())
-        and (value := entry.partition("=")[2].strip())
-        and name not in already_set
-    ]
+    gucs = []
+    for entry in configured.split(","):
+        name, _, value = entry.partition("=")
+        name, value = name.strip(), value.strip()
+        if name and value and name not in already_set:
+            gucs.append(f"-c {name}={value}")
     return " ".join(gucs)
 
 
@@ -134,14 +128,6 @@ class PoolError(Exception):
     pass
 
 
-class _InFlightProbe:
-    __slots__ = ("done", "exc")
-
-    def __init__(self) -> None:
-        self.done = threading.Event()
-        self.exc: BaseException | None = None
-
-
 class ConnectionPool:
     def __init__(
         self,
@@ -154,11 +140,16 @@ class ConnectionPool:
         max_idle: int = _DEFAULT_MAX_IDLE,
         reap_idle_ttl: float = _DEFAULT_REAP_IDLE_TTL,
         budget: ConnectionBudget | None = None,
+        pool_workers: int = _DEFAULT_POOL_WORKERS,
     ):
         if maxconn <= 0:
             raise ValueError(f"ConnectionPool maxconn must be >= 1, got {maxconn}")
         if minconn < 0:
             raise ValueError(f"ConnectionPool minconn must be >= 0, got {minconn}")
+        if pool_workers < 1:
+            raise ValueError(
+                f"ConnectionPool pool_workers must be >= 1, got {pool_workers}"
+            )
         if minconn > maxconn:
             raise ValueError(
                 f"ConnectionPool minconn ({minconn}) cannot exceed maxconn ({maxconn})"
@@ -170,14 +161,14 @@ class ConnectionPool:
         self._borrow_timeout = borrow_timeout
         self._max_lifetime = max_lifetime
         self._max_idle = max_idle
+        self._pool_workers = pool_workers
         self._reaper = IdlePoolReaper(reap_idle_ttl)
         self._lock = threading.Lock()
         self.stats = PoolStats()
         self._checkouts = CheckoutTracker()
         self._budget = budget if budget is not None else ConnectionBudget(maxconn)
         self._direct_out = 0
-        self._reachable_keys: set[frozenset] = set()
-        self._inflight_probes: dict[frozenset, _InFlightProbe] = {}
+        self._probe = ReachabilityProbe(self.stats)
 
     def __repr__(self) -> str:
         pools = list(self._pools.values())
@@ -201,119 +192,6 @@ class ConnectionPool:
     def _debug(self, msg: str, *args: object) -> None:
         _logger_conn.debug(("%r " + msg), self, *args)
 
-    def _is_proven_reachable(self, key: frozenset) -> bool:
-        with self._lock:
-            return key in self._reachable_keys
-
-    def _mark_reachable(self, key: frozenset) -> None:
-        with self._lock:
-            self._reachable_keys.add(key)
-
-    def _forget_reachable(self, key: frozenset) -> None:
-        with self._lock:
-            self._reachable_keys.discard(key)
-
-    def _probe_connectable(
-        self, conninfo: str, kwargs: dict, deadline: float | None = None
-    ) -> None:
-        probe_timeout = _libpq_connect_timeout(deadline, _PROBE_CONNECT_TIMEOUT)
-        if not probe_timeout:
-            return
-        self.stats.record_probe_started()
-        probe_kwargs = {**kwargs, "autocommit": True}
-        probe_kwargs["connect_timeout"] = probe_timeout
-        try:
-            psycopg.connect(conninfo, **probe_kwargs).close()
-        except _NON_RETRYABLE_CONNECT_ERRORS:
-            self.stats.record_probe_outcome("permanent")
-            raise
-        except psycopg.OperationalError as e:
-            translated = _translate_connect_error(e)
-            if translated is not None:
-                self.stats.record_probe_outcome("permanent")
-                raise translated from e
-            if self._database_absent(conninfo, kwargs, deadline):
-                self.stats.record_probe_outcome("permanent")
-                raise psycopg.errors.InvalidCatalogName(str(e)) from e
-            self.stats.record_probe_outcome("transient")
-            _logger.debug(
-                "Pool pre-flight probe failed (treating as transient)",
-                exc_info=True,
-            )
-        except Exception:
-            self.stats.record_probe_outcome("transient")
-            _logger.debug(
-                "Pool pre-flight probe failed (treating as transient)",
-                exc_info=True,
-            )
-
-    def _probe_connectable_deduped(
-        self, key: frozenset, conninfo: str, kwargs: dict, deadline: float | None = None
-    ) -> None:
-        with self._lock:
-            probe = self._inflight_probes.get(key)
-            if probe is None:
-                probe = self._inflight_probes[key] = _InFlightProbe()
-                leader = True
-            else:
-                leader = False
-        if leader:
-            try:
-                self._probe_connectable(conninfo, kwargs, deadline)
-            except BaseException as e:
-                probe.exc = e
-                raise
-            finally:
-                with self._lock:
-                    del self._inflight_probes[key]
-                probe.done.set()
-        else:
-            wait_timeout = (
-                None if deadline is None else max(0.0, deadline - monotonic())
-            )
-            if probe.done.wait(wait_timeout) and probe.exc is not None:
-                # `.with_traceback(None)` because every follower raises the one
-                # object the leader recorded, and a `raise` APPENDS to that
-                # object's traceback. Measured with eight followers on a dead
-                # DSN -- the case this dedup exists for -- the shared exception
-                # reached 19 frames, the same two frames repeated, interleaved
-                # across threads that have nothing to do with each other, and
-                # each frame keeping its thread's locals alive for as long as
-                # the exception did. Clearing first bounds it at one raise.
-                # psycopg does the same thing for the same reason
-                # (`raise ex.with_traceback(None)` in `Cursor.copy`).
-                raise probe.exc.with_traceback(None)
-
-    def _database_absent(
-        self, conninfo: str, kwargs: dict, deadline: float | None = None
-    ) -> bool:
-        maint = (
-            _expand_conninfo({"dsn": conninfo, **kwargs}) if conninfo else dict(kwargs)
-        )
-        db_name = kwargs.get("dbname") or maint.get("dbname")
-        if not db_name or db_name == "postgres":
-            return False
-        maint.pop("options", None)
-        maint["dbname"] = "postgres"
-        maint["autocommit"] = True
-        probe_timeout = _libpq_connect_timeout(deadline, _PROBE_CONNECT_TIMEOUT)
-        if not probe_timeout:
-            return False
-        maint["connect_timeout"] = probe_timeout
-        try:
-            with psycopg.connect("", **maint) as mc:
-                row = mc.execute(
-                    "SELECT 1 FROM pg_database WHERE datname = %s", (db_name,)
-                ).fetchone()
-            return row is None
-        except Exception:
-            _logger.debug(
-                "pg_database existence check unavailable for %r",
-                db_name,
-                exc_info=True,
-            )
-            return False
-
     def _get_or_create_pool(
         self, key: frozenset, connection_info: dict, deadline: float | None = None
     ) -> _PsycopgPool:
@@ -329,10 +207,7 @@ class ConnectionPool:
         idle_session_ms = max(900, int(self._max_idle * 1.5)) * 1000
         kwargs["options"] = _connection_options(conninfo, kwargs, idle_session_ms)
 
-        if self._is_proven_reachable(key):
-            self.stats.record_probe_outcome("skipped_proven")
-        else:
-            self._probe_connectable_deduped(key, conninfo, kwargs, deadline)
+        self._probe.ensure_connectable(key, conninfo, kwargs, deadline)
 
         with self._lock:
             pool = self._pools.get(key)
@@ -352,7 +227,7 @@ class ConnectionPool:
                 configure=_configure_connection,
                 reset=_reset_connection,
                 check=_check_connection,
-                num_workers=3,
+                num_workers=self._pool_workers,
                 open=True,
             )
             note_activity(pool)
@@ -368,8 +243,7 @@ class ConnectionPool:
                 and frozenset(t for t in k if t[0] != "password_fp") == ident
             ]
             stale_pools = [self._pools.pop(k) for k in stale_keys]
-            for k in stale_keys:
-                self._reachable_keys.discard(k)
+            self._probe.forget_each(stale_keys)
 
             reap_keys = self._reaper.collect(self._pools, exclude_key=key)
             reaped_pools = [self._pools.pop(k) for k in reap_keys]
@@ -442,7 +316,7 @@ class ConnectionPool:
         try:
             conn, pool = self._getconn_with_retry(pool, key, connection_info, deadline)
             self._validate_borrowed_conn(conn, pool)
-            self._mark_reachable(key)
+            self._probe.mark_proven(key)
             self._checkouts.track(conn, _borrow_caller())
             self._warn_about_leaks()
             self.stats.record_borrow(started)
@@ -459,11 +333,18 @@ class ConnectionPool:
         request is sitting on the permits -- and it is one function because
         the two copies it replaces had already drifted apart in whitespace.
         """
+        # One acquisition for both numbers. They are read to be printed side
+        # by side in one sentence, and this is the sentence an operator gets
+        # when the pool is exhausted -- "3 database(s), +2 direct" taken half a
+        # microsecond apart can add up to more than `maxconn` and send the
+        # reader looking for a leak that is an artefact of the message.
+        with self._lock:
+            pools, direct_out = len(self._pools), self._direct_out
         return PoolError(
             f"Could not acquire connection: connection budget "
             f"({self._budget.maxconn}) reached, "
-            f"all connections are in use across {len(self._pools)} database(s) "
-            f"(+{self._direct_out} direct maintenance connection(s)). "
+            f"all connections are in use across {pools} database(s) "
+            f"(+{direct_out} direct maintenance connection(s)). "
             f"{self._checkouts.describe()}"
         )
 
@@ -501,34 +382,41 @@ class ConnectionPool:
         if not self._budget.acquire(_remaining(deadline)):
             self.stats.record_borrow_failed()
             raise self._budget_exhausted()
-        if deadline is not None:
-            connect_timeout = _libpq_connect_timeout(
-                deadline, int(kwargs.get("connect_timeout", _PROBE_CONNECT_TIMEOUT))
-            )
-            if not connect_timeout:
-                self._unwind_failed_borrow(None)
-                raise PoolError(
-                    f"Could not acquire connection to maintenance database "
-                    f"within the {self._borrow_timeout}s borrow budget"
+        # One guard for everything after the permit, as in `borrow` -- the
+        # four exits this replaces released the permit correctly but only the
+        # last of them counted, so `borrows_failed` read 0 for a maintenance
+        # endpoint that was refusing every connect while the pooled path
+        # counted the same failure as 1. `db_connect("postgres")` is the
+        # cron's heartbeat, so an unreachable maintenance DB is exactly what
+        # `db.pool_health()` is read to find, and it was the one failure the
+        # figure could not show.
+        conn = None
+        try:
+            if deadline is not None:
+                connect_timeout = libpq_connect_timeout(
+                    deadline, int(kwargs.get("connect_timeout", PROBE_CONNECT_TIMEOUT))
                 )
-            kwargs["connect_timeout"] = connect_timeout
-        try:
+                if not connect_timeout:
+                    raise PoolError(
+                        f"Could not acquire connection to maintenance database "
+                        f"within the {self._borrow_timeout}s borrow budget"
+                    )
+                kwargs["connect_timeout"] = connect_timeout
             conn = psycopg.connect(conninfo, **kwargs)
-        except BaseException:
-            self._unwind_failed_borrow(None)
-            raise
-        try:
-            _configure_connection(conn)
-            self._check_min_server_version(conn)
-        except BaseException:
-            with contextlib.suppress(Exception):
-                conn.close()
-            self._unwind_failed_borrow(None)
-            raise
-        conn._odoo_pool = _DIRECT_CONNECTION
-        with self._lock:
-            self._direct_out += 1
-        try:
+            try:
+                _configure_connection(conn)
+                self._check_min_server_version(conn)
+            except BaseException:
+                with contextlib.suppress(Exception):
+                    conn.close()
+                # Unmarked and already closed: hand the unwind None so it
+                # releases the permit directly rather than routing a dead
+                # connection through `give_back`.
+                conn = None
+                raise
+            conn._odoo_pool = _DIRECT_CONNECTION
+            with self._lock:
+                self._direct_out += 1
             self._checkouts.track(conn, _borrow_caller())
             self.stats.record_direct_borrow()
             return conn
@@ -574,15 +462,28 @@ class ConnectionPool:
                         if self._pools.get(key) is pool:
                             del self._pools[key]
                     self._safe_close(pool)
-                self._forget_reachable(key)
+                self._probe.forget(key)
                 _logger.info("Connection to the database failed: %s", e)
                 raise PoolError(str(e)) from e
             except psycopg.Error as e:
-                self._forget_reachable(key)
+                self._probe.forget(key)
                 _logger.info("Connection to the database failed: %s", e)
                 raise
-            except Exception as e:
-                raise PoolError(str(e)) from e
+        # No `except Exception -> PoolError` here, deliberately. Everything
+        # psycopg_pool raises from `getconn` for an operational reason is a
+        # `psycopg.Error` and is answered above: `PoolTimeout` and `PoolClosed`
+        # both subclass `OperationalError`, "the pool is not open yet" is a
+        # `PoolClosed` (not the `RuntimeError` it looks like), a failed connect
+        # arrives through `WaitingClient.wait` as the error the worker
+        # recorded, and a `check` callback that raises is swallowed by
+        # psycopg_pool's own retry loop until it gives up with `PoolTimeout`.
+        # What was left for a blanket clause to catch was therefore BUGS --
+        # and `PoolError` is the one exception `ir_cron`, `ir_job`,
+        # `orm/runtime/registry.py` and `bus/websocket.py` all catch and treat
+        # as "the database is unavailable", so converting them laundered a
+        # programming error into an expected operational condition and lost
+        # both the type and the traceback. They propagate as themselves now,
+        # exactly as `psycopg.Error` already did on the line above.
         raise PoolError("getconn retry budget exhausted")
 
     def _validate_borrowed_conn(
@@ -618,6 +519,7 @@ class ConnectionPool:
             with self._lock:
                 self._direct_out -= 1
             self._budget.release()
+            self._reap_after_return()
             return
 
         note_activity(pool)
@@ -633,6 +535,27 @@ class ConnectionPool:
                 _logger.debug("Failed to return connection to pool", exc_info=True)
         finally:
             self._budget.release()
+        self._reap_after_return()
+
+    def _reap_after_return(self) -> None:
+        """Reaping is edge-triggered on a return, so every return must trigger it.
+
+        `_maybe_reap_idle_pools` has no timer -- deliberately, because a timer
+        is a thread and this class already carries four per database. That makes
+        the set of returns that reach it the whole of the reaper's schedule, and
+        the maintenance branch above used to `return` before it. The direct path
+        is not an exotic one: `db_connect("postgres")` is the cron's heartbeat
+        (`service/_threaded.py`, `service/_worker.py`), which is the only
+        periodic activity an otherwise idle worker has. So a server whose
+        tenants had all gone quiet reaped nothing, while the one call that kept
+        arriving was the one that could not.
+
+        Measured with `db_pool_reap_idle=2`, two pools idle past their TTL:
+        five maintenance cursors moved nothing (`pools=2 threads=9`), and a
+        single pooled return collected both (`pools=1 threads=5`) -- one
+        `collect()` takes every eligible pool, so an active tenant already
+        cleans up the idle ones. This makes the heartbeat do it too.
+        """
         try:
             self._maybe_reap_idle_pools()
         except Exception:
@@ -662,17 +585,14 @@ class ConnectionPool:
     def close_database(self, db_name: str) -> None:
         with self._lock:
             pools = [self._pools.pop(k) for k in self._for_database(db_name)]
-            for k in [
-                k for k in self._reachable_keys if dict(k).get("database") == db_name
-            ]:
-                self._reachable_keys.discard(k)
+            self._probe.forget_matching(lambda k: dict(k).get("database") == db_name)
         self._close_each(pools, "for %s" % db_name)
 
     def close_all(self) -> None:
         with self._lock:
             pools = list(self._pools.values())
             self._pools.clear()
-            self._reachable_keys.clear()
+            self._probe.forget_all()
         self._close_each(pools, "")
 
     def _close_each(self, pools: list[_PsycopgPool], scope: str) -> None:
