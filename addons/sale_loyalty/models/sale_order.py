@@ -1093,8 +1093,8 @@ class SaleOrder(models.Model):
             # is better as it reduces the discount amount 'spent' by the customer.
             return compare_current_and_new_reward <= 0
 
-        # Return True only if the discount of the new reward is greater than the current reward
-        # discount.
+        # Return True only if the current reward's discount is at least as large as the new
+        # reward's discount.
         return compare_current_and_new_reward >= 0
 
     def _get_discount_amount(self, reward, discountable):
