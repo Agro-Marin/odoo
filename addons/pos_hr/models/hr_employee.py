@@ -46,9 +46,10 @@ class HrEmployee(models.Model):
             else:
                 role = "cashier"
 
+            employee_barcode_pin = bp_per_employee_id.get(employee["id"], {})
             employee["_role"] = role
-            employee["_barcode"] = bp_per_employee_id[employee["id"]]["barcode"]
-            employee["_pin"] = bp_per_employee_id[employee["id"]]["pin"]
+            employee["_barcode"] = employee_barcode_pin.get("barcode", False)
+            employee["_pin"] = employee_barcode_pin.get("pin", False)
 
         return read_records
 
