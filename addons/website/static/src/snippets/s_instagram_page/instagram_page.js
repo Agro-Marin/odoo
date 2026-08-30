@@ -3,7 +3,7 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { Interaction } from "@web/public/interaction";
 
-// Note that Instagram can automatically detect the language of the user and
+// Instagram can automatically detect the language of the user and
 // translate the embed.
 
 export class InstagramPage extends Interaction {

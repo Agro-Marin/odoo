@@ -443,7 +443,7 @@ export class WebsiteBuilderClientAction extends Component {
             } catch (err) {
                 if (err.name === "SecurityError") {
                     ev.stopImmediatePropagation();
-                    // Note that iframe's `src` is the URL used to start the
+                    // iframe's `src` is the URL used to start the
                     // website preview, it's not sync'd with iframe navigation.
                     const srcUrl = new URL(iframe.src);
                     const pathUrl = new URL(

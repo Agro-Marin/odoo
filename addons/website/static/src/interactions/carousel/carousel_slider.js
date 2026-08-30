@@ -267,7 +267,7 @@ export class CarouselSlider extends Interaction {
         for (const carouselItemEl of toLoadEls) {
             const imageEls = carouselItemEl.querySelectorAll("img[loading='lazy']");
             for (const imageEl of imageEls) {
-                // Note that we remove the attribute with the goal of forcing it
+                // We remove the attribute with the goal of forcing it
                 // to the "eager" value. Removing the attribute is better so
                 // that the attribute is not saved as eager in edit mode (the
                 // lazy value is auto added on page rendering).
