@@ -2,9 +2,14 @@
     "name": "Test ORM",
     "version": "1.0",
     "category": "Hidden/Tests",
-    "description": """A module to test the ORM.""",
-    "depends": ["base", "web", "web_tour"],
-    "installable": True,
+    "description": "A module to test the ORM.",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "base",
+        "web",
+        "web_tour",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "security/test_orm_security.xml",
@@ -17,6 +22,5 @@
             "test_orm/static/tests/tours/x2many.js",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
 }

@@ -6,11 +6,14 @@
 This here module is useful to validate that they're doing what they're
 supposed to do
     """,
-    "depends": ["base", "web"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "base",
+        "web",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "views/menu.xml",
     ],
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

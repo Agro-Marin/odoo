@@ -1,10 +1,14 @@
 {
     "name": "test_search_panel",
-    "description": "Tests for the search panel python methods",
-    "category": "Hidden/Tests",
     "version": "0.1",
-    "depends": ["web"],
-    "data": ["ir.model.access.csv"],
+    "category": "Hidden/Tests",
+    "description": "Tests for the search panel python methods",
     "author": "Odoo S.A.",
     "license": "LGPL-3",
+    "depends": [
+        "web",
+    ],
+    "data": [
+        "ir.model.access.csv",
+    ],
 }

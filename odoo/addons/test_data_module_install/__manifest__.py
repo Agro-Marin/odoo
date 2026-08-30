@@ -6,5 +6,7 @@
     "description": "Test data module (see test_data_module) installation",
     "author": "Odoo S.A.",
     "license": "LGPL-3",
-    "depends": ["test_data_module"],
+    "depends": [
+        "test_data_module",
+    ],
 }

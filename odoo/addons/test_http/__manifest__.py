@@ -2,10 +2,18 @@
     "name": "Test HTTP",
     "version": "1.0",
     "category": "Hidden/Tests",
-    "description": """A module to test HTTP""",
-    "depends": ["web", "mail", "rpc"],
-    "installable": True,
-    "data": ["data.xml", "ir.model.access.csv", "views.xml"],
+    "description": "A module to test HTTP",
     "author": "Odoo S.A.",
     "license": "LGPL-3",
+    "depends": [
+        "web",
+        "mail",
+        "rpc",
+    ],
+    "data": [
+        "data.xml",
+        "ir.model.access.csv",
+        "views.xml",
+    ],
+    "installable": True,
 }

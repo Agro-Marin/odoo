@@ -21,11 +21,13 @@ internals such as ``odoo.tests.benchmark``, ``FieldCache``, specialised field
 
 See ``README.md`` for the full A/B runbook.
 """,
-    "depends": ["base"],
-    "installable": True,
+    "author": "AgroMarin",
+    "license": "LGPL-3",
+    "depends": [
+        "base",
+    ],
     "data": [
         "security/ir.model.access.csv",
     ],
-    "author": "AgroMarin",
-    "license": "LGPL-3",
+    "installable": True,
 }

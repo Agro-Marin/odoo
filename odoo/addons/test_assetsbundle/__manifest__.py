@@ -2,9 +2,12 @@
     "name": "test-assetsbundle",
     "version": "0.1",
     "category": "Hidden/Tests",
-    "description": """A module to verify the Assets Bundle mechanism.""",
-    "depends": ["web"],
-    "installable": True,
+    "description": "A module to verify the Assets Bundle mechanism.",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "web",
+    ],
     "data": [
         "data/ir_asset.xml",
         "views/views.xml",
@@ -51,7 +54,10 @@
             "test_assetsbundle/static/src/js/test_jsfile4.js",
         ],
         "test_assetsbundle.manifest6": [
-            ("include", "test_assetsbundle.manifest4"),
+            (
+                "include",
+                "test_assetsbundle.manifest4",
+            ),
         ],
         "test_assetsbundle.broken_css": [
             "test_assetsbundle/static/invalid_src/css/invalid_css.css",
@@ -87,9 +93,12 @@
             "test_assetsbundle.lazy_test_component",
             "test_assetsbundle.native_esm",
         ],
-        "standalone_bundles": ["test_assetsbundle.native_esm"],
-        "runtime_bundles": ["test_assetsbundle.lazy_test_component"],
+        "standalone_bundles": [
+            "test_assetsbundle.native_esm",
+        ],
+        "runtime_bundles": [
+            "test_assetsbundle.lazy_test_component",
+        ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
 }

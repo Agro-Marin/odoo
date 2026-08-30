@@ -54,9 +54,7 @@ class TestHttpWebJson_2(TestHttpBase):
         self.assertEqual(
             res.headers.get("Content-Type"), "application/json; charset=utf-8"
         )
-        self.assertIn(
-            "not found in the server-wide controllers", res.json()["message"]
-        )
+        self.assertIn("not found in the server-wide controllers", res.json()["message"])
 
     def test_webjson2_multi_db_no_header_html(self):
         res = self.multidb_url_open(
@@ -83,9 +81,7 @@ class TestHttpWebJson_2(TestHttpBase):
         self.assertEqual(
             res.headers.get("Content-Type"), "application/json; charset=utf-8"
         )
-        self.assertIn(
-            "not found in the server-wide controllers", res.json()["message"]
-        )
+        self.assertIn("not found in the server-wide controllers", res.json()["message"])
 
     def test_webjson2_multi_db_good_header(self):
         res = self.multidb_url_open(
