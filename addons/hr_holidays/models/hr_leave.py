@@ -1367,6 +1367,15 @@ Versions:
         holidays._check_validity()
         self._invalidate_allocation_computes()
 
+        if not self.env.context.get("leave_fast_create") and not self.env.context.get(
+            "import_file"
+        ):
+            to_notify = holidays.filtered(
+                lambda leave: leave.holiday_status_id.notify_time_off_officers
+            )
+            if to_notify:
+                to_notify.sudo()._notify_time_off_officers()
+
         for holiday in holidays:
             if not self.env.context.get("leave_fast_create"):
                 # Everything that is done here must be done using sudo because we might
@@ -2239,6 +2248,50 @@ is approved, validated or refused."
                     partner_ids=[recipient],
                     subject=_("Your Time Off"),
                 )
+
+    def _notify_time_off_officers(self):
+        """Notify every time off officer of the employee's company.
+
+        The recipients come from the officer group rather than from a list
+        kept on the leave type, so appointing an officer is enough for them
+        to start receiving these: nothing has to be edited type by type.
+        """
+        officers = self.env.ref("hr_holidays.group_hr_holidays_user").all_user_ids
+        for leave in self:
+            recipients = officers.filtered_domain(
+                [("company_ids", "in", leave.employee_company_id.ids)]
+            )
+            if not recipients:
+                continue
+            body = Markup(
+                "<p>%(intro)s</p>"
+                "<ul>"
+                "<li><strong>%(employee_label)s:</strong> %(employee)s</li>"
+                "<li><strong>%(type_label)s:</strong> %(type)s</li>"
+                "<li><strong>%(period_label)s:</strong> %(date_from)s to %(date_to)s</li>"
+                "<li><strong>%(duration_label)s:</strong> %(duration)s</li>"
+                "</ul>"
+            ) % {
+                "intro": _("A new time off request has been submitted."),
+                "employee_label": _("Employee"),
+                "employee": leave.employee_id.name,
+                "type_label": _("Type"),
+                "type": leave.holiday_status_id.name,
+                "period_label": _("Period"),
+                "date_from": format_date(self.env, leave.request_date_from),
+                "date_to": format_date(self.env, leave.request_date_to),
+                "duration_label": _("Duration"),
+                "duration": leave.duration_display or "",
+            }
+            leave.message_notify(
+                partner_ids=recipients.partner_id.ids,
+                subject=_(
+                    "New Time Off Request: %(leave_type)s",
+                    leave_type=leave.holiday_status_id.name,
+                ),
+                body=body,
+                email_layout_xmlid="mail.mail_notification_layout",
+            )
 
     def _track_subtype(self, init_values):
         if "state" in init_values and self.state == "validate":
