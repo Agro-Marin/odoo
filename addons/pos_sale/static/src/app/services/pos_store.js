@@ -96,6 +96,9 @@ patch(PosStore.prototype, {
             "read_converted",
             [sale_order.line_ids.map((l) => l.id)],
         );
+        const converted_lines_by_id = new Map(
+            converted_lines.map((l) => [l.id, l]),
+        );
 
         for (const line of sale_order.line_ids) {
             if (line.display_type === "line_note") {
@@ -154,7 +157,7 @@ patch(PosStore.prototype, {
             const newLine = await this.addLineToCurrentOrder(newLineValues, {}, false);
             previousProductLine = newLine;
 
-            const converted_line = converted_lines.find((l) => l.id === line.id);
+            const converted_line = converted_lines_by_id.get(line.id);
             if (
                 newLine.getProduct().tracking !== "none" &&
                 (this.pickingType.use_create_lots ||
