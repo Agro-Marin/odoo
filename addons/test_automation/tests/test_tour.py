@@ -35,9 +35,7 @@ class AutomationRuleTestUi(HttpCase):
             automation.action_server_ids.state, "object_write"
         )  # only one action
         self.assertEqual(automation.action_server_ids.model_name, "res.partner")
-        self.assertEqual(
-            automation.action_server_ids.update_field_id.name, "function"
-        )
+        self.assertEqual(automation.action_server_ids.update_field_id.name, "function")
         self.assertEqual(automation.action_server_ids.value, "Test")
 
     def test_automation_on_tag_added(self):
@@ -98,18 +96,14 @@ class AutomationRuleTestUi(HttpCase):
     def test_kanban_automation_view_stage_trigger(self):
         self._neutralize_preexisting_automations()
 
-        project_model = self.env.ref(
-            "test_automation.model_test_automation_project"
-        )
+        project_model = self.env.ref("test_automation.model_test_automation_project")
         stage_field = self.env["ir.model.fields"].search(
             [
                 ("model_id", "=", project_model.id),
                 ("name", "=", "stage_id"),
             ]
         )
-        test_stage = self.env["test_automation.stage"].create(
-            {"name": "Stage value"}
-        )
+        test_stage = self.env["test_automation.stage"].create({"name": "Stage value"})
 
         automation = self.env["automation.rule"].create(
             {
@@ -302,9 +296,7 @@ class AutomationRuleTestUi(HttpCase):
         )
 
         self.start_tour(
-            (
-                f"/odoo/action-automation.automation_act/{automation.id}?debug=0"
-            ),
+            (f"/odoo/action-automation.automation_act/{automation.id}?debug=0"),
             "test_form_view_resequence_actions",
             login="admin",
         )
@@ -314,11 +306,212 @@ class AutomationRuleTestUi(HttpCase):
             ["Update Active 2", "Update Active 0", "Update Active 1"],
         )
 
+    def test_workflow_canvas(self):
+        """Drive the JointJS canvas in a real browser.
+
+        This is the only end-to-end exercise of the vendored bundle: that
+        `import("joint")` resolves through the import map, that
+        `get_workflow_graph` feeds it, that the auto-layout runs, and that the
+        classes the stylesheet declares are the ones the nodes carry. A HOOT
+        test can reach none of that.
+        """
+        model = self.env["ir.model"]._get("res.partner")
+        rule = self.env["automation.rule"].create(
+            {
+                "name": "Canvas Tour",
+                "model_id": model.id,
+                "trigger": "on_hand",
+            }
+        )
+        actions = self.env["ir.actions.server"].create(
+            [
+                {
+                    "name": name,
+                    "model_id": model.id,
+                    "state": "code",
+                    "code": "pass",
+                    "automation_rule_id": rule.id,
+                    "usage": "automation",
+                }
+                for name in ("first", "second", "handler")
+            ]
+        )
+        first, second, handler = actions
+        self.env["workflow.edge"].create(
+            [
+                {"source_node_id": first.id, "target_node_id": second.id},
+                {
+                    "source_node_id": first.id,
+                    "target_node_id": handler.id,
+                    "condition": "on_error",
+                },
+            ]
+        )
+        self.assertFalse(
+            any(actions.mapped("pos_x")) or any(actions.mapped("pos_y")),
+            "precondition: nothing is placed before the canvas has been opened",
+        )
+
+        self.start_tour(
+            f"/odoo/action-automation.automation_act/{rule.id}",
+            "test_workflow_canvas",
+            login="admin",
+        )
+
+        # The canvas laid the graph out and wrote the coordinates back through
+        # the plain ORM. This is the only assertion in the suite that the write
+        # side of the canvas reaches the database at all.
+        actions.invalidate_recordset(["pos_x", "pos_y"])
+        self.assertTrue(
+            any(actions.mapped("pos_x")) or any(actions.mapped("pos_y")),
+            "opening the canvas must persist the layout it computed",
+        )
+
+    def test_workflow_canvas_edit(self):
+        """Remove a connection by clicking it on the canvas.
+
+        The destructive path, and the one with no server-side API of its own:
+        the canvas unlinks a `workflow.edge` through the plain ORM, so this is
+        also the proof that the write side is subject to the ordinary access
+        rules rather than a bespoke endpoint.
+        """
+        model = self.env["ir.model"]._get("res.partner")
+        rule = self.env["automation.rule"].create(
+            {"name": "Canvas Edit", "model_id": model.id, "trigger": "on_hand"}
+        )
+        first, second, third = self.env["ir.actions.server"].create(
+            [
+                {
+                    "name": name,
+                    "model_id": model.id,
+                    "state": "code",
+                    "code": "pass",
+                    "automation_rule_id": rule.id,
+                    "usage": "automation",
+                }
+                for name in ("first", "second", "third")
+            ]
+        )
+        self.env["workflow.edge"].create(
+            [
+                {"source_node_id": first.id, "target_node_id": second.id},
+                {"source_node_id": second.id, "target_node_id": third.id},
+            ]
+        )
+        self.assertEqual(len(rule.edge_ids), 2)
+
+        self.start_tour(
+            f"/odoo/action-automation.automation_act/{rule.id}",
+            "test_workflow_canvas_edit",
+            login="admin",
+        )
+
+        rule.invalidate_recordset(["edge_ids"])
+        self.assertEqual(
+            len(rule.edge_ids),
+            1,
+            "clicking Remove must delete the edge server-side",
+        )
+
+    def test_workflow_canvas_drag(self):
+        """Drag a step and check the move reached the database.
+
+        Auto-layout already proves the *write* works; this proves the
+        `element:pointerup` handler behind a user's drag fires at all.
+        """
+        model = self.env["ir.model"]._get("res.partner")
+        rule = self.env["automation.rule"].create(
+            {"name": "Canvas Drag", "model_id": model.id, "trigger": "on_hand"}
+        )
+        first, second = self.env["ir.actions.server"].create(
+            [
+                {
+                    "name": name,
+                    "model_id": model.id,
+                    "state": "code",
+                    "code": "pass",
+                    "automation_rule_id": rule.id,
+                    "usage": "automation",
+                    "pos_x": pos_x,
+                    "pos_y": 40,
+                }
+                for name, pos_x in (("first", 40), ("second", 320))
+            ]
+        )
+        self.env["workflow.edge"].create(
+            {"source_node_id": first.id, "target_node_id": second.id}
+        )
+        seeded = (first.pos_x, first.pos_y)
+
+        self.start_tour(
+            f"/odoo/action-automation.automation_act/{rule.id}",
+            "test_workflow_canvas_drag",
+            login="admin",
+        )
+
+        first.invalidate_recordset(["pos_x", "pos_y"])
+        self.assertNotEqual(
+            (first.pos_x, first.pos_y),
+            seeded,
+            "dragging a step must persist its new position",
+        )
+
+    def test_workflow_canvas_connect(self):
+        """Create a connection by dragging between two steps.
+
+        The last untested interaction, and the one with the most moving parts:
+        a JointJS magnet, `validateConnection`, an ORM create the server may
+        refuse, and a reload.
+        """
+        model = self.env["ir.model"]._get("res.partner")
+        rule = self.env["automation.rule"].create(
+            {"name": "Canvas Connect", "model_id": model.id, "trigger": "on_hand"}
+        )
+        first, second, third = self.env["ir.actions.server"].create(
+            [
+                {
+                    "name": name,
+                    "model_id": model.id,
+                    "state": "code",
+                    "code": "pass",
+                    "automation_rule_id": rule.id,
+                    "usage": "automation",
+                    "pos_x": pos_x,
+                    "pos_y": 60,
+                }
+                for name, pos_x in (("first", 40), ("second", 300), ("third", 560))
+            ]
+        )
+        self.env["workflow.edge"].create(
+            {"source_node_id": first.id, "target_node_id": second.id}
+        )
+        self.assertEqual(len(rule.edge_ids), 1)
+
+        self.start_tour(
+            f"/odoo/action-automation.automation_act/{rule.id}",
+            "test_workflow_canvas_connect",
+            login="admin",
+        )
+
+        rule.invalidate_recordset(["edge_ids"])
+        self.assertEqual(
+            len(rule.edge_ids),
+            2,
+            "dragging between two steps must create an edge",
+        )
+        self.assertEqual(
+            rule.edge_ids.filtered(
+                lambda edge: (
+                    edge.source_node_id == third and edge.target_node_id == first
+                )
+            ).condition,
+            "on_success",
+            "a dragged edge defaults to on_success like a typed one",
+        )
+
     def test_form_view_model_id(self):
         self.start_tour(
-            (
-                "/odoo/action-automation.automation_act/new?view_type=form&debug=0"
-            ),
+            ("/odoo/action-automation.automation_act/new?view_type=form&debug=0"),
             "test_form_view_model_id",
             login="admin",
         )
@@ -327,18 +520,14 @@ class AutomationRuleTestUi(HttpCase):
         self.env["test_automation.stage"].create({"name": "test stage"})
         self.env["test_automation.tag"].create({"name": "test tag"})
         self.start_tour(
-            (
-                "/odoo/action-automation.automation_act/new?view_type=form&debug=0"
-            ),
+            ("/odoo/action-automation.automation_act/new?view_type=form&debug=0"),
             "test_form_view_custom_reference_field",
             login="admin",
         )
 
     def test_form_view_mail_triggers(self):
         self.start_tour(
-            (
-                "/odoo/action-automation.automation_act/new?view_type=form&debug=0"
-            ),
+            ("/odoo/action-automation.automation_act/new?view_type=form&debug=0"),
             "test_form_view_mail_triggers",
             login="admin",
         )

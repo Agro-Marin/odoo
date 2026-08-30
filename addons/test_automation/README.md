@@ -363,7 +363,9 @@ automation = env["automation.rule"].create(
 # Create actions with dependencies
 action1 = create_action("Review", automation)
 action2 = create_action("Approve", automation)
-action2.write({"predecessor_ids": [(6, 0, [action1.id])]})
+env["workflow.edge"].create(
+    {"source_node_id": action1.id, "target_node_id": action2.id}
+)
 ```
 
 **Key points:**

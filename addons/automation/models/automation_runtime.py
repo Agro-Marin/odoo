@@ -3,6 +3,8 @@ import logging
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
+from .ir_websocket import SUBCHANNEL as BUS_SUBCHANNEL
+
 _logger = logging.getLogger(__name__)
 
 
@@ -88,6 +90,7 @@ class AutomationRuntime(models.Model):
         selection=[
             ("draft", "Draft"),
             ("in_progress", "In Progress"),
+            ("waiting_resume", "Waiting to Resume"),
             ("done", "Done"),
             ("error", "Failed"),
             ("cancel", "Cancelled"),
@@ -112,6 +115,22 @@ class AutomationRuntime(models.Model):
         string="Workflow Steps",
         readonly=True,
         help="Per-step execution history",
+    )
+    parent_line_id = fields.Many2one(
+        comodel_name="automation.runtime.line",
+        string="Parent Step",
+        index="btree_not_null",
+        ondelete="cascade",
+        readonly=True,
+        copy=False,
+        help="The Sub-workflow step this run was started by, if any",
+    )
+    edge_ids = fields.One2many(
+        comodel_name="automation.runtime.edge",
+        inverse_name="runtime_id",
+        string="Workflow Edges",
+        readonly=True,
+        help="The DAG this run was started with, conditions included",
     )
     progress = fields.Integer(
         string="Progress %",
@@ -192,6 +211,22 @@ class AutomationRuntime(models.Model):
             body=_("Workflow started with %d steps", len(self.line_ids)),
             subject=_("Workflow Started"),
         )
+        self._notify_workflow_change()
+
+    def _notify_workflow_change(self):
+        for runtime in self:
+            rule = runtime.automation_id
+            if not rule:
+                continue
+            rule._bus_send(
+                "automation.workflow/update",
+                {
+                    "automation_id": rule.id,
+                    "runtime_id": runtime.id,
+                    "state": runtime.state,
+                },
+                subchannel=BUS_SUBCHANNEL,
+            )
 
     def action_run_all(self):
         self.ensure_one()
@@ -199,6 +234,9 @@ class AutomationRuntime(models.Model):
         while self.state == "in_progress":
             ready_lines = self.line_ids.filtered(lambda l: l.state == "ready")
             if not ready_lines:
+                if self.line_ids.filtered(lambda l: l.state == "paused"):
+                    self.action_wait()
+                    break
                 blocked = self.line_ids.filtered(
                     lambda l: l.state not in ("done", "cancel", "error"),
                 )
@@ -222,11 +260,12 @@ class AutomationRuntime(models.Model):
         stranded = self.line_ids.filtered(
             lambda l: l.state not in ("done", "cancel", "error"),
         )
-        if stranded and self.state != "in_progress":
+        if stranded and self.state not in ("in_progress", "waiting_resume"):
             stranded.action_mark_error(
                 _("Step never ran: the workflow already failed."),
             )
 
+        self._notify_workflow_change()
         return self.state
 
     def action_cancel(self):
@@ -241,10 +280,67 @@ class AutomationRuntime(models.Model):
         ).action_cancel()
         self.message_post(body=_("Workflow cancelled"), subject=_("Workflow Cancelled"))
 
-    def action_done(self):
+    def _release_parent_line(self):
+        for runtime in self.filtered(
+            lambda run: run.parent_line_id.state == "paused",
+        ):
+            line = runtime.parent_line_id
+            parent = line.runtime_id
+            if parent.state == "waiting_resume":
+                parent.state = "in_progress"
+            if runtime.state == "done":
+                line.action_resume()
+            else:
+                line.action_mark_error(
+                    _("Sub-workflow '%(name)s' did not complete.", name=runtime.name),
+                )
+                if not line._has_error_handler():
+                    parent.action_error()
+                    continue
+            parent.action_run_all()
+
+    def action_wait(self):
         self.ensure_one()
 
         if self.state != "in_progress":
+            return
+
+        self.state = "waiting_resume"
+
+    def action_resume(self):
+        now = self.env.cr.now()
+        for runtime in self.filtered(lambda run: run.state == "waiting_resume"):
+            due = runtime.line_ids.filtered(
+                lambda step: (
+                    step.state == "paused"
+                    and step.date_resume
+                    and step.date_resume <= now
+                ),
+            )
+            if not due:
+                continue
+            runtime.state = "in_progress"
+            due.action_resume()
+            runtime.action_run_all()
+
+    @api.model
+    def _resume_waiting_executions(self):
+        waiting = self.search(
+            [
+                ("state", "=", "waiting_resume"),
+                ("line_ids.state", "=", "paused"),
+                ("line_ids.date_resume", "<=", self.env.cr.now()),
+            ],
+        )
+        if waiting:
+            _logger.info("Resuming %s paused workflow run(s)", len(waiting))
+        waiting.action_resume()
+        return len(waiting)
+
+    def action_done(self):
+        self.ensure_one()
+
+        if self.state not in ("in_progress", "waiting_resume"):
             return
 
         self.state = "done"
@@ -252,14 +348,16 @@ class AutomationRuntime(models.Model):
             body=_("Workflow completed successfully"),
             subject=_("Workflow Completed"),
         )
+        self._release_parent_line()
 
     def action_error(self):
         self.ensure_one()
 
-        if self.state != "in_progress":
+        if self.state not in ("in_progress", "waiting_resume"):
             return
 
         self.state = "error"
+        self._release_parent_line()
         failed = self.line_ids.filtered(lambda l: l.state == "error")
         self.message_post(
             body=_(
@@ -334,15 +432,20 @@ class AutomationRuntime(models.Model):
             zip(actions.ids, lines, strict=True)
         )
 
-        for action in actions:
-            line = line_by_action[action.id]
-            predecessor_line_ids = [
-                line_by_action[pred.id].id
-                for pred in action.predecessor_ids
-                if pred.id in line_by_action
+        self.env["automation.runtime.edge"].create(
+            [
+                {
+                    "runtime_id": self.id,
+                    "source_line_id": line_by_action[edge.source_node_id.id].id,
+                    "target_line_id": line_by_action[edge.target_node_id.id].id,
+                    "condition": edge.condition,
+                    "condition_expr": edge.condition_expr,
+                }
+                for edge in self.automation_id.edge_ids
+                if edge.source_node_id.id in line_by_action
+                and edge.target_node_id.id in line_by_action
             ]
-            if predecessor_line_ids:
-                line.predecessor_ids = [(6, 0, predecessor_line_ids)]
+        )
 
         for line in line_by_action.values():
             if line._predecessors_satisfied():
@@ -351,6 +454,12 @@ class AutomationRuntime(models.Model):
         return self.env["automation.runtime.line"].browse(
             [line.id for line in line_by_action.values()]
         )
+
+    def _get_target_record(self):
+        self.ensure_one()
+        if not self.res_model:
+            return self.env["automation.runtime"].browse(self.id)
+        return self.env[self.res_model].browse(self.res_id or [])
 
     def _get_execution_context(self):
         self.ensure_one()

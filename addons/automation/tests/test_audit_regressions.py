@@ -26,8 +26,8 @@ class AutomationAuditCommon(TransactionCase):
             }
         )
 
-    def _action(self, automation, name, code="pass", **kw):
-        return self.Action.create(
+    def _action(self, automation, name, code="pass", predecessors=None, **kw):
+        action = self.Action.create(
             {
                 "name": name,
                 "model_id": self.model_partner.id,
@@ -38,6 +38,18 @@ class AutomationAuditCommon(TransactionCase):
                 **kw,
             }
         )
+        for predecessor in predecessors or []:
+            self._link(predecessor, action)
+        return action
+
+    def _link(self, source, target, condition="on_success"):
+        return self.env["workflow.edge"].create(
+            {
+                "source_node_id": source.id,
+                "target_node_id": target.id,
+                "condition": condition,
+            }
+        )
 
 
 @tagged("post_install", "-at_install")
@@ -45,7 +57,7 @@ class TestCopyKeepsGraphLocal(AutomationAuditCommon):
     def test_copy_remaps_predecessors_onto_the_copied_actions(self):
         source = self._automation("source")
         first = self._action(source, "first")
-        self._action(source, "second", predecessor_ids=[Command.link(first.id)])
+        self._action(source, "second", predecessors=[first])
 
         duplicate = source.copy()
 
@@ -53,25 +65,23 @@ class TestCopyKeepsGraphLocal(AutomationAuditCommon):
         own_ids = set(duplicate.action_server_ids.ids)
         for action in duplicate.action_server_ids:
             self.assertFalse(
-                set(action.predecessor_ids.ids) - own_ids,
+                set(action._get_predecessors().ids) - own_ids,
                 f"{action.name} depends on an action outside its own automation",
             )
         copied_second = duplicate.action_server_ids.filtered(
-            lambda a: a.predecessor_ids,
+            lambda a: a.edge_in_ids,
         )
         self.assertEqual(len(copied_second), 1, "the edge itself must be preserved")
 
     def test_copy_does_not_touch_the_source_graph(self):
         source = self._automation("source")
         first = self._action(source, "first")
-        second = self._action(
-            source, "second", predecessor_ids=[Command.link(first.id)]
-        )
+        second = self._action(source, "second", predecessors=[first])
 
         source.copy()
 
         self.assertEqual(
-            first.successor_ids,
+            first._get_successors(),
             second,
             "the copy leaked into the source automation's successors",
         )
@@ -99,7 +109,7 @@ class TestDagIntegrity(AutomationAuditCommon):
         mine = self._automation("mine")
 
         with self.assertRaises(Exception):
-            self._action(mine, "dependent", predecessor_ids=[Command.link(foreign.id)])
+            self._action(mine, "dependent", predecessors=[foreign])
 
     def test_run_that_cannot_advance_is_marked_failed(self):
         automation = self._automation("blocked")
@@ -107,7 +117,7 @@ class TestDagIntegrity(AutomationAuditCommon):
         second = self._action(
             automation,
             "second",
-            predecessor_ids=[Command.link(first.id)],
+            predecessors=[first],
         )
         runtime = self.Runtime.create({"automation_id": automation.id})
         runtime.action_start()
@@ -124,9 +134,9 @@ class TestDagIntegrity(AutomationAuditCommon):
     def test_cycle_detection_still_rejects(self):
         automation = self._automation("cyclic")
         a = self._action(automation, "a")
-        b = self._action(automation, "b", predecessor_ids=[Command.link(a.id)])
+        b = self._action(automation, "b", predecessors=[a])
         with self.assertRaises(Exception):
-            a.predecessor_ids = [Command.link(b.id)]
+            self._link(b, a)
 
 
 @tagged("post_install", "-at_install")
@@ -164,7 +174,7 @@ class TestFailureIsRecorded(AutomationAuditCommon):
             automation,
             "boom",
             code="raise Exception('deliberate')",
-            predecessor_ids=[Command.link(ok.id)],
+            predecessors=[ok],
         )
         runtime = self.Runtime.create({"automation_id": automation.id})
         runtime.action_start()
@@ -192,7 +202,7 @@ class TestProcessRespectsDependencies(AutomationAuditCommon):
             "second",
             sequence=10,
             code="record.write({'ref': (record.ref or '') + 'B'})",
-            predecessor_ids=[Command.link(first.id)],
+            predecessors=[first],
         )
         self.Automation._update_registry()
         self.addCleanup(self.Automation._update_registry)
@@ -235,7 +245,7 @@ class TestProcessRespectsDependencies(AutomationAuditCommon):
             "second",
             sequence=10,
             code="env['res.partner'].create({'name': 'order-marker', 'ref': 'B'})",
-            predecessor_ids=[Command.link(first.id)],
+            predecessors=[first],
         )
 
         automation._execute_webhook({})
@@ -498,7 +508,7 @@ class TestProgressReflectsOutcome(AutomationAuditCommon):
     def test_cancelled_run_reads_as_complete(self):
         automation = self._automation("cancelled")
         first = self._action(automation, "first")
-        self._action(automation, "second", predecessor_ids=[Command.link(first.id)])
+        self._action(automation, "second", predecessors=[first])
         runtime = self.Runtime.create({"automation_id": automation.id})
         runtime.action_start()
         runtime.action_cancel()
@@ -510,7 +520,7 @@ class TestProgressReflectsOutcome(AutomationAuditCommon):
     def test_partial_run_reports_partial_progress(self):
         automation = self._automation("partial")
         first = self._action(automation, "first")
-        self._action(automation, "second", predecessor_ids=[Command.link(first.id)])
+        self._action(automation, "second", predecessors=[first])
         runtime = self.Runtime.create({"automation_id": automation.id})
         runtime.action_start()
         runtime.line_ids.filtered(lambda l: l.name == "first").action_mark_done()

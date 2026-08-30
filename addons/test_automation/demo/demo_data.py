@@ -213,9 +213,7 @@ log(f"Processed webhook for: {record.name}, Customer: {customer_name}")
     )
 
     _logger.info("Created automation: %s (ID: %s)", automation.name, automation.id)
-    _logger.info(
-        "Webhook URL will be: /automation/webhook/%s", automation.webhook_uuid
-    )
+    _logger.info("Webhook URL will be: /automation/webhook/%s", automation.webhook_uuid)
     return automation
 
 
@@ -356,7 +354,9 @@ log(f"Request approved for: {runtime.partner_id.name if runtime.partner_id else 
             "sequence": 20,
         }
     )
-    action_approve.write({"predecessor_ids": [(6, 0, [action_review.id])]})
+    env["workflow.edge"].create(
+        {"source_node_id": action_review.id, "target_node_id": action_approve.id}
+    )
 
     # Step 3: Notification (depends on approval)
     action_notify = env["ir.actions.server"].create(
@@ -373,7 +373,9 @@ log(f"Notification sent for approved request: {runtime.partner_id.name if runtim
             "sequence": 30,
         }
     )
-    action_notify.write({"predecessor_ids": [(6, 0, [action_approve.id])]})
+    env["workflow.edge"].create(
+        {"source_node_id": action_approve.id, "target_node_id": action_notify.id}
+    )
 
     _logger.info(
         "Created runtime workflow: %s (ID: %s) with 3-step DAG",

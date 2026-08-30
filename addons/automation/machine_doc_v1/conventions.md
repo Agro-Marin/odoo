@@ -120,19 +120,25 @@ Nothing to preserve here — do not reintroduce a domain.
 The correct spelling is `_prepare_logging_values`. Upstream's misspelling
 (`_prepare_loggin_values`) is not present in this fork.
 
-## There Is No Visual Editor
+## There Is No Visual Editor Yet
 
 Earlier revisions of this file described integrating a `web_flow` module from
 `agromarin/` via a `flow.diagram` model and BPMN element mappings. That module was
-**deleted as unused** on 2026-04-21 (`agromarin` `60b5a7eef`) and no replacement
-was ever written. `vision.md` Decision 1 carries the removal rationale and the
-constraints on whatever replaces it.
+**deleted as unused** on 2026-04-21 (`agromarin` `60b5a7eef`). Its replacement
+is chosen but not written: JointJS is vendored in `web` as the specifier
+`joint`, and `vision.md` Decision 1 carries why.
 
-Two things follow for anyone building the canvas:
+**Import it dynamically.** `const joint = await import("joint")`, inside the
+component that needs a canvas — never a top-level import in a
+`web.assets_backend` file, which would resolve on every backend page. That is
+the mistake `web_flow` shipped, at 2.9 MB per session.
 
-* **Nothing stores a node position.** There is no `pos_x`/`pos_y` on
-  `ir.actions.server` and no diagram blob anywhere. Coordinate storage is step 0
-  of Phase 4, not an afterthought.
+Two model-side things gate the canvas regardless of library:
+
+* **Positions are stored; edges still carry nothing.** `pos_x` / `pos_y` on
+  `ir.actions.server` hold the canvas layout, so a diagram round-trips. Write
+  them as plain integers — an unplaced node reads `(0, 0)`, and "every node at
+  the origin" is what tells a canvas to auto-layout.
 * **An edge can carry no attributes.** `predecessor_ids`/`successor_ids` are two
   views of one self-referential many2many, which is why both carry `copy=False`.
   A canvas can *draw* a conditional branch but has nowhere to persist the
@@ -163,3 +169,128 @@ All test output goes to `./odoo.log` (set in `conf/odoo.conf`). Always:
     --test-tags '/automation' -u automation --stop-after-init --workers=0
 grep "tests when loading" ./odoo.log
 ```
+
+## Two traps this module has already paid for
+
+**`self.env._()` names its first parameter `source`.** So
+`self.env._("%(source)s ...", source=x)` dies with *"got multiple values for
+argument 'source'"*. The module-level `_()` does not have that parameter and is
+safe. `workflow.edge._compute_display_name` hit it, and only a constraint that
+built its message from `display_name` surfaced it.
+
+**Reading one stored field prefetches every stored field of the model.** Adding
+any field read to `automation.rule._process` therefore seats the whole row in
+the cache at that moment. `test_automation`'s `test_004_check_method_process`
+asserted `automation.last_run` straight afterwards and read the prefetched
+empty value, while the row in the database was correct throughout. Reproducible
+with `self.trigger` as readily as with a new field, so it is not about which
+field. The assertions now invalidate before reading.
+
+## The run must settle, and a pause must not stop the world
+
+Four defects found by an adversarial pass on 2026-08-29, all of which the suite
+had been green through. Each is now pinned by `TestRunSettlement`.
+
+**An `error` line is a settled line.** `action_mark_done`'s completion check
+excluded only `done` and `cancel`, so a run whose failure was *handled* settled
+every line and then sat in `in_progress` for ever. Including `error` is safe
+because an *unhandled* failure has already set the runtime to `error` before the
+check runs, and `action_done` refuses to move a runtime that is not
+`in_progress` or `waiting_resume`.
+
+**Only `action_run_all` decides that a run is waiting.** A pause used to call
+`runtime.action_wait()` itself, which changed the state mid-loop and so broke
+out of the execution loop — halting every *other* ready branch. The loop already
+had the right rule (`no ready line, but something paused` → wait), so the pause
+methods now do nothing but pause their own line.
+
+**A finished run leaves nothing paused.** The stranded sweep skips a runtime
+that is `in_progress` or `waiting_resume`, so it can settle `paused` lines
+safely; excluding them as well left a failed run showing a step as *Paused* for
+ever. Not a live leak — the resume cron filters on the runtime's state — but a
+lie in the UI.
+
+**Deleting an approval activity is not approval.**
+`mail.activity._action_done` sets `active = False`; it does **not** unlink. So an
+unlink is a separate act, and treating it as completion meant a user deleting
+their to-do silently approved the step. It now fails the step, which an
+`on_error` edge can handle.
+
+The common shape: **three of the four were invisible because the tests asserted
+on `line.state` and never on `runtime.state`**, and the fourth because every
+pause test used a single pause.
+
+## The canvas draws from a DOM patch, never from `load()`
+
+`draw()` needs `useRef`'s element, and that element exists only after OWL has
+patched the DOM. Calling it at the end of `load()` — which runs in
+`onWillStart`, *before* the first render — left the paper `<div>` empty on every
+real page load. A `useEffect` keyed on the status and a redraw token is what
+drives it.
+
+**This shipped, and nothing but a browser could see it.** The RPC succeeded, the
+toolbar rendered `3 steps, 2 connections`, the HOOT suite passed, the views
+rendered under `get_views`, and 362 Python tests were green — while the canvas
+was blank for every user. Two things hid it: the draw ran off a microtask
+(`await Promise.resolve()`), which resolves long before a patch; and a missing
+element returned silently, so there was no error state and no log line. A
+missing canvas element is now a reported error.
+
+`test_automation`'s `test_workflow_canvas` tour is the guard. It is the only
+test in the workspace that proves the vendored bundle resolves through the
+import map in a browser, that the layout runs, and — with the assertion that
+follows it in Python — that the coordinates reach the database.
+
+## JointJS must never be given OWL's element
+
+`dia.Paper` takes ownership of the element it is constructed with, and
+`paper.remove()` **destroys that element**. Handing it the component's
+`t-ref` div meant the first teardown deleted a node OWL still believed it
+owned; from then on the ref was null and the canvas reported *the canvas
+element was not mounted* for the rest of the session.
+
+`draw()` therefore creates a plain `<div>` inside the ref, hands JointJS that,
+and lets `paper.remove()` take it. The ref div is OWL's and stays OWL's.
+
+**This would have broken the canvas the first time anything changed**, since a
+reload follows every edge create, every edge removal and every bus
+notification. It survived a full Python suite, a HOOT suite and a `get_views`
+render check, and was found by the second browser tour.
+
+Two smaller traps found with it, both in the *test* rather than the code:
+
+* `.joint-type-standard-link` counts a labelled edge **twice** — JointJS repeats
+  the group's class on its entry in the labels layer. Count the widget's own
+  classes (`.o_workflow_canvas_link`, `.o_workflow_canvas_node`) instead.
+* A tour trigger requires a **visible** element, and a horizontal edge's
+  `<line>` has zero height, so it never qualifies. Trigger on the paper's host
+  div and count inside `run()`, where visibility does not apply.
+
+## The node body is a PASSIVE magnet, and connections come from a handle
+
+A JointJS magnet on the body means dragging the body starts a link. Since the
+body fills the node, a real pointer always lands on it — so with `magnet: true`
+a user could **never move a step**, only connect it. Every drag became a
+connection.
+
+The body is therefore `magnet: "passive"` — it can be the *target* of a
+connection but does not originate one — and each element view carries an
+`elementTools.HoverConnect`, which is what a user drags from. Body drag moves;
+handle drag connects.
+
+Tools are attached with `paper.findViewByModel(cell).addTools(...)`. There is no
+`paper.getViews()`; an earlier attempt used one behind `?.()`, which silently
+attached nothing — no handles, no error, and connections simply could not be
+made.
+
+**Three tour traps, all in the test rather than the code**, recorded because
+each cost a run to find:
+
+* `drag_and_drop` always starts from `this.anchor`. The helper reads the trigger
+  element and ignores any source given in options, so the trigger must be the
+  thing being dragged.
+* Hoot dispatches the drag on the element it is *given*. Triggering on the
+  `<g>` produced a move even while the body was an active magnet, which
+  disguised the usability bug above; triggering on the body reproduced it.
+* A tour trigger needs a visible element. A horizontal edge's `<line>` has zero
+  height and never qualifies — assert inside `run()` instead.

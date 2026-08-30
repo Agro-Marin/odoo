@@ -19,12 +19,22 @@
                                 <code>active_model</code> and <code>active_ids</code> in the context</li>
                         </ul>
                         <p class="mb-0 mt-2">
-                            <em>Tip: Add <strong>predecessor dependencies</strong> between actions in the
-                                Actions tab for multi-step DAG execution. A manual run records every
-                                step, with its outcome, under Automation Runtimes.</em>
+                            <em>Tip: connect the steps on the <strong>Workflow</strong> tab to
+                                order them, and to branch on success, on error or on an expression.
+                                A manual run records every step, with its outcome, under
+                                Automation Runtimes.</em>
                         </p>
                     </div>
                 </group>
+            </xpath>
+
+            <xpath expr="//page[@name='actions']" position="after">
+                <page string="Workflow" name="workflow">
+                    <group>
+                        <field name="create_runtime_instance" />
+                    </group>
+                    <widget name="automation_workflow_canvas" />
+                </page>
             </xpath>
 
         </field>

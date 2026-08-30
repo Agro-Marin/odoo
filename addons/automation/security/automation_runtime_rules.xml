@@ -18,4 +18,13 @@
                   ('runtime_id.company_id', 'in', company_ids)]</field>
     </record>
 
+    <record id="automation_runtime_edge_company_rule" model="ir.rule">
+        <field name="name">Automation Runtime Edge: multi-company</field>
+        <field name="model_id" ref="model_automation_runtime_edge" />
+        <field name="global" eval="True" />
+        <field
+            name="domain_force">['|', ('runtime_id.company_id', '=', False),
+                  ('runtime_id.company_id', 'in', company_ids)]</field>
+    </record>
+
 </odoo>

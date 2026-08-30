@@ -704,3 +704,225 @@ registry.category("web_tour.tours").add("automation.on_change_rule_creation", {
         ...stepUtils.saveForm(),
     ],
 });
+
+registry.category("web_tour.tours").add("test_workflow_canvas", {
+    steps: () => [
+        {
+            content: "open the Workflow tab",
+            trigger: ".o_notebook .nav-link:contains(Workflow)",
+            run: "click",
+        },
+        {
+            content: "the vendored JointJS bundle resolved and drew the graph",
+            trigger: ".o_workflow_canvas_paper svg",
+            run() {
+                const paper = document.querySelector(".o_workflow_canvas_paper");
+                assertEqual(paper.querySelectorAll(".o_workflow_canvas_node").length, 3);
+                assertEqual(paper.querySelectorAll(".o_workflow_canvas_link").length, 2);
+            },
+        },
+        {
+            content: "the edges are drawn in their condition's colour",
+            trigger: ".o_workflow_canvas_paper .o_workflow_canvas_on_error",
+            run() {
+                const paper = document.querySelector(".o_workflow_canvas_paper");
+                assertEqual(
+                    paper.querySelectorAll(".o_workflow_canvas_on_success").length,
+                    1
+                );
+                assertEqual(
+                    paper.querySelectorAll(".o_workflow_canvas_on_error").length,
+                    1
+                );
+            },
+        },
+        {
+            content: "auto-layout placed the nodes apart rather than stacking them",
+            trigger: ".o_workflow_canvas_paper .joint-element",
+            run() {
+                const positions = Array.from(
+                    document.querySelectorAll(".o_workflow_canvas_paper .joint-element")
+                ).map((el) => el.getAttribute("transform"));
+                assertEqual(positions.length, 3);
+                assertEqual(new Set(positions).size, 3);
+            },
+        },
+        {
+            content: "the step names reached the canvas",
+            trigger: ".o_workflow_canvas_paper text:contains(first)",
+        },
+        {
+            content: "tidy up re-runs the layout without losing the graph",
+            trigger: ".o_workflow_canvas_toolbar button:contains(Tidy up)",
+            run: "click",
+        },
+        {
+            trigger: ".o_workflow_canvas_paper svg",
+            run() {
+                const paper = document.querySelector(".o_workflow_canvas_paper");
+                assertEqual(paper.querySelectorAll(".o_workflow_canvas_node").length, 3);
+            },
+        },
+        {
+            content: "the step count is reported",
+            trigger: ".o_workflow_canvas_toolbar:contains(3 steps)",
+        },
+    ],
+});
+
+registry.category("web_tour.tours").add("test_workflow_canvas_edit", {
+    steps: () => [
+        {
+            content: "open the Workflow tab",
+            trigger: ".o_notebook .nav-link:contains(Workflow)",
+            run: "click",
+        },
+        {
+            content: "wait for the graph",
+            trigger: ".o_workflow_canvas_paper .joint-type-standard-link",
+        },
+        {
+            content: "nothing is selected, so removal is unavailable",
+            trigger:
+                ".o_workflow_canvas_toolbar button:contains(Remove connection)[disabled]",
+        },
+        {
+            content: "select a connection",
+            trigger: ".o_workflow_canvas_paper .joint-type-standard-link",
+            run: "click",
+        },
+        {
+            content: "selecting one enables removal",
+            trigger:
+                ".o_workflow_canvas_toolbar button:contains(Remove connection):not([disabled])",
+            run: "click",
+        },
+        {
+            content: "the payload came back with one connection fewer",
+            trigger: ".o_workflow_canvas_toolbar:contains(3 steps, 1 connections)",
+        },
+        {
+            content: "and the canvas redrew itself with exactly that one",
+            // Triggering on the host, not on the link: a tour trigger requires a
+            // *visible* element, and a horizontal edge's <line> has zero height,
+            // so it never qualifies. querySelectorAll inside run() does not care.
+            trigger: ".o_workflow_canvas_paper > div",
+            run() {
+                // The widget's own classes, one per cell. JointJS repeats a
+                // link's group class in the labels layer, so counting
+                // .joint-type-standard-link double-counts every labelled edge.
+                assertEqual(
+                    document.querySelectorAll(
+                        ".o_workflow_canvas_paper .o_workflow_canvas_link"
+                    ).length,
+                    1
+                );
+                assertEqual(
+                    document.querySelectorAll(
+                        ".o_workflow_canvas_paper .o_workflow_canvas_node"
+                    ).length,
+                    3
+                );
+                // One canvas, not the old one with a new one stacked on it.
+                assertEqual(
+                    document.querySelectorAll(".o_workflow_canvas_paper > div").length,
+                    1
+                );
+            },
+        },
+    ],
+});
+
+registry.category("web_tour.tours").add("test_workflow_canvas_drag", {
+    steps: () => [
+        {
+            content: "open the Workflow tab",
+            trigger: ".o_notebook .nav-link:contains(Workflow)",
+            run: "click",
+        },
+        {
+            content: "wait for the graph",
+            trigger: ".o_workflow_canvas_paper > div",
+            run() {
+                assertEqual(
+                    document.querySelectorAll(
+                        ".o_workflow_canvas_paper .o_workflow_canvas_node"
+                    ).length,
+                    2
+                );
+            },
+        },
+        {
+            content: "remember where the first step is",
+            trigger: ".o_workflow_canvas_paper .o_workflow_canvas_node",
+            run() {
+                window.__wfBefore = document
+                    .querySelectorAll(
+                        ".o_workflow_canvas_paper .joint-type-standard-rectangle"
+                    )[0]
+                    .getAttribute("transform");
+            },
+        },
+        {
+            // The BODY, not the group: a real pointer always lands on the body,
+            // so this is the drag a user actually performs.
+            content: "drag it onto the second one",
+            trigger: ".o_workflow_canvas_paper .o_workflow_canvas_node:first",
+            async run(helpers) {
+                await helpers.drag_and_drop(
+                    ".o_workflow_canvas_paper .o_workflow_canvas_node:last"
+                );
+            },
+        },
+        {
+            content: "the drag moved that step",
+            trigger: ".o_workflow_canvas_paper > div",
+            run() {
+                const after = document
+                    .querySelectorAll(
+                        ".o_workflow_canvas_paper .joint-type-standard-rectangle"
+                    )[0]
+                    .getAttribute("transform");
+                if (after === window.__wfBefore) {
+                    throw new Error(
+                        `the drag did not move the step: still ${after}`
+                    );
+                }
+            },
+        },
+    ],
+});
+
+registry.category("web_tour.tours").add("test_workflow_canvas_connect", {
+    steps: () => [
+        {
+            content: "open the Workflow tab",
+            trigger: ".o_notebook .nav-link:contains(Workflow)",
+            run: "click",
+        },
+        {
+            content: "three steps, one connection",
+            trigger: ".o_workflow_canvas_toolbar:contains(3 steps, 1 connections)",
+        },
+        {
+            // drag_and_drop always starts from the trigger element -- the helper
+            // reads `this.anchor` and ignores any source passed in options -- so
+            // the trigger must be the step we are dragging FROM.
+            // From the last step's connect handle onto the first step's body.
+            // The handle is what a user drags: the body itself is a passive
+            // magnet, so dragging it moves the step instead.
+            content: "drag a connection from the last step to the first",
+            trigger:
+                ".joint-tool[data-tool-name='hover-connect']:last [joint-selector='track']",
+            async run(helpers) {
+                await helpers.drag_and_drop(
+                    ".o_workflow_canvas_paper .o_workflow_canvas_node:first"
+                );
+            },
+        },
+        {
+            content: "the canvas came back with the new connection",
+            trigger: ".o_workflow_canvas_toolbar:contains(3 steps, 2 connections)",
+        },
+    ],
+});

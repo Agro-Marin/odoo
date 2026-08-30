@@ -48,18 +48,14 @@ class AutomationRuleTest(TransactionCaseWithUserDemo):
         super().setUp()
         self.user_root = self.env.ref("base.user_root")
         self.user_admin = self.env.ref("base.user_admin")
-        self.lead_model = self.env.ref(
-            "test_automation.model_automation_lead_test"
-        )
+        self.lead_model = self.env.ref("test_automation.model_automation_lead_test")
         self.project_model = self.env.ref(
             "test_automation.model_test_automation_project"
         )
         self.test_mail_template_automation = self.env["mail.template"].create(
             {
                 "name": "Template Automation",
-                "model_id": self.env["ir.model"]._get_id(
-                    "automation.lead.thread.test"
-                ),
+                "model_id": self.env["ir.model"]._get_id("automation.lead.thread.test"),
                 "body_html": """&lt;div&gt;Email automation&lt;/div&gt;""",
             }
         )
@@ -577,9 +573,7 @@ if env.context.get('old_values', None):  # on write
         Model = self.env["automation.link.test"]
         model_id = self.env.ref("test_automation.model_automation_link_test")
         Comodel = self.env["automation.linked.test"]
-        comodel_access = self.env.ref(
-            "test_automation.access_automation_linked_test"
-        )
+        comodel_access = self.env.ref("test_automation.access_automation_linked_test")
         comodel_access.group_id = self.env["res.groups"].create(
             {
                 "name": "Access to automation.linked.test",
@@ -1157,6 +1151,14 @@ action = {
                 # process records
                 self.automation_cron.method_direct_trigger()
                 self.assertEqual(mock.call_count, 10)
+                # From the database, not the cache. `_process` reads fields off
+                # `automation.rule`, and reading one stored field prefetches every
+                # stored field of the model -- `last_run` among them -- while it is
+                # still empty; the cron's write then lands on the recordset the cron
+                # holds, leaving this one with the prefetched value. Reproducible
+                # with ANY field read inside `_process`, not only a newly added one:
+                # `self.trigger` does it too. The row itself is correct throughout.
+                automation.invalidate_recordset(["last_run"])
                 self.assertEqual(automation.last_run, self.env.cr.now())
             with (
                 common.freeze_time("2020-01-01 03:13:59"),
@@ -1166,6 +1168,14 @@ action = {
                 # 10 previously done records because we use the date_automation_last as trigger without delay
                 self.automation_cron.method_direct_trigger()
                 self.assertEqual(mock.call_count, 22)
+                # From the database, not the cache. `_process` reads fields off
+                # `automation.rule`, and reading one stored field prefetches every
+                # stored field of the model -- `last_run` among them -- while it is
+                # still empty; the cron's write then lands on the recordset the cron
+                # holds, leaving this one with the prefetched value. Reproducible
+                # with ANY field read inside `_process`, not only a newly added one:
+                # `self.trigger` does it too. The row itself is correct throughout.
+                automation.invalidate_recordset(["last_run"])
                 self.assertEqual(automation.last_run, self.env.cr.now())
                 # test triggering using a calendar
                 automation.trg_date_calendar_id = (
@@ -1408,11 +1418,7 @@ class TestCompute(common.TransactionCase):
         automation_form.trigger = "on_user_set"
         self.assertEqual(
             automation_form.trigger_field_ids.ids,
-            [
-                self.env.ref(
-                    "test_automation.field_automation_lead_test__user_id"
-                ).id
-            ],
+            [self.env.ref("test_automation.field_automation_lead_test__user_id").id],
         )
         self.assertEqual(
             automation_form.filter_domain, repr([("user_id", "!=", False)])
@@ -1424,11 +1430,7 @@ class TestCompute(common.TransactionCase):
         automation_form.trigger = "on_archive"
         self.assertEqual(
             automation_form.trigger_field_ids.ids,
-            [
-                self.env.ref(
-                    "test_automation.field_automation_lead_test__active"
-                ).id
-            ],
+            [self.env.ref("test_automation.field_automation_lead_test__active").id],
         )
         self.assertEqual(automation_form.filter_domain, repr([("active", "=", False)]))
         automation = automation_form.save()
@@ -1438,11 +1440,7 @@ class TestCompute(common.TransactionCase):
         automation_form.trigger = "on_unarchive"
         self.assertEqual(
             automation_form.trigger_field_ids.ids,
-            [
-                self.env.ref(
-                    "test_automation.field_automation_lead_test__active"
-                ).id
-            ],
+            [self.env.ref("test_automation.field_automation_lead_test__active").id],
         )
         self.assertEqual(automation_form.filter_domain, repr([("active", "=", True)]))
         automation = automation_form.save()
@@ -1457,11 +1455,7 @@ class TestCompute(common.TransactionCase):
         )
         self.assertEqual(
             automation_form.trigger_field_ids.ids,
-            [
-                self.env.ref(
-                    "test_automation.field_automation_lead_test__tag_ids"
-                ).id
-            ],
+            [self.env.ref("test_automation.field_automation_lead_test__tag_ids").id],
         )
         automation = automation_form.save()
         self.assertEqual(
@@ -1488,18 +1482,12 @@ class TestCompute(common.TransactionCase):
         )
         self.assertEqual(
             automation.trigger_field_ids.ids,
-            [
-                self.env.ref(
-                    "test_automation.field_automation_lead_test__tag_ids"
-                ).id
-            ],
+            [self.env.ref("test_automation.field_automation_lead_test__tag_ids").id],
         )
         self.assertEqual(automation.on_change_field_ids.ids, [])
 
         # Change the trigger to "On save" will erase the domains and the trigger fields
-        automation_form = Form(
-            automation, view="automation.view_automation_form"
-        )
+        automation_form = Form(automation, view="automation.view_automation_form")
         automation_form.trigger = "on_create_or_write"
         automation = automation_form.save()
         self.assertEqual(automation.filter_pre_domain, False)
@@ -1520,21 +1508,15 @@ class TestCompute(common.TransactionCase):
         self.assertSetEqual(
             set(automation.trigger_field_ids.ids),
             {
-                self.env.ref(
-                    "test_automation.field_automation_lead_test__priority"
-                ).id,
-                self.env.ref(
-                    "test_automation.field_automation_lead_test__employee"
-                ).id,
+                self.env.ref("test_automation.field_automation_lead_test__priority").id,
+                self.env.ref("test_automation.field_automation_lead_test__employee").id,
             },
         )
         self.assertEqual(automation.on_change_field_ids.ids, [])
 
         # Change the trigger fields will not change the domain
         automation_form.trigger_field_ids.add(
-            self.env.ref(
-                "test_automation.field_automation_lead_test__tag_ids"
-            )
+            self.env.ref("test_automation.field_automation_lead_test__tag_ids")
         )
         automation = automation_form.save()
         self.assertEqual(automation.filter_pre_domain, False)
@@ -1545,15 +1527,9 @@ class TestCompute(common.TransactionCase):
         self.assertItemsEqual(
             automation.trigger_field_ids.ids,
             [
-                self.env.ref(
-                    "test_automation.field_automation_lead_test__priority"
-                ).id,
-                self.env.ref(
-                    "test_automation.field_automation_lead_test__employee"
-                ).id,
-                self.env.ref(
-                    "test_automation.field_automation_lead_test__tag_ids"
-                ).id,
+                self.env.ref("test_automation.field_automation_lead_test__priority").id,
+                self.env.ref("test_automation.field_automation_lead_test__employee").id,
+                self.env.ref("test_automation.field_automation_lead_test__tag_ids").id,
             ],
         )
         self.assertEqual(automation.on_change_field_ids.ids, [])
@@ -1565,11 +1541,7 @@ class TestCompute(common.TransactionCase):
         self.assertEqual(automation.filter_domain, False)
         self.assertEqual(
             automation.trigger_field_ids.ids,
-            [
-                self.env.ref(
-                    "test_automation.field_automation_lead_test__tag_ids"
-                ).id
-            ],
+            [self.env.ref("test_automation.field_automation_lead_test__tag_ids").id],
         )
         self.assertEqual(automation.on_change_field_ids.ids, [])
 
@@ -1595,25 +1567,17 @@ class TestCompute(common.TransactionCase):
         self.assertEqual(automation.trg_date_id.id, False)
         self.assertEqual(
             automation.trigger_field_ids.ids,
-            [
-                self.env.ref(
-                    "test_automation.field_automation_lead_test__employee"
-                ).id
-            ],
+            [self.env.ref("test_automation.field_automation_lead_test__employee").id],
         )
 
         # Changing to a time trigger must erase domains and trigger fields
         ## Change the trigger to "On time created"
-        automation_form = Form(
-            automation, view="automation.view_automation_form"
-        )
+        automation_form = Form(automation, view="automation.view_automation_form")
         automation_form.trigger = "on_time_created"
         self.assertEqual(automation_form.filter_domain, False)
         self.assertEqual(
             automation_form.trg_date_id,
-            self.env.ref(
-                "test_automation.field_automation_lead_test__create_date"
-            ),
+            self.env.ref("test_automation.field_automation_lead_test__create_date"),
         )
         self.assertEqual(automation_form.trigger_field_ids.ids, [])
         automation = automation_form.save()
@@ -1621,16 +1585,12 @@ class TestCompute(common.TransactionCase):
 
         ## Change the trigger to "On time updated"
         automation = on_save_automation.copy()
-        automation_form = Form(
-            automation, view="automation.view_automation_form"
-        )
+        automation_form = Form(automation, view="automation.view_automation_form")
         automation_form.trigger = "on_time_updated"
         self.assertEqual(automation_form.filter_domain, False)
         self.assertEqual(
             automation_form.trg_date_id,
-            self.env.ref(
-                "test_automation.field_automation_lead_test__write_date"
-            ),
+            self.env.ref("test_automation.field_automation_lead_test__write_date"),
         )
         self.assertEqual(automation_form.trigger_field_ids.ids, [])
         automation = automation_form.save()
@@ -1638,9 +1598,7 @@ class TestCompute(common.TransactionCase):
 
         ## Change the trigger to "On time"
         automation = on_save_automation.copy()
-        automation_form = Form(
-            automation, view="automation.view_automation_form"
-        )
+        automation_form = Form(automation, view="automation.view_automation_form")
         automation_form.trigger = "on_time"
         automation_form.trg_date_id = self.env.ref(
             "test_automation.field_automation_lead_test__create_date"
@@ -1648,9 +1606,7 @@ class TestCompute(common.TransactionCase):
         self.assertEqual(automation_form.filter_domain, False)
         self.assertEqual(
             automation_form.trg_date_id,
-            self.env.ref(
-                "test_automation.field_automation_lead_test__create_date"
-            ),
+            self.env.ref("test_automation.field_automation_lead_test__create_date"),
         )
         self.assertEqual(automation_form.trigger_field_ids.ids, [])
         automation = automation_form.save()
@@ -1669,13 +1625,9 @@ class TestCompute(common.TransactionCase):
         # Create form should be pre-filled with the default values
         automation = self.env["automation.rule"].with_context(context)
         default_trigger_field_ids = [
-            self.env.ref(
-                "test_automation.field_automation_lead_test__state"
-            ).id
+            self.env.ref("test_automation.field_automation_lead_test__state").id
         ]
-        automation_form = Form(
-            automation, view="automation.view_automation_form"
-        )
+        automation_form = Form(automation, view="automation.view_automation_form")
         self.assertEqual(automation_form.name, context.get("default_name"))
         self.assertEqual(automation_form.model_id.id, context.get("default_model_id"))
         self.assertEqual(automation_form.trigger, context.get("default_trigger"))
@@ -1754,9 +1706,7 @@ class TestCompute(common.TransactionCase):
         # this action is executed every time a task is modified
         create_automation(
             self,
-            model_id=self.env.ref(
-                "test_automation.model_test_automation_task"
-            ).id,
+            model_id=self.env.ref("test_automation.model_test_automation_task").id,
             trigger="on_create_or_write",
             filter_pre_domain="[('remaining_hours', '>', 0)]",
             _actions={"state": "code"},  # no-op action
@@ -1779,9 +1729,7 @@ class TestCompute(common.TransactionCase):
         # this action is executed every time a task is assigned to project
         create_automation(
             self,
-            model_id=self.env.ref(
-                "test_automation.model_test_automation_task"
-            ).id,
+            model_id=self.env.ref("test_automation.model_test_automation_task").id,
             trigger="on_create_or_write",
             filter_domain=repr([("project_id", "=", project.id)]),
             _actions={"state": "code"},  # no-op action
@@ -1835,9 +1783,7 @@ class TestCompute(common.TransactionCase):
         with self.assertRaises(ValidationError):
             create_automation(self, trigger="on_message_sent", model_id=lead_model.id)
 
-        lead_thread_model = self.env["ir.model"]._get(
-            "automation.lead.thread.test"
-        )
+        lead_thread_model = self.env["ir.model"]._get("automation.lead.thread.test")
         automation = create_automation(
             self,
             trigger="on_message_sent",
@@ -1926,9 +1872,7 @@ class TestCompute(common.TransactionCase):
         with self.assertRaises(ValidationError):
             create_automation(self, trigger="on_message_sent", model_id=lead_model.id)
 
-        lead_thread_model = self.env["ir.model"]._get(
-            "automation.lead.thread.test"
-        )
+        lead_thread_model = self.env["ir.model"]._get("automation.lead.thread.test")
 
         create_automation(
             self,

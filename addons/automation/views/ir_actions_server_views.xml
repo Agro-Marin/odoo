@@ -11,10 +11,10 @@
                 <field name="name" />
                 <field name="state" string="Type" optional="hide" />
                 <field name="automation_rule_id" column_invisible="1" />
-                <field name="predecessor_ids" widget="many2many_tags" optional="show"
-                    domain="[('automation_rule_id', '=', automation_rule_id), ('id', '!=', id)]"
-                    options="{'no_create': True}" />
-                <field name="successor_ids" widget="many2many_tags" optional="hide" />
+                <field name="edge_in_ids" widget="many2many_tags" readonly="1" optional="show"
+                    string="Waits For" />
+                <field name="edge_out_ids" widget="many2many_tags" readonly="1" optional="hide"
+                    string="Enables" />
             </list>
         </field>
     </record>
@@ -53,43 +53,65 @@
                     groups="base.group_user">
 
                     <group>
-                        <group string="Dependency Info">
-                            <label for="predecessor_ids" />
-                            <div>
-                                <field name="predecessor_ids"
-                                    widget="many2many_tags"
-                                    domain="[('automation_rule_id', '=', automation_rule_id), ('id', '!=', id)]"
-                                    options="{'no_create': True}" />
-                                <div class="text-muted small mt-1">
-                                    <i class="fa-solid fa-info-circle" />
-                                    This action executes after all predecessors complete.
-                                </div>
+                        <group string="Step Type">
+                            <field name="node_type" />
+                            <label for="wait_delay" invisible="node_type != 'wait'" />
+                            <div invisible="node_type != 'wait'">
+                                <field name="wait_delay" class="oe_inline" /> 
+                                <field name="wait_unit" class="oe_inline" nolabel="1" />
+                            </div>
+                            <field name="approval_user_ids" widget="many2many_tags"
+                                   invisible="node_type != 'approval'"
+                                   required="node_type == 'approval'" />
+                            <field name="approval_note"
+                                   invisible="node_type != 'approval'" />
+                            <field name="subflow_automation_id"
+                                   invisible="node_type != 'subflow'"
+                                   required="node_type == 'subflow'"
+                                   options="{'no_create': True}" />
+                        </group>
+
+                        <group string="Dependency Info" colspan="2">
+                            <field name="edge_in_ids" nolabel="1" colspan="2"
+                                   context="{'default_target_node_id': id}">
+                                <list editable="bottom">
+                                    <field name="source_node_id"
+                                        domain="[('automation_rule_id', '=', parent.automation_rule_id), ('id', '!=', parent.id)]"
+                                        options="{'no_create': True}" />
+                                    <field name="condition" />
+                                    <field name="condition_expr"
+                                        column_invisible="parent.usage != 'automation'"
+                                        readonly="condition != 'expression'"
+                                        required="condition == 'expression'" />
+                                    <field name="label" optional="hide" />
+                                </list>
+                            </field>
+                            <div class="text-muted small mt-1" colspan="2">
+                                <i class="fa-solid fa-info-circle" />
+                                This action executes once EVERY edge above is satisfied.
                             </div>
 
-                            <label for="successor_ids" />
-                            <div>
-                                <field name="successor_ids"
-                                    widget="many2many_tags"
-                                    readonly="1" />
-                                <div class="text-muted small mt-1">
-                                    <i class="fa-solid fa-info-circle" />
-                                    These actions are unblocked when this one completes.
-                                </div>
-                            </div>
+                            <field name="edge_out_ids" nolabel="1" colspan="2" readonly="1">
+                                <list string="Enables">
+                                    <field name="target_node_id" />
+                                    <field name="condition" />
+                                </list>
+                            </field>
                         </group>
                     </group>
 
                     <separator string="How Dependencies Work" class="mt-4" />
                     <div class="alert alert-info" role="alert">
                         <ul class="mb-0">
-                            <li><strong>No predecessors:</strong> Action starts immediately (root action)</li>
-                            <li><strong>One predecessor:</strong> Waits for that action to complete</li>
-                            <li><strong>Multiple predecessors:</strong> Waits for ALL to complete (AND join)</li>
+                            <li><strong>No incoming edge:</strong> Action starts immediately (root action)</li>
+                            <li><strong>One edge:</strong> Waits for that edge's condition to hold</li>
+                            <li><strong>Several edges:</strong> Waits for ALL of them (AND join)</li>
+                            <li><strong>On Error:</strong> lets a step handle the failure of another, instead of the run aborting</li>
                             <li><strong>Execution state</strong> is tracked per-run in <code>automation.runtime.line</code></li>
                         </ul>
                     </div>
 
-                    <div class="alert alert-warning" role="alert" invisible="predecessor_ids">
+                    <div class="alert alert-warning" role="alert" invisible="edge_in_ids">
                         <i class="fa-solid fa-triangle-exclamation" title="Warning" />
                         This is a <strong>root action</strong> — it starts as soon as the workflow runs.
                     </div>

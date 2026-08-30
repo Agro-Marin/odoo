@@ -1,6 +1,6 @@
 {
     "name": "Automation Rules",
-    "version": "1.5",
+    "version": "1.6",
     "category": "Sales/Sales",
     "description": """
 This module allows to implement automation rules for any object.
@@ -13,8 +13,10 @@ Sales Team, or an opportunity which still has status pending after 14 days might
 trigger an automatic reminder email.
     """,
     "depends": [
+        "bus",
         "credential",
         "digest",
+        "mail",
         "resource",
         "sms",
     ],

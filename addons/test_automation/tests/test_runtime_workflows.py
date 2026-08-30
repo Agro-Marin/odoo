@@ -79,10 +79,15 @@ class TestRuntimeWorkflows(common.TransactionCase):
             "usage": "automation",
         }
 
-        if predecessors:
-            vals["predecessor_ids"] = [(6, 0, [p.id for p in predecessors])]
-
-        return self.Action.create(vals)
+        action = self.Action.create(vals)
+        for predecessor in predecessors or []:
+            self.env["workflow.edge"].create(
+                {
+                    "source_node_id": predecessor.id,
+                    "target_node_id": action.id,
+                }
+            )
+        return action
 
     # =========================================================================
     # Test Runtime Lifecycle
@@ -145,9 +150,9 @@ class TestRuntimeWorkflows(common.TransactionCase):
         self.assertEqual(line_b.state, "waiting")
         self.assertEqual(line_c.state, "waiting")
 
-        self.assertFalse(line_a.predecessor_ids)
-        self.assertEqual(line_b.predecessor_ids, line_a)
-        self.assertEqual(line_c.predecessor_ids, line_b)
+        self.assertFalse(line_a.edge_in_ids)
+        self.assertEqual(line_b._get_predecessors(), line_a)
+        self.assertEqual(line_c._get_predecessors(), line_b)
 
     def test_runtime_without_partner_fails(self):
         """Test that runtime requires a partner."""

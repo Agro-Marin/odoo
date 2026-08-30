@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <t t-name="automation.WorkflowCanvas">
+        <div class="o_workflow_canvas">
+            <div class="o_workflow_canvas_toolbar d-flex align-items-center gap-2 mb-2">
+                <button type="button" class="btn btn-sm btn-secondary"
+                        t-on-click="() => this.relayout()"
+                        t-att-disabled="state.status !== 'ready'">
+                    <i class="fa fa-sitemap me-1"/>Tidy up
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-danger"
+                        t-if="isEditable"
+                        t-att-disabled="!state.selectedEdgeId"
+                        t-on-click="() => this.removeSelectedEdge()">
+                    <i class="fa fa-unlink me-1"/>Remove connection
+                </button>
+                <span class="text-muted small ms-auto">
+                    <t t-esc="state.countNode"/> steps,
+                    <t t-esc="state.countEdge"/> connections
+                </span>
+            </div>
+
+            <div t-if="state.status === 'loading'" class="text-muted p-4">
+                <i class="fa fa-circle-o-notch fa-spin me-2"/>Loading the workflow…
+            </div>
+            <div t-elif="state.status === 'unsaved'" class="text-muted p-4">
+                Save this automation to draw its workflow.
+            </div>
+            <div t-elif="state.status === 'empty'" class="text-muted p-4">
+                This automation has no steps yet. Add server actions, then connect them here.
+            </div>
+            <div t-elif="state.status === 'error'" class="alert alert-warning" role="alert">
+                <strong>The workflow could not be drawn.</strong>
+                <div class="small mt-1" t-esc="state.error"/>
+            </div>
+            <div t-else="" class="o_workflow_canvas_paper" t-ref="canvas"/>
+
+            <div t-if="state.status === 'ready' and isEditable" class="text-muted small mt-2">
+                <i class="fa-solid fa-info-circle me-1"/>
+                Drag from a step's edge onto another to connect them; drag a step to move it;
+                double-click one to open it. A connection the engine refuses — a cycle, or a
+                step from another automation — is reported rather than drawn.
+            </div>
+        </div>
+    </t>
+
+</templates>

@@ -11,4 +11,14 @@
         <field name="active" eval="False" />
     </record>
 
+    <record id="ir_cron_data_automation_resume" model="ir.cron">
+        <field name="name">Automation Rules: resume paused workflows</field>
+        <field name="model_id" ref="model_automation_runtime" />
+        <field name="state">code</field>
+        <field name="code">model._resume_waiting_executions()</field>
+        <field name="interval_number">10</field>
+        <field name="interval_type">minutes</field>
+        <field name="active" eval="False" />
+    </record>
+
 </odoo>

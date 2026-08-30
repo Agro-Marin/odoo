@@ -75,8 +75,16 @@ server action model AND the workflow node definition.
 |-------|------|---------|
 | `automation_rule_id` | Many2one `automation.rule` | Owning rule |
 | `usage` | Selection (extended) | Added `"automation"` value |
-| `predecessor_ids` | Many2many self | Nodes that must complete before this |
-| `successor_ids` | Many2many self | Computed inverse of `predecessor_ids` |
+| `edge_in_ids` | One2many `workflow.edge` | Edges that must be satisfied before this node runs |
+| `edge_out_ids` | One2many `workflow.edge` | Edges this node's outcome can satisfy |
+| ~~`predecessor_ids`~~ | ~~Many2many self~~ | **REMOVED in Phase 2** — replaced by `workflow.edge` |
+| ~~`successor_ids`~~ | ~~Many2many self~~ | **REMOVED in Phase 2** — replaced by `workflow.edge` |
+| `node_type` | Selection | `action` (default), `wait`, `approval` or `subflow`. No `parallel`/`join`/`branch` — the edge model is already all three — and no `http_request`, because `state="webhook"` already is one. See vision.md Phase 3 |
+| `approval_user_ids` / `approval_note` | Many2many `res.users` / Char | Who must approve, and what the activity asks |
+| `subflow_automation_id` | Many2one `automation.rule` | What a Sub-workflow step runs; a cycle is refused |
+| `wait_delay` / `wait_unit` | Integer / Selection | How long a `wait` node pauses the run; a non-positive delay is refused |
+| `pos_x` | Integer | Node's horizontal position on the workflow canvas |
+| `pos_y` | Integer | Node's vertical position on the workflow canvas |
 | ~~`action_state`~~ | ~~Selection~~ | **REMOVED in Phase 1** — was broken (global state, not per-execution) |
 | ~~`is_ready`~~ | ~~Boolean~~ | **REMOVED in Phase 1** — use `automation.runtime.line.is_ready` |
 | ~~`error_message`~~ | ~~Text~~ | **REMOVED in Phase 1** — use `automation.runtime.line.error_message` |
@@ -85,18 +93,71 @@ server action model AND the workflow node definition.
 
 All execution state has been moved from `ir.actions.server` (definition) to
 `automation.runtime.line` (per-execution instance). `ir.actions.server` now
-stores **only the DAG topology** (`predecessor_ids`, `successor_ids`).
-Concurrent executions are isolated: each `automation.runtime` instance has
-its own `automation.runtime.line` records with independent state.
+stores **only definition data**: the DAG topology (`edge_in_ids`,
+`edge_out_ids`, both onto `workflow.edge`) and the canvas layout
+(`pos_x`, `pos_y`). Concurrent executions
+are isolated: each `automation.runtime` instance has its own
+`automation.runtime.line` records with independent state.
 
-### Edge Model — Current vs Target
+`pos_x` / `pos_y` are Integer, so an unplaced node reads as `(0, 0)` — the
+column returns 0 for NULL and cannot say "unset". A laid-out graph never leaves
+*every* node at the origin, so "all nodes at (0, 0)" is the canvas's signal to
+auto-layout; one node there among placed siblings is a real position. They carry
+the default `copy=True`, unlike the edges, so a duplicated automation opens on
+the layout its source had.
 
-Current: `predecessor_ids` / `successor_ids` are a self-referential Many2many
-with no condition field. Edges are untyped (always execute on success).
+---
 
-Target: a `workflow.edge` model with `source_id`, `target_id`, `condition`
-(always / on_success / on_error / expression), and `label`. This enables
-conditional branching (IF nodes).
+## workflow.edge (Phase 2 — Complete)
+
+One typed, directed edge between two nodes of one automation's DAG. Replaces the
+self-referential Many2many that carried the topology before: a many2many row is
+two integers and has nowhere to put a condition, so every edge meant the same
+thing.
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `source_node_id` | Many2one `ir.actions.server` | Where the edge starts |
+| `target_node_id` | Many2one `ir.actions.server` | What it releases |
+| `automation_rule_id` | Many2one, **related-stored** from the source | Scope, and the inverse of `automation.rule.edge_ids` |
+| `condition` | Selection | `on_success` (default) / `on_error` / `always` / `expression` |
+| `condition_expr` | Char | Python expression, required when `condition` is `expression` |
+| `label` | Char | Shown on the edge when the workflow is drawn |
+
+**Constraints.** `UNIQUE(source_node_id, target_node_id)` in SQL; the rest in
+Python, so they raise `ValidationError` rather than a raw database error:
+both ends in the same automation, no cycle, no self-edge, and no `expression`
+edge without an expression. The self-edge check is deliberately **not** a SQL
+`CHECK` — that fires from inside the INSERT, before any `@api.constrains` runs,
+so the caller would see a `CheckViolation` where every other malformed edge
+raises `ValidationError`.
+
+---
+
+## automation.runtime.edge (Phase 2 — Complete)
+
+The same edge, snapshotted for one run: `runtime_id`, `source_line_id`,
+`target_line_id`, `condition`, `condition_expr`. The condition is copied at
+`action_start` for the same reason the topology is — editing the automation
+while a run is in flight must not change how that run routes.
+
+`_is_satisfied()` is the whole routing rule:
+
+| `condition` | Satisfied when the source line is |
+|---|---|
+| `on_success` | `done` |
+| `on_error` | `error` |
+| `always` | settled, however it settled |
+| `expression` | settled **and** `condition_expr` is truthy |
+
+An **unsettled** source satisfies nothing, whatever the condition: the answer is
+not yet knowable, and treating "not yet" as "no" would race the target into
+`ready` before its predecessor ran. A raising expression blocks its edge and is
+logged rather than propagated — letting it out would abort the run from inside
+the readiness check, where no line owns the failure and nothing records it.
+
+Readiness is **AND across the incoming edges**, as it was when they were
+untyped: a step with two predecessors waits for both.
 
 ---
 
@@ -204,3 +265,29 @@ tabulated here were queryable and never queried. `vision.md` Decision 1 carries
 the full rationale and the replacement constraints; the layout layer is undecided
 along with the editor, and storing node coordinates is an open design question
 rather than a solved one.
+
+
+---
+
+## The pause, and why it is shaped this way (Phase 3)
+
+A `wait` node does not run its server action. `automation.runtime.line.action_execute`
+diverts to `action_pause`, which sets the line to **`paused`** with a
+`date_resume`, and the runtime to **`waiting_resume`**.
+
+`automation.runtime._resume_waiting_executions()` — one `@api.model` method
+behind one cron record — finds runs whose paused line is due, returns the
+runtime to `in_progress`, marks the line `done` and re-enters `action_run_all`.
+Marking it `done` rather than inventing a "resumed" state is what lets the
+existing edge conditions release the successors unchanged: an `on_success` edge
+out of a wait means "after the wait".
+
+**Decision 2 requires this to be easy to delete.** It is one line state, one
+datetime, one method and one cron record; nothing else consults the polling.
+
+**One trap it exposed.** `action_run_all` ends by marking every unfinished line
+`error`, a sweep that exists to settle whatever a *failure* stranded. A paused
+line is unfinished but not stranded, so that sweep skips `paused`, and its guard
+skips a runtime in `waiting_resume`. Without both, a wait node's own line was
+marked failed the moment it paused — which is what the first run of
+`TestWaitNode` reported.

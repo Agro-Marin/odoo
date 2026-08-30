@@ -1,0 +1,158 @@
+from odoo import _, api, exceptions, fields, models
+
+CONDITION_SELECTION = [
+    ("on_success", "On Success"),
+    ("on_error", "On Error"),
+    ("always", "Always"),
+    ("expression", "Expression"),
+]
+
+SETTLED_STATES = ("done", "error", "cancel")
+
+
+class WorkflowEdge(models.Model):
+    _name = "workflow.edge"
+    _description = "Workflow DAG Edge"
+    _order = "automation_rule_id, id"
+
+    source_node_id = fields.Many2one(
+        comodel_name="ir.actions.server",
+        string="Source",
+        required=True,
+        ondelete="cascade",
+        index=True,
+    )
+    target_node_id = fields.Many2one(
+        comodel_name="ir.actions.server",
+        string="Target",
+        required=True,
+        ondelete="cascade",
+        index=True,
+    )
+    automation_rule_id = fields.Many2one(
+        comodel_name="automation.rule",
+        related="source_node_id.automation_rule_id",
+        string="Automation Rule",
+        store=True,
+        index=True,
+        ondelete="cascade",
+    )
+
+    condition = fields.Selection(
+        selection=CONDITION_SELECTION,
+        default="on_success",
+        required=True,
+        help="When this edge lets the target advance:\n"
+        "- On Success: the source completed\n"
+        "- On Error: the source failed\n"
+        "- Always: the source settled, however it settled\n"
+        "- Expression: the source settled and the expression is truthy",
+    )
+    condition_expr = fields.Char(
+        string="Expression",
+        help="Python expression evaluated against the runtime; "
+        "required when the condition is Expression",
+    )
+    label = fields.Char(
+        help="Shown on the edge when the workflow is drawn",
+    )
+
+    display_name = fields.Char(compute="_compute_display_name")
+
+    _edge_uniq = models.Constraint(
+        "UNIQUE(source_node_id, target_node_id)",
+        "These two steps are already connected.",
+    )
+
+    @api.constrains("source_node_id", "target_node_id")
+    def _check_same_automation(self):
+        for edge in self:
+            source_rule = edge.source_node_id.automation_rule_id
+            target_rule = edge.target_node_id.automation_rule_id
+            if source_rule != target_rule:
+                raise exceptions.ValidationError(
+                    _(
+                        "Step '%(target)s' cannot depend on '%(source)s': they "
+                        "belong to different automations.\n\n"
+                        "Dependencies only order the steps of one automation, so "
+                        "a step from another rule can never complete within this "
+                        "run.",
+                        source=edge.source_node_id.name,
+                        target=edge.target_node_id.name,
+                    ),
+                )
+
+    @api.constrains("source_node_id", "target_node_id")
+    def _check_no_cycle(self):
+        for edge in self:
+            if edge.source_node_id == edge.target_node_id:
+                raise exceptions.ValidationError(
+                    _(
+                        "Action '%(action)s' cannot depend on itself.",
+                        action=edge.target_node_id.name,
+                    )
+                )
+            target = edge.target_node_id
+            seen: set[int] = set()
+            frontier = target._get_predecessors()
+            while frontier:
+                if target.id in frontier.ids:
+                    raise exceptions.ValidationError(
+                        _(
+                            "Circular dependency detected: action '%(action)s' "
+                            "would create a cycle in the workflow DAG.",
+                            action=target.name,
+                        )
+                    )
+                seen.update(frontier.ids)
+                frontier = frontier._get_predecessors().filtered(
+                    lambda node: node.id not in seen,  # noqa: B023
+                )
+
+    @api.constrains("condition", "source_node_id")
+    def _check_condition_is_honoured(self):
+        for edge in self:
+            rule = edge.automation_rule_id
+            if edge.condition == "on_success" or not rule:
+                continue
+            if not rule._is_runtime_backed():
+                raise exceptions.ValidationError(
+                    _(
+                        "'%(source)s' -> '%(target)s' is conditional, but "
+                        "automation '%(name)s' does not record its runs, so the "
+                        "condition would be ignored.\n\n"
+                        "Switch on 'Record Every Run' on the automation, or make "
+                        "this connection unconditional.",
+                        source=edge.source_node_id.name,
+                        target=edge.target_node_id.name,
+                        name=rule.name,
+                    ),
+                )
+
+    @api.constrains("condition", "condition_expr")
+    def _check_condition_expr(self):
+        for edge in self:
+            if (
+                edge.condition == "expression"
+                and not (edge.condition_expr or "").strip()
+            ):
+                raise exceptions.ValidationError(
+                    _(
+                        "Edge '%(source)s' -> '%(target)s' is conditional on an "
+                        "expression but carries none, so the target could never "
+                        "become ready.",
+                        source=edge.source_node_id.name,
+                        target=edge.target_node_id.name,
+                    ),
+                )
+
+    @api.depends("source_node_id", "target_node_id", "condition", "label")
+    def _compute_display_name(self):
+        conditions = dict(self._fields["condition"]._description_selection(self.env))
+        for edge in self:
+            edge.display_name = self.env._(
+                "%(from_node)s → %(to_node)s (%(condition)s)",
+                from_node=edge.source_node_id.name or "?",
+                to_node=edge.target_node_id.name or "?",
+                condition=edge.label or conditions.get(edge.condition, edge.condition),
+            )

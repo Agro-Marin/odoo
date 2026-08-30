@@ -174,7 +174,7 @@ class TestAutomationTriggers(TransactionCase):
                 "usage": "automation",
             }
         )
-        self.Action.create(
+        action_b = self.Action.create(
             {
                 "name": "DAG Action B",
                 "model_id": self.model_partner.id,
@@ -182,8 +182,10 @@ class TestAutomationTriggers(TransactionCase):
                 "code": "pass",
                 "automation_rule_id": automation.id,
                 "usage": "automation",
-                "predecessor_ids": [Command.link(action_a.id)],
             }
+        )
+        self.env["workflow.edge"].create(
+            {"source_node_id": action_a.id, "target_node_id": action_b.id}
         )
 
         before_count = self.env["automation.runtime"].search_count(

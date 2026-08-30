@@ -16,7 +16,6 @@ from odoo.tools import safe_eval
 
 _logger = logging.getLogger(__name__)
 
-
 CRON_INTERVAL_TOLERANCE_PERCENT = 0.10
 
 DEFAULT_CRON_INTERVAL_MINUTES = 4 * 60
@@ -27,18 +26,6 @@ MAX_CRON_INTERVAL_MINUTES = 4 * 60
 
 
 MONTH_APPROXIMATION_DAYS = 30
-"""Approximation of days per month for non-calendar timedelta calculations.
-
-Used when converting months to days for datetime.timedelta operations,
-which don't support month-based deltas. This is an approximation:
-- Actual average: ~30.44 days (365.25 / 12)
-- We use 30 for simplicity and consistency
-
-Note: For exact month calculations, use dateutil.relativedelta or
-resource.calendar when calendar-aware scheduling is required.
-
-See Also: TIMEDELTA_TYPES dict
-"""
 
 DOMAIN_FIELDS_RE = re.compile(
     r"""
@@ -147,7 +134,12 @@ def get_webhook_request_payload():
 
 class AutomationRule(models.Model):
     _name = "automation.rule"
-    _inherit = ["mixin.mail.thread", "mixin.mail.activity", "mixin.inbound.gate"]
+    _inherit = [
+        "mixin.mail.thread",
+        "mixin.mail.activity",
+        "mixin.inbound.gate",
+        "mixin.bus.listener",
+    ]
     _description = "Automation Rule"
     _order = "sequence, id"
 
@@ -220,6 +212,22 @@ class AutomationRule(models.Model):
         inverse_name="automation_rule_id",
         string="Actions",
         context={"default_usage": "automation"},
+    )
+    edge_ids = fields.One2many(
+        comodel_name="workflow.edge",
+        inverse_name="automation_rule_id",
+        string="Workflow Edges",
+        copy=False,
+        help="Typed dependencies between this automation's steps",
+    )
+    create_runtime_instance = fields.Boolean(
+        string="Record Every Run",
+        default=False,
+        help="Create an Automation Runtime for every execution, so each step's "
+        "outcome is recorded and the workflow's edge conditions are evaluated.\n\n"
+        "Off by default: an automation on a high-volume trigger would write one "
+        "runtime per event. Leave it off for a lightweight rule; turn it on for "
+        "anything that branches, or whose history you need.",
     )
 
     url = fields.Char(
@@ -386,7 +394,7 @@ class AutomationRule(models.Model):
                 continue
 
             failing_actions = automation.action_server_ids.filtered(
-                lambda action: action.model_id != automation.model_id,  # noqa: B023 - filtered() evaluates the lambda immediately, within this same loop iteration
+                lambda action: action.model_id != automation.model_id,  # noqa: B023
             )
             if failing_actions:
                 raise exceptions.ValidationError(
@@ -537,25 +545,100 @@ class AutomationRule(models.Model):
             old_automation._copy_actions_to(new_automation)
         return new_automations
 
+    def _is_runtime_backed(self):
+        self.ensure_one()
+        return self.create_runtime_instance or self.trigger == "on_hand"
+
+    @api.constrains("trigger", "create_runtime_instance")
+    def _check_conditions_can_be_honoured(self):
+        for automation in self:
+            if automation._is_runtime_backed():
+                continue
+            conditional = automation.edge_ids.filtered(
+                lambda edge: edge.condition != "on_success",
+            )
+            if conditional:
+                raise exceptions.ValidationError(
+                    _(
+                        "Automation '%(name)s' has conditional connections "
+                        "(%(edges)s) but does not record its runs, so those "
+                        "conditions would be ignored.\n\n"
+                        "Switch on 'Record Every Run', or make the connections "
+                        "unconditional.",
+                        name=automation.name,
+                        edges=", ".join(conditional.mapped("display_name")),
+                    ),
+                )
+
+    @api.readonly
+    def get_workflow_graph(self, runtime_id=None):
+        self.ensure_one()
+        nodes = self.action_server_ids.sorted("sequence")
+        state_per_action = {}
+        runtime = self.env["automation.runtime"]
+        if runtime_id:
+            runtime = (
+                runtime.browse(runtime_id)
+                .exists()
+                .filtered(
+                    lambda run: run.automation_id == self,
+                )
+            )
+            state_per_action = {
+                line.action_id.id: line.state for line in runtime.line_ids
+            }
+        return {
+            "automation_id": self.id,
+            "runtime_id": runtime.id or None,
+            "runtime_state": runtime.state or None,
+            "is_positioned": any(node.pos_x or node.pos_y for node in nodes),
+            "nodes": [
+                {
+                    "id": node.id,
+                    "name": node.name,
+                    "state": node.state,
+                    "node_type": node.node_type,
+                    "sequence": node.sequence,
+                    "pos_x": node.pos_x,
+                    "pos_y": node.pos_y,
+                    "runtime_state": state_per_action.get(node.id),
+                }
+                for node in nodes
+            ],
+            "edges": [
+                {
+                    "id": edge.id,
+                    "source": edge.source_node_id.id,
+                    "target": edge.target_node_id.id,
+                    "condition": edge.condition,
+                    "condition_expr": edge.condition_expr,
+                    "label": edge.label,
+                }
+                for edge in self.edge_ids
+            ],
+        }
+
     def _copy_actions_to(self, target):
         self.ensure_one()
         target.ensure_one()
-        new_by_old = {}
-        for action in self.action_server_ids:
-            new_by_old[action.id] = action.copy(
+        new_by_old = {
+            action.id: action.copy({"automation_rule_id": target.id})
+            for action in self.action_server_ids
+        }
+        self.env["workflow.edge"].create(
+            [
                 {
-                    "automation_rule_id": target.id,
-                    "predecessor_ids": [fields.Command.clear()],
+                    "source_node_id": new_by_old[edge.source_node_id.id].id,
+                    "target_node_id": new_by_old[edge.target_node_id.id].id,
+                    "condition": edge.condition,
+                    "condition_expr": edge.condition_expr,
+                    "label": edge.label,
                 }
-            )
-        for action in self.action_server_ids:
-            remapped = [
-                new_by_old[pred.id].id
-                for pred in action.predecessor_ids
-                if pred.id in new_by_old
+                for edge in self.edge_ids
+                if edge.source_node_id.id in new_by_old
+                and edge.target_node_id.id in new_by_old
             ]
-            if remapped:
-                new_by_old[action.id].predecessor_ids = [fields.Command.set(remapped)]
+        )
 
     @api.depends("trigger", "webhook_uuid")
     def _compute_url(self):
@@ -581,7 +664,7 @@ class AutomationRule(models.Model):
                 continue
 
             actions_to_remove = automation.action_server_ids.filtered(
-                lambda action: action.model_id != automation.model_id,  # noqa: B023 - filtered() evaluates the lambda immediately, within this same loop iteration
+                lambda action: action.model_id != automation.model_id,  # noqa: B023
             )
             if actions_to_remove:
                 actions_to_remove.unlink()
@@ -895,21 +978,10 @@ class AutomationRule(models.Model):
                 },
             }
 
-        has_dag = any(action.predecessor_ids for action in self.action_server_ids)
+        has_dag = bool(self.edge_ids)
 
         if has_dag:
-            runtimes = self.env["automation.runtime"]
-            for record in filtered_records:
-                runtime = self.env["automation.runtime"].create(
-                    {
-                        "automation_id": self.id,
-                        "res_model": active_model,
-                        "res_id": record.id,
-                    }
-                )
-                runtime.action_start()
-                runtime.action_run_all()
-                runtimes |= runtime
+            runtimes = self._run_through_runtimes(filtered_records)
 
             if len(runtimes) == 1:
                 return {
@@ -1153,7 +1225,6 @@ class AutomationRule(models.Model):
         return automation.trg_date_calendar_id
 
     def _get_cron_interval(self, automations=None):
-
         def get_delay(rec):
             return abs(rec.trg_date_range) * DATE_RANGE_FACTOR[rec.trg_date_range_type]
 
@@ -1265,6 +1336,22 @@ class AutomationRule(models.Model):
         defaults.update(**values)
         return defaults
 
+    def _run_through_runtimes(self, records):
+        self.ensure_one()
+        runtimes = self.env["automation.runtime"]
+        for record in records:
+            runtime = self.env["automation.runtime"].create(
+                {
+                    "automation_id": self.id,
+                    "res_model": records._name,
+                    "res_id": record.id,
+                }
+            )
+            runtime.action_start()
+            runtime.action_run_all()
+            runtimes |= runtime
+        return runtimes
+
     def _process(self, records, domain_post=None):
         automation_done = self.env.context.get("__action_done", {})
         records_done = automation_done.get(self, records.browse())
@@ -1306,6 +1393,10 @@ class AutomationRule(models.Model):
             for record in records
         ]
 
+        if self.sudo().create_runtime_instance:
+            self.sudo()._run_through_runtimes(records)
+            return
+
         for action in self.sudo().action_server_ids._sorted_by_dependency():
             action_contexts = [batch_context] if action._is_batchable() else contexts
             for ctx in action_contexts:
@@ -1318,7 +1409,6 @@ class AutomationRule(models.Model):
     def _register_hook(self):
 
         def make_create():
-
             @api.model_create_multi
             def create(self, vals_list, **kw):
                 automations = self.env["automation.rule"]._get_actions(
@@ -1341,7 +1431,6 @@ class AutomationRule(models.Model):
             return create
 
         def make_write():
-
             def write(self, vals, **kw):
                 if self.env.context.get("__automation_bookkeeping"):
                     return write.origin(self, vals, **kw)
@@ -1432,7 +1521,6 @@ class AutomationRule(models.Model):
             return _compute_field_value
 
         def make_unlink():
-
             def unlink(self, **kwargs):
                 automations = self.env["automation.rule"]._get_actions(
                     self,
@@ -1452,7 +1540,6 @@ class AutomationRule(models.Model):
             return unlink
 
         def make_onchange(automation_rule_id):
-
             def automation_onchange(self):
                 automation_rule = self.env["automation.rule"].browse(automation_rule_id)
 
