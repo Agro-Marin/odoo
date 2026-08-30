@@ -6,7 +6,9 @@ class SaleReport(models.Model):
 
     def _fill_pos_fields(self, additional_fields):
         values = super()._fill_pos_fields(additional_fields)
+        currency_rate_pos = self._case_value_or_one("pos.currency_rate")
+        currency_rate_table = self._case_value_or_one("account_currency_table.rate")
         values["margin"] = (
-            "SUM((l.price_subtotal - COALESCE(l.total_cost,0)) / CASE COALESCE(pos.currency_rate, 0) WHEN 0 THEN 1.0 ELSE pos.currency_rate END)"
+            f"SUM(l.margin / {currency_rate_pos} * {currency_rate_table})"
         )
         return values
