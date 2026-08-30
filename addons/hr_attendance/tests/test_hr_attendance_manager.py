@@ -1,5 +1,5 @@
 from odoo.exceptions import AccessError
-from odoo.tests import new_test_user
+from odoo.tests import Form, new_test_user
 from odoo.tests.common import TransactionCase, tagged
 
 
@@ -71,3 +71,44 @@ class TestAttendanceManager(TransactionCase):
 
         attendance_as_luisa.write({"employee_id": self.ryan_employee.id})
         self.assertEqual(self.attendance.employee_id, self.ryan_employee)
+
+    def test_approver_follows_the_new_manager(self):
+        """Reassigning an employee's manager should move the attendance approver.
+
+        Only when the approver was the outgoing manager: an approver somebody
+        picked by hand is a deliberate choice and must survive the reassignment.
+        """
+        old_user = new_test_user(self.env, login="old_manager")
+        new_user = new_test_user(self.env, login="new_manager")
+        old_manager, new_manager = self.env["hr.employee"].create(
+            [
+                {"name": "Old Manager", "user_id": old_user.id},
+                {"name": "New Manager", "user_id": new_user.id},
+            ]
+        )
+        employee = self.env["hr.employee"].create(
+            {
+                "name": "Reassigned Employee",
+                "parent_id": old_manager.id,
+                "attendance_manager_id": old_user.id,
+            }
+        )
+
+        with Form(employee) as employee_form:
+            employee_form.parent_id = new_manager
+        self.assertEqual(
+            employee.attendance_manager_id,
+            new_user,
+            "the approver was the old manager, so it should follow to the new one",
+        )
+
+        # An approver set by hand is a deliberate choice and is left alone.
+        third_party = new_test_user(self.env, login="third_party")
+        employee.attendance_manager_id = third_party
+        with Form(employee) as employee_form:
+            employee_form.parent_id = old_manager
+        self.assertEqual(
+            employee.attendance_manager_id,
+            third_party,
+            "a hand-picked approver should not be overwritten by a manager change",
+        )
