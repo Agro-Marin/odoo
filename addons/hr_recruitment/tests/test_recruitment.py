@@ -594,3 +594,41 @@ class TestRecruitment(TransactionCase):
             "hired.applicant@example.com",
             "The applicant's own email stays reachable as the private email.",
         )
+
+    def test_employee_smart_button_leads_back_to_the_application(self):
+        """
+        Test that the employee form can reach the application it came from.
+        """
+        applicant = self.env["hr.applicant"].create(
+            {
+                "partner_name": "Hired Applicant",
+                "email_from": "hired.applicant@example.com",
+            }
+        )
+        action = applicant.create_employee_from_applicant()
+        employee = self.env["hr.employee"].browse(action["res_id"])
+
+        self.assertEqual(employee.applicant_name, "Hired Applicant")
+        smart_button = employee.action_view_applicant()
+        self.assertEqual(smart_button["res_model"], "hr.applicant")
+        self.assertEqual(smart_button["res_id"], applicant.id)
+
+        second = self.env["hr.applicant"].create(
+            {
+                "partner_name": "Hired Applicant",
+                "email_from": "hired.applicant.again@example.com",
+                "employee_id": employee.id,
+            }
+        )
+        employee.invalidate_recordset(["applicant_name"])
+        self.assertEqual(
+            employee.applicant_name,
+            "2",
+            "With several applications the button counts them instead of naming one.",
+        )
+        smart_button = employee.action_view_applicant()
+        self.assertNotIn("res_id", smart_button)
+        self.assertEqual(
+            self.env["hr.applicant"].search(smart_button["domain"]),
+            applicant | second,
+        )
