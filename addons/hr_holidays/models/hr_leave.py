@@ -279,9 +279,10 @@ class HrLeave(models.Model):
         help="Number of hours of the time off request. Used in the calculation.",
     )
     last_several_days = fields.Boolean("All day", compute="_compute_last_several_days")
-    duration_display = fields.Char(
-        "Requested", compute="_compute_duration_display", store=True
-    )  # details
+    # Deliberately not stored: the compute builds a translated string, so a
+    # stored value would freeze whichever language last recomputed it -- and the
+    # trigger is not always the employee's own (see models/resource.py).
+    duration_display = fields.Char("Requested", compute="_compute_duration_display")
     # details
     meeting_id = fields.Many2one("calendar.event", string="Meeting", copy=False)
     first_approver_id = fields.Many2one(
