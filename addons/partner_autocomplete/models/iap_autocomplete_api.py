@@ -23,6 +23,9 @@ class IapAutocompleteApi(models.AbstractModel):
     def _contact_iap(self, local_endpoint, action, params, timeout=15):
         if modules.module.current_test:
             raise exceptions.ValidationError(_("Test mode"))
+        # Spending the company's paid IAP credit balance requires the same
+        # authority as managing partner records, not just being logged in.
+        self.env["res.partner"].browse().check_access("write")
         account = self.env["iap.account"].get("partner_autocomplete")
         if not account.sudo().account_token:
             raise MissingIAPAccountTokenError(_("No account token"))
