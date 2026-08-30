@@ -120,7 +120,7 @@ class AccountMove(models.Model):
         110100 Stock Account                        |       | 9.0
         ---------------------------------------------------------------
 
-        Note: COGS are only generated for customer invoices except refund made to cancel an invoice.
+        Note: COGS are generated for customer invoices, refunds and receipts alike; refunds simply flip the sign.
 
         :return: A list of Python dictionary to be passed to env['account.move.line'].create.
         """
