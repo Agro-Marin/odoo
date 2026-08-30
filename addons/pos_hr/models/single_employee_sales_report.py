@@ -1,4 +1,4 @@
-from odoo import api, models
+from odoo import _, api, models
 from odoo.fields import Domain
 
 
@@ -42,6 +42,6 @@ class ReportPos_HrSingle_Employee_Sales_Report(models.AbstractModel):
 
         if employee_id:
             employee = self.env["hr.employee"].search([("id", "=", employee_id)])
-            data["employee_name"] = employee.name
+            data["employee_name"] = employee.name if employee else _("Unknown Employee")
 
         return data
