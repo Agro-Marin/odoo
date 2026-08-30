@@ -308,9 +308,18 @@ class ExchangeTransmission(models.Model):
         self.ensure_one()
         self._send_many()
 
+    def _claim(self):
+        claimed = self.try_lock_for_update()
+        if len(claimed) < len(self):
+            _logger.info(
+                "Left %s transmission(s) to the sender already holding them",
+                len(self) - len(claimed),
+            )
+        return claimed
+
     def _send_many(self) -> None:
         ready = self.browse()
-        for transmission in self:
+        for transmission in self._claim():
             if transmission.is_settled:
                 raise UserError(
                     self.env._(

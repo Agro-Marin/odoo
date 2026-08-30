@@ -329,3 +329,61 @@ class TestExchangeBatch(ExchangeCase):
         script = {0: self._accepted("Y")}
         self._batched(invoice + classification, script, batches, size=10)
         self.assertEqual(batches, [1, 1])
+
+    def _held_elsewhere(self):
+        """Make the row read as held by another transaction.
+
+        The real lock cannot be exercised from one test transaction: a second
+        cursor cannot see a record this one has not committed. So this stands in
+        for what SKIP LOCKED returns when somebody else holds the row.
+
+        These live in this class rather than a class of their own because
+        ExchangeCase does not survive a sixth subclass -- its per-class registry
+        injection leaks `_inherit_children`, and the whole-registry inherit
+        reflection then dies in `_upsert_inherit_rows`. Fixing that fixture is
+        its own change.
+        """
+        self.patch(
+            self.registry["exchange.transmission"],
+            "try_lock_for_update",
+            lambda records, **kwargs: records.browse(),
+        )
+
+    def test_a_transmission_another_sender_holds_does_not_go_out(self):
+        transmission = self._add_transmission()
+        batches = []
+        self._held_elsewhere()
+
+        transmission.with_context(
+            exchange_demo_batch={0: Verdict(state="accepted")}, demo_batches=batches
+        )._send_many()
+
+        self.assertEqual(
+            batches, [], "nothing may leave while another sender holds the row"
+        )
+        self.assertEqual(
+            transmission.state, "queued", "and it stays for that sender to finish"
+        )
+
+    def test_the_cron_leaves_held_transmissions_queued(self):
+        transmission = self._add_transmission()
+        batches = []
+        self._held_elsewhere()
+
+        self.env["exchange.transmission"].with_context(
+            exchange_demo_batch={0: Verdict(state="accepted")}, demo_batches=batches
+        )._cron_send_queued()
+
+        self.assertEqual(batches, [])
+        self.assertEqual(transmission.state, "queued")
+
+    def test_an_unheld_transmission_still_goes_out(self):
+        transmission = self._add_transmission()
+        batches = []
+
+        transmission.with_context(
+            exchange_demo_batch={0: Verdict(state="accepted")}, demo_batches=batches
+        )._send_many()
+
+        self.assertEqual(batches, [1], "the lock must not stop an ordinary send")
+        self.assertEqual(transmission.state, "accepted")
