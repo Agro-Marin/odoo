@@ -293,7 +293,7 @@ class ApiEndpointInbound(models.AbstractModel):
             )
 
         if self.processing_mode == "async":
-            self.delayed()._run_queued_event(event.id)
+            event._enqueue_processing()
 
         self.update_date_last_activity()
 

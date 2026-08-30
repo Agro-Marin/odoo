@@ -503,13 +503,11 @@ class ApiEventLog(models.Model):
         )
 
         if self.direction == "inbound":
-            channel = self.channel_id
-            if hasattr(channel, "_run_queued_event"):
-                channel.delayed()._run_queued_event(self.id)
-            else:
+            if not hasattr(self.channel_id, "_run_queued_event"):
                 raise ValidationError(
                     self.env._("Channel does not support event processing")
                 )
+            self._enqueue_processing()
 
         return {
             "type": "ir.actions.client",
@@ -550,6 +548,41 @@ class ApiEventLog(models.Model):
             "view_mode": "list,form",
             "domain": [("trace_id", "=", self.trace_id)],
         }
+
+    def _enqueue_processing(self, delay: int | None = None) -> None:
+        """Hand this event to a worker, once.
+
+        `identity_key` is what stops one event being processed twice. `ir_job`
+        holds a unique index over it for queued states, and those include
+        `started`, so a job already running blocks a second enqueue as surely as
+        a pending one does. All three callers fire at moments when another may
+        already be in flight: the route that queues the event, the manual Retry
+        button, and the retry cron -- whose domain matches an event from the
+        instant it is created, since `queue_event` leaves it `pending` with
+        `date_next_retry` unset and the domain asks for exactly that. Any cron
+        run that beat the first job to the claim enqueued a second one, and
+        `_run_queued_event` neither locks the event nor checks its state, so an
+        inbound payload was handled twice -- duplicate records out of whatever
+        the endpoint's `_process_queued_event` builds.
+        """
+        for event in self:
+            event.delayed(
+                identity_key=f"api_transport.event:{event.id}",
+                eta=delay or None,
+                name=f"Process inbound event {event.id}",
+            )._job_process_inbound()
+
+    @api.job(channel="api_transport_inbound", max_retries=0)
+    def _job_process_inbound(self) -> None:
+        self.ensure_one()
+        channel = self.channel_id
+        if not hasattr(channel, "_run_queued_event"):
+            self.mark_failed(
+                "Channel does not support event processing",
+                schedule_retry=False,
+            )
+            return
+        channel._run_queued_event(self.id)
 
     @api.model
     def _cron_retry_failed_events(self):
@@ -598,7 +631,7 @@ class ApiEventLog(models.Model):
                     )
                 if hasattr(channel, "_run_queued_event"):
                     event.date_next_retry = now + timedelta(seconds=processing_timeout)
-                    channel.delayed()._run_queued_event(event.id)
+                    event._enqueue_processing()
                 else:
                     _logger.warning(
                         "Channel %s does not implement _run_queued_event()",

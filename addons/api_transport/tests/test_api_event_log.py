@@ -343,3 +343,69 @@ class TestApiEventLogRetention(TransactionCase):
 
         self.assertFalse(old_event.exists())
         self.assertTrue(recent_event.exists())
+
+
+class TestInboundEventEnqueue(TestApiEventLog):
+    """One event, one job, however many callers ask for it."""
+
+    def _jobs_for(self, event):
+        return self.env["ir.job"].search(
+            [("identity_key", "=", f"api_transport.event:{event.id}")]
+        )
+
+    def _give_the_channel_a_handler(self, handler):
+        # Not `self.patch`, which requires the attribute to exist:
+        # `_run_queued_event` lives on the INBOUND mixin, and the channel these
+        # events point at is an outbound endpoint because `api.endpoint.inbound`
+        # is abstract and has no concrete model in this addon to point at.
+        channel_cls = self.registry["api.endpoint.outbound"]
+        channel_cls._run_queued_event = handler
+        self.addCleanup(delattr, channel_cls, "_run_queued_event")
+
+    def _inbound_event(self):
+        event = self._create_event_log(direction="inbound")
+        self.env["ir.job"].search([]).unlink()
+        return event
+
+    def test_enqueuing_the_same_event_twice_leaves_one_job(self):
+        event = self._inbound_event()
+
+        event._enqueue_processing()
+        event._enqueue_processing()
+
+        self.assertEqual(len(self._jobs_for(event)), 1)
+
+    def test_the_retry_cron_does_not_add_a_second_job_for_a_fresh_event(self):
+        # The defect this guards: `queue_event` leaves an event `pending` with
+        # `date_next_retry` unset, and the cron's domain asks for exactly that.
+        # Any cron run between queueing and the worker claiming the job used to
+        # enqueue a second one, and nothing downstream deduplicated it.
+        self._give_the_channel_a_handler(lambda channel, event_id: None)
+        event = self._inbound_event()
+        event._enqueue_processing()
+
+        self.env["api.event.log"]._cron_retry_failed_events()
+
+        self.assertEqual(
+            len(self._jobs_for(event)),
+            1,
+            "the cron must not hand a worker an event another worker already has",
+        )
+
+    def test_the_job_hands_the_event_to_its_channel(self):
+        seen = []
+        self._give_the_channel_a_handler(
+            lambda channel, event_id: seen.append(event_id)
+        )
+        event = self._inbound_event()
+
+        event._job_process_inbound()
+
+        self.assertEqual(seen, [event.id])
+
+    def test_an_event_whose_channel_cannot_process_it_fails_rather_than_raising(self):
+        event = self._inbound_event()
+
+        event._job_process_inbound()
+
+        self.assertEqual(event.state, "failed")
