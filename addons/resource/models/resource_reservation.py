@@ -209,6 +209,35 @@ class ResourceReservation(models.Model):
         )
         hard = live.filtered(lambda r: r.enforcement_mode == "hard")
 
+        if live:
+            # This constraint is otherwise a plain SELECT with no row lock,
+            # under Odoo's REPEATABLE READ transactions: two concurrent
+            # transactions booking the same resource for the same hard slot
+            # can each read "no conflict" from their own frozen snapshot and
+            # both commit, double-booking the resource despite
+            # enforcement_mode='hard'. A bare advisory lock only serializes
+            # *acquisition order* -- it does not force a transaction that
+            # waited on it to re-read what committed while it waited, so it
+            # does not actually close this gap.
+            #
+            # A genuine write conflict does: touching each resource row with
+            # a real (no-op) UPDATE means PostgreSQL's own concurrent-update
+            # detection kicks in -- the second transaction blocks on the
+            # first, and once the first commits, PostgreSQL raises
+            # ``SerializationFailure`` instead of silently proceeding on a
+            # stale snapshot. That exception is already one of Odoo's
+            # PG_RETRY_EXCEPTIONS (``odoo/db/errors.py``), so the request
+            # layer retries the whole transaction with a fresh snapshot,
+            # which correctly sees the sibling that won and raises the
+            # ``ValidationError`` below. Sorted so two batches sharing
+            # resources always touch them in the same order and cannot
+            # deadlock against each other.
+            self.env.cr.execute(
+                "UPDATE resource_resource SET write_date = write_date"
+                " WHERE id = ANY(%s)",
+                (sorted(live.resource_id.ids),),
+            )
+
         # Hard reservations, not in this batch, whose slot these records intrude on.
         if live:
             # Bound the fetch to each *resource's own* window, not the whole
