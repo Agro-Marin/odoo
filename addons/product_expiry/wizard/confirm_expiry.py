@@ -54,12 +54,14 @@ class ExpiryPickingConfirmation(models.TransientModel):
         pickings = self._pickings_to_validate()
         self.picking_ids.move_line_ids._filtered_expired().unlink()
         remaining = pickings.filtered("move_line_ids")
-        if pickings and not remaining:
+        emptied = pickings - remaining
+        if emptied:
             raise UserError(
                 self.env._(
-                    "Every line of this transfer is expired, so there is nothing left to"
+                    "Every line of %(pickings)s is expired, so there is nothing left to"
                     " deliver. Cancel the transfer, or replace the expired lots before"
-                    " validating it."
+                    " validating it.",
+                    pickings=", ".join(emptied.mapped("name")),
                 )
             )
         return remaining.button_validate()
