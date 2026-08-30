@@ -43,7 +43,11 @@ class CrmTeam(models.Model):
     # properties
     lead_properties_definition = fields.PropertiesDefinition('Lead Properties')
 
-    @api.depends('crm_team_member_ids.assignment_max')
+    # `crm_team_member_ids` is active-filtered and archiving a team archives its
+    # members, so the set itself changes on a write nothing here declared: a
+    # team archived with one member kept `assignment_max` at that member's value
+    # while the database read 0.
+    @api.depends('crm_team_member_ids.assignment_max', 'crm_team_member_ids.active')
     def _compute_assignment_max(self):
         for team in self:
             team.assignment_max = sum(member.assignment_max for member in team.crm_team_member_ids)
@@ -784,6 +788,7 @@ class CrmTeam(models.Model):
         action['context'] = action_context
         return action
 
+    @api.depends('use_opportunities')
     def _compute_dashboard_button_name(self):
         super()._compute_dashboard_button_name()
         team_with_pipelines = self.filtered(lambda el: el.use_opportunities)

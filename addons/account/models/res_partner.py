@@ -552,6 +552,7 @@ class ResPartner(models.Model):
                 stored = edi_format
             commercial_partner.invoice_edi_format_store = stored
 
+    @api.depends("credit_limit")
     @api.depends_context("company")
     def _compute_use_partner_credit_limit(self):
         company_limit = self._fields["credit_limit"].get_company_dependent_fallback(

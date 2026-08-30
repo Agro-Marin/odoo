@@ -83,7 +83,9 @@ class MailMessage(models.Model):
         search="_search_account_audit_log_restricted",
     )
 
-    @api.depends("tracking_value_ids")
+    @api.depends(
+        "tracking_value_ids", "message_type", "subject", "preview", "subtype_id"
+    )
     def _compute_account_audit_log_preview(self):
         audit_messages = self.filtered(lambda m: m.message_type == "notification")
         (self - audit_messages).account_audit_log_preview = False

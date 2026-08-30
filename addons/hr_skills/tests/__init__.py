@@ -1,3 +1,4 @@
+from . import test_depends_completeness
 from . import test_certification_activities
 from . import test_employee_skill
 from . import test_resource

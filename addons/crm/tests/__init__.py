@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from . import test_depends_completeness
 from . import test_crm_activity
 from . import test_crm_lead
 from . import test_crm_lead_assignment

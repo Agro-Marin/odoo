@@ -1,3 +1,4 @@
+from . import test_depends_completeness
 from . import test_account_move_reconcile
 from . import test_marin_account_account_fixes
 from . import test_marin_account_move_line_fixes

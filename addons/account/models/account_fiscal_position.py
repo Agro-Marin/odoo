@@ -213,6 +213,7 @@ class AccountFiscalPosition(models.Model):
                 position == position.company_id.domestic_fiscal_position_id
             )
 
+    @api.depends("country_id.state_ids")
     def _compute_states_count(self):
         for position in self:
             position.states_count = len(position.country_id.state_ids)

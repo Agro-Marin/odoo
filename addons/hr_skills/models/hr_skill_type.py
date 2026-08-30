@@ -44,6 +44,7 @@ class HrSkillType(models.Model):
                 )
             )
 
+    @api.depends("name", "is_certification")
     def _compute_display_name(self):
         for skill_type in self:
             if skill_type.is_certification:

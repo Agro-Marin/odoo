@@ -106,6 +106,7 @@ class PaymentMethod(models.Model):
 
     # === COMPUTE METHODS === #
 
+    @api.depends("primary_payment_method_id")
     def _compute_is_primary(self):
         for payment_method in self:
             payment_method.is_primary = not payment_method.primary_payment_method_id

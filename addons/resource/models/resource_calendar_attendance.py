@@ -231,7 +231,7 @@ class ResourceCalendarAttendance(models.Model):
                     else 1
                 )
 
-    @api.depends("week_type")
+    @api.depends("week_type", "display_type")
     def _compute_display_name(self):
         super()._compute_display_name()
         this_week_type = str(self.get_week_type(fields.Date.context_today(self)))
