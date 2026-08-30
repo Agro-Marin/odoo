@@ -196,3 +196,33 @@ class TestRecruitmentSurveyConfig(common.TransactionCase):
         self.job.interviewer_ids = self.interviewer
         self.job.survey_id.invalidate_recordset()
         self.job.survey_id.with_user(self.interviewer).read(["title"])
+
+    def test_survey_job_count(self):
+        survey = self.env["survey.survey"].create(
+            {"title": "Sysadmin interview", "survey_type": "recruitment"}
+        )
+        self.assertEqual(survey.job_count, 0)
+
+        self.job.survey_id = survey
+        survey.invalidate_recordset()
+        self.assertEqual(survey.job_count, 1)
+        action = survey.action_open_jobs()
+        self.assertEqual(action["res_model"], "hr.job")
+        self.assertEqual(action["res_id"], self.job.id)
+
+        second_job = self.env["hr.job"].create(
+            {"name": "Technical worker II", "survey_id": survey.id, "description": None}
+        )
+        survey.invalidate_recordset()
+        self.assertEqual(survey.job_count, 2)
+        action = survey.action_open_jobs()
+        self.assertEqual(action["res_model"], "hr.job")
+        self.assertEqual(set(action["domain"][0][2]), set((self.job + second_job).ids))
+
+    def test_survey_job_button_is_on_the_interview_form(self):
+        arch = etree.fromstring(
+            self.env["survey.survey"].get_view(
+                self.env.ref("hr_recruitment_survey.survey_survey_view_form").id
+            )["arch"]
+        )
+        self.assertTrue(arch.xpath("//button[@name='action_open_jobs']"))
