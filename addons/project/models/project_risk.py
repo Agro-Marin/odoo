@@ -1,4 +1,5 @@
-from odoo import api, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class ProjectRisk(models.Model):
@@ -111,6 +112,14 @@ class ProjectRisk(models.Model):
     date_identified = fields.Date("Date Identified", default=fields.Date.today)
     date_resolved = fields.Date("Date Resolved")
     active = fields.Boolean(default=True)
+
+    @api.constrains("state", "date_resolved")
+    def _check_date_resolved(self) -> None:
+        for risk in self:
+            if risk.state == "resolved" and not risk.date_resolved:
+                raise ValidationError(
+                    _("A resolved risk must have its resolution date set.")
+                )
 
     @api.depends("probability", "impact")
     def _compute_risk_score(self) -> None:
