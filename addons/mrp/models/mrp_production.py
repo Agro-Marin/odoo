@@ -3025,7 +3025,7 @@ class MrpProduction(models.Model):
     def _cal_price(self, consumed_moves):
         """No-op extension seam: a costing module overrides this to price
         `consumed_moves` against `self`. Nothing in this base module reads
-        the return value beyond truthiness.
+        the return value at all.
         """
         self.ensure_one()
         return True
