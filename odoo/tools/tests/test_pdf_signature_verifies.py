@@ -3,11 +3,15 @@ import hashlib
 import io
 import re
 import unittest
+from typing import TYPE_CHECKING, cast
 from unittest import mock
 
 from odoo.tools import file_open
 from odoo.tools.pdf import signature as pdf_signature
 from odoo.tools.pdf.signature import PdfSigner
+
+if TYPE_CHECKING:
+    from odoo.addons.base.models.res_company import ResCompany
 
 if pdf_signature.HAS_CRYPTOGRAPHY:
     from asn1crypto import cms
@@ -46,7 +50,7 @@ def _sample_pdf() -> io.BytesIO:
 class TestTheSignatureVerifies(unittest.TestCase):
     def _sign_with(self, key):
         certificate = _self_signed(key)
-        signer = PdfSigner(_sample_pdf(), company=object())
+        signer = PdfSigner(_sample_pdf(), company=cast("ResCompany", object()))
         if not signer.usable:
             self.skipTest("this pypdf has no clone_document_from_reader")
         with mock.patch.object(
@@ -55,17 +59,17 @@ class TestTheSignatureVerifies(unittest.TestCase):
             lambda _self: (key, certificate),
         ):
             signed = signer.sign_pdf()
-        self.assertIsNotNone(signed, "the signer refused a key it declares support for")
+        assert signed is not None, "the signer refused a key it declares support for"
         return signed.getvalue(), certificate
 
     def _parts(self, data):
         match = _BYTE_RANGE_RE.search(data)
-        self.assertIsNotNone(match, "no /ByteRange in the signed document")
+        assert match is not None, "no /ByteRange in the signed document"
         start_a, len_a, start_b, len_b = (int(g) for g in match.groups())
         covered = data[start_a : start_a + len_a] + data[start_b : start_b + len_b]
 
         contents = _CONTENTS_RE.search(data)
-        self.assertIsNotNone(contents, "no /Contents blob in the signed document")
+        assert contents is not None, "no /Contents blob in the signed document"
         der = bytes.fromhex(contents.group(1).decode()).rstrip(b"\x00")
         return (start_a, len_a, start_b, len_b), covered, cms.ContentInfo.load(der)
 
@@ -94,9 +98,9 @@ class TestTheSignatureVerifies(unittest.TestCase):
             "message_digest does not describe the bytes /ByteRange covers",
         )
 
-        payload = bytearray(attributes.dump())
-        payload[0] = 0x31
-        payload = bytes(payload)
+        tagged = bytearray(attributes.dump())
+        tagged[0] = 0x31
+        payload = bytes(tagged)
 
         public_key = certificate.public_key()
         signature = signer_info["signature"].native

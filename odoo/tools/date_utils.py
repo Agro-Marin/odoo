@@ -122,14 +122,14 @@ def resolve_date(value: str, env: Environment) -> date | datetime:
 
     from odoo.orm.fields import Date, Datetime
 
-    dt: datetime | date = Datetime.now()
+    now = Datetime.now()
     term = terms.pop(0) if terms[0] in ("today", "now") else "now"
     started_as_date = term == "today"
+    dt: datetime | date
     if started_as_date:
-        dt = Date.context_today(env["base"], dt)
+        dt = Date.context_today(env["base"], now)
     else:
-        assert isinstance(dt, datetime)
-        dt = Datetime.context_timestamp(env["base"], dt)
+        dt = Datetime.context_timestamp(env["base"], now)
 
     week_start: int | None = None
 

@@ -32,6 +32,7 @@ from odoo.libs.text import str2bool
 if TYPE_CHECKING:
     from odoo.api import Environment
     from odoo.models import BaseModel
+    from odoo.orm.primitives import CommandValue
 
 from .config import config
 from .files import file_open, file_path
@@ -368,7 +369,7 @@ form: module.record_id""" % (xml_id,)
 
         from odoo.fields import Command
 
-        groups = []
+        groups: list[CommandValue] = []
         for group in rec.get("groups", "").split(","):
             if group.startswith("-"):
                 group_id = self.id_get(group[1:])

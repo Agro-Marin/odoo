@@ -213,8 +213,8 @@ def _normalise_records(
                     record_value = record_value.id
                 case odoo.fields.One2many() | odoo.fields.Many2many():
                     record_value = sorted(record_value.ids)
-                case odoo.fields.Float() as field if digits := field.get_digits(
-                    record.env
+                case odoo.fields.Float() as field if isinstance(
+                    digits := field.get_digits(record.env), tuple
                 ):
                     record_value = Approx(record_value, digits[1], decorate=False)
                 case odoo.fields.Monetary() as field if (
