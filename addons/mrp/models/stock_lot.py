@@ -10,7 +10,6 @@ class StockLot(models.Model):
         if active_mo_id:
             active_mo = self.env["mrp.production"].browse(active_mo_id)
             component_product_ids = set(active_mo.move_raw_ids.product_id.ids)
-            product_ids = self.env.context.get("lot_product_ids", set())
             if (
                 not active_mo.picking_type_id.use_create_components_lots
                 and set(product_ids) & component_product_ids
