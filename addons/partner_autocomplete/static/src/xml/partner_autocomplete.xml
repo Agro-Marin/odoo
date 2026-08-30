@@ -19,21 +19,6 @@
         </xpath>
     </t>
 
-    <t t-name="partner_autocomplete.PartnerAutoCompleteMany2XField" t-inherit="web.Many2XAutocomplete" t-inherit-mode="primary">
-        <xpath expr="//AutoComplete" position="replace">
-            <PartnerAutoComplete t-else=""
-                value="this.props.value || ''"
-                autoSelect="true"
-                sources="sources"
-                onChange.bind="onChange"
-                input="inputRef"
-                placeholder="placeholder || ''"
-                slots="props.slots"
-                id="this.props.id"
-            />
-        </xpath>
-    </t>
-
     <t t-name="partner_autocomplete.DropdownOption">
         <div t-if="option.data.isWorldwideAction" class="o_partner_autocomplete_option text-info">
             <span t-esc="option.label"/> 🌎
