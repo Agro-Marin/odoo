@@ -10,6 +10,7 @@ class AccountPaymentChannel(models.Model):
         compute="_compute_payment_provider_id",
         store=True,
         readonly=False,
+        recursive=True,
         domain="[('code', '=', code)]",
     )
     payment_provider_state = fields.Selection(related="payment_provider_id.state")
