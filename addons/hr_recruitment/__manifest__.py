@@ -55,6 +55,10 @@
         ],
         "web.assets_unit_tests": [
             "hr_recruitment/static/tests/**/*",
+            ("remove", "hr_recruitment/static/tests/tours/**/*"),
+        ],
+        "web.assets_tests": [
+            "hr_recruitment/static/tests/tours/**/*",
         ],
     },
     "author": "Odoo S.A.",

@@ -21,9 +21,9 @@
                         invisible="not context.get('default_talent_pool_ids')"
                         groups="hr_recruitment.group_hr_recruitment_user"
                     />
-                    <button type="object" 
-                        name="archive_applicant" 
-                        string="Refuse" class="btn btn-secondary" 
+                    <button type="object"
+                        name="archive_applicant"
+                        string="Refuse" class="btn btn-secondary"
                     />
                 </header>
                 <field name="message_needaction" column_invisible="True"/>
@@ -369,7 +369,7 @@
         <field name="name">Hr Applicants kanban</field>
         <field name="model">hr.applicant</field>
         <field name="arch" type="xml">
-            <kanban  highlight_color="color" default_group_by="stage_id" class="o_kanban_applicant o_search_matching_applicant" quick_create_view="hr_recruitment.quick_create_applicant_form" sample="1" 
+            <kanban  highlight_color="color" default_group_by="stage_id" class="o_kanban_applicant o_search_matching_applicant" quick_create_view="hr_recruitment.quick_create_applicant_form" sample="1"
                 js_class="rotting_kanban">
                 <header>
                     <button
@@ -403,6 +403,8 @@
                         <t t-if="widget.deletable"><a role="menuitem" type="delete" class="dropdown-item">Delete</a></t>
                         <a role="menuitem" name="action_talent_pool_add_applicants" type="object" class="dropdown-item"
                         invisible="is_pool_applicant or is_applicant_in_pool">Add to Pool</a>
+                        <div role="separator" class="dropdown-divider"/>
+                        <field name="color" widget="kanban_color_picker"/>
                     </t>
                     <t t-name="card">
                         <widget name="web_ribbon" title="Hired" bg_color="text-bg-success" invisible="not date_closed"/>
