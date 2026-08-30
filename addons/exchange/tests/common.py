@@ -1,6 +1,7 @@
 from odoo import models
 from odoo.orm.registration import add_to_registry
 from odoo.tests.common import TransactionCase
+from odoo.tools import OrderedSet
 
 from odoo.addons.exchange.tools import Verdict
 
@@ -70,16 +71,50 @@ class ExchangeCase(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        for model_name in ("res.partner",):
-            model_cls = cls.registry[model_name]
-            cls.addClassCleanup(
-                setattr, model_cls, "_base_classes__", model_cls._base_classes__
+        # The demo models live in the registry and in no `ir_model` row, so they
+        # have to be gone again before anything reflects the registry against the
+        # database: `_reflect_inherits` builds `(model_id, parent_id)` from those
+        # rows and has no id to write for a model that has none.
+        #
+        # Two things made the old teardown a no-op. `_setup_models__(cr, [])`
+        # takes the NAMED-models branch with an empty list, which resets nothing
+        # at all -- only `model_names=None` resets every model and rebuilds
+        # `__bases__` from `_base_classes__`. And `add_to_registry` mutates more
+        # than it was given credit for: it replaces the target's
+        # `_base_classes__`, adds the child's name to EVERY parent's
+        # `_inherit_children`, and puts new entries in `registry.models`.
+        # Undoing one of those for `res.partner` alone left
+        # `mixin.exchange.subject` claiming a child that no longer declared it,
+        # and the leak accumulated per test class until the inherit reflection
+        # built a row for a pair that did not exist and died in
+        # `_upsert_inherit_rows` with `operator does not exist: integer = text`.
+        # An empty sixth ExchangeCase subclass reached it.
+        registry = cls.registry
+        models_before = dict(registry.models)
+        snapshot = [
+            (
+                model_cls,
+                model_cls._base_classes__,
+                OrderedSet(model_cls._inherit_children),
             )
+            for model_cls in registry.models.values()
+        ]
+
+        def restore():
+            registry.models.clear()
+            registry.models.update(models_before)
+            for model_cls, base_classes, inherit_children in snapshot:
+                model_cls._base_classes__ = base_classes
+                model_cls._inherit_children = inherit_children
 
         add_to_registry(cls.registry, ExchangeProtocolDemo)
         add_to_registry(cls.registry, ExchangeSubjectDemo)
         cls.registry._setup_models__(cls.env.cr, [])
-        cls.addClassCleanup(cls.registry._setup_models__, cls.env.cr, [])
+        # addClassCleanup is LIFO: `restore` registered last runs first, so the
+        # full rebuild that follows reads restored state instead of correcting
+        # itself afterwards.
+        cls.addClassCleanup(cls.registry._setup_models__, cls.env.cr)
+        cls.addClassCleanup(restore)
         cls.env = cls.env(context=dict(cls.env.context))
 
         cls.endpoint = cls.env["api.endpoint.outbound"].create(

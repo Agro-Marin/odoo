@@ -330,18 +330,16 @@ class TestExchangeBatch(ExchangeCase):
         self._batched(invoice + classification, script, batches, size=10)
         self.assertEqual(batches, [1, 1])
 
+
+class TestExchangeClaim(ExchangeCase):
+    """A send has an effect no rollback undoes, so two senders must not both make it."""
+
     def _held_elsewhere(self):
         """Make the row read as held by another transaction.
 
         The real lock cannot be exercised from one test transaction: a second
         cursor cannot see a record this one has not committed. So this stands in
         for what SKIP LOCKED returns when somebody else holds the row.
-
-        These live in this class rather than a class of their own because
-        ExchangeCase does not survive a sixth subclass -- its per-class registry
-        injection leaks `_inherit_children`, and the whole-registry inherit
-        reflection then dies in `_upsert_inherit_rows`. Fixing that fixture is
-        its own change.
         """
         self.patch(
             self.registry["exchange.transmission"],
