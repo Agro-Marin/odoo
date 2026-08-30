@@ -1,0 +1,11 @@
+{
+  "expected": {
+    "whatsapp/Subtest WhatsAppTemplateSecurity.test_tpl_phone_field_update (field_path='mobile', test_user_name='Mitchell Admin')": "FAIL",
+    "whatsapp/Subtest WhatsAppTemplateSecurity.test_tpl_phone_field_update (field_path='mobile', test_user_name='WhatsApp Wasin')": "FAIL"
+  },
+  "note": "Two subtests of WhatsAppTemplateSecurity.test_tpl_phone_field_update on field_path='mobile' were already failing before the ADR-0081 credential migration; not investigated. 56 -> 63 with the seven credential tests.",
+  "run_spec": "-i whatsapp --test-enable --test-tags '/whatsapp', fresh DB, ~50s",
+  "suite": "/whatsapp",
+  "tests_total": 63,
+  "verified_at": "a5e42dc4d7c"
+}
