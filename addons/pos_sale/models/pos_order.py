@@ -15,6 +15,7 @@ class PosOrder(models.Model):
         groups="sales_team.group_sale_salesman",
     )
 
+    @api.depends("lines.sale_order_origin_id")
     def _compute_sale_order_count(self):
         for order in self:
             order.sale_order_count = len(order.lines.mapped("sale_order_origin_id"))
