@@ -247,15 +247,51 @@ class TestNestedTemplateLiteralDetection(BaseCase):
             "const s = `${cond ? `a  b` : `c  d`}`;",
             "f(`${g(`  h  `)}`);",
             "const t = `${x.map((v) => `  ${v}  `).join('')}`;",
+            # A brace inside the substitution used to end it, after which the
+            # nested literal's opening backtick read as the outer one's closer.
+            # Every one of these answered False and went to rjsmin.
+            "const a = `${ f({}) + `n  o` }`;",
+            "const a = `${ (()=>{})() + `n  o` }`;",
+            "const a = `${ {k: 1}.k + `p  q` }`;",
+            "const a = `${ x.map(({v}) => `  ${v}  `).join('') }`;",
         ]
         for source in must_flag:
             self.assertTrue(has_nested_template_literal(source), source)
 
+    def test_a_brace_in_a_substitution_is_not_its_end(self):
+        # the other direction: braces alone are not nesting, and paying an
+        # esbuild run for every object literal in a template would be the
+        # over-correction
+        for source in (
+            "const a = `${ f({b:1}) }`;",
+            "const a = `${ {a:{b:2}} }` + `${ 1 }`;",
+        ):
+            self.assertFalse(has_nested_template_literal(source), source)
+
+    def test_a_backtick_in_a_comment_or_string_is_a_known_miss(self):
+        # Pinned as a MISS, not as correct behaviour: a stray backtick outside a
+        # template desynchronises the stack, and these still reach rjsmin. The
+        # fix is a JS tokeniser -- inside a template BODY `//` is text, so
+        # skipping to end of line there would eat the closing backtick of
+        # `https://x`. If one lands, this test is what says so.
+        for source in (
+            "// don't use ` here\nconst a = `${`n  o`}`;",
+            'const c = "a ` b";\nconst a = `${`n  o`}`;',
+        ):
+            with self.subTest(source=source):
+                self.assertFalse(has_nested_template_literal(source))
+
     def test_rjsmin_really_does_break_what_is_flagged(self):
         from rjsmin import jsmin
 
-        source = "const a = `A${`B  ${1}  C`}D`;"
-        self.assertNotIn("B  ${1}  C", jsmin(source, keep_bang_comments=True))
+        for source, intact in (
+            ("const a = `A${`B  ${1}  C`}D`;", "B  ${1}  C"),
+            ("const a = `${ f({}) + `n  o` }`;", "n  o"),
+            ("const a = `${ (()=>{})() + `n  o` }`;", "n  o"),
+        ):
+            with self.subTest(source=source):
+                self.assertTrue(has_nested_template_literal(source))
+                self.assertNotIn(intact, jsmin(source, keep_bang_comments=True))
 
     def test_the_minifier_takes_the_in_process_path(self):
         bundle = AssetsBundle(

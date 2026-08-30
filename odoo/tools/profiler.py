@@ -346,6 +346,20 @@ class MemoryCollector(_BasePeriodicCollector):
 class SyncCollector(Collector):
     name = "traces_sync"
 
+    def __init__(self) -> None:
+        super().__init__()
+        # Bind the hook ONCE.  `self.hook` builds a fresh bound method on every
+        # attribute access, so `sys.gettrace() is self.hook` -- which is what
+        # stop() used to ask -- was never true, and the trace function was never
+        # removed: not on the error path, on the ordinary one.  One profile left
+        # the worker thread traced for the rest of its life (measured: a tight
+        # loop 3x slower, entries piling into a collector nobody reads, and
+        # start()'s own "settrace is already set" guard permanently tripped, so
+        # sync profiling worked exactly once per thread).  The siblings never hit
+        # this because list.remove() compares with ==; this is the only collector
+        # that needed an identity, so it is the only one that has to own it.
+        self._hook = self.hook
+
     def start(self):
         if (existing := sys.gettrace()) is not None:
             msg = (
@@ -356,10 +370,10 @@ class SyncCollector(Collector):
         if self._processed:
             msg = "You cannot start SyncCollector after accessing entries."
             raise RuntimeError(msg)
-        sys.settrace(self.hook)
+        sys.settrace(self._hook)
 
     def stop(self):
-        if sys.gettrace() is self.hook:
+        if sys.gettrace() is self._hook:
             sys.settrace(None)
 
     def hook(self, _frame, event, _arg=None):
@@ -369,7 +383,9 @@ class SyncCollector(Collector):
         if event == "call" and _frame.f_back:
             entry["parent_frame"] = _format_frame(_frame.f_back)
         self.progress(entry, frame=_frame)
-        return self.hook
+        # the stored reference, not `self.hook`: returning the latter allocated a
+        # bound method on every traced event
+        return self._hook
 
     def _get_stack_trace(self, frame=None):
         return None
@@ -693,8 +709,17 @@ class Profiler:
                 return
             self.done = True
         try:
+            # Every collector gets stopped, whatever the one before it did.
+            # __enter__ already unwinds all-or-nothing; end() used to abort at
+            # the first raising stop(), and what it stranded outlived the
+            # request: SyncCollector's sys.settrace, MemoryCollector's
+            # process-wide lock (so no memory profiling ever again in that
+            # process) and tracemalloc left tracing.
             for collector in self.collectors:
-                collector.stop()
+                try:
+                    collector.stop()
+                except Exception:
+                    _logger.exception("Failed to stop collector %s", collector)
             self.duration = real_time() - self.start_time
             self.cpu_duration = real_cpu_time() - self.start_cpu_time
             self._add_file_lines(self.init_stack_trace)

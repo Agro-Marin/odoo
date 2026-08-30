@@ -778,7 +778,10 @@ class IrUiView(models.Model):
                 )
         return values
 
-    @api.depends("arch")
+    # `arch` alone was declared, but the body also branches on `inherit_id`,
+    # `type` and the `model` it postprocesses against, so retargeting a view
+    # left the warning describing the model it used to point at.
+    @api.depends("arch", "inherit_id", "type", "model")
     def _compute_warning_info(self) -> None:
         combined_archs = self._get_combined_archs_by_id()
         for view in self:

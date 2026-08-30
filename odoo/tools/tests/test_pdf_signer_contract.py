@@ -4,6 +4,7 @@ from typing import Any
 from unittest import mock
 
 from odoo.tools import file_open
+from odoo.tools.pdf import NameObject
 from odoo.tools.pdf import signature as pdf_signature
 from odoo.tools.pdf.signature import PdfSigner
 
@@ -108,3 +109,56 @@ class TestRotatePdf(unittest.TestCase):
         for index, page in enumerate(rotated.pages):
             with self.subTest(page=index):
                 self.assertEqual(page.get("/Rotate"), 90)
+
+
+class TestByteRangeDoesNotMoveThePlaceholder(unittest.TestCase):
+    """The digest's offsets are computed before /ByteRange is filled in.
+
+    That is only sound while /Contents serialises ahead of /ByteRange, so
+    growing the latter cannot shift the former. The property rests on one dict
+    literal's insertion order and on pypdf preserving it -- nothing states
+    either, and a violation is silent: the signature is still written, still
+    fits, and only an external verifier can tell it covers the wrong bytes.
+    """
+
+    PLACEHOLDER = b"<" + b"0" * (PdfSigner._CONTENTS_PLACEHOLDER_BYTES * 2) + b">"
+
+    def _prepared_signer(self):
+        signer = PdfSigner(_sample_pdf(), company=_ANY_COMPANY)
+        _field, value = signer._setup_form(False, "Odoo Signature", None)
+        return signer, value
+
+    def _placeholder_span(self, data):
+        start = data.find(b"Contents", data.rfind(b"/FT /Sig")) + 9
+        return start, start + PdfSigner._CONTENTS_PLACEHOLDER_BYTES * 2 + 2
+
+    def test_contents_serialises_before_byte_range(self):
+        signer, _value = self._prepared_signer()
+        data = signer._get_document_data()
+        field = data.rfind(b"/FT /Sig")
+        self.assertLess(
+            data.find(b"/Contents", field),
+            data.find(b"/ByteRange", field),
+            "/ByteRange ahead of /Contents would move the placeholder under the digest",
+        )
+
+    def test_writing_the_real_byte_range_leaves_the_placeholder_put(self):
+        signer, value = self._prepared_signer()
+        data = signer._get_document_data()
+        start, end = self._placeholder_span(data)
+        self.assertEqual(data[start:end], self.PLACEHOLDER)
+
+        value.update(
+            {
+                NameObject("/ByteRange"): signer._create_number_array_object(
+                    [0, start, end, abs(len(data) - end)]
+                )
+            }
+        )
+        after = signer._get_document_data()
+        self.assertGreater(len(after), len(data), "the fill-in should lengthen it")
+        self.assertEqual(
+            after[start:end],
+            self.PLACEHOLDER,
+            "writing /ByteRange moved the /Contents placeholder",
+        )

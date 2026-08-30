@@ -172,6 +172,12 @@ class ormcache:
                     counter.err += 1
                     return _method(*args, **kwargs)
             else:
+                # Diagnostic bookkeeping, opt-in through ODOO_ORMCACHE_TX_STATS
+                # and never pruned: it holds one int per distinct cache key the
+                # transaction touched, so it is bounded by the LRU sizes rather
+                # than by anything here. It stores hash(key), not the key, so a
+                # collision reports a second lookup as a repeat and under-counts
+                # tx_miss -- acceptable for a counter, not for a cache.
                 cr_cache = model.env.cr.cache
                 tx_lookups = cr_cache.get("_ormcache_lookups")
                 if tx_lookups is None:
@@ -236,7 +242,19 @@ class ormcache:
             return
         args, arg_globals = _render_signature(self.method)
         parameters = signature(self.method).parameters
-        first_param = next(iter(parameters), "self")
+        first_param = next(iter(parameters), None)
+        if first_param is None:
+            # The key expression opens with `<receiver>._name`, so there has to
+            # be a receiver. Defaulting the name to "self" built a lambda whose
+            # signature never declared it, and the NameError landed on the first
+            # CALL instead of here, where the mistake is.
+            msg = (
+                f"@ormcache cannot decorate {self.method.__qualname__}: it takes "
+                f"no arguments, so the cache key has no record to key on. "
+                f"ormcache decorates model methods, whose first parameter is the "
+                f"recordset."
+            )
+            raise ValueError(msg)
         if colliding := sorted(p for p in parameters if p.startswith(_RESERVED)):
             msg = (
                 f"@ormcache cannot decorate {self.method.__qualname__}: its "

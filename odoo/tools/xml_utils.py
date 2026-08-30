@@ -21,6 +21,7 @@ from odoo.tools.files import file_open
 __all__ = [
     "cleanup_xml_node",
     "dict_to_xml",
+    "find_xml_value",
     "load_xsd_files_from_url",
     "validate_xml_from_attachment",
 ]
@@ -52,13 +53,47 @@ class odoo_resolver(etree.Resolver):
         return None
 
 
+def _pick_xsd(xsd_attachments: Any, xsd_name: str | None, source: str) -> str:
+    """The one schema to validate against, out of what the source provided.
+
+    A URL serving a ZIP yields one attachment per member, and reading `.name`
+    off that recordset raised `Expected singleton` -- which is what the SAF-T
+    bundles l10n_nl_reports and l10n_dk_reports point at do. There is no way to
+    guess which member is the root schema and which are its includes, so a
+    bundle has to be told.
+    """
+    if xsd_name:
+        picked = xsd_attachments.filtered(lambda a: a.name.endswith(xsd_name))
+        if not picked:
+            available = ", ".join(sorted(xsd_attachments.mapped("name")))
+            raise FileNotFoundError(
+                f"{source} provided no XSD named {xsd_name!r}; it has: {available}"
+            )
+        return picked[0].name
+    if len(xsd_attachments) > 1:
+        available = ", ".join(sorted(xsd_attachments.mapped("name")))
+        raise ValueError(
+            f"{source} provided {len(xsd_attachments)} schemas and none was "
+            f"named: pass xsd_name= to say which one is the root. "
+            f"Available: {available}"
+        )
+    return xsd_attachments.name
+
+
 def _check_xml(
     env: Environment,
     url: str | None,
     path: str | None,
     xmls: XmlSource | list[XmlSource],
+    xsd_name: str | None = None,
 ) -> None:
     xsd_attachment: Any = env["ir.attachment"]
+    # Only the attachment this call created is this call's to remove. The URL
+    # branch populates the XSD *cache* -- that is what load_xsd_files_from_url
+    # is for, and _upsert_xsd_attachment happily returns a record that was
+    # already there -- so unlinking its result deleted schemas the caller had
+    # never asked to own.
+    owned: Any = env["ir.attachment"]
     if path:
         with file_open(path, filter_ext=(".xsd",)) as file:
             content = file.read()
@@ -66,24 +101,29 @@ def _check_xml(
             "name": path.split("/")[-1],
             "datas": base64.b64encode(content.encode()),
         }
-        xsd_attachment = env["ir.attachment"].create(attachment_vals)
+        xsd_attachment = owned = env["ir.attachment"].create(attachment_vals)
     elif url:
         xsd_attachment = load_xsd_files_from_url(env, url) or env["ir.attachment"]
 
-    if not xsd_attachment:
-        raise FileNotFoundError(
-            f"No XSD could be loaded from {url or path!r}; refusing to report "
-            f"the document as validated."
-        )
-
-    if not isinstance(xmls, list):
-        xmls = [xmls]
-
+    # Everything after the attachment exists goes inside the try, so the one
+    # this call created is removed however it leaves -- _pick_xsd raises for an
+    # unnamed bundle, and that used to escape past the cleanup.
     try:
+        if not xsd_attachment:
+            raise FileNotFoundError(
+                f"No XSD could be loaded from {url or path!r}; refusing to report "
+                f"the document as validated."
+            )
+
+        name = _pick_xsd(xsd_attachment, xsd_name, repr(url or path))
+
+        if not isinstance(xmls, list):
+            xmls = [xmls]
+
         for xml in xmls:
-            validate_xml_from_attachment(env, xml, xsd_attachment.name)
+            validate_xml_from_attachment(env, xml, name)
     finally:
-        xsd_attachment.unlink()
+        owned.unlink()
 
 
 def _check_with_xsd(
@@ -271,9 +311,20 @@ def validate_xml_from_attachment(
             "XSD %r not found; the document was NOT validated", prefixed_xsd_name
         )
     except etree.XMLSchemaParseError as e:
-        _logger.error("XSD file not valid: ")
-        for arg in e.args:
-            _logger.error(arg)
+        # Same fail-open the FileNotFoundError branch above was closed for, and
+        # the same fix: a schema that cannot be parsed validated nothing, so
+        # returning normally reports the document validated when it was never
+        # checked. `required=False` is how a caller says it will accept that.
+        if required:
+            raise FileNotFoundError(
+                f"XSD {prefixed_xsd_name!r} could not be parsed, so the "
+                f"document was not validated: {e}"
+            ) from e
+        _logger.warning(
+            "XSD %r is not valid; the document was NOT validated: %s",
+            prefixed_xsd_name,
+            e,
+        )
 
 
 def find_xml_value(

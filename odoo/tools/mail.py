@@ -26,7 +26,6 @@ from odoo.libs.email import (
     unfold_references,
     url_domain_extract,
 )
-from odoo.libs.email.parsing import _normalize_email
 from odoo.libs.text import (
     HTML_NEWLINES_REGEX,
     HTML_TAG_URL_REGEX,

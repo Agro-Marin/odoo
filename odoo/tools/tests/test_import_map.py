@@ -5,6 +5,7 @@ import json
 import re
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from odoo.tools.assets import esm_registry
 from odoo.tools.assets.esm_registry import external_libs, invalidate_esm_registry
@@ -91,6 +92,30 @@ class TestImportMapFor(unittest.TestCase):
         self.assertEqual(
             import_map_for("luxon", "@popperjs/core"),
             import_map_for("@popperjs/core", "luxon"),
+        )
+
+    def test_the_body_cannot_close_the_script_element(self):
+        # The values come from the `esm.external_libs` manifest key, so this is
+        # a stand-in for a hostile or careless one. json.dumps leaves `<` and
+        # `/` alone; the HTML parser does not care that they sit inside a JSON
+        # string, and ends the element at the first `</script`.
+        hostile = "/x.js</script><script>alert(1)</script>"
+        with mock.patch(
+            "odoo.tools.assets.import_map.external_libs",
+            return_value={"hostile": hostile},
+        ):
+            map_ = import_map_for("hostile")
+
+        self.assertNotIn("</script", self._body(map_.script_tag).lower())
+        self.assertEqual(
+            json.loads(self._body(map_.script_tag)),
+            {"imports": {"hostile": hostile}},
+            "escaping must not change what the browser decodes",
+        )
+        self.assertEqual(
+            map_.csp_hash,
+            _sha256_expr(self._body(map_.script_tag)),
+            "the hash has to cover the escaped text, which is what a browser hashes",
         )
 
     def test_unregistered_specifier_is_rejected(self):

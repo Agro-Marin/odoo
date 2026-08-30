@@ -115,7 +115,12 @@ def find_sass() -> str | None:
     for candidate in candidates:
         if _supports_embedded(candidate):
             return candidate
-    return shutil.which("sass", path=str(node_modules / ".bin")) or system_sass
+    # The npm shim is the documented install path, so it is worth an unverified
+    # try when nothing verified -- _supports_embedded also returns False for a
+    # probe that merely timed out. What is NOT worth returning is `system_sass`,
+    # which the loop above has just rejected: that tail turned a clear
+    # SassNotFoundError at startup into a protocol failure several frames later.
+    return shutil.which("sass", path=str(node_modules / ".bin"))
 
 
 class SassEmbeddedCompiler:
@@ -192,13 +197,25 @@ class SassEmbeddedCompiler:
         idx = 0
         compilation_id = 0
         shift = 0
+        terminated = False
         while idx < len(payload):
             b = payload[idx]
             idx += 1
             compilation_id |= (b & 0x7F) << shift
             if not (b & 0x80):
+                terminated = True
                 break
             shift += 7
+            if shift >= 64:
+                # Same refusal _read_varint makes thirty lines up. Without it a
+                # frame of continuation bytes fell out of the loop and returned
+                # (0, b"") -- which protobuf parses to a default message the
+                # caller cannot tell from a real reply.
+                msg = "Varint too long"
+                raise SassProtocolError(msg)
+        if not terminated:
+            msg = "Truncated compilation id in packet from sass --embedded"
+            raise SassProtocolError(msg)
 
         return compilation_id, payload[idx:]
 

@@ -1,4 +1,5 @@
 import dataclasses
+import typing
 from datetime import date, datetime
 
 from odoo.libs.collections import ReadonlyDict
@@ -38,6 +39,25 @@ __all__ = [
 ]
 
 
+_fields: typing.Any = None
+
+
+def _odoo_fields() -> typing.Any:
+    """`odoo.fields`, bound once.
+
+    The import cannot move to module scope -- odoo.fields imports this package --
+    but it does not have to run per object either: the statement costs 250ns
+    against 21ns for the cached global, and `_convert` is on the encoding path
+    for every date, Markup, dataclass and recordset in a response.
+    """
+    global _fields  # noqa: PLW0603  one-time lazy binding of a module that imports us
+    if _fields is None:
+        from odoo import fields
+
+        _fields = fields
+    return _fields
+
+
 def _convert(obj: object) -> object:
     """The one conversion table both defaults answer to.
 
@@ -46,7 +66,7 @@ def _convert(obj: object) -> object:
     `{"x": 1}` through one encoder and `"P(x=1)"` through the other.  One table,
     two drivers -- what differs between them is recursion, not policy.
     """
-    from odoo import fields
+    fields = _odoo_fields()
 
     if isinstance(obj, datetime):
         return fields.Datetime.to_string(obj)

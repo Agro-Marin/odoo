@@ -338,6 +338,9 @@ def format_duration(value: float) -> str:
     if minutes == 60:
         minutes = 0
         hours += 1
-    if value < 0:
+    # The sign comes from what survived the rounding, not from the input: a
+    # negative smaller than half a minute rounds away to nothing, and testing
+    # `value < 0` printed it as "-00:00".
+    if value < 0 and (hours or minutes):
         return "-%02d:%02d" % (hours, minutes)
     return "%02d:%02d" % (hours, minutes)

@@ -29,11 +29,6 @@ KNOWN_PATCHES: dict[tuple[str, str], str] = {
         "but the patch is only meaningful once odoo.tests is imported. DEBT, "
         "small."
     ),
-    ("libs/image/utils.py", "Image._initialized"): (
-        "Forces PIL to re-run plugin registration. Load-order sensitive: it has "
-        "to happen after odoo's own PIL imports, which _monkeypatches' "
-        "import-hook timing does not guarantee."
-    ),
     ("logutils.py", "logging.RUNBOT"): (
         "Registers a custom log level. logutils IS the logging module of this "
         "codebase; _monkeypatches/logging.py would invert that."

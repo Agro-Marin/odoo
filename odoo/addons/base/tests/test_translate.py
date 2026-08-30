@@ -2329,3 +2329,101 @@ class TestReconcileObsoleteTerms(TransactionCase):
         }
         field._reconcile_obsolete_terms(td, {new_term}, "fr_FR", self.env)
         self.assertEqual(td[new_term], {"fr_FR": "existing-trans"})
+
+
+@tagged("post_install", "-at_install")
+class TestTranslationImportCrossModel(TransactionCase):
+    """A .po naming one model for an xmlid that belongs to another writes nowhere.
+
+    An xmlid is unique, so (module, name) resolves to exactly one ir_model_data
+    row -- but `m.id = imd.res_id` then matches whatever row of the named model's
+    table carries that id, and every model has its own sequence, so the ids
+    collide by default.  Without `imd.model` in the join, a model_terms row
+    translated an unrelated record of the model the .po named.
+
+    `_save_model_translations` has always carried that guard; the model_terms
+    path did not, and the two take identically shaped rows from `_load`.
+    Reached by module install/upgrade (`_load_module_terms` passes no xmlids
+    filter) as well as by the Import Translation wizard.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.env["res.lang"]._activate_lang("fr_FR")
+
+    def _import(self, po_string):
+        with io.BytesIO(po_string.encode()) as f:
+            f.name = "dummy"
+            importer = TranslationImporter(self.env.cr, verbose=False)
+            importer.load(f, "po", "fr_FR")
+            importer.save(overwrite=True)
+
+    def test_model_terms_row_for_a_foreign_xmlid_touches_nothing(self):
+        victim = self.env["ir.ui.view"].create(
+            {
+                "name": "cross model victim",
+                "type": "qweb",
+                "key": "base.cross_model_victim",
+                "arch_db": "<t><p>Innocent bystander</p></t>",
+            }
+        )
+        # the xmlid resolves to a DIFFERENT model, at the same res_id
+        self.env["ir.model.data"].create(
+            {
+                "module": "base",
+                "name": "cross_model_probe",
+                "model": "ir.model.fields",
+                "res_id": victim.id,
+            }
+        )
+        self.env.flush_all()
+
+        self._import(
+            """#. module: base
+#: model_terms:ir.ui.view,arch_db:base.cross_model_probe
+msgid "Innocent bystander"
+msgstr "SPECTATEUR INNOCENT"
+"""
+        )
+        self.env.invalidate_all()
+
+        self.assertEqual(
+            self.env["ir.ui.view"].browse(victim.id).with_context(lang="fr_FR").arch_db,
+            "<t><p>Innocent bystander</p></t>",
+            "a model_terms row whose xmlid belongs to another model must not "
+            "translate the record that happens to share its id",
+        )
+
+    def test_model_terms_row_for_its_own_xmlid_still_applies(self):
+        view = self.env["ir.ui.view"].create(
+            {
+                "name": "cross model control",
+                "type": "qweb",
+                "key": "base.cross_model_control",
+                "arch_db": "<t><p>Innocent bystander</p></t>",
+            }
+        )
+        self.env["ir.model.data"].create(
+            {
+                "module": "base",
+                "name": "cross_model_control",
+                "model": "ir.ui.view",
+                "res_id": view.id,
+            }
+        )
+        self.env.flush_all()
+
+        self._import(
+            """#. module: base
+#: model_terms:ir.ui.view,arch_db:base.cross_model_control
+msgid "Innocent bystander"
+msgstr "SPECTATEUR INNOCENT"
+"""
+        )
+        self.env.invalidate_all()
+
+        self.assertEqual(
+            self.env["ir.ui.view"].browse(view.id).with_context(lang="fr_FR").arch_db,
+            "<t><p>SPECTATEUR INNOCENT</p></t>",
+            "the guard must not cost a correctly-referenced translation",
+        )

@@ -137,7 +137,12 @@ def standalone(*tags: str) -> Callable[[Callable], Callable]:
     return register
 
 
-def test_xsd(url=None, path=None, skip=False):
+def test_xsd(url=None, path=None, skip=False, xsd_name=None):
+    """Validate what the decorated method returns against an XSD.
+
+    `xsd_name` names the root schema when `url` serves an archive of several --
+    without it a bundle has no single `.name` to validate against.
+    """
 
     def decorator(func):
         @wraps(func)
@@ -147,7 +152,7 @@ def test_xsd(url=None, path=None, skip=False):
                     skip if isinstance(skip, str) else "XSD validation disabled"
                 )
             xmls = func(self, *args, **kwargs)
-            _check_xml(self.env, url, path, xmls)
+            _check_xml(self.env, url, path, xmls, xsd_name)
 
         return wrapped_f
 

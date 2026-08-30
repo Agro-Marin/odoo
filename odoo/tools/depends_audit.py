@@ -188,6 +188,13 @@ def audit_registry(
         for field in model_class._fields.values():
             if not field.compute:
                 continue
+            if field.related or field.is_properties:
+                # Their `compute` is the framework's own -- `Field._compute_related`
+                # and the properties equivalent -- so scanning its bytecode
+                # attributes the ORM's attribute reads to the model. 92 of the
+                # 133 findings at the widest scope were exactly that, which is
+                # what made the widest scope unusable.
+                continue
             if field.store and not include_stored:
                 continue
             if only_without_dependencies and (

@@ -128,3 +128,4 @@ from . import test_default_group
 from . import test_ir_actions_webhook
 
 from . import test_res_partner_age_range
+from . import test_xml_utils

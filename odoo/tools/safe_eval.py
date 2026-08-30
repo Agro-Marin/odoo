@@ -41,32 +41,46 @@ def _import(
         )
 
 
-for module in _ALLOWED_MODULES:
-    __import__(module)
+for _allowed_module in _ALLOWED_MODULES:
+    # Imported eagerly so time.strptime does not lazily import _strptime from
+    # inside a safe_eval. Underscore-named because this module's own error text
+    # tells callers that its attributes are pre-wrapped modules, and a bare
+    # loop variable left `odoo.tools.safe_eval.module == "time"` sitting there.
+    __import__(_allowed_module)
+del _allowed_module
 
 
-_UNSAFE_ATTRIBUTES = [
-    "f_builtins",
-    "f_code",
-    "f_globals",
-    "f_locals",
-    "f_generator",
-    "func_code",
-    "func_globals",
-    "co_code",
-    "_co_code_adaptive",
-    "mro",
-    "tb_frame",
-    "gi_code",
-    "gi_frame",
-    "gi_yieldfrom",
-    "cr_await",
-    "cr_code",
-    "cr_frame",
-    "ag_await",
-    "ag_code",
-    "ag_frame",
-]
+_UNSAFE_ATTRIBUTES = frozenset(
+    {
+        "f_builtins",
+        "f_code",
+        "f_globals",
+        "f_locals",
+        "f_generator",
+        "func_code",
+        "func_globals",
+        "co_code",
+        "_co_code_adaptive",
+        "mro",
+        "tb_frame",
+        "gi_code",
+        "gi_frame",
+        "gi_yieldfrom",
+        "cr_await",
+        "cr_code",
+        "cr_frame",
+        "ag_await",
+        "ag_code",
+        "ag_frame",
+    }
+)
+"""Attribute names no expression, XML `<function>` or RPC call may reach.
+
+A set rather than a list because all three consumers ask only for
+membership, and one of them -- `service.model.get_public_method` -- asks on
+the RPC fast path, ahead of its method cache.  Walking twenty entries there
+measured 94ns against 36ns for the set.
+"""
 
 
 def to_opcodes(opnames: list[str], _opmap: dict[str, int] = opmap) -> Iterator[int]:
@@ -395,10 +409,22 @@ class _FormatGuardTransform(ast.NodeTransformer):
 
 
 def assert_valid_codeobj(
-    allowed_codes: frozenset[int] | set[int], code_obj: CodeType, expr: str | bytes
+    allowed_codes: frozenset[int] | set[int],
+    code_obj: CodeType,
+    expr: str | bytes,
+    *,
+    memoise: bool = True,
 ) -> None:
+    """Validate `code_obj`, memoising the verdict unless the caller has its own.
+
+    `memoise=False` is for `_compile_and_validate`, whose lru_cache hands back
+    the code object itself: after the first call it never re-enters here, so
+    every entry it wrote was written once and read never -- while competing for
+    the same 8192 slots with `const_eval`/`expr_eval`/`test_python_expr`, which
+    do come back and do read them.
+    """
     nested_code = [c for c in code_obj.co_consts if isinstance(c, CodeType)]
-    cacheable = not nested_code
+    cacheable = memoise and not nested_code
 
     cache_key = None
     if cacheable:
@@ -425,7 +451,7 @@ def assert_valid_codeobj(
         )
 
     for const in nested_code:
-        assert_valid_codeobj(allowed_codes, const, "lambda")
+        assert_valid_codeobj(allowed_codes, const, "lambda", memoise=memoise)
 
     if cacheable:
         if len(_validated_bytecode_cache) >= _VALIDATED_CACHE_MAX:
@@ -562,7 +588,7 @@ def _compile_and_validate(
     grow this without limit.
     """
     code = compile_codeobj(expr, filename=filename, mode=mode, guard_format=True)
-    assert_valid_codeobj(_SAFE_OPCODES, code, expr)
+    assert_valid_codeobj(_SAFE_OPCODES, code, expr, memoise=False)
     return code
 
 
@@ -693,9 +719,10 @@ class wrap_module:
         return self._repr
 
 
-mods = ["parser", "relativedelta", "rrule", "tz"]
-for mod in mods:
-    __import__("dateutil.%s" % mod)
+_DATEUTIL_SUBMODULES = ["parser", "relativedelta", "rrule", "tz"]
+for _dateutil_submodule in _DATEUTIL_SUBMODULES:
+    __import__("dateutil.%s" % _dateutil_submodule)
+del _dateutil_submodule
 
 datetime = wrap_module(
     __import__("datetime"),

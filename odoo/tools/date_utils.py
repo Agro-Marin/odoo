@@ -38,11 +38,15 @@ if typing.TYPE_CHECKING:
     from odoo.orm.runtime import Environment
 
 _TRUNCATE_TODAY = relativedelta(microsecond=0, second=0, minute=0, hour=0)
+# Keyed by the SINGULAR relativedelta field `=` sets, so every key here has to be
+# one relativedelta accepts.  "week" was not -- relativedelta takes `weeks`, not
+# `week` -- so the only path that could read it was `=Nw`, which raised TypeError
+# and surfaced as "Invalid term". Nothing documents or tests `=Nw`; the entry was
+# describing a spelling that never worked.
 _TRUNCATE_UNIT = {
     "day": _TRUNCATE_TODAY,
     "month": _TRUNCATE_TODAY,
     "year": _TRUNCATE_TODAY,
-    "week": _TRUNCATE_TODAY,
     "hour": relativedelta(microsecond=0, second=0, minute=0),
     "minute": relativedelta(microsecond=0, second=0),
     "second": relativedelta(microsecond=0),
@@ -110,6 +114,8 @@ def _apply_unit_term(dt: datetime | date, operator: str, term: str) -> datetime 
         # a singular relativedelta key SETS the field rather than shifting it
         number = int(term[1:-1])
         unit = unit.removesuffix("s")
+        if unit not in _TRUNCATE_UNIT:
+            raise ValueError(f"{term[-1]!r} cannot be set with '='; use '+' or '-'")
         if isinstance(dt, datetime):
             dt += _TRUNCATE_UNIT[unit]
     return dt + relativedelta(**{unit: number})

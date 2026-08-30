@@ -18,7 +18,7 @@ class QueryTestCase(BaseCase):
 
         self.assertEqual(
             query.from_clause.code,
-            '"product_product", "product_template" JOIN "product_category" AS "product_template__categ_id" ON ("product_template"."categ_id" = "product_template__categ_id"."id") LEFT JOIN "res_user" AS "product_product__user_id" ON ("product_product"."user_id" = "product_product__user_id"."id")',
+            '"product_product" CROSS JOIN "product_template" JOIN "product_category" AS "product_template__categ_id" ON ("product_template"."categ_id" = "product_template__categ_id"."id") LEFT JOIN "res_user" AS "product_product__user_id" ON ("product_product"."user_id" = "product_product__user_id"."id")',
         )
         self.assertEqual(
             query.where_clause.code,
@@ -40,7 +40,7 @@ class QueryTestCase(BaseCase):
 
         self.assertEqual(
             query.from_clause.code,
-            '"product_product", "product_template" JOIN "product_category" AS "product_template__categ_id" ON ("product_template"."categ_id" = "product_template__categ_id"."id") LEFT JOIN "res_user" AS "product_template__categ_id__user_id" ON ("product_template__categ_id"."user_id" = "product_template__categ_id__user_id"."id")',
+            '"product_product" CROSS JOIN "product_template" JOIN "product_category" AS "product_template__categ_id" ON ("product_template"."categ_id" = "product_template__categ_id"."id") LEFT JOIN "res_user" AS "product_template__categ_id__user_id" ON ("product_template__categ_id"."user_id" = "product_template__categ_id__user_id"."id")',
         )
         self.assertEqual(
             query.where_clause.code,
@@ -64,7 +64,7 @@ class QueryTestCase(BaseCase):
 
         self.assertEqual(
             query.from_clause.code,
-            '"product_product", "product_template", "account_account" JOIN "product_category" AS "product_template__categ_id" ON ("product_template"."categ_id" = "product_template__categ_id"."id") LEFT JOIN "res_user" AS "product_template__categ_id__user_id" ON ("product_template__categ_id"."user_id" = "product_template__categ_id__user_id"."id")',
+            '"product_product" CROSS JOIN "product_template" CROSS JOIN "account_account" JOIN "product_category" AS "product_template__categ_id" ON ("product_template"."categ_id" = "product_template__categ_id"."id") LEFT JOIN "res_user" AS "product_template__categ_id__user_id" ON ("product_template__categ_id"."user_id" = "product_template__categ_id__user_id"."id")',
         )
         self.assertEqual(
             query.where_clause.code,
@@ -143,7 +143,7 @@ class QueryTestCase(BaseCase):
         query = Query(None, "foo")
         query.add_table("bar", SQL("(SELECT id FROM foo)"))
         from_clause = query.from_clause.code
-        self.assertEqual(from_clause, '"foo", (SELECT id FROM foo) AS "bar"')
+        self.assertEqual(from_clause, '"foo" CROSS JOIN (SELECT id FROM foo) AS "bar"')
 
         query = Query(None, "foo")
         query.join("foo", "bar_id", SQL("(SELECT id FROM foo)"), "id", "bar")
@@ -222,3 +222,64 @@ class TestQuery(TransactionCase):
         )
         total = query.count_matching()
         self.assertGreaterEqual(total, 0)
+
+    def test_extra_tables_and_joins_produce_executable_sql(self):
+        """A second table plus a join must reach the server, not just a string.
+
+        `from_clause` used to separate tables with a comma, which binds looser
+        than an explicit JOIN, so an ON clause naming anything but the table
+        immediately to its left was rejected:
+            ERROR:  invalid reference to FROM-clause entry for table "res_partner"
+        Two of the string assertions in QueryTestCase pinned exactly that SQL,
+        and none of them executed it -- which is why the shape survived. This
+        one executes.
+        """
+        query = Query(self.env, "res_partner")
+        query.add_table("res_users")
+        query.left_join("res_partner", "company_id", "res_company", "id", "company")
+        query.add_where(SQL('"res_users"."partner_id" = "res_partner"."id"'))
+        query.limit = 1
+        # the assertion is that this does not raise
+        self.env.execute_query(query.select())
+
+    def test_count_matching_honours_a_zero_limit(self):
+        """limit=0 is a limit, and its answer is 0.
+
+        `if limit:` sent a zero down the unlimited branch and returned the full
+        count -- while search_count(domain, limit=0) reaches Query.__len__,
+        which has read it as `is not None` since the limit-zero pass. The two
+        counters on one class disagreed about one input.
+        """
+        model = self.env["res.partner.category"]
+        model.create([{"name": f"CMZ Test {i}"} for i in range(3)])
+        query = model._search([("name", "like", "CMZ Test")])
+        self.assertEqual(query.count_matching(limit=0), 0)
+        self.assertEqual(query.count_matching(limit=2), 2)
+        self.assertEqual(query.count_matching(), 3)
+        self.assertEqual(model.search_count([("name", "like", "CMZ Test")], limit=0), 0)
+
+    def test_a_widening_limit_drops_the_memoised_empty_result(self):
+        """limit and offset can turn an empty result non-empty.
+
+        `_invalidate_ids` keeps a memoised () on purpose, and its comment used
+        to argue no mutator could repopulate. Two can: raising `limit` off 0 and
+        lowering `offset` past the end. Both returned the stale () from
+        get_result_ids/__bool__/__len__/__iter__ with no query issued.
+        """
+        model = self.env["res.partner.category"]
+        model.create([{"name": f"CMW Test {i}"} for i in range(3)])
+        domain = [("name", "like", "CMW Test")]
+
+        query = model._search(domain)
+        query.limit = 0
+        self.assertEqual(query.get_result_ids(), ())
+        query.limit = 10
+        self.assertEqual(len(query.get_result_ids()), 3)
+        self.assertFalse(query.is_empty())
+
+        query = model._search(domain)
+        query.offset = 99
+        self.assertEqual(query.get_result_ids(), ())
+        query.offset = 0
+        self.assertEqual(len(query.get_result_ids()), 3)
+        self.assertTrue(bool(query))

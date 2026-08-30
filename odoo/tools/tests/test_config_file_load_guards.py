@@ -36,7 +36,66 @@ class TestUnreadableInputIsTolerated(_ConfigFileCase):
             path.chmod(0o600)
 
 
+class TestAnExplicitlyChosenFileIsLoud(_ConfigFileCase):
+    """Tolerance belongs to the default path, not to one somebody wrote down.
+
+    ODOO_RC pointing at a file the server cannot open used to start it on
+    hardcoded defaults -- admin_passwd back to 'admin' -- and say nothing.
+    """
+
+    def setUp(self):
+        super().setUp()
+        # configmanager() parses the ambient environment on construction, so a
+        # developer with ODOO_RC set would otherwise be the thing under test.
+        for source in self._explicit_sources():
+            source.pop("config", None)
+        self.path = self.write("locked.conf", "[options]\nhttp_port = 1\n")
+        self.path.chmod(0o000)
+        self.addCleanup(self.path.chmod, 0o600)
+
+    def _explicit_sources(self):
+        return (
+            self.config._override_options,
+            self.config._runtime_options,
+            self.config._cli_options,
+            self.config._env_options,
+        )
+
+    def check(self, source):
+        source["config"] = str(self.path)
+        with self.assertRaises(SystemExit):
+            self.config._check_config_file_is_readable()
+
+    def test_from_the_environment(self):
+        self.check(self.config._env_options)
+
+    def test_from_the_command_line(self):
+        self.check(self.config._cli_options)
+
+    def test_from_an_override(self):
+        self.check(self.config._override_options)
+
+    def test_the_default_path_stays_tolerated(self):
+        self.config._default_options["config"] = str(self.path)
+        self.config._check_config_file_is_readable()  # must not raise
+
+    def test_a_readable_explicit_file_is_fine(self):
+        readable = self.write("fine.conf", "[options]\nhttp_port = 1\n")
+        self.config._env_options["config"] = str(readable)
+        self.config._check_config_file_is_readable()  # must not raise
+
+    def test_an_absent_explicit_file_is_not_this_guard_s_business(self):
+        self.config._env_options["config"] = str(self.tmp / "nope.conf")
+        self.config._check_config_file_is_readable()  # must not raise
+
+
 class TestParseFailuresAreLoud(_ConfigFileCase):
+    def test_an_undecodable_file_raises_instead_of_a_bare_traceback(self):
+        path = self.tmp / "binary.conf"
+        path.write_bytes(b"[o\xa3ptions]\nhttp_port = 1\n")
+        with self.assertRaises(SystemExit):
+            self.load(path)
+
     def test_an_ordinary_file_still_loads(self):
         loaded = self.load(
             self.write("good.conf", "[options]\nhttp_port = 9999\ndb_name = probe\n")

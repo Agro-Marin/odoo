@@ -38,5 +38,35 @@ class TestExpressionNodeHandling(unittest.TestCase):
                 self.assertNotIn("(", msg.rstrip("."))
 
 
+class TestSubscriptSupportIsWholeNotHalf(unittest.TestCase):
+    """`a[b]` resolved and `a[b:c]` raised, and the reason was a dead entry.
+
+    _CONTEXTUAL_CHILDREN carried ast.Index -- the pre-3.9 slice wrapper, which
+    the parser has not produced since and which nothing can be an instance of
+    (ast.Index.__new__ returns its argument). Its replacement, ast.Slice, was
+    never added, so Subscript recursed into a node type the table did not know.
+    """
+
+    def test_a_plain_subscript_resolves(self):
+        self.assertEqual(get_expression_field_names("a[b]"), {"a", "b"})
+
+    def test_a_sliced_subscript_resolves(self):
+        self.assertEqual(get_expression_field_names("a[b:c]"), {"a", "b", "c"})
+
+    def test_a_three_part_slice_resolves(self):
+        self.assertEqual(get_expression_field_names("a[b:c:d]"), {"a", "b", "c", "d"})
+
+    def test_a_constant_slice_contributes_no_names(self):
+        self.assertEqual(get_expression_field_names("a[1:2]"), {"a"})
+
+    def test_the_dead_index_entry_is_gone(self):
+        import ast
+
+        from odoo.tools.view_validation import _CONTEXTUAL_CHILDREN
+
+        self.assertNotIn(ast.Index, _CONTEXTUAL_CHILDREN)
+        self.assertIn(ast.Slice, _CONTEXTUAL_CHILDREN)
+
+
 if __name__ == "__main__":
     unittest.main()

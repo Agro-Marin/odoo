@@ -33,6 +33,7 @@ class Query:
     __slots__ = (
         "_any_value_orderby",
         "_collect_order_groupby",
+        "_empty_by_construction",
         "_env",
         "_groupby",
         "_having",
@@ -68,15 +69,39 @@ class Query:
 
         self._ids: tuple[int, ...] | None = None
 
+        # Emptiness that no mutation can undo, as opposed to an empty result
+        # that merely happened to be measured: set_result_ids([]) writes a
+        # WHERE FALSE, and that holds whatever anyone does to limit or offset
+        # afterwards.  Keeping the two apart is what lets _drop_ids be blunt.
+        self._empty_by_construction: bool = False
+
     def _invalidate_ids(self) -> None:
-        # A memoised *empty* result is deliberately kept: no mutator on this
-        # class can turn an empty query non-empty.  add_table cross-joins,
-        # add_join cannot add left rows, add_where ANDs, GROUP BY/HAVING over
-        # zero rows still yields zero, and set_result_ids refuses a non-virgin
-        # query.  Adding a mutator that CAN repopulate means dropping this
-        # guard -- otherwise the stale () is returned as a real answer.
+        # A memoised *empty* result is kept for the mutators that can only ever
+        # NARROW: add_table cross-joins, add_join cannot add left rows,
+        # add_where ANDs, GROUP BY/HAVING over zero rows still yields zero,
+        # ORDER BY reorders nothing, and set_result_ids refuses a non-virgin
+        # query.
+        #
+        # The two that can WIDEN go through _drop_ids instead.  This list used
+        # to claim "no mutator on this class can turn an empty query non-empty"
+        # and it was wrong when it was written: raising `limit` off 0, or
+        # lowering `offset` past the end of the result, both repopulate, and
+        # keeping the () there handed a stale empty answer to get_result_ids,
+        # __bool__, __len__, __iter__ and is_empty with no query issued to
+        # correct it.  A new mutator belongs on one side or the other; when in
+        # doubt it belongs on _drop_ids -- a query costs less than a wrong
+        # answer, and a query that cannot have rows is answered by
+        # _empty_by_construction without one.
         if self._ids:
             self._ids = None
+
+    def _drop_ids(self) -> None:
+        """Forget the measured result, empty or not -- this mutator can widen.
+
+        `_empty_by_construction` is untouched: a WHERE FALSE is not a
+        measurement and no limit or offset brings rows back through it.
+        """
+        self._ids = None
 
     @staticmethod
     def make_alias(alias: str, link: str) -> str:
@@ -190,7 +215,7 @@ class Query:
     @limit.setter
     def limit(self, value: int | None):
         self._limit = value
-        self._invalidate_ids()
+        self._drop_ids()
 
     @property
     def offset(self) -> int | None:
@@ -199,7 +224,7 @@ class Query:
     @offset.setter
     def offset(self, value: int | None):
         self._offset = value
-        self._invalidate_ids()
+        self._drop_ids()
 
     @property
     def table(self) -> str:
@@ -207,7 +232,17 @@ class Query:
 
     @property
     def from_clause(self) -> SQL:
-        tables = SQL(", ").join(
+        # CROSS JOIN, not a comma, and the difference is the difference between
+        # valid and invalid SQL.  Every join is emitted as one trailing block,
+        # so with a second table an ON clause has to reach back across the
+        # separator -- and a comma binds looser than an explicit JOIN, so
+        # PostgreSQL refuses:
+        #     FROM a, b LEFT JOIN c ON (c.id = a.id)
+        #     ERROR:  invalid reference to FROM-clause entry for table "a"
+        # CROSS JOIN is the same operation and the same result set, but it makes
+        # everything to its left one joined table, which the ON clause may name.
+        # A single-table query renders no separator either way.
+        tables = SQL(" CROSS JOIN ").join(
             itertools.starmap(_sql_from_table, self._tables.items())
         )
         if not self._joins:
@@ -226,7 +261,7 @@ class Query:
         return SQL(" AND ").join(self._where_clauses)
 
     def is_empty(self) -> bool:
-        return self._ids == ()
+        return self._empty_by_construction or self._ids == ()
 
     def select(self, *args: str | SQL) -> SQL:
         sql_args = map(SQL, args) if args else [SQL.identifier(self.table, "id")]
@@ -267,7 +302,12 @@ class Query:
 
     def get_result_ids(self) -> tuple[int, ...]:
         if self._ids is None:
-            self._ids = tuple(id_ for (id_,) in self._env.execute_query(self.select()))
+            if self._empty_by_construction:
+                self._ids = ()
+            else:
+                self._ids = tuple(
+                    id_ for (id_,) in self._env.execute_query(self.select())
+                )
         return self._ids
 
     def set_result_ids(self, ids: Iterable[int], ordered: bool = True) -> None:
@@ -278,6 +318,7 @@ class Query:
         ids = tuple(ids)
         if not ids:
             self.add_where(SQL("FALSE"))
+            self._empty_by_construction = True
         elif ordered:
             alias = self.join(
                 self.table,
@@ -301,6 +342,10 @@ class Query:
         return bool(self.get_result_ids())
 
     def __len__(self) -> int:
+        """How many rows this query RETURNS -- limit and offset included.
+
+        `count_matching()` answers the other question; see its docstring.
+        """
         if self._ids is None:
             if self.limit is not None or self.offset or self.groupby or self.having:
                 sql = SQL("SELECT COUNT(*) FROM (%s) t", self.select(""))
@@ -310,7 +355,39 @@ class Query:
         return len(self.get_result_ids())
 
     def count_matching(self, limit: int | None = None) -> int:
-        if self.groupby or self.having or limit:
+        """How many rows MATCH, ignoring this query's own limit and offset.
+
+        Not the same question as `__len__`, which answers how many rows this
+        query would RETURN and therefore honours them.  On a query with
+        `limit = 2` over five matching rows, `len(q)` is 2 and
+        `count_matching()` is 5; both are right, and web_read wants the second
+        for its pager while iterating the query wants the first.
+
+        `is not None`, not truthiness: limit=0 is a real limit whose answer is
+        0, and None is the only spelling of "no limit" -- web_read passes a
+        count_limit that is legitimately None.  select(), subselect(),
+        __len__() and set_result_ids() already read it this way, and
+        search_count(domain, limit=0) reaches __len__ and correctly answers 0,
+        so this was the one counter on the class that disagreed with the rest.
+        """
+        # A query that cannot have rows, and a result already measured over the
+        # whole match set, are both answers this object holds. get_result_ids,
+        # __len__ and is_empty consult them; this counter issued SQL regardless,
+        # down to `SELECT COUNT(*) ... WHERE FALSE`.  The `_ids` shortcut needs
+        # limit/offset unset, because only then do the memoised ids span every
+        # matching row rather than one window of them.
+        if self._empty_by_construction:
+            return 0
+        if (
+            self._ids is not None
+            and self.limit is None
+            and not self.offset
+            and not self.groupby
+            and not self.having
+        ):
+            return len(self._ids) if limit is None else min(len(self._ids), limit)
+
+        if self.groupby or self.having or limit is not None:
             parts = [SQL("SELECT FROM %s", self.from_clause)]
             if self._where_clauses:
                 parts.append(SQL(" WHERE %s", self.where_clause))
@@ -318,7 +395,7 @@ class Query:
                 parts.append(SQL(" GROUP BY %s", self.groupby))
             if self.having:
                 parts.append(SQL(" HAVING %s", self.having))
-            if limit:
+            if limit is not None:
                 parts.append(SQL(" LIMIT %s", limit))
             return self._env.execute_query(
                 SQL("SELECT COUNT(*) FROM (%s) t", SQL("").join(parts))

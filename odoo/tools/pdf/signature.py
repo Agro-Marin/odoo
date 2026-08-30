@@ -85,10 +85,14 @@ class PdfSigner:
         if not self.company or not HAS_CRYPTOGRAPHY or not self.usable:
             return None
 
-        form = self._setup_form(visible_signature, field_name, signer)
-        if form is None:
-            return None
-        _dummy, sig_field_value = form
+        # `| None` used to sit on _setup_form's return type, and the branch that
+        # answered it could not fire: the method has one return statement and it
+        # always yields the pair.  The unreachable arm was the whole reason
+        # test_pdf_signer_contract could not unpack the result without mypy
+        # calling it an iteration over None.
+        _dummy, sig_field_value = self._setup_form(
+            visible_signature, field_name, signer
+        )
 
         if not self._perform_signature(sig_field_value):
             return None
@@ -223,7 +227,7 @@ class PdfSigner:
         visible_signature: bool,
         field_name: str,
         signer: ResUsers | None = None,
-    ) -> tuple[DictionaryObject, DictionaryObject] | None:
+    ) -> tuple[DictionaryObject, DictionaryObject]:
         form = self._acro_form()
         page = self.writer.pages[0]
 
@@ -384,6 +388,39 @@ class PdfSigner:
             }
         )
 
+    def _locate_contents_placeholder(
+        self, pdf_data: bytes
+    ) -> tuple[int, int, bytes] | None:
+        """Where the zero-filled /Contents blob sits, and what it should read.
+
+        Returns the offsets and the expected bytes so the caller can re-check
+        the same window after writing /ByteRange -- that second comparison is
+        the point, so it uses these offsets rather than searching again.
+        """
+        signature_field_pos = pdf_data.rfind(b"/FT /Sig")
+        if signature_field_pos == -1:
+            _logger.warning(
+                "Cannot sign PDF: no /FT /Sig field in the serialized document"
+            )
+            return None
+        contents_field_pos = pdf_data.find(b"Contents", signature_field_pos)
+        if contents_field_pos == -1:
+            _logger.warning(
+                "Cannot sign PDF: no /Contents entry after the signature field"
+            )
+            return None
+
+        placeholder_start = contents_field_pos + 9
+        placeholder_end = placeholder_start + self._CONTENTS_PLACEHOLDER_BYTES * 2 + 2
+        placeholder = b"<" + b"0" * (self._CONTENTS_PLACEHOLDER_BYTES * 2) + b">"
+        if pdf_data[placeholder_start:placeholder_end] != placeholder:
+            _logger.warning(
+                "Cannot sign PDF: /Contents placeholder not found at the "
+                "computed offset"
+            )
+            return None
+        return placeholder_start, placeholder_end, placeholder
+
     def _perform_signature(self, sig_field_value: DictionaryObject) -> bool:
         private_key, certificate = self._load_key_and_certificate()
         if private_key is None or certificate is None:
@@ -399,28 +436,10 @@ class PdfSigner:
 
         pdf_data = self._get_document_data()
 
-        signature_field_pos = pdf_data.rfind(b"/FT /Sig")
-        if signature_field_pos == -1:
-            _logger.warning(
-                "Cannot sign PDF: no /FT /Sig field in the serialized document"
-            )
+        located = self._locate_contents_placeholder(pdf_data)
+        if located is None:
             return False
-        contents_field_pos = pdf_data.find(b"Contents", signature_field_pos)
-        if contents_field_pos == -1:
-            _logger.warning(
-                "Cannot sign PDF: no /Contents entry after the signature field"
-            )
-            return False
-
-        placeholder_start = contents_field_pos + 9
-        placeholder_end = placeholder_start + self._CONTENTS_PLACEHOLDER_BYTES * 2 + 2
-        placeholder = b"<" + b"0" * (self._CONTENTS_PLACEHOLDER_BYTES * 2) + b">"
-        if pdf_data[placeholder_start:placeholder_end] != placeholder:
-            _logger.warning(
-                "Cannot sign PDF: /Contents placeholder not found at the "
-                "computed offset"
-            )
-            return False
+        placeholder_start, placeholder_end, placeholder = located
 
         placeholder_byte_range = sig_field_value.get("/ByteRange")
 
@@ -440,6 +459,28 @@ class PdfSigner:
         )
 
         pdf_data = self._get_document_data()
+
+        # Writing the real /ByteRange lengthens the document, and the offsets
+        # the digest is about to use were computed BEFORE that. It is sound only
+        # because _signature_field_value inserts /Contents ahead of /ByteRange,
+        # so the growth lands after the placeholder and cannot move it -- a
+        # load-bearing property of one dict literal's order and of how pypdf
+        # serialises a dictionary, neither of which is promised anywhere.
+        #
+        # If it ever stops holding, the digest covers the wrong bytes and
+        # nothing downstream notices: the CMS blob is still built, still fits,
+        # and sign_pdf still returns a stream. The document would leave here
+        # carrying a signature only an external verifier could tell was invalid.
+        # Cheaper to re-read the placeholder than to trust the ordering.
+        if pdf_data[placeholder_start:placeholder_end] != placeholder:
+            _logger.error(
+                "Cannot sign PDF: filling in /ByteRange moved the /Contents "
+                "placeholder (expected it at %d..%d), so the digest would cover "
+                "the wrong bytes. /Contents must serialise before /ByteRange.",
+                placeholder_start,
+                placeholder_end,
+            )
+            return False
 
         digest = self._compute_digest_from_byte_range(
             pdf_data, byte_range, algorithm.digest

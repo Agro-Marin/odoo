@@ -149,26 +149,39 @@ class PopulateContext:
                 model.env.cr.execute("RESET session_replication_role")
 
 
-def field_needs_variation(model: Model, field: Field) -> bool:
+def unique_indexed_columns(model: Model) -> frozenset[str]:
+    """Every column of `model`'s table under a unique index, in ONE query.
 
-    def is_unique(model_, field_):
-        query = SQL(
-            """
-        SELECT EXISTS(SELECT 1
-              FROM pg_index idx
-                   JOIN pg_class t ON t.oid = idx.indrelid
-                   JOIN pg_class i ON i.oid = idx.indexrelid
-                   JOIN pg_attribute a ON a.attnum = ANY (idx.indkey) AND a.attrelid = t.oid
-              WHERE t.relname = %s  -- tablename
-                AND a.attname = %s  -- column
-                AND t.relnamespace = current_schema::regnamespace
-                AND idx.indisunique = TRUE) AS is_unique;
-        """,
-            model_._table,
-            field_.name,
-        )
-        return model_.env.execute_query(query)[0][0]
+    This used to be asked one column at a time, from inside
+    field_needs_variation, which populate_model calls twice per column -- once
+    to decide the rename pass and once through populate_field. Populating
+    res.partner alone (44 stored columns) therefore issued 68 four-way
+    catalogue joins out of 101 statements for the entire run: two thirds of the
+    work of a bulk-insert tool was asking the catalogue the same question about
+    a different column.
 
+    The AST n-plus-one checker could not see it. The loop is in populate_model
+    and the query was in is_unique, and E8507 does not cross a call boundary --
+    the same blind spot lint_n_plus_one_query's own baseline note warns about.
+    """
+    query = SQL(
+        """
+        SELECT DISTINCT a.attname
+          FROM pg_index idx
+               JOIN pg_class t ON t.oid = idx.indrelid
+               JOIN pg_attribute a ON a.attnum = ANY (idx.indkey) AND a.attrelid = t.oid
+         WHERE t.relname = %s
+           AND t.relnamespace = current_schema::regnamespace
+           AND idx.indisunique = TRUE
+    """,
+        model._table,
+    )
+    return frozenset(row[0] for row in model.env.execute_query(query))
+
+
+def field_needs_variation(
+    model: Model, field: Field, unique_columns: frozenset[str] | None = None
+) -> bool:
     in_names_search = model._rec_names_search and field.name in model._rec_names_search
     in_name = model._rec_name and field.name == model._rec_name
     if (in_name or in_names_search) and field.type != "many2one":
@@ -177,7 +190,9 @@ def field_needs_variation(model: Model, field: Field) -> bool:
         return True
     if field.index == "trigram":
         return True
-    return is_unique(model, field)
+    if unique_columns is None:
+        unique_columns = unique_indexed_columns(model)
+    return field.name in unique_columns
 
 
 def get_field_variation(
@@ -215,6 +230,7 @@ def populate_field(
     factors: dict[Model, int],
     table_alias: str = "t",
     series_alias: str = "s",
+    unique_columns: frozenset[str] | None = None,
 ) -> SQL | None:
 
     def copy_noop():
@@ -224,7 +240,7 @@ def populate_field(
         return SQL.identifier(field_.name)
 
     def copy(field_):
-        if field_needs_variation(model, field_):
+        if field_needs_variation(model, field_, unique_columns):
             return get_field_variation(model, field_, factors[model], series_alias)
         else:
             return copy_raw(field_)
@@ -295,15 +311,22 @@ def populate_model(
     update_fields = []
     table_alias = "t"
     series_alias = "s"
+    unique_columns = unique_indexed_columns(model)
     for _, field in sorted(model._fields.items(), key=lambda pair: pair[0] != "id"):
         if has_column(field):
-            if field_needs_variation(model, field) and field.type in (
+            if field_needs_variation(model, field, unique_columns) and field.type in (
                 "char",
                 "text",
             ):
                 update_fields.append(field)
             if src := populate_field(
-                model, field, populated, factors, table_alias, series_alias
+                model,
+                field,
+                populated,
+                factors,
+                table_alias,
+                series_alias,
+                unique_columns,
             ):
                 dest_fields.append(SQL.identifier(field.name))
                 src_fields.append(src)

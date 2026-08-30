@@ -58,8 +58,20 @@ class _LexerWorker:
         return proc
 
     def close(self) -> None:
+        """Kill the worker and return to the state a fresh one starts in.
+
+        `_disabled` latches for the life of the process: node missing when the
+        first module was lexed, or two consecutive failures, and every later
+        request short-circuits to the regex extractor with nothing above DEBUG
+        to say so. Nothing reset it, so close() -- the one call that means
+        "start over", registered on server stop -- left the process permanently
+        degraded. Re-probing costs one `shutil.which` and one spawn on the next
+        request, and only when someone asked for one.
+        """
         with self._lock:
             self._kill()
+            self._disabled = False
+            self._consec_failures = 0
 
     def _kill(self) -> None:
         proc, self._proc = self._proc, None

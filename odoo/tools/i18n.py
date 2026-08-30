@@ -10,6 +10,17 @@ if TYPE_CHECKING:
 
     import odoo.api
 
+# Every name this module re-exports or defines, per the rule
+# tests/framework/test_public_surfaces.py::TestToolsSubmoduleSurfaces pins:
+# a tools shim publishes what it defines plus what it takes from another
+# odoo module.  Third-party imports are incidental and stay out.
+__all__ = [
+    "babel_locale_parse",
+    "format_list",
+    "get_lang",
+    "py_to_js_locale",
+]
+
 
 def format_list(
     env: odoo.api.Environment | None,

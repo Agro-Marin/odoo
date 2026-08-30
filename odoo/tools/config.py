@@ -3,6 +3,7 @@ import configparser
 import contextlib
 import errno
 import functools
+import io
 import logging
 import optparse  # noqa: TID251  the whole CLI is built on optparse; the ban guards NEW uses
 import os
@@ -33,6 +34,9 @@ _dangerous_logger = logging.getLogger(__name__)
 optparse._ = str  # type: ignore[attr-defined]
 
 ALL_DEV_MODE = ["access", "assets", "qweb", "reload", "xml"]
+# Options whose runtime type is a dict, not the list their `comma` type parses
+# to -- see configmanager.__setitem__ and _postprocess_init_update.
+_MODULE_MAP_OPTIONS = frozenset({"init", "update"})
 DEFAULT_SERVER_WIDE_MODULES = ["base", "rpc", "web"]
 REQUIRED_SERVER_WIDE_MODULES = ["base", "web"]
 
@@ -218,11 +222,23 @@ def _open_private(path: str, flags: int) -> int:
 
 
 def _deduplicate_loggers(loggers: list[str]) -> Generator[str]:
+    """Last spelling of each logger wins, and a spec with no level is refused.
+
+    `logutils.init_logger` does `loggername, level = item.split(":")`, so a bare
+    module name would raise there. Dropping it silently avoided the crash and
+    left `--log-handler odoo.orm` -- the `:DEBUG` forgotten, against a metavar
+    that reads MODULE:LEVEL -- starting the server with the flag inert and
+    nothing said. The option is malformed either way; say so.
+    """
     seen: dict[str, str] = {}
     for spec in loggers:
         logger, sep, level = spec.rpartition(":")
-        if sep:
-            seen[logger] = level
+        if not sep:
+            raise ValueError(
+                f"invalid log handler {spec!r}: expected MODULE:LEVEL "
+                f"(an empty MODULE is the root logger, e.g. ':INFO')"
+            )
+        seen[logger] = level
     return (f"{logger}:{level}" for logger, level in seen.items())
 
 
@@ -255,8 +271,6 @@ class configmanager:
 
         self.parser = self._build_cli()
         self._load_default_options()
-        import contextlib
-        import io
 
         try:
             with contextlib.redirect_stderr(io.StringIO()):
@@ -1165,6 +1179,21 @@ class configmanager:
             "unaffected. 0 disables reaping (default 300)",
         )
         group.add_option(
+            "--db_pool_workers",
+            dest="db_pool_workers",
+            type="int",
+            my_default=1,
+            env_name="ODOO_DB_POOL_WORKERS",
+            help="psycopg maintenance worker threads per DATABASE pool. Each "
+            "pool also runs one scheduler thread, so the thread cost of a "
+            "database is this plus one — measured at the psycopg default of 3, "
+            "40 databases in one process held 161 threads. The workers only run "
+            "AddConnection and ReturnConnection tasks, which are already off the "
+            "request path, so 1 is enough unless a single database sustains "
+            "enough concurrent returns to queue behind one reset round trip "
+            "(default 1)",
+        )
+        group.add_option(
             "--db_discard_on_return",
             dest="db_discard_on_return",
             type="bool",
@@ -1611,6 +1640,7 @@ class configmanager:
 
         self._load_env_options()
         self._load_cli_options(opt)
+        self._check_config_file_is_readable()
         self._load_file_options(self["config"])
         self._postprocess_options()
 
@@ -1618,6 +1648,34 @@ class configmanager:
             self.save()
 
         return opt
+
+    def _check_config_file_is_readable(self) -> None:
+        """Refuse a config file that somebody asked for and nobody can read.
+
+        `_load_file_options` tolerates an unreadable file, because the default
+        ~/.odoorc is a convenience nobody promised exists. A path somebody wrote
+        down is a different thing: ODOO_RC pointing at a file the server cannot
+        open used to start it on hardcoded defaults -- admin_passwd back to
+        'admin', the whole db_* block back to its defaults -- and say nothing.
+        The -c spelling is already guarded above; this is the guard the
+        environment and an explicit override never had.
+        """
+        if not any(
+            "config" in source
+            for source in (
+                self._override_options,
+                self._runtime_options,
+                self._cli_options,
+                self._env_options,
+            )
+        ):
+            return
+        rcfile = self["config"]
+        if rcfile and Path(rcfile).exists() and not os.access(rcfile, os.R_OK):
+            self.parser.error(
+                f"the configuration file {rcfile!r} exists but could not be "
+                f"read; check its permissions"
+            )
 
     def _load_env_options(self) -> None:
         self._env_options.clear()
@@ -1685,29 +1743,39 @@ class configmanager:
     def _postprocess_server_wide_modules(self) -> None:
         if not self["server_wide_modules"]:
             self._runtime_options["server_wide_modules"] = DEFAULT_SERVER_WIDE_MODULES
-        for mod in REQUIRED_SERVER_WIDE_MODULES:
-            if mod not in self["server_wide_modules"]:
+        # prepended as one block: adding them one at a time reversed the
+        # constant's order, so ['base', 'web'] came out ['web', 'base', ...]
+        missing = [
+            mod
+            for mod in REQUIRED_SERVER_WIDE_MODULES
+            if mod not in self["server_wide_modules"]
+        ]
+        if missing:
+            for mod in missing:
                 self._log(
                     logging.INFO,
                     "adding missing %r to %s",
                     mod,
                     self.options_index["server_wide_modules"],
                 )
-                self._runtime_options["server_wide_modules"] = [mod] + self[
-                    "server_wide_modules"
-                ]
+            self._runtime_options["server_wide_modules"] = (
+                missing + self["server_wide_modules"]
+            )
 
     def _postprocess_log_handler(self) -> None:
-        self._runtime_options["log_handler"] = list(
-            _deduplicate_loggers(
-                [
-                    *self._default_options.get("log_handler", []),
-                    *self._file_options.get("log_handler", []),
-                    *self._env_options.get("log_handler", []),
-                    *self._cli_options.get("log_handler", []),
-                ]
+        try:
+            self._runtime_options["log_handler"] = list(
+                _deduplicate_loggers(
+                    [
+                        *self._default_options.get("log_handler", []),
+                        *self._file_options.get("log_handler", []),
+                        *self._env_options.get("log_handler", []),
+                        *self._cli_options.get("log_handler", []),
+                    ]
+                )
             )
-        )
+        except ValueError as exc:
+            self.parser.error(str(exc))
 
     def _postprocess_init_update(self) -> None:
         init_modules = self["init"]
@@ -1718,7 +1786,7 @@ class configmanager:
                 "explicitly."
             )
             init_modules = [m for m in init_modules if m != "all"]
-        self._runtime_options["init"] = dict.fromkeys(init_modules, True) or {}
+        self._runtime_options["init"] = dict.fromkeys(init_modules, True)
         self._runtime_options["update"] = (
             {"base": True}
             if "all" in self["update"]
@@ -2025,10 +2093,19 @@ class configmanager:
         p = configparser.RawConfigParser(inline_comment_prefixes=("#", ";"))
         try:
             p.read([rcfile])
-        except OSError:
-            return
         except configparser.Error as exc:
             self.parser.error(f"malformed configuration file {rcfile!r}: {exc}")
+            return
+        except (OSError, UnicodeDecodeError) as exc:
+            # An undecodable file is a parse failure, and this class of failure
+            # is loud -- it used to reach the caller as a bare UnicodeDecodeError
+            # traceback out of parse_config(). OSError is belt and braces:
+            # read() swallows it (a missing file, a directory and a mode-000
+            # file all come back as []), which is what keeps an *unreadable*
+            # file tolerated here. Whether that silence is acceptable depends on
+            # who chose the path, which this method cannot know -- the caller
+            # decides, in _parse_config.
+            self.parser.error(f"cannot read the configuration file {rcfile!r}: {exc}")
             return
 
         try:
@@ -2140,6 +2217,15 @@ class configmanager:
     def __setitem__(self, key: str, value: Any) -> None:
         if isinstance(value, str) and key in self.options_index:
             value = self.parse(key, value)
+        if key in _MODULE_MAP_OPTIONS and isinstance(value, (list, tuple, set)):
+            # These two are declared `comma`, so every source parses them to a
+            # list, and _postprocess_init_update then replaces the list with a
+            # dict in _runtime_options -- which is the type the rest of the
+            # server reads (cli/server.py does config["init"]["base"] = True).
+            # An override skips the postprocess and shadows the runtime value,
+            # so a plain config["init"] = "sale" put a list back on top and
+            # every .get() on it raised AttributeError.
+            value = dict.fromkeys(value, True)
         self._override_options[key] = value
 
     def __getitem__(self, key: str) -> Any:
