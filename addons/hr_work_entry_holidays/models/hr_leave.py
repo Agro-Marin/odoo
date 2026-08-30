@@ -26,6 +26,7 @@ class HrLeave(models.Model):
         Creates a leave work entry for each hr.leave in self.
         Check overlapping work entries with self.
         Work entries completely included in a leave are archived.
+        Earlier leaves superseded by that archiving are refused.
         e.g.:
             |----- work entry ----|---- work entry ----|
                 |------------------- hr.leave ---------------|
