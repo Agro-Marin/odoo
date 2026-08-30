@@ -25,8 +25,8 @@ class SlideSlidePartner(models.Model):
         for record in self:
             record.survey_scoring_success = record in succeeded_slide_partners
 
-    def _compute_field_value(self, field):
-        super()._compute_field_value(field)
+    def _compute_field_value(self, field, validate=True):
+        super()._compute_field_value(field, validate=validate)
         if field.name == "survey_scoring_success":
             self.filtered("survey_scoring_success").write({"completed": True})
 

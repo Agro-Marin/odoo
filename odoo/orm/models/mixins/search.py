@@ -4,7 +4,7 @@ import typing
 from typing import Self
 
 from odoo.exceptions import LockError
-from odoo.libs.profiling import _OrmProfile
+from odoo.libs.profiling import _n1_enabled, _OrmProfile
 from odoo.tools import SQL, Query, partition
 
 from ... import decorators as api
@@ -39,6 +39,9 @@ class SearchMixin(_ModelStubs):
 
         query = self._search(domain, limit=limit)
         count = len(query)
+
+        if _n1_enabled and (tracker := self.env.transaction._n1_tracker):
+            tracker.record("search", self._name, count, frozenset())
 
         prof.stop()
         prof.report(
@@ -95,12 +98,19 @@ class SearchMixin(_ModelStubs):
             )
             if prof.agg and (p := self.env.transaction._orm_profiler):
                 p.record("search", self._name, 0, prof.elapsed)
+            if _n1_enabled and (tracker := self.env.transaction._n1_tracker):
+                tracker.record("search", self._name, 0, frozenset(field_names or ()))
             return self.browse()
 
         fields_to_fetch = self._determine_fields_to_fetch(field_names)
         prof.mark("fields")
 
         result = self._fetch_query(query, fields_to_fetch)
+
+        if _n1_enabled and (tracker := self.env.transaction._n1_tracker):
+            tracker.record(
+                "search", self._name, len(result), frozenset(field_names or ())
+            )
 
         prof.stop("fetch")
         prof.report(

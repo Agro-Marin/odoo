@@ -165,6 +165,24 @@ class FieldCache[F: FieldKey = FieldKey]:
                 for id_ in ids:
                     sub_cache.pop(id_, None)
 
+    def has_any_cached(
+        self, field: F, *, context_dependent: bool | None = None
+    ) -> bool:
+        """Whether anything is cached for `field`, without materialising a view.
+
+        `all_cached_ids` builds a ChainMap over every context sub-cache; a
+        caller that only takes bool() of it pays that allocation for nothing,
+        and the trigger-tree `select` predicate is the hottest such caller.
+        """
+        field_cache = self._data.get(field)
+        if not field_cache:
+            return False
+        if context_dependent is None:
+            context_dependent = self._has_context_keys(field_cache)
+        if not context_dependent:
+            return True
+        return any(sub for key, sub in field_cache.items() if isinstance(key, tuple))
+
     def all_cached_ids(
         self, field: F, *, context_dependent: bool | None = None
     ) -> Mapping[Any, Any]:
@@ -187,11 +205,19 @@ class FieldCache[F: FieldKey = FieldKey]:
                 yield key, sub_cache
 
     def invalidate_field(self, field: F, ids: Collection | None = None) -> None:
+        """Invalidate `field`, then drop the context sub-caches that emptied.
+
+        `ids=None` used to be a separate branch that cleared the whole mapping
+        and returned. That deleted the context sub-cache *objects*, which
+        `Field._get_cache` memoises per environment, without calling
+        `_on_detach` to drop those memos -- so every later read and write of the
+        field went to a dict nobody else could see, silently. It has no branch
+        of its own now: `invalidate` clears the sub-caches in place, and the
+        pruning below removes the emptied keys through the one path that does
+        notify.
+        """
         field_cache = self._data.get(field)
-        if field_cache is None:
-            return
-        if ids is None:
-            field_cache.clear()
+        if not field_cache:
             return
         context_dependent = self._has_context_keys(field_cache)
         self.invalidate(field, ids, context_dependent=context_dependent)

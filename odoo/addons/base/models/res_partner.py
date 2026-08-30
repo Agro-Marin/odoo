@@ -20,7 +20,6 @@ if typing.TYPE_CHECKING:
     from .res_partner_category import ResPartnerCategory
     from .res_users import ResUsers
 
-
 from .mixin_format_address import ADDRESS_FIELDS
 
 EU_EXTRA_VAT_CODES = {
@@ -711,7 +710,9 @@ class ResPartner(models.Model):
             else:
                 partner.type_address_label = _("Address")
 
-    @api.depends(lambda self: self._display_address_depends())
+    @api.depends(
+        lambda self: [*self._display_address_depends(), "commercial_company_name"]
+    )
     def _compute_contact_address(self) -> None:
         for partner in self:
             partner.contact_address = partner._display_address()
@@ -1546,11 +1547,27 @@ class ResPartner(models.Model):
             )
 
     def _display_address_depends(self) -> list[str]:
-        return self._formatting_address_fields() + [
-            "country_id",
-            "company_name",
-            "state_id",
-        ]
+        """The fields `_display_address` reads, each named once.
+
+        `country_id` and `state_id` are spelled here as well as in
+        `_formatting_address_fields()` because a subclass may drop them from the
+        formatting set while `_prepare_display_address` still reads
+        `state_id.code` and `country_id.code` directly. Keeping the union means
+        that stays true without the default returning either name twice --
+        `registry.field_depends` stores what this returns verbatim, so a
+        duplicate here is a duplicate trigger path for every field that consumes
+        it.
+        """
+        return list(
+            tools.unique(
+                [
+                    *self._formatting_address_fields(),
+                    "country_id",
+                    "company_name",
+                    "state_id",
+                ]
+            )
+        )
 
     @api.model
     def get_import_templates(self) -> list[dict[str, str]]:

@@ -61,6 +61,8 @@ from . import test_base_module_wizards
 from . import test_change_password_wizard_audit
 from . import test_decimal_precision_audit
 from . import test_depends_audit
+from . import test_depends_completeness
+from . import test_inverse_cache_alignment
 from . import test_field_description_audit
 from . import test_report_introspection
 from . import test_report_layout_audit

@@ -22,6 +22,7 @@ from ._cache_scan import (
     can_scan_identity,
     can_scan_sorted,
     can_scan_truthy,
+    is_cache_detached,
 )
 from ._model_stubs import _ModelStubs
 
@@ -109,15 +110,23 @@ class TraversalMixin(_ModelStubs):
                     rec_list = list(records)
                     for idx in miss_indices:
                         result[idx] = getter(rec_list[idx])
+                    if is_cache_detached(field, records.env, field_cache):
+                        return [getter(record) for record in records]
                 return result
             else:
                 _convert = field.convert_to_record
+                _detached = False
                 for record in records:
                     value = _get(record._ids[0], _SENTINEL)
                     if value is not _SENTINEL and value is not _PENDING:
                         _append(_convert(value, record))
                     else:
                         _append(getter(record))
+                        _detached = _detached or is_cache_detached(
+                            field, records.env, field_cache
+                        )
+                if _detached:
+                    return [getter(record) for record in records]
             return result
 
         if self:
@@ -162,6 +171,10 @@ class TraversalMixin(_ModelStubs):
                 for idx in miss_indices:
                     if _field_get(rec_list[idx]):
                         passing_ids.append(rec_list[idx]._ids[0])
+                if is_cache_detached(field, self.env, field_cache):
+                    return self.browse(
+                        rec._ids[0] for rec in rec_list if _field_get(rec)
+                    )
                 all_passing = set(passing_ids)
                 passing_ids = [id_ for id_ in self._ids if id_ in all_passing]
             return self.browse(passing_ids)
@@ -216,8 +229,13 @@ class TraversalMixin(_ModelStubs):
                                 collator[group_key] = [rec_id]
                             else:
                                 group.append(rec_id)
+                        if is_cache_detached(field, self.env, field_cache):
+                            collator = defaultdict(list)
+                            for record in rec_list:
+                                collator[_field_get(record)].append(record._ids[0])
                 else:
                     _convert = field.convert_to_record
+                    _detached = False
                     for record in self:
                         rec_id = record._ids[0]
                         value = _get(rec_id, _SENTINEL)
@@ -228,7 +246,14 @@ class TraversalMixin(_ModelStubs):
                                 group_key = _field_get(record)
                         else:
                             group_key = _field_get(record)
+                            _detached = _detached or is_cache_detached(
+                                field, self.env, field_cache
+                            )
                         collator[group_key].append(rec_id)
+                    if _detached:
+                        collator = defaultdict(list)
+                        for record in self:
+                            collator[_field_get(record)].append(record._ids[0])
             else:
                 key = itemgetter(key)
                 collator = defaultdict(list)
@@ -373,16 +398,19 @@ class TraversalMixin(_ModelStubs):
             elif field.is_boolean:
                 getter = field.expression_getter(field_expr)
             elif not property_name and not caches_lang_dicts(field, _env):
-                _cache_get = field._get_cache(_env).get
+                _get_cache = field._get_cache
                 _field_get = field.__get__
                 _S = SENTINEL
                 _P = PENDING
 
                 def getter(rec):
-                    value = _cache_get(rec._ids[0], _S)
+                    # resolved per call, never bound: `_field_get` below can
+                    # detach the dict, and a bound `.get` would keep serving
+                    # the orphaned one for every later record
+                    value = _get_cache(_env).get(rec._ids[0], _S)
                     if value is _S or value is _P:
                         record_value = _field_get(rec)
-                        value = field._get_cache(_env).get(rec._ids[0], _S)
+                        value = _get_cache(_env).get(rec._ids[0], _S)
                         if value is _S:
                             return record_value
                     return value if value is not False else None

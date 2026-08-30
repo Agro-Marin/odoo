@@ -1163,12 +1163,12 @@ class CalendarEvent(models.Model):
         recurring_events.recurrence_id._schedule_next_occurrence_alarm()
         (alarm_events - recurring_events)._setup_alarms()
 
-    def _compute_field_value(self, field):
+    def _compute_field_value(self, field, validate=True):
         if field.compute_sudo:
             return super(
                 CalendarEvent, self.with_context(prefetch_fields=False)
-            )._compute_field_value(field)
-        return super()._compute_field_value(field)
+            )._compute_field_value(field, validate=validate)
+        return super()._compute_field_value(field, validate=validate)
 
     def _fetch_query(self, query, fields):
         if self.env.su:

@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from collections.abc import Collection, Iterable
 
 
-class _StackMap[F: FieldKey = FieldKey]:
+class _ScopeStack[F: FieldKey = FieldKey]:
     __slots__ = ("_maps",)
 
     def __init__(self) -> None:
@@ -43,7 +43,7 @@ class ComputeEngine[F: FieldKey = FieldKey]:
 
     def __init__(self, pending_factory: type | None = None) -> None:
         self._pending: defaultdict[F, set[Any]] = defaultdict(pending_factory or set)
-        self._protected: _StackMap[F] = _StackMap()
+        self._protected: _ScopeStack[F] = _ScopeStack()
 
     @property
     def pending(self) -> defaultdict[F, set[Any]]:

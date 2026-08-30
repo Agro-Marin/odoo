@@ -1,10 +1,12 @@
 from odoo.libs.profiling import nplusone
 from odoo.orm.models.mixins import create as _create_mod
+from odoo.orm.models.mixins import read as _read_mod
+from odoo.orm.models.mixins import search as _search_mod
 from odoo.orm.models.mixins import unlink as _unlink_mod
 from odoo.orm.models.mixins import write as _write_mod
 from odoo.tests.common import TransactionCase, tagged
 
-_CRUD_MODS = (_create_mod, _write_mod, _unlink_mod)
+_CRUD_MODS = (_create_mod, _write_mod, _unlink_mod, _search_mod, _read_mod)
 
 
 @tagged("-standard", "nplusone")
@@ -120,7 +122,8 @@ class TestNplusOneDetection(TransactionCase):
             self.tracker.report()
 
         self.assertTrue(
-            any("N+1 CRUD detected" in msg for msg in log.output),
+            # the header dropped "CRUD" when reads joined the tracker
+            any("N+1 detected" in msg for msg in log.output),
             "Report should emit N+1 warning",
         )
         self.assertTrue(
@@ -167,3 +170,90 @@ class TestNplusOneDisabled(TransactionCase):
         cat = self.env["res.partner.category"].create({"name": "Disabled Test"})
         cat.write({"name": "Updated"})
         cat.unlink()
+
+
+@tagged("-standard", "nplusone")
+class TestNplusOneReadDetection(TestNplusOneDetection):
+    """Reads are judged by records-per-call, not by call count alone.
+
+    A write repeated from one line is an N+1 whatever it writes. A read repeated
+    from one line is only an N+1 if each call brings back almost nothing -- a
+    loop that searches a wide result set every time is doing something else, and
+    flagging it would train people to ignore the report.
+    """
+
+    def _entries(self, operation, model_name):
+        return [
+            entry
+            for key, entry in self.tracker._data.items()
+            if key[0] == operation and key[1] == model_name
+        ]
+
+    def _violations(self, operation, model_name):
+        return [
+            entry
+            for key, entry in self.tracker._data.items()
+            if key[0] == operation
+            and key[1] == model_name
+            and self.tracker._is_violation(operation, entry)
+        ]
+
+    def test_search_per_record_is_reported(self):
+        categories = self.env["res.partner.category"].create(
+            [{"name": f"Read N1 {i}"} for i in range(10)]
+        )
+        self.env.flush_all()
+        self.tracker.clear()
+
+        for category in categories:
+            self.env["res.partner.category"].search([("id", "=", category.id)])
+
+        violations = self._violations("search", "res.partner.category")
+        self.assertTrue(
+            violations,
+            "a search per record is the N+1 the tracker exists to name; "
+            f"recorded {self._entries('search', 'res.partner.category')}",
+        )
+        self.assertEqual(violations[0].count, 10)
+        self.assertEqual(violations[0].total_records, 10)
+
+    def test_one_batched_search_is_not_reported(self):
+        categories = self.env["res.partner.category"].create(
+            [{"name": f"Batched {i}"} for i in range(10)]
+        )
+        self.env.flush_all()
+        self.tracker.clear()
+
+        self.env["res.partner.category"].search([("id", "in", categories.ids)])
+
+        self.assertFalse(self._violations("search", "res.partner.category"))
+
+    def test_a_repeated_wide_search_is_not_an_n_plus_one(self):
+        """Many calls, many records each: a loop over data, not an N+1."""
+        categories = self.env["res.partner.category"].create(
+            [{"name": f"Wide {i}"} for i in range(10)]
+        )
+        self.env.flush_all()
+        self.tracker.clear()
+
+        for _ in range(10):
+            self.env["res.partner.category"].search([("id", "in", categories.ids)])
+
+        entries = self._entries("search", "res.partner.category")
+        self.assertTrue(entries, "the calls were recorded")
+        self.assertGreaterEqual(entries[0].count, 10)
+        self.assertFalse(
+            self._violations("search", "res.partner.category"),
+            "10 calls returning 10 records each average 10 per call, well over "
+            "READ_RECORDS_PER_CALL, so this is not an N+1",
+        )
+
+    def test_a_search_that_finds_nothing_still_counts(self):
+        """The worst N+1 of the lot: it returns nothing, so it looks free."""
+        self.tracker.clear()
+        for i in range(10):
+            self.env["res.partner.category"].search([("name", "=", f"absent-{i}")])
+        self.assertTrue(
+            self._violations("search", "res.partner.category"),
+            "a search per record that matches nothing is still a search per record",
+        )

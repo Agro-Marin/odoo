@@ -128,7 +128,7 @@ class Binary(Field[bytes | typing.Literal[False]]):
         return False if value is None else value
 
     @override
-    def compute_value(self, records: ModelLike) -> None:
+    def compute_value(self, records: ModelLike, validate: bool = True) -> None:
         bin_size_name = "bin_size_" + self.name
         under_bin_size = records.env.context.get("bin_size") or records.env.context.get(
             bin_size_name
@@ -144,7 +144,7 @@ class Binary(Field[bytes | typing.Literal[False]]):
             records_no_bin_size = records.with_context(
                 **{"bin_size": False, bin_size_name: False}
             )
-            super().compute_value(records_no_bin_size)
+            super().compute_value(records_no_bin_size, validate=validate)
             field_cache_data = self._get_cache(records_no_bin_size.env)
             field_cache_size = self._get_cache(records.env)
             for record in records:
@@ -160,7 +160,7 @@ class Binary(Field[bytes | typing.Literal[False]]):
                 except KeyError:
                     pass
         else:
-            super().compute_value(records)
+            super().compute_value(records, validate=validate)
 
     @override
     def read(self, records: BaseModel) -> None:

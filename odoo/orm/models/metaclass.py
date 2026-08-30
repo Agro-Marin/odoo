@@ -66,11 +66,6 @@ class MetaModel(type):
                     attrs["_name"],
                 )
 
-            if not attrs.get("_name"):
-                raise ValueError(
-                    f"Model class {name!r} must define a '_name' attribute"
-                )
-
         return super().__new__(meta, name, bases, attrs)
 
     def __init__(

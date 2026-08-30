@@ -129,13 +129,23 @@ class TriggerTree(dict):
 
 
 class _TriggerState:
-    __slots__ = ("modifying_relations", "recompute_order", "trees", "triggers")
+    __slots__ = (
+        "merged",
+        "modifying_relations",
+        "recompute_order",
+        "trees",
+        "triggers",
+    )
 
     def __init__(self, triggers: defaultdict) -> None:
         self.triggers = triggers
         self.trees: dict[Any, TriggerTree] = {}
+        self.merged: dict[tuple, TriggerTree] = {}
         self.modifying_relations: dict[Any, bool] = {}
         self.recompute_order: dict[Any, int] | None = None
+
+
+_MERGED_CACHE_MAX = 512
 
 
 def _empty_triggers() -> defaultdict:
@@ -188,6 +198,7 @@ class ModelGraph:
                 if target not in bucket:
                     bucket.append(target)
             state.trees.pop(dep_field, None)
+            state.merged.clear()
             state.modifying_relations.pop(dep_field, None)
             state.recompute_order = None
 
@@ -258,10 +269,19 @@ class ModelGraph:
         self, fields: list[Any], select: Callable = bool
     ) -> TriggerTree:
         state = self._state
-        trees = [
-            self._tree_for(state, field) for field in fields if field in state.triggers
-        ]
-        return TriggerTree.merge(trees, select)
+        key = tuple(fields)
+        structure = state.merged.get(key)
+        if structure is None:
+            trees = [
+                self._tree_for(state, field)
+                for field in fields
+                if field in state.triggers
+            ]
+            structure = TriggerTree.merge(trees, bool)
+            if len(state.merged) >= _MERGED_CACHE_MAX:
+                state.merged.clear()
+            state.merged[key] = structure
+        return structure._filtered(select)
 
     def get_field_trigger_tree(self, field: Any) -> TriggerTree:
         return self._tree_for(self._state, field)

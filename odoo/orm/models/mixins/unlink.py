@@ -135,6 +135,25 @@ class UnlinkMixin(_ModelStubs):
                 field._invalidate_cache(env, keep_dirty=True)
         for field in registry.fields_reading_through_a_reference:
             field._invalidate_cache(env, keep_dirty=True)
+        self._forget_ref_cache(gone)
+
+    def _forget_ref_cache(self, model_names: typing.Iterable[str]) -> None:
+        """Drop `Environment.ref`'s existence memo for the deleted models.
+
+        `env.ref` remembers that an (model, id) pair passed `exists()` and then
+        skips the check, for the life of the transaction. Nothing dropped that
+        on delete: the entry survived `flush_all()`, and only `invalidate_all()`
+        and `Transaction.clear()` reached it. An ordinary unlink takes the
+        record's `ir.model.data` row with it, so the xmlid lookup fails before
+        the memo is consulted -- but the memo has no business outliving the row
+        it describes, and pruning it here costs one set membership per entry.
+        """
+        ref_cache = self.env.transaction._ref_cache
+        if not ref_cache:
+            return
+        names = set(model_names)
+        for key in [key for key in ref_cache if key[0] in names]:
+            del ref_cache[key]
 
     def _unlink_process_batch(
         self,

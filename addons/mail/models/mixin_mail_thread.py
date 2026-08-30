@@ -622,7 +622,7 @@ class MixinMailThread(models.AbstractModel):
             res["models"][self._name]["has_activities"] = True
         return res
 
-    def _compute_field_value(self, field: fields.Field) -> None:
+    def _compute_field_value(self, field: fields.Field, validate: bool = True) -> None:
         if not self.env.context.get("tracking_disable") and not self.env.context.get(
             "mail_notrack"
         ):
@@ -630,7 +630,7 @@ class MixinMailThread(models.AbstractModel):
                 f.name for f in self.pool.field_computed[field] if f.store
             )
 
-        return super()._compute_field_value(field)
+        return super()._compute_field_value(field, validate=validate)
 
     def _mail_get_followers(self) -> dict[int, ResPartner]:
         records_su = self.sudo()

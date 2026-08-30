@@ -71,11 +71,11 @@ class SaleOrder(models.Model):
             )
             sale_order.timesheet_total_duration = round(total_time)
 
-    def _compute_field_value(self, field):
+    def _compute_field_value(self, field, validate=True):
         if field.name != "invoice_state" or self.env.context.get(
             "mail_activity_automation_skip"
         ):
-            super()._compute_field_value(field)
+            super()._compute_field_value(field, validate=validate)
             return
 
         # Get SOs which their state is not equal to upselling and if at least a SOL has warning prepaid service upsell set to True and the warning has not already been displayed
@@ -90,14 +90,16 @@ class SaleOrder(models.Model):
         super(
             SaleOrder,
             upsellable_orders.with_context(mail_activity_automation_skip=True),
-        )._compute_field_value(field)
+        )._compute_field_value(field, validate=validate)
         for order in upsellable_orders:
             upsellable_lines = order._get_prepaid_service_lines_to_upsell()
             if upsellable_lines:
                 order._create_upsell_activity()
                 # We want to display only one time the warning for each SOL
                 upsellable_lines.write({"has_displayed_warning_upsell": True})
-        super(SaleOrder, self - upsellable_orders)._compute_field_value(field)
+        super(SaleOrder, self - upsellable_orders)._compute_field_value(
+            field, validate=validate
+        )
 
     def _compute_show_hours_recorded_button(self):
         show_button_ids = self._get_order_with_valid_service_product()

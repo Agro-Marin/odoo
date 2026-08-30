@@ -5354,6 +5354,72 @@ class TestWrongRelatedError(TransactionCase):
             self.registry._setup_models__(self.env.cr, [])
 
 
+class TestPrecomputeHonoursGivenValues(TransactionCase):
+    """A precomputed field must be computed from what the INSERT will carry.
+
+    `_add_precomputed_values` builds one `new()` scratch record per vals and
+    reads each precomputable field off it. Reading one runs its compute, and a
+    compute may write OTHER fields -- here `_compute_givens` writes `given`,
+    which the caller supplied. Nothing restored it, so `derived`, precomputed
+    afterwards because it is declared afterwards, was frozen against a value the
+    INSERT never carried, and the row landed internally inconsistent with
+    nothing pending to repair it.
+
+    Reproduces sale.order.line's price_unit / price_unit_auto / price_subtotal,
+    where `create(price_unit=0)` stored price_unit 0 beside a price_subtotal
+    computed from the automatic 10.
+    """
+
+    def test_a_given_value_survives_a_sibling_compute(self):
+        record = self.env["test_orm.precompute.given"].create({"name": "x", "given": 7})
+        self.env.flush_all()
+        self.assertEqual(record.given, 7, "the caller's value must win")
+        self.assertEqual(
+            record.derived,
+            14,
+            "derived is precomputed from `given`, so it must see 7 and not the "
+            "100 the sibling compute writes",
+        )
+
+    def test_the_row_on_disk_agrees_with_itself(self):
+        record = self.env["test_orm.precompute.given"].create({"name": "x", "given": 7})
+        self.env.flush_all()
+        self.env.cr.execute(
+            'SELECT "given", derived FROM test_orm_precompute_given WHERE id = %s',
+            (record.id,),
+        )
+        self.assertEqual(
+            self.env.cr.fetchone(),
+            (7, 14),
+            "the INSERT itself has to be consistent: nothing is pending that "
+            "would repair a row whose fields disagree",
+        )
+
+    def test_the_automatic_value_still_applies_when_none_is_given(self):
+        record = self.env["test_orm.precompute.given"].create({"name": "x"})
+        self.env.flush_all()
+        self.assertEqual(record.given, 100)
+        self.assertEqual(record.derived, 200)
+
+    def test_it_holds_for_a_batch_with_mixed_vals(self):
+        records = self.env["test_orm.precompute.given"].create(
+            [{"name": "a", "given": 7}, {"name": "b"}, {"name": "c", "given": 3}]
+        )
+        self.env.flush_all()
+        self.assertEqual(records.mapped("given"), [7, 100, 3])
+        self.assertEqual(records.mapped("derived"), [14, 200, 6])
+
+    def test_the_sibling_automatic_field_is_untouched(self):
+        record = self.env["test_orm.precompute.given"].create({"name": "x", "given": 7})
+        self.env.flush_all()
+        self.assertEqual(
+            record.given_auto,
+            100,
+            "protecting the caller's value must not stop the compute writing "
+            "the fields the caller did NOT give",
+        )
+
+
 class TestPrecomputeModel(TransactionCase):
     def test_precompute_consistency(self):
         Model = self.registry["test_orm.precompute"]

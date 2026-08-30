@@ -2287,6 +2287,38 @@ class TestOrmPrecompute(models.Model):
             record.size = sum(record.line_ids.mapped("size"))
 
 
+class TestOrmPrecomputeGiven(models.Model):
+    """A model of its own, so `test_orm.precompute`'s pinned INSERT columns stay put.
+
+    `given` is writable and computed BESIDE `given_auto`, so reading the sibling
+    runs the compute that would overwrite a caller-supplied `given`. `derived`
+    reads `given` and is declared after both, so it is precomputed once that
+    overwrite has had its chance. sale.order.line's price_unit /
+    price_unit_auto / price_subtotal in miniature; see _add_precomputed_values.
+    """
+
+    _name = "test_orm.precompute.given"
+    _description = "precomputed fields around a value the caller supplies"
+
+    name = fields.Char(required=True)
+    given_auto = fields.Integer(compute="_compute_givens", store=True, precompute=True)
+    given = fields.Integer(
+        compute="_compute_givens", store=True, precompute=True, readonly=False
+    )
+    derived = fields.Integer(compute="_compute_derived", store=True, precompute=True)
+
+    @api.depends("name")
+    def _compute_givens(self):
+        for record in self:
+            record.given_auto = 100
+            record.given = 100
+
+    @api.depends("given")
+    def _compute_derived(self):
+        for record in self:
+            record.derived = record.given * 2
+
+
 class TestOrmPrecomputeLine(models.Model):
     _name = "test_orm.precompute.line"
     _description = "secondary model with precomputed fields"

@@ -1709,13 +1709,13 @@ class AutomationRule(models.Model):
             #
             # Note: This is to catch updates made by field recomputations.
             #
-            def _compute_field_value(self, field):
+            def _compute_field_value(self, field, validate=True):
                 # determine fields that may trigger an automation
                 stored_fnames = [
                     f.name for f in self.pool.field_computed[field] if f.store
                 ]
                 if not stored_fnames:
-                    return _compute_field_value.origin(self, field)
+                    return _compute_field_value.origin(self, field, validate=validate)
                 # retrieve the action rules to possibly execute
                 automations = self.env["automation.rule"]._get_actions(
                     self,
@@ -1735,7 +1735,7 @@ class AutomationRule(models.Model):
                 )
                 records = self.filtered("id").with_env(automations.env)
                 if not (automations and records):
-                    _compute_field_value.origin(self, field)
+                    _compute_field_value.origin(self, field, validate=validate)
                     return True
                 # check preconditions on records
                 # changed fields are all fields computed by the function
@@ -1754,7 +1754,7 @@ class AutomationRule(models.Model):
                     for record in records
                 }
                 # call original method
-                _compute_field_value.origin(self, field)
+                _compute_field_value.origin(self, field, validate=validate)
                 # check postconditions, and execute automations on the records that satisfy them
                 for automation in automations.with_context(old_values=old_values):
                     _logger.debug(

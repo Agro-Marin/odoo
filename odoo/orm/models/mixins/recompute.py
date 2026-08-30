@@ -145,8 +145,13 @@ class RecomputeMixin(_ModelStubs):
         self, fields: list[Field], create: bool
     ) -> Iterable[tuple[Field, Self, bool]]:
 
+        env = self.env
+        has_any_cached = env._core.has_any_cached
+
         def select(field):
-            return field.is_stored_computed or bool(field._get_all_cache_ids(self.env))
+            return field.is_stored_computed or has_any_cached(
+                field, context_dependent=field._is_context_dependent(env)
+            )
 
         tree = self.pool.get_trigger_tree(fields, select=select)
         if not tree:

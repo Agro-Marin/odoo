@@ -51,6 +51,11 @@ class OrmCore[F: FieldKey = FieldKey]:
             field, ids, context_dependent=context_dependent, keep_dirty=keep_dirty
         )
 
+    def has_any_cached(
+        self, field: F, *, context_dependent: bool | None = None
+    ) -> bool:
+        return self._cache.has_any_cached(field, context_dependent=context_dependent)
+
     def all_cached_ids(
         self, field: F, *, context_dependent: bool | None = None
     ) -> Mapping[Any, Any]:

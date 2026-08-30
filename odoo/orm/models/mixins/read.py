@@ -8,14 +8,14 @@ from odoo_rust import (
 )
 
 from odoo.exceptions import MissingError
-from odoo.libs.profiling import _OrmProfile
+from odoo.libs.profiling import _n1_enabled, _OrmProfile
 from odoo.tools import SQL, OrderedSet
 from odoo.tools.misc import PENDING, SENTINEL
 
 from ... import decorators as api
 from ..._typing import ValuesType
 from ...primitives import LOG_ACCESS_COLUMNS
-from ._cache_scan import can_scan_read
+from ._cache_scan import can_scan_read, is_cache_detached
 from ._model_stubs import _ModelStubs
 
 if typing.TYPE_CHECKING:
@@ -114,7 +114,10 @@ class ReadMixin(_ModelStubs):
                     )
                 except MissingError:
                     vals.clear()
+            if miss_indices and is_cache_detached(field, env, field_cache):
+                self._read_format_scalar_slow(name, field, results, use_display_name)
             return
+        _detached = False
         for id_, vals in zip(ids, results, strict=True):
             if not vals:
                 continue
@@ -127,10 +130,33 @@ class ReadMixin(_ModelStubs):
                     )
                 except MissingError:
                     vals.clear()
+                _detached = _detached or is_cache_detached(field, env, field_cache)
             elif cache_value is None:
                 vals[name] = none_val
             else:
                 vals[name] = cache_value
+        if _detached:
+            self._read_format_scalar_slow(name, field, results, use_display_name)
+
+    def _read_format_scalar_slow(
+        self, name: str, field: Field, results: list[dict], use_display_name: bool
+    ) -> None:
+        """Re-read every value through the descriptor.
+
+        The scan above bound a cache dict that a getter then detached, so every
+        value it produced may predate the invalidation; see
+        `_cache_scan.is_cache_detached`.
+        """
+        for id_, vals in zip(self._ids, results, strict=True):
+            if not vals:
+                continue
+            try:
+                record = self._read_format_miss_record(id_)
+                vals[name] = field.convert_to_read(
+                    record[name], record, use_display_name
+                )
+            except MissingError:
+                vals.clear()
 
     def _read_format_multi(
         self, name: str, field, data: list, use_display_name: bool
@@ -282,6 +308,14 @@ class ReadMixin(_ModelStubs):
             query = self._as_query(ordered=False)
 
         fetched = self._fetch_query(query, fields_to_fetch)
+
+        if _n1_enabled and (tracker := self.env.transaction._n1_tracker):
+            tracker.record(
+                "fetch",
+                self._name,
+                len(fetched),
+                frozenset(field.name for field in fields_to_fetch),
+            )
 
         prof.stop()
         prof.report(

@@ -725,12 +725,12 @@ class MailComposeMessage(models.TransientModel):
         non_mass_mail.can_edit_body = True
         super(MailComposeMessage, self - non_mass_mail)._compute_can_edit_body()
 
-    def _compute_field_value(self, field: fields.Field) -> None:
+    def _compute_field_value(self, field: fields.Field, validate: bool = True) -> None:
         if field.compute_sudo:
             return super(
                 MailComposeMessage, self.with_context(prefetch_fields=False)
-            )._compute_field_value(field)
-        return super()._compute_field_value(field)
+            )._compute_field_value(field, validate=validate)
+        return super()._compute_field_value(field, validate=validate)
 
     @api.autovacuum
     def _gc_lost_attachments(self) -> None:

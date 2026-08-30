@@ -349,11 +349,11 @@ class SaleOrder(models.Model):
                     ),
                 )
 
-    def _compute_field_value(self, field):
+    def _compute_field_value(self, field, validate=True):
         if field.name != "has_upsell_opportunity" or self.env.context.get(
             "mail_activity_automation_skip",
         ):
-            return super()._compute_field_value(field)
+            return super()._compute_field_value(field, validate=validate)
 
         filtered_self = self.filtered(
             lambda so: (
@@ -362,7 +362,7 @@ class SaleOrder(models.Model):
                 and not so._origin.has_upsell_opportunity
             ),
         )
-        super()._compute_field_value(field)
+        super()._compute_field_value(field, validate=validate)
 
         upselling_orders = filtered_self.filtered(
             lambda so: so.has_upsell_opportunity,

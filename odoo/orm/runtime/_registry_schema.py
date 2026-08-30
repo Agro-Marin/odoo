@@ -135,8 +135,17 @@ class _RegistrySchemaMixin(_RegistryStubs):
                     [expression],
                     method,
                     where,
+                    # `check_indexes` has already read pg_index in one query and
+                    # only reaches here for an index it found absent, or stale
+                    # and just dropped above.
+                    check_exists=False,
                 )
-        except psycopg.OperationalError:
+        except psycopg.DatabaseError:
+            # Not `OperationalError`: the errors CREATE INDEX actually raises
+            # are not in that branch of the hierarchy. `FeatureNotSupported`
+            # -- 0A000, which `CREATE UNIQUE INDEX` on a partitioned table
+            # raises -- is `NotSupportedError -> DatabaseError -> Error`, so it
+            # escaped a handler that reads as though it covers a failed index.
             _schema.error("Unable to add index %r for %s", indexname, self)
 
     def check_indexes(self, cr: Cursor, model_names: Iterable[str]) -> None:

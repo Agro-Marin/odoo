@@ -211,14 +211,14 @@ class EventRegistration(models.Model):
                 render_context=render_context,
             )
 
-    def _compute_field_value(self, field):
+    def _compute_field_value(self, field, validate=True):
         if field.name != "state":
-            return super()._compute_field_value(field)
+            return super()._compute_field_value(field, validate=validate)
 
         unconfirmed = self.filtered(
             lambda reg: reg.ids and reg.state in {"draft", "cancel"}
         )
-        res = super()._compute_field_value(field)
+        res = super()._compute_field_value(field, validate=validate)
         confirmed = unconfirmed.filtered(lambda reg: reg.state == "open")
         if confirmed:
             confirmed._update_mail_schedulers()

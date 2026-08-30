@@ -51,6 +51,7 @@ _KWARG_DELEGATIONS = [
         False,
     ),
     ("all_cached_ids", "cache", "all_cached_ids", 1, ("context_dependent",), True),
+    ("has_any_cached", "cache", "has_any_cached", 1, ("context_dependent",), True),
 ]
 
 

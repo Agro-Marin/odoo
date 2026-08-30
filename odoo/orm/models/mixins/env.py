@@ -100,6 +100,22 @@ class EnvironmentMixin(_ModelStubs):
             prefetch_ids = self._ids
         return self._spawn(self.env, self._ids, prefetch_ids)
 
+    @staticmethod
+    def _cache_value_may_hold_new_ids(value: typing.Any) -> bool:
+        """Whether a relational field's cache value can contain an unsaved id.
+
+        Deliberately conservative -- an unrecognised shape answers True, so the
+        caller falls back to the full check it would have done anyway. What it
+        buys is the common case: a to-many whose ids are all saved, or a
+        many2one pointing at a saved record, cannot possibly yield new
+        corecords, and materialising them to find that out costs a
+        `convert_to_record` (which for an x2many runs `active_test` filtering
+        over every corecord) plus a second browse.
+        """
+        if type(value) is tuple:
+            return any(not id_ for id_ in value)
+        return not (value is None or type(value) is int)
+
     def _update_cache(self, values: ValuesType, validate: bool = True) -> None:
         self.ensure_one()
         fields = self._fields
@@ -123,6 +139,8 @@ class EnvironmentMixin(_ModelStubs):
             if field.relational:
                 inverses = field_inverses[field]
                 if not inverses:
+                    continue
+                if not self._cache_value_may_hold_new_ids(value):
                     continue
                 inv_recs = self[field.name]._new_records
                 if not inv_recs:
