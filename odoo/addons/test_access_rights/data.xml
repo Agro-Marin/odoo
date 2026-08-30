@@ -1,6 +1,6 @@
 <odoo>
 
-    <record model="res.groups" id="test_group">
+    <record id="test_group" model="res.groups">
         <field name="name">Test Group</field>
     </record>
 

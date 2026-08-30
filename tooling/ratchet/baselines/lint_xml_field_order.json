@@ -1,4 +1,5 @@
 {
-  "count": 714,
-  "note": "account: <record> field children sorted into the canonical order by _sort_xml_records.py, 28 files.\n\n774 -> 714, the floor plus this change s delta (HEAD 789 -> 729, measured in a detached worktree carrying only this change). The floor was already at 774 from another session.\n\nCommand: odoo-bin -d <db> -i test_lint --test-enable --test-tags /test_lint"
+  "count": 712,
+  "measured_at": "8395c5e9be21ee97cea88eddb09e027d035e2fe0",
+  "note": "Core reaches zero: 714 -> 712, both in odoo/addons, and both a by-product of the attrib-order sweep in the same change -- `_sort_xml_records.py` orders the <field> children of a record and normalises the element attributes in one pass, so the two gates move together.\n\nVerified at the CI scope, `--addons-path=odoo/addons,addons -i test_lint`."
 }

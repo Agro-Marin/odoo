@@ -1,6 +1,6 @@
 <odoo>
 
-    <menuitem id="menu_ssf" parent="base.menu_tests" name="Server-side form" />
+    <menuitem id="menu_ssf" name="Server-side form" parent="base.menu_tests" />
 
     <record id="action_test_o2m_onchange" model="ir.actions.act_window">
         <field name="name">Test o2m onchange thing</field>
@@ -10,8 +10,8 @@
 
     <menuitem
         id="menu_o2m"
-        parent="menu_ssf"
         name="O2M onchange test thing"
+        parent="menu_ssf"
         action="action_test_o2m_onchange" />
 
     <record id="action_test_m2o_onchange" model="ir.actions.act_window">
@@ -22,8 +22,8 @@
 
     <menuitem
         id="menu_m2o"
-        parent="menu_ssf"
         name="test_default_and_onchange"
+        parent="menu_ssf"
         action="action_test_m2o_onchange" />
 
     <record id="action_test_o2m_count" model="ir.actions.act_window">
@@ -34,14 +34,14 @@
 
     <menuitem
         id="menu_o2m_count"
-        parent="menu_ssf"
         name="test_change_number_of_lines"
+        parent="menu_ssf"
         action="action_test_o2m_count" />
 
     <record id="o2m_parent" model="ir.ui.view">
         <field name="name">Parent External Form</field>
-        <field name="priority">1</field>
         <field name="model">test_testing_utilities.parent</field>
+        <field name="priority">1</field>
         <field name="arch" type="xml">
             <form>
                 <sheet>
@@ -71,8 +71,8 @@
 
     <record id="o2m_tree" model="ir.ui.view">
         <field name="name">Sub regular</field>
-        <field name="priority">1</field>
         <field name="model">test_testing_utilities.sub</field>
+        <field name="priority">1</field>
         <field name="arch" type="xml">
             <list>
                 <field name="value" />

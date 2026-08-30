@@ -17,8 +17,8 @@
         <menuitem
             id="menu_test_translation_import_model1"
             name="Test translation import model1"
-            action="action_test_translation_import_model1"
-            parent="menu_test_translation_import" />
+            parent="menu_test_translation_import"
+            action="action_test_translation_import_model1" />
     </data>
 
 </odoo>

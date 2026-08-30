@@ -1,4 +1,5 @@
 {
-  "count": 37,
-  "note": "account_move_mail._routing_check_route wrapped a ValueError message in _(). A ValueError reaches a reader as a traceback, never as UI, so the translation is dead weight; it is an f-string now.\n\n38 -> 37. Measured HEAD 42 -> 41 in a detached worktree carrying only this change; the floor was already at 38 from another session, so this banks that 38 minus the one counted here.\n\nCommand: odoo-bin -d <db> -i test_lint --test-enable --test-tags /test_lint"
+  "count": 36,
+  "measured_at": "8395c5e9be21ee97cea88eddb09e027d035e2fe0",
+  "note": "37 -> 36, unattributed, and banked rather than left red.\n\nThe tree measures 36 at HEAD on a clean checkout -- verified in a `git archive` tree at e1e6327b6a4, so it is not local. The floor of 37 was banked with a note reading \"38 -> 37 ... the floor was already at 38 from another session, so this banks that 38 minus the one counted here\", which is a floor derived by arithmetic against another session own number rather than read off the tree. One of the two is off by one and there is nothing on disk that says which; the finding that would name it is a `_()` around a developer exception message that no longer exists anywhere in the corpus.\n\nBanking the measured value is what makes the gate mean something again. It is a one-unit correction, not a repayment, and it is recorded as such."
 }
