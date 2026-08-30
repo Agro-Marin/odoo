@@ -1349,7 +1349,7 @@ class SaleOrder(models.Model):
                 all_coupons -= coupons_from_order
                 # Invalidate those lines so that they don't impact anything further down the line
                 program_reward_lines = self.line_ids.filtered(
-                    lambda l: l.coupon_id in coupons_from_order
+                    lambda l: l.coupon_id in coupons_from_order  # noqa: B023  (consumed by filtered() in the same iteration)
                 )
                 program_reward_lines._reset_loyalty(True)
                 lines_to_unlink |= program_reward_lines
@@ -1415,7 +1415,7 @@ class SaleOrder(models.Model):
                 and "error" in all_programs_status[program]
             ):
                 program_reward_lines = self.line_ids.filtered(
-                    lambda l: l.coupon_id in applied_coupon_per_program[program]
+                    lambda l: l.coupon_id in applied_coupon_per_program[program]  # noqa: B023  (consumed by filtered() in the same iteration)
                 )
                 program_reward_lines._reset_loyalty(True)
                 lines_to_unlink |= program_reward_lines
