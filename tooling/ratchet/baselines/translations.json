@@ -1,4 +1,5 @@
 {
-  "count": 497,
-  "note": "rebased onto da46eb273bb: 504 -> 497, mails seven, re-measured on the new base. Five of the 497 are upstreams: origin measures 504 against its own committed floor of 499, so that gate was already red by five before this branch, and this banks the measured value rather than leaving it red by the same five. Nobody has established which five."
+  "count": 404,
+  "measured_at": "0c82bbec0c7c5f99668b376d9b5d0de79b55de3e",
+  "note": "Re-exported the .pot catalogues of html_editor, iap, mrp, pos_hr, product_expiry, project and purchase, which were stale against the tree. 509 -> 404. Twelve of the 105 were strings written since the 497 floor was banked at e84f2893593 -- the gate is explicit that a new string is exported, not floored -- and the other 93 were catalogue drift the same seven modules had already accumulated, project.pot most of all, whose field labels never caught up with the fork step_id/date_end renames."
 }

@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-01-25 18:36+0000\n"
-"PO-Revision-Date: 2026-01-25 18:36+0000\n"
+"POT-Creation-Date: 2026-08-30 23:34+0000\n"
+"PO-Revision-Date: 2026-08-30 23:34+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -351,6 +351,12 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/pos_hr/static/src/app/utils/select_cashier_mixin.js:0
 msgid "There is no cashier available."
+msgstr ""
+
+#. module: pos_hr
+#. odoo-python
+#: code:addons/pos_hr/models/single_employee_sales_report.py:0
+msgid "Unknown Employee"
 msgstr ""
 
 #. module: pos_hr
