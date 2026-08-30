@@ -204,9 +204,20 @@ class SaleReport(models.Model):
             "nbr_lines": "COUNT(*)",
         }
 
-        # Add additional fields from hooks (with POS-specific mappings)
+        # Add additional fields from hooks (with POS-specific mappings).
+        # _get_fields_select() returns the FULL base sale-side field dict,
+        # not just extension fields (sale_stock's warehouse_id is added by
+        # overriding _get_fields_select() itself, not _select_additional_
+        # fields()), so only the keys genuinely absent from the POS `fields`
+        # dict built above are passed through _fill_pos_fields(); otherwise
+        # every real POS column already built above would be overwritten
+        # with the literal SQL "NULL" for any key _available_additional_
+        # pos_fields() doesn't recognize.
         additional_fields = self._get_fields_select()
-        additional_fields_info = self._fill_pos_fields(additional_fields)
+        new_field_names = additional_fields.keys() - fields.keys()
+        additional_fields_info = self._fill_pos_fields(
+            {fname: additional_fields[fname] for fname in new_field_names}
+        )
         fields.update(additional_fields_info)
 
         return fields
