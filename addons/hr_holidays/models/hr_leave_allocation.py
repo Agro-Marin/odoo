@@ -221,10 +221,53 @@ class HrLeaveAllocation(models.Model):
         "The number of carried over days that will expire on carried_over_days_expiration_date"
     )
     carried_over_days_expiration_date = fields.Date("Carried over days expiration date")
-    _duration_check = models.Constraint(
-        "CHECK( ( number_of_days > 0 AND allocation_type='regular') or (allocation_type != 'regular'))",
-        "The duration must be greater than 0.",
+
+    @api.constrains(
+        "number_of_days", "allocation_type", "holiday_status_id", "employee_id"
     )
+    def _check_duration(self):
+        """Guard the allocated amount, in place of an SQL CHECK.
+
+        The CHECK this replaces read `number_of_days > 0 AND
+        allocation_type = 'regular'`, so it refused every negative allocation
+        and every empty one, and left accrual allocations alone. Only the
+        negative half moves: a type that declares a negative cap may now carry
+        a negative allocation up to that cap, which is how HR claws back days
+        granted by mistake. Accruals stay outside the check, exactly as the
+        CHECK left them.
+        """
+        for allocation in self:
+            if allocation.allocation_type != "regular":
+                continue
+            if not allocation.number_of_days:
+                raise ValidationError(
+                    self.env._("The duration must be greater than 0.")
+                )
+            if allocation.number_of_days > 0:
+                continue
+            leave_type = allocation.holiday_status_id
+            if not leave_type.allows_negative:
+                raise ValidationError(
+                    self.env._(
+                        "Negative allocations are not allowed for %(leave_type)s.",
+                        leave_type=leave_type.name,
+                    )
+                )
+            if allocation.type_request_unit == "hour":
+                excess = abs(allocation.number_of_hours_display)
+                unit = self.env._("hours")
+            else:
+                excess = abs(allocation.number_of_days)
+                unit = self.env._("days")
+            if excess > leave_type.max_allowed_negative:
+                raise ValidationError(
+                    self.env._(
+                        "%(leave_type)s cannot go more than %(max)s %(unit)s negative.",
+                        leave_type=leave_type.name,
+                        max=leave_type.max_allowed_negative,
+                        unit=unit,
+                    )
+                )
 
     @api.constrains("date_from", "date_to")
     def _check_date_from_date_to(self):

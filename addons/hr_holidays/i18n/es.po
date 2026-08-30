@@ -148,6 +148,12 @@ msgstr "%(name)s (%(duration)s %(request_unit)s)"
 #. module: hr_holidays
 #. odoo-python
 #: code:addons/hr_holidays/models/hr_leave_allocation.py:0
+msgid "%(leave_type)s cannot go more than %(max)s %(unit)s negative."
+msgstr "%(leave_type)s no puede quedar más de %(max)s %(unit)s en negativo."
+
+#. module: hr_holidays
+#. odoo-python
+#: code:addons/hr_holidays/models/hr_leave_allocation.py:0
 msgid "%(name)s (%(duration)s day(s))"
 msgstr "%(name)s (%(duration)s día(s))"
 
@@ -2984,6 +2990,12 @@ msgid "New Allocation"
 msgstr "Nueva asignación"
 
 #. module: hr_holidays
+#. odoo-python
+#: code:addons/hr_holidays/models/hr_leave_allocation.py:0
+msgid "Negative allocations are not allowed for %(leave_type)s."
+msgstr "No se permiten asignaciones negativas para %(leave_type)s."
+
+#. module: hr_holidays
 #. odoo-javascript
 #: code:addons/hr_holidays/static/src/dashboard/time_off_dashboard.xml:0
 msgid "New Allocation Request"
@@ -4055,7 +4067,8 @@ msgstr ""
 "formación) se utilizará en el cálculo de la tasa del plan de acumulación."
 
 #. module: hr_holidays
-#: model:ir.model.constraint,message:hr_holidays.constraint_hr_leave_allocation_duration_check
+#. odoo-python
+#: code:addons/hr_holidays/models/hr_leave_allocation.py:0
 msgid "The duration must be greater than 0."
 msgstr "La duración debe ser mayor que 0."
 

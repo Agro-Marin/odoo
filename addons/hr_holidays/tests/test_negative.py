@@ -107,3 +107,69 @@ class TestNegative(TestHrHolidaysCommon):
                         "date_to": datetime(2023, 10, 24),
                     }
                 )
+
+    def test_negative_allocation_within_the_configured_cap(self):
+        """A type that allows a negative cap must accept a negative allocation.
+
+        Correcting an over-granted balance means writing a negative
+        allocation. The SQL CHECK refused every one of them, so the "Allow
+        Negative Cap" setting only ever applied to requests.
+        """
+        allocation = self.env["hr.leave.allocation"].create(
+            {
+                "employee_id": self.employee_emp_id,
+                "holiday_status_id": self.leave_type.id,
+                "date_from": "2024-01-01",
+                "number_of_days": -3,
+            }
+        )
+
+        self.assertEqual(allocation.number_of_days, -3)
+
+    def test_negative_allocation_beyond_the_configured_cap(self):
+        """Maximum Excess Amount is a cap, so it has to bite."""
+        with self.assertRaises(ValidationError):
+            self.env["hr.leave.allocation"].create(
+                {
+                    "employee_id": self.employee_emp_id,
+                    "holiday_status_id": self.leave_type.id,
+                    "date_from": "2024-01-01",
+                    "number_of_days": -6,
+                }
+            )
+
+    def test_negative_allocation_on_a_type_that_forbids_it(self):
+        """Without the negative cap, nothing changes: no negative allocation."""
+        strict_type = self.env["hr.leave.type"].create(
+            {
+                "name": "Limited without negative",
+                "requires_allocation": True,
+                "company_id": self.company.id,
+                "allows_negative": False,
+            }
+        )
+        with self.assertRaises(ValidationError):
+            self.env["hr.leave.allocation"].create(
+                {
+                    "employee_id": self.employee_emp_id,
+                    "holiday_status_id": strict_type.id,
+                    "date_from": "2024-01-01",
+                    "number_of_days": -1,
+                }
+            )
+
+    def test_empty_allocation_is_still_refused(self):
+        """The guard the SQL CHECK also carried must not be lost with it.
+
+        The CHECK read `number_of_days > 0`, so it rejected a zero-day regular
+        allocation too. Upstream's replacement only looks at negatives.
+        """
+        with self.assertRaises(ValidationError):
+            self.env["hr.leave.allocation"].create(
+                {
+                    "employee_id": self.employee_emp_id,
+                    "holiday_status_id": self.leave_type.id,
+                    "date_from": "2024-01-01",
+                    "number_of_days": 0,
+                }
+            )
