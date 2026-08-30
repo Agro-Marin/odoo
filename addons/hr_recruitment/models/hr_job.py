@@ -25,13 +25,16 @@ class HrJob(models.Model):
             return self.env.company.partner_id
 
     def _domain_address_id(self):
+        # Match on parent_id rather than on a list of child ids: this domain is
+        # evaluated once, when the view loads, so a frozen id list can never
+        # contain an address the user creates from the form afterwards.
         return [
             "|",
             "&",
             "&",
             ("type", "!=", "contact"),
             ("type", "!=", "private"),
-            ("id", "in", self.sudo().env.companies.partner_id.child_ids.ids),
+            ("parent_id", "in", self.sudo().env.companies.partner_id.ids),
             ("id", "in", self.sudo().env.companies.partner_id.ids),
         ]
 
@@ -183,6 +186,17 @@ class HrJob(models.Model):
         "job_id",
         groups="hr_recruitment.group_hr_recruitment_interviewer",
     )
+    company_partner_id = fields.Many2one(
+        "res.partner", compute="_compute_company_partner_id"
+    )
+
+    @api.depends("company_id")
+    def _compute_company_partner_id(self):
+        """Seed a new job location as a child of the company that owns the job."""
+        for job in self:
+            job.company_partner_id = (
+                job.company_id.partner_id or self.env.company.partner_id
+            )
 
     @api.depends("application_ids.date_closed")
     def _compute_no_of_hired_employee(self):

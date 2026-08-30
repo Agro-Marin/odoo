@@ -595,3 +595,40 @@ class TestRecruitment(TransactionCase):
             "The candidate must be told about their application.",
         )
         self.assertNotIn("Your Applicant", mail.body_html)
+
+    def test_a_new_job_location_is_linked_to_the_company(self):
+        """
+        Test that an address created from the job form stays reachable.
+
+        ``address_id``'s domain is built once, when the view loads, so it froze
+        a list of partner ids and nothing created afterwards could satisfy it.
+        The address also has to be created as a child of the company, or it ends
+        up a loose contact that never shows up in the field again.
+        """
+        Job = self.env["hr.job"]
+        company_partner = self.env.company.partner_id
+
+        job = Job.create({"name": "Located Job"})
+        self.assertEqual(
+            job.company_partner_id,
+            company_partner,
+            "The form needs the company's contact to seed the new address.",
+        )
+
+        address = self.env["res.partner"].create(
+            {
+                "name": "Planta Norte",
+                "parent_id": job.company_partner_id.id,
+                "type": "other",
+            }
+        )
+        self.assertTrue(
+            address.filtered_domain(Job._domain_address_id()),
+            "An address of the company must be selectable as a job location.",
+        )
+
+        orphan = self.env["res.partner"].create({"name": "Planta Sur"})
+        self.assertFalse(
+            orphan.filtered_domain(Job._domain_address_id()),
+            "A loose contact is still not a job location.",
+        )
