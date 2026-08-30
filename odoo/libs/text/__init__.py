@@ -1,4 +1,6 @@
 from .strings import (
+    name_length_band,
+    similarity_ratio,
     remove_accents,
     human_size,
     is_encodable,
@@ -61,6 +63,7 @@ __all__ = [
     "is_encodable",
     "is_html_empty",
     "mod10r",
+    "name_length_band",
     "nl2br",
     "nl2br_enclose",
     "plaintext2html",
@@ -69,6 +72,7 @@ __all__ = [
     "replace_local_links",
     "reshape",
     "safe_attrs",
+    "similarity_ratio",
     "str2bool",
     "street_split",
     "tag_quote",

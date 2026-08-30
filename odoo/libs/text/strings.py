@@ -3,12 +3,15 @@ __all__ = [
     "human_size",
     "is_encodable",
     "mod10r",
+    "name_length_band",
     "remove_accents",
+    "similarity_ratio",
     "str2bool",
 ]
 
 import unicodedata
 import warnings
+from difflib import SequenceMatcher
 from typing import Literal
 
 
@@ -88,3 +91,18 @@ def get_flag(country_code: str) -> str:
         msg = f"country_code must be two ASCII letters, got {country_code!r}"
         raise ValueError(msg)
     return "".join(chr(_REGIONAL_INDICATOR_A + ord(c) - ord("A")) for c in code)
+
+
+def name_length_band(searched_length: int, threshold: float) -> tuple[float, float]:
+    # SequenceMatcher(a, b).ratio() is 2 * matches / (len(a) + len(b)) and
+    # matches <= min(len(a), len(b)), so a candidate outside this band is
+    # provably below the threshold. Comparing two integers is far cheaper than
+    # the quadratic comparison it lets us skip.
+    return (
+        searched_length * threshold / (2 - threshold),
+        searched_length * (2 - threshold) / threshold,
+    )
+
+
+def similarity_ratio(searched: str, candidate: str) -> float:
+    return SequenceMatcher(None, searched, candidate).ratio()

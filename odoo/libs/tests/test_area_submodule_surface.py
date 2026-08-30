@@ -1,6 +1,5 @@
 import ast
 import functools
-import importlib
 import json
 import pathlib
 import subprocess
@@ -15,6 +14,16 @@ _REPO = _LIBS.parents[1]
 
 
 DECLARED_SUBMODULE_EXPORTS: dict[str, set[str]] = {
+    "documents": {
+        "coerce",
+        "document",
+        "format",
+        "formats",
+        "guess",
+        "layout",
+        "readers",
+        "writers",
+    },
     "filesystem": {"appdirs", "mimetypes", "osutil"},
     "web": {"urls"},
 }
@@ -65,7 +74,11 @@ def _runtime_surface() -> dict[str, dict[str, list[str]]]:
                 if not getattr(value, "__name__", "").startswith(prefix):
                     continue
                 (declared if name in exported else accidental).append(name)
-            out[p.name] = {"declared": sorted(declared), "accidental": sorted(accidental)}
+            out[p.name] = {
+                "declared": sorted(declared),
+                "accidental": sorted(accidental),
+                "exported": sorted(exported),
+            }
         json.dump(out, sys.stdout)
         """
     )
@@ -132,8 +145,14 @@ def test_declared_submodule_exports_are_pinned():
 
 
 def _accidental_from_disk(area: str) -> set[str]:
-    mod = importlib.import_module(f"odoo.libs.{area}")
-    exported = set(getattr(mod, "__all__", []))
+    # `__all__` comes from the subprocess surface, not from importing the area
+    # here. The DB-free suites stub `odoo.libs.<area>` into a namespace-only
+    # module with no `__all__` at all (odoo/_testing_bootstrap.py), so an
+    # in-process read counted every module in a stubbed area as accidental --
+    # and which areas were stubbed depended on which other suites pytest had
+    # already collected. This measurement is about the tree, not about the run.
+    entry = _runtime_surface().get(area, {})
+    exported = set(entry.get("exported", ()))
     on_disk = {p.stem for p in (_LIBS / area).glob("*.py") if p.stem != "__init__"}
     return on_disk - exported
 
