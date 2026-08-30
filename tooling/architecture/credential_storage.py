@@ -42,9 +42,44 @@ ABOUT = re.compile(
 
 # A capability we mint so a link works. Whose secret it is decides this, not the
 # word "token": moving one into the vault breaks the URL it exists for.
+#
+# Five names say it on their own.
 SHARE = re.compile(
-    r"^(access_token|share_token|invite_token|document_token|sms_token|token"
-    r"|portal_token|signup_token|push_token)$"
+    r"^(share_token|invite_token|document_token|portal_token|signup_token)$"
+)
+
+# `access_token`, `token`, `sms_token` and `push_token` do not. The same four
+# names carry both kinds, and no pattern separates them -- a generator does not
+# either, because `portal.access_token` is minted in a method rather than a
+# field default. What separates them is *whom the token authorises*: a visitor
+# to one of our records, or us to somebody's API. That is a judgement per field,
+# so it is recorded per field.
+SHARE_FIELDS = frozenset(
+    {
+        "appointment.access_token",
+        "base.access_token",
+        "calendar.access_token",
+        "documents.access_token",
+        "frontdesk.access_token",
+        "hr_contract_salary.access_token",
+        "iot.token",  # minted by iot.box._default_token so a box can pair
+        "mail.access_token",
+        "planning.access_token",
+        "point_of_sale.access_token",
+        "portal.access_token",
+        "pos_enterprise.access_token",
+        "rating.access_token",
+        "room.access_token",
+        "sign.access_token",
+        "sign.sms_token",
+        "sign.token",
+        "social_push_notifications.push_token",
+        "spreadsheet_dashboard.access_token",
+        "survey.access_token",
+        "website.access_token",
+        "website_sale.access_token",
+        "website_slides.access_token",
+    }
 )
 
 # Computed *from* a secret, and the point of them is that they are not it.
@@ -135,6 +170,8 @@ def findings() -> list[Finding]:
                     if not SECRET.search(name) or ABOUT.search(name):
                         continue
                     if SHARE.match(name) or DERIVED.search(name):
+                        continue
+                    if f"{module}.{name}" in SHARE_FIELDS:
                         continue
                     if CURSOR.search(name):
                         continue

@@ -74,7 +74,7 @@ class TestTheFourExclusions:
         assert gate.offenders() == []
 
     @pytest.mark.parametrize(
-        "name", ["access_token", "invite_token", "document_token", "share_token"]
+        "name", ["invite_token", "document_token", "share_token", "portal_token"]
     )
     def test_a_token_we_mint_belongs_on_the_record_it_shares(
         self, tmp_path, monkeypatch, name
@@ -225,3 +225,42 @@ class TestACursorIsNotACredential:
     ):
         _write(tmp_path, monkeypatch, "ups_access_token = fields.Char()")
         assert [f.field for f in gate.offenders()] == ["ups_access_token"]
+
+
+class TestTheFourAmbiguousNames:
+    """`access_token`, `token`, `sms_token`, `push_token` carry both kinds.
+
+    No pattern separates them and neither does a generator: `portal.access_token`
+    is minted in a method, not a field default. What separates them is whom the
+    token authorises, so the judgement is recorded per field.
+    """
+
+    def test_a_share_token_named_in_the_set_is_excluded(self, tmp_path, monkeypatch):
+        _write(tmp_path, monkeypatch, "access_token = fields.Char()", module="portal")
+        assert gate.offenders() == []
+
+    def test_the_same_name_elsewhere_is_a_credential(self, tmp_path, monkeypatch):
+        _write(tmp_path, monkeypatch, "access_token = fields.Char()", module="carrier")
+        assert [f.key for f in gate.offenders()] == ["carrier.access_token"]
+
+    def test_the_five_unambiguous_names_need_no_entry(self, tmp_path, monkeypatch):
+        for name in (
+            "share_token",
+            "invite_token",
+            "document_token",
+            "portal_token",
+            "signup_token",
+        ):
+            _write(
+                tmp_path / name, monkeypatch, f"{name} = fields.Char()", module="thing"
+            )
+            assert gate.offenders() == [], name
+
+    def test_every_named_share_field_still_exists(self):
+        # a SHARE_FIELDS entry naming nothing is a rule kept for a field that is
+        # gone, which is how an exclusion outlives its reason
+        for key in gate.SHARE_FIELDS:
+            module = key.split(".", 1)[0]
+            assert module in gate.module_names(), (
+                f"{key} names a module the tree does not have"
+            )

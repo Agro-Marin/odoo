@@ -159,3 +159,35 @@ secret whose name merely *ends* in `token` (`ups_access_token`) still counts.
 The decision is unchanged: a credential is stored in the vault. What changed is
 one more answer to *what is a credential*, which is the part of this record that
 was always going to need the tree to teach it.
+
+### 2026-08-30 — the share-token rule was a name pattern, and four names carry both kinds
+
+The exclusion table above calls a share token a name. It is not.
+
+`access_token`, `token`, `sms_token` and `push_token` name **both** kinds in this
+tree. `whatsapp`'s `token` is `string="Access Token"`, `required=True`, and is
+Meta's bearer; `portal`'s `access_token` is what makes a portal link work. The original
+regex excluded both, so **eight third-party credentials were missing from the
+count entirely** — on the Amazon, Lazada and Shopee shop
+models, the WhatsApp account, the bank-feed link, the AFIP connection, the ETA
+thumb drive and the SAT session -- integration accounts every one, which is the
+pattern that decided them and the reason the sibling repos had to be read to see
+it. The backlog is 168 entries.
+
+**A generator does not separate them either**, which was the first hypothesis and
+is worth recording as refuted: `portal`'s `access_token` has no `default=` because
+it is minted in `_portal_ensure_token`, a method. Sixteen share-named fields have no
+field-level generator and half of them are ours.
+
+What separates them is **whom the token authorises** — a visitor to one of our
+records, or us to somebody's API — and nothing about the declaration says which.
+So five names that do say it on their own stay a pattern
+(`share_token`, `invite_token`, `document_token`, `portal_token`,
+`signup_token`), and the other four are decided per field in `SHARE_FIELDS`,
+twenty-three entries, each a recorded judgement rather than a regex pretending to
+know. A test asserts every module named there still exists, because an exclusion
+that outlives its field is how the next wrong one gets in.
+
+Two amendments in one day, in opposite directions — a cursor wrongly counted, and
+eight credentials wrongly excluded — is the measurement supporting this record's
+own claim that the count *is* the decision.
