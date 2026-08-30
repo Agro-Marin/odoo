@@ -111,10 +111,11 @@ class HrLeave(models.Model):
                     selected_leave_type.request_unit == "hour"
                 )
 
+        today = Date.context_today(self)
         if "request_date_from" in fields and "request_date_from" not in defaults:
-            defaults["request_date_from"] = Date.today()
+            defaults["request_date_from"] = today
         if "request_date_to" in fields and "request_date_to" not in defaults:
-            defaults["request_date_to"] = Date.today()
+            defaults["request_date_to"] = today
 
         return defaults
 
@@ -1103,7 +1104,7 @@ Versions:
         date_from = (
             fields.Date.from_string(self.env.context["default_request_date_from"])
             if "default_request_date_from" in self.env.context
-            else fields.Date.today()
+            else fields.Date.context_today(self)
         )
         employee_days_per_allocation = self.employee_id._get_consumed_leaves(
             self.holiday_status_id, date_from
@@ -1985,7 +1986,9 @@ Versions:
 
         user_employees = self.env.user.employee_ids
         is_own_leave = self.employee_id in user_employees
-        is_in_past = self.date_from and self.date_from.date() < fields.Date.today()
+        is_in_past = (
+            self.date_from and self.date_from.date() < fields.Date.context_today(self)
+        )
 
         is_officer = self.env.user.has_group("hr_holidays.group_hr_holidays_user")
         is_time_off_manager = self.employee_id.leave_manager_id == self.env.user
@@ -2157,7 +2160,7 @@ is approved, validated or refused."
             self.env["hr.leave"],
         )
         activity_vals = []
-        today = fields.Date.today()
+        today = fields.Date.context_today(self)
         model_id = self.env["ir.model"]._get_id("hr.leave")
         confirm_activity = self.env.ref("hr_holidays.mail_act_leave_approval")
         approval_activity = self.env.ref("hr_holidays.mail_act_leave_second_approval")

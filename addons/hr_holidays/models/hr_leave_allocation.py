@@ -312,7 +312,7 @@ class HrLeaveAllocation(models.Model):
         date_from = (
             fields.Date.from_string(self.env.context["default_date_from"])
             if "default_date_from" in self.env.context
-            else fields.Date.today()
+            else fields.Date.context_today(self)
         )
         employee_days_per_allocation = self.employee_id._get_consumed_leaves(
             self.holiday_status_id, date_from
@@ -662,7 +662,7 @@ class HrLeaveAllocation(models.Model):
         If force_period is set, the accrual will run until date_to in a prorated way (used for end of year accrual actions).
         """
 
-        date_to = date_to or fields.Date.today()
+        date_to = date_to or fields.Date.context_today(self)
         already_accrued = {
             allocation.id: allocation.already_accrued
             or (
@@ -1141,10 +1141,10 @@ class HrLeaveAllocation(models.Model):
             )
 
     def _add_lastcalls(self):
+        today = fields.Date.context_today(self)
         for allocation in self:
             if allocation.allocation_type != "accrual":
                 continue
-            today = fields.Date.today()
             (current_level, current_level_idx) = (
                 allocation._get_current_accrual_plan_level_id(today)
             )

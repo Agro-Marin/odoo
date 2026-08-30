@@ -158,7 +158,7 @@ class HrVersion(models.Model):
                 fields.Date.from_string(
                     vals.get(
                         "contract_date_start",
-                        vals.get("date_version", fields.Date.today()),
+                        vals.get("date_version", fields.Date.context_today(self)),
                     )
                 ),
             ),

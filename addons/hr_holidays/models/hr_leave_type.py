@@ -256,7 +256,7 @@ class HrLeaveType(models.Model):
             date_to = fields.Date.context_today(self, default_date_to_dt)
 
         else:
-            current_year = fields.Date.today().year
+            current_year = fields.Date.context_today(self).year
             date_from = date(current_year, 1, 1)
             date_to = date(current_year, 12, 31)
 
@@ -748,7 +748,7 @@ class HrLeaveType(models.Model):
         elif target_date and isinstance(target_date, datetime):
             target_date = target_date.date()
         elif not target_date:
-            target_date = fields.Date.today()
+            target_date = fields.Date.context_today(self)
 
         allocations_leaves_consumed, extra_data = employees.with_context(
             ignored_leave_ids=self.env.context.get("ignored_leave_ids")
@@ -756,6 +756,7 @@ class HrLeaveType(models.Model):
         leave_type_requires_allocation = self.filtered(
             lambda lt: lt.requires_allocation
         )
+        today_local = fields.Date.context_today(self)
 
         for employee in employees:
             for leave_type in leave_type_requires_allocation:
@@ -813,9 +814,8 @@ class HrLeaveType(models.Model):
                 ].items():
                     # We only need the allocation that are valid at the given date
                     if allocation:
-                        today = fields.Date.today()
-                        if allocation.date_from <= today and (
-                            not allocation.date_to or allocation.date_to >= today
+                        if allocation.date_from <= today_local and (
+                            not allocation.date_to or allocation.date_to >= today_local
                         ):
                             # we get each allocation available now to indicate visually if
                             # the future evaluation holds changes compared to now
@@ -894,7 +894,7 @@ class HrLeaveType(models.Model):
                     lt_info[1]["accrual_bonus"] > 0
                     or bool(allocations_date - allocations_now)
                     or bool(allocations_now - allocations_date)
-                ) and target_date != fields.Date.today()
+                ) and target_date != today_local
                 lt_info[1].update(
                     {
                         "closest_allocation_remaining": closest_allocation_remaining,
