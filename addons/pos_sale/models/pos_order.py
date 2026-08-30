@@ -44,6 +44,12 @@ class PosOrder(models.Model):
     def _prepare_invoice_vals(self):
         invoice_vals = super()._prepare_invoice_vals()
         invoice_vals["team_id"] = self.crm_team_id.id
+        # `sale_orders` can hold more than one sale order when this POS order's
+        # lines settle several distinct sale orders (e.g. a downpayment
+        # settlement from one order mixed with a direct sale of another's
+        # remaining balance). Only the first order's shipping address,
+        # payment terms and invoice partner are used below; this is a known
+        # limitation, not an oversight — see pos_sale ledger finding F06.
         sale_orders = self.lines.mapped("sale_order_origin_id")
         if sale_orders:
             if (
