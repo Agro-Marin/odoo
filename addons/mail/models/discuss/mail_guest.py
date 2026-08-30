@@ -61,17 +61,17 @@ class MailGuest(models.Model):
     )
     im_status = fields.Char(
         "IM Status",
-        compute="_compute_im_status",
+        compute="_compute_presence",
         compute_sudo=True,
     )
     offline_since = fields.Datetime(
         "Offline since",
-        compute="_compute_im_status",
+        compute="_compute_presence",
         compute_sudo=True,
     )
 
     @api.depends("presence_ids.status")
-    def _compute_im_status(self) -> None:
+    def _compute_presence(self) -> None:
         for guest in self:
             guest.im_status = guest.presence_ids.status or "offline"
             guest.offline_since = (

@@ -371,14 +371,14 @@ class TestDiscussChannelMember(MailCommon):
         )
 
         member_model = type(member)
-        original_compute = member_model._compute_message_unread
+        original_compute = member_model._compute_message_unread_counter
         calls = []
 
         def _counting(records):
             calls.append(records.ids)
             return original_compute(records)
 
-        with patch.object(member_model, "_compute_message_unread", _counting):
+        with patch.object(member_model, "_compute_message_unread_counter", _counting):
             member.write({"mute_until_dt": datetime.now() + timedelta(days=1)})
             self.assertEqual(
                 calls, [], "unrelated member write recomputed the unread counter"

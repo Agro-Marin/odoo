@@ -99,7 +99,7 @@ class IrAttachment(models.Model):
                         attachment, force=force
                     )
 
-    def _delete_and_notify(self, message: MailMessage | None = None) -> None:
+    def _remove_and_notify(self, message: MailMessage | None = None) -> None:
         if message:
             message.sudo().write({})
         for attachment in self:

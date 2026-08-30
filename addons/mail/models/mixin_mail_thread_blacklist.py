@@ -131,5 +131,5 @@ class MixinMailThreadBlacklist(models.AbstractModel):
             )
 
     @api.model
-    def _detect_loop_sender_domain(self, email_from_normalized: str) -> list:
+    def _get_domain_loop_sender(self, email_from_normalized: str) -> list:
         return [("email_normalized", "=", email_from_normalized)]

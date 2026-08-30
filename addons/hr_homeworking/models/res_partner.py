@@ -4,8 +4,8 @@ from odoo import models
 class ResPartner(models.Model):
     _inherit = "res.partner"
 
-    def _compute_im_status(self):
-        super()._compute_im_status()
+    def _compute_presence(self):
+        super()._compute_presence()
         for user in self.user_ids:
             dayfield = self.env["hr.employee"]._get_current_day_location_field()
             location_type = user[dayfield].location_type

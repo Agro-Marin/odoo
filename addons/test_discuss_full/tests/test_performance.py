@@ -48,7 +48,7 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
     #       - search discuss_channel (member and pinned-member domains, one OR)
     #   2: _init_messaging (discuss)
     #       - fetch discuss_channel_member (is_self)
-    #       - _compute_message_unread
+    #       - _compute_message_unread_counter
     #   3: _init_messaging (mail)
     #       - search bus_bus (_bus_last_id)
     #       - _get_needaction_count (inbox counter)
@@ -77,7 +77,7 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
     #           - search bus_bus (_bus_last_id)
     #           - search ir_attachment (_compute_avatar_128)
     #           - count discuss_channel_member (member_count)
-    #           - _compute_message_needaction
+    #           - _compute_message_needaction_info
     #           - search discuss_channel_res_groups_rel (group_ids)
     #           - fetch res_groups (group_public_id)
     _query_count_init_messaging = 34
@@ -121,11 +121,11 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
     #       - search bus_bus (_bus_last_id from _to_store_defaults)
     #       - search ir_attachment (_compute_avatar_128)
     #       - count discuss_channel_member (member_count)
-    #       - _compute_message_needaction
+    #       - _compute_message_needaction_info
     #       - search discuss_channel_res_groups_rel (group_ids)
     #       - fetch im_livechat_channel_member_history (requested_by_operator)
     #       - fetch res_groups (group_ids)
-    #       - _compute_message_unread
+    #       - _compute_message_unread_counter
     #       - fetch im_livechat_channel
     #       2: fetch livechat_expertise_ids
     #       - fetch livechat_conversation_tag_ids

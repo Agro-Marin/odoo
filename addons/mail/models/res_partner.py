@@ -33,12 +33,12 @@ class ResPartner(models.Model):
     )
     im_status = fields.Char(
         "IM Status",
-        compute="_compute_im_status",
+        compute="_compute_presence",
         compute_sudo=True,
     )
     offline_since = fields.Datetime(
         "Offline since",
-        compute="_compute_im_status",
+        compute="_compute_presence",
         compute_sudo=True,
     )
 
@@ -50,7 +50,7 @@ class ResPartner(models.Model):
             )
 
     @api.depends("user_ids.manual_im_status", "user_ids.presence_ids.status")
-    def _compute_im_status(self) -> None:
+    def _compute_presence(self) -> None:
         for partner in self:
             all_status = [
                 presence._get_im_status(presence.user_id.manual_im_status)

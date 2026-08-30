@@ -149,24 +149,24 @@ class MixinMailThread(models.AbstractModel):
     )
     message_needaction = fields.Boolean(
         "Action Needed",
-        compute="_compute_message_needaction",
+        compute="_compute_message_needaction_info",
         search="_search_message_needaction",
         help="If checked, new messages require your attention.",
     )
     message_needaction_counter = fields.Integer(
         "Number of Actions",
-        compute="_compute_message_needaction",
+        compute="_compute_message_needaction_info",
         help="Number of messages requiring action",
     )
     message_has_error = fields.Boolean(
         "Message Delivery error",
-        compute="_compute_message_has_error",
+        compute="_compute_message_has_error_info",
         search="_search_message_has_error",
         help="If checked, some messages have a delivery error.",
     )
     message_has_error_counter = fields.Integer(
         "Number of errors",
-        compute="_compute_message_has_error",
+        compute="_compute_message_has_error_info",
         help="Number of messages with delivery error",
     )
     message_attachment_count = fields.Integer(
@@ -310,7 +310,7 @@ class MixinMailThread(models.AbstractModel):
         ]
 
     @api.depends_context("uid")
-    def _compute_message_needaction(self) -> None:
+    def _compute_message_needaction_info(self) -> None:
         res = dict.fromkeys(self.ids, 0)
         if self.ids:
             res.update(
@@ -362,7 +362,7 @@ class MixinMailThread(models.AbstractModel):
         return [("message_ids.needaction", operator, operand)]
 
     @api.depends_context("uid")
-    def _compute_message_has_error(self) -> None:
+    def _compute_message_has_error_info(self) -> None:
         res = {}
         if self.ids:
             res.update(
@@ -4596,7 +4596,7 @@ class MixinMailThread(models.AbstractModel):
                 )
             )
         elif attachment_ids is not None:
-            message.attachment_ids._delete_and_notify()
+            message.attachment_ids._remove_and_notify()
         if partner_ids is not None:
             msg_values.update(
                 {"partner_ids": [int(pid) for pid in partner_ids] or False}

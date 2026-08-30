@@ -43,7 +43,7 @@
             <field name="name">Mail: Fetchmail Service</field>
             <field name="model_id" ref="model_fetchmail_server" />
             <field name="state">code</field>
-            <field name="code">model._fetch_mails()</field>
+            <field name="code">model._poll_due_mailboxes()</field>
             <field name="interval_number">5</field>
             <field name="interval_type">minutes</field>
             <field name="active" eval="False" />

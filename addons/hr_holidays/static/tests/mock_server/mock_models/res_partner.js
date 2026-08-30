@@ -4,7 +4,7 @@ import { fields } from "@web/../tests/web_test_helpers";
 
 /**
  * How a presence status reads once the partner is on leave, mirroring
- * `hr_holidays/models/res_partner.py::_compute_im_status`. A status absent from
+ * `hr_holidays/models/res_partner.py::_compute_presence`. A status absent from
  * this map is left alone, exactly as the `elif` ladder there leaves it.
  */
 const ON_LEAVE_STATUS = {
@@ -42,7 +42,7 @@ export class ResPartner extends hrModels.ResPartner {
 
     /**
      * Base status first, then the leave mapping over it -- the order the server
-     * uses (`super()._compute_im_status()` then the `elif` ladder).
+     * uses (`super()._compute_presence()` then the `elif` ladder).
      *
      * This is a second implementation of a server computation, and it had
      * drifted from it in three ways at once. It read `leave_date_to` off

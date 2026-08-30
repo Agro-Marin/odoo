@@ -503,7 +503,7 @@ class TestFetchmailErrorState(FetchmailCommon):
                     side_effect=Exception(message),
                     autospec=True,
                 ):
-                    server._fetch_mail()
+                    server._poll_mailboxes()
             self.assertEqual(
                 server.error_message,
                 "second cause",
@@ -517,7 +517,7 @@ class TestFetchmailErrorState(FetchmailCommon):
                 side_effect=Exception("third"),
                 autospec=True,
             ):
-                server._fetch_mail()
+                server._poll_mailboxes()
             self.assertEqual(
                 server.error_since, first_seen, "error_since marks the start of the run"
             )
@@ -531,7 +531,7 @@ class TestFetchmailErrorState(FetchmailCommon):
             with patch.object(
                 type(server), "_connect__", lambda self, **kw: MockedConnection()
             ):
-                server._fetch_mail()
+                server._poll_mailboxes()
             self.assertFalse(server.error_since)
             self.assertFalse(server.error_message)
 
@@ -568,12 +568,12 @@ class TestFetchmailErrorState(FetchmailCommon):
                 side_effect=Exception("down"),
                 autospec=True,
             ):
-                server._fetch_mail()
+                server._poll_mailboxes()
                 self.assertEqual(server.state, "done", "one failure is not enough")
                 server.error_since -= MAIL_SERVER_DEACTIVATE_TIME + datetime.timedelta(
                     minutes=1
                 )
-                server._fetch_mail()
+                server._poll_mailboxes()
             self.assertEqual(server.state, "draft")
             self.assertFalse(
                 server.error_since, "unconfirming resets the run it was measuring"
@@ -584,10 +584,10 @@ class TestFetchmailPolling(FetchmailCommon):
     def test_fetch_mail_button_refuses_an_ineligible_server(self):
         server = self._server(name="draft one", state="draft")
         with self.assertRaises(UserError):
-            server.fetch_mail()
+            server.action_poll_mailbox()
         local = self._server(name="local three", server_type="local")
         with self.assertRaises(UserError):
-            local.fetch_mail()
+            local.action_poll_mailbox()
 
     def test_the_sink_follows_a_replaced_handler(self):
         server = self._server(name="late bound")
@@ -629,7 +629,7 @@ class TestFetchmailPolling(FetchmailCommon):
                 autospec=True,
             ) as process,
         ):
-            server.with_env(server.env(cr=cr)).fetch_mail()
+            server.with_env(server.env(cr=cr)).action_poll_mailbox()
             process.assert_called_once()
         self.assertEqual(seen["message"], _message(1))
         self.assertEqual(connection.acknowledged, [1])
@@ -655,7 +655,7 @@ class TestFetchmailPolling(FetchmailCommon):
                 autospec=True,
             ),
         ):
-            exception = server.with_env(server.env(cr=cr)).sudo()._fetch_mail()
+            exception = server.with_env(server.env(cr=cr)).sudo()._poll_mailboxes()
         self.assertEqual(len(processed), 3, "every message must still be offered")
         self.assertIsNone(exception, "a mark-handled failure is not a server failure")
         self.assertFalse(server.error_since, "nor does it feed the deactivation run")
@@ -682,7 +682,7 @@ class TestFetchmailPolling(FetchmailCommon):
                 autospec=True,
             ),
         ):
-            server.with_env(server.env(cr=cr)).sudo()._fetch_mail()
+            server.with_env(server.env(cr=cr)).sudo()._poll_mailboxes()
         self.assertEqual(len(calls), 2)
 
     def test_batch_limit_stops_the_server_and_leaves_the_rest(self):
@@ -699,7 +699,7 @@ class TestFetchmailPolling(FetchmailCommon):
                 autospec=True,
             ),
         ):
-            server.with_env(server.env(cr=cr)).sudo()._fetch_mail(batch_limit=2)
+            server.with_env(server.env(cr=cr)).sudo()._poll_mailboxes(batch_limit=2)
         self.assertEqual(len(connection.acknowledged), 2)
 
     def test_servers_are_polled_in_round_robin_order(self):
@@ -714,21 +714,21 @@ class TestFetchmailPolling(FetchmailCommon):
         )
         captured = []
 
-        def _fetch_mail(records, **kw):
+        def _poll_mailboxes(records, **kw):
             captured.append(records.mapped("name"))
 
         cron = self.env.ref("mail.ir_cron_mail_gateway_action")
         with patch.object(
-            self.registry["fetchmail.server"], "_fetch_mail", _fetch_mail
+            self.registry["fetchmail.server"], "_poll_mailboxes", _poll_mailboxes
         ):
-            Server.with_context(cron_id=cron.id, cron_end_time=0)._fetch_mails()
+            Server.with_context(cron_id=cron.id, cron_end_time=0)._poll_due_mailboxes()
         self.assertEqual(captured, [["p1", "p2", "p3"]])
 
     def test_an_archived_server_is_not_pollable(self):
         server = self._server(name="archived poll")
         server.action_archive()
         with self.assertRaises(UserError):
-            server.fetch_mail()
+            server.action_poll_mailbox()
         self.assertFalse(
             server.error_since,
             "refusing an ineligible server is not a failure of the server",
@@ -736,7 +736,7 @@ class TestFetchmailPolling(FetchmailCommon):
 
     def test_fetch_mails_is_cron_only(self):
         with self.assertRaises(ValueError):
-            self.env["fetchmail.server"]._fetch_mails()
+            self.env["fetchmail.server"]._poll_due_mailboxes()
 
 
 class TestFetchmailDurability(FetchmailCommon):
@@ -753,7 +753,7 @@ class TestFetchmailDurability(FetchmailCommon):
                 autospec=True,
             ),
         ):
-            server.with_env(server.env(cr=cr)).sudo()._fetch_mail()
+            server.with_env(server.env(cr=cr)).sudo()._poll_mailboxes()
         return server
 
     def test_a_processed_message_survives_the_poll(self):
@@ -852,7 +852,7 @@ class TestFetchmailDurability(FetchmailCommon):
             ),
         ):
             poll_cr = cr
-            server.with_env(server.env(cr=cr)).sudo()._fetch_mail()
+            server.with_env(server.env(cr=cr)).sudo()._poll_mailboxes()
         message_cr = polling_cr[0]
         self.assertIsNot(message_cr, poll_cr, "the handler runs on its own cursor")
         self.assertEqual(
@@ -897,7 +897,7 @@ class TestFetchmailDurability(FetchmailCommon):
                     autospec=True,
                 ),
             ):
-                server.with_env(server.env(cr=poll_cr)).sudo()._fetch_mail()
+                server.with_env(server.env(cr=poll_cr)).sudo()._poll_mailboxes()
 
         publications = [i for i, e in enumerate(events) if e == ("publish", True)]
         self.assertEqual(len(publications), 2, "one opening, one per server")
@@ -996,7 +996,7 @@ class TestFetchmailAccounting(FetchmailCommon):
                 "odoo.addons.mail.models.fetchmail_server", level="INFO"
             ) as logs,
         ):
-            server.with_env(server.env(cr=cr)).sudo()._fetch_mail()
+            server.with_env(server.env(cr=cr)).sudo()._poll_mailboxes()
         summary = next(line for line in logs.output if "Fetched 2 email(s)" in line)
         self.assertIn("1 delivered", summary)
         self.assertIn("1 refused", summary)
@@ -1020,7 +1020,7 @@ class TestFetchmailAccounting(FetchmailCommon):
                 "odoo.addons.mail.models.fetchmail_server", level="INFO"
             ) as logs,
         ):
-            server.with_env(server.env(cr=cr)).sudo()._fetch_mail()
+            server.with_env(server.env(cr=cr)).sudo()._poll_mailboxes()
         summary = next(line for line in logs.output if "Fetched 1 email(s)" in line)
         self.assertIn("0 refused", summary)
         self.assertIn("1 delivered but not acknowledged", summary)
@@ -1070,7 +1070,7 @@ class TestFetchmailProgress(FetchmailCommon):
                 autospec=True,
             ),
         ):
-            server.with_env(env(cr=cr)).sudo()._fetch_mail()
+            server.with_env(env(cr=cr)).sudo()._poll_mailboxes()
         self.assertEqual(
             observed,
             [1, 2, 1, 0, 0],
@@ -1094,7 +1094,7 @@ class TestFetchmailProgress(FetchmailCommon):
                 lambda self, **kw: self.browse(),
             ),
         ):
-            server.with_env(env(cr=cr)).sudo()._fetch_mail()
+            server.with_env(env(cr=cr)).sudo()._poll_mailboxes()
         progress.invalidate_recordset()
         self.assertEqual(
             progress.remaining,
@@ -1140,7 +1140,7 @@ class TestFetchmailProgress(FetchmailCommon):
             self.registry.cursor() as cr,
             patch.object(type(server), "_connect__", lambda self, **kw: Broken()),
         ):
-            server.with_env(env(cr=cr)).sudo()._fetch_mail()
+            server.with_env(env(cr=cr)).sudo()._poll_mailboxes()
         progress.invalidate_recordset()
         self.assertEqual(
             progress.remaining,

@@ -59,7 +59,7 @@ class MailIceServer(models.Model):
             except ValueError, KeyError, TypeError:
                 pass
 
-        servers = self._fetch_twilio_ice_servers(account_sid, auth_token)
+        servers = self._get_twilio_ice_servers(account_sid, auth_token)
         if servers is None:
             return self._get_local_ice_servers()
         icp.set_param(
@@ -75,7 +75,7 @@ class MailIceServer(models.Model):
         )
         return servers
 
-    def _fetch_twilio_ice_servers(
+    def _get_twilio_ice_servers(
         self, account_sid: str, auth_token: str
     ) -> list | None:
         url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Tokens.json"

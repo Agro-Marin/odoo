@@ -432,6 +432,7 @@ class MailComposeMessage(models.TransientModel):
         "res_ids",
         "template_id",
     )
+    @api.depends_context("uid")
     def _compute_authorship(self) -> None:
         Thread = self.env["mixin.mail.thread"].with_context(active_test=False)
         for composer in self:
@@ -619,6 +620,7 @@ class MailComposeMessage(models.TransientModel):
         "res_ids",
         "subtype_id",
     )
+    @api.depends_context("uid")
     def _compute_notified_bcc_contains_share(self) -> None:
         post_composers = self.filtered(
             lambda comp: (

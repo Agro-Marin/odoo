@@ -233,7 +233,7 @@ The canonical messaging surface. Grouped by concern.
 
 **`mixin.mail.thread.blacklist`** — `_compute_is_blacklisted`/`_search_is_blacklisted`,
 `_message_receive_bounce`, `_message_reset_bounce`, `mail_action_blacklist_remove`,
-`_detect_loop_sender_domain`. Fields: `email_normalized`, `is_blacklisted`, `message_bounce`.
+`_get_domain_loop_sender`. Fields: `email_normalized`, `is_blacklisted`, `message_bounce`.
 
 **`mixin.mail.thread.cc`** — `_mail_cc_sanitized_raw_dict(cc_string)`, `message_new`,
 `message_update`, `_message_get_suggested_recipients_sources`. Field: `email_cc`.

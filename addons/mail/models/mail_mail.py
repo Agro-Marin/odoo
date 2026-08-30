@@ -462,7 +462,7 @@ class MailMail(models.Model):
             _logger.exception("Failed processing mail queue")
 
     @api.model
-    def _pending_email_notifications_domain(self, mail_ids: list[int]) -> list[tuple]:
+    def _get_domain_pending_email_notifications(self, mail_ids: list[int]) -> list[tuple]:
         return [
             ("notification_type", "=", "email"),
             ("mail_mail_id", "in", mail_ids),
@@ -485,7 +485,7 @@ class MailMail(models.Model):
                 self.env["mail.notification"].browse(pending_notification_ids)
                 if pending_notification_ids is not None
                 else self.env["mail.notification"].search(
-                    self._pending_email_notifications_domain(notif_mails_ids)
+                    self._get_domain_pending_email_notifications(notif_mails_ids)
                 )
             )
             if notifications:
@@ -1090,7 +1090,7 @@ class MailMail(models.Model):
         notifs = (
             self.env["mail.notification"]
             .sudo()
-            .search(self._pending_email_notifications_domain(self.ids))
+            .search(self._get_domain_pending_email_notifications(self.ids))
         )
         for mail in self.sorted(lambda k: (k.create_date, k.id)):
             room = MAX_SEND - mail_server.owner_limit_count
@@ -1602,7 +1602,7 @@ class MailMail(models.Model):
             self.env["mail.notification"].browse(pending_notification_ids)
             if pending_notification_ids is not None
             else self.env["mail.notification"].search(
-                self._pending_email_notifications_domain(self.ids)
+                self._get_domain_pending_email_notifications(self.ids)
             )
         )
         if notifs:

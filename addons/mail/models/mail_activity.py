@@ -59,7 +59,7 @@ class MailActivity(models.Model):
         return res
 
     @api.model
-    def _default_activity_type(self) -> MailActivityType:
+    def _default_activity_type_id(self) -> MailActivityType:
         default_vals = self.default_get(["res_model_id", "res_model"])
         current_model = default_vals.get("res_model")
         if not current_model and default_vals.get("res_model_id"):
@@ -111,7 +111,7 @@ class MailActivity(models.Model):
         string="Activity Type",
         domain="['|', ('res_model', '=', False), ('res_model', '=', res_model)]",
         ondelete="restrict",
-        default=_default_activity_type,
+        default=_default_activity_type_id,
     )
     activity_category = fields.Selection(
         related="activity_type_id.category", readonly=True

@@ -71,10 +71,10 @@ class MailActivitySchedule(models.TransientModel):
     company_id: ResCompany = fields.Many2one(
         "res.company", "Company", compute="_compute_company_id", required=False
     )
-    error = fields.Html(compute="_compute_error")
-    has_error = fields.Boolean(compute="_compute_error")
-    warning = fields.Html(compute="_compute_error")
-    has_warning = fields.Boolean(compute="_compute_error")
+    error = fields.Html(compute="_compute_errors_and_warnings")
+    has_error = fields.Boolean(compute="_compute_errors_and_warnings")
+    warning = fields.Html(compute="_compute_errors_and_warnings")
+    has_warning = fields.Boolean(compute="_compute_errors_and_warnings")
     plan_available_ids: MailActivityPlan = fields.Many2many(
         "mail.activity.plan",
         compute="_compute_plan_available_ids",
@@ -173,7 +173,7 @@ class MailActivitySchedule(models.TransientModel):
         "activity_type_id",
         "activity_user_id",
     )
-    def _compute_error(self) -> None:
+    def _compute_errors_and_warnings(self) -> None:
         for scheduler in self:
             errors = set()
             warnings = set()
@@ -384,6 +384,7 @@ class MailActivitySchedule(models.TransientModel):
             scheduler.note = scheduler.activity_type_id.default_note
 
     @api.depends("activity_type_id", "res_model")
+    @api.depends_context("uid")
     def _compute_activity_user_id(self) -> None:
         for scheduler in self:
             if scheduler.activity_type_id.default_user_id:

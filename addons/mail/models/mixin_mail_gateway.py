@@ -463,7 +463,7 @@ class MixinMailGateway(models.AbstractModel):
         )
 
     @api.model
-    def _detect_loop_sender_domain(
+    def _get_domain_loop_sender(
         self, email_from_normalized: str | Literal[False]
     ) -> list[str | tuple] | None:
         if not email_from_normalized:
@@ -495,7 +495,7 @@ class MixinMailGateway(models.AbstractModel):
     ) -> bool:
         if not any(not thread_id for thread_id in thread_ids):
             return False
-        base_domain = self._detect_loop_sender_domain(email_from_normalized)
+        base_domain = self._get_domain_loop_sender(email_from_normalized)
         if not base_domain:
             return False
         return (

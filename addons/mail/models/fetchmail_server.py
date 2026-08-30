@@ -326,7 +326,7 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
             },
         }
 
-    def fetch_mail(self) -> None:
+    def action_poll_mailbox(self) -> None:
         self.ensure_one().check_access("write")
         if not self.filtered_domain(MAIL_SERVER_DOMAIN):
             raise UserError(
@@ -336,7 +336,7 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
                     self.display_name,
                 )
             )
-        exception = self.sudo()._fetch_mail()
+        exception = self.sudo()._poll_mailboxes()
         if exception is not None:
             raise exception
 
@@ -422,21 +422,21 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
             self.env["ir.cron"]._notify_admin(message)
 
     @api.model
-    def _fetch_mails(self, **kw) -> None:
+    def _poll_due_mailboxes(self, **kw) -> None:
         if (
             self.env.context.get("cron_id")
             != self.env.ref("mail.ir_cron_mail_gateway_action").id
         ):
-            raise ValueError("_fetch_mails is meant for cron usage only")
+            raise ValueError("_poll_due_mailboxes is meant for cron usage only")
         records = self.search(MAIL_SERVER_DOMAIN, order=FETCH_ORDER)
         time_buffer = self.env.context["cron_end_time"] + (
             SERVER_TEARDOWN_BUDGET * len(records)
         )
-        records.with_context(cron_end_time=time_buffer)._fetch_mail(**kw)
+        records.with_context(cron_end_time=time_buffer)._poll_mailboxes(**kw)
         if not self.search_count(MAIL_SERVER_DOMAIN, limit=1):
             self.env["ir.cron"]._commit_progress(deactivate=True)
 
-    def _fetch_mail(self, batch_limit: int = 50) -> Exception | None:
+    def _poll_mailboxes(self, batch_limit: int = 50) -> Exception | None:
         result_exception = None
         servers = self.with_context(fetchmail_cron_running=True)
         commit_progress = self.env["ir.cron"]._commit_progress

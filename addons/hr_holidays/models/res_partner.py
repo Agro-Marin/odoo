@@ -15,8 +15,8 @@ class ResPartner(models.Model):
             dates = partner.user_ids.mapped("leave_date_to")
             partner.leave_date_to = min(dates) if dates and all(dates) else False
 
-    def _compute_im_status(self):
-        super()._compute_im_status()
+    def _compute_presence(self):
+        super()._compute_presence()
         absent_now = self._get_on_leave_ids()
         for partner in self:
             if partner.id in absent_now:

@@ -33,7 +33,7 @@
                     <button
                         string="Fetch Now"
                         type="object"
-                        name="fetch_mail"
+                        name="action_poll_mailbox"
                         invisible="state != 'done'" />
                     <button
                         string="Reset Confirmation"

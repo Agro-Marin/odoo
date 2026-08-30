@@ -108,10 +108,10 @@ class IrActionsServer(models.Model):
         ondelete="restrict",
     )
     activity_summary = fields.Char(
-        "Title", compute="_compute_activity_summary", readonly=False, store=True
+        "Title", compute="_compute_activity_summaries", readonly=False, store=True
     )
     automated_activity_summary = fields.Char(
-        compute="_compute_activity_summary", store=True
+        compute="_compute_activity_summaries", store=True
     )
     activity_note = fields.Html(
         "Note", compute="_compute_activity_info", readonly=False, store=True
@@ -290,7 +290,7 @@ class IrActionsServer(models.Model):
                 action.activity_user_type = "specific"
 
     @api.depends("model_id", "state", "activity_type_id")
-    def _compute_activity_summary(self) -> None:
+    def _compute_activity_summaries(self) -> None:
         for action in self:
             if not action.model_id or action.state != "next_activity":
                 action.automated_activity_summary = False

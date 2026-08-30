@@ -1,6 +1,6 @@
 {
     "name": "Discuss",
-    "version": "1.25",
+    "version": "1.26",
     "category": "Productivity/Discuss",
     "sequence": 145,
     "summary": "Chat, mail gateway and private channels",
@@ -60,7 +60,9 @@ same *conversation* document.
 For more specific needs, you may also assign custom-defined actions
 (technically: Server Actions) to be triggered for each incoming mail.
     """,
+    "author": "Odoo S.A.",
     "website": "https://www.odoo.com/app/discuss",
+    "license": "LGPL-3",
     "depends": ["web_tour", "html_editor"],
     "external_dependencies": {
         "python": ["chardet"],
@@ -140,9 +142,6 @@ For more specific needs, you may also assign custom-defined actions
         "demo/discuss/public_channel_demo.xml",
         "demo/mail_canned_response_demo.xml",
     ],
-    "installable": True,
-    "application": True,
-    "post_init_hook": "_mail_post_init",
     "assets": {
         "web._assets_primary_variables": [
             "mail/static/src/**/primary_variables.scss",
@@ -268,8 +267,6 @@ For more specific needs, you may also assign custom-defined actions
             ("remove", "web/static/src/**/*.dark.scss"),
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
     "esm": {
         "bundles": [
             "mail.assets_lamejs",
@@ -289,4 +286,7 @@ For more specific needs, you may also assign custom-defined actions
             ],
         },
     },
+    "installable": True,
+    "application": True,
+    "post_init_hook": "_mail_post_init",
 }

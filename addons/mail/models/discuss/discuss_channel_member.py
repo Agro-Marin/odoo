@@ -82,7 +82,7 @@ class DiscussChannelMember(models.Model):
     )
     message_unread_counter = fields.Integer(
         "Unread Messages Counter",
-        compute="_compute_message_unread",
+        compute="_compute_message_unread_counter",
         compute_sudo=True,
     )
     custom_notifications = fields.Selection(
@@ -233,7 +233,7 @@ class DiscussChannelMember(models.Model):
         return Domain.custom(to_sql=custom_pinned)
 
     @api.depends("channel_id.message_ids", "new_message_separator")
-    def _compute_message_unread(self) -> None:
+    def _compute_message_unread_counter(self) -> None:
         if self.ids:
             self.env["mail.message"].flush_model()
             self.flush_recordset(["channel_id", "new_message_separator"])
@@ -650,7 +650,7 @@ class DiscussChannelMember(models.Model):
         self, check_rtc_session_ids: list[int] | None = None
     ) -> tuple:
         self.ensure_one()
-        self.channel_id.rtc_session_ids._delete_inactive_rtc_sessions()
+        self.channel_id.rtc_session_ids._remove_inactive_rtc_sessions()
         checked_ids = []
         for check_rtc_session_id in check_rtc_session_ids or []:
             try:

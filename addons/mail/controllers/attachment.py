@@ -152,7 +152,7 @@ class AttachmentController(ThreadController):
             .sudo()
             .search([("attachment_ids", "in", attachment.ids)], limit=1)
         )
-        attachment.sudo()._delete_and_notify(message)
+        attachment.sudo()._remove_and_notify(message)
 
     @http.route(["/mail/attachment/zip"], methods=["POST"], type="http", auth="public")
     @add_guest_to_context

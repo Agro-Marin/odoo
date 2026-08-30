@@ -150,7 +150,7 @@ class DiscussChannelRtcSession(models.Model):
 
     @api.autovacuum
     def _gc_inactive_sessions(self) -> None:
-        self.search(self._inactive_rtc_session_domain()).unlink()
+        self.search(self._get_domain_inactive_rtc_sessions()).unlink()
 
     def action_disconnect(self) -> None:
         session_ids_by_channel_by_url = defaultdict(lambda: defaultdict(list))
@@ -187,8 +187,8 @@ class DiscussChannelRtcSession(models.Model):
                         )
         self.unlink()
 
-    def _delete_inactive_rtc_sessions(self) -> None:
-        self.filtered_domain(self._inactive_rtc_session_domain()).unlink()
+    def _remove_inactive_rtc_sessions(self) -> None:
+        self.filtered_domain(self._get_domain_inactive_rtc_sessions()).unlink()
 
     def _notify_peers(self, notifications: list[tuple]) -> None:
         self.ensure_one()
@@ -221,7 +221,7 @@ class DiscussChannelRtcSession(models.Model):
         return ["is_camera_on", "is_deaf", "is_muted", "is_screen_sharing_on"]
 
     @api.model
-    def _inactive_rtc_session_domain(self) -> list:
+    def _get_domain_inactive_rtc_sessions(self) -> list:
         return [
             (
                 "write_date",

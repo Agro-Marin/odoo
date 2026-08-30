@@ -61,7 +61,7 @@ class MailPushDevice(models.Model):
     @api.model
     def register_devices(self, **kw) -> None:
         sw_vapid_public_key = kw.get("vapid_public_key")
-        valid_sub = self._verify_vapid_public_key(sw_vapid_public_key)
+        valid_sub = self._is_vapid_public_key_current(sw_vapid_public_key)
         if not valid_sub:
             raise InvalidVapidError("Invalid VAPID public key")
         endpoint = kw.get("endpoint")
@@ -119,7 +119,7 @@ class MailPushDevice(models.Model):
         if mail_push_device:
             mail_push_device.unlink()
 
-    def _verify_vapid_public_key(self, sw_public_key: str) -> bool:
+    def _is_vapid_public_key_current(self, sw_public_key: str) -> bool:
         ir_params_sudo = self.env["ir.config_parameter"].sudo()
         db_public_key = ir_params_sudo.get_param("mail.web_push_vapid_public_key")
         return db_public_key == sw_public_key

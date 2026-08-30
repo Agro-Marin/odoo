@@ -64,7 +64,7 @@ class TestResourceResourceCrud(TransactionCase):
         resource._onchange_user_id()
         self.assertEqual(resource.tz, self.user.tz)
 
-    @mute_logger("odoo.sql_db")
+    @mute_logger("odoo.db.cursor")
     def test_create_zero_time_efficiency_violates_check(self):
         """time_efficiency=0 violates the strictly-positive CHECK constraint."""
         with self.assertRaises(IntegrityError), self.cr.savepoint():
