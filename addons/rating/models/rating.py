@@ -94,7 +94,9 @@ class RatingRating(models.Model):
         related="message_id.is_internal",
         store=True,
     )
-    access_token = fields.Char("Security Token", default=_default_access_token)
+    access_token = fields.Char(
+        "Security Token", default=_default_access_token, index=True
+    )
     consumed = fields.Boolean(string="Filled Rating")
     rated_on = fields.Datetime(string="Rated On")
 
