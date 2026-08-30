@@ -174,10 +174,31 @@ class HrLeaveGenerateMultiWizard(models.TransientModel):
                 # If _compute_date_from_to is used instead, it will trigger _compute_number_of_days
                 # and create a conflict on the number of days calculation between the different leaves
                 leave_compute_date_from_to=True,
+                multi_leave_request=True,
             )
             .create(vals_list)
         )
         leaves._validate_leave_request()
+
+        # create() drops the leaves of employees no allocation can cover; the
+        # wizard is the only side that knows the request was a batch, so it is
+        # the one that reports them. Employees who simply do not work those
+        # days never made it into vals_list and are not "left out".
+        requested = self.env["hr.employee"].browse(
+            [vals["employee_id"] for vals in vals_list]
+        )
+        uncovered = requested - leaves.employee_id
+        if uncovered:
+            self.env.user._bus_send(
+                "simple_notification",
+                {
+                    "type": "danger",
+                    "message": self.env._(
+                        "No valid allocation covers this request for: %(employees)s",
+                        employees=", ".join(uncovered.mapped("name")),
+                    ),
+                },
+            )
 
         return {
             "type": "ir.actions.act_window",
