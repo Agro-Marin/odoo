@@ -82,7 +82,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": self.kit.id,
                                 "name": self.kit.name,
-                                "product_uom_qty": 10,
+                                "product_qty": 10,
                                 "price_unit": self.kit.lst_price,
                             },
                         )
@@ -203,7 +203,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": product_a.id,
                                 "name": product_a.name,
-                                "product_uom_qty": 1,
+                                "product_qty": 1,
                                 "price_unit": product_a.lst_price,
                             },
                         ),
@@ -213,7 +213,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": product_b.id,
                                 "name": product_b.name,
-                                "product_uom_qty": 1,
+                                "product_qty": 1,
                                 "price_unit": product_b.lst_price,
                             },
                         ),
@@ -270,7 +270,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": self.product_a.id,
                                 "name": self.product_a.name,
-                                "product_uom_qty": 1,
+                                "product_qty": 1,
                                 "price_unit": 100,
                             },
                         )
@@ -384,7 +384,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": self.product.id,
                                 "name": self.product.name,
-                                "product_uom_qty": 4,
+                                "product_qty": 4,
                                 "price_unit": self.product.lst_price,
                             },
                         )
@@ -461,7 +461,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": product_a.id,
                                 "name": product_a.name,
-                                "product_uom_qty": 1,
+                                "product_qty": 1,
                                 "price_unit": product_a.lst_price,
                             },
                         )
@@ -511,7 +511,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": product_a.id,
                                 "name": product_a.name,
-                                "product_uom_qty": 3.5,
+                                "product_qty": 3.5,
                                 "price_unit": 8,  # manually set a different price than the lst_price
                                 "discount": 10,
                             },
@@ -590,14 +590,14 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": non_groupable_product.id,
                                 "name": non_groupable_product.name,
-                                "product_uom_qty": 3,
+                                "product_qty": 3,
                             }
                         ),
                         Command.create(
                             {
                                 "product_id": groupable_product.id,
                                 "name": groupable_product.name,
-                                "product_uom_qty": 3,
+                                "product_qty": 3,
                             }
                         ),
                     ],
@@ -628,7 +628,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                     "partner_id": self.env["res.partner"]
                     .create({"name": "Test Partner"})
                     .id,
-                    "note": "Customer note 1",
+                    "notes": "Customer note 1",
                     "line_ids": [
                         (
                             0,
@@ -636,7 +636,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": self.whiteboard_pen.product_variant_id.id,
                                 "name": self.whiteboard_pen.name,
-                                "product_uom_qty": 1,
+                                "product_qty": 1,
                                 "price_unit": self.whiteboard_pen.product_variant_id.lst_price,
                             },
                         ),
@@ -754,7 +754,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": product_a.id,
                                 "name": product_a.name,
-                                "product_uom_qty": 1,
+                                "product_qty": 1,
                                 "price_unit": product_a.lst_price,
                             },
                         ),
@@ -764,7 +764,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": product_b.id,
                                 "name": product_b.name,
-                                "product_uom_qty": 1,
+                                "product_qty": 1,
                                 "price_unit": product_b.lst_price,
                             },
                         ),
@@ -852,7 +852,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": self.whiteboard_pen.product_variant_id.id,
                                 "name": self.whiteboard_pen.name,
-                                "product_uom_qty": 1,
+                                "product_qty": 1,
                                 "price_unit": 100,
                             },
                         )
@@ -902,7 +902,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": product_a.id,
                                 "name": product_a.name,
-                                "product_uom_qty": 1,
+                                "product_qty": 1,
                                 "price_unit": product_a.lst_price,
                             },
                         )
@@ -946,7 +946,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": self.product_a.id,
                                 "name": self.product_a.name,
-                                "product_uom_qty": 1,
+                                "product_qty": 1,
                                 "price_unit": 100,
                             },
                         )
@@ -978,7 +978,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "name": self.product_a.name,
                                 "product_id": self.product_a.id,
-                                "product_uom_qty": 10.0,
+                                "product_qty": 10.0,
                                 "price_unit": 100,
                                 "tax_ids": False,
                             },
@@ -1067,7 +1067,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": product_a.id,
                                 "name": product_a.name,
-                                "product_uom_qty": 1,
+                                "product_qty": 1,
                                 "price_unit": product_a.lst_price,
                             },
                         ),
@@ -1077,7 +1077,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": product_b.id,
                                 "name": product_b.name,
-                                "product_uom_qty": 1,
+                                "product_qty": 1,
                                 "price_unit": product_b.lst_price,
                             },
                         ),
@@ -1087,7 +1087,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": product_c.id,
                                 "name": product_c.name,
-                                "product_uom_qty": 1,
+                                "product_qty": 1,
                                 "price_unit": product_c.lst_price,
                             },
                         ),
@@ -1169,7 +1169,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": self.component_kg.id,
                                 "name": self.component_kg.name,
-                                "product_uom_qty": 500,
+                                "product_qty": 500,
                                 "product_uom_id": self.env.ref(
                                     "uom.product_uom_gram"
                                 ).id,
@@ -1198,7 +1198,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "name": self.product_a.name,
                                 "product_id": self.product_a.id,
-                                "product_uom_qty": 1.0,
+                                "product_qty": 1.0,
                                 "price_unit": 100,
                                 "tax_ids": False,
                             },
@@ -1250,7 +1250,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": product.id,
                                 "name": product.name,
-                                "product_uom_qty": 4,
+                                "product_qty": 4,
                                 "price_unit": product.lst_price,
                             },
                         )
@@ -1325,7 +1325,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": product.id,
                                 "name": product.name,
-                                "product_uom_qty": 4,
+                                "product_qty": 4,
                                 "price_unit": product.lst_price,
                             },
                         )
@@ -1366,7 +1366,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": product_a.id,
                                 "name": product_a.name,
-                                "product_uom_qty": 1,
+                                "product_qty": 1,
                                 "price_unit": product_a.lst_price,
                             },
                         )
@@ -1476,7 +1476,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": product_a.id,
                                 "name": product_a.name,
-                                "product_uom_qty": 1,
+                                "product_qty": 1,
                                 "price_unit": product_a.lst_price,
                             },
                         )
@@ -1553,7 +1553,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": self.product_a.id,
                                 "name": self.product_a.name,
-                                "product_uom_qty": 1,
+                                "product_qty": 1,
                                 "price_unit": 100,
                                 "tax_ids": False,
                             },
@@ -1612,7 +1612,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": self.product_a.id,
                                 "name": self.product_a.name,
-                                "product_uom_qty": 1,
+                                "product_qty": 1,
                                 "price_unit": 100,
                                 "tax_ids": [tax.id],
                             }
@@ -1718,7 +1718,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": product_a.id,
                                 "name": product_a.name,
-                                "product_uom_qty": 1,
+                                "product_qty": 1,
                                 "price_unit": product_a.lst_price,
                             },
                         )
@@ -1740,7 +1740,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": product_a.id,
                                 "name": product_a.name,
-                                "product_uom_qty": 1,
+                                "product_qty": 1,
                                 "price_unit": product_a.lst_price,
                             },
                         ),
@@ -1750,7 +1750,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": product_b.id,
                                 "name": product_b.name,
-                                "product_uom_qty": 1,
+                                "product_qty": 1,
                                 "price_unit": product_b.lst_price,
                             },
                         ),
@@ -1828,7 +1828,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": product_a.id,
                                 "name": product_a.name,
-                                "product_uom_qty": 1,
+                                "product_qty": 1,
                                 "price_unit": product_a.lst_price,
                             },
                         )
@@ -2073,7 +2073,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": product.id,
                                 "name": product.name,
-                                "product_uom_qty": 2,
+                                "product_qty": 2,
                                 "price_unit": product.lst_price,
                             },
                         ),
@@ -2113,7 +2113,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             0,
                             {
                                 "product_id": product_a.id,
-                                "product_uom_qty": 1,
+                                "product_qty": 1,
                                 "price_unit": product_a.lst_price,
                             },
                         )
@@ -2157,7 +2157,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": product_a.id,
                                 "name": product_a.name,
-                                "product_uom_qty": 1,
+                                "product_qty": 1,
                                 "price_unit": product_a.lst_price,
                             },
                         )
@@ -2264,7 +2264,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": product_a.id,
                                 "name": product_a.name,
-                                "product_uom_qty": 1,
+                                "product_qty": 1,
                                 "price_unit": product_a.lst_price,
                             },
                         )
@@ -2393,7 +2393,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                         0,
                         {
                             "product_id": product_a.id,
-                            "product_uom_qty": 1,
+                            "product_qty": 1,
                             "price_unit": product_a.lst_price,
                         },
                     )
@@ -2410,7 +2410,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                         0,
                         {
                             "product_id": product_a.id,
-                            "product_uom_qty": 1,
+                            "product_qty": 1,
                             "price_unit": product_a.lst_price,
                         },
                     )
@@ -2516,7 +2516,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                         0,
                         {
                             "product_id": product_a.id,
-                            "product_uom_qty": 5,
+                            "product_qty": 5,
                             "price_unit": product_a.lst_price,
                         },
                     )
@@ -2549,7 +2549,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": product_a.id,
                                 "name": product_a.name,
-                                "product_uom_qty": 1,
+                                "product_qty": 1,
                                 "product_uom_id": self.env.ref(
                                     "uom.product_uom_dozen"
                                 ).id,
@@ -2659,7 +2659,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": self.product.id,
                                 "name": self.product.name,
-                                "product_uom_qty": 3,
+                                "product_qty": 3,
                                 "price_unit": self.product.lst_price,
                             }
                         )
@@ -2723,7 +2723,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                         0,
                         {
                             "product_id": product_a.id,
-                            "product_uom_qty": 1,
+                            "product_qty": 1,
                             "price_unit": product_a.lst_price,
                         },
                     )
@@ -2739,7 +2739,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                         0,
                         {
                             "product_id": product_b.id,
-                            "product_uom_qty": 2,
+                            "product_qty": 2,
                             "price_unit": product_b.lst_price,
                         },
                     )
@@ -2776,7 +2776,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                         0,
                         {
                             "product_id": product_a.id,
-                            "product_uom_qty": 2,
+                            "product_qty": 2,
                             "price_unit": product_a.lst_price,
                         },
                     )
@@ -2836,7 +2836,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                         0,
                         {
                             "product_id": product_a.id,
-                            "product_uom_qty": 2,
+                            "product_qty": 2,
                             "price_unit": product_a.lst_price,
                         },
                     )
@@ -2881,7 +2881,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": product_a.id,
                                 "name": product_a.name,
-                                "product_uom_qty": 1,
+                                "product_qty": 1,
                                 "price_unit": product_a.lst_price,
                             },
                         )
@@ -3005,7 +3005,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": product_a.id,
                                 "name": product_a.name,
-                                "product_uom_qty": 2,
+                                "product_qty": 2,
                                 "product_uom_id": uom_a.id,
                                 "price_unit": product_a.lst_price,
                             },
@@ -3016,7 +3016,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                             {
                                 "product_id": product_b.id,
                                 "name": product_b.name,
-                                "product_uom_qty": 3,
+                                "product_qty": 3,
                                 "product_uom_id": uom_b.id,
                                 "price_unit": product_b.lst_price,
                             },
@@ -3105,7 +3105,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                         {
                             "product_id": self.product.id,
                             "name": self.product.name,
-                            "product_uom_qty": 1,
+                            "product_qty": 1,
                             "product_uom_id": groupable_uom_dozens.id,
                             "price_unit": 12.0,
                         },
@@ -3135,7 +3135,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                         {
                             "product_id": self.product_a.id,
                             "name": self.product_a.name,
-                            "product_uom_qty": 5,
+                            "product_qty": 5,
                             "price_unit": self.product_a.lst_price,
                             "product_uom_id": self.product_a.uom_id.id,
                         }
