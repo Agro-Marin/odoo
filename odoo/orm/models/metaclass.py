@@ -102,7 +102,6 @@ class MetaModel(type):
         if cls._inherit is None:
             cls._inherit = ()
         if not cls._abstract and cls._name not in cls._inherit:
-
             model_class = typing.cast("ModelClass", cls)
 
             def add_default(name: str, field: Field) -> None:
