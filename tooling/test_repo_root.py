@@ -166,6 +166,7 @@ class TestEveryToolAgrees:
         ("architecture", "js_face_boundary"): "ROOT",
         ("architecture", "js_function_length"): "ROOT",
         ("architecture", "py_function_length"): "ROOT",
+        ("architecture", "py_hook_arity"): "ROOT",
         ("architecture", "py_x2many_count"): "ROOT",
         ("architecture", "sql_in_placeholder"): "ROOT",
         ("architecture", "py_count_as_boolean"): "ROOT",

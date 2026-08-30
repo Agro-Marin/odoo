@@ -46,6 +46,10 @@ class Known:
     module: str
     reason: str
 
+    @property
+    def label(self) -> str:
+        return f"{self.path} -> {self.module}"
+
 
 KNOWN_VIOLATIONS: tuple[Known, ...] = (
     Known(
@@ -62,14 +66,6 @@ KNOWN_VIOLATIONS: tuple[Known, ...] = (
         "reasoning as the other _vendor entry: the file is generated, not "
         "authored, and re-exporting its symbols through an area would put a "
         "curated name on a protobuf-versioned surface.",
-    ),
-    Known(
-        "odoo/tools/mail.py",
-        "odoo.libs.email.parsing",
-        "_normalize_email, deliberately private: the public entry points are "
-        "email_normalize/email_normalize_all, and tools/mail.py needs the "
-        "un-guarded inner form. Exporting it would promote an implementation "
-        "detail to API for one caller.",
     ),
     Known(
         "odoo/tools/template_inheritance.py",
@@ -117,12 +113,13 @@ class Violation:
 class Report:
     new: list[Violation] = field(default_factory=list)
     known: list[Violation] = field(default_factory=list)
+    stale: list[Known] = field(default_factory=list)
     areas: set[str] = field(default_factory=set)
     scanned: int = 0
 
     @property
     def ok(self) -> bool:
-        return not self.new
+        return not self.new and not self.stale
 
 
 @lru_cache(maxsize=1)
@@ -168,6 +165,7 @@ def _is_known(path: str, module: str) -> bool:
 
 def check(files: list[Path] | None = None) -> Report:
     report = Report(areas=set(areas()))
+    full_scan = files is None
     if files is None:
         files = [
             p
@@ -197,6 +195,19 @@ def check(files: list[Path] | None = None) -> Report:
             area = ".".join(module.split(".")[:3])
             v = Violation(rel, module, lineno, area)
             (report.known if _is_known(rel, module) else report.new).append(v)
+
+    # An allowlist entry matching no import is debt nobody is paying, and the
+    # gate could not say so: the loop above only ever visits imports it FINDS,
+    # so a Known outlived its import in silence -- still carrying the
+    # justification that had since become false. tools/mail.py's entry claimed
+    # the module "needs the un-guarded inner form" of _normalize_email while no
+    # caller existed in any repo. Only meaningful over the whole tree; a caller
+    # that passes `files` is asking about those files.
+    if full_scan:
+        matched = {(v.path, v.module) for v in report.known}
+        report.stale = [
+            k for k in KNOWN_VIOLATIONS if (k.path, k.module) not in matched
+        ]
     return report
 
 
@@ -221,12 +232,21 @@ def _render(report: Report) -> str:
             f"  {v.path}:{v.lineno}  {v.module}"
             for v in sorted(report.known, key=lambda x: (x.path, x.lineno))
         )
+    if report.stale:
+        lines.append(
+            f"\n{len(report.stale)} KNOWN_VIOLATIONS entr(ies) match no import any "
+            f"more — delete them, they vouch for nothing:"
+        )
+        lines.extend(
+            f"  {k.label}" for k in sorted(report.stale, key=lambda k: k.label)
+        )
     lines.append("")
-    lines.append(
-        "Addon code imports odoo.libs areas, not their internals. ✓"
-        if report.ok
-        else "FAILED: addon code reached past the odoo.libs façade."
-    )
+    if report.ok:
+        lines.append("Addon code imports odoo.libs areas, not their internals. ✓")
+    elif report.new:
+        lines.append("FAILED: addon code reached past the odoo.libs façade.")
+    else:
+        lines.append("FAILED: the allowlist carries entries that match nothing.")
     return "\n".join(lines)
 
 
@@ -249,6 +269,7 @@ def main(argv: list[str] | None = None) -> int:
                         for v in report.new
                     ],
                     "known": len(report.known),
+                    "stale": [k.label for k in report.stale],
                 },
                 indent=2,
             )

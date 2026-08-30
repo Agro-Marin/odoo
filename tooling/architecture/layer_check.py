@@ -301,6 +301,7 @@ CONTRACTS: tuple[Contract, ...] = (
             "odoo.db.budget",
             "odoo.db.leaks",
             "odoo.db.reaper",
+            "odoo.db.probe",
             "odoo.db.metrics",
             "odoo.db.stats",
         ),
@@ -313,13 +314,16 @@ CONTRACTS: tuple[Contract, ...] = (
             "odoo.db.schema_cache",
             "odoo.db.bulk",
             "odoo.db.lifecycle",
+            "odoo.db.endpoints",
         ),
         allow=(),
         rationale=(
             "Connectivity owns connections and calls into resilience (breaker, lag, "
-            "budget, leaks, reaper, metrics, stats), never the reverse, so resilience "
-            "stays testable without a pool or a cursor. Shared leaf helpers belong in "
-            "[foundation], which both may import."
+            "budget, leaks, reaper, probe, metrics, stats), never the reverse, so "
+            "resilience stays testable without a pool or a cursor. Shared leaf "
+            "helpers belong in [foundation], which both may import. `probe` is "
+            "resilience because it answers 'is this DSN reachable' from `dsn` alone; "
+            "`endpoints` is connectivity because it builds pools."
         ),
     ),
     Contract(

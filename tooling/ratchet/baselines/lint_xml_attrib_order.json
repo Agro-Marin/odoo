@@ -1,4 +1,4 @@
 {
-  "count": 2321,
-  "note": "account: element attribute order normalised by _sort_xml_records.py in the same pass as the field order.\n\n2367 -> 2321, the floor plus this change s delta (HEAD 2455 -> 2409, measured in a detached worktree carrying only this change). HEAD is separately 1 violation above its own floor of 2454; that one is not absorbed here.\n\nCommand: odoo-bin -d <db> -i test_lint --test-enable --test-tags /test_lint"
+  "count": 2320,
+  "note": "2321 -> 2320. The floor was wrong when it was committed, not repaid since.\n\n1fcc3d5f7d2 banked 2321, and its note already recorded a discrepancy it could not place: 'HEAD is separately 1 violation above its own floor of 2454; that one is not absorbed here.' The tree measured 2320. Same window, same mechanism as lint_xml_unformatted.\n\nVerified by measuring /test_lint at the CI scope (--addons-path=odoo/addons,addons, -i test_lint alone) in a git-archive tree at each of 4f9e7bc4829, 1fcc3d5f7d2, 3e2cea4c580, d61d3cbf107, 5c4807329df, 2ae263169a4, f57cbefef48 and HEAD. All eight measure the same number, so nothing was repaid in between: the floor was never true of the tree it was committed to."
 }

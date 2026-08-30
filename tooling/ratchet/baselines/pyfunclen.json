@@ -1,4 +1,5 @@
 {
-  "count": 484,
-  "note": "Function-length budget raised 80 -> 90 (ADR-0025). This floor is RE-MEASURED at the new budget, not improved: no function was split or shortened for it. Measured in a detached worktree at HEAD with only this change applied, so the shared dirty tree is not in the reading."
+  "count": 348,
+  "measured_at": "708f0d278d30b84449f048a77263882211a6338b",
+  "note": "tag_quote was 116 lines of one-rule-per-mail-client, split into the per-client, per-parent and text-convention passes it already ran in order. 374 -> 348, and libs/ now has nothing over the budget: the five that remain are the upgrade scripts, compare.py and init_logger."
 }

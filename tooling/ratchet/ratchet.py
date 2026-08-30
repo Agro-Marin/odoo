@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -17,10 +18,53 @@ EXIT_DRIFT = 1
 EXIT_USAGE = 2
 
 
+def _head_commit() -> str:
+    """The commit a measurement is being banked against, or "" if unknowable."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(HERE), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except OSError, subprocess.SubprocessError:
+        return ""
+    return out.stdout.strip() if out.returncode == 0 else ""
+
+
+def _is_ancestor_of_head(commit: str) -> bool | None:
+    """True/False, or None when git cannot answer (no git, unknown object)."""
+    if not commit:
+        return None
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(HERE), "merge-base", "--is-ancestor", commit, "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except OSError, subprocess.SubprocessError:
+        return None
+    if out.returncode == 0:
+        return True
+    if out.returncode == 1:
+        return False
+    return None  # 128: not a repository, or the object is gone
+
+
 @dataclass(frozen=True)
 class Baseline:
     count: int
     note: str = ""
+    # The commit HEAD pointed at when this count was banked.  Recorded because
+    # five floors were once banked against a detached pre-rebase worktree and
+    # were wrong the moment they landed -- and establishing that took measuring
+    # the gate in an archive tree at eight commits.  With this, the same
+    # question is `git merge-base --is-ancestor`: a floor whose measured_at is
+    # not in HEAD's history was taken from a tree this branch never had.
+    measured_at: str = ""
 
     @classmethod
     def load(cls, gate: str) -> Baseline | None:
@@ -28,7 +72,11 @@ class Baseline:
         if not path.exists():
             return None
         data = json.loads(path.read_text(encoding="utf-8"))
-        return cls(count=int(data["count"]), note=str(data.get("note", "")))
+        return cls(
+            count=int(data["count"]),
+            note=str(data.get("note", "")),
+            measured_at=str(data.get("measured_at", "")),
+        )
 
     def save(self, gate: str) -> Path:
         path = baseline_path(gate)
@@ -163,7 +211,9 @@ def run(argv: list[str] | None = None) -> int:
         note = (
             args.note if args.note is not None else (existing.note if existing else "")
         )
-        path = Baseline(count=args.count, note=note).save(args.gate)
+        path = Baseline(count=args.count, note=note, measured_at=_head_commit()).save(
+            args.gate
+        )
         verb = "updated" if existing else "created"
         old = f" (was {existing.count})" if existing else ""
         print(f"{verb} baseline {path.name}: count={args.count}{old}")
@@ -202,6 +252,11 @@ def _list_baselines(*, as_json: bool, notes: bool = False) -> int:
                         "gate": path.stem,
                         "count": int(data["count"]),
                         "note": str(data.get("note", "")),
+                        "measured_at": str(data.get("measured_at", "")),
+                        "orphaned": _is_ancestor_of_head(
+                            str(data.get("measured_at", ""))
+                        )
+                        is False,
                     }
                 )
             except (OSError, ValueError, KeyError, TypeError) as exc:
@@ -217,7 +272,8 @@ def _list_baselines(*, as_json: bool, notes: bool = False) -> int:
             print("no baselines yet")
         width = max((len(r["gate"]) for r in rows + broken), default=0)
         for row in rows:
-            print(f"{row['gate']:<{width}} {row['count']:>8}")
+            flag = "  ORPHANED-BASE" if row["orphaned"] else ""
+            print(f"{row['gate']:<{width}} {row['count']:>8}{flag}")
             if notes:
                 for line in _note_lines(row["note"]):
                     print(f"{'':<{width}} {'':>8}   {line}")
@@ -225,6 +281,14 @@ def _list_baselines(*, as_json: bool, notes: bool = False) -> int:
             print(
                 f"{row['gate']:<{width}} {'BROKEN':>8}   {row['error']}",
                 file=sys.stderr,
+            )
+        orphaned = [r["gate"] for r in rows if r["orphaned"]]
+        if orphaned:
+            print(
+                f"\n{len(orphaned)} floor(s) banked at a commit that is not in "
+                f"HEAD's history: {', '.join(orphaned)}.\n"
+                f"Their count was measured on a tree this branch never had, so it "
+                f"may never have been true. Re-measure before trusting one."
             )
         if rows and not notes:
             print(f"\n{len(rows)} floor(s). --notes prints what moved each one.")

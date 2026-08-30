@@ -667,6 +667,34 @@ def test_ordinary_test_packages_are_still_dropped():
         assert lc._is_test_file(path), f"{'/'.join(rel)} is a test file"
 
 
+def _tests_files_reaching_into_addons() -> set[str]:
+    """Which files under odoo/tests import odoo.addons, per the gate's own scanner.
+
+    Derived, not restated. This used to be the literal pair
+    {"odoo/tests/common.py", "odoo/tests/http.py"}, and da46eb273bb moved one of
+    them: splitting common.py into a façade carried its addons import down into
+    transaction_case.py. The literal went stale while still reading like an
+    assertion, and the test failed for a reason that had nothing to do with the
+    exemption it exists to police. Reusing _ImportCollector means the expected
+    set and the measured set cannot disagree about what an import is -- deferred
+    imports, TYPE_CHECKING blocks and importlib string arguments included.
+    """
+    root = lc.ROOT / "odoo" / "tests"
+    reaching = set()
+    for path in sorted(root.rglob("*.py")):
+        if "__pycache__" in path.parts:
+            continue
+        collector = lc._ImportCollector(
+            module=lc.module_name_for(path), is_init=path.name == "__init__.py"
+        )
+        collector.visit(ast.parse(path.read_text(encoding="utf-8")))
+        if any(
+            lc._matches(name, ("odoo.addons",)) for name, _lineno in collector.found
+        ):
+            reaching.add(path.relative_to(lc.ROOT).as_posix())
+    return reaching
+
+
 def test_revoking_the_tests_exemption_actually_enforces():
 
     contracts = tuple(
@@ -686,7 +714,9 @@ def test_revoking_the_tests_exemption_actually_enforces():
     }
     assert found, "revoking the exemption detected nothing — the fix has regressed"
     files = {path for path, _ in found}
-    assert files == {"odoo/tests/common.py", "odoo/tests/http.py"}, files
+    expected = _tests_files_reaching_into_addons()
+    assert expected, "no file under odoo/tests imports odoo.addons — derivation broke"
+    assert files == expected, (files, expected)
 
 
 def test_tests_exemption_is_recorded_and_documented():

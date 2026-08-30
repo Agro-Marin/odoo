@@ -73,10 +73,81 @@ class BaselineIOTests(unittest.TestCase):
         self.assertTrue(text.endswith("\n"))
         self.assertEqual(json.loads(text)["count"], 7)
 
+    def test_a_baseline_predating_the_stamp_still_loads(self):
+        # 104 committed baselines have no measured_at; absent is not orphaned.
+        (self.dir / "g.json").write_text('{"count": 5, "note": "old"}\n')
+        self.assertEqual(Baseline.load("g"), Baseline(count=5, note="old"))
+
     def test_rejects_path_traversal_gate_names(self):
         for bad in ("../etc/passwd", "a/b", ".hidden", ""):
             with self.assertRaises(ValueError):
                 ratchet.baseline_path(bad)
+
+
+class ProvenanceTests(unittest.TestCase):
+    """A floor records the commit it was measured against.
+
+    Five floors were once banked from a detached pre-rebase worktree and were
+    wrong the moment they landed; proving that took measuring the gate in an
+    archive tree at eight commits. The stamp turns the same question into one
+    `git merge-base --is-ancestor`.
+    """
+
+    def setUp(self):
+        self._tmp = TemporaryDirectory()
+        self.dir = Path(self._tmp.name)
+        self._patch = mock.patch.object(ratchet, "BASELINES_DIR", self.dir)
+        self._patch.start()
+        self.addCleanup(self._tmp.cleanup)
+        self.addCleanup(self._patch.stop)
+
+    def _run(self, argv):
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            code = ratchet.run(argv)
+        return code, out.getvalue(), err.getvalue()
+
+    def test_update_stamps_the_commit_it_was_measured_against(self):
+        with mock.patch.object(ratchet, "_head_commit", return_value="cafe1234"):
+            self._run(["mypy", "--count", "10", "--update", "--note", "n"])
+        self.assertEqual(
+            json.loads((self.dir / "mypy.json").read_text())["measured_at"], "cafe1234"
+        )
+
+    def test_a_stamp_outside_head_history_is_flagged(self):
+        (self.dir / "mypy.json").write_text(
+            '{"count": 5, "note": "n", "measured_at": "deadbeef"}\n'
+        )
+        with mock.patch.object(ratchet, "_is_ancestor_of_head", return_value=False):
+            code, out, _ = self._run(["--list"])
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("ORPHANED-BASE", out)
+        self.assertIn("may never have been true", out)
+
+    def test_a_stamp_inside_head_history_is_not_flagged(self):
+        (self.dir / "mypy.json").write_text(
+            '{"count": 5, "note": "n", "measured_at": "deadbeef"}\n'
+        )
+        with mock.patch.object(ratchet, "_is_ancestor_of_head", return_value=True):
+            _code, out, _ = self._run(["--list"])
+        self.assertNotIn("ORPHANED-BASE", out)
+
+    def test_an_unanswerable_stamp_is_not_flagged(self):
+        # No git, or the object is gone: unknowable is not the same as wrong.
+        (self.dir / "mypy.json").write_text('{"count": 5, "measured_at": "x"}\n')
+        with mock.patch.object(ratchet, "_is_ancestor_of_head", return_value=None):
+            _code, out, _ = self._run(["--list"])
+        self.assertNotIn("ORPHANED-BASE", out)
+
+    def test_an_empty_stamp_asks_git_nothing(self):
+        self.assertIsNone(ratchet._is_ancestor_of_head(""))
+
+    def test_head_commit_survives_a_missing_git(self):
+        with mock.patch.object(
+            ratchet.subprocess, "run", side_effect=OSError("no git")
+        ):
+            self.assertEqual(ratchet._head_commit(), "")
+            self.assertIsNone(ratchet._is_ancestor_of_head("abc"))
 
 
 class CliTests(unittest.TestCase):

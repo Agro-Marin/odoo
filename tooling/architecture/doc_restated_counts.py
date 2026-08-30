@@ -316,7 +316,30 @@ def architecture_checkers() -> tuple[int, ...]:
     )
 
 
+def py_function_length_budget() -> tuple[int, ...]:
+    """The line budget py_function_length.py enforces, read off the script.
+
+    3e2cea4c580 raised MAX_LINES from 80 to 90 on both trees and re-banked every
+    floor it moved, but the guideline's gate table went on saying 80. It stayed
+    wrong long enough that a session reading the guide computed a ratchet delta
+    from the stale threshold and got the right answer by luck -- 99 over 90 and
+    99 over 80 differ by ten, and the excess it needed happened not to depend on
+    which. Restating a constant is the same debt as restating a count; this puts
+    the constant under the same gate.
+    """
+    import py_function_length
+
+    return (py_function_length.MAX_LINES,)
+
+
 _MEASUREMENTS: tuple[Figure, ...] = (
+    Figure(
+        "py_function_length_budget",
+        GUIDELINES,
+        re.compile(r"core Python, \*\*excess lines\*\* over (\d+)"),
+        py_function_length_budget,
+        _plain,
+    ),
     Figure(
         "architecture_checkers",
         RISKS,

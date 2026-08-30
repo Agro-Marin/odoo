@@ -163,5 +163,45 @@ class TestRealTree(unittest.TestCase):
         )
 
 
+class TestStaleAllowlistEntries(unittest.TestCase):
+    """A Known that matches nothing is debt nobody is paying.
+
+    check() only ever visits imports it FINDS, so before this an entry could
+    outlive the import it excused -- and go on asserting a justification that
+    had become false. odoo/tools/mail.py's entry did exactly that.
+    """
+
+    def test_a_known_matching_no_import_fails_the_gate(self):
+        bogus = lfc.Known(
+            "odoo/tools/no_such_module.py",
+            "odoo.libs.no_such_area",
+            "left behind by a deletion",
+        )
+        original = lfc.KNOWN_VIOLATIONS
+        lfc.KNOWN_VIOLATIONS = (*original, bogus)
+        try:
+            report = lfc.check()
+        finally:
+            lfc.KNOWN_VIOLATIONS = original
+        self.assertIn(bogus, report.stale)
+        self.assertFalse(report.ok)
+        self.assertIn("match no import", lfc._render(report))
+
+    def test_the_committed_allowlist_is_not_stale(self):
+        report = lfc.check()
+        self.assertEqual(
+            [k.label for k in report.stale],
+            [],
+            "KNOWN_VIOLATIONS entries that excuse an import nobody makes any more",
+        )
+
+    def test_a_partial_scan_does_not_report_staleness(self):
+        # Passing `files` asks about those files; every other Known would look
+        # stale simply because its file was not read.
+        one = lfc.REPO_ROOT / "odoo" / "tools" / "mail.py"
+        report = lfc.check([one])
+        self.assertEqual(report.stale, [])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

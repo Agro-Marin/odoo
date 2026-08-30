@@ -1,4 +1,4 @@
 {
-  "count": 619,
-  "note": "The ten localizations 91eb7a12c88 imported from the mirror never went through _sort_manifests.py, which is the whole of the +10 that took this gate red. Canonicalised those ten; the eleventh unit was a redundant default in the same set."
+  "count": 618,
+  "note": "619 -> 618. The floor was wrong when it was committed, not repaid since.\n\n25320f3c81e banked 619 while the tree it landed on measured 618. Verified by measuring /test_lint at the CI scope (--addons-path=odoo/addons,addons, -i test_lint alone) in a git-archive tree at each of 4f9e7bc4829, 1fcc3d5f7d2, 3e2cea4c580, d61d3cbf107, 5c4807329df, 2ae263169a4, f57cbefef48 and HEAD. Every one of those eight trees measures the same number. The floor was never true of any of them.\n\nThis is one of five floors banked in the same window against a measurement of a different tree \u2014 see the note on lint_xml_unformatted, which records the arithmetic that produced them."
 }
