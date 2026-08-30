@@ -408,9 +408,7 @@ class StockMoveLine(models.Model):
             wave_new_picking_ids = tallies["pickings"][wave]
             wave_move_ids = set(wave.move_line_ids.mapped("move_id.id"))
             wave_picking_ids = set(wave.move_line_ids.mapped("picking_id.id"))
-            # `_is_line_auto_mergeable` is a method that checks if the line can be added to the wave without exceeding the limits
-            # It takes as arguments the number of new moves that will be added to the wave, the number of new pickings that will be added to the wave
-            # and the extra weight that will be added to the wave. So we need to check that the move/picking of the line is not already in the wave
+            # Check that the move/picking of the line is not already in the wave
             # so that we don't count them as new moves/pickings.
             if not wave._is_line_auto_mergeable(
                 self.move_id.id not in wave_move_ids

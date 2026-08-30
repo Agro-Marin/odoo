@@ -171,7 +171,6 @@ class StockPicking(models.Model):
             if not self.batch_id.picking_type_id:
                 self.batch_id.picking_type_id = self.picking_type_id[0]
             self.batch_id._sanity_check()
-            # assign batch users to batch pickings
             self.batch_id.picking_ids.assign_batch_user(self.batch_id.user_id.id)
         return res
 
