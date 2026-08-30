@@ -72,7 +72,7 @@ class ProjectPhaseDeleteWizard(models.TransientModel):
             )
             if self.env.context.get("stage_view")
             else self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
-                "project.open_view_project_all_group_phase"
+                "project.open_view_project_all_group_stage"
             )
         )
 
