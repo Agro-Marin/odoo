@@ -87,28 +87,42 @@ class TestPartnerAgeRangeUi(TransactionCase):
         self.assertNotIn(self.env.ref("partner.res_partner_menu_config").id, drawn)
         self.assertNotIn(self.env.ref("partner.res_partner_age_range_menu").id, drawn)
 
-    def test_administrator_only_screens_stay_administrator_only(self):
-        """Industries and Identifier Types are system-write in base's ACL.
+    def test_every_configuration_screen_drawn_to_a_manager_is_one_they_can_save(self):
+        """The rule is universal, so the assertion sweeps rather than lists.
 
-        The Configuration branch moved to the manager, so the two entries whose
-        model a manager may only read carry the narrower group themselves --
-        otherwise regating the parent would have handed out screens the ACL
-        still refuses to let them save.
+        The Configuration branch is gated on the manager, so any entry whose
+        model a manager may only *read* has to carry the narrower group itself
+        -- otherwise the regating hands out a screen the ACL still refuses to
+        save, and the refusal arrives after the edit.
+
+        This was two hardcoded pairs, Industries and Identifier Types, and it
+        passed while Countries was drawn to a manager who cannot write
+        ``res.country``. A rule stated as a list only ever covers the instances
+        somebody thought of; deriving the leaves from the menu tree covers the
+        next one too.
         """
         drawn = self._rendered_menu_ids(self.manager)
+        config = self.env.ref("partner.res_partner_menu_config")
+        leaves = self.env["ir.ui.menu"].search(
+            [("id", "child_of", config.id), ("action", "!=", False)]
+        )
 
-        for model, xmlid in (
-            ("res.partner.industry", "partner.res_partner_industry_menu"),
-            (
-                "res.partner.identifier.type",
-                "partner.res_partner_identifier_type_menu",
-            ),
-        ):
-            self.assertFalse(
+        swept = []
+        for menu in leaves:
+            action = menu.action
+            if menu.id not in drawn or action._name != "ir.actions.act_window":
+                continue
+            model = action.res_model
+            if not model or model not in self.env:
+                continue
+            swept.append(menu.complete_name)
+            self.assertTrue(
                 self.env[model].with_user(self.manager).has_access("write"),
-                f"{model} became manager-writable; its menu may now be shared",
+                f"{menu.complete_name} is drawn to a partner manager who "
+                f"cannot save {model}",
             )
-            self.assertNotIn(self.env.ref(xmlid).id, drawn)
+
+        self.assertTrue(swept, "the sweep found no screens, so it asserted nothing")
 
     def test_the_model_has_the_views_its_action_opens(self):
         """`list,form` are declared, so the action does not fall back to a default."""

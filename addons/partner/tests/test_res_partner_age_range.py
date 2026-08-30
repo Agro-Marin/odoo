@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from odoo.exceptions import ValidationError
+from odoo.exceptions import AccessError, ValidationError
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 
@@ -325,3 +325,271 @@ class TestPartnerAgeRange(TransactionCase):
             f"{few} searches for 3 bands and {many} for 12: the sibling lookup "
             "still scales with the size of the batch",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestPartnerAgeRangeScale(TransactionCase):
+    """What the configuration screen has to be able to answer.
+
+    A scale is not only a set of bands: it is a claim to classify every
+    contact. The bands enforce that they do not overlap, and nothing enforced
+    -- or even showed -- that together they leave no year uncovered, or that a
+    band was reaching anyone at all.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.AgeRange = cls.env["res.partner.age.range"]
+        cls.Partner = cls.env["res.partner"]
+        cls.AgeRange.search([]).active = False
+
+    def test_the_display_name_names_the_years_the_cohort_contains(self):
+        """The bounds are half-open, which is the module's oldest trap.
+
+        ``max_value`` is the first year *after* the cohort, so the last year it
+        contains is one less. A name that repeats the stored bound would teach
+        the mistake instead of settling it.
+        """
+        closed = self.AgeRange.create(
+            {"name": "Closed", "min_value": 1965, "max_value": 1981}
+        )
+        self.assertEqual(closed.display_name, "Closed (1965-1980)")
+
+        open_top = self.AgeRange.create(
+            {"name": "Open top", "min_value": 2010, "max_value": 0}
+        )
+        self.assertEqual(open_top.display_name, "Open top (2010 and later)")
+
+        open_bottom = self.AgeRange.create(
+            {"name": "Open bottom", "min_value": 0, "max_value": 1900}
+        )
+        self.assertEqual(open_bottom.display_name, "Open bottom (up to 1899)")
+
+    def test_a_cohort_counts_the_contacts_it_holds(self):
+        cohort = self.AgeRange.create(
+            {"name": "Counted", "min_value": 1300, "max_value": 1310}
+        )
+        empty = self.AgeRange.create(
+            {"name": "Uncounted", "min_value": 1310, "max_value": 1320}
+        )
+        self.Partner.create(
+            [
+                {"name": "Born 1302", "birthdate": "1302-04-04"},
+                {"name": "Born 1305", "birthdate": "1305-04-04"},
+            ]
+        )
+        self.env.flush_all()
+        cohort.invalidate_recordset(["partner_count"])
+
+        self.assertEqual(cohort.partner_count, 2)
+        self.assertEqual(empty.partner_count, 0)
+
+    def test_a_gap_in_the_scale_is_reported(self):
+        """A contact born in a gap classifies into nothing, silently.
+
+        ``mixin.band`` rejects overlaps and says nothing about the space
+        between two bands, so a scale can look finished while dropping a decade.
+        """
+        self.AgeRange.create({"name": "Low", "min_value": 1000, "max_value": 1010})
+        high = self.AgeRange.create(
+            {"name": "High", "min_value": 1020, "max_value": 1030}
+        )
+        stranded = self.Partner.create(
+            {"name": "Born in the gap", "birthdate": "1015-06-01"}
+        )
+
+        self.assertFalse(stranded.age_range_id, "the gap is real")
+        self.assertEqual(high.gap_before, "1010-1019")
+
+    def test_adjacent_cohorts_report_no_gap(self):
+        self.AgeRange.create({"name": "First", "min_value": 1100, "max_value": 1110})
+        second = self.AgeRange.create(
+            {"name": "Second", "min_value": 1110, "max_value": 1120}
+        )
+
+        self.assertFalse(second.gap_before)
+
+    def test_the_oldest_cohort_is_not_a_gap(self):
+        """Nothing below the oldest band is intended, not uncovered."""
+        oldest = self.AgeRange.create(
+            {"name": "Oldest", "min_value": 1200, "max_value": 1210}
+        )
+
+        self.assertFalse(oldest.gap_before)
+
+    def test_an_empty_cohort_still_appears_in_the_group_by(self):
+        """The group-by is where a distribution is read, so a hole in it reads
+        as "nobody was born then" rather than as an unused band."""
+        used = self.AgeRange.create(
+            {"name": "Used", "min_value": 1400, "max_value": 1410}
+        )
+        unused = self.AgeRange.create(
+            {"name": "Unused", "min_value": 1410, "max_value": 1420}
+        )
+        self.Partner.create({"name": "Born 1405", "birthdate": "1405-02-02"})
+        self.env.flush_all()
+
+        # web_read_group, not formatted_read_group: group_expand is gated on
+        # the read_group_expand context key that web/model/relational_model
+        # sets on every grouped view, so only the client's own entry point
+        # exercises it.
+        grouped = self.Partner.with_context(read_group_expand=True).web_read_group(
+            [], ["age_range_id"], ["__count"]
+        )
+        offered = {
+            group["age_range_id"] and group["age_range_id"][0]
+            for group in grouped["groups"]
+        }
+
+        self.assertIn(used.id, offered)
+        self.assertIn(unused.id, offered, "an empty cohort vanished from the group-by")
+
+    def test_a_cohort_opens_the_contacts_it_classified(self):
+        cohort = self.AgeRange.create(
+            {"name": "Openable", "min_value": 1500, "max_value": 1510}
+        )
+        partner = self.Partner.create({"name": "Born 1505", "birthdate": "1505-01-01"})
+        self.env.flush_all()
+
+        action = cohort.action_open_partners()
+        found = self.Partner.search(action["domain"])
+
+        self.assertEqual(action["res_model"], "res.partner")
+        self.assertIn(partner, found)
+
+    def test_an_unnamed_cohort_does_not_render_its_missing_name(self):
+        """`display_name` is read before the name is typed.
+
+        The form defaults the bounds, so a brand-new record already has a span
+        to render and would otherwise show it beside the string "False".
+        """
+        draft = self.AgeRange.new({"min_value": 1600, "max_value": 0})
+
+        self.assertFalse(draft.display_name)
+
+    def test_closing_a_gap_from_the_neighbour_clears_it(self):
+        """`gap_before` reads the whole scale, which no @api.depends can say.
+
+        Moving the band *below* leaves the reported gap untouched unless the
+        cache is dropped where the scale changes, so a cohort goes on reporting
+        years the edit just covered.
+        """
+        below = self.AgeRange.create(
+            {"name": "below", "min_value": 1000, "max_value": 1010}
+        )
+        above = self.AgeRange.create(
+            {"name": "above", "min_value": 1020, "max_value": 1030}
+        )
+        self.assertEqual(above.gap_before, "1010-1019")
+
+        below.max_value = 1020
+        self.env.flush_all()
+
+        self.assertFalse(
+            above.gap_before,
+            "the band below now reaches this one, but the gap is still reported",
+        )
+
+    def test_archiving_a_middle_band_opens_a_gap_above_it(self):
+        """An archived band classifies nobody, so it covers nothing either.
+
+        Three bands, not two: archiving the *lowest* one only moves the open
+        lower edge of the scale, which is intended and no gap at all. It takes
+        a band with something still below it to leave a hole behind.
+        """
+        self.AgeRange.create({"name": "arch low", "min_value": 1030, "max_value": 1040})
+        middle = self.AgeRange.create(
+            {"name": "arch middle", "min_value": 1040, "max_value": 1050}
+        )
+        top = self.AgeRange.create(
+            {"name": "arch top", "min_value": 1050, "max_value": 1060}
+        )
+        self.assertFalse(top.gap_before)
+
+        middle.active = False
+        self.env.flush_all()
+
+        self.assertEqual(top.gap_before, "1040-1049")
+
+    def test_archiving_the_lowest_band_is_not_a_gap(self):
+        """It becomes the scale's open lower edge, which the oldest band owns."""
+        lowest = self.AgeRange.create(
+            {"name": "edge low", "min_value": 1070, "max_value": 1080}
+        )
+        above = self.AgeRange.create(
+            {"name": "edge above", "min_value": 1080, "max_value": 1090}
+        )
+
+        lowest.active = False
+        self.env.flush_all()
+
+        self.assertFalse(above.gap_before)
+
+    def test_the_contact_count_follows_a_reclassification(self):
+        cohort = self.AgeRange.create(
+            {"name": "counted live", "min_value": 1100, "max_value": 1110}
+        )
+        self.Partner.create({"name": "In 1105", "birthdate": "1105-01-01"})
+        self.env.flush_all()
+        self.assertEqual(cohort.partner_count, 1)
+
+        cohort.min_value = 1106
+        self.env.flush_all()
+
+        self.assertEqual(
+            cohort.partner_count, 0, "the count survived the reclassification"
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestPartnerAgeRangeClassificationRights(TransactionCase):
+    """Classifying a contact must not need the writer to see the cohorts.
+
+    ``age_range_id`` is a stored compute, so it runs as whoever wrote the
+    contact. The cohorts are reference data whose ACL admits internal users
+    only, which couples the right to save a contact to the right to read a
+    configuration model the user never asked about. The sibling sweep in
+    ``_add_partners_to_compute`` already spells ``sudo()`` for the same reason.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.AgeRange = cls.env["res.partner.age.range"]
+        cls.AgeRange.search([]).active = False
+        cls.cohort = cls.AgeRange.create(
+            {"name": "Reachable by anyone", "min_value": 1970, "max_value": 1980}
+        )
+        cls.env["ir.model.access"].create(
+            {
+                "name": "res.partner portal write (test fixture)",
+                "model_id": cls.env["ir.model"]._get_id("res.partner"),
+                "group_id": cls.env.ref("base.group_portal").id,
+                "perm_read": True,
+                "perm_write": True,
+                "perm_create": True,
+            }
+        )
+        cls.env.registry.clear_cache()
+        cls.outsider = cls.env["res.users"].create(
+            {
+                "name": "Outsider",
+                "login": "age_range_outsider",
+                "group_ids": [(6, 0, [cls.env.ref("base.group_portal").id])],
+            }
+        )
+
+    def test_the_writer_cannot_read_the_cohorts(self):
+        """The fixture is only meaningful while this holds."""
+        with self.assertRaises(AccessError):
+            self.AgeRange.with_user(self.outsider).search([])
+
+    def test_a_contact_is_classified_anyway(self):
+        partner = self.env["res.partner"].create({"name": "Written by an outsider"})
+        self.env.flush_all()
+
+        partner.with_user(self.outsider).write({"birthdate": "1975-03-03"})
+        self.env.flush_all()
+
+        self.assertEqual(partner.age_range_id, self.cohort)

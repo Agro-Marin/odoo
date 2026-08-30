@@ -20,10 +20,12 @@
         <field name="name">Age Range</field>
         <field name="model">res.partner.age.range</field>
         <field name="arch" type="xml">
-            <list string="Age Range" editable="bottom">
+            <list string="Age Range" editable="bottom" decoration-warning="gap_before">
                 <field name="name" />
                 <field name="min_value" options="{'thousands_sep': false}" />
                 <field name="max_value" options="{'thousands_sep': false}" />
+                <field name="gap_before" readonly="1" />
+                <field name="partner_count" readonly="1" />
             </list>
         </field>
     </record>
@@ -34,6 +36,18 @@
         <field name="arch" type="xml">
             <form string="Age Range">
                 <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button
+                            name="action_open_partners"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-address-book">
+                            <field
+                                name="partner_count"
+                                widget="statinfo"
+                                string="Contacts" />
+                        </button>
+                    </div>
                     <group>
                         <field name="name" />
                         <field name="active" widget="boolean_toggle" />
@@ -41,6 +55,7 @@
                     <group string="Birth years">
                         <field name="min_value" options="{'thousands_sep': false}" />
                         <field name="max_value" options="{'thousands_sep': false}" />
+                        <field name="gap_before" invisible="not gap_before" />
                     </group>
                 </sheet>
             </form>

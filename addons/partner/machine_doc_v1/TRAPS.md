@@ -136,3 +136,87 @@ is `[min, max)`. A cohort "1965-1980" is therefore written `min_value = 1965`,
 is not a key the module loader knows, so installing that module loads nothing. Those records
 arrive only when something imports them by hand — at which point they can collide with the
 demo cohorts here, both on the unique name constraint and on `mixin.band`'s overlap check.
+
+## 11. On an Integer field the ORM cannot tell `0` from "not set"
+
+`('age', '=', 0)` and `('age', '=', False)` are **the same domain**. Measured by spying on
+what actually arrives: `('age', '=', 0)` reaches the field as `('in', OrderedSet([False]))`
+and is then decomposed to `('=', False)`, so `_search_age` receives `False` for both and no
+implementation can separate "aged zero" from "has no age".
+
+**The fold is confined to `=` and `!=`, and it is worth knowing exactly that.** The ordering
+operators are untouched -- `('age', '>', 0)` arrives as the integer `0`, as do `>=`, `<` and
+`<=`. So the "not set" branch below must be reached only for `=`/`!=`; widening it to every
+operator would turn "older than nobody" into a `UserError` on a domain that works today.
+
+The fold therefore decides which of the two readings the pair must carry, and it is the one
+every generic tool asks: `= False` is the framework's spelling of *not set*, and it is what
+the client's "is not set" filter emits. `_search_age` answers it as `birthdate = False`.
+`isinstance(False, int)` is `True`, so this has to be settled **before** any numeric guard --
+the unguarded path reads the value as `0` and answers "is not set" with every contact born in
+the last twelve months.
+
+Two consequences worth knowing before reopening this:
+
+- Exactly-zero is not expressible through `=`. It is `age >= 0` intersected with `age < 1`.
+- The invariant in ARCHITECTURE.md -- "a contact with no birthdate matches no comparison,
+  negation included" -- is about the **ordering** operators, which is also exactly the set the
+  fold leaves alone. `=` and `!=` against `False` are
+  the is-set question, not comparisons, and they answer it. `TestSearchAge` splits the two
+  for that reason.
+
+## 12. `group_expand` does not fire in `formatted_read_group`
+
+It is gated on the `read_group_expand` context key
+(`addons/web/models/web_read_group_helpers.py`), which `web/static/src/model/relational_model`
+sets on every grouped view. So `age_range_id`'s expansion is real in the client and invisible
+to a bare `formatted_read_group([...], ["age_range_id"])` -- which reads exactly like the
+feature not working. Assert it through `web_read_group` with the context key, as
+`TestPartnerAgeRangeScale` does.
+
+## 13. Private Information is gated by the view, not by the fields
+
+The page carries `groups="base.group_partner_manager"`, which hides the widgets. It does not
+restrict the fields: a user holding only `base.group_user` reads `birthdate`, `gender`, `age`
+and `age_range_id` on any contact through export, RPC, an optional list column or a saved
+filter. **This is known and unfixed**, not an oversight, and gating the fields is a decision
+rather than a patch:
+
+- `age` and `age_range_id` are this module's, so `groups=` on them costs one line each -- and
+  buys nothing while `birthdate` is open, since the age is a trivial reading of it.
+- `birthdate` and `gender` are `base`'s. `agromarin/partner_relationship` computes on
+  `partner_id.gender` and `agromarin/remote_dav_sync` reads `partner.birthdate` when it builds
+  a vCard; a compute or a controller running as a non-member raises rather than degrading, so
+  gating either one needs those call sites decided first.
+
+The honest summary is that the page is a *placement*, not a permission.
+
+## 14. The cohort sweep is synchronous and has no ceiling
+
+`_add_partners_to_compute` searches **every** matching contact and recomputes them inside the
+caller's transaction, on every bound edit, archive and unlink. Measured at ~15k contacts per
+second (2085 in 0.14 s), so a sixteen-year cohort over a 500k-contact database at 60%
+birthdate coverage is ~60k rows and several seconds of row locks on `res_partner`, the most
+contended table there is.
+
+**This is unchanged and deliberate.** Deferring the tail to a cron would make the
+classification eventually consistent, and `test_06`, `test_11` and `test_13` all assert it is
+immediate after a flush. Narrowing the sweep to the symmetric difference of the before/after
+spans is the change that preserves those assertions -- a one-year nudge on a sixteen-year
+cohort currently sweeps all sixteen -- and it is intricate enough around `active` flips to
+deserve its own design rather than a drive-by.
+
+
+## 15. `gap_before` and `partner_count` read state no `@api.depends` can name
+
+One reads every other band on the scale, the other reads the address book. Neither is a
+function of the record's own fields, so the ORM has nothing to invalidate them on: moving the
+band *below* used to leave a cohort reporting a gap that edit had just closed, and only within
+the same transaction, which is why it survives a casual click-through in the interface.
+
+`_add_partners_to_compute` is the one chokepoint every create, write and unlink passes
+through, so it drops both caches model-wide. That covers every edit made *to the scale*.
+It does not cover the other direction: change a contact's `birthdate` and a cohort's
+`partner_count` is stale for the rest of that transaction. Nothing in the interface reads a
+cohort in the same request that edits a contact, so this is left alone rather than paid for
+with a stored counter.

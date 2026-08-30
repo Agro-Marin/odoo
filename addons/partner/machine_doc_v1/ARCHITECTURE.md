@@ -15,24 +15,53 @@ change `partner` only when changing what the *application* exposes.
 | The Private Information page on the contact form | this module, `views/res_partner_views.xml` |
 | The Contacts menu tree | this module, `views/ir_ui_menu_views.xml` |
 | Birth-year cohorts | this module, `models/res_partner_age_range.py` |
+| Birthday filters and the birthday index | this module, `models/res_partner.py` and `views/res_partner_views.xml` |
 | Phone-number search | `phone_validation` (it owns `phone_mobile_search`) |
 | Map view of contacts | `partner_enterprise` (enterprise checkout) |
 
 ## What this module adds to `res.partner`
 
-Two fields, both in `models/res_partner.py`:
+Two fields, an index and a redeclaration, all in `models/res_partner.py`:
 
 - `age` — non-stored, recomputed on read from `birthdate`, so it never goes stale. Not
   stored is not the same as not queryable: `_search_age` maps a comparison onto `birthdate`,
   so `[('age', '>', 18)]` is answerable in SQL. The mapping **inverts**, because an older
   contact was born earlier, and the strict forms shift a year — "older than 30" is "has
   completed 31". A contact with no birthdate has no age and so matches no comparison,
-  negation included; NULL semantics give that for free.
+  negation included; NULL semantics give that for free. It declares `aggregator=None`, which is neither the
+  Integer default (`sum`, meaningless for ages) nor the meaningful operation (`avg`):
+  the web client asks the server for `<field>:<aggregator>` for every aggregatable field
+  a view holds, and this one is not stored, so any answer but None turns a grouped list
+  containing it into a 500.
 - `age_range_id` — **stored**, and keyed on the birth *year*, not on the age. That is the
   reason it can be stored at all: a cohort membership does not change as time passes, where a
   stored `age` would silently rot. It is the group-by the search view offers, and it carries
   a `btree_not_null` index: most contacts carry no cohort, so a partial index is the shape
-  that group-by actually needs.
+  that group-by actually needs. It carries `group_expand="_read_group_expand_full"`, so a
+  cohort with no members is still drawn as an empty column rather than vanishing from the
+  one view built to show the distribution. The framework gates that on the
+  `read_group_expand` context key, which `web/static/src/model/relational_model` sets on
+  every grouped view — so it fires in the client and **not** in a bare
+  `formatted_read_group`.
+
+`birthdate` is redeclared, adding nothing but `index="btree_not_null"`. `base` owns the
+field; this module is what makes it *queryable*, through `age`, through the cohort sweep and
+through the birthday filters, so the index belongs with the queries rather than with the
+declaration.
+
+### Birthdays
+
+`birthdate.month_number` and `birthdate.day_of_month` are resolved by the ORM into
+`date_part()` in SQL (`odoo/orm/fields/temporal.py`, `READ_GROUP_NUMBER_GRANULARITY`), so
+*Birthday Today*, *Birthday This Month* and the *Birthday Month* group-by are three search
+view entries and **no new field**: nothing stored, nothing to recompute, nothing that can go
+stale. `date_part()` is not a column, so no index on `birthdate` can serve them; the model
+declares `_birthday`, a partial expression index over `(month, day)`, for that.
+
+The view validator used to refuse these paths, reading `birthdate.month_number` as a hop to
+a comodel — while `formatted_read_group` was already handing the client that same shape back
+as `__extra_domain`. Fixed in `odoo/addons/base/models/ir_ui_view.py`
+(`_check_field_paths`), pinned by `test_domain_date_part_is_a_property_not_a_hop`.
 
 Plus one override, `_get_backend_root_menu_ids`, so a `res.partner` record opened from a
 notification lands under the Contacts app rather than under Settings.
@@ -76,6 +105,16 @@ A cohort of birth years, built on the `mixin.band` abstract model in `base`, whi
   *no upper limit*, and `0` as a lower bound means *no lower limit* — the opposite reading.
 - `mixin.band._check_band` rejects overlapping active bands. Seeding a second set of cohorts
   on top of the demo ones therefore raises rather than silently double-classifying.
+- **It says nothing about the space *between* two bands.** A scale can therefore be
+  internally valid and still drop a decade, and a contact born in that decade classifies
+  into nothing with no sign anywhere. `gap_before` computes the uncovered years below each
+  cohort and the list view decorates them; nothing below the *oldest* cohort counts, because
+  that is the intended open edge rather than a hole.
+- `partner_count` answers the other question a scale raises -- is this cohort reaching
+  anyone -- and `action_open_partners` opens the contacts behind the number.
+- `display_name` names the years the cohort actually contains: `Generation X (1965-1980)`
+  for `min_value` 1965 / `max_value` 1981. The bounds are half-open and that is this
+  module's oldest trap, so the record answers the question it raises.
 
 Configuration lives at **Contacts > Configuration > Age Ranges**
 (`res_partner_age_range_menu` -> `res_partner_age_range_action`), with

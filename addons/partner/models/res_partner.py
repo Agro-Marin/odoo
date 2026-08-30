@@ -1,15 +1,24 @@
 from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
+from odoo.exceptions import UserError
 from odoo.fields import Domain
 
 
 class ResPartner(models.Model):
     _inherit = "res.partner"
 
+    birthdate = fields.Date(
+        index="btree_not_null",
+    )
     age = fields.Integer(
         compute="_compute_age",
         search="_search_age",
+        # Not "avg", and not the Integer default of "sum": the client asks the
+        # server for `<field>:<aggregator>` for every aggregatable field a view
+        # holds, and this one is not stored, so any answer but None turns a
+        # grouped list containing it into a 500.
+        aggregator=None,
     )
     age_range_id = fields.Many2one(
         "res.partner.age.range",
@@ -17,6 +26,12 @@ class ResPartner(models.Model):
         compute="_compute_age_range_id",
         store=True,
         index="btree_not_null",
+        group_expand="_read_group_expand_full",
+    )
+
+    _birthday = models.Index(
+        "(date_part('month', birthdate), date_part('day', birthdate)) "
+        "WHERE birthdate IS NOT NULL"
     )
 
     @api.depends("birthdate")
@@ -42,11 +57,20 @@ class ResPartner(models.Model):
                     "Unsupported operator %(operator)s on age.", operator=operator
                 )
             )
-        if not isinstance(value, int):
-            raise ValueError(self.env._("Age is searched by a whole number of years."))
+        if value is None or value is False:
+            if operator in ("=", "!="):
+                return Domain("birthdate", operator, False)
+            raise UserError(self.env._("Age is searched by a whole number of years."))
 
-        at_least = self._latest_birthdate_for_age(value)
-        over = self._latest_birthdate_for_age(value + 1)
+        try:
+            years = int(value)
+        except TypeError, ValueError, OverflowError:
+            years = None
+        if isinstance(value, bool) or years is None or years != value:
+            raise UserError(self.env._("Age is searched by a whole number of years."))
+
+        at_least = self._latest_birthdate_for_age(years)
+        over = self._latest_birthdate_for_age(years + 1)
 
         if operator == ">=":
             return Domain("birthdate", "<=", at_least)
@@ -63,7 +87,7 @@ class ResPartner(models.Model):
 
     @api.depends("birthdate")
     def _compute_age_range_id(self) -> None:
-        age_ranges = self.env["res.partner.age.range"].search([])
+        age_ranges = self.env["res.partner.age.range"].sudo().search([])
         for partner in self:
             if partner.birthdate:
                 age_range = age_ranges.filtered(

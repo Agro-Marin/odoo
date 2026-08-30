@@ -36,6 +36,17 @@ class ResPartnerAgeRange(models.Model):
         "use so a newborn still classifies. The oldest cohort stays closed on "
         "its lower side: a birth year before it predates every cohort here.",
     )
+    partner_count = fields.Integer(
+        string="Contacts",
+        compute="_compute_partner_count",
+    )
+    gap_before = fields.Char(
+        string="Uncovered",
+        compute="_compute_gap_before",
+        help="Birth years left between this cohort and the one below it. A "
+        "contact born in those years is classified into nothing at all, which "
+        "the scale gives no other sign of.",
+    )
 
     _name_uniq = models.UniqueIndex(
         "(lower(name))", "A cohort with the same name already exists."
@@ -60,6 +71,64 @@ class ResPartnerAgeRange(models.Model):
         result = super().unlink()
         self._add_partners_to_compute(spans)
         return result
+
+    @api.depends("name", "min_value", "max_value")
+    def _compute_display_name(self) -> None:
+        # The bounds are half-open years and TRAPS.md exists mostly because
+        # that is easy to get backwards. Naming the years a cohort actually
+        # contains puts the answer on the record that raises the question.
+        for band in self:
+            first, last = int(band.min_value), int(band.max_value) - 1
+            if band.max_value and band.min_value:
+                span = self.env._("%(first)s-%(last)s", first=first, last=last)
+            elif band.max_value:
+                span = self.env._("up to %(last)s", last=last)
+            elif band.min_value:
+                span = self.env._("%(first)s and later", first=first)
+            else:
+                span = ""
+            band.display_name = (
+                f"{band.name} ({span})" if band.name and span else band.name
+            )
+
+    def _compute_partner_count(self) -> None:
+        counts = dict(
+            self.env["res.partner"]._read_group(
+                [("age_range_id", "in", self.ids)], ["age_range_id"], ["__count"]
+            )
+        )
+        for band in self:
+            band.partner_count = counts.get(band, 0)
+
+    @api.depends("min_value", "max_value", "active")
+    def _compute_gap_before(self) -> None:
+        scale = self.search([])
+        for band in self:
+            closed_below = scale.filtered(
+                lambda other, band=band: (
+                    other.max_value and other.max_value <= band.min_value
+                )
+            )
+            highest = max(closed_below.mapped("max_value"), default=band.min_value)
+            band.gap_before = (
+                self.env._(
+                    "%(first)s-%(last)s",
+                    first=int(highest),
+                    last=int(band.min_value) - 1,
+                )
+                if band.active and highest < band.min_value
+                else False
+            )
+
+    def action_open_partners(self):
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_window",
+            "name": self.display_name,
+            "res_model": "res.partner",
+            "view_mode": "list,kanban,form",
+            "domain": [("age_range_id", "=", self.id)],
+        }
 
     def _current_spans(self):
         return [(band.min_value, band.max_value) for band in self]
@@ -87,6 +156,12 @@ class ResPartnerAgeRange(models.Model):
         )
         if partners:
             self.env.add_to_compute(partners._fields["age_range_id"], partners)
+        # gap_before reads the whole scale and partner_count reads the whole
+        # address book, so neither can be expressed as a dependency on the
+        # record's own fields. This is the one chokepoint every create, write
+        # and unlink passes through, so it is where their cache is dropped --
+        # without it a band still reports a gap the band below it just closed.
+        self.invalidate_model(["gap_before", "partner_count"])
 
     def _default_min_value(self):
         # Where the scale currently ends. The newest cohort is the one meant to
