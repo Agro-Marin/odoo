@@ -88,6 +88,24 @@ class TestProductMargin(AccountTestInvoicingCommon):
         )
         cls.invoices.invoice_date = cls.invoices[0].date
 
+    def test_wizard_date_defaults_are_dynamic(self):
+        with patch(
+            "odoo.addons.product_margin.wizard.product_margin.time.strftime"
+        ) as mock_strftime:
+            mock_strftime.side_effect = lambda fmt: fmt.replace("%Y", "2030")
+            wizard_2030 = self.env["product.margin"].new()
+            self.assertEqual(
+                wizard_2030.from_date, fields.Date.from_string("2030-01-01")
+            )
+            self.assertEqual(wizard_2030.to_date, fields.Date.from_string("2030-12-31"))
+
+            mock_strftime.side_effect = lambda fmt: fmt.replace("%Y", "2031")
+            wizard_2031 = self.env["product.margin"].new()
+            self.assertEqual(
+                wizard_2031.from_date, fields.Date.from_string("2031-01-01")
+            )
+            self.assertEqual(wizard_2031.to_date, fields.Date.from_string("2031-12-31"))
+
     def test_aggregates(self):
         model = self.env["product.product"]
         field_names = [

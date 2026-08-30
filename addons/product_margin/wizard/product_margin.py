@@ -7,8 +7,8 @@ class ProductMargin(models.TransientModel):
     _name = "product.margin"
     _description = "Product Margin"
 
-    from_date = fields.Date("From", default=time.strftime("%Y-01-01"))
-    to_date = fields.Date("To", default=time.strftime("%Y-12-31"))
+    from_date = fields.Date("From", default=lambda self: time.strftime("%Y-01-01"))
+    to_date = fields.Date("To", default=lambda self: time.strftime("%Y-12-31"))
     invoice_state = fields.Selection(
         [
             ("paid", "Paid"),
