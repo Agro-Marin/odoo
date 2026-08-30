@@ -56,7 +56,7 @@ class SurveyUser_Input(models.Model):
         )
 
         lines_to_create = []
-        today = fields.Date.today()
+        today = fields.Date.context_today(self)
         for employee in employees:
             for survey in surveys_by_employee[employee]:
                 date_start = today
