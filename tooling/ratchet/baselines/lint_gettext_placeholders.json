@@ -1,4 +1,4 @@
 {
-  "count": 4,
-  "note": "5 -> 4, the one unit base was carrying.\n\n  ir_actions_report.py:2215  _('Unknown report type %s for report %s.', type, name)\n\nTwo unnamed placeholders in one _() is the shape a translator cannot reorder: the\ntarget language may want the report before its type, and positional %s pins the\norder to English. Named now (%(type)s, %(report)s).\n\nControl run at 3bbd93238b3 with none of my files applied reports 5, which is the\nfloor, so this gate was green before and the whole move is this change."
+  "count": 2,
+  "note": "stock: two messages in report.stock.report_reception moved to named placeholders.\n\nMeasured in a detached worktree at HEAD carrying only this change, at CI scope (--addons-path odoo/addons,addons, -i test_lint alone).\n\n_(\"Cannot assign transfer %s in state %s.\", out.display_name, out.state) and its unassign twin both fed two unnamed placeholders, which a translator cannot reorder. Both now name them, and the two cross-company checks they sat beside -- identical except for the words 'link' and 'unlink' -- collapse into one _check_same_company with a message that states the invariant rather than the operation.\n\n  4 -> 2\n\nCommand: run in the test_lint lane"
 }

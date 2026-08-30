@@ -1,4 +1,4 @@
 {
-  "count": 13200,
-  "note": "rebased onto da46eb273bb: re-measured at the 90-line budget over the addons tree as the rebase target leaves it. 13156 was the same measurement over the old base; the +44 is addons churn in the 135 commits between, not a regression here -- origin measures 18906 at the 80-line budget against a floor of 19330, i.e. 424 under and falling."
+  "count": 12977,
+  "note": "Raised, not lowered, and deliberately: ruff format over addons/*crm* adds back the 233 excess lines that removing the comments and docstrings took out, returning this floor to the 12977 it held before that change. 88-column wrapping trades one long line for several short ones and py_function_length counts lines. Accepted as the price of a ruff-format-clean crm tree; the alternative on the table was splitting the functions the wrap pushed over the 80-line budget, which is a refactor and not a formatting pass. 12977 is the isolated reading (detached worktree at HEAD with this change alone) rather than the 12867 the shared tree gives, because another session holds uncommitted addons work that would otherwise be banked here."
 }

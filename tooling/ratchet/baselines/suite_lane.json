@@ -1,0 +1,4 @@
+{
+  "count": 410,
+  "note": "ADR-0079. 418 -> 410: two lanes added the same day cover approval (544 tests) and seven small suites (300) -- api_ai, project_hr, mixin_encryption, date_range, test_date_range, account_coa, test_performance_compare. Four of the seven were named by the gate and not by the hand census that preceded it, which filtered on the manifest author as an exact string and missed manifests declaring AgroMarin alongside others."
+}

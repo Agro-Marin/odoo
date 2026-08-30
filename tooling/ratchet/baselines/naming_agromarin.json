@@ -1,4 +1,4 @@
 {
-  "count": 1,
-  "note": "marin/models/account_journal.py followed account s _fill_bank_cash_dashboard_data -> _update_bank_cash_dashboard_data rename.\n\n37 -> 1. Only one of those 36 is this change; the floor was long stale, and the single survivor is documents_l10n_mx_edi/wizard/mx_edi_to_record_wizard.py:365 _assign_cfdi_to_move, which wants _update_*.\n\nCommand (from a workspace holding both checkouts):\n  python tooling/architecture/naming_vocabulary.py --roots agromarin --count"
+  "count": 0,
+  "note": "The two offenders left were both mis-mapped by the naive vocabulary substitution, and both are now spelled for what they do: _assign_cfdi_to_move -> _update_move_cfdi (it writes l10n_mx_edi_cfdi_uuid on the move and imports the CFDI invoice, so _update_ is honest), and _ensure_product_levels -> _create_product_levels (it CREATES the missing abc.classification.product.level rows -- its own docstring says so -- so the map's _check_ would have been a lie). agromarin now joins design-themes at a contract of 0 rather than a debt."
 }

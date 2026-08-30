@@ -1,4 +1,4 @@
 {
-  "count": 166,
-  "note": "account renamed six dashboard hooks off the abolished verbs and the overrides moved with them: _fill_bank_cash_dashboard_data -> _update_* in account_online_synchronization, hr_expense_stripe, l10n_be_codabox and l10n_be_codaclean, _fill_general_dashboard_data -> _update_* in account_reports, and _fill_dashboard_data_count call sites in account_iso20022, account_sepa_direct_debit and l10n_au_aba.\n\n201 -> 166. The floor was already stale by roughly 29 before this change -- another drive-down that was never banked -- so most of this move is not from the renames above. It is banked together because a one-sided floor cannot tell the two apart, and leaving it at 201 hides both.\n\nCommand (from a workspace holding both checkouts):\n  python tooling/architecture/naming_vocabulary.py --roots enterprise --count"
+  "count": 159,
+  "note": "The iap_extract retirement removed seven modules (account_invoice_extract, account_invoice_extract_purchase, hr_expense_extract, hr_recruitment_extract, account_bank_statement_extract, account_extract, iap_extract) and the abolished spellings they carried went with them. 166 -> 159. Cross-repo and therefore no-increase (CLAUDE.md 9.4), so this floor cannot land in the same commit as the deletion that moved it; the deletion is the enterprise commit of the same date."
 }

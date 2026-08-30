@@ -1,4 +1,4 @@
 {
-  "count": 45,
-  "note": "base_import_module._import_module (35) and base_import._extract_header_types (22) decomposed into named phase methods.\n\n_import_module was one 299-line procedure doing eleven jobs: website neutralization, manifest read, dependency install, module upsert, cloc exclusion, data files, static attachments, translations, assets, terms, welcome article. Each is now its own method.\n\n_extract_header_types held its float branch as a `raise ValueError` out of a `try` used purely as loop control. Verified first that neither _remove_currency_symbol nor _currency_symbols raises ValueError (both return False), so explicit returns are behaviour-preserving.\n\n  47 -> 45"
+  "count": 43,
+  "note": "stock: both of its C901 findings sat inside two of the six functions split for pyfunclen_addons -- stock_forecasted._get_report_lines and report_stock_reception.action_assign. Neither was addressed as complexity; the complexity left with the length.\n\n  45 -> 43\n\nCommand: ruff check addons --no-cache --select C901 --statistics"
 }

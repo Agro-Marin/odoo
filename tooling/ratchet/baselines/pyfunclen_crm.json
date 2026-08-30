@@ -1,4 +1,4 @@
 {
-  "count": 192,
-  "note": "Function-length budget raised 80 -> 90 (ADR-0025). This floor is RE-MEASURED at the new budget, not improved: no function was split or shortened for it. Measured in a detached worktree at HEAD with only this change applied, so the shared dirty tree is not in the reading."
+  "count": 147,
+  "note": "ruff format over the 21 addons/*crm* modules, at the ruff.toml line-length of 88. 10 -> 147, and none of it is new code: py_function_length budgets a function in LINES, so wrapping a long expression into several short ones raises the excess by exactly what the wrap costs. The tree-wide sibling shows the same effect at scale and lands back on its own pre-strip value to the unit (12744 -> 12977, having been 12977 before the comments came out), which is the cleanest statement of the tension there is -- removing a comment line and re-wrapping the statement under it are equal and opposite on this metric. Measured in a detached worktree at HEAD carrying this change alone; the shared tree reads 12867 because another session has uncommitted work in addons. ruff check --fix contributed 0 to this number: it was measured separately at 10 and moved nothing."
 }
