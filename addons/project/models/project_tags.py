@@ -23,9 +23,6 @@ class ProjectTags(models.Model):
         "project.task", string="Tasks", export_string_translation=False
     )
 
-    def _get_project_tags_domain(self, domain: list, project_id: int) -> list:
-        return domain
-
     @api.model
     def formatted_read_group(
         self,
