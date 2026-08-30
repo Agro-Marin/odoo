@@ -4,29 +4,34 @@ from odoo import _, fields, models
 
 
 class ProductMargin(models.TransientModel):
-    _name = 'product.margin'
-    _description = 'Product Margin'
+    _name = "product.margin"
+    _description = "Product Margin"
 
-    from_date = fields.Date('From', default=time.strftime('%Y-01-01'))
-    to_date = fields.Date('To', default=time.strftime('%Y-12-31'))
-    invoice_state = fields.Selection([
-        ('paid', 'Paid'),
-        ('open_paid', 'Open and Paid'),
-        ('draft_open_paid', 'Draft, Open and Paid'),
-    ], 'Invoice State', required=True, default="open_paid")
+    from_date = fields.Date("From", default=time.strftime("%Y-01-01"))
+    to_date = fields.Date("To", default=time.strftime("%Y-12-31"))
+    invoice_state = fields.Selection(
+        [
+            ("paid", "Paid"),
+            ("open_paid", "Open and Paid"),
+            ("draft_open_paid", "Draft, Open and Paid"),
+        ],
+        "Invoice State",
+        required=True,
+        default="open_paid",
+    )
 
     def action_view_window(self):
         self.ensure_one()
         context = dict(self.env.context, create=False, edit=False)
 
         def ref(xml_id):
-            proxy = self.env['ir.model.data']
+            proxy = self.env["ir.model.data"]
             return proxy._xmlid_lookup(xml_id)[1]
 
-        search_view_id = ref('product.view_product_product_search')
-        graph_view_id = ref('product_margin.view_product_margin_graph')
-        form_view_id = ref('product_margin.view_product_margin_form')
-        tree_view_id = ref('product_margin.view_product_margin_tree')
+        search_view_id = ref("product.view_product_product_search")
+        graph_view_id = ref("product_margin.view_product_margin_graph")
+        form_view_id = ref("product_margin.view_product_margin_form")
+        tree_view_id = ref("product_margin.view_product_margin_tree")
 
         context.update(invoice_state=self.invoice_state)
 
@@ -37,17 +42,17 @@ class ProductMargin(models.TransientModel):
             context.update(date_to=self.to_date)
 
         views = [
-            (tree_view_id, 'list'),
-            (form_view_id, 'form'),
-            (graph_view_id, 'graph')
+            (tree_view_id, "list"),
+            (form_view_id, "form"),
+            (graph_view_id, "graph"),
         ]
         return {
-            'name': _('Product Margins'),
-            'context': context,
-            "view_mode": 'list,form,graph',
-            'res_model': 'product.product',
-            'type': 'ir.actions.act_window',
-            'views': views,
-            'view_id': False,
-            'search_view_id': [search_view_id],
+            "name": _("Product Margins"),
+            "context": context,
+            "view_mode": "list,form,graph",
+            "res_model": "product.product",
+            "type": "ir.actions.act_window",
+            "views": views,
+            "view_id": False,
+            "search_view_id": [search_view_id],
         }
