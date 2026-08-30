@@ -1,7 +1,8 @@
 from datetime import timedelta
 
-from odoo import _, fields, models
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.fields import Domain
 
 
 class HrApplicant(models.Model):
@@ -13,6 +14,44 @@ class HrApplicant(models.Model):
     response_ids = fields.One2many(
         "survey.user_input", "applicant_id", string="Responses"
     )
+
+    def _expire_interview_links(self):
+        """Close the interviews still open for these applications.
+
+        An interview link stays usable until its answer's deadline, so the events
+        that end an application have to bring that deadline forward to now.
+        Answers reach us either through ``applicant_id`` -- set by our own
+        ``survey.invite`` override -- or, when the base wizard created them, only
+        through the contact plus the job's survey. Both are matched, and nothing
+        else of that contact's is touched.
+        """
+        answers = self.env["survey.user_input"].search(
+            Domain("state", "!=", "done")
+            & (
+                Domain("applicant_id", "in", self.ids)
+                | (
+                    Domain("partner_id", "in", self.partner_id.ids)
+                    & Domain("survey_id", "in", self.survey_id.ids)
+                )
+            )
+        )
+        # A recruitment officer only reads survey.user_input, see
+        # security/ir.model.access.csv, so closing the deadline needs sudo. One
+        # second back, not now: the controller compares deadline < now and both
+        # sides are truncated to the second, so a deadline of now would leave the
+        # link usable for the rest of that second.
+        answers.sudo().deadline = fields.Datetime.now() - timedelta(seconds=1)
+
+    def write(self, vals):
+        res = super().write(vals)
+        hired = self.env["hr.recruitment.stage"].browse(vals.get("stage_id"))
+        if vals.get("active") is False or hired.hired_stage:
+            self._expire_interview_links()
+        return res
+
+    @api.ondelete(at_uninstall=False)
+    def _unlink_expire_interview_links(self):
+        self._expire_interview_links()
 
     def action_print_survey(self):
         """If response is available then print this response otherwise print survey form (print template of the survey)"""
