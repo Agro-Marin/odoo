@@ -270,6 +270,10 @@ class PosOrderLine(models.Model):
     sale_order_line_id = fields.Many2one(
         "sale.order.line", string="Source Sale Order Line", index="btree_not_null"
     )
+    # JSON-encoded breakdown of the sale order lines a down-payment line
+    # settles. Written here (and by pos_store.js's addDownPaymentProduct-
+    # OrderlineToOrder) and read only by this module's own JS `saleDetails`
+    # getter (pos_order_line.js) — no consumer outside pos_sale.
     down_payment_details = fields.Text(string="Down Payment Details")
     qty_transferred = fields.Float(
         string="Delivery Quantity",
