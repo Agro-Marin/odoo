@@ -55,7 +55,6 @@ class TestPartnerAssign(TransactionCase):
         self.startPatcher(patcher)
 
     def test_partner_assign(self):
-        """Test the automatic assignation using geolocalisation"""
         partner_be = self.env["res.partner"].create(
             {
                 "name": "Agrolait",
@@ -80,12 +79,8 @@ class TestPartnerAssign(TransactionCase):
 
         lead = self.lead_uk
 
-        # In order to test find nearest Partner functionality and assign to opportunity,
-        # I Set Geo Lattitude and Longitude according to partner address.
-        # YTI Note: We should probably mock the call
         partner_be.with_context(force_geo_localize=True).geo_localize()
 
-        # I check Geo Latitude and Longitude of partner after set
         self.assertTrue(
             50 < partner_be.partner_latitude < 51,
             "Latitude is wrong: 50 < %s < 51" % partner_be.partner_latitude,
@@ -95,10 +90,8 @@ class TestPartnerAssign(TransactionCase):
             "Longitude is wrong: 3 < %s < 5" % partner_be.partner_longitude,
         )
 
-        # I assign nearest partner to opportunity.
         lead.assign_partner()
 
-        # I check assigned partner of opportunity who is nearest Geo Latitude and Longitude of opportunity.
         self.assertEqual(
             lead.partner_assigned_id,
             partner_uk,
@@ -116,7 +109,6 @@ class TestPartnerAssign(TransactionCase):
             lead.date_partner_assign, "Partner Assignment Date should be set"
         )
 
-        # I forward this opportunity to its nearest partner.
         context = dict(
             self.env.context,
             default_model="crm.lead",
@@ -126,7 +118,6 @@ class TestPartnerAssign(TransactionCase):
         lead_forwarded = (
             self.env["crm.lead.forward.to.partner"].with_context(context).create({})
         )
-        # the assigned partner carries no email, so forwarding stops at that guard
         with contextlib.suppress(UserError):
             lead_forwarded.action_forward()
 
@@ -135,7 +126,6 @@ class TestPartnerAssign(TransactionCase):
 class TestPartnerLeadPortal(TestCrmCommon, HttpCase):
     def setUp(self):
         super().setUp()
-        # Partner Grade
         self.grade = self.env["res.partner.grade"].create(
             {
                 "name": "Grade Test",
@@ -143,7 +133,6 @@ class TestPartnerLeadPortal(TestCrmCommon, HttpCase):
                 "sequence": 3,
             }
         )
-        # Integrating user/partner, having a salesman
         self.user_portal = mail_new_test_user(
             self.env,
             login="user_portal",
@@ -156,7 +145,6 @@ class TestPartnerLeadPortal(TestCrmCommon, HttpCase):
             groups="base.group_portal",
         )
 
-        # New lead, assigned to the new portal
         self.lead_portal = (
             self.env["crm.lead"]
             .with_context(mail_notrack=True)
@@ -173,16 +161,12 @@ class TestPartnerLeadPortal(TestCrmCommon, HttpCase):
         )
 
     def test_partner_lead_accept(self):
-        """Test an integrating partner accepting the lead"""
         self.lead_portal.with_user(self.user_portal).partner_interested(
             comment="Oh yeah, I take that lead !"
         )
         self.assertEqual(self.lead_portal.type, "opportunity")
 
     def test_partner_lead_decline(self):
-        """Test an integrating partner decline the lead"""
-        # Add a child for the commercial partner of portal user
-        # because it will affect the message unsubscribe process.
         self.env["res.partner"].create(
             {
                 "name": "Child Contact Name",
@@ -203,7 +187,6 @@ class TestPartnerLeadPortal(TestCrmCommon, HttpCase):
         )
 
     def test_partner_lead_decline_spam(self):
-        """Test an integrating partner decline the lead by mentioning that it is spam"""
         self.lead_portal.invalidate_recordset()
         self.lead_portal.with_user(self.user_portal).partner_desinterested(
             comment="It is a spam !", contacted=True, spam=True
@@ -224,8 +207,6 @@ class TestPartnerLeadPortal(TestCrmCommon, HttpCase):
         )
 
     def test_lead_access_right(self):
-        """Test another portal user can not write on every leads"""
-        # portal user having no right
         poor_portal_user = (
             self.env["res.users"]
             .with_context({"no_reset_password": True, "mail_notrack": True})
@@ -238,14 +219,12 @@ class TestPartnerLeadPortal(TestCrmCommon, HttpCase):
                 }
             )
         )
-        # try to accept a lead that is not mine
         with self.assertRaises(AccessError):
             self.lead_portal.with_user(poor_portal_user).partner_interested(
                 comment="Oh yeah, I take that lead !"
             )
 
     def test_lead_creation(self):
-        """Test the opportinuty creation from portal"""
         data = (
             self.env["crm.lead"]
             .with_user(self.user_portal)
@@ -353,7 +332,6 @@ class TestPartnerLeadPortal(TestCrmCommon, HttpCase):
             test_partner.email, email_2, "Adress email on the partner must be updated"
         )
 
-        # Portal user must be able to write to the thread
         old_message_ids = opportunity.message_ids
         with MockRequest(self.env(user=self.user_portal)):
             res = ThreadController().mail_message_post(
@@ -397,10 +375,6 @@ class TestPartnerLeadPortal(TestCrmCommon, HttpCase):
         )
 
     def test_route_portal_my_opportunities_as_portal(self):
-        """Test that the portal user can access its own opportunities even if
-        does not have access to the 'activity_date_deadline' field (needed
-        if using filter 'Today Activities' or 'Overdue Activities')."""
-
         lead_today = self.lead_portal
         lead_yesterday = self.lead_portal.sudo().copy()
 
@@ -440,19 +414,8 @@ class TestPartnerLeadPortal(TestCrmCommon, HttpCase):
 
     @patch("odoo.http.GeoIP")
     def test_03_crm_partner_assign_geolocalization(self, GeoIpMock):
-        """
-        This test checks situation when "{OdooURL}/partners" is visited from foreign country without resellers.
-        It uses Mexico as an example.
-
-        Why patching of GeoIP is used?
-        Tested function (WebsiteCrmPartnerAssign.partners) uses GeoIp.country_code which is read_only, because
-        of the property decorator https://docs.python.org/3/library/functions.html#property
-        Patching is allowing to modify normally read_only value.
-        """
-        # Patch GeoIp so it acts, as if Odoo client is located in Mexico
         GeoIpMock.return_value.country_code = "MX"
 
-        # Create a partner outside of Mexico
         non_mexican_partner = self.env["res.partner"].create(
             {
                 "name": "Non_Mexican_Partner",
@@ -466,7 +429,6 @@ class TestPartnerLeadPortal(TestCrmCommon, HttpCase):
         )
 
         def render_function(_, values, *args, **kwargs):
-            """Tests values at the end of WebsiteCrmPartnerAssign.partners method."""
             self.assertIn(
                 "partners",
                 values,
@@ -499,11 +461,8 @@ class TestPublish(HttpCase):
             "website.group_website_restricted_editor"
         )
         cls.group_sale_salesman = cls.env.ref("sales_team.group_sale_salesman")
-        # Do not rely on HttpCaseWithUserDemo to avoid having different user
-        # definitions with and without demo data.
         cls.user_test = new_test_user(cls.env, login="testtest", website_id=False)
 
-        # Partner Grade
         grade = cls.env["res.partner.grade"].create(
             {
                 "name": "Grade Test",

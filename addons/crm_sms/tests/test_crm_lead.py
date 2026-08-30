@@ -1,24 +1,25 @@
-# -*- coding: utf-8 -*-
-from odoo.addons.crm.tests.common import TestCrmCommon
 from odoo.tests.common import users
+
+from odoo.addons.crm.tests.common import TestCrmCommon
 
 
 class TestCRMLead(TestCrmCommon):
-
-    @users('user_sales_manager')
+    @users("user_sales_manager")
     def test_phone_mobile_update(self):
-        lead = self.env['crm.lead'].create({
-            'name': 'Lead 1',
-            'country_id': self.env.ref('base.us').id,
-            'phone': self.test_phone_data[0],
-        })
+        lead = self.env["crm.lead"].create(
+            {
+                "name": "Lead 1",
+                "country_id": self.env.ref("base.us").id,
+                "phone": self.test_phone_data[0],
+            }
+        )
         self.assertEqual(lead.phone, self.test_phone_data[0])
         self.assertEqual(lead.phone_sanitized, self.test_phone_data_sanitized[0])
 
-        lead.write({'phone': False})
+        lead.write({"phone": False})
         self.assertFalse(lead.phone)
         self.assertEqual(lead.phone_sanitized, False)
 
-        lead.write({'phone': self.test_phone_data[1]})
+        lead.write({"phone": self.test_phone_data[1]})
         self.assertEqual(lead.phone, self.test_phone_data[1])
         self.assertEqual(lead.phone_sanitized, self.test_phone_data_sanitized[1])

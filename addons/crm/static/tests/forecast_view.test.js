@@ -39,13 +39,10 @@ test("Forecast graph view", async () => {
     mockDate("2021-09-16 16:54:00");
 
     const expectedDomains = [
-        forecastDomain("2021-09-01"), // month granularity due to no groupby
-        forecastDomain("2021-09-16"), // day granularity due to simple bar groupby
-        // quarter granularity due to date field groupby activated with quarter interval option
+        forecastDomain("2021-09-01"),
+        forecastDomain("2021-09-16"),
         forecastDomain("2021-07-01"),
-        // quarter granularity due to date field groupby activated with quarter and year interval option
         forecastDomain("2021-01-01"),
-        // forecast filter no more active
         [],
     ];
 

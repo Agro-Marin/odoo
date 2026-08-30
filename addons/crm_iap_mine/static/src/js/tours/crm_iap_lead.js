@@ -16,13 +16,6 @@ patch(registry.category("web_tour.tours").get("crm_tour"), {
             DragOppToWonStepIndex + 1,
             0,
             {
-                /**
-                 * Add some steps between "Drag your opportunity to <b>Won</b> when you get
-                 * the deal. Congrats!" and "Let’s have a look at an Opportunity." to
-                 * include the steps related to the lead generation (crm_iap_mine).
-                 * This eases the on boarding for the Lead Generation process.
-                 *
-                 */
                 trigger: ".o_button_generate_leads",
                 content: markup(_t("Looking for more opportunities?<br>Try the <b>Lead Generation</b> tool.")),
                 tooltipPosition: "bottom",

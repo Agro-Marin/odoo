@@ -1,12 +1,13 @@
 from markupsafe import Markup
-from odoo.addons.mail.tools.discuss import Store
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 from odoo.tools import html2plaintext
+
+from odoo.addons.mail.tools.discuss import Store
 
 
 class DiscussChannel(models.Model):
-    _inherit = 'discuss.channel'
+    _inherit = "discuss.channel"
 
     lead_ids = fields.One2many(
         "crm.lead",
@@ -24,7 +25,7 @@ class DiscussChannel(models.Model):
             channel.has_crm_lead = bool(channel.lead_ids)
 
     def execute_command_lead(self, **kwargs):
-        key = kwargs['body']
+        key = kwargs["body"]
         lead_command = "/lead"
         if key.strip() == lead_command:
             msg = _(
@@ -42,32 +43,30 @@ class DiscussChannel(models.Model):
         self.env.user._bus_send_transient_message(self, msg)
 
     def _convert_visitor_to_lead(self, partner, key):
-        """ Create a lead from channel /lead command
-        :param partner: internal user partner (operator) that created the lead;
-        :param key: operator input in chat ('/lead Lead about Product')
-        """
-        # if public user is part of the chat: consider lead to be linked to an
-        # anonymous user whatever the participants. Otherwise keep only share
-        # partners (no user or portal user) to link to the lead.
-        customers = self.env['res.partner']
-        for customer in self.with_context(active_test=False).channel_partner_ids.filtered(lambda p: p != partner and p.partner_share):
+        customers = self.env["res.partner"]
+        for customer in self.with_context(
+            active_test=False
+        ).channel_partner_ids.filtered(lambda p: p != partner and p.partner_share):
             if customer.is_public:
-                customers = self.env['res.partner']
+                customers = self.env["res.partner"]
                 break
-            else:
-                customers |= customer
+            customers |= customer
 
-        utm_source = self.env.ref('crm_livechat.utm_source_livechat', raise_if_not_found=False)
-        return self.env['crm.lead'].create({
-            "origin_channel_id": self.id,
-            'name': html2plaintext(key[5:]),
-            'partner_id': customers[0].id if customers else False,
-            'user_id': False,
-            'team_id': False,
-            'description': self._get_channel_history(),
-            'referred': partner.name,
-            'source_id': utm_source and utm_source.id,
-        })
+        utm_source = self.env.ref(
+            "crm_livechat.utm_source_livechat", raise_if_not_found=False
+        )
+        return self.env["crm.lead"].create(
+            {
+                "origin_channel_id": self.id,
+                "name": html2plaintext(key[5:]),
+                "partner_id": customers[0].id if customers else False,
+                "user_id": False,
+                "team_id": False,
+                "description": self._get_channel_history(),
+                "referred": partner.name,
+                "source_id": utm_source and utm_source.id,
+            }
+        )
 
     def _get_livechat_session_fields_to_store(self):
         fields_to_store = super()._get_livechat_session_fields_to_store()

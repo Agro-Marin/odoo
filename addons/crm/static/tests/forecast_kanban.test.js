@@ -35,8 +35,6 @@ const kanbanArch = `
 
 test.tags("desktop");
 test("filter out every records before the start of the current month with forecast_filter for a date field", async () => {
-    // the filter is used by the forecast model extension, and applies the forecast_filter context key,
-    // which adds a domain constraint on the field marked in the other context key forecast_field
     mockDate("2021-02-10 00:00:00");
     Lead._records = [
         { id: 1, name: "Lead 1", date_deadline: "2021-01-01" },
@@ -64,7 +62,6 @@ test("filter out every records before the start of the current month with foreca
         groupBy: ["date_deadline"],
     });
 
-    // the filter is active
     expect(".o_kanban_group").toHaveCount(2);
     expect(".o_kanban_group:eq(0) .o_kanban_record").toHaveCount(2, {
         message: "1st column (February) should contain 2 record",
@@ -73,7 +70,6 @@ test("filter out every records before the start of the current month with foreca
         message: "2nd column (March) should contain 2 records",
     });
 
-    // remove the filter(
     await contains(".o_searchview_facet:contains(Forecast) .o_facet_remove").click();
 
     expect(".o_kanban_group").toHaveCount(3);
@@ -90,7 +86,6 @@ test("filter out every records before the start of the current month with foreca
 
 test.tags("desktop");
 test("filter out every records before the start of the current month with forecast_filter for a datetime field", async () => {
-    // same as for the date field
     mockDate("2021-02-10 00:00:00");
     Lead._fields.date_closed = fields.Datetime({ string: "Closed Date" });
     Lead._records = [
@@ -149,7 +144,6 @@ test("filter out every records before the start of the current month with foreca
         groupBy: ["date_closed"],
     });
 
-    // with the filter
     expect(".o_kanban_group").toHaveCount(2);
     expect(".o_kanban_group:eq(0) .o_kanban_record").toHaveCount(2, {
         message: "1st column (February) should contain 2 record",
@@ -158,7 +152,6 @@ test("filter out every records before the start of the current month with foreca
         message: "2nd column (March) should contain 2 records",
     });
 
-    // remove the filter
     await contains(".o_searchview_facet:contains(Forecast) .o_facet_remove").click();
 
     expect(".o_kanban_group").toHaveCount(3);
@@ -173,11 +166,6 @@ test("filter out every records before the start of the current month with foreca
     });
 });
 
-/**
- * Since mock_server does not support fill_temporal,
- * we only check the domain and the context sent to the read_group, as well
- * as the end value of the FillTemporal Service after the read_group (which should have been updated in the model)
- */
 test("Forecast on months, until the end of the year of the latest data", async () => {
     expect.assertions(3);
     mockDate("2021-10-10 00:00:00");
@@ -234,11 +222,6 @@ test("Forecast on months, until the end of the year of the latest data", async (
     ).toBe("2022-02-01");
 });
 
-/**
- * Since mock_server does not support fill_temporal,
- * we only check the domain and the context sent to the read_group, as well
- * as the end value of the FillTemporal Service after the read_group (which should have been updated in the model)
- */
 test("Forecast on years, until the end of the year of the latest data", async () => {
     expect.assertions(3);
     mockDate("2021-10-10 00:00:00");
@@ -378,7 +361,6 @@ test("Forecast drag&drop and add column", async () => {
 
     await quickCreateKanbanColumn();
 
-    // Counters and progressbars should be unchanged after adding a column.
     expect(queryAllTexts(".o_animated_number")).toEqual(["20", "307"]);
     expect(getProgressBarsColors()).toEqual([
         ["bg-warning"],
@@ -386,16 +368,13 @@ test("Forecast drag&drop and add column", async () => {
     ]);
 
     expect.verifySteps([
-        // mountView
         "get_views",
         "read_progress_bar",
         "web_read_group",
         "has_group",
-        // drag&drop
         "web_save",
         "read_progress_bar",
         "formatted_read_group",
-        // add column
         "read_progress_bar",
         "web_read_group",
     ]);

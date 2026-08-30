@@ -3,8 +3,6 @@ from odoo.tools import SQL
 
 
 class CrmPartnerReportAssign(models.Model):
-    """CRM Lead Report"""
-
     _name = "crm.partner.report.assign"
     _auto = False
     _description = "CRM Partnership Analysis"
@@ -44,10 +42,6 @@ class CrmPartnerReportAssign(models.Model):
 
     @property
     def _table_query(self):
-        """
-        CRM Lead Report
-        @param cr: the current row, from the database cursor
-        """
         return SQL(
             """
                 SELECT

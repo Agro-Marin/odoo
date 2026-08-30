@@ -83,7 +83,6 @@ class TestLeadMine(TestCrmCommon, MockIAPReveal):
 
     @users("user_sales_manager")
     def test_reveal_error_credit(self):
-        # check initial state of views
         self.assertEqual(
             self.env["crm.reveal.view"].search(
                 [("reveal_ip", "in", ["90.80.70.60", "90.80.70.61", "90.80.70.70"])]
@@ -94,7 +93,6 @@ class TestLeadMine(TestCrmCommon, MockIAPReveal):
         with self.mock_IAP_reveal(self.ip_to_rules, sim_error="credit"):
             self.env["crm.reveal.rule"]._process_lead_generation(autocommit=False)
 
-        # check initial state of views
         self.assertEqual(
             self.env["crm.reveal.view"].search(
                 [("reveal_ip", "in", ["90.80.70.60", "90.80.70.61", "90.80.70.70"])]
@@ -105,7 +103,6 @@ class TestLeadMine(TestCrmCommon, MockIAPReveal):
 
     @users("user_sales_manager")
     def test_reveal_error_jsonrpc_exception(self):
-        # check initial state of views
         self.assertEqual(
             self.env["crm.reveal.view"].search(
                 [("reveal_ip", "in", ["90.80.70.60", "90.80.70.61", "90.80.70.70"])]
@@ -117,7 +114,6 @@ class TestLeadMine(TestCrmCommon, MockIAPReveal):
             with self.mock_IAP_reveal(self.ip_to_rules, sim_error="jsonrpc_exception"):
                 self.env["crm.reveal.rule"]._process_lead_generation(autocommit=False)
 
-        # check initial state of views
         self.assertEqual(
             self.env["crm.reveal.view"].search(
                 [("reveal_ip", "in", ["90.80.70.60", "90.80.70.61", "90.80.70.70"])]
@@ -128,7 +124,6 @@ class TestLeadMine(TestCrmCommon, MockIAPReveal):
 
     @users("user_sales_manager")
     def test_reveal_error_no_result(self):
-        # check initial state of views
         self.assertEqual(
             self.env["crm.reveal.view"].search(
                 [("reveal_ip", "in", ["90.80.70.60", "90.80.70.61", "90.80.70.70"])]
@@ -139,7 +134,6 @@ class TestLeadMine(TestCrmCommon, MockIAPReveal):
         with self.mock_IAP_reveal(self.ip_to_rules, sim_error="no_result"):
             self.env["crm.reveal.rule"]._process_lead_generation(autocommit=False)
 
-        # check initial state of views
         self.assertEqual(
             self.env["crm.reveal.view"].search(
                 [("reveal_ip", "in", ["90.80.70.60", "90.80.70.61", "90.80.70.70"])]
@@ -153,7 +147,6 @@ class TestLeadMine(TestCrmCommon, MockIAPReveal):
         country_de = self.base_de
         state_de = self.de_state_st
 
-        # check initial state of views
         self.assertEqual(
             self.env["crm.reveal.view"].search(
                 [("reveal_ip", "in", ["90.80.70.60", "90.80.70.61", "90.80.70.70"])]
@@ -166,7 +159,6 @@ class TestLeadMine(TestCrmCommon, MockIAPReveal):
         ):
             self.env["crm.reveal.rule"]._process_lead_generation(autocommit=False)
 
-        # check post state of views
         self.assertEqual(
             self.env["crm.reveal.view"].search(
                 [("reveal_ip", "in", ["90.80.70.60", "90.80.70.61", "90.80.70.70"])]
@@ -191,7 +183,6 @@ class TestLeadMine(TestCrmCommon, MockIAPReveal):
             )
             self.assertTrue(bool(lead))
 
-            # mine information
             self.assertEqual(
                 lead.type, "lead" if rule == self.test_request_1 else "opportunity"
             )
@@ -203,20 +194,18 @@ class TestLeadMine(TestCrmCommon, MockIAPReveal):
                 if rule == self.test_request_1
                 else self.user_admin,
             )
-            # iap
             self.assertEqual(
                 lead.reveal_id,
                 "123_ClearbitID_%s" % base_name,
                 "Ensure reveal_id is set to clearbit ID",
             )
-            # clearbit information
-            if rule == self.test_request_1:  # people-based
+            if rule == self.test_request_1:
                 self.assertEqual(lead.contact_name, "Contact %s 0" % base_name)
             else:
                 self.assertFalse(lead.contact_name)
             self.assertEqual(lead.city, "Mönchengladbach")
             self.assertEqual(lead.country_id, country_de)
-            if rule == self.test_request_1:  # people-based
+            if rule == self.test_request_1:
                 self.assertEqual(
                     lead.email_from,
                     "test.contact.0@%s.example.com" % base_name,
@@ -228,7 +217,7 @@ class TestLeadMine(TestCrmCommon, MockIAPReveal):
                     "info@%s.example.com" % base_name,
                     "Lead email should be the one from company data as there is no contact",
                 )
-            if rule == self.test_request_1:  # people-based
+            if rule == self.test_request_1:
                 self.assertEqual(lead.function, "Doing stuff")
             else:
                 self.assertFalse(lead.function)

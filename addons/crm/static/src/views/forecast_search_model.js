@@ -5,15 +5,7 @@ import { makeContext } from "@web/core/context";
 import { SearchModel } from "@web/search/search_model";
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
 
-/**
- * This is the conversion of ForecastModelExtension. See there for more
- * explanations of what is done here.
- */
-
 export class ForecastSearchModel extends SearchModel {
-    /**
-     * @override
-     */
     exportState() {
         const state = super.exportState();
         state.forecast = {
@@ -22,9 +14,6 @@ export class ForecastSearchModel extends SearchModel {
         return state;
     }
 
-    /**
-     * @override
-     */
     getSearchItemDomain(activeItem) {
         let domain = super.getSearchItemDomain(activeItem);
         const { searchItemId } = activeItem;
@@ -43,11 +32,6 @@ export class ForecastSearchModel extends SearchModel {
         return domain;
     }
 
-    /**
-     * @protected
-     * @param {string} forecastField
-     * @returns {string}
-     */
     _getForecastStart(forecastField) {
         if (!this.forecastStart) {
             const { type } = this.searchViewFields[forecastField];
@@ -70,9 +54,6 @@ export class ForecastSearchModel extends SearchModel {
         return this.forecastStart;
     }
 
-    /**
-     * @override
-     */
     _importState(state) {
         super._importState(...arguments);
         if (state.forecast) {
@@ -80,9 +61,6 @@ export class ForecastSearchModel extends SearchModel {
         }
     }
 
-    /**
-     * @override
-     */
     _reset() {
         super._reset();
         this.forecastStart = null;

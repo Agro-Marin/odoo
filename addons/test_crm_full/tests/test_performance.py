@@ -9,9 +9,7 @@ from odoo.addons.test_crm_full.tests.common import TestCrmFullCommon
 class CrmPerformanceCase(TestCrmFullCommon):
     def setUp(self):
         super().setUp()
-        # patch registry to simulate a ready environment
         self.patch(self.env.registry, "ready", True)
-        # we don't use mock_mail_gateway thus want to mock smtp to test the stack
         self._mock_smtplib_connection()
 
         self._flush_tracking()
@@ -26,8 +24,6 @@ class CrmPerformanceCase(TestCrmFullCommon):
         )
 
     def _flush_tracking(self):
-        """Force the creation of tracking values notably, and ensure tests are
-        reproducible."""
         self.env.flush_all()
         self.cr.flush()
 
@@ -37,7 +33,6 @@ class TestCrmPerformance(CrmPerformanceCase):
     @users("user_sales_leads")
     @warmup
     def test_lead_create_batch_mixed(self):
-        """Test multiple lead creation (import)"""
         batch_size = 10
         country_be = self.env.ref("base.be")
         lang_be_id = self.env["res.lang"]._get_data(code="fr_BE").id
@@ -45,10 +40,8 @@ class TestCrmPerformance(CrmPerformanceCase):
         with (
             freeze_time(self.reference_now),
             self.assertQueryCount(user_sales_leads=192),
-        ):  # tcf 191
-            self.env.cr._now = (
-                self.reference_now
-            )  # force create_date to check schedulers
+        ):
+            self.env.cr._now = self.reference_now
             crm_values = [
                 {
                     "country_id": country_be.id,
@@ -74,17 +67,14 @@ class TestCrmPerformance(CrmPerformanceCase):
     @users("user_sales_leads")
     @warmup
     def test_lead_create_form_address(self):
-        """Test a single lead creation using Form"""
         country_be = self.env.ref("base.be")
         lang_be = self.env["res.lang"]._lang_get("fr_BE")
 
         with (
             freeze_time(self.reference_now),
             self.assertQueryCount(user_sales_leads=145),
-        ):  # tcf 142 / com 144
-            self.env.cr._now = (
-                self.reference_now
-            )  # force create_date to check schedulers
+        ):
+            self.env.cr._now = self.reference_now
             with Form(self.env["crm.lead"]) as lead_form:
                 lead_form.country_id = country_be
                 lead_form.email_from = "address.email@test.example.com"
@@ -100,17 +90,12 @@ class TestCrmPerformance(CrmPerformanceCase):
     @users("user_sales_leads")
     @warmup
     def test_lead_create_form_partner(self):
-        """Test a single lead creation using Form with a partner"""
         with (
             freeze_time(self.reference_now),
             self.assertQueryCount(user_sales_leads=144),
-        ):  # tcf 141 / com 143
-            self.env.cr._now = (
-                self.reference_now
-            )  # force create_date to check schedulers
+        ):
+            self.env.cr._now = self.reference_now
             with self.debug_mode():
-                # {'invisible': ['|', ('type', '=', 'opportunity'), ('is_partner_visible', '=', False)]}
-                # lead.is_partner_visible = bool(lead.type == 'opportunity' or lead.partner_id or is_debug_mode)
                 with Form(self.env["crm.lead"]) as lead_form:
                     lead_form.partner_id = self.partners[0]
                     lead_form.name = "Test Lead"
@@ -120,17 +105,14 @@ class TestCrmPerformance(CrmPerformanceCase):
     @users("user_sales_leads")
     @warmup
     def test_lead_create_single_address(self):
-        """Test multiple lead creation (import)"""
         country_be = self.env.ref("base.be")
         lang_be_id = self.env["res.lang"]._get_data(code="fr_BE").id
 
         with (
             freeze_time(self.reference_now),
             self.assertQueryCount(user_sales_leads=30),
-        ):  # tcf 29
-            self.env.cr._now = (
-                self.reference_now
-            )  # force create_date to check schedulers
+        ):
+            self.env.cr._now = self.reference_now
             crm_values = [
                 {
                     "country_id": country_be.id,
@@ -148,14 +130,11 @@ class TestCrmPerformance(CrmPerformanceCase):
     @users("user_sales_leads")
     @warmup
     def test_lead_create_single_partner(self):
-        """Test multiple lead creation (import)"""
         with (
             freeze_time(self.reference_now),
             self.assertQueryCount(user_sales_leads=30),
-        ):  # tcf 29
-            self.env.cr._now = (
-                self.reference_now
-            )  # force create_date to check schedulers
+        ):
+            self.env.cr._now = self.reference_now
             crm_values = [
                 {
                     "partner_id": self.partners[0].id,

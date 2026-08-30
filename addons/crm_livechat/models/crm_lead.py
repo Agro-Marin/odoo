@@ -1,5 +1,6 @@
 from odoo import api, fields, models
 from odoo.exceptions import AccessError
+
 from odoo.addons.mail.tools.discuss import Store
 
 
@@ -16,17 +17,29 @@ class CrmLead(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         origin_channel_ids = [
-            vals["origin_channel_id"] for vals in vals_list if vals.get("origin_channel_id")
+            vals["origin_channel_id"]
+            for vals in vals_list
+            if vals.get("origin_channel_id")
         ]
-        if not self.env["discuss.channel"].browse(origin_channel_ids).has_access("read"):
+        if (
+            not self.env["discuss.channel"]
+            .browse(origin_channel_ids)
+            .has_access("read")
+        ):
             raise AccessError(
-                self.env._("You cannot create leads linked to channels you don't have access to.")
+                self.env._(
+                    "You cannot create leads linked to channels you don't have access to."
+                )
             )
         return super().create(vals_list)
 
     def write(self, vals):
         if origin_channel_id := vals.get("origin_channel_id"):
-            if not self.env["discuss.channel"].browse(origin_channel_id).has_access("read"):
+            if (
+                not self.env["discuss.channel"]
+                .browse(origin_channel_id)
+                .has_access("read")
+            ):
                 raise AccessError(
                     self.env._(
                         "You cannot update a lead and link it to a channel you don't have access to."

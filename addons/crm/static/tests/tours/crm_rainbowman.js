@@ -39,9 +39,6 @@ registry.category("web_tour.tours").add("crm_rainbowman", {
             trigger: ".o_reward_rainbow",
         },
         {
-            // This step and the following simulates the fact that after drag and drop,
-            // from the previous steps, a click event is triggered on the window element,
-            // which closes the currently shown .o_kanban_quick_create.
             trigger: ".o_kanban_renderer",
             run: "click",
         },
@@ -72,7 +69,6 @@ registry.category("web_tour.tours").add("crm_rainbowman", {
             trigger: ".o_kanban_record:contains('Test Lead 2')",
         },
         {
-            // move first test back to new stage to be able to test rainbowman a second time
             trigger: ".o_kanban_record:contains('Test Lead 1')",
             content: "move back to new stage",
             run: "drag_and_drop .o_opportunity_kanban .o_kanban_group:eq(0) ",

@@ -11,7 +11,6 @@ class EventCrmCase(TestCrmCommon, EventCase):
     def setUpClass(cls):
         super().setUpClass()
 
-        # avoid clash with existing rules
         cls.env["event.lead.rule"].search([]).write({"active": False})
 
         cls.test_lead_tag = cls.env["crm.tag"].create({"name": "TagTest"})
@@ -77,15 +76,7 @@ class EventCrmCase(TestCrmCommon, EventCase):
         )
 
     def assertLeadConvertion(self, rule, registrations, partner=None, **expected):
-        """Tool method hiding details of lead value generation and check
-
-        :param rule: event.lead.rule that created the lead;
-        :param registrations: source registrations (singleton or record set if done in batch);
-        :param partner: partner on lead;
-        """
-        registrations = registrations.sorted(
-            "id"
-        )  # currently order is forced to id ASC
+        registrations = registrations.sorted("id")
         lead = (
             self.env["crm.lead"]
             .sudo()
@@ -128,17 +119,13 @@ class EventCrmCase(TestCrmCommon, EventCase):
             expected_contact_name = registrations._find_first_notnull("name")
             expected_partner_name = False
 
-        # event information
         self.assertEqual(lead.event_id, event)
         self.assertEqual(lead.referred, event.name)
 
-        # registration information
         registration_phone = registrations._find_first_notnull("phone")
         self.assertEqual(lead.partner_id, partner)
         self.assertEqual(lead.name, "%s - %s" % (event.name, expected_reg_name))
-        self.assertNotIn(
-            "False", lead.name
-        )  # avoid a "Dear False" like construct ^^ (this assert is serious and intended)
+        self.assertNotIn("False", lead.name)
         self.assertEqual(lead.contact_name, expected_contact_name)
         self.assertEqual(lead.partner_name, expected_partner_name)
         self.assertEqual(
@@ -152,10 +139,7 @@ class EventCrmCase(TestCrmCommon, EventCase):
             partner.phone if partner and partner.phone else registration_phone,
         )
 
-        # description: to improve
-        self.assertNotIn(
-            "False", lead.description
-        )  # avoid a "Dear False" like construct ^^ (this assert is serious and intended)
+        self.assertNotIn("False", lead.description)
         for registration in registrations:
             if registration.name:
                 self.assertIn(registration.name, lead.description)
@@ -174,7 +158,6 @@ class EventCrmCase(TestCrmCommon, EventCase):
             if registration.phone:
                 self.assertIn(registration.phone, lead.description)
 
-        # lead configuration
         self.assertEqual(lead.type, rule.lead_type)
         self.assertEqual(lead.user_id, rule.lead_user_id)
         self.assertEqual(lead.team_id, rule.lead_sales_team_id)

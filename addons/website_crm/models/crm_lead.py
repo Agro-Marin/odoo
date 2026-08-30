@@ -36,7 +36,6 @@ class CrmLead(models.Model):
             "website.website_visitor_page_action"
         )
         action["domain"] = [("visitor_id", "in", visitors.ids)]
-        # avoid grouping if only few records
         if (
             len(visitors.website_track_ids) > 15
             and len(visitors.website_track_ids.page_id) > 1
@@ -46,7 +45,6 @@ class CrmLead(models.Model):
 
     def _merge_get_fields_specific(self):
         fields_info = super()._merge_get_fields_specific()
-        # add all the visitors from all lead to merge
         fields_info["visitor_ids"] = lambda fname, leads: [
             (6, 0, leads.visitor_ids.ids)
         ]

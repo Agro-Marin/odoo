@@ -8,8 +8,6 @@ class ResPartner(models.Model):
     def default_get(self, fields):
         default_vals = super().default_get(fields)
         if self.env.context.get("partner_set_default_grade_activation"):
-            # sets the lowest grade and activation if no default values given, mainly useful while
-            # creating assigned partner on the fly (to make it visible in same m2o again)
             if "grade_id" in fields and not default_vals.get("grade_id"):
                 default_vals["grade_id"] = (
                     self.env["res.partner.grade"]
@@ -41,7 +39,6 @@ class ResPartner(models.Model):
     date_partnership = fields.Date("Partnership Date")
     date_review = fields.Date("Latest Review")
     date_review_next = fields.Date("Next Review")
-    # customer implementation
     assigned_partner_id = fields.Many2one(
         "res.partner",
         "Implemented by",
@@ -102,7 +99,6 @@ class ResPartner(models.Model):
         )
         current_pids = set(self._ids)
         for assign_partner, partner, count in opportunity_data:
-            # this variable is used to keep the track of the partner
             seen_partners = set()
             while partner or assign_partner:
                 if (

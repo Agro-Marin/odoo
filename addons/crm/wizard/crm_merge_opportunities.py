@@ -2,16 +2,11 @@ from odoo import api, fields, models
 
 
 class CrmMergeOpportunity(models.TransientModel):
-    """Merge leads or opportunities into a single record."""
-
     _name = "crm.merge.opportunity"
     _description = "Merge Opportunities"
 
     @api.model
     def default_get(self, fields):
-        """Use active_ids from the context to fetch the leads/opps to merge.
-        In order to get merged, these leads/opps cannot be already 'Won' (closed)
-        """
         record_ids = self.env.context.get("active_ids")
         result = super().default_get(fields)
 
@@ -51,8 +46,6 @@ class CrmMergeOpportunity(models.TransientModel):
 
     @api.depends("user_id")
     def _compute_team_id(self):
-        """When changing the user, also set a team_id or restrict team id
-        to the ones user_id is member of."""
         Team = self.env["crm.team"]
         for wizard in self:
             if wizard.user_id:

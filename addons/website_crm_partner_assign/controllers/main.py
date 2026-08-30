@@ -63,9 +63,6 @@ class WebsiteAccount(CustomerPortal):
             "contact_name": {"label": _("Contact Name"), "order": "contact_name"},
         }
 
-        # Clamp to the declared vocabulary: `sortby` comes straight off the query
-        # string, and indexing it unchecked answered `?sortby=anything-else` with
-        # a KeyError (HTTP 500).
         sortby = self._resolve_searchbar_option(searchbar_sortings, sortby, "date")
         order = searchbar_sortings[sortby]["order"]
 
@@ -75,7 +72,6 @@ class WebsiteAccount(CustomerPortal):
                 ("create_date", "<=", date_end),
             ]
 
-        # pager
         lead_count = CrmLead.search_count(domain)
         pager = request.website.pager(
             url="/my/leads",
@@ -84,7 +80,6 @@ class WebsiteAccount(CustomerPortal):
             page=page,
             step=self._items_per_page,
         )
-        # content according to pager and archive selected
         leads = CrmLead.search(
             domain, order=order, limit=self._items_per_page, offset=pager["offset"]
         )
@@ -157,7 +152,6 @@ class WebsiteAccount(CustomerPortal):
             "stage": {"label": _("Stage"), "order": "stage_id"},
         }
 
-        # Clamp both to their declared vocabularies; see portal_my_leads above.
         sortby = self._resolve_searchbar_option(searchbar_sortings, sortby, "date")
         order = searchbar_sortings[sortby]["order"]
         filterby = self._resolve_searchbar_option(searchbar_filters, filterby, "all")
@@ -170,7 +164,6 @@ class WebsiteAccount(CustomerPortal):
                 ("create_date", ">", date_begin),
                 ("create_date", "<=", date_end),
             ]
-        # pager: bypass activities access rights for search but still apply access rules
         leads_sudo = CrmLead.sudo()._search(domain)
         domain = [("id", "in", leads_sudo)]
         opp_count = CrmLead.search_count(domain)
@@ -186,7 +179,6 @@ class WebsiteAccount(CustomerPortal):
             page=page,
             step=self._items_per_page,
         )
-        # content according to pager
         opportunities = CrmLead.search(
             domain, order=order, limit=self._items_per_page, offset=pager["offset"]
         )
@@ -352,14 +344,12 @@ class WebsiteCrmPartnerAssign(WebsitePartnerPage, GoogleMap):
                 )
             )
 
-        # Infer Country
         if not country and not country_all:
             if request.geoip.country_code:
                 country = country_obj.search(
                     [("code", "=", request.geoip.country_code)], limit=1
                 )
 
-        # Group by country
         country_domain = list(base_partner_domain)
         if grade:
             country_domain += [("grade_id", "=", grade.id)]
@@ -371,15 +361,12 @@ class WebsiteCrmPartnerAssign(WebsitePartnerPage, GoogleMap):
             order="country_id",
         )
 
-        # Fallback on all countries if no partners found for the country and
-        # there are matching partners for other countries.
         fallback_all_countries = country and country.id not in (
             c.id for c, __ in country_groups
         )
         if fallback_all_countries:
             country = None
 
-        # Group by grade
         grade_domain = list(base_partner_domain)
         if country:
             grade_domain += [("country_id", "=", country.id)]
@@ -418,7 +405,6 @@ class WebsiteCrmPartnerAssign(WebsitePartnerPage, GoogleMap):
                 }
             )
 
-        # current search
         if grade:
             base_partner_domain += [("grade_id", "=", grade.id)]
         if country:
@@ -428,7 +414,6 @@ class WebsiteCrmPartnerAssign(WebsitePartnerPage, GoogleMap):
                 ("implemented_partner_ids.industry_id", "in", current_industry.id)
             ]
 
-        # format pager
         slug = request.env["ir.http"]._slug
         if grade and not country:
             url = "/partners/grade/" + slug(grade)
@@ -456,7 +441,6 @@ class WebsiteCrmPartnerAssign(WebsitePartnerPage, GoogleMap):
             url_args=url_args,
         )
 
-        # search partners matching current search parameters
         partner_ids = partner_obj.sudo().search(
             base_partner_domain,
             order="grade_sequence ASC, implemented_partner_count DESC, complete_name ASC, id ASC",
@@ -516,7 +500,6 @@ class WebsiteCrmPartnerAssign(WebsitePartnerPage, GoogleMap):
             status=(values.get("partners") and 200) or 404,
         )
 
-    # Do not use semantic controller due to sudo()
     @http.route()
     def partners_detail(self, partner_id, **post):
         current_slug = partner_id

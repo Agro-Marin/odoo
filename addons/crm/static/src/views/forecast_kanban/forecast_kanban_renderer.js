@@ -14,11 +14,6 @@ export class ForecastKanbanRenderer extends CrmKanbanRenderer {
         super.setup(...arguments);
         this.fillTemporalService = useService("fillTemporalService");
     }
-    /**
-     * @override
-     *
-     * Allow creating groups when grouping by forecast_field.
-     */
     canCreateGroup() {
         return super.canCreateGroup(...arguments) || this.isGroupedByForecastField();
     }

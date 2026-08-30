@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from . import crm_lead
 from . import event_event
 from . import event_lead_request

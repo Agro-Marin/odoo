@@ -26,7 +26,6 @@ class CrmRevealRule(models.Model):
     name = fields.Char(string="Rule Name", required=True)
     active = fields.Boolean(default=True)
 
-    # Website Traffic Filter
     country_ids = fields.Many2many(
         "res.country",
         string="Countries",
@@ -49,7 +48,6 @@ class CrmRevealRule(models.Model):
         "Rules with a lower sequence number will be processed first."
     )
 
-    # Company Criteria Filter
     industry_tag_ids = fields.Many2many(
         "crm.iap.lead.industry",
         string="Industries",
@@ -63,7 +61,6 @@ class CrmRevealRule(models.Model):
     company_size_min = fields.Integer(string="Company Size", default=0)
     company_size_max = fields.Integer(default=1000)
 
-    # Contact Generation Filter
     contact_filter_type = fields.Selection(
         [("role", "Role"), ("seniority", "Seniority")],
         string="Filter On",
@@ -79,7 +76,6 @@ class CrmRevealRule(models.Model):
         default=1,
     )
 
-    # Lead / Opportunity Data
     lead_for = fields.Selection(
         [("companies", "Companies"), ("people", "Companies and their Contacts")],
         string="Data Tracking",
@@ -111,8 +107,6 @@ class CrmRevealRule(models.Model):
         compute="_compute_lead_count", string="Number of Generated Opportunity"
     )
 
-    # This limits the number of extra contact.
-    # Even if more than 5 extra contacts provided service will return only 5 contacts (see service module for more)
     _limit_extra_contacts = models.Constraint(
         "check(extra_contacts >= 1 and extra_contacts <= 5)",
         "Maximum 5 contacts are allowed!",
@@ -141,17 +135,17 @@ class CrmRevealRule(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        self.env.registry.clear_cache()  # Clear the cache in order to recompute _get_active_rules
+        self.env.registry.clear_cache()
         return super().create(vals_list)
 
     def write(self, vals):
         fields_set = {"country_ids", "regex_url", "active"}
         if set(vals.keys()) & fields_set:
-            self.env.registry.clear_cache()  # Clear the cache in order to recompute _get_active_rules
+            self.env.registry.clear_cache()
         return super().write(vals)
 
     def unlink(self):
-        self.env.registry.clear_cache()  # Clear the cache in order to recompute _get_active_rules
+        self.env.registry.clear_cache()
         return super().unlink()
 
     def action_get_lead_tree_view(self):
@@ -176,50 +170,21 @@ class CrmRevealRule(models.Model):
     @api.model
     @tools.ormcache()
     def _get_active_rules(self):
-        """
-        Returns informations about the all rules.
-        The return is in the form :
-        {
-            'country_rules': {
-                'BE': [0, 1],
-                'US': [0]
-            },
-            'rules': [
-            {
-                'id': 0,
-                'regex': ***,
-                'website_id': 1,
-                'country_codes': ['BE', 'US'],
-                'state_codes': [('BE', False), ('US', 'NY'), ('US', 'CA')]
-            },
-            {
-                'id': 1,
-                'regex': ***,
-                'website_id': 1,
-                'country_codes': ['BE'],
-                'state_codes': [('BE', False)]
-            }
-            ]
-        }
-        """
         country_rules = {}
         rules_records = self.search([])
         rules = []
-        # Fixes for special cases
         for rule in rules_records:
             regex_url = rule["regex_url"]
             if not regex_url:
-                regex_url = ".*"  # for all pages if url not given
+                regex_url = ".*"
             elif regex_url == "/":
-                regex_url = ".*/$"  # for home
+                regex_url = ".*/$"
             countries = rule.country_ids.mapped("code")
 
-            # First apply rules for any state in countries
             states = [(country_id.code, False) for country_id in rule.country_ids]
             if rule.state_ids:
                 for state_id in rule.state_ids:
                     if (state_id.country_id.code, False) in states:
-                        # Remove country because rule doesn't apply to any state
                         states.remove((state_id.country_id.code, False))
                     states += [(state_id.country_id.code, state_id.code)]
 
@@ -242,18 +207,12 @@ class CrmRevealRule(models.Model):
         }
 
     def _add_to_country(self, country_rules, country, rule_index):
-        """
-        Add the rule index to the country code in the country_rules
-        """
         if country not in country_rules:
             country_rules[country] = []
         country_rules[country].append(rule_index)
         return country_rules
 
     def _match_url(self, website_id, url, country_code, state_code, rules_excluded):
-        """
-        Return the matching rule based on the country, the website and URL.
-        """
         all_rules = self._get_active_rules()
         rules_id = all_rules["country_rules"].get(country_code, [])
 
@@ -274,7 +233,6 @@ class CrmRevealRule(models.Model):
 
     @api.model
     def _process_lead_generation(self, autocommit=True):
-        """Cron Job for lead generation from page view"""
         _logger.info("Start Reveal Lead Generation")
         self.env["crm.reveal.view"]._clean_reveal_views()
         self._unlink_unrelevant_reveal_view()
@@ -285,7 +243,6 @@ class CrmRevealRule(models.Model):
             server_payload = self._prepare_iap_payload(dict(reveal_views))
             enough_credit = self._perform_reveal_service(server_payload)
             if autocommit:
-                # auto-commit for batch processing
                 self.env.cr.commit()
             if enough_credit:
                 reveal_views = self._get_reveal_views_to_process()
@@ -295,11 +252,6 @@ class CrmRevealRule(models.Model):
 
     @api.model
     def _unlink_unrelevant_reveal_view(self):
-        """
-        We don't want to create the lead if in past (<6 months) we already
-        created lead with given IP. So, we unlink crm.reveal.view with same IP
-        as a already created lead.
-        """
         months_valid = (
             self.env["ir.config_parameter"]
             .sudo()
@@ -327,7 +279,6 @@ class CrmRevealRule(models.Model):
 
     @api.model
     def _get_reveal_views_to_process(self):
-        """Return list of reveal rule ids grouped by IPs"""
         batch_limit = DEFAULT_REVEAL_BATCH_LIMIT
         query = """
             SELECT v.reveal_ip, array_agg(v.reveal_rule_id ORDER BY r.sequence)
@@ -343,20 +294,6 @@ class CrmRevealRule(models.Model):
         return self.env.cr.fetchall()
 
     def _prepare_iap_payload(self, pgv):
-        """This will prepare the page view and returns payload
-        Payload sample
-        {
-            ips: {
-                '192.168.1.1': [1,4],
-                '192.168.1.6': [2,4]
-            },
-            rules: {
-                1: {rule_data},
-                2: {rule_data},
-                4: {rule_data}
-            }
-        }
-        """
         new_list = list(set(itertools.chain.from_iterable(pgv.values())))
         rule_records = self.browse(new_list)
         return {"ips": pgv, "rules": rule_records._get_rules_payload()}
@@ -365,9 +302,6 @@ class CrmRevealRule(models.Model):
         company_country = self.env.company.country_id
         rule_payload = {}
         for rule in self:
-            # accumulate all reveal_ids (separated by ',') into one list
-            # eg: 3 records with values: "175,176", "177" and "190,191"
-            # will become ['175','176','177','190','191']
             reveal_ids = [
                 reveal_id.strip()
                 for reveal_ids in rule.mapped("industry_tag_ids.reveal_ids")
@@ -423,13 +357,11 @@ class CrmRevealRule(models.Model):
             )
             return False
         else:
-            # avoid loops if IAP return result is broken: otherwise some IP may create loops
             views = self.env["crm.reveal.view"].search(
                 [("reveal_ip", "in", [ip for ip in all_ips if ip not in done_ips])]
             )
             views.write({"reveal_state": "not_found"})
             views.flush_recordset()
-            # reset notified parameter to re-send credit notice if appears again
             self.env["ir.config_parameter"].sudo().set_param(
                 "reveal.already_notified", False
             )
@@ -445,13 +377,9 @@ class CrmRevealRule(models.Model):
         return iap_tools.iap_jsonrpc(endpoint, params=params, timeout=timeout)
 
     def _create_lead_from_response(self, result):
-        """This method will get response from service and create the lead accordingly"""
         if result["rule_id"]:
             rule = self.browse(result["rule_id"])
         else:
-            # Not create a lead if the information match no rule
-            # If there is no match, the service still returns all informations
-            # in order to let custom code use it.
             return False
         if not result["clearbit_id"]:
             return False
@@ -462,7 +390,6 @@ class CrmRevealRule(models.Model):
             _logger.info(
                 "Existing lead for this clearbit_id [%s]", result["clearbit_id"]
             )
-            # Does not create a lead if the reveal_id is already known
             return False
         lead_vals = rule._lead_vals_from_response(result)
 
@@ -483,7 +410,6 @@ class CrmRevealRule(models.Model):
 
         return lead
 
-    # Methods responsible for format response data in to valid odoo lead data
     def _lead_vals_from_response(self, result):
         self.ensure_one()
         company_data = result["reveal_data"]

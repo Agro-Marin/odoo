@@ -3,10 +3,6 @@
 import { registerWebsitePreviewTour } from '@website/js/tours/tour_utils';
 
 import { stepUtils } from "@web_tour/tour_utils";
-/**
- * The purpose of these tours is to check whether Publish can or cannot be
- * used by the given current user.
- */
 
 registerWebsitePreviewTour('test_can_publish_partner', {
     edition: false,
@@ -18,7 +14,7 @@ registerWebsitePreviewTour('test_can_publish_partner', {
     trigger: ':iframe .dropdown:has(.dropdown-item:contains("Grade Test")) button.dropdown-toggle:contains("All Categories")',
     run: "click",
 }, {
-    content: 'Filter on Grade Test', // needed if there are demo data
+    content: 'Filter on Grade Test',
     trigger: ':iframe .dropdown a.dropdown-item:contains("Grade Test")',
     run: "click",
 }, {
@@ -51,7 +47,7 @@ registerWebsitePreviewTour('test_cannot_publish_partner', {
     trigger: ':iframe .dropdown:has(.dropdown-item:contains("Grade Test")) button.dropdown-toggle:contains("All Categories")',
     run: "click",
 }, {
-    content: 'Filter on Grade Test', // needed if there are demo data
+    content: 'Filter on Grade Test',
     trigger: ':iframe .dropdown a.dropdown-item:contains("Grade Test")',
     run: "click",
 }, {
@@ -61,10 +57,6 @@ registerWebsitePreviewTour('test_cannot_publish_partner', {
 }, {
     content: 'Wait for the "edit in backend" button to appear before checking the publish button',
     trigger: '.o_menu_systray .o_website_edit_in_backend > a',
-    // Seems enough to just wait for that button presence before checking the
-    // following step but a bit of delay seems a bit more robust to potential
-    // code changes. At least if the rendering flow changes or the tour system
-    // changes, this should be enough to trigger a race condition in this test.
     run: () => new Promise(resolve => setTimeout(resolve, 100)),
 }, {
     content: 'Check there is no Publish/Unpublish',

@@ -62,11 +62,9 @@ class WebsiteVisitor(models.Model):
         return check
 
     def _inactive_visitors_domain(self):
-        """Visitors tied to leads are considered always active and should not be deleted."""
         return super()._inactive_visitors_domain() & Domain("lead_ids", "=", False)
 
     def _merge_visitor(self, target):
-        """Link the leads to the main visitor to avoid them being lost."""
         if self.lead_ids:
             target.write({"lead_ids": [(4, lead.id) for lead in self.lead_ids]})
 

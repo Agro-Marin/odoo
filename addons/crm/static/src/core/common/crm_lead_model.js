@@ -6,9 +6,7 @@ export class CrmLead extends Record {
     static id = "id";
     static _name = "crm.lead";
 
-    /** @type {number} */
     id;
-    /** @type {string} */
     name;
     href = fields.Attr("", {
         compute() {

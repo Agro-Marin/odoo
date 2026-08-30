@@ -3,8 +3,6 @@ from odoo.exceptions import UserError
 
 
 class CrmLeadForwardToPartner(models.TransientModel):
-    """Forward info history to partners."""
-
     _name = "crm.lead.forward.to.partner"
     _description = "Lead forward to partner"
 
@@ -126,7 +124,6 @@ class CrmLeadForwardToPartner(models.TransientModel):
                 "user_id": partner_leads["partner"].user_id.id,
             }
             leads.with_context(mail_auto_subscribe_no_notify=1).write(values)
-            # TDE FIXME: check for assigned in suggested recipients (master-)
             self.env["crm.lead"].message_subscribe([partner_id])
         return True
 

@@ -19,8 +19,6 @@ class IrHttp(models.AbstractModel):
             and request.env.user._is_public()
         ):
             visitor_sudo = request.env["website.visitor"]._get_visitor_from_request()
-            # We are avoiding to create a reveal_view if a lead is already
-            # created from another module, e.g. website_form
             if not (visitor_sudo and visitor_sudo.lead_ids):
                 country_code = request.geoip.country_code
                 state_code = (
@@ -51,7 +49,6 @@ class IrHttp(models.AbstractModel):
                                 rules_excluded,
                             )
                         )
-                        # even when we match, no view may have been created if this is a duplicate
                         _logger.info(
                             "Reveal process time: [%s], match rule: [%s?], country code: [%s], ip: [%s]",
                             time.time() - before,
@@ -67,6 +64,5 @@ class IrHttp(models.AbstractModel):
                                 cookie_type="optional",
                             )
                     except Exception:
-                        # just in case - we never want to crash a page view
                         _logger.exception("Failed to process reveal rules")
         return response

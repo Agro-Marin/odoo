@@ -5,12 +5,6 @@ from odoo.addons.crm.tests.common import TestCrmCommon
 
 class TestSaleCrm(TestCrmCommon):
     def test_sale_crm_revenue(self):
-        """Test the updation of the expected_revenue when the is confirmed.
-        If the expected_revenue of the lead is smaller than the total of quote which we are confirming, update it with that.
-        e.g. if the lead has a expected revenue of 40 $
-        Quotes - q1 = 45$
-        ===> The expected_revenue would be updated, from 40 to 45$.
-        """
         product1, product2 = self.env["product.template"].create(
             [
                 {
@@ -64,9 +58,7 @@ class TestSaleCrm(TestCrmCommon):
 
         self.assertEqual(self.lead_1.expected_revenue, 0)
 
-        # Revenue should not be updated when the currency of sale order is different from lead.
         so1.action_confirm()
         self.assertEqual(self.lead_1.expected_revenue, 0)
-        # Revenue should be updated when the currency is same.
         so2.action_confirm()
         self.assertEqual(self.lead_1.expected_revenue, 200)

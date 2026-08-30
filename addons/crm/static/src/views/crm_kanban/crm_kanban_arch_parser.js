@@ -3,9 +3,6 @@ import { KanbanArchParser } from "@web/views/kanban";
 import { extractAttributes } from "@web/core/utils/dom/xml";
 
 export class CrmKanbanArchParser extends KanbanArchParser {
-    /**
-     * @override
-     */
     parseProgressBar(progressBar, fields) {
         const result = super.parseProgressBar(...arguments);
         const attrs = extractAttributes(progressBar, ["recurring_revenue_sum_field"]);

@@ -1,108 +1,106 @@
-# -*- coding: utf-8 -*-
 import datetime
-import logging
-
 from ast import literal_eval
 
-from odoo import api, exceptions, fields, models, _
+from odoo import _, api, exceptions, fields, models
 from odoo.tools import float_round
-
-_logger = logging.getLogger(__name__)
 
 
 class CrmTeamMember(models.Model):
-    _inherit = 'crm.team.member'
+    _inherit = "crm.team.member"
 
-    # assignment
     assignment_enabled = fields.Boolean(related="crm_team_id.assignment_enabled")
-    assignment_domain = fields.Char('Assignment Domain', tracking=True)
-    assignment_domain_preferred = fields.Char('Preference assignment Domain', tracking=True)
-    assignment_optout = fields.Boolean('Pause assignment')
-    assignment_max = fields.Integer('Average Leads Capacity (on 30 days)', default=30)
+    assignment_domain = fields.Char("Assignment Domain", tracking=True)
+    assignment_domain_preferred = fields.Char(
+        "Preference assignment Domain", tracking=True
+    )
+    assignment_optout = fields.Boolean("Pause assignment")
+    assignment_max = fields.Integer("Average Leads Capacity (on 30 days)", default=30)
     lead_day_count = fields.Integer(
-        'Leads (last 24h)', compute='_compute_lead_day_count',
-        help='Number of leads assigned to this member in the last 24 hours, '
-             'archived and lost ones included. This is what the daily assignment '
-             'quota is spent against.')
+        "Leads (last 24h)",
+        compute="_compute_lead_day_count",
+        help="Number of leads assigned to this member in the last 24 hours, "
+        "archived and lost ones included. This is what the daily assignment "
+        "quota is spent against.",
+    )
     lead_month_count = fields.Integer(
-        'Leads (30 days)', compute='_compute_lead_month_count',
-        help='Number of leads assigned to this member in the last 30 days, '
-             'archived and lost ones included')
+        "Leads (30 days)",
+        compute="_compute_lead_month_count",
+        help="Number of leads assigned to this member in the last 30 days, "
+        "archived and lost ones included",
+    )
 
-    @api.depends('user_id', 'crm_team_id')
+    @api.depends("user_id", "crm_team_id")
     def _compute_lead_day_count(self):
         day_date = fields.Datetime.now() - datetime.timedelta(hours=24)
         daily_leads_counts = self._get_lead_from_date(day_date)
 
         for member in self:
-            member.lead_day_count = daily_leads_counts.get((member.user_id.id, member.crm_team_id.id), 0)
+            member.lead_day_count = daily_leads_counts.get(
+                (member.user_id.id, member.crm_team_id.id), 0
+            )
 
-    @api.depends('user_id', 'crm_team_id')
+    @api.depends("user_id", "crm_team_id")
     def _compute_lead_month_count(self):
         month_date = fields.Datetime.now() - datetime.timedelta(days=30)
         monthly_leads_counts = self._get_lead_from_date(month_date)
 
         for member in self:
-            member.lead_month_count = monthly_leads_counts.get((member.user_id.id, member.crm_team_id.id), 0)
+            member.lead_month_count = monthly_leads_counts.get(
+                (member.user_id.id, member.crm_team_id.id), 0
+            )
 
     def _get_lead_from_date(self, date_from, active_test=False):
-        """Leads assigned since ``date_from``, keyed by (user, team).
-
-        ``active_test=False`` by default, so ARCHIVED leads are counted -- and a
-        lost lead is archived. Both counters are about how much work was handed
-        to a member, not about how it turned out, so a lead that was assigned
-        and then lost still spent the assignment; the `help` on lead_day_count
-        used to claim the opposite.
-        """
         return {
-            (user.id, team.id): count for user, team, count in self.env['crm.lead'].with_context(active_test=active_test)._read_group(
+            (user.id, team.id): count
+            for user, team, count in self.env["crm.lead"]
+            .with_context(active_test=active_test)
+            ._read_group(
                 [
-                    ('date_open', '>=', date_from),
-                    ('team_id', 'in', self.crm_team_id.ids),
-                    ('user_id', 'in', self.user_id.ids),
+                    ("date_open", ">=", date_from),
+                    ("team_id", "in", self.crm_team_id.ids),
+                    ("user_id", "in", self.user_id.ids),
                 ],
-                ['user_id', 'team_id'],
-                ['__count'],
+                ["user_id", "team_id"],
+                ["__count"],
             )
         }
 
-    @api.constrains('assignment_domain')
+    @api.constrains("assignment_domain")
     def _constrains_assignment_domain(self):
         for member in self:
             try:
-                domain = literal_eval(member.assignment_domain or '[]')
+                domain = literal_eval(member.assignment_domain or "[]")
                 if domain:
-                    self.env['crm.lead'].search(domain, limit=1)
+                    self.env["crm.lead"].search(domain, limit=1)
             except Exception:
-                raise exceptions.ValidationError(_(
-                    'Member assignment domain for user %(user)s and team %(team)s is incorrectly formatted',
-                    user=member.user_id.name, team=member.crm_team_id.name
-                ))
+                raise exceptions.ValidationError(
+                    _(
+                        "Member assignment domain for user %(user)s and team %(team)s is incorrectly formatted",
+                        user=member.user_id.name,
+                        team=member.crm_team_id.name,
+                    )
+                )
 
-    @api.constrains('assignment_domain_preferred')
+    @api.constrains("assignment_domain_preferred")
     def _constrains_assignment_domain_preferred(self):
         for member in self:
             try:
-                domain = literal_eval(member.assignment_domain_preferred or '[]')
+                domain = literal_eval(member.assignment_domain_preferred or "[]")
                 if domain:
-                    self.env['crm.lead'].search(domain, limit=1)
+                    self.env["crm.lead"].search(domain, limit=1)
             except Exception:
-                raise exceptions.ValidationError(_(
-                    'Member preferred assignment domain for user %(user)s and team %(team)s is incorrectly formatted',
-                    user=member.user_id.name, team=member.crm_team_id.name
-                ))
-
-    # ------------------------------------------------------------
-    # LEAD ASSIGNMENT
-    # ------------------------------------------------------------
+                raise exceptions.ValidationError(
+                    _(
+                        "Member preferred assignment domain for user %(user)s and team %(team)s is incorrectly formatted",
+                        user=member.user_id.name,
+                        team=member.crm_team_id.name,
+                    )
+                )
 
     def _get_assignment_quota(self, force_quota=False):
-        """ Return the remaining daily quota based
-        on the assignment_max and the lead already assigned in the past 24h
-
-        :param bool force_quota: see ``CrmTeam._action_assign_leads()``;
-        """
-        quota = float_round(self.assignment_max / 30.0, precision_digits=0, rounding_method='HALF-UP')
+        quota = float_round(
+            self.assignment_max / 30.0, precision_digits=0, rounding_method="HALF-UP"
+        )
         if force_quota:
             return quota
         return quota - self.lead_day_count

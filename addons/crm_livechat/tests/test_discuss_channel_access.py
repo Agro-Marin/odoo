@@ -6,7 +6,6 @@ from odoo.tests.common import HttpCase, new_test_user, tagged
 class TestDiscussChannelAccess(HttpCase):
     def test_access_channel_from_lead(self):
         test_cases = [
-            # user_grp - has_lead - expected_result
             ("base.group_public", False, False),
             ("base.group_public", True, False),
             ("base.group_portal", False, False),
@@ -29,7 +28,9 @@ class TestDiscussChannelAccess(HttpCase):
                     "lead_ids": crm_lead.ids,
                 }
             )
-            user = new_test_user(self.env, login=f"user_{idx}_{user_grp}", groups=user_grp)
+            user = new_test_user(
+                self.env, login=f"user_{idx}_{user_grp}", groups=user_grp
+            )
             self.assertEqual(
                 channel.with_user(user).has_access("read"),
                 expected_result,
@@ -37,12 +38,14 @@ class TestDiscussChannelAccess(HttpCase):
             )
 
     def test_cannot_link_lead_to_restricted_channel(self):
-        user = new_test_user(self.env, login="bob_user", groups="sales_team.group_sale_salesman")
+        user = new_test_user(
+            self.env, login="bob_user", groups="sales_team.group_sale_salesman"
+        )
         channel = (
             self.env["discuss.channel"]
             .create(
                 {
-                    "name": f"Visitor #11",
+                    "name": "Visitor #11",
                     "livechat_operator_id": self.env.user.partner_id.id,
                     "channel_type": "livechat",
                 }

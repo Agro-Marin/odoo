@@ -8,7 +8,9 @@ class Im_LivechatReportChannel(models.Model):
     leads_created = fields.Integer("Leads created", aggregator="sum", readonly=True)
 
     def _select(self) -> SQL:
-        return SQL("%s, crm_lead_data.leads_created AS leads_created", super()._select())
+        return SQL(
+            "%s, crm_lead_data.leads_created AS leads_created", super()._select()
+        )
 
     def _from(self) -> SQL:
         return SQL(

@@ -84,7 +84,6 @@ registry.category("web_tour.tours").add("crm_tour", {
             trigger: ".o_opportunity_kanban .o_kanban_renderer",
         },
         {
-            // Choose the element that is not going to be moved by the previous step.
             trigger:
                 ".o_opportunity_kanban .o_kanban_group .o_kanban_record .o-mail-ActivityButton",
             content: markup(
@@ -108,7 +107,7 @@ registry.category("web_tour.tours").add("crm_tour", {
         {
             trigger: '.modal-footer button[name="action_schedule_activities"]',
             content: markup(_t("All set. Let’s <b>Schedule</b> it.")),
-            tooltipPosition: "top", // dot NOT move to bottom, it would cause a resize flicker, see task-2476595
+            tooltipPosition: "top",
             run: "click",
         },
         {

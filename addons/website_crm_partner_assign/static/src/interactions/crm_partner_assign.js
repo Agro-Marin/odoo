@@ -61,10 +61,6 @@ export class CRMPartnerAssign extends Interaction {
         window.location.href = "/my/leads";
     }
 
-    /**
-     * @param {number} leadID
-     * @param {number} stageID
-     */
     async changeOppStage(leadID, stageID) {
         await this.services.orm.call("crm.lead", "update_stage_from_portal", [[leadID], stageID]);
         window.location.reload();

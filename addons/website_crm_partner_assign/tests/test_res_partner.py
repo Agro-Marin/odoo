@@ -19,8 +19,6 @@ class TestResPartnerWAssign(TestResPartner):
     @users("user_sales_manager")
     @warmup
     def test_fields_opportunity_count(self):
-        # this query counter is there to ensure prefetching works and we don't
-        # browse partner sequentially
         with self.assertQueryCount(4):
             (contact_company_1, contact_1, contact_1_1, contact_1_2) = (
                 self.contact_company_1

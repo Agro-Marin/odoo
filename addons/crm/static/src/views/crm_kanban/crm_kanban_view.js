@@ -8,7 +8,6 @@ import { rottingKanbanView } from "@mail/views/web/rotting/rotting_kanban_view";
 export const crmKanbanView = {
     ...rottingKanbanView,
     ArchParser: CrmKanbanArchParser,
-    // Makes it easier to patch
     Controller: class extends rottingKanbanView.Controller {
         get progressBarAggregateFields() {
             const res = super.progressBarAggregateFields;

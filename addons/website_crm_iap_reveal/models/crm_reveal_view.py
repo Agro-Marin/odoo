@@ -30,7 +30,6 @@ class CrmRevealView(models.Model):
 
     @api.model
     def _clean_reveal_views(self):
-        """Remove old views (> 1 month)"""
         weeks_valid = (
             self.env["ir.config_parameter"]
             .sudo()
@@ -56,7 +55,6 @@ class CrmRevealView(models.Model):
     def _create_reveal_view(
         self, website_id, url, ip_address, country_code, state_code, rules_excluded
     ):
-        # we are avoiding reveal if reveal_view already created for this IP
         rules = self.env["crm.reveal.rule"]._match_url(
             website_id, url, country_code, state_code, rules_excluded
         )

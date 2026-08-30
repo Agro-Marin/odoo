@@ -186,9 +186,6 @@ const testKanbanView = {
     groupBy: ["stage_id"],
 };
 
-// One handler: compute the message and record it. Chaining a step recorder on
-// top of a separately-registered mock through `parent()` made the assertions
-// depend on which module registered last, and they lost.
 onRpc("crm.lead", "get_rainbowman_message", function (params) {
     const result = getRainbowmanMessage.call(this, params);
     expect.step(result || "no rainbowman");
@@ -457,5 +454,5 @@ test("drag & drop record in kanban not grouped by stage_id", async () => {
 
     await contains(".o_kanban_group:eq(0)").dragAndDrop(".o_kanban_group:eq(1)");
     expect(".o_reward svg.o_reward_rainbow_man").toHaveCount(0);
-    expect.verifySteps([]); // Should never pass by the rpc
+    expect.verifySteps([]);
 });

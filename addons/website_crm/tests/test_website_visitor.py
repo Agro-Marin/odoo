@@ -31,24 +31,19 @@ class TestWebsiteVisitor(TestCrmCommon, WebsiteVisitorTestsCommon):
                 }
             )
         )
-        visitor = visitor_sudo.with_user(
-            self.env.user
-        )  # as of 13.0 salesmen cannot create visitors, only read them
+        visitor = visitor_sudo.with_user(self.env.user)
         customer = self.test_partner.with_user(self.env.user)
         self.assertFalse(visitor.email)
         self.assertFalse(visitor.mobile)
 
-        # partner information copied on visitor -> behaves like related
         visitor_sudo.write({"partner_id": self.test_partner.id})
         self.assertEqual(visitor.email, customer.email_normalized)
         self.assertEqual(visitor.mobile, customer.phone)
 
-        # if reset -> behaves like a related, also reset on visitor
         visitor_sudo.write({"partner_id": False})
         self.assertFalse(visitor.email)
         self.assertFalse(visitor.mobile)
 
-        # first lead created -> updates email
         lead_1 = self.env["crm.lead"].create(
             {
                 "name": "Test Lead 1",
@@ -59,7 +54,6 @@ class TestWebsiteVisitor(TestCrmCommon, WebsiteVisitorTestsCommon):
         self.assertEqual(visitor.email, lead_1.email_normalized)
         self.assertFalse(visitor.mobile)
 
-        # second lead created -> keep first email but takes phone as not defined before
         lead_2 = self.env["crm.lead"].create(
             {
                 "name": "Test Lead 1",
@@ -72,18 +66,15 @@ class TestWebsiteVisitor(TestCrmCommon, WebsiteVisitorTestsCommon):
         self.assertEqual(visitor.email, lead_1.email_normalized)
         self.assertEqual(visitor.mobile, lead_2.phone)
 
-        # partner win on leads
         visitor_sudo.write({"partner_id": self.test_partner.id})
         self.assertEqual(visitor.email, customer.email_normalized)
         self.assertEqual(visitor.mobile, customer.phone)
 
-        # partner updated -> fallback on leads
         customer.write({"phone": False})
         self.assertEqual(visitor.email, customer.email_normalized)
         self.assertEqual(visitor.mobile, lead_2.phone)
 
     def test_clean_inactive_visitors_crm(self):
-        """Visitors attached to leads should not be deleted even if not connected recently."""
         active_visitors = self.env["website.visitor"].create(
             [
                 {
@@ -100,8 +91,6 @@ class TestWebsiteVisitor(TestCrmCommon, WebsiteVisitorTestsCommon):
         self._test_unlink_old_visitors(self.env["website.visitor"], active_visitors)
 
     def test_link_to_visitor_crm(self):
-        """Same as parent's 'test_link_to_visitor' except we also test that leads
-        are merged into main visitor."""
         [main_visitor, linked_visitor] = self.env["website.visitor"].create(
             [self._prepare_main_visitor_data(), self._prepare_linked_visitor_data()]
         )
@@ -110,7 +99,6 @@ class TestWebsiteVisitor(TestCrmCommon, WebsiteVisitorTestsCommon):
 
         self.assertVisitorDeactivated(linked_visitor, main_visitor)
 
-        # leads of both visitors should be merged into main one
         self.assertEqual(len(main_visitor.lead_ids), 2)
         self.assertEqual(main_visitor.lead_ids, all_leads)
         for lead in all_leads:

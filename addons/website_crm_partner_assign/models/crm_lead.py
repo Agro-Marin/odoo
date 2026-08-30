@@ -104,10 +104,6 @@ class CrmLead(models.Model):
             leads.write({"user_id": salesman_id})
 
     def action_assign_partner(self):
-        """While assigning a partner, geo-localization is performed only for leads having country
-        set (see method 'assign_geo_localize' and 'search_geo_partner'). So for leads that does not
-        have country set, we show the notification, and for the rest, we geo-localize them.
-        """
         leads_with_country = self.filtered(lambda lead: lead.country_id)
         leads_without_country = self - leads_with_country
         if leads_without_country:
@@ -151,7 +147,6 @@ class CrmLead(models.Model):
         if latitude and longitude:
             self.write({"partner_latitude": latitude, "partner_longitude": longitude})
             return True
-        # Don't pass context to browse()! We need country name in english below
         for lead in self:
             if lead.partner_latitude and lead.partner_longitude:
                 continue
@@ -192,7 +187,6 @@ class CrmLead(models.Model):
             latitude = lead.partner_latitude
             longitude = lead.partner_longitude
             if latitude and longitude:
-                # 1. first way: in the same country, small area
                 partner_ids = Partner.search(
                     [
                         ("partner_weight", ">", 0),
@@ -205,7 +199,6 @@ class CrmLead(models.Model):
                     ]
                 )
 
-                # 2. second way: in the same country, big area
                 if not partner_ids:
                     partner_ids = Partner.search(
                         [
@@ -219,7 +212,6 @@ class CrmLead(models.Model):
                         ]
                     )
 
-                # 3. third way: in the same country, extra large area
                 if not partner_ids:
                     partner_ids = Partner.search(
                         [
@@ -233,9 +225,7 @@ class CrmLead(models.Model):
                         ]
                     )
 
-                # 5. fifth way: anywhere in same country
                 if not partner_ids:
-                    # still haven't found any, let's take all partners in the country!
                     partner_ids = Partner.search(
                         [
                             ("partner_weight", ">", 0),
@@ -244,9 +234,7 @@ class CrmLead(models.Model):
                         ]
                     )
 
-                # 6. sixth way: closest partner whatsoever, just to have at least one result
                 if not partner_ids:
-                    # warning: point() type takes (longitude, latitude) as parameters in this order!
                     self.env.cr.execute(
                         """SELECT id, distance
                                   FROM  (select id, (point(partner_longitude, partner_latitude) <-> point(%s,%s)) AS distance FROM res_partner
@@ -278,9 +266,7 @@ class CrmLead(models.Model):
             message += Markup("<p>%s</p>") % comment
         for lead in self:
             lead.sudo().message_post(body=message)
-            lead.sudo().convert_opportunity(
-                lead.partner_id
-            )  # sudo required to convert partner data
+            lead.sudo().convert_opportunity(lead.partner_id)
 
     def partner_desinterested(self, comment=False, contacted=False, spam=False):
         self._assert_portal_write_access()
@@ -322,9 +308,6 @@ class CrmLead(models.Model):
                 "priority": values["priority"],
                 "date_deadline": values["date_deadline"] or False,
             }
-            # As activities may belong to several users, only the current portal user activity
-            # will be modified by the portal form. If no activity exist we create a new one instead
-            # that we assign to the portal user.
 
             user_activity = lead.sudo().activity_ids.filtered(
                 lambda activity: activity.user_id == self.env.user
@@ -350,7 +333,6 @@ class CrmLead(models.Model):
                         }
                     )
 
-            # access checked with '_assert_portal_write_access' at method beginning
             lead.sudo().write(lead_values)
 
     def update_contact_details_from_portal(self, values):
@@ -376,7 +358,6 @@ class CrmLead(models.Model):
         return self.sudo().write(values)
 
     def update_stage_from_portal(self, stage_id):
-        """Allow portal users to update the stage of their assigned leads"""
         self._assert_portal_write_access()
         self.sudo().write({"stage_id": stage_id})
         return True
@@ -410,13 +391,7 @@ class CrmLead(models.Model):
         lead.convert_opportunity(lead.partner_id)
         return {"id": lead.id}
 
-    #
-    #   DO NOT FORWARD PORT IN MASTER
-    #   instead, crm.lead should implement mixin.portal
-    #
     def _get_access_action(self, access_uid=None, force_website=False):
-        """Instead of the classic form view, redirect to the online document for
-        portal users or if force_website=True."""
         self.ensure_one()
 
         user, record = self.env.user, self
@@ -445,9 +420,6 @@ class CrmLead(models.Model):
 
     @api.model
     def _mail_get_operation_for_mail_message_operation(self, message_operation):
-        # Allow readonly posting for assigned users, to avoid ACLs issue in frontend
-        # as they do not have write access anymore on the lead itself, just specific
-        # controllers and UI
         assigned = (
             self.filtered(
                 lambda lead: lead.partner_assigned_id == self.env.user.partner_id

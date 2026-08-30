@@ -9,8 +9,6 @@ AVAILABLE_PRIORITIES = [
 
 
 class CrmStage(models.Model):
-    """Pipeline stage for CRM leads and opportunities."""
-
     _name = "crm.stage"
     _description = "CRM Stages"
     _rec_name = "name"
@@ -36,13 +34,9 @@ class CrmStage(models.Model):
         "Folded in Pipeline",
         help="This stage is folded in the kanban view when there are no records in that stage to display.",
     )
-    # UX only: the Sales Teams field is pointless in a single-team database.
-    # It counts EVERY crm.team, not this stage's -- the old name `team_count`
-    # sitting next to `team_ids` read as the latter, and its
-    # `@api.depends("team_ids")` named the one field the compute does not read
-    # while omitting the only thing it does (whether a second team exists), so
-    # a stage cached in a transaction that then created a team kept saying 1.
-    crm_team_count = fields.Integer("Sales Teams in Database", compute="_compute_crm_team_count")
+    crm_team_count = fields.Integer(
+        "Sales Teams in Database", compute="_compute_crm_team_count"
+    )
     color = fields.Integer(string="Color", export_string_translation=False)
 
     def _compute_crm_team_count(self):
@@ -61,13 +55,6 @@ class CrmStage(models.Model):
         }
 
     def write(self, vals):
-        """Since leads that are in a won stage must have their
-        probability = 100%, this override ensures that setting a stage as won
-        will set all the leads in that stage to probability = 100%.
-        Inversely, if a won stage is not marked as won anymore, the lead
-        probability should be recomputed based on automated probability.
-        Note: If a user sets a stage as won and changes his mind right after,
-        the manual probability will be lost in the process."""
         res = super().write(vals)
         if "is_won" in vals:
             won_leads = self.env["crm.lead"].search([("stage_id", "in", self.ids)])

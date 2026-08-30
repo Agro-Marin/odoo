@@ -17,7 +17,7 @@ registerThreadAction("create-lead", {
         icon: "fa-regular fa-handshake",
     }),
     close: ({ action }) => action.popover?.close(),
-    condition: false, // managed by ThreadAction patch
+    condition: false,
     panelOuterClass: "bg-100",
     icon: "fa-regular fa-handshake",
     name: _t("Create Lead"),

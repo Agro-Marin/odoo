@@ -36,22 +36,18 @@ export class CrmPlsTooltipButton extends Component {
         if (this.popover.isOpen) {
             this.popover.close();
         } else {
-            // Apply pending changes. They may change probability
             await this.props.record.save();
             if (status(this) === "destroyed" || !this.props.record.resId) {
                 return;
             }
 
-            // This recomputes probability, and returns all tooltip data
             const tooltipData = await this.orm.call(
                 "crm.lead",
                 "update_and_get_pls_tooltip_data",
                 [this.props.record.resId],
             );
-            // Update the form
             await this.props.record.load();
 
-            // Hard set wheel dimensions, see o_crm_pls_tooltip_wheel in scss and xml
             const progressWheelPerimeter = 2 * Math.PI * 25;
             const progressBarDashLength =
                 (progressWheelPerimeter * tooltipData.probability) / 100.0;

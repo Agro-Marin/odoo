@@ -7,15 +7,6 @@ from odoo.addons.crm.tests.test_crm_lead_merge import TestLeadMergeCommon
 class TestLeadVisitorMerge(TestLeadMergeCommon):
     @users("user_sales_manager")
     def test_merge_method_dependencies(self):
-        """Test if dependences for leads are not lost while merging leads. In
-        this test leads are ordered as
-
-        lead_w_contact -----------lead---seq=30
-        lead_w_email -------------lead---seq=3
-        lead_1 -------------------lead---seq=1
-        lead_w_partner_company ---lead---seq=1----------------visitor
-        lead_w_partner -----------lead---seq=False------------visitor
-        """
         TestLeadMergeCommon.merge_fields.append("visitor_ids")
 
         visitors = (

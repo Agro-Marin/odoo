@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from odoo.addons.crm.tests.common import TestCrmCommon
-from odoo.addons.crm_iap_mine.tests.common import MockIAPReveal  # MockIAPEnrich
+from odoo.addons.crm_iap_mine.tests.common import MockIAPReveal
 from odoo.addons.website.tests.test_website_visitor import MockVisitor
 
 
@@ -11,15 +11,8 @@ class TestCrmFullCommon(TestCrmCommon, MockIAPReveal, MockVisitor):
         super().setUpClass()
         cls._activate_multi_company()
 
-        # Context data: dates
-        # ------------------------------------------------------------
-
-        # Mock dates to have reproducible computed fields based on time
         cls.reference_now = datetime(2022, 1, 1, 10, 0, 0)
         cls.reference_today = datetime(2022, 1, 1)
-
-        # Customers
-        # ------------------------------------------------------------
 
         country_be = cls.env.ref("base.be")
         cls.env["res.lang"]._activate_lang("fr_BE")

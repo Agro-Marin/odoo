@@ -112,7 +112,6 @@ class CrmLead(models.Model):
         return [("state", "not in", ("draft", "sent", "cancel"))]
 
     def _prepare_opportunity_quotation_context(self):
-        """Prepares the context for a new quotation (sale.order) by sharing the values of common fields"""
         self.ensure_one()
         quotation_context = {
             "default_opportunity_id": self.id,
@@ -132,7 +131,6 @@ class CrmLead(models.Model):
 
     def _merge_get_fields_specific(self):
         fields_info = super()._merge_get_fields_specific()
-        # add all the orders from all lead to merge
         fields_info["order_ids"] = lambda fname, leads: [
             (4, order.id) for order in leads.order_ids
         ]

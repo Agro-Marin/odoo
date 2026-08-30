@@ -11,7 +11,6 @@ class WebsiteForm(form.WebsiteForm):
             request.env["website.visitor"]._get_visitor_from_request().partner_id
         )
         if visitor_partner:
-            # match same behaviour as in partner._phone_format()
             country = visitor_partner.country_id or request.env.company.country_id
             if country:
                 return country
@@ -24,7 +23,6 @@ class WebsiteForm(form.WebsiteForm):
             )
         return request.env["res.country"]
 
-    # Check and insert values from the form on the model <model> + validation phone fields
     def _handle_website_form(self, model_name, **kwargs):
         model_record = (
             request.env["ir.model"]
@@ -85,11 +83,7 @@ class WebsiteForm(form.WebsiteForm):
                 and visitor_partner
                 and visitor_partner.email_normalized == values_email_normalized
             ):
-                # Here, 'phone' in values has already been formatted, see _handle_website_form.
                 values_phone = values.get("phone")
-                # We write partner id on crm only if no phone exists on partner or in input,
-                # or if both numbers (after formating) are the same. This way we get additional phone
-                # if possible, without modifying an existing one. (see inverse function on model crm.lead)
                 if values_phone and visitor_partner.phone:
                     if (
                         values_phone == visitor_partner.phone

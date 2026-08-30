@@ -1,22 +1,6 @@
 import { luxon } from "@web/core/l10n/luxon";
 import { deserializeDateTime } from "@web/core/l10n/dates";
 
-/**
- * Mock of `crm.lead.get_rainbowman_message`, exported rather than registered.
- *
- * It used to register itself, and the ONE consumer registered a second handler
- * on top to record a step and chain through `parent()`. `_findOrmListeners`
- * unshifts each match, so the LAST registration runs FIRST -- and this one was
- * last, being inside a global `beforeEach` while the consumer's sat at module
- * level. So it answered the call itself and the consumer's `expect.step` never
- * ran: thirteen of `crm_rainbowman.test.js`'s tests failed on
- * `[verifySteps] Received: []` while the rainbow man itself rendered correctly.
- *
- * Exporting it removes the ordering coupling instead of reversing it. Call it
- * with the mock server as `this`, which an `onRpc` callback already receives.
- *
- * @this {import("@web/../tests/web_test_helpers").MockServer}
- */
 export function getRainbowmanMessage({ args, model }) {
     let message = false;
     if (model !== "crm.lead") {
@@ -33,11 +17,9 @@ export function getRainbowmanMessage({ args, model }) {
     ) {
         const now = luxon.DateTime.now();
         const query_result = {};
-        // Total won
         query_result["total_won"] = records.filter(
             (r) => r.stage_id === won_stage.id && r.user_id === record.user_id,
         ).length;
-        // Max team 30 days
         const recordsTeam30 = records.filter(
             (r) =>
                 r.stage_id === won_stage.id &&
@@ -48,7 +30,6 @@ export function getRainbowmanMessage({ args, model }) {
         query_result["max_team_30"] = Math.max(
             ...recordsTeam30.map((r) => r.planned_revenue),
         );
-        // Max team 7 days
         const recordsTeam7 = records.filter(
             (r) =>
                 r.stage_id === won_stage.id &&
@@ -59,7 +40,6 @@ export function getRainbowmanMessage({ args, model }) {
         query_result["max_team_7"] = Math.max(
             ...recordsTeam7.map((r) => r.planned_revenue),
         );
-        // Max User 30 days
         const recordsUser30 = records.filter(
             (r) =>
                 r.stage_id === won_stage.id &&
@@ -70,7 +50,6 @@ export function getRainbowmanMessage({ args, model }) {
         query_result["max_user_30"] = Math.max(
             ...recordsUser30.map((r) => r.planned_revenue),
         );
-        // Max User 7 days
         const recordsUser7 = records.filter(
             (r) =>
                 r.stage_id === won_stage.id &&

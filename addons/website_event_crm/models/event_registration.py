@@ -7,7 +7,6 @@ class EventRegistration(models.Model):
     _inherit = "event.registration"
 
     def _get_lead_description_registration(self, line_suffix=""):
-        """Add the questions and answers linked to the registrations into the description of the lead."""
         reg_description = super()._get_lead_description_registration(
             line_suffix=line_suffix
         )
@@ -39,7 +38,6 @@ class EventRegistration(models.Model):
         return res
 
     def _get_lead_values(self, rule):
-        """Update lead values from Lead Generation rules to include the visitor and their language"""
         lead_values = super()._get_lead_values(rule)
         if self.visitor_id:
             lead_values["visitor_ids"] = self.visitor_id

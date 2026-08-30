@@ -5,9 +5,6 @@ class DiscussChannel(models.Model):
     _inherit = "discuss.channel"
 
     def _convert_visitor_to_lead(self, partner, key):
-        """When website is installed, we can link the created lead from /lead command
-        to the current website_visitor. We do not use the lead name as it does not correspond
-        to the lead contact name."""
         lead = super()._convert_visitor_to_lead(partner, key)
         visitor_sudo = self.livechat_visitor_id.sudo()
         if visitor_sudo:

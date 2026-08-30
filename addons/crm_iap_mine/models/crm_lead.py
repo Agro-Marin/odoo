@@ -1,14 +1,17 @@
-# -*- coding: utf-8 -*-
-from odoo import fields, models, _
+from odoo import _, fields, models
 
 
 class CrmLead(models.Model):
-    _inherit = 'crm.lead'
+    _inherit = "crm.lead"
 
-    lead_mining_request_id = fields.Many2one('crm.iap.lead.mining.request', string='Lead Mining Request', index='btree_not_null')
+    lead_mining_request_id = fields.Many2one(
+        "crm.iap.lead.mining.request",
+        string="Lead Mining Request",
+        index="btree_not_null",
+    )
 
     def _merge_get_fields(self):
-        return super()._merge_get_fields() + ['lead_mining_request_id']
+        return super()._merge_get_fields() + ["lead_mining_request_id"]
 
     def action_generate_leads(self):
         return {
