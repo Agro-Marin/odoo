@@ -8,8 +8,8 @@ def migrate(cr, version):
         return
 
     # ir.model.info took the first non-empty __doc__ up the registry class's
-    # mro(). BaseModel, Model, AbstractModel and TransientModel all carry
-    # __doc__ = None, so the walk ran off the end of the model hierarchy and
+    # mro(). BaseModel (aliased as AbstractModel), Model and TransientModel all
+    # carry __doc__ = None, so the walk ran off the end of the model hierarchy and
     # stored object.__doc__ -- "The base class of the class hierarchy." -- as
     # the Information of nearly every model. Reflection rewrites the rows of
     # the module being upgraded and no others, so upgrading base alone would
