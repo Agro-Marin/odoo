@@ -10,7 +10,7 @@ from odoo.libs.intervals import Intervals
 
 
 class HrEmployee(models.Model):
-    _inherit = "hr.employee"
+    _inherit = ["hr.employee", "mixin.bus.listener"]
 
     attendance_manager_id = fields.Many2one(
         "res.users",
@@ -313,7 +313,9 @@ class HrEmployee(models.Model):
                     "employee_id": self.id,
                     "check_in": action_date,
                 }
-            return self.env["hr.attendance"].create(vals)
+            attendance = self.env["hr.attendance"].create(vals)
+            self._notify_presence_state()
+            return attendance
         attendance = self.env["hr.attendance"].search(
             [("employee_id", "=", self.id), ("check_out", "=", False)], limit=1
         )
@@ -330,6 +332,7 @@ class HrEmployee(models.Model):
                 )
             else:
                 attendance.write({"check_out": action_date})
+            self._notify_presence_state()
         else:
             raise exceptions.UserError(
                 _(
@@ -339,6 +342,21 @@ class HrEmployee(models.Model):
                 )
             )
         return attendance
+
+    def _notify_presence_state(self):
+        """Announce the employee's presence so open views can follow along.
+
+        Without this the presence icon only tells the truth after a reload.
+        """
+        self.ensure_one()
+        self._bus_send(
+            "hr.employee/presence",
+            {
+                "employee_id": self.id,
+                "hr_presence_state": self.hr_presence_state,
+                "hr_icon_display": self.hr_icon_display,
+            },
+        )
 
     @api.model
     def get_overtime_data(self, domain=None, employee_id=None):
