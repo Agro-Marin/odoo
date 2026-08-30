@@ -1,4 +1,3 @@
-import functools
 import re
 from threading import RLock
 from typing import Any
@@ -15,7 +14,6 @@ _barcode_init_lock: RLock = RLock()
 _barcode_init: tuple[Any, str] | None = None
 
 
-@functools.lru_cache(1)
 def _init_barcode() -> tuple[Any, str]:
     global _barcode_init  # noqa: PLW0603  one-shot lazy init of the reportlab barcode tables
     with _barcode_init_lock:

@@ -3,6 +3,11 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import ClassVar, Final
 
+__all__ = [
+    "BulgarianNumerals",
+]
+
+
 MASCULINE: Final = 1
 FEMININE: Final = -1
 NEUTER: Final = 0

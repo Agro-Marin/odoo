@@ -1,5 +1,4 @@
 from .fast_clone import fast_clone
-from .stringify_keys import stringify_keys
 from .orjson_wrapper import (
     OPT_INDENT_2,
     OPT_SORT_KEYS,
@@ -25,5 +24,4 @@ __all__ = [
     "fast_clone",
     "loads",
     "scriptsafe",
-    "stringify_keys",
 ]

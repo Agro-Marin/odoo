@@ -88,7 +88,7 @@ class lazy_classproperty[T](classproperty[T]):
 
 
 class lazy:
-    __slots__ = ["_args", "_cached_value", "_func", "_kwargs"]
+    __slots__ = ("_args", "_cached_value", "_func", "_kwargs")
 
     def __init__(self, func: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
         object.__setattr__(self, "_func", func)

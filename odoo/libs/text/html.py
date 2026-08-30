@@ -94,6 +94,11 @@ safe_attrs = defs.safe_attrs | frozenset(
         "style",
         "data-o-mail-quote",
         "data-o-mail-quote-node",
+        # `tag_quote` writes this one during html_normalize, which is the step
+        # html_sanitize runs before this allow-list is applied. Leaving it out
+        # meant the sanitiser deleted an attribute it had just written, and only
+        # when `sanitize_attributes=True` -- the default for `fields.Html`.
+        "data-o-mail-quote-container",
         "data-oe-model",
         "data-oe-id",
         "data-oe-field",
@@ -146,8 +151,6 @@ safe_attrs = defs.safe_attrs | frozenset(
         "data-bs-toggle",
     ]
 )
-
-defs.link_attrs |= {"xlink:href"}
 
 SANITIZE_TAGS = {
     "allow_tags": defs.tags
@@ -291,122 +294,196 @@ class _Cleaner(clean.Cleaner):
             super().kill_conditional_comments(doc)
 
 
-def tag_quote(el: etree._Element) -> None:
+_QUOTE = "data-o-mail-quote"
+_QUOTE_CONTAINER = "data-o-mail-quote-container"
+_QUOTE_NODE = "data-o-mail-quote-node"
 
-    def _create_new_node(
-        tag: str,
-        text: str | None,
-        tail: str | None = None,
-        attrs: dict[str, str] | None = None,
-    ) -> etree._Element:
-        new_node = etree.Element(tag)
-        new_node.text = text
-        new_node.tail = tail
-        if attrs:
-            for key, val in attrs.items():
-                new_node.set(key, val)
-        return new_node
 
-    def _tag_matching_regex_in_text(
-        regex: str | re.Pattern[str],
-        node: etree._Element,
-        tag: str = "span",
-        attrs: dict[str, str] | None = None,
-    ) -> None:
-        text = node.text or ""
-        if not re.search(regex, text):
-            return
+def _wrap_matches_in_text(
+    regex: re.Pattern[str],
+    node: etree._Element,
+    tag: str = "span",
+    attrs: dict[str, str] | None = None,
+) -> None:
+    """Pull every match out of `node.text` into its own child element.
 
-        child_node = None
-        idx = 0
-        for node_idx, item in enumerate(re.finditer(regex, text)):
-            new_node = _create_new_node(
-                tag, text[item.start() : item.end()], None, attrs
-            )
-            if child_node is None:
-                node.text = text[idx : item.start()]
-                new_node.tail = text[item.end() :]
-                node.insert(node_idx, new_node)
-            else:
-                child_node.tail = text[idx : item.start()]
-                new_node.tail = text[item.end() :]
-                node.insert(node_idx, new_node)
-            child_node = new_node
-            idx = item.end()
+    The children go in at 0, 1, 2 … in match order, which is what puts them
+    ahead of whatever `node` already held, in the order they appeared in the
+    text; each carries the text that followed it as its tail.
+    """
+    text = node.text or ""
+    matches = list(regex.finditer(text))
+    if not matches:
+        return
 
-    el_class = el.get("class", "") or ""
-    el_id = el.get("id", "") or ""
+    previous: etree._Element | None = None
+    idx = 0
+    for position, match in enumerate(matches):
+        wrapper = etree.Element(tag)
+        wrapper.text = text[match.start() : match.end()]
+        wrapper.tail = text[match.end() :]
+        for key, val in (attrs or {}).items():
+            wrapper.set(key, val)
+        if previous is None:
+            node.text = text[idx : match.start()]
+        else:
+            previous.tail = text[idx : match.start()]
+        node.insert(position, wrapper)
+        previous = wrapper
+        idx = match.end()
 
+
+def _mark_quote(el: etree._Element, *, container_on_parent: bool = False) -> None:
+    el.set(_QUOTE, "1")
+    if container_on_parent and (parent := el.getparent()) is not None:
+        parent.set(_QUOTE_CONTAINER, "1")
+
+
+def _quote_client_markers(el: etree._Element, el_class: str, el_id: str) -> None:
+    """The per-client markers: Gmail, Outlook, Yahoo, SkyDrive, signatures."""
     if "gmail_extra" in el_class or "SkyDrivePlaceholder" in el_class:
-        el.set("data-o-mail-quote", "1")
-        if el.getparent() is not None:
-            el.getparent().set("data-o-mail-quote-container", "1")
+        _mark_quote(el, container_on_parent=True)
 
     if (
         el.tag == "hr" and ("stopSpelling" in el_class or "stopSpelling" in el_id)
     ) or "yahoo_quoted" in el_class:
-        el.set("data-o-mail-quote", "1")
+        el.set(_QUOTE, "1")
         for sibling in el.itersiblings(preceding=False):
-            sibling.set("data-o-mail-quote", "1")
+            sibling.set(_QUOTE, "1")
 
     is_signature_wrapper = (
         "odoo_signature_wrapper" in el_class
         or "gmail_signature" in el_class
         or el_id == "Signature"
     )
-    is_outlook_auto_message = "appendonsend" in el_id
     is_outlook_reply_quote = "divRplyFwdMsg" in el_id
-    is_gmail_quote = "gmail_quote" in el_class
-    is_quote_wrapper = is_signature_wrapper or is_gmail_quote or is_outlook_reply_quote
-    if is_quote_wrapper:
-        el.set("data-o-mail-quote-container", "1")
-        el.set("data-o-mail-quote", "1")
+    if is_signature_wrapper or "gmail_quote" in el_class or is_outlook_reply_quote:
+        el.set(_QUOTE_CONTAINER, "1")
+        el.set(_QUOTE, "1")
 
     if is_outlook_reply_quote:
+        # Outlook puts a rule before the quoted message and the message itself
+        # after; neither carries a marker of its own.
         hr = el.getprevious()
-        reply_quote = el.getnext()
         if hr is not None and hr.tag == "hr":
-            hr.set("data-o-mail-quote", "1")
-        if reply_quote is not None:
-            reply_quote.set("data-o-mail-quote-container", "1")
-            reply_quote.set("data-o-mail-quote", "1")
+            hr.set(_QUOTE, "1")
+        if (reply_quote := el.getnext()) is not None:
+            reply_quote.set(_QUOTE_CONTAINER, "1")
+            reply_quote.set(_QUOTE, "1")
 
-    if is_outlook_auto_message:
-        if not el.text or not el.text.strip():
-            el.set("data-o-mail-quote-container", "1")
-            el.set("data-o-mail-quote", "1")
+    # Outlook's "appended on send" block, which is empty when it is the marker.
+    if "appendonsend" in el_id and not (el.text or "").strip():
+        el.set(_QUOTE_CONTAINER, "1")
+        el.set(_QUOTE, "1")
+
+
+def _quote_inherited_from_parent(el: etree._Element) -> None:
+    """Spread a container's mark to the children that follow its first quote."""
+    parent = el.getparent()
+    if parent is None or parent.get(_QUOTE_NODE):
+        return
+    if parent.get(_QUOTE):
+        el.set(_QUOTE, "1")
+        return
+    if not parent.get(_QUOTE_CONTAINER):
+        return
+    first_sibling_quote = parent.find(f"*[@{_QUOTE}]")
+    if first_sibling_quote is None:
+        return
+    siblings = list(parent)
+    if siblings.index(first_sibling_quote) < siblings.index(el):
+        el.set(_QUOTE, "1")
+
+
+def tag_quote(el: etree._Element) -> None:
+    """Mark the parts of a mail body that are quoted rather than written.
+
+    One rule per client convention, in the order they have to run: the markers
+    an author's mail client leaves, then the `-- ` signature and `>` quote
+    conventions in the text itself, then blockquote, then what an element
+    inherits from its parent and its predecessor. This used to be one 116-line
+    body at complexity 28.
+    """
+    el_class = el.get("class", "") or ""
+    el_id = el.get("id", "") or ""
+
+    _quote_client_markers(el, el_class, el_id)
 
     if el.text and el.find("br") is not None and _SIGNATURE_BEGIN_RE.search(el.text):
-        el.set("data-o-mail-quote", "1")
-        if el.getparent() is not None:
-            el.getparent().set("data-o-mail-quote-container", "1")
+        _mark_quote(el, container_on_parent=True)
 
-    if not el.get("data-o-mail-quote"):
-        _tag_matching_regex_in_text(
-            _TEXT_COMPLETE_RE, el, "span", {"data-o-mail-quote": "1"}
-        )
+    if not el.get(_QUOTE):
+        _wrap_matches_in_text(_TEXT_COMPLETE_RE, el, "span", {_QUOTE: "1"})
 
     if el.tag == "blockquote":
-        el.set("data-o-mail-quote-node", "1")
-        el.set("data-o-mail-quote", "1")
-    if el.getparent() is not None and not el.getparent().get("data-o-mail-quote-node"):
-        if el.getparent().get("data-o-mail-quote"):
-            el.set("data-o-mail-quote", "1")
-        elif el.getparent().get("data-o-mail-quote-container"):
-            if (
-                first_sibling_quote := el.getparent().find("*[@data-o-mail-quote]")
-            ) is not None:
-                siblings = list(el.getparent())
-                quote_index = siblings.index(first_sibling_quote)
-                element_index = siblings.index(el)
-                if quote_index < element_index:
-                    el.set("data-o-mail-quote", "1")
-    if (
-        el.getprevious() is not None
-        and el.getprevious().get("data-o-mail-quote")
-        and not el.text_content().strip()
-    ):
-        el.set("data-o-mail-quote", "1")
+        el.set(_QUOTE_NODE, "1")
+        el.set(_QUOTE, "1")
+
+    _quote_inherited_from_parent(el)
+
+    previous = el.getprevious()
+    if previous is not None and previous.get(_QUOTE) and not el.text_content().strip():
+        el.set(_QUOTE, "1")
+
+
+def _find_all(doc: etree._Element, tag: str) -> list[etree._Element]:
+    """Every `tag` element, whether or not the document declares the XHTML ns."""
+    return doc.findall(tag) or doc.findall(f"{{{XHTML_NAMESPACE}}}{tag}")
+
+
+def _merge_into_first(elements: list[etree._Element]) -> etree._Element:
+    """Fold every later element's children into the first, and drop them.
+
+    A parser handed two `<body>`s produces two elements; the caller wants one.
+    Text belonging to a later body has to land on the current last child's tail
+    -- or on the survivor's own text when it has no children yet -- because
+    that is where it reads back in document order.
+    """
+    survivor = elements[0]
+    for other in elements[1:]:
+        if other.text:
+            if len(survivor):
+                survivor[-1].tail = (survivor[-1].tail or "") + other.text
+            else:
+                survivor.text = (survivor.text or "") + other.text
+        survivor.extend(other)
+        other.drop_tree()
+    return survivor
+
+
+def _wrap_loose_body_text(body: etree._Element) -> None:
+    """Give the body's own leading text a `<p>` of its own.
+
+    Three shapes, and they are not interchangeable: with no children the text
+    is the whole body; with block-level children the text plus the inline run
+    ahead of the first block becomes one paragraph; with only inline children
+    the text and all of them do.
+    """
+    if not (body.text and body.text.strip()):
+        return
+
+    # `body.makeelement`, not `etree.Element`: the latter builds through the
+    # *default* parser's class lookup, so the paragraph came out a bare
+    # `etree._Element` while everything the html parser made around it was an
+    # `lxml.html.HtmlElement`. That mattered only as long as something held a
+    # reference to it -- lxml caches proxies, so `body[0]` returned the same
+    # bare object while the local was alive and rebuilt it as an HtmlElement
+    # once it was not. Which class `fromstring` returned therefore depended on
+    # a local variable's lifetime. It is the tree's own class now, always.
+    paragraph = body.makeelement("p", {})
+    paragraph.text = body.text
+    body.text = None
+
+    if len(body) == 0:
+        body.append(paragraph)
+    elif _contains_block_level_tag(body):
+        while len(body) and body[0].tag not in defs.block_tags:
+            paragraph.append(body[0])
+        body.insert(0, paragraph)
+    else:
+        for child in list(body):
+            paragraph.append(child)
+        body.append(paragraph)
 
 
 def fromstring(
@@ -415,72 +492,42 @@ def fromstring(
     parser: Any = None,
     **kw: Any,
 ) -> tuple[etree._Element, bool]:
+    """Parse a fragment or a document, and say whether it was a single element.
+
+    The bool is what `html_normalize` uses to decide whether its own `<div>`
+    wrapper has to come back off.
+    """
     if parser is None:
         parser = html_parser
-    if isinstance(html_, bytes):
-        is_full_html = _looks_like_full_html_bytes(html_)
-    else:
-        is_full_html = _looks_like_full_html_unicode(html_)
+    looks_full_html = (
+        _looks_like_full_html_bytes
+        if isinstance(html_, bytes)
+        else _looks_like_full_html_unicode
+    )
+    is_full_html = looks_full_html(html_)
     doc = document_fromstring(html_, parser=parser, base_url=base_url, **kw)
     if is_full_html:
         return doc, False
-    bodies = doc.findall("body")
-    if not bodies:
-        bodies = doc.findall(f"{{{XHTML_NAMESPACE}}}body")
-    if bodies:
-        body = bodies[0]
-        if len(bodies) > 1:
-            for other_body in bodies[1:]:
-                if other_body.text:
-                    if len(body):
-                        body[-1].tail = (body[-1].tail or "") + other_body.text
-                    else:
-                        body.text = (body.text or "") + other_body.text
-                body.extend(other_body)
-                other_body.drop_tree()
-    else:
-        body = None
-    heads = doc.findall("head")
-    if not heads:
-        heads = doc.findall(f"{{{XHTML_NAMESPACE}}}head")
-    if heads:
-        head = heads[0]
-        if len(heads) > 1:
-            for other_head in heads[1:]:
-                head.extend(other_head)
-                other_head.drop_tree()
+
+    bodies = _find_all(doc, "body")
+    body = _merge_into_first(bodies) if bodies else None
+
+    if heads := _find_all(doc, "head"):
+        # A head means a document, whatever `_looks_like_full_html_*` decided.
+        _merge_into_first(heads)
         return doc, False
     if body is None:
         return doc, False
-    if len(body) == 0 and body.text and body.text.strip():
-        p = etree.Element("p")
-        p.text = body.text
-        body.text = None
-        body.append(p)
-    elif body.text and body.text.strip() and _contains_block_level_tag(body):
-        p = etree.Element("p")
-        p.text = body.text
-        body.text = None
-        while len(body) and body[0].tag not in defs.block_tags:
-            p.append(body[0])
-        body.insert(0, p)
-    elif body.text and body.text.strip() and len(body) > 0:
-        p = etree.Element("p")
-        p.text = body.text
-        body.text = None
-        for child in list(body):
-            p.append(child)
-        body.append(p)
+
+    _wrap_loose_body_text(body)
+
     if (
         len(body) == 1
         and (not body.text or not body.text.strip())
         and (not body[-1].tail or not body[-1].tail.strip())
     ):
         return body[0], True
-    if _contains_block_level_tag(body):
-        body.tag = "div"
-    else:
-        body.tag = "span"
+    body.tag = "div" if _contains_block_level_tag(body) else "span"
     return body, False
 
 
@@ -512,8 +559,12 @@ def html_normalize(
     for el in doc.iter(tag=etree.Element):
         tag_quote(el)
 
-    doc = html.fromstring(html.tostring(doc, encoding="unicode", method=output_method))
-
+    # A serialise/reparse round trip stood here. Its only demonstrated job was to
+    # re-type the tree: `fromstring` could hand back a bare `etree._Element`,
+    # and lxml's Cleaner needs `lxml.html`'s class -- deleting it used to raise
+    # `AttributeError: 'lxml.etree._Element' object has no attribute
+    # 'rewrite_links'`. `fromstring` now builds through the tree's own class
+    # lookup, so there is nothing left to convert.
     if filter_callback:
         doc = filter_callback(doc)
 
@@ -665,6 +716,10 @@ _EMPTY_TAG_RE = re.compile(
     r'<\s*\/?(?:p|div|section|span|br|b|i|font)\b(?:(\s+[A-Za-z_-][A-Za-z0-9-_]*(\s*=\s*[\'"][^"\']*[\'"]))*)(?:\s*>|\s*\/\s*>)'
 )
 
+# `append_content_to_html` and `prepend_html_content` both strip the document
+# shell before splicing; the pattern was written out separately in each.
+_DOCUMENT_SHELL_RE = re.compile(r"(?i)(</?(?:html|body|head|!\s*DOCTYPE)[^>]*>)")
+
 _SIGNATURE_BEGIN_RE = re.compile(r"((?:(?:^|\n)[-]{2}[\s]?$))")
 _TEXT_COMPLETE_RE = re.compile(
     r"((?:\n[>]+[^\n\r]*)+|(?:(?:^|\n)[-]{2}[\s]?[\r\n]{1,2}[\s\S]+))"
@@ -770,12 +825,22 @@ def _markup_to_structured_text(tree: etree._Element) -> str:
     html_str = re.sub(r"</p\s*>", "\n", html_str)
     html_str = re.sub(r"<br\s*/?>", "\n", html_str)
     html_str = re.sub(r"<[^>]*>", " ", html_str)
+    # Halves a run rather than flattening it -- three spaces become two, four
+    # become two, five become three -- and that is pinned, not incidental:
+    # base/tests/test_ir_mail_server.py::test_content_mail_body expects
+    # "test6   test7" and "test8    test9" out of MISC_HTML_SOURCE. The newline
+    # collapse below is the same idiom for the same reason. Both look like an
+    # incomplete `re.sub(" {2,}", " ")` and neither is; f57cbefef48 changed this
+    # one and took /base red.
     html_str = html_str.replace(" " * 2, " ")
     html_str = html_str.replace("&gt;", ">")
     html_str = html_str.replace("&lt;", "<")
     html_str = html_str.replace("&amp;", "&")
 
     html_str = "\n".join([x.strip() for x in html_str.splitlines()])
+    # The same halving idiom as the spaces above, pinned the same way: a `<br/>`
+    # between two blocks must survive as one blank line
+    # (TestHtml2PlaintextKeepsStructure). Do not "fix" this into `\n{2,}` -> `\n`.
     return html_str.replace("\n" * 2, "\n")
 
 
@@ -859,7 +924,7 @@ def append_content_to_html(
     elif plaintext:
         content = f"\n{plaintext2html(content, container_tag)}\n"
     else:
-        content = re.sub(r"(?i)(</?(?:html|body|head|!\s*DOCTYPE)[^>]*>)", "", content)
+        content = _DOCUMENT_SHELL_RE.sub("", content)
         content = f"\n{content}\n"
     closing = _CLOSING_BODY_RE.search(html_body) or _CLOSING_HTML_RE.search(html_body)
     if closing is None:
@@ -871,9 +936,7 @@ def append_content_to_html(
 
 
 def prepend_html_content(html_body: str, html_content: str | markupsafe.Markup) -> str:
-    replacement = re.sub(
-        r"(?i)(</?(?:html|body|head|!\s*DOCTYPE)[^>]*>)", "", html_content
-    )
+    replacement = _DOCUMENT_SHELL_RE.sub("", html_content)
     html_content = replacement.strip()
 
     body_match = re.search(r"<body[^>]*>", html_body) or re.search(

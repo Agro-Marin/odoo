@@ -1,5 +1,4 @@
 import ast
-from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Literal, NotRequired, TypedDict, cast
 
 if TYPE_CHECKING:
@@ -39,10 +38,16 @@ class SetDefinitions:
             self.__leaves[leaf_id] = leaf
             self.__leaves[ref] = leaf
 
-        subsets = {leaf.id: leaf.subsets for leaf in self.__leaves.values()}
-        supersets = {leaf.id: leaf.supersets for leaf in self.__leaves.values()}
+        by_id = {leaf_id: self.__leaves[leaf_id] for leaf_id in definitions}
+        subsets = {leaf_id: leaf.subsets for leaf_id, leaf in by_id.items()}
+        supersets = {leaf_id: leaf.supersets for leaf_id, leaf in by_id.items()}
         for leaf_id, info in definitions.items():
             for direct_greater_id in info.get("supersets", ()):
+                if direct_greater_id not in supersets:
+                    raise ValueError(
+                        f"set {info['ref']!r} ({leaf_id}) names a superset "
+                        f"{direct_greater_id!r} that is not defined"
+                    )
                 smaller_ids = subsets[leaf_id]
                 greater_ids = supersets[direct_greater_id]
                 for smaller_id in smaller_ids:
@@ -50,9 +55,14 @@ class SetDefinitions:
                 for greater_id in greater_ids:
                     subsets[greater_id].update(smaller_ids)
 
-        disjoints = {leaf.id: leaf.disjoints for leaf in self.__leaves.values()}
+        disjoints = {leaf_id: leaf.disjoints for leaf_id, leaf in by_id.items()}
         for leaf_id, info in definitions.items():
             for distinct_id in info.get("disjoints", set()):
+                if distinct_id not in subsets:
+                    raise ValueError(
+                        f"set {info['ref']!r} ({leaf_id}) names a disjoint "
+                        f"{distinct_id!r} that is not defined"
+                    )
                 left_ids = subsets[leaf_id]
                 right_ids = subsets[distinct_id]
                 for left_id in left_ids:
@@ -80,9 +90,9 @@ class SetDefinitions:
                 positives.append(self.__get_leaf(xmlid, raise_if_not_found))
 
         if positives:
-            return Union(Inter([leaf] + negatives) for leaf in positives)
+            return SetExpression(Inter([leaf] + negatives) for leaf in positives)
         else:
-            return Union([Inter(negatives)])
+            return SetExpression([Inter(negatives)])
 
     def from_ids(self, ids: Iterable[int], keep_subsets: bool = False) -> SetExpression:
         if keep_subsets:
@@ -92,11 +102,11 @@ class SetDefinitions:
                 for leaf_id in ids
                 if not any((self.__leaves[leaf_id].subsets - {leaf_id}) & ids)
             ]
-        return Union(Inter([self.__leaves[leaf_id]]) for leaf_id in ids)
+        return SetExpression(Inter([self.__leaves[leaf_id]]) for leaf_id in ids)
 
     def from_key(self, key: str) -> SetExpression:
         union_tuple = ast.literal_eval(key)
-        return Union(
+        return SetExpression(
             [
                 Inter(
                     [
@@ -153,58 +163,17 @@ class SetDefinitions:
         )
 
 
-class SetExpression(ABC):
-    @abstractmethod
-    def is_empty(self) -> bool:
-        raise NotImplementedError
+class SetExpression:
+    """A union of intersections of leaves -- disjunctive normal form.
 
-    @abstractmethod
-    def is_universal(self) -> bool:
-        raise NotImplementedError
+    `SetExpression` used to be an ABC whose sole implementation was a class named
+    `Union`, and every one of its methods immediately narrowed the argument back
+    to that one type and raised otherwise -- so the abstraction bought no
+    polymorphism, while twelve `@abstractmethod` stubs had to be kept in step
+    with it. `Inter` and `Leaf` are the pair that actually varies here, and
+    neither was ever part of it. The two are merged, keeping the published name.
+    """
 
-    @abstractmethod
-    def invert_intersect(self, factor: SetExpression) -> SetExpression | None:
-        raise NotImplementedError
-
-    @abstractmethod
-    def matches(self, user_group_ids: Iterable[int]) -> bool:
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def key(self) -> str:
-        raise NotImplementedError
-
-    @abstractmethod
-    def __and__(self, other: SetExpression) -> SetExpression:
-        raise NotImplementedError
-
-    @abstractmethod
-    def __or__(self, other: SetExpression) -> SetExpression:
-        raise NotImplementedError
-
-    @abstractmethod
-    def __invert__(self) -> SetExpression:
-        raise NotImplementedError
-
-    @abstractmethod
-    def __eq__(self, other: object) -> bool:
-        raise NotImplementedError
-
-    @abstractmethod
-    def __le__(self, other: SetExpression) -> bool:
-        raise NotImplementedError
-
-    @abstractmethod
-    def __lt__(self, other: SetExpression) -> bool:
-        raise NotImplementedError
-
-    @abstractmethod
-    def __hash__(self) -> int:
-        raise NotImplementedError
-
-
-class Union(SetExpression):
     def __init__(self, inters: Iterable[Inter] = (), optimal: bool = False) -> None:
         if inters and not optimal:
             inters = self.__combine((), inters)
@@ -247,7 +216,7 @@ class Union(SetExpression):
     def is_universal(self) -> bool:
         return any(item.is_universal() for item in self.__inters)
 
-    def invert_intersect(self, factor: SetExpression) -> Union | None:
+    def invert_intersect(self, factor: SetExpression) -> SetExpression | None:
         if factor == self:
             return UNIVERSAL_UNION
 
@@ -256,19 +225,17 @@ class Union(SetExpression):
             return None
         rself = ~self
 
-        if not isinstance(rfactor, Union):
-            raise TypeError(f"Expected Union, got {type(rfactor).__name__}")
         rfactor_inters = frozenset(rfactor.__inters)
         inters = [inter for inter in rself.__inters if inter not in rfactor_inters]
         if len(rself.__inters) - len(inters) != len(rfactor.__inters):
             return None
 
-        rself_value = Union(inters)
+        rself_value = SetExpression(inters)
         return ~rself_value
 
-    def __and__(self, other: SetExpression) -> Union:
-        if not isinstance(other, Union):
-            raise TypeError(f"Expected Union, got {type(other).__name__}")
+    def __and__(self, other: SetExpression) -> SetExpression:
+        if not isinstance(other, SetExpression):
+            raise TypeError(f"Expected SetExpression, got {type(other).__name__}")
         if self.is_universal():
             return other
         if other.is_universal():
@@ -283,15 +250,15 @@ class Union(SetExpression):
                 f"({len(self.__inters)} x {len(other.__inters)} terms exceeds "
                 f"{MAX_INTERSECTION_TERMS}); the input expression is pathological"
             )
-        return Union(
+        return SetExpression(
             self_inter & other_inter
             for self_inter in self.__inters
             for other_inter in other.__inters
         )
 
-    def __or__(self, other: SetExpression) -> Union:
-        if not isinstance(other, Union):
-            raise TypeError(f"Expected Union, got {type(other).__name__}")
+    def __or__(self, other: SetExpression) -> SetExpression:
+        if not isinstance(other, SetExpression):
+            raise TypeError(f"Expected SetExpression, got {type(other).__name__}")
         if self.is_empty():
             return other
         if other.is_empty():
@@ -301,9 +268,9 @@ class Union(SetExpression):
         if self == other:
             return self
         inters = self.__combine(self.__inters, other.__inters)
-        return Union(inters, optimal=True)
+        return SetExpression(inters, optimal=True)
 
-    def __invert__(self) -> Union:
+    def __invert__(self) -> SetExpression:
         if self.is_empty():
             return UNIVERSAL_UNION
         if self.is_universal():
@@ -319,7 +286,8 @@ class Union(SetExpression):
                 )
 
         inverses_of_inters = [
-            Union(Inter([~leaf]) for leaf in inter.leaves) for inter in self.__inters
+            SetExpression(Inter([~leaf]) for leaf in inter.leaves)
+            for inter in self.__inters
         ]
         result = inverses_of_inters[0]
         for inverse in inverses_of_inters[1:]:
@@ -339,10 +307,10 @@ class Union(SetExpression):
         raise NotImplementedError
 
     def __eq__(self, other: object) -> bool:
-        return isinstance(other, Union) and self.__key == other.__key
+        return isinstance(other, SetExpression) and self.__key == other.__key
 
     def __le__(self, other: SetExpression) -> bool:
-        if not isinstance(other, Union):
+        if not isinstance(other, SetExpression):
             return False
         if self.__key == other.__key:
             return True
@@ -564,5 +532,5 @@ EMPTY_LEAF = ~UNIVERSAL_LEAF
 EMPTY_INTER = Inter([EMPTY_LEAF])
 UNIVERSAL_INTER = Inter()
 
-EMPTY_UNION = Union()
-UNIVERSAL_UNION = Union([UNIVERSAL_INTER])
+EMPTY_UNION = SetExpression()
+UNIVERSAL_UNION = SetExpression([UNIVERSAL_INTER])

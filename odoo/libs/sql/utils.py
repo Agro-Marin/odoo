@@ -13,13 +13,20 @@ def escape_psql(to_escape: str) -> str:
     return to_escape.replace("\\", r"\\").replace("%", r"\%").replace("_", r"\_")
 
 
-def pg_varchar(size: int = 0) -> str:
-    if size:
-        if not isinstance(size, int):
-            raise ValueError(f"VARCHAR parameter should be an int, got {type(size)}")
-        if size > 0:
-            return f"VARCHAR({size})"
-    return "VARCHAR"
+def pg_varchar(size: int | None = 0) -> str:
+    # `None` is `Char.size`'s own spelling of "unbounded" (see
+    # `orm/fields/textual.py`), so it is accepted alongside 0.
+    #
+    # The isinstance check used to live inside `if size:`, which meant only a
+    # truthy non-int could raise: a negative int and a float 0.0 both fell
+    # through to an unconstrained VARCHAR instead of an error.
+    if size is None:
+        return "VARCHAR"
+    if not isinstance(size, int) or isinstance(size, bool):
+        raise ValueError(f"VARCHAR parameter should be an int, got {type(size)}")
+    if size < 0:
+        raise ValueError(f"VARCHAR parameter should not be negative, got {size}")
+    return f"VARCHAR({size})" if size else "VARCHAR"
 
 
 def _split_order_items(order: str) -> list[str]:

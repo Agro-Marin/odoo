@@ -145,203 +145,260 @@ def locate_node(arch: etree._Element, spec: etree._Element) -> etree._Element | 
     return None
 
 
+type _Extract = Callable[[etree._Element], etree._Element]
+
+
+def _replace_outer(
+    source: etree._Element,
+    spec: etree._Element,
+    node: etree._Element,
+    extract: _Extract,
+    inherit_branding: bool,
+) -> etree._Element:
+    """`position="replace"` with the default outer mode.
+
+    Returns the source, which this is the one handler able to *replace*: when
+    the located node is the root, the spec's own content becomes the document.
+    """
+    for loc in spec.xpath(".//*[text()='$0']"):
+        loc.text = ""
+        copied_node = copy.deepcopy(node)
+        if inherit_branding:
+            copied_node.set("data-oe-no-branding", "1")
+        loc.append(copied_node)
+
+    if node.getparent() is not None:
+        if inherit_branding and not node.get("data-oe-xpath"):
+            node.addprevious(
+                etree.ProcessingInstruction(
+                    "apply-inheritance-specs-node-removal", node.tag
+                )
+            )
+        for child in spec:
+            if child.get("position") == "move":
+                child = extract(child)
+            node.addprevious(child)
+        node.getparent().remove(node)
+        return source
+
+    spec_content = None
+    comment = None
+    for content in spec:
+        if content.tag is not etree.Comment:
+            spec_content = content
+            break
+        comment = content
+    source = copy.deepcopy(spec_content)
+    if t_name := node.get("t-name"):
+        source.set("t-name", t_name)
+    if comment is not None:
+        text = source.text
+        source.text = None
+        comment.tail = text
+        source.insert(0, comment)
+    return source
+
+
+def _replace_inner(
+    spec: etree._Element, node: etree._Element, extract: _Extract
+) -> None:
+    sentinel = E.sentinel()
+    if len(node) > 0:
+        node[0].addprevious(sentinel)
+    else:
+        node.append(sentinel)
+    node.text = None
+    add_stripped_items_before(sentinel, copy.deepcopy(spec), extract)
+    for child in reversed(node):
+        node.remove(child)
+        if child == sentinel:
+            break
+
+
+def _python_attribute_value(
+    attribute: str, value: str, add: str, remove: str, separator: str | None
+) -> str:
+    """Combine a boolean-expression attribute -- `invisible`, `t-if`, … .
+
+    These are Python source, so the pieces are parenthesised and joined by a
+    real operator rather than by a list separator.
+    """
+    separator = (separator or "").strip()
+    if separator not in ("and", "or"):
+        raise ValueError(
+            f"Invalid separator {separator!r} for python expression {attribute!r}; "
+            "valid values are 'and' and 'or'"
+        )
+    if remove:
+        if re.fullmatch(rf"\(*{re.escape(remove)}\)*", value):
+            value = ""
+        else:
+            for pattern in (
+                f"({remove}) {separator} ",
+                f" {separator} ({remove})",
+                f"{remove} {separator} ",
+                f" {separator} {remove}",
+            ):
+                index = value.find(pattern)
+                if index != -1:
+                    value = value[:index] + value[index + len(pattern) :]
+                    break
+    if add:
+        value = f"({value}) {separator} ({add})" if value else add
+    return value
+
+
+def _list_attribute_value(
+    value: str, add: str, remove: str, separator: str | None
+) -> str:
+    """Combine a separated-list attribute -- `class`, `groups`, … ."""
+    if separator is None:
+        separator = ","
+    elif separator == " ":
+        separator = None
+    values = (s.strip() for s in value.split(separator))
+    to_add = filter(None, (s.strip() for s in add.split(separator)))
+    to_remove = {s.strip() for s in remove.split(separator)}
+    return (separator or " ").join(
+        itertools.chain((v for v in values if v and v not in to_remove), to_add)
+    )
+
+
+def _apply_attributes(spec: etree._Element, node: etree._Element) -> None:
+    for child in spec.iter("attribute"):
+        unknown = [
+            key
+            for key in child.attrib
+            if key not in ("name", "add", "remove", "separator")
+            and not key.startswith("data-oe-")
+        ]
+        if unknown:
+            raise ValueError(
+                f"Invalid attributes {', '.join(map(repr, unknown))} in element "
+                f"<attribute>"
+            )
+
+        attribute = child.get("name")
+        add = child.get("add", "")
+        remove = child.get("remove", "")
+
+        if add or remove:
+            if child.text:
+                raise ValueError(
+                    f"Element <attribute> with 'add' or 'remove' cannot contain "
+                    f"text {child.text!r}"
+                )
+            current = node.get(attribute, "")
+            separator = child.get("separator")
+            if attribute in PYTHON_ATTRIBUTES or attribute.startswith("decoration-"):
+                value = _python_attribute_value(
+                    attribute, current, add, remove, separator
+                )
+            else:
+                value = _list_attribute_value(current, add, remove, separator)
+        else:
+            value = child.text or ""
+
+        if value:
+            node.set(attribute, value)
+        elif attribute in node.attrib:
+            del node.attrib[attribute]
+
+
+def _apply_around(
+    spec: etree._Element,
+    node: etree._Element,
+    extract: _Extract,
+    *,
+    after: bool,
+) -> None:
+    """`position="inside"` / `"after"`, both of which land on a sentinel."""
+    sentinel = E.sentinel()
+    if after:
+        node.addnext(sentinel)
+        if node.tail is not None:
+            sentinel.tail = node.tail
+            node.tail = None
+    else:
+        node.append(sentinel)
+    add_stripped_items_before(sentinel, spec, extract)
+    remove_element(sentinel)
+
+
+def _unlocatable(spec: etree._Element) -> ValueError:
+    attrs = "".join(
+        f' {attr}="{html_escape(spec.get(attr))}"'
+        for attr in spec.attrib
+        if attr != "position"
+    )
+    return ValueError(f"Element '<{spec.tag}{attrs}>' cannot be located in parent view")
+
+
 def apply_inheritance_specs(
     source: etree._Element,
     specs_tree: etree._Element | list[etree._Element],
     inherit_branding: bool = False,
     pre_locate: Callable[[etree._Element], Any] | None = None,
 ) -> etree._Element:
+    """Apply each spec to `source` in turn, returning the resulting tree.
+
+    This used to be one 200-line body carrying every `position` inline: the
+    longest function in the repository and the largest single offender against
+    both the length budget and the complexity gate. The handlers above are the
+    `position` values the loop already dispatched on by name; `replace/outer` is
+    the one that can hand back a different tree, which is why it alone returns
+    the source rather than mutating it.
+    """
     specs = list(specs_tree) if isinstance(specs_tree, list) else [specs_tree]
     pre_locate = pre_locate or (lambda _: True)
 
     def extract(spec: etree._Element) -> etree._Element:
         if len(spec):
             raise ValueError(
-                f'Invalid specification for moved nodes: "{etree.tostring(spec, encoding="unicode")}"'
+                f"Invalid specification for moved nodes: "
+                f'"{etree.tostring(spec, encoding="unicode")}"'
             )
         pre_locate(spec)
         to_extract = locate_node(source, spec)
-        if to_extract is not None:
-            remove_element(to_extract)
-            return to_extract
-        else:
+        if to_extract is None:
             raise ValueError(
-                f'Element "{etree.tostring(spec, encoding="unicode")}" cannot be located in parent view'
+                f'Element "{etree.tostring(spec, encoding="unicode")}" cannot be '
+                f"located in parent view"
             )
+        remove_element(to_extract)
+        return to_extract
 
-    while len(specs):
+    while specs:
         spec = specs.pop(0)
         if isinstance(spec, SKIPPED_ELEMENT_TYPES):
             continue
         if spec.tag == "data":
             specs += list(spec)
             continue
+
         pre_locate(spec)
         node = locate_node(source, spec)
-        if node is not None:
-            pos = spec.get("position", "inside")
-            if pos == "replace":
-                mode = spec.get("mode", "outer")
-                if mode == "outer":
-                    for loc in spec.xpath(".//*[text()='$0']"):
-                        loc.text = ""
-                        copied_node = copy.deepcopy(node)
-                        if inherit_branding:
-                            copied_node.set("data-oe-no-branding", "1")
-                        loc.append(copied_node)
-                    if node.getparent() is None:
-                        spec_content = None
-                        comment = None
-                        for content in spec:
-                            if content.tag is not etree.Comment:
-                                spec_content = content
-                                break
-                            comment = content
-                        source = copy.deepcopy(spec_content)
-                        t_name = node.get("t-name")
-                        if t_name:
-                            source.set("t-name", t_name)
-                        if comment is not None:
-                            text = source.text
-                            source.text = None
-                            comment.tail = text
-                            source.insert(0, comment)
-                    else:
-                        if inherit_branding and not node.get("data-oe-xpath"):
-                            node.addprevious(
-                                etree.ProcessingInstruction(
-                                    "apply-inheritance-specs-node-removal",
-                                    node.tag,
-                                )
-                            )
+        if node is None:
+            raise _unlocatable(spec)
 
-                        for child in spec:
-                            if child.get("position") == "move":
-                                child = extract(child)
-                            node.addprevious(child)
-                        node.getparent().remove(node)
-                elif mode == "inner":
-                    sentinel = E.sentinel()
-                    if len(node) > 0:
-                        node[0].addprevious(sentinel)
-                    else:
-                        node.append(sentinel)
-                    node.text = None
-                    add_stripped_items_before(sentinel, copy.deepcopy(spec), extract)
-                    for child in reversed(node):
-                        node.remove(child)
-                        if child == sentinel:
-                            break
-                else:
-                    raise ValueError(f'Invalid mode attribute: "{mode}"')
-            elif pos == "attributes":
-                for child in spec.iter("attribute"):
-                    unknown = [
-                        key
-                        for key in child.attrib
-                        if key not in ("name", "add", "remove", "separator")
-                        and not key.startswith("data-oe-")
-                    ]
-                    if unknown:
-                        raise ValueError(
-                            f"Invalid attributes {', '.join(map(repr, unknown))} in element <attribute>"
-                        )
-
-                    attribute = child.get("name")
-                    value = None
-
-                    if child.get("add") or child.get("remove"):
-                        if child.text:
-                            raise ValueError(
-                                f"Element <attribute> with 'add' or 'remove' cannot contain text {child.text!r}"
-                            )
-                        value = node.get(attribute, "")
-                        add = child.get("add", "")
-                        remove = child.get("remove", "")
-                        separator = child.get("separator")
-
-                        if attribute in PYTHON_ATTRIBUTES or attribute.startswith(
-                            "decoration-"
-                        ):
-                            separator = (separator or "").strip()
-                            if separator not in ("and", "or"):
-                                raise ValueError(
-                                    f"Invalid separator {separator!r} for python expression {attribute!r}; "
-                                    "valid values are 'and' and 'or'"
-                                )
-                            if remove:
-                                if re.fullmatch(rf"\(*{re.escape(remove)}\)*", value):
-                                    value = ""
-                                else:
-                                    patterns = [
-                                        f"({remove}) {separator} ",
-                                        f" {separator} ({remove})",
-                                        f"{remove} {separator} ",
-                                        f" {separator} {remove}",
-                                    ]
-                                    for pattern in patterns:
-                                        index = value.find(pattern)
-                                        if index != -1:
-                                            value = (
-                                                value[:index]
-                                                + value[index + len(pattern) :]
-                                            )
-                                            break
-                            if add:
-                                value = (
-                                    f"({value}) {separator} ({add})" if value else add
-                                )
-                        else:
-                            if separator is None:
-                                separator = ","
-                            elif separator == " ":
-                                separator = None
-                            values = (s.strip() for s in value.split(separator))
-                            to_add = filter(
-                                None, (s.strip() for s in add.split(separator))
-                            )
-                            to_remove = {s.strip() for s in remove.split(separator)}
-                            value = (separator or " ").join(
-                                itertools.chain(
-                                    (v for v in values if v and v not in to_remove),
-                                    to_add,
-                                )
-                            )
-                    else:
-                        value = child.text or ""
-
-                    if value:
-                        node.set(attribute, value)
-                    elif attribute in node.attrib:
-                        del node.attrib[attribute]
-            elif pos == "inside":
-                sentinel = E.sentinel()
-                node.append(sentinel)
-                add_stripped_items_before(sentinel, spec, extract)
-                remove_element(sentinel)
-            elif pos == "after":
-                sentinel = E.sentinel()
-                node.addnext(sentinel)
-                if node.tail is not None:
-                    sentinel.tail = node.tail
-                    node.tail = None
-                add_stripped_items_before(sentinel, spec, extract)
-                remove_element(sentinel)
-            elif pos == "before":
-                add_stripped_items_before(node, spec, extract)
-
+        pos = spec.get("position", "inside")
+        if pos == "replace":
+            mode = spec.get("mode", "outer")
+            if mode == "outer":
+                source = _replace_outer(source, spec, node, extract, inherit_branding)
+            elif mode == "inner":
+                _replace_inner(spec, node, extract)
             else:
-                raise ValueError(f"Invalid position attribute: '{pos}'")
-
+                raise ValueError(f'Invalid mode attribute: "{mode}"')
+        elif pos == "attributes":
+            _apply_attributes(spec, node)
+        elif pos == "inside":
+            _apply_around(spec, node, extract, after=False)
+        elif pos == "after":
+            _apply_around(spec, node, extract, after=True)
+        elif pos == "before":
+            add_stripped_items_before(node, spec, extract)
         else:
-            attrs = "".join(
-                [
-                    ' %s="%s"' % (attr, html_escape(spec.get(attr)))
-                    for attr in spec.attrib
-                    if attr != "position"
-                ]
-            )
-            tag = "<%s%s>" % (spec.tag, attrs)
-            raise ValueError(f"Element '{tag}' cannot be located in parent view")
+            raise ValueError(f"Invalid position attribute: '{pos}'")
 
     return source

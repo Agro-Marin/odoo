@@ -8,8 +8,6 @@ from .mimetypes import (
     fix_filename_extension,
     get_extension,
     guess_mimetype,
-    neuter_mimetype,
-    SystemUser,
 )
 from .samples import (
     BMP,
@@ -38,14 +36,12 @@ __all__ = [
     "WEBP",
     "XML",
     "ZIP",
-    "SystemUser",
     "_olecf_mimetypes",
     "appdirs",
     "fix_filename_extension",
     "get_extension",
     "guess_mimetype",
     "mimetypes",
-    "neuter_mimetype",
     "osutil",
     "which",
 ]

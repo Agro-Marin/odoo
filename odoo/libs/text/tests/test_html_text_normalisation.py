@@ -90,22 +90,58 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class TestHtmlNormalizeRoundTrip(unittest.TestCase):
-    def test_fromstring_can_return_a_tree_the_cleaner_cannot_handle(self):
+class TestFromstringReturnsATreeTypedElement(unittest.TestCase):
+    """`fromstring` builds through the tree's own class lookup, always.
+
+    It used to wrap loose body text in `etree.Element("p")`, which resolves
+    through the *default* parser and so produced a bare `etree._Element` among
+    the `lxml.html.HtmlElement`s the html parser had made. Whether that leaked
+    out of `fromstring` depended on a local variable's lifetime: lxml caches
+    element proxies, so `body[0]` returned the same bare object while the local
+    was alive and rebuilt it as an HtmlElement once it was not.
+
+    `html_normalize` carried a serialise/reparse round trip to undo it --
+    without it, `Cleaner` raised `AttributeError: 'lxml.etree._Element' object
+    has no attribute 'rewrite_links'`. Fixing the class at the source removed
+    the need for the round trip, so these pin the property the round trip was
+    standing in for.
+    """
+
+    INPUTS = [
+        "Many2one<string>",
+        "plain text",
+        "<p>a</p>",
+        "a<b>c</b>",
+        "<div>x</div><div>y</div>",
+        "<body>a</body><body>b</body>",
+        "<html><head><title>t</title></head><body>x</body></html>",
+        "text<span>s</span>more",
+        "<table><tr><td>c</td></tr></table>",
+        "<!-- c -->x",
+    ]
+
+    def test_the_two_classes_really_do_differ(self):
+        # Without this the assertions below would hold vacuously.
         self.assertFalse(hasattr(etree.Element("p"), "rewrite_links"))
         self.assertTrue(hasattr(lxml_html.fromstring("<p>x</p>"), "rewrite_links"))
 
-    def test_sanitize_survives_an_input_that_produces_a_bare_element(self):
-        self.assertEqual(str(html_sanitize("Many2one<string>")), "<p>Many2one</p>")
+    def test_every_shape_comes_back_as_an_html_element(self):
+        for source in self.INPUTS:
+            with self.subTest(source=source):
+                doc, _single = fromstring(source)
+                self.assertIsInstance(doc, lxml_html.HtmlElement)
+                self.assertTrue(hasattr(doc, "rewrite_links"))
 
-    def test_the_probe_above_is_not_vacuous(self):
-        doc, _ = fromstring("Many2one<string>")
-        self.assertNotIsInstance(
-            doc,
-            lxml_html.HtmlElement,
-            "fromstring no longer returns a bare _Element here, so this suite "
-            "no longer covers why the round trip exists -- find a new input.",
-        )
+    def test_the_class_does_not_depend_on_a_live_reference(self):
+        # The old behaviour: hold the proxy and get one class, drop it and get
+        # another. Ask twice, with nothing kept in between.
+        first = type(fromstring("Many2one<string>")[0])
+        second = type(fromstring("Many2one<string>")[0])
+        self.assertIs(first, second)
+        self.assertIs(first, lxml_html.HtmlElement)
+
+    def test_sanitize_survives_an_input_that_produced_a_bare_element(self):
+        self.assertEqual(str(html_sanitize("Many2one<string>")), "<p>Many2one</p>")
 
     def test_non_ascii_inside_a_comment_survives(self):
         self.assertEqual(

@@ -5,13 +5,34 @@ from random import randrange
 from typing import Any, Literal, Self
 
 from PIL import (
-    IcoImagePlugin,  # noqa: F401  registers the ICO plugin; see the note above
     Image,
     ImageOps,
     ImageSequence,
 )
 from PIL.Image import Image as PILImage
 from PIL.Image import Palette, Resampling
+
+__all__ = [
+    "EXIF_TAG_ORIENTATION",
+    "FILETYPE_BASE64_MAGICWORD",
+    "IMAGE_MAX_RESOLUTION",
+    "ImageDecodeError",
+    "ImageError",
+    "ImageProcess",
+    "ImageTooLargeError",
+    "NotWebpError",
+    "average_dominant_color",
+    "base64_to_image",
+    "binary_to_image",
+    "get_webp_size",
+    "image_apply_opt",
+    "image_data_uri",
+    "image_fix_orientation",
+    "image_guess_size_from_field_name",
+    "image_process",
+    "image_to_base64",
+    "is_image_size_above",
+]
 
 
 class ImageError(ValueError):
@@ -43,8 +64,19 @@ EXIF_TAG_ORIENTATION = 0x112
 IMAGE_MAX_RESOLUTION = 50e6
 
 
+# `preinit()` warms the seven formats almost every upload is, and leaves
+# `_initialized` at 1 so `Image.open`/`Image.save` can still fall through to
+# `init()` for the rest.  Pinning `_initialized = 2` here made that fallback a
+# no-op, freezing the process-wide registry at those seven for every caller,
+# addons included: TIFF and JPEG2000 became undecodable, and WebP needed the
+# hand-rolled header parser and passthrough branch that used to live below.  It
+# bought nothing -- `init()` was already lazy, and 500 PNG opens measure 9.0 ms
+# either way -- while the first exotic upload pays 14 ms once.
 Image.preinit()
-Image._initialized = 2
+
+# EXIF orientations 5-8 are the transposed ones: the stored raster is a quarter
+# turn from the displayed one, so its width and height are swapped.
+_TRANSPOSED_ORIENTATIONS = frozenset({5, 6, 7, 8})
 
 
 def image_fix_orientation(image: PILImage) -> PILImage:
@@ -80,18 +112,11 @@ class ImageProcess:
         self.source = source or False
         self.operations_count = 0
         self.original_format = ""
+        self.animated = False
         self.animated_frames: list[PILImage] = []
 
         if not source or source[:1] == b"<":
             self.image = False
-        elif source[0:4] == b"RIFF" and source[8:15] == b"WEBPVP8":
-            self.image = False
-            if verify_resolution:
-                size = get_webp_size(source)
-                if size and size[0] * size[1] > IMAGE_MAX_RESOLUTION:
-                    raise ImageTooLargeError(
-                        f"Too large image (above {IMAGE_MAX_RESOLUTION / 1e6}Mpx), reduce the image size."
-                    )
         else:
             self.image = binary_to_image(source)
 
@@ -102,12 +127,27 @@ class ImageProcess:
                 )
 
             self.original_format = (self.image.format or "").upper()
+            # Read once, here: `_extract_animated_frames` replaces `self.image`
+            # with a copy of frame 0, which carries no `n_frames`.
+            self.animated = getattr(self.image, "n_frames", 1) > 1
 
-            if self.original_format != "GIF":
+            # `exif_transpose` rebuilds the image from frame 0 and drops every
+            # other one -- measured on both GIF and animated WebP.
+            if not self.animated:
                 self.image = image_fix_orientation(self.image)
 
-    def _extract_gif_frames(self) -> None:
-        if self.original_format == "GIF" and not self.animated_frames:
+    @property
+    def _frame_wise(self) -> bool:
+        """Whether geometry has to be applied one frame at a time.
+
+        Animation is the reason.  GIF keeps the frame-wise path even when
+        static, because that is the behaviour its tests pin: a static GIF is
+        never enlarged by `expand`.
+        """
+        return self.animated or self.original_format == "GIF"
+
+    def _extract_animated_frames(self) -> None:
+        if self._frame_wise and not self.animated_frames:
             frames = [frame.copy() for frame in ImageSequence.Iterator(self.image)]
             if frames:
                 self.image = frames[0]
@@ -127,7 +167,7 @@ class ImageProcess:
         output_format = output_format.upper() or self.original_format
         if output_format == "BMP":
             output_format = "PNG"
-        elif output_format not in ["PNG", "JPEG", "GIF", "ICO"]:
+        elif output_format not in ["PNG", "JPEG", "GIF", "ICO", "WEBP"]:
             output_format = "JPEG"
 
         if (
@@ -153,6 +193,13 @@ class ImageProcess:
             opt["optimize"] = True
             opt["save_all"] = True
             opt["append_images"] = self.animated_frames
+        if output_format == "WEBP":
+            # 80 is libwebp's own default.  `quality=0` here means "caller did
+            # not ask", not "lossless", so it must not reach the encoder as 0.
+            opt["quality"] = quality or 80
+            if self.animated:
+                opt["save_all"] = True
+                opt["append_images"] = self.animated_frames
 
         if output_image.mode not in ["1", "L", "P", "RGB", "RGBA"] or (
             output_format == "JPEG" and output_image.mode == "RGBA"
@@ -175,9 +222,9 @@ class ImageProcess:
             w, h = self.image.size
             asked_width = max_width or (w * max_height) // h
             asked_height = max_height or (h * max_width) // w
-            if self.original_format == "GIF":
+            if self._frame_wise:
                 if asked_width < w or asked_height < h:
-                    self._extract_gif_frames()
+                    self._extract_animated_frames()
                     for frame in [self.image, *self.animated_frames]:
                         frame.thumbnail((asked_width, asked_height), Resampling.LANCZOS)
                     self.operations_count += 1
@@ -218,8 +265,8 @@ class ImageProcess:
 
             if new_w != w or new_h != h:
                 crop_box = (x_offset, h_offset, x_offset + new_w, h_offset + new_h)
-                if self.original_format == "GIF":
-                    self._extract_gif_frames()
+                if self._frame_wise:
+                    self._extract_animated_frames()
                     self.image = self.image.crop(crop_box)
                     self.animated_frames = [
                         frame.crop(crop_box) for frame in self.animated_frames
@@ -395,8 +442,12 @@ def get_webp_size(source: bytes) -> tuple[int, int] | None:
     vp8_type = source[15]
     if vp8_type == 0x20 and len(source) >= 30:
         width_low, width_high, height_low, height_high = source[26:30]
-        width = (width_high << 8) + width_low
-        height = (height_high << 8) + height_low
+        # The top two bits of each 16-bit field are the upscaling hint, not part
+        # of the dimension.  libwebp leaves them zero, so this only shows on a
+        # hand-built file -- where it read a 300x200 image as 49452x49352 and
+        # tripped IMAGE_MAX_RESOLUTION.
+        width = ((width_high << 8) + width_low) & 0x3FFF
+        height = ((height_high << 8) + height_low) & 0x3FFF
         return (width, height)
     elif vp8_type == 0x58 and len(source) >= 30:
         (
@@ -418,12 +469,19 @@ def get_webp_size(source: bytes) -> tuple[int, int] | None:
     return None
 
 
-def _decoded_image_size(base64_source: bytes | str) -> tuple[int, int] | None:
-    source = base64.b64decode(base64_source)
-    if source[0:4] == b"RIFF" and source[8:15] == b"WEBPVP8":
-        return get_webp_size(source)
-    image = image_fix_orientation(binary_to_image(source))
-    return image.width, image.height
+def _decoded_image_size(base64_source: bytes | str) -> tuple[int, int]:
+    """The displayed size, without decoding the raster.
+
+    `image_fix_orientation` -- which this used to call -- decodes the pixels and
+    builds a rotated copy, and orientation only ever swaps the two numbers.  It
+    was 9.8 ms of the 10.4 ms this spent per image; the header-only form agrees
+    with it on all eight EXIF orientations.
+    """
+    image = binary_to_image(base64.b64decode(base64_source))
+    width, height = image.size
+    if image.getexif().get(EXIF_TAG_ORIENTATION, 1) in _TRANSPOSED_ORIENTATIONS:
+        return height, width
+    return width, height
 
 
 def is_image_size_above(
@@ -436,8 +494,6 @@ def is_image_size_above(
 
     source = _decoded_image_size(base64_source_1)
     target = _decoded_image_size(base64_source_2)
-    if source is None or target is None:
-        return False
     return source[0] > target[0] or source[1] > target[1]
 
 

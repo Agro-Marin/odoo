@@ -74,5 +74,31 @@ class TestMatchesFailsClosedForASubjectWithNoSets(unittest.TestCase):
         self.assertTrue((~defs.parse("A")).matches({2}))
 
 
+class TestUnresolvableCrossReferences(unittest.TestCase):
+    """A definition naming a set that does not exist used to die as a bare
+    KeyError carrying only the missing id, from inside a closure loop -- with
+    nothing to say which definition was at fault."""
+
+    def test_an_undefined_superset_names_both_ends(self):
+        with self.assertRaises(ValueError) as cm:
+            SetDefinitions({1: {"ref": "A", "supersets": [99]}})
+        message = str(cm.exception)
+        self.assertIn("'A'", message)
+        self.assertIn("99", message)
+        self.assertIn("superset", message)
+
+    def test_an_undefined_disjoint_names_both_ends(self):
+        with self.assertRaises(ValueError) as cm:
+            SetDefinitions({1: {"ref": "A", "disjoints": [99]}})
+        message = str(cm.exception)
+        self.assertIn("'A'", message)
+        self.assertIn("99", message)
+        self.assertIn("disjoint", message)
+
+    def test_resolvable_definitions_are_unaffected(self):
+        defs = _defs()
+        self.assertTrue(defs.parse("A") <= defs.parse("B"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -2,6 +2,10 @@ from lxml import etree
 
 from .utils import remove_control_characters
 
+__all__ = [
+    "dict_to_xml",
+]
+
 
 def dict_to_xml(
     node: dict,

@@ -35,6 +35,7 @@ from odoo import api, models, tools
 from odoo.exceptions import UserError
 from odoo.http import request
 from odoo.libs.lru import LRU
+from odoo.libs.text import VOID_ELEMENTS
 from odoo.modules import Manifest
 from odoo.modules.registry import REGISTRY_CACHES
 from odoo.tools import OrderedSet, config, frozendict, json, safe_eval
@@ -134,26 +135,6 @@ _SAFE_QWEB_OPCODES = (
 unsafe_eval = eval  # noqa: S307  compiled QWeb template code; the name says what it is
 
 
-VOID_ELEMENTS = frozenset(
-    [
-        "area",
-        "base",
-        "br",
-        "col",
-        "embed",
-        "hr",
-        "img",
-        "input",
-        "keygen",
-        "link",
-        "menuitem",
-        "meta",
-        "param",
-        "source",
-        "track",
-        "wbr",
-    ]
-)
 FORBIDDEN_FIELD_TAGS = frozenset(
     [
         "table",

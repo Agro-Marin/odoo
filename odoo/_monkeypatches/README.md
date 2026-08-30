@@ -88,6 +88,7 @@ it is deferred, waiting for its target's import — not failed.
 |------|---------|------|
 | `num2words.py` | Register `odoo.libs.locale.BulgarianNumerals` with num2words 0.5.14, which ships no `bg`. The converter is a language implementation, not a patch, and lives in `libs/` | FEATURE |
 | `docutils.py` | Stand in for the Sphinx domain (`:meth:`, `:class:`, … as literals; `deprecated`/`attribute` as notes that keep their argument) so docstring RST renders without depending on Sphinx | COMPAT |
+| `lxml.py` | Widen `lxml.html.defs.link_attrs` with `xlink:href`, which `HtmlMixin.iterlinks()` reads as a local default, so `ir_module._get_desc` rewrites SVG links in a module description. The cleaner does not consult it (`lxml_html_clean` carries its own `_tag_link_attrs`), so sanitisation is unaffected | FEATURE |
 
 ### Internationalization Patches
 
@@ -160,7 +161,7 @@ Patches should be removed when:
 |-------|---------|--------|
 | `urllib3.py` | 2026-02 | urllib3 2.x sets `pool_classes_by_scheme` per-instance; Odoo never mutates it |
 | `werkzeug.py` (URL API) | 2026-02 | Migrated to `urllib.parse` (stdlib); ~1045 lines removed |
-| `lxml.py` | 2026-02 | Fixed in lxml >= 5.2.0 (current: 6.0.2) |
+| `lxml.py` (the 5.2.0 compat fix) | 2026-02 | Fixed in lxml >= 5.2.0 (current: 6.0.2). **Not** the current `lxml.py`, which is a later, unrelated `link_attrs` widening — see the Patch Index |
 | `xlrd.py` | 2026-02 | xlrd 2.x removed xlsx support; defusedxml not installed |
 | `zeep.py` | 2026-02 | Fixed in zeep >= 4.3.1 (notation visitor bug #1185) |
 | `email.py` (policy-clone validation) | 2026-02 | Python 3.12+ natively validates attributes in `_PolicyBase.clone()`. **Not** the current `email.py`, which is a later, unrelated patch for header folding — see the Patch Index. |
@@ -175,8 +176,8 @@ Patches should be removed when:
 
 ## Statistics
 
-- **Total**: 15 files (14 patches + 1 utility)
-- **By type**: COMPAT (9), PERF (2), SECURITY (1), FEATURE (1)
+- **Total**: 16 files (15 patches + 1 utility)
+- **By type**: COMPAT (9), PERF (2), SECURITY (1), FEATURE (2)
 
 These are re-derived from the directory and the Patch Index by
 `tooling/architecture/package_index_check.py`, so they cannot drift again — the

@@ -1,6 +1,6 @@
 from .date_utils import (
-    utc,
     WEEKDAY_NUMBER,
+    Granularity,
     float_to_time,
     time_to_float,
     localized,
@@ -23,7 +23,9 @@ from .date_utils import (
 )
 
 from .tz import (
+    utc,
     timezone,
+    localize,
     localize_standard,
     all_timezones,
     country_timezones,
@@ -33,6 +35,7 @@ from .tz import (
 __all__ = [
     "TIMEZONE_ALIASES",
     "WEEKDAY_NUMBER",
+    "Granularity",
     "add",
     "all_timezones",
     "country_timezones",
@@ -44,6 +47,7 @@ __all__ = [
     "get_quarter",
     "get_quarter_number",
     "get_timedelta",
+    "localize",
     "localize_standard",
     "localized",
     "parse_iso_date",

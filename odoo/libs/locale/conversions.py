@@ -2,6 +2,14 @@ import re
 
 import babel
 
+__all__ = [
+    "POSIX_TO_LDML",
+    "XPG_LOCALE_RE",
+    "posix_to_ldml",
+    "py_to_js_locale",
+]
+
+
 XPG_LOCALE_RE = re.compile(
     r"""^
     ([a-z]+)      # language
@@ -52,18 +60,36 @@ POSIX_TO_LDML = {
 }
 
 
+def _ldml_literal(text: str) -> str:
+    """Encode a run of strftime literal text as an LDML literal.
+
+    Apostrophes double, and the run is wrapped in quotes only when it carries
+    something that would otherwise be read as pattern letters. A run that is
+    *only* apostrophes must stay unwrapped: LDML reads a leading ``''`` as one
+    escaped apostrophe rather than as an opening quote, so wrapping ``'`` gives
+    ``''''``, which babel renders as two.
+    """
+    escaped = text.replace("'", "''")
+    return escaped if text and not text.strip("'") else f"'{escaped}'"
+
+
 def posix_to_ldml(fmt: str, locale: babel.Locale) -> str:
     buf: list[str] = []
     pc = False
     minus = False
-    quoted = []
+    quoted: list[str] = []
 
     for c in fmt:
-        if not pc and c.isalpha():
-            quoted.append(c if c != "'" else "''")
+        # The apostrophe belongs *inside* the literal run, not between two runs.
+        # It is not `isalpha()`, so it used to fall through to `buf.append(c)`
+        # and land between a closing and an opening quote: "%d o'clock" became
+        # "dd 'o'''clock'", which LDML reads as literal "o'" followed by `clock`
+        # as pattern letters -- babel renders that "29 o'7lo715".
+        if not pc and (c.isalpha() or c == "'"):
+            quoted.append(c)
             continue
         if quoted:
-            buf.extend(("'", "".join(quoted), "'"))
+            buf.append(_ldml_literal("".join(quoted)))
             quoted = []
 
         if pc:
@@ -91,7 +117,7 @@ def posix_to_ldml(fmt: str, locale: babel.Locale) -> str:
             buf.append(c)
 
     if quoted:
-        buf.extend(("'", "".join(quoted), "'"))
+        buf.append(_ldml_literal("".join(quoted)))
 
     if pc:
         buf.append("%")

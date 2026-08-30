@@ -7,6 +7,32 @@ from urllib.parse import urlparse
 
 import idna
 
+__all__ = [
+    "address_pattern",
+    "email_addr_escapes_re",
+    "email_anonymize",
+    "email_domain_extract",
+    "email_domain_normalize",
+    "email_escape_char",
+    "email_normalize",
+    "email_normalize_all",
+    "email_re",
+    "email_split",
+    "email_split_and_format",
+    "email_split_and_format_normalize",
+    "email_split_and_normalize",
+    "email_split_tuples",
+    "encapsulate_email",
+    "extract_rfc2822_addresses",
+    "formataddr",
+    "getaddresses",
+    "mail_header_msgid_re",
+    "parse_contact_from_email",
+    "single_email_re",
+    "unfold_references",
+    "url_domain_extract",
+]
+
 
 def getaddresses(fieldvalues: list[str]) -> list[tuple[str, str]]:
     return email.utils.getaddresses(fieldvalues, strict=False)
@@ -137,7 +163,10 @@ def email_anonymize(normalized_email: str, *, redact_domain: bool = False) -> st
 def email_domain_extract(email: str) -> str | Literal[False]:
     normalized_email = email_normalize(email)
     if normalized_email:
-        return normalized_email.split("@")[1]
+        # rpartition, as `_normalize_email` does: a quoted local part may itself
+        # contain "@", and `split("@")[1]` then returns a slice of the local
+        # part instead of the domain.
+        return normalized_email.rpartition("@")[2]
     return False
 
 

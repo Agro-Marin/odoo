@@ -1,7 +1,6 @@
-__all__ = ["SourceMapGenerator", "base64vlq_encode"]
+__all__ = ["SourceMapGenerator"]
 
 import json
-from functools import lru_cache
 from typing import Final, NamedTuple
 
 
@@ -18,6 +17,8 @@ class SourceMapGenerator:
         self._sources: dict[str, int] = {}
         self._mappings: list[_Mapping] = []
         self._sources_contents: dict[str, str] = {}
+        # The only cache: `base64vlq_encode` used to carry an lru_cache of its
+        # own over the same composition this one keys.
         self._cache: dict[tuple[int, int], str] = {}
 
     def _serialize_mappings(self) -> str:
@@ -99,7 +100,6 @@ FLAG: Final[int] = 1 << SHIFTSIZE
 MASK: Final[int] = FLAG - 1
 
 
-@lru_cache(maxsize=64)
 def base64vlq_encode(*values: int) -> str:
     results: list[int] = []
     add = results.append

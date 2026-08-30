@@ -299,3 +299,49 @@ class TestRenderDocstring:
     def test_indentation_is_cleaned_before_rendering(self):
         rendered = docstring.render_docstring("Summary.\n\n    Indented body.\n")
         assert "Indented body." in rendered
+
+
+class TestRenderDoctreeHtmlFailsLoudly:
+    """The document shell is stripped by matching a literal docutils wrapper.
+
+    ``str.partition`` returns empty strings when the separator is absent, so a
+    docutils upgrade that reshapes the html4css1 template used to make every
+    rendered docstring silently become ``""`` -- with no exception, no log line
+    and a green suite, because nothing exercised this function at all.
+    """
+
+    def test_a_changed_wrapper_raises_instead_of_returning_empty(self, monkeypatch):
+        tree = docstring.to_doctree("hello")
+        monkeypatch.setattr(
+            docstring.docutils.core,
+            "publish_from_doctree",
+            lambda *a, **k: b"<html><head>\n</head>\n<body>\n<div class='doc'>x</div>",
+        )
+        with pytest.raises(RuntimeError, match="no longer wraps"):
+            docstring.render_doctree_html(tree)
+
+    def test_the_wrapper_still_matches_the_installed_docutils(self):
+        rendered = docstring.render_doctree_html(docstring.to_doctree("hello *world*"))
+        assert "<em>world</em>" in rendered
+        assert "<body>" not in rendered
+        assert "</html>" not in rendered
+
+    def test_render_docstring_is_not_empty_for_ordinary_prose(self):
+        assert docstring.render_docstring("Hello.").strip()
+
+
+class TestDocutilsHardeningHasOneDefinition:
+    """``raw_enabled``/``file_insertion_enabled`` are what stop docutils reading
+    arbitrary files. They were duplicated in ``rst`` and ``docstring``; a copy
+    that drifts is a copy that stops protecting one of the two callers.
+    """
+
+    def test_docstring_uses_the_rst_constant_object(self):
+        from odoo.libs import rst
+
+        assert docstring.SAFE_SETTINGS is rst.SAFE_SETTINGS
+
+    def test_the_hardening_is_actually_applied(self):
+        settings = docstring._html_settings()
+        assert settings.raw_enabled is False
+        assert settings.file_insertion_enabled is False

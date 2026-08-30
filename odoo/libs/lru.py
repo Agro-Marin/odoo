@@ -1,7 +1,14 @@
 import threading
 import typing
 from collections import OrderedDict
-from collections.abc import Iterable, Iterator, MutableMapping
+from collections.abc import (
+    ItemsView,
+    Iterable,
+    Iterator,
+    KeysView,
+    MutableMapping,
+    ValuesView,
+)
 
 from .iteration.sentinel import SENTINEL
 
@@ -45,9 +52,11 @@ class LRU[K, V](MutableMapping[K, V]):
 
     def __getitem__(self, key: K) -> V:
         value = self._map[key]
-        try:  # noqa: SIM105  see above
+        try:  # noqa: SIM105  contextlib.suppress costs a context manager per read
             self._map.move_to_end(key)
         except KeyError:
+            # Another thread evicted it between the read and the touch. The
+            # value is still the one this caller asked for.
             pass
         return value
 
@@ -80,6 +89,24 @@ class LRU[K, V](MutableMapping[K, V]):
     def snapshot(self) -> dict[K, V]:
         with self._lock:
             return dict(self._map)
+
+    # `MutableMapping`'s KeysView/ValuesView/ItemsView iterate `self` and then
+    # re-read each key through `__getitem__`, which touches the recency order
+    # on a read-only inspection and -- worse -- reads a key a concurrent
+    # `_trim()` may already have evicted. Three reader threads doing
+    # `dict(cache.items())` against three writers raised KeyError within
+    # seconds. `snapshot` takes the lock once and answers from a copy.
+    def keys(self) -> KeysView[K]:  # type: ignore[override]
+        return self.snapshot.keys()
+
+    def values(self) -> ValuesView[V]:  # type: ignore[override]
+        return self.snapshot.values()
+
+    def items(self) -> ItemsView[K, V]:  # type: ignore[override]
+        return self.snapshot.items()
+
+    def copy(self) -> dict[K, V]:
+        return self.snapshot
 
     @typing.overload
     def pop(self, key: K, /) -> V: ...

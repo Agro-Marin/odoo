@@ -59,7 +59,6 @@ class CryptContext:
         schemes: list[str] | None = None,
         *,
         deprecated: list[str] | None = None,
-        _autoload: bool = True,
         **kwargs: object,
     ) -> None:
         self._schemes = list(schemes) if schemes else ["pbkdf2_sha512"]
@@ -137,8 +136,12 @@ class CryptContext:
             self._rounds = new_rounds
 
     def copy(self) -> CryptContext:
-        ctx = CryptContext.__new__(CryptContext)
-        ctx._schemes = list(self._schemes)
-        ctx._deprecated = set(self._deprecated)
-        ctx._rounds = self._rounds
-        return ctx
+        # Rebuilt through the constructor rather than by listing the attributes:
+        # the hand-written version was silently wrong the day a fourth one was
+        # added, and a context that quietly loses a setting is a context that
+        # quietly stops deprecating a scheme.
+        return CryptContext(
+            self._schemes,
+            deprecated=sorted(self._deprecated),
+            pbkdf2_sha512__rounds=self._rounds,
+        )

@@ -1,23 +1,11 @@
 #!/usr/bin/env python3
 
-__docformat__ = "restructuredtext en"
-__all__ = [
-    "F_OK",
-    "R_OK",
-    "W_OK",
-    "X_OK",
-    "defpath",
-    "defpathext",
-    "dirname",
-    "pathsep",
-    "which",
-    "which_files",
-]
+__all__ = ["which", "which_files"]
 
 import pathlib
 import sys
-from os import F_OK, R_OK, W_OK, X_OK, access, defpath, environ, pathsep
-from os.path import dirname, split
+from os import F_OK, X_OK, access, defpath, environ, pathsep
+from os.path import split
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -80,7 +68,7 @@ def which_files(
         basepath = pathlib.Path(directory) / file
         for ext in extensions:
             fullpath = str(basepath) + ext
-            if pathlib.Path(fullpath).exists() and access(fullpath, mode):
+            if access(fullpath, mode):
                 yield fullpath
 
 
@@ -98,9 +86,3 @@ def which(
             file,
         )
     return found
-
-
-if __name__ == "__main__":
-    import doctest
-
-    doctest.testmod()

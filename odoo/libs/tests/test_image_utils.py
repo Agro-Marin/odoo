@@ -14,7 +14,27 @@ from odoo.libs.image.utils import (
 )
 
 SVG = b"<svg xmlns='http://www.w3.org/2000/svg'><rect width='1' height='1'/></svg>"
-WEBP = b"RIFF" + b"\x00" * 4 + b"WEBPVP8 " + b"\x00" * 20
+
+# A header with no image data behind it.  This used to be the whole WEBP
+# fixture, because ImageProcess recognised the RIFF magic and passed the bytes
+# through without ever decoding them.  It now means what it says: a truncated
+# file.
+TRUNCATED_WEBP = b"RIFF" + b"\x00" * 4 + b"WEBPVP8 " + b"\x00" * 20
+
+
+def _encode(fmt: str, size: tuple[int, int] = (8, 6), **kw) -> bytes:
+    stream = io.BytesIO()
+    Image.new("RGB", size, (10, 20, 30)).save(stream, fmt, **kw)
+    return stream.getvalue()
+
+
+def _encode_animated(
+    fmt: str, size: tuple[int, int] = (8, 6), frames: int = 3
+) -> bytes:
+    stream = io.BytesIO()
+    images = [Image.new("RGB", size, (i * 40, 0, 0)) for i in range(frames)]
+    images[0].save(stream, fmt, save_all=True, append_images=images[1:], duration=100)
+    return stream.getvalue()
 
 
 class TestOriginalFormatAlwaysDefined(unittest.TestCase):
@@ -28,7 +48,53 @@ class TestOriginalFormatAlwaysDefined(unittest.TestCase):
         self.assertEqual(ImageProcess(SVG).original_format, "")
 
     def test_webp_source(self):
-        self.assertEqual(ImageProcess(WEBP).original_format, "")
+        self.assertEqual(ImageProcess(_encode("WEBP")).original_format, "WEBP")
+
+    def test_a_truncated_webp_is_a_decode_error_not_a_passthrough(self):
+        with self.assertRaises(ImageDecodeError):
+            ImageProcess(TRUNCATED_WEBP)
+
+
+class TestWebpIsProcessedLikeAnyOtherRaster(unittest.TestCase):
+    """WebP used to be recognised by its RIFF magic and passed through whole.
+
+    Nothing reached the raster: `resize`, `crop_resize`, `colorize` and
+    `image_quality` were all no-ops, so `image_128` on a 4000x3000 WebP was the
+    untouched 4000x3000 original.  That branch existed only because
+    `Image._initialized = 2` hid Pillow's WebP plugin from the whole process.
+    """
+
+    def test_resize_actually_resizes(self):
+        source = _encode("WEBP", (200, 100))
+        out = ImageProcess(source).resize(50, 50).image_quality()
+        self.assertNotEqual(out, source)
+        self.assertEqual(Image.open(io.BytesIO(out)).size, (50, 25))
+
+    def test_the_format_is_preserved_rather_than_transcoded_to_jpeg(self):
+        out = ImageProcess(_encode("WEBP", (40, 40))).resize(20, 20).image_quality()
+        self.assertEqual(Image.open(io.BytesIO(out)).format, "WEBP")
+
+    def test_an_untouched_webp_is_still_returned_byte_identical(self):
+        source = _encode("WEBP", (40, 40))
+        self.assertEqual(ImageProcess(source).image_quality(), source)
+
+    def test_an_animated_webp_keeps_its_frames_through_a_resize(self):
+        source = _encode_animated("WEBP", (40, 40), frames=3)
+        processed = ImageProcess(source)
+        self.assertTrue(processed.animated)
+        out = processed.resize(20, 20).image_quality()
+        reloaded = Image.open(io.BytesIO(out))
+        self.assertEqual(reloaded.n_frames, 3)
+        self.assertEqual(reloaded.size, (20, 20))
+
+    def test_an_animated_gif_still_keeps_its_frames(self):
+        source = _encode_animated("GIF", (40, 40), frames=3)
+        out = ImageProcess(source).resize(20, 20).image_quality()
+        self.assertEqual(Image.open(io.BytesIO(out)).n_frames, 3)
+
+    def test_a_format_outside_preinit_is_decodable_again(self):
+        # TIFF is one of the 36 formats `Image._initialized = 2` used to hide.
+        self.assertEqual(ImageProcess(_encode("TIFF")).original_format, "TIFF")
 
     def test_svg_passthrough_still_works(self):
         self.assertEqual(ImageProcess(SVG).image_quality(), SVG)

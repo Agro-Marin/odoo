@@ -1,5 +1,17 @@
 from operator import itemgetter as _itemgetter
 
+__all__ = [
+    "batch_cache_fill",
+    "batch_cache_filter",
+    "batch_cache_get",
+    "batch_group_ids",
+    "scalar_cache_get",
+    "sort_ids_by_cache",
+    "sort_ids_by_values",
+    "to_prefetch_ids",
+]
+
+
 _itemgetter_1 = _itemgetter(1)
 
 _I64_MIN = -(2**63)
@@ -7,6 +19,12 @@ _I64_MAX = 2**63 - 1
 
 
 def _as_i64(value: object) -> int | None:
+    # `isinstance`, not `type(value) is int`, because `bool` is a subclass of
+    # `int` and the Rust export accepts `True` as a record id. This module is a
+    # *reference* for that export, not an improvement on it: tightening it here
+    # made the two disagree (`to_prefetch_ids(True, ...)` -> `(True,)` in Rust,
+    # `None` here) while production kept the old behaviour. Fix `odoo_rust`
+    # first if this is ever worth changing.
     if isinstance(value, int) and _I64_MIN <= value <= _I64_MAX:
         return value
     return None

@@ -80,3 +80,65 @@ class TestSqlInlined(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSqlNoArgConstructionStillValidatesPercent(unittest.TestCase):
+    """The `%` guard is a guard, not an optimisation.
+
+    A string with no `%` has no format directive and cannot raise, so testing
+    for one before running the format pass is exactly equivalent -- and it keeps
+    that pass off the common path, where it was 16-30% of the constructor.
+    """
+
+    def test_a_stray_percent_is_still_rejected(self):
+        with self.assertRaises(TypeError):
+            SQL("x LIKE 'a%b'")
+
+    def test_a_doubled_percent_is_still_accepted_and_preserved(self):
+        self.assertEqual(SQL("x LIKE 'a%%'").code, "x LIKE 'a%%'")
+
+    def test_percent_free_code_is_unchanged(self):
+        self.assertEqual(
+            SQL('SELECT id FROM "res_partner"').code, 'SELECT id FROM "res_partner"'
+        )
+        self.assertEqual(SQL("").code, "")
+
+    def test_identifier_still_builds(self):
+        self.assertEqual(
+            SQL.identifier("res_partner", "name").code, '"res_partner"."name"'
+        )
+
+
+class TestPgVarcharRejectsNonsense(unittest.TestCase):
+    def test_a_negative_size_is_not_silently_unbounded(self):
+        from odoo.libs.sql.utils import pg_varchar
+
+        with self.assertRaises(ValueError):
+            pg_varchar(-5)
+
+    def test_a_non_int_is_rejected_even_when_falsy(self):
+        from odoo.libs.sql.utils import pg_varchar
+
+        for bad in (0.0, 2.5, "10"):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                pg_varchar(bad)
+
+    def test_none_is_chars_own_spelling_of_unbounded(self):
+        from odoo.libs.sql.utils import pg_varchar
+
+        # `Char.size` defaults to None and `orm/fields/textual.py` asserts
+        # `size is None or isinstance(size, int)`, so None is in the contract.
+        self.assertEqual(pg_varchar(None), "VARCHAR")
+
+    def test_a_bool_is_not_a_size(self):
+        from odoo.libs.sql.utils import pg_varchar
+
+        with self.assertRaises(ValueError):
+            pg_varchar(True)
+
+    def test_ordinary_sizes_are_unchanged(self):
+        from odoo.libs.sql.utils import pg_varchar
+
+        self.assertEqual(pg_varchar(), "VARCHAR")
+        self.assertEqual(pg_varchar(0), "VARCHAR")
+        self.assertEqual(pg_varchar(64), "VARCHAR(64)")

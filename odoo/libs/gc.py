@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import Generator
 
-_logger = logging.getLogger("gc")
+_logger = logging.getLogger("odoo.gc")
 _gc_start: int = 0
 _gc_init_stats: list[dict[str, int]] = gc.get_stats()
 _gc_timings: list[int] = [0, 0, 0]

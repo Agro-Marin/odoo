@@ -2,6 +2,12 @@ import re
 
 from odoo.libs.json import dumps as json_dumps
 
+__all__ = [
+    "pattern_to_translated_trigram_pattern",
+    "value_to_translated_trigram_pattern",
+]
+
+
 _WILDCARD_ESCAPE_RE = re.compile(r"(_|%|\\)")
 _TRIGRAM_PATTERN_RE = re.compile(
     r"""

@@ -103,7 +103,6 @@ class FilesystemSessionStore(SessionStore):
     def __init__(
         self,
         path=None,
-        filename_template="werkzeug_%s.sess",
         session_class=None,
         renew_missing=False,
         mode=0o644,
@@ -112,15 +111,19 @@ class FilesystemSessionStore(SessionStore):
         if path is None:
             path = tempfile.gettempdir()
         self.path = path
-        assert not filename_template.endswith(_fs_transaction_suffix), (
-            f"filename templates may not end with {_fs_transaction_suffix}"
-        )
-        self.filename_template = filename_template
         self.renew_missing = renew_missing
         self.mode = mode
 
     def get_session_filename(self, sid):
-        return path.join(self.path, self.filename_template % sid)
+        # Upstream took a `filename_template` and interpolated it here. Odoo's
+        # subclass shards by the sid's first two characters instead and overrides
+        # this, so the template was configured, asserted about, and never read:
+        # constructing two stores over one directory with different templates
+        # produced the same filename. Every store in the tree is that subclass,
+        # so the layout is its to define and this base has no default to offer.
+        raise NotImplementedError(
+            f"{type(self).__name__} must define the on-disk session layout"
+        )
 
     def save(self, session):
         fn = self.get_session_filename(session.sid)

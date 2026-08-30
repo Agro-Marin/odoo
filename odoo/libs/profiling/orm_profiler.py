@@ -3,6 +3,11 @@ import logging
 import os
 import time
 
+__all__ = [
+    "OrmProfiler",
+]
+
+
 _logger = logging.getLogger("odoo.orm.profile")
 
 _orm_profiling_enabled: bool = os.environ.get("ODOO_ORM_PROFILE", "").lower() in (
@@ -78,7 +83,7 @@ class OrmProfiler:
         self._data: dict[_Key, _OpStats] = {}
         self._total_time: float = 0.0
 
-    def _record(
+    def record(
         self,
         operation: str,
         model_name: str,
@@ -94,15 +99,6 @@ class OrmProfiler:
         stats.records += record_count
         stats.time += elapsed
         self._total_time += elapsed
-
-    def record(
-        self,
-        operation: str,
-        model_name: str,
-        record_count: int,
-        elapsed: float,
-    ) -> None:
-        self._record(operation, model_name, record_count, elapsed)
 
     def report(self) -> None:
         if not self._data or not _logger.isEnabledFor(logging.WARNING):

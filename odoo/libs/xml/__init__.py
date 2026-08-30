@@ -1,8 +1,10 @@
-from .parsers import default_parser
+from .parsers import default_parser, fromstring, parse, strict_parser
 
 from .dict_to_xml import dict_to_xml
 
 from .dsig import (
+    DS_NS,
+    EXC_C14N_ALGORITHM,
     XmlSigError,
     canonicalize,
     canonicalize_signed_info,
@@ -28,6 +30,8 @@ from .template_inheritance import (
 )
 
 __all__ = [
+    "DS_NS",
+    "EXC_C14N_ALGORITHM",
     "PYTHON_ATTRIBUTES",
     "SKIPPED_ELEMENT_TYPES",
     "XPathExpressionError",
@@ -42,8 +46,11 @@ __all__ = [
     "default_parser",
     "dict_to_xml",
     "fill_reference_digests",
+    "fromstring",
     "locate_node",
+    "parse",
     "remove_control_characters",
     "remove_element",
     "resolve_reference",
+    "strict_parser",
 ]

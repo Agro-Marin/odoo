@@ -5,6 +5,12 @@ from lxml import etree
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+__all__ = [
+    "create_xml_node",
+    "create_xml_node_chain",
+    "remove_control_characters",
+]
+
 
 _CONTROL_CHAR_RE = re.compile(
     rb"[\x00-\x08\x0b\x0c\x0e-\x1f]"

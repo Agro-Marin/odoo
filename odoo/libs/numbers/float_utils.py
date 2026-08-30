@@ -1,4 +1,3 @@
-import builtins
 import math
 from decimal import Decimal
 from typing import Literal
@@ -18,9 +17,9 @@ __all__ = [
 ]
 
 
-def round(f: float) -> float:
-    roundf = builtins.round(f)
-    if builtins.round(f + 1) - roundf != 1:
+def _round_half_away_from_zero(f: float) -> float:
+    roundf = round(f)
+    if round(f + 1) - roundf != 1:
         return f + math.copysign(0.5, f)
     return math.copysign(roundf, f)
 
@@ -85,12 +84,18 @@ def _round_r(
     trunc_epsilon = min(epsilon, 0.5)
 
     if rounding_method == "HALF-UP":
-        result = round(normalized_value + math.copysign(half_epsilon, normalized_value))
+        result = _round_half_away_from_zero(
+            normalized_value + math.copysign(half_epsilon, normalized_value)
+        )
     elif rounding_method == "HALF-EVEN":
         integral = math.floor(normalized_value)
         remainder = abs(normalized_value - integral)
         is_half = remainder == 0.5 or abs(0.5 - remainder) < half_epsilon  # noqa: RUF069  see comment above
-        result = integral + (integral & 1) if is_half else round(normalized_value)
+        result = (
+            integral + (integral & 1)
+            if is_half
+            else _round_half_away_from_zero(normalized_value)
+        )
     elif rounding_method == "HALF-DOWN":
         integral = math.floor(abs(normalized_value))
         remainder = abs(normalized_value) - integral
@@ -98,7 +103,7 @@ def _round_r(
         if is_half:
             result = math.copysign(integral, normalized_value)
         else:
-            result = round(
+            result = _round_half_away_from_zero(
                 normalized_value - math.copysign(half_epsilon, normalized_value)
             )
     elif rounding_method == "UP":

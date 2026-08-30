@@ -1,20 +1,36 @@
 import inspect
 import io
 import logging
+import threading
+import zipfile
 from collections import OrderedDict
+from datetime import date, datetime
 
 import pytest
+from dateutil.relativedelta import relativedelta
+from lxml import etree
+from PIL import Image
 
 from odoo.libs._vendor.useragents import UserAgentParser
 from odoo.libs.barcode import check_barcode_encoding
 from odoo.libs.collections.frozen_dict import freehash
+from odoo.libs.collections.misc import Collector
 from odoo.libs.collections.ordered_set import LastOrderedSet, OrderedSet
 from odoo.libs.colors.conversions import get_saturation, hex_to_rgb
 from odoo.libs.datetime.tz import ZoneInfoNotFoundError, timezone
 from odoo.libs.email.parsing import formataddr
 from odoo.libs.filesystem.mimetypes import guess_mimetype
 from odoo.libs.filesystem.osutil import zip_dir
-from odoo.libs.hashing import CONTENT_DIGEST_LEN, content_hash
+from odoo.libs.hashing import (
+    _MT_MIN_BYTES,
+    CONTENT_DIGEST_LEN,
+    cache_hash,
+    cache_hasher,
+    content_hash,
+    content_hash_file,
+    content_hasher,
+    update_from_file,
+)
 from odoo.libs.image.utils import (
     IMAGE_MAX_RESOLUTION,
     ImageProcess,
@@ -23,12 +39,23 @@ from odoo.libs.image.utils import (
     get_webp_size,
 )
 from odoo.libs.json.orjson_wrapper import dumps as orjson_dumps
+from odoo.libs.locale.number_format import format_number
 from odoo.libs.logging import lower_logging, mute_logger
 from odoo.libs.lru import LRU
 from odoo.libs.numbers.float_utils import float_invert
+from odoo.libs.password import CryptContext
+from odoo.libs.sql.builder import SQL
 from odoo.libs.sql.utils import reverse_order
 from odoo.libs.text.address import street_split
-from odoo.libs.text.html import html_sanitize
+from odoo.libs.text.html import html2plaintext, html_sanitize
+from odoo.libs.text.strings import is_encodable
+from odoo.libs.web.urls import urljoin
+from odoo.libs.xml.dsig import (
+    EXC_C14N_ALGORITHM,
+    XmlSigError,
+    _c14n_params_from_transforms,
+    fill_reference_digests,
+)
 
 
 class TestGuessMimetypeDefault:
@@ -247,7 +274,7 @@ class TestFloatSplitSign:
         assert float_split(-0.001, 2) == (0, 0)
 
 
-class TestImageProcessWebpResolution:
+class TestGetWebpSize:
     @staticmethod
     def _webp_vp8x(width: int, height: int) -> bytes:
         def u24(n: int) -> bytes:
@@ -263,21 +290,56 @@ class TestImageProcessWebpResolution:
         )
         return b"RIFF" + (len(body) + 4).to_bytes(4, "little") + b"WEBP" + body
 
-    def test_oversized_webp_is_rejected(self):
+    def test_a_vp8x_canvas_is_read_from_the_header(self):
         side = int(IMAGE_MAX_RESOLUTION**0.5) + 100
-        src = self._webp_vp8x(side, side)
-        assert get_webp_size(src) == (side, side)
+        assert get_webp_size(self._webp_vp8x(side, side)) == (side, side)
+
+    def test_the_lossy_upscaling_hint_is_not_read_as_a_dimension(self):
+        """The top two bits of each VP8 16-bit field are a scale hint.
+
+        libwebp leaves them zero, so no encoder produces this -- but libwebp
+        *accepts* such a file and decodes it at its true size, and reading the
+        hint as part of the dimension turned 300x200 into 49452x49352, well
+        over IMAGE_MAX_RESOLUTION.
+        """
+        stream = io.BytesIO()
+        Image.new("RGB", (300, 200), (9, 9, 9)).save(stream, "WEBP", lossless=False)
+        raw = bytearray(stream.getvalue())
+        assert raw[12:16] == b"VP8 " and raw[15:16] == b" "
+        assert get_webp_size(bytes(raw)) == (300, 200)
+
+        for offset in (26, 28):
+            field = raw[offset] | (raw[offset + 1] << 8)
+            raw[offset + 1] = (((field & 0x3FFF) | (3 << 14)) >> 8) & 0xFF
+        assert get_webp_size(bytes(raw)) == (300, 200)
+
+
+class TestImageResolutionGuard:
+    """The guard reads the decoded size, so it is format-agnostic.
+
+    It used to have a WebP-only arm that worked off the header, because WebP
+    was never decoded at all.
+    """
+
+    @staticmethod
+    def _webp(size):
+        stream = io.BytesIO()
+        Image.new("RGB", size, (9, 9, 9)).save(stream, "WEBP")
+        return stream.getvalue()
+
+    def test_oversized_is_rejected(self, monkeypatch):
+        monkeypatch.setattr("odoo.libs.image.utils.IMAGE_MAX_RESOLUTION", 100.0)
         with pytest.raises(ImageTooLargeError):
-            ImageProcess(src, verify_resolution=True)
+            ImageProcess(self._webp((40, 40)), verify_resolution=True)
 
-    def test_reasonable_webp_still_accepted(self):
-        src = self._webp_vp8x(64, 64)
-        assert ImageProcess(src, verify_resolution=True).image is False
+    def test_reasonable_is_accepted_and_decoded(self):
+        processed = ImageProcess(self._webp((64, 64)), verify_resolution=True)
+        assert processed.image is not False
+        assert processed.original_format == "WEBP"
 
-    def test_oversized_webp_accepted_when_not_verifying(self):
-        side = int(IMAGE_MAX_RESOLUTION**0.5) + 100
-        src = self._webp_vp8x(side, side)
-        assert ImageProcess(src, verify_resolution=False).image is False
+    def test_oversized_accepted_when_not_verifying(self, monkeypatch):
+        monkeypatch.setattr("odoo.libs.image.utils.IMAGE_MAX_RESOLUTION", 100.0)
+        assert ImageProcess(self._webp((40, 40)), verify_resolution=False).image
 
 
 class TestLruCountSetter:
@@ -500,3 +562,570 @@ class TestContentHashToleranceDoesNotDependOnBlake3:
 
     def test_real_content_is_unaffected(self):
         assert content_hash(b"x") != content_hash(b"")
+
+
+class TestIntervalsSortKeyStopsBeforeThePayload:
+    """A sort key must never reach the payload.
+
+    `Intervals` sorted `(value, flag, records)` triples whole, so a tie on the
+    first two fell through to comparing recordsets -- `BaseModel.__lt__` is a
+    subset partial order and returns NotImplemented across models, i.e.
+    TypeError.
+    """
+
+    class Payload:
+        def __init__(self, name, ids):
+            self._name, self.ids = name, ids
+
+        def union(self, other):
+            return TestIntervalsSortKeyStopsBeforeThePayload.Payload(
+                self._name, self.ids | other.ids
+            )
+
+        def __lt__(self, other):
+            raise AssertionError("the sort reached the payload")
+
+        __gt__ = __lt__
+
+    def _p(self, name, ids):
+        return self.Payload(name, ids)
+
+    def test_identical_endpoints_do_not_compare_payloads(self):
+        from odoo.libs.intervals import Intervals
+
+        a, b = datetime(2026, 1, 1), datetime(2026, 1, 2)
+        result = Intervals([(a, b, self._p("m.a", {1})), (a, b, self._p("m.b", {2}))])
+        assert len(result) == 1
+
+    def test_keep_distinct_pre_sort_does_not_compare_payloads(self):
+        from odoo.libs.intervals import Intervals
+
+        a, b = datetime(2026, 1, 1), datetime(2026, 1, 2)
+        result = Intervals(
+            [(a, b, self._p("m.a", {1})), (a, b, self._p("m.b", {2}))],
+            keep_distinct=True,
+        )
+        assert len(result) == 1
+
+    def test_merge_does_not_compare_payloads(self):
+        from odoo.libs.intervals import Intervals
+
+        a, b = datetime(2026, 1, 1), datetime(2026, 1, 2)
+        left = Intervals([(a, b, self._p("m.a", {1}))])
+        right = Intervals([(a, b, self._p("m.b", {2}))])
+        assert len(left & right) == 1
+        assert len(left - right) == 0
+
+    def test_ordinary_merging_is_unchanged(self):
+        from odoo.libs.intervals import Intervals
+
+        d = datetime
+        got = Intervals(
+            [
+                (d(2026, 1, 1), d(2026, 1, 3), self._p("m", {1})),
+                (d(2026, 1, 2), d(2026, 1, 5), self._p("m", {2})),
+                (d(2026, 1, 8), d(2026, 1, 9), self._p("m", {3})),
+            ]
+        )
+        assert [(s, e) for s, e, _ in got] == [
+            (d(2026, 1, 1), d(2026, 1, 5)),
+            (d(2026, 1, 8), d(2026, 1, 9)),
+        ]
+
+
+class TestCollectorAnswersConsistently:
+    def test_absent_key_reads_as_the_empty_tuple_every_way(self):
+        from odoo.libs.collections.misc import Collector
+
+        c: Collector = Collector()
+        assert c["x"] == ()
+        assert c.get("x") == ()
+        assert c.pop("x") == ()
+
+    def test_an_explicit_default_still_wins(self):
+        from odoo.libs.collections.misc import Collector
+
+        c: Collector = Collector()
+        assert c.get("x", None) is None
+        assert c.pop("x", "sentinel") == "sentinel"
+
+    def test_membership_still_means_a_non_empty_tuple(self):
+        from odoo.libs.collections.misc import Collector
+
+        c: Collector = Collector()
+        c["a"] = (1,)
+        c["b"] = ()
+        assert "a" in c
+        assert "b" not in c
+
+    def test_present_keys_are_unaffected(self):
+        from odoo.libs.collections.misc import Collector
+
+        c: Collector = Collector()
+        c.add("a", 1)
+        c.add("a", 2)
+        assert c["a"] == c.get("a") == (1, 2)
+        assert c.pop("a") == (1, 2)
+        assert "a" not in c
+
+
+class TestStackMapIteratesInInsertionOrder:
+    def test_order_is_deterministic_not_hash_order(self):
+        from odoo.libs.collections.misc import StackMap
+
+        keys = ["z", "a", "m", "q", "b", "k"]
+        sm: StackMap = StackMap(dict.fromkeys(keys, 1))
+        sm.pushmap({"y": 2})
+        assert list(sm) == [*keys, "y"]
+
+    def test_a_shadowed_key_keeps_its_first_position(self):
+        from odoo.libs.collections.misc import StackMap
+
+        sm: StackMap = StackMap({"z": 1, "a": 2})
+        sm.pushmap({"z": 3, "b": 4})
+        assert list(sm) == ["z", "a", "b"]
+        assert sm["z"] == 3
+        assert len(sm) == 3
+
+
+class TestHtml2PlaintextHalvesRunsRatherThanFlatteningThem:
+    """Both whitespace collapses in `_markup_to_structured_text` are a single
+    non-overlapping `str.replace`, which HALVES a run: three spaces become two,
+    four become two, five become three. That reads like an incomplete
+    `re.sub(" {2,}", " ")` and is not.
+
+    `f57cbefef48` "fixed" the space one into a regex and took `/base` red on
+    `test_ir_mail_server.py::test_content_mail_body`, which expects
+    "test6   test7" and "test8    test9". The newline one is pinned the same way
+    by `TestHtml2PlaintextKeepsStructure`. Neither is incidental; this class
+    exists so the next reader does not make the change a third time.
+    """
+
+    def test_a_run_of_spaces_is_halved_not_flattened(self):
+        assert html2plaintext("<p>a  b</p>") == "a b"
+        assert html2plaintext("<p>a   b</p>") == "a  b"
+        assert html2plaintext("<p>a    b</p>") == "a  b"
+        assert html2plaintext("<p>a     b</p>") == "a   b"
+
+    def test_a_single_space_is_untouched(self):
+        assert html2plaintext("<p>a b</p>") == "a b"
+
+    def test_the_exact_spacing_base_pins_over_smtp(self):
+        # The two runs from MISC_HTML_SOURCE that test_content_mail_body asserts.
+        assert html2plaintext("<p>test6      test7</p>") == "test6   test7"
+        assert html2plaintext("<p>test8        test9</p>") == "test8    test9"
+
+    def test_a_break_between_blocks_still_makes_a_blank_line(self):
+        assert html2plaintext("<h2>A</h2>\n<br/>\n<h3>B</h3>") == "**A**\n\n*B*"
+
+    def test_the_reference_list_keeps_its_blank_line(self):
+        out = html2plaintext('<p>see <a href="http://x/">x</a></p>')
+        assert "\n\n[1] http://x/" in out
+
+
+class TestDateRangeRejectsASubDayStep:
+    def test_a_sub_day_step_over_dates_names_itself(self):
+        from odoo.libs.datetime.date_utils import date_range
+
+        with pytest.raises(ValueError, match="entire days"):
+            list(
+                date_range(date(2024, 1, 1), date(2024, 1, 3), relativedelta(hours=13))
+            )
+
+    def test_whole_day_steps_over_dates_still_work(self):
+        from odoo.libs.datetime.date_utils import date_range
+
+        got = list(
+            date_range(date(2024, 1, 1), date(2024, 1, 5), relativedelta(days=2))
+        )
+        assert got == [date(2024, 1, 1), date(2024, 1, 3), date(2024, 1, 5)]
+
+    def test_sub_day_steps_over_datetimes_are_still_allowed(self):
+        from odoo.libs.datetime.date_utils import date_range
+
+        got = list(
+            date_range(
+                datetime(2024, 1, 1, 0), datetime(2024, 1, 1, 3), relativedelta(hours=1)
+            )
+        )
+        assert len(got) == 4
+
+
+class TestEmailDomainExtractUsesTheLastAt:
+    def test_a_quoted_local_part_containing_an_at(self):
+        from odoo.libs.email.parsing import email_domain_extract
+
+        assert email_domain_extract('"a@b"@example.com') == "example.com"
+
+    def test_ordinary_addresses_are_unchanged(self):
+        from odoo.libs.email.parsing import email_domain_extract
+
+        assert email_domain_extract("x@y.com") == "y.com"
+        assert email_domain_extract("not an email") is False
+
+
+class TestWorkingOnDatabaseRestoresAnExplicitNone:
+    def test_an_explicit_none_is_put_back_not_deleted(self):
+        import threading
+
+        from odoo.libs.worker_thread import working_on_database
+
+        thread = threading.current_thread()
+        thread.dbname = None
+        try:
+            with working_on_database("scratch"):
+                assert thread.dbname == "scratch"
+            assert hasattr(thread, "dbname"), "an explicit None was deleted"
+            assert thread.dbname is None
+        finally:
+            del thread.dbname
+
+    def test_an_absent_attribute_is_still_removed(self):
+        import threading
+
+        from odoo.libs.worker_thread import working_on_database
+
+        thread = threading.current_thread()
+        assert not hasattr(thread, "dbname")
+        with working_on_database("scratch"):
+            assert thread.dbname == "scratch"
+        assert not hasattr(thread, "dbname")
+
+    def test_a_real_previous_value_is_restored(self):
+        import threading
+
+        from odoo.libs.worker_thread import working_on_database
+
+        thread = threading.current_thread()
+        thread.dbname = "outer"
+        try:
+            with working_on_database("inner"):
+                assert thread.dbname == "inner"
+            assert thread.dbname == "outer"
+        finally:
+            del thread.dbname
+
+
+class TestOpenContainerMimetypeIsValidated:
+    """The OCF `mimetype` member is whatever the zip's author put there.
+
+    `re.match` anchors only at the start and the raw read was returned with it,
+    so a member of "text/plain\\r\\nX-Injected: yes" became the attachment's
+    mimetype -- and serving that raised ValueError out of werkzeug's header
+    validation. Reachable when libmagic is absent, which is a supported build.
+    """
+
+    @staticmethod
+    def _ocf(declared: str) -> bytes:
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as archive:
+            archive.writestr("mimetype", declared)
+            archive.writestr("content.xml", "<a/>")
+        return buf.getvalue()
+
+    @pytest.mark.parametrize(
+        "declared",
+        [
+            "text/plain\r\nX-Injected: yes",
+            "text/plain garbage",
+            'text/plain; charset="a"b',
+            "application/vnd.oasis.opendocument.text trailing",
+        ],
+    )
+    def test_a_member_that_is_not_exactly_a_mimetype_is_refused(
+        self, declared, monkeypatch
+    ):
+        monkeypatch.setattr("odoo.libs.filesystem.mimetypes.magic", None)
+        assert guess_mimetype(self._ocf(declared)) == "application/zip"
+
+    def test_a_real_open_document_is_still_identified(self, monkeypatch):
+        monkeypatch.setattr("odoo.libs.filesystem.mimetypes.magic", None)
+        declared = "application/vnd.oasis.opendocument.text"
+        assert guess_mimetype(self._ocf(declared)) == declared
+
+
+class TestFormatNumberLeavesLiteralTextAlone:
+    """Only the conversion's own output carries a decimal point.
+
+    Searching the whole formatted string for one rewrote the caller's literal
+    periods too: `"%.2f sec."` on 1234.5 came out `"1.234,50 sec,"`.
+    """
+
+    class _Lang:
+        decimal_point = ","
+        thousands_sep = "."
+        grouping = "[3,0]"
+
+    @pytest.mark.parametrize(
+        ("spec", "value", "expected"),
+        [
+            ("%.2f", 1234.5, "1.234,50"),
+            ("%.2f sec.", 1234.5, "1.234,50 sec."),
+            ("%.2f EUR", 1234.5, "1.234,50 EUR"),
+            ("%.2f%%", 1234.5, "1.234,50%"),
+            ("%d units", 1234567, "1.234.567 units"),
+            ("%%%.2f", 1234.5, "%1.234,50"),
+            ("%e", 1e20, "1,000000e+20"),
+            ("%g", 1e20, "1e+20"),
+        ],
+    )
+    def test_grouping(self, spec, value, expected):
+        assert format_number(spec, value, self._Lang(), grouping=True) == expected
+
+    def test_without_grouping_the_literal_period_also_survives(self):
+        assert format_number("%.2f sec.", 1234.5, self._Lang()) == "1234,50 sec."
+
+
+class TestUrljoinPrefixIsMeasuredInSegments:
+    def test_a_sibling_path_is_refused_not_re_rooted(self):
+        # `startswith` accepted this and `removeprefix` produced
+        # "http://h/a/bc/d", a third URL that is neither input.
+        with pytest.raises(ValueError, match="begin with base path"):
+            urljoin("http://h/a", "http://h/abc/d")
+
+    def test_a_real_descendant_is_still_accepted(self):
+        assert urljoin("http://h/a", "http://h/a/b") == "http://h/a/b"
+
+    def test_the_base_path_itself_is_a_prefix_of_itself(self):
+        assert urljoin("http://h/a", "http://h/a") == "http://h/a"
+
+    def test_relative_extras_are_unaffected(self):
+        assert urljoin("https://x.com/odoo", "/web/login") == (
+            "https://x.com/odoo/web/login"
+        )
+
+
+class TestSqlJoinKeepsTheSeparatorsToFlush:
+    class _Field:
+        def __repr__(self):
+            return "<field>"
+
+    def test_a_separator_without_params_reports_its_fields(self):
+        field = self._Field()
+        joined = SQL(" AND ", to_flush=field).join([SQL("a=1"), SQL("b=2")])
+        # One per gap, which is what the parameterised branch already produced.
+        assert list(joined.to_flush) == [field]
+        assert joined.code == "a=1 AND b=2"
+
+    def test_the_two_branches_agree(self):
+        field = self._Field()
+        items = [SQL("a"), SQL("b"), SQL("c")]
+        flat = SQL(", ", to_flush=field).join(items)
+        parameterised = SQL("%s", ", ", to_flush=field).join(items)
+        assert list(flat.to_flush) == list(parameterised.to_flush)
+
+
+class TestCollectorInvariantHoldsForEveryWriter:
+    """The "absent means ()" invariant was enforced by __setitem__ alone.
+
+    `dict.__init__`, `dict.update` and `dict.setdefault` all bypass it, so a
+    Collector built from a mapping kept the caller's own lists and `add()` then
+    raised TypeError concatenating a tuple to one.
+    """
+
+    def test_construction_from_a_mapping(self):
+        collector = Collector({"a": [], "b": [1, 2]})
+        assert dict(collector) == {"b": (1, 2)}
+        assert collector["a"] == ()
+        assert "a" not in collector
+
+    def test_update_and_setdefault(self):
+        collector = Collector()
+        collector.update({"a": [], "b": [1]})
+        collector.setdefault("c", [])
+        collector.setdefault("d", [2])
+        assert dict(collector) == {"b": (1,), "d": (2,)}
+
+    def test_add_works_on_a_collector_built_from_a_mapping(self):
+        collector = Collector({"b": [1, 2]})
+        collector.add("b", 3)
+        assert collector["b"] == (1, 2, 3)
+
+    def test_construction_from_pairs_still_works(self):
+        assert dict(Collector([("a", [1]), ("b", ())])) == {"a": (1,)}
+
+
+class TestLruViewsDoNotWalkThroughGetitem:
+    """MutableMapping's views re-read every key through `__getitem__`.
+
+    That touches the recency order on a read-only inspection, and reads a key a
+    concurrent `_trim()` may already have evicted -- three readers doing
+    `dict(cache.items())` against three writers raised KeyError within seconds.
+    """
+
+    def test_items_does_not_touch_the_recency_order(self):
+        cache = LRU(3)
+        cache["a"], cache["b"], cache["c"] = 1, 2, 3
+        moved = []
+
+        class Counting(OrderedDict):
+            def move_to_end(self, key, last=True):
+                moved.append(key)
+                return super().move_to_end(key, last)
+
+        cache._map = Counting(cache._map)
+        assert dict(cache.items()) == {"a": 1, "b": 2, "c": 3}
+        assert list(cache.values()) == [1, 2, 3]
+        assert list(cache.keys()) == ["a", "b", "c"]
+        assert moved == []
+
+    def test_iteration_survives_concurrent_eviction(self):
+        cache = LRU(50)
+        for i in range(50):
+            cache[i] = i
+        errors: list[str] = []
+        stop = threading.Event()
+
+        def evict():
+            i = 1000
+            while not stop.is_set():
+                cache[i] = i
+                i += 1
+
+        def read():
+            while not stop.is_set():
+                try:
+                    dict(cache.items())
+                except Exception as exc:
+                    errors.append(type(exc).__name__)
+                    return
+
+        threads = [threading.Thread(target=evict) for _ in range(2)]
+        threads += [threading.Thread(target=read) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        stop.wait(1.5)
+        stop.set()
+        for thread in threads:
+            thread.join()
+        assert errors == []
+
+
+class TestDsigTransformOrderIsIrrelevant:
+    DS = "http://www.w3.org/2000/09/xmldsig#"
+    ENVELOPED = f"{DS}enveloped-signature"
+
+    def _reference(self, *algorithms: str) -> etree._Element:
+        transforms = "".join(f'<Transform Algorithm="{a}"/>' for a in algorithms)
+        return etree.fromstring(
+            f'<Reference xmlns="{self.DS}" URI=""><Transforms>{transforms}'
+            f"</Transforms></Reference>".encode()
+        )
+
+    def test_exclusive_c14n_is_found_after_an_enveloped_transform(self):
+        # The ordinary XAdES pair. Reading `transforms[0]` reported inclusive
+        # c14n, which digests a different octet stream.
+        assert _c14n_params_from_transforms(
+            self._reference(self.ENVELOPED, EXC_C14N_ALGORITHM)
+        ) == (True, [])
+
+    def test_it_is_still_found_when_it_comes_first(self):
+        assert _c14n_params_from_transforms(
+            self._reference(EXC_C14N_ALGORITHM, self.ENVELOPED)
+        ) == (True, [])
+
+    def test_a_reference_without_it_is_still_inclusive(self):
+        assert _c14n_params_from_transforms(self._reference(self.ENVELOPED)) == (
+            False,
+            [],
+        )
+
+    def test_the_prefix_list_comes_from_the_c14n_transform_not_the_first(self):
+        reference = etree.fromstring(
+            f'<Reference xmlns="{self.DS}" URI=""><Transforms>'
+            f'<Transform Algorithm="{self.ENVELOPED}"/>'
+            f'<Transform Algorithm="{EXC_C14N_ALGORITHM}">'
+            f'<InclusiveNamespaces PrefixList="soap wcf"/>'
+            f"</Transform></Transforms></Reference>".encode()
+        )
+        assert _c14n_params_from_transforms(reference) == (True, ["soap", "wcf"])
+
+    def test_a_reference_with_no_digest_value_names_itself(self):
+        signed_info = etree.fromstring(
+            f'<SignedInfo xmlns="{self.DS}"><Reference URI="#x"/></SignedInfo>'.encode()
+        )
+        with pytest.raises(XmlSigError, match="no <ds:DigestValue>"):
+            fill_reference_digests(signed_info)
+
+
+class TestIsEncodableEmptyString:
+    def test_the_empty_string_encodes_in_every_charset(self):
+        # This answered False; every call site happened to mask it with its own
+        # truthiness test first.
+        assert is_encodable("") is True
+        assert is_encodable("", "ascii") is True
+
+    def test_real_values_are_unaffected(self):
+        assert is_encodable("abc") is True
+        assert is_encodable("\u4e2d\u6587") is False
+
+
+class TestHashingOneShotAgreesWithIncremental:
+    """`ir.attachment` hashes the same bytes both ways and compares the results.
+
+    `content_hash(data)` runs BLAKE3 multi-threaded above 1 MiB and
+    single-threaded below; `content_hasher()` never does, and
+    `content_hash_file` always does. Nothing pinned that the four agree, and
+    they decide whether two attachments are the same file.
+    """
+
+    SIZES = [0, 1, 11, _MT_MIN_BYTES - 1, _MT_MIN_BYTES, 2 * _MT_MIN_BYTES]
+
+    @pytest.mark.parametrize("size", SIZES)
+    def test_every_route_to_a_content_digest_agrees(self, size, tmp_path):
+        data = bytes(range(256)) * (size // 256) + bytes(range(size % 256))
+        assert len(data) == size
+        path = tmp_path / "blob"
+        path.write_bytes(data)
+
+        incremental = content_hasher()
+        incremental.update(data)
+        from_file = content_hasher()
+        update_from_file(from_file, path)
+
+        digests = {
+            content_hash(data),
+            incremental.hexdigest(),
+            content_hash_file(path),
+            from_file.hexdigest(),
+        }
+        assert len(digests) == 1, f"four routes, {len(digests)} digests: {digests}"
+        assert len(digests.pop()) == CONTENT_DIGEST_LEN
+
+    @pytest.mark.parametrize("size", SIZES)
+    def test_the_cache_digest_agrees_with_its_own_hasher(self, size):
+        data = b"\xa5" * size
+        incremental = cache_hasher()
+        incremental.update(data)
+        assert cache_hash(data) == incremental.hexdigest()
+
+    def test_different_content_still_gives_different_digests(self):
+        # Without this the agreement above could hold on a constant.
+        assert content_hash(b"a") != content_hash(b"b")
+        assert content_hash(b"") != content_hash(b"\0")
+
+
+class TestCryptContextCopyKeepsEverySetting:
+    def test_a_copy_carries_the_settings_and_is_independent(self):
+        # `copy` used to build through `__new__` and assign three attributes by
+        # name, so a fourth setting would have been dropped in silence.
+        original = CryptContext(
+            ["pbkdf2_sha512", "plaintext"],
+            deprecated=["auto"],
+            pbkdf2_sha512__rounds=1000,
+        )
+        copy = original.copy()
+        assert copy.schemes() == original.schemes()
+        assert copy._deprecated == original._deprecated
+        assert copy._rounds == original._rounds
+
+        copy.update(pbkdf2_sha512__rounds=99, schemes=["plaintext"])
+        assert original._rounds == 1000
+        assert original.schemes() == ["pbkdf2_sha512", "plaintext"]
+
+    def test_a_copy_still_hashes_and_verifies(self):
+        copy = CryptContext(pbkdf2_sha512__rounds=1000).copy()
+        hashed = copy.hash("secret")
+        assert copy.verify("secret", hashed)
+        assert not copy.verify("wrong", hashed)
+        assert copy.verify_and_update("secret", hashed) == (True, None)

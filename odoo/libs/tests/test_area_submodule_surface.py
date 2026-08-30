@@ -172,19 +172,30 @@ def _loose_modules() -> list[pathlib.Path]:
     )
 
 
+VENDORED = "_vendor"
+"""Third-party code, kept as it was received; its surface is not ours to declare."""
+
+
+def _area_submodules() -> list[pathlib.Path]:
+    return sorted(
+        p
+        for p in _LIBS.glob("*/*.py")
+        if p.stem != "__init__" and "tests" not in p.parts and VENDORED not in p.parts
+    )
+
+
+def _declares_all(path: pathlib.Path) -> bool:
+    return "__all__" in {
+        t.id
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+        if isinstance(node, ast.Assign)
+        for t in node.targets
+        if isinstance(t, ast.Name)
+    }
+
+
 def test_every_loose_top_level_module_declares_all():
-    missing = [
-        p.name
-        for p in _loose_modules()
-        if "__all__"
-        not in {
-            t.id
-            for node in ast.walk(ast.parse(p.read_text()))
-            if isinstance(node, ast.Assign)
-            for t in node.targets
-            if isinstance(t, ast.Name)
-        }
-    ]
+    missing = [p.name for p in _loose_modules() if not _declares_all(p)]
     assert missing == [], (
         f"loose top-level modules in libs/ with no __all__: {missing}. "
         f"Every area package declares one; a module that does not publishes its "
@@ -192,10 +203,111 @@ def test_every_loose_top_level_module_declares_all():
     )
 
 
+def test_every_area_submodule_declares_all():
+    """The same rule, one level down.
+
+    It used to stop at the loose modules, and the rationale above applies
+    verbatim inside an area: `from odoo.libs.email.parsing import *` re-published
+    `base64`, `contextlib`, `re`, `idna` and `urlparse` because that module
+    declared nothing. `test_accidental_submodule_surface_is_bounded` is not a
+    substitute -- it counts modules, not the names inside them.
+    """
+    missing = [
+        str(p.relative_to(_LIBS)) for p in _area_submodules() if not _declares_all(p)
+    ]
+    assert missing == [], (
+        f"area submodules with no __all__: {missing}. Declare the names the "
+        f"module means to publish; imports are not part of them."
+    )
+
+
+# Names a submodule publishes that its area deliberately does not re-export.
+# Everything here is reachable as `odoo.libs.<area>.<module>.<name>`; the point
+# is that the area's own surface stays the smaller, curated one.
+UNPROMOTED_SUBMODULE_EXPORTS: dict[str, set[str]] = {
+    "filesystem/appdirs.py": {
+        "AppDirs",
+        "site_config_dir",
+        "site_data_dir",
+        "user_cache_dir",
+        "user_config_dir",
+        "user_data_dir",
+        "user_log_dir",
+    },
+    "filesystem/osutil.py": {
+        "WINDOWS_RESERVED",
+        "clean_filename",
+        "is_running_as_nt_service",
+        "zip_dir",
+    },
+    "filesystem/which.py": {"which_files"},
+}
+
+
+def _all_of(path: pathlib.Path) -> set[str] | None:
+    for node in ast.parse(path.read_text(encoding="utf-8")).body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(t, ast.Name) and t.id == "__all__" for t in node.targets
+        ):
+            try:
+                return set(ast.literal_eval(node.value))
+            except ValueError:
+                return None
+    return None
+
+
+def test_every_submodule_export_is_reachable_from_its_area():
+    """A submodule's `__all__` is a subset of its area's, or pinned as private.
+
+    `test_every_area_submodule_declares_all` checks only that `__all__` exists,
+    which let the two drift into different meanings: "the module's contents"
+    down here and "the published surface" up in the area `__init__`. Seven
+    submodules had accumulated names the area never re-exported and nothing
+    outside libs ever imported -- `Granularity`, `DS_NS`, `IDENT_RE`,
+    `base64vlq_encode`, and `which`'s re-exported stdlib constants among them.
+    """
+    drifted: dict[str, list[str]] = {}
+    for path in _area_submodules():
+        rel = str(path.relative_to(_LIBS))
+        names = _all_of(path)
+        if names is None:
+            continue
+        area_names = _all_of(_LIBS / path.parent.name / "__init__.py") or set()
+        extra = names - area_names - UNPROMOTED_SUBMODULE_EXPORTS.get(rel, set())
+        if extra:
+            drifted[rel] = sorted(extra)
+    assert drifted == {}, (
+        f"submodules publishing names their area does not re-export: {drifted}. "
+        f"Either promote the name into the area's __all__ -- which is what makes "
+        f"it public -- or take it out of the submodule's, which is not a surface "
+        f"anyone imports through. Pin it in UNPROMOTED_SUBMODULE_EXPORTS only "
+        f"when it is deliberately reachable by its full path and no other way."
+    )
+
+
+def test_the_unpromoted_pin_is_not_stale():
+    """A pinned name that no longer exists would hide a real drift later."""
+    stale: dict[str, list[str]] = {}
+    for rel, pinned in UNPROMOTED_SUBMODULE_EXPORTS.items():
+        names = _all_of(_LIBS / rel) or set()
+        if gone := sorted(pinned - names):
+            stale[rel] = gone
+    assert stale == {}, f"pinned names that are no longer published: {stale}"
+
+
 def test_the_loose_module_scan_is_not_vacuous():
     names = {p.name for p in _loose_modules()}
     assert len(names) >= 10, f"only found {len(names)} loose modules: {names}"
     assert "lru.py" in names and "facade.py" in names
+
+
+def test_the_area_submodule_scan_is_not_vacuous():
+    names = {str(p.relative_to(_LIBS)) for p in _area_submodules()}
+    assert len(names) >= 30, f"only found {len(names)} area submodules: {names}"
+    assert "sql/builder.py" in names and "email/parsing.py" in names
+    assert not any(p.startswith(f"{VENDORED}/") for p in names), (
+        "vendored modules are exempt and must not be scanned"
+    )
 
 
 def test_the_scan_is_not_vacuous():

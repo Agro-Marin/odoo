@@ -4,6 +4,19 @@ from copy import deepcopy
 
 from lxml import etree
 
+from .parsers import fromstring
+
+__all__ = [
+    "DS_NS",
+    "EXC_C14N_ALGORITHM",
+    "XmlSigError",
+    "canonicalize",
+    "canonicalize_signed_info",
+    "fill_reference_digests",
+    "resolve_reference",
+]
+
+
 DS_NS = "http://www.w3.org/2000/09/xmldsig#"
 EXC_C14N_ALGORITHM = "http://www.w3.org/2001/10/xml-exc-c14n#"
 
@@ -21,7 +34,10 @@ def canonicalize(
     inclusive_ns_prefixes: list[str] | None = None,
 ) -> bytes:
     if isinstance(node, str):
-        node = etree.fromstring(node)
+        # The hardened parser, not the thread's default: this is a third-party
+        # signed document, and whether entity expansion was on used to depend
+        # on which thread reached it.
+        node = fromstring(node)
     return etree.tostring(
         node,
         method="c14n",
@@ -32,11 +48,26 @@ def canonicalize(
 
 
 def _c14n_params_from_transforms(reference: etree._Element) -> tuple[bool, list[str]]:
-    transforms = reference.findall(".//{*}Transform")
-    if not transforms or transforms[0].get("Algorithm") != EXC_C14N_ALGORITHM:
+    """Whether this Reference canonicalises exclusively, and with what prefixes.
+
+    Any Transform may be the c14n one. This read `transforms[0]`, so the
+    ordinary XAdES pair -- `<Transform enveloped-signature/>` followed by
+    `<Transform exc-c14n/>` -- was reported as inclusive c14n, which digests a
+    different octet stream. No template in the workspace emits two transforms
+    per Reference today, which is why nothing had caught it.
+    """
+    exclusive = next(
+        (
+            transform
+            for transform in reference.findall(".//{*}Transform")
+            if transform.get("Algorithm") == EXC_C14N_ALGORITHM
+        ),
+        None,
+    )
+    if exclusive is None:
         return False, []
     prefix_list = []
-    inclusive_ns = transforms[0].find(".//{*}InclusiveNamespaces")
+    inclusive_ns = exclusive.find(".//{*}InclusiveNamespaces")
     if inclusive_ns is not None and inclusive_ns.get("PrefixList"):
         prefix_list = inclusive_ns.get("PrefixList").split(" ")
     return True, prefix_list
@@ -114,6 +145,14 @@ def fill_reference_digests(
     algorithm: str = "sha256",
 ) -> None:
     for reference in signed_info.findall("ds:Reference", namespaces=_NSMAP):
+        digest_value = reference.find("ds:DigestValue", namespaces=_NSMAP)
+        if digest_value is None:
+            # Every other failure in this module is an XmlSigError naming the
+            # document; this one used to be an AttributeError on None.
+            raise XmlSigError(
+                f"Reference {reference.get('URI', '')!r} has no <ds:DigestValue> "
+                f"to fill in"
+            )
         octets = resolve_reference(reference.get("URI", ""), reference, base_uri)
         digest = hashlib.new(algorithm, octets).digest()
-        reference.find("ds:DigestValue", namespaces=_NSMAP).text = b64encode(digest)
+        digest_value.text = b64encode(digest).decode("ascii")

@@ -14,6 +14,8 @@ import docutils.core
 from docutils import parsers, readers, writers
 from docutils.writers.html4css1 import Writer as HtmlWriter
 
+from odoo.libs.rst import SAFE_SETTINGS
+
 if typing.TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
@@ -30,7 +32,7 @@ __all__ = [
     "parse_signature",
     "render_children_html",
     "render_docstring",
-    "render_html",
+    "render_doctree_html",
     "stringify_annotation",
     "to_doctree",
 ]
@@ -71,12 +73,8 @@ Want to help fix the docstrings? Check out the test_docstring linter!
 """
 {}'''
 
-_SAFE_SETTINGS: typing.Final[dict[str, typing.Any]] = {
-    "report_level": 3,
-    "halt_level": 5,
-    "raw_enabled": False,
-    "file_insertion_enabled": False,
-}
+_HTML_DOC_HEAD = b'\n</head>\n<body>\n<div class="document">'
+_HTML_DOC_TAIL = b"</div>\n</body>\n</html>\n"
 
 
 def _make_settings(writer_name: str, overrides: dict[str, typing.Any]) -> typing.Any:
@@ -90,12 +88,12 @@ def _make_settings(writer_name: str, overrides: dict[str, typing.Any]) -> typing
 
 @functools.cache
 def _tree_settings() -> typing.Any:
-    return _make_settings("pseudoxml", dict(_SAFE_SETTINGS))
+    return _make_settings("pseudoxml", dict(SAFE_SETTINGS))
 
 
 @functools.cache
 def _html_settings() -> typing.Any:
-    return _make_settings("html", {**_SAFE_SETTINGS, "embed_stylesheet": False})
+    return _make_settings("html", {**SAFE_SETTINGS, "embed_stylesheet": False})
 
 
 @functools.cache
@@ -111,19 +109,26 @@ def to_doctree(docstring: str) -> nodes.document:
         return doctree
 
 
-def render_html(tree: nodes.Node) -> str:
+def render_doctree_html(tree: nodes.Node) -> str:
     root = _empty_root()()
     root.append(tree)
     html = docutils.core.publish_from_doctree(
         root, writer=HtmlWriter(), settings=_html_settings()
     )
-    head = b'\n</head>\n<body>\n<div class="document">'
-    tail = b"</div>\n</body>\n</html>\n"
-    return html.partition(head)[2].removesuffix(tail).strip().decode()
+    before, found, body = html.partition(_HTML_DOC_HEAD)
+    if not found:
+        raise RuntimeError(
+            f"docutils {docutils.__version__} no longer wraps its html4css1 "
+            f"output in {_HTML_DOC_HEAD!r}, so the document shell cannot be "
+            f"stripped. Rendering would silently return an empty string. "
+            f"Re-derive the wrapper from the writer's `parts` mapping. "
+            f"Output began: {before[:120]!r}"
+        )
+    return body.removesuffix(_HTML_DOC_TAIL).strip().decode()
 
 
 def render_children_html(tree: nodes.Element) -> str:
-    return "".join(render_html(child) for child in tree.children)
+    return "".join(render_doctree_html(child) for child in tree.children)
 
 
 class InfoField(typing.NamedTuple):
@@ -294,7 +299,7 @@ class Signature:
 
 
 def render_docstring(text: str) -> str:
-    return render_html(to_doctree(inspect.cleandoc(text)))
+    return render_doctree_html(to_doctree(inspect.cleandoc(text)))
 
 
 def parse_signature(
@@ -367,4 +372,4 @@ def enhance_signature_using_docstring(signature: Signature, docstring: str) -> N
                     PARSE_ERROR.format(docstring, f"cannot parse {field.raw}")
                 )
 
-    signature.doc = render_html(doctree)
+    signature.doc = render_doctree_html(doctree)

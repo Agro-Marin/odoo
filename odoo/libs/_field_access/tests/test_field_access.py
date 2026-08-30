@@ -693,3 +693,27 @@ class TestSortDifferential(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestBoolIdParityWithRust(unittest.TestCase):
+    """`bool` is a subclass of `int`, and the two implementations treat that
+    inconsistently: a bool inside `prefetch_ids` is skipped by both, but a bool
+    as the *record_id* is accepted by both and comes back in the tuple.
+
+    Pinned rather than fixed. This module is a reference for the Rust export, so
+    tightening it here alone would make the reference disagree with what
+    production actually runs -- which is worse than the quirk. Change
+    `odoo_rust` first, then this, in one commit.
+    """
+
+    def test_a_bool_record_id_is_accepted_by_both(self):
+        self.assertEqual(_rust_to_prefetch_ids(True, (), {}, 10), (True,))
+        self.assertEqual(to_prefetch_ids(True, (), {}, 10), (True,))
+
+    def test_a_bool_inside_prefetch_ids_is_skipped_by_both(self):
+        self.assertEqual(_rust_to_prefetch_ids(1, (True, 2), {}, 10), (1, 2))
+        self.assertEqual(to_prefetch_ids(1, (True, 2), {}, 10), (1, 2))
+
+    def test_false_is_rejected_by_both(self):
+        self.assertIsNone(_rust_to_prefetch_ids(False, (), {}, 10))
+        self.assertIsNone(to_prefetch_ids(False, (), {}, 10))

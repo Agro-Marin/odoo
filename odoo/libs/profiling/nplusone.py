@@ -4,6 +4,11 @@ import sys
 import types
 from pathlib import Path
 
+__all__ = [
+    "NplusOneTracker",
+]
+
+
 _logger = logging.getLogger("odoo.orm.nplusone")
 
 _n1_enabled: bool = os.environ.get("ODOO_NPLUSONE", "").lower() in (
@@ -35,11 +40,26 @@ class _NplusOneEntry:
 
 type _Key = tuple[str, str, str, int]
 
+READ_OPERATIONS: frozenset[str] = frozenset(("search", "fetch", "read"))
+"""Operations judged by records-per-call rather than by call count alone.
+
+A write repeated from one line is an N+1 whatever it writes. A *read* repeated
+from one line is only an N+1 if each call brings back almost nothing -- a loop
+that searches a wide result set every time is doing something else, and flagging
+it would train people to ignore the report.
+"""
+
 
 class NplusOneTracker:
     __slots__ = ("_data",)
 
     THRESHOLD = 3
+
+    READ_THRESHOLD = 8
+    """How many repeats of a read from one line before it is worth a line."""
+
+    READ_RECORDS_PER_CALL = 2.0
+    """Above this average, a repeated read is a loop over data, not an N+1."""
 
     def __init__(self) -> None:
         self._data: dict[_Key, _NplusOneEntry] = {}
@@ -55,7 +75,7 @@ class NplusOneTracker:
         while frame is not None:
             code = frame.f_code
             if (
-                not any(code.co_filename.startswith(p) for p in _SKIP_PREFIXES)
+                not code.co_filename.startswith(_SKIP_PREFIXES)
                 and code.co_name != operation
             ):
                 break
@@ -87,14 +107,17 @@ class NplusOneTracker:
         violations: list[tuple[_Key, _NplusOneEntry]] = [
             (key, entry)
             for key, entry in self._data.items()
-            if entry.count >= self.THRESHOLD
+            if self._is_violation(key[0], entry)
         ]
         if not violations:
             return
 
-        lines = [f"N+1 CRUD detected ({len(violations)} call site(s)):"]
+        lines = [f"N+1 detected ({len(violations)} call site(s)):"]
         for (operation, model_name, filename, lineno), entry in violations:
-            if len(entry.vals_fingerprints) == 1:
+            if operation in READ_OPERATIONS:
+                per_call = entry.total_records / entry.count
+                hint = f" [{per_call:.1f} records per call — batch the ids]"
+            elif len(entry.vals_fingerprints) == 1:
                 hint = " [same fields every call — easily batchable]"
             elif len(entry.vals_fingerprints) <= 3:
                 hint = f" [{len(entry.vals_fingerprints)} distinct field sets]"
@@ -106,6 +129,14 @@ class NplusOneTracker:
                 f" @ {filename}:{lineno}{hint}"
             )
         _logger.warning("\n".join(lines))
+
+    def _is_violation(self, operation: str, entry: _NplusOneEntry) -> bool:
+        if operation not in READ_OPERATIONS:
+            return entry.count >= self.THRESHOLD
+        return (
+            entry.count >= self.READ_THRESHOLD
+            and entry.total_records <= entry.count * self.READ_RECORDS_PER_CALL
+        )
 
     def clear(self) -> None:
         self._data.clear()

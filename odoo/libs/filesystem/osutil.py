@@ -29,6 +29,10 @@ WINDOWS_RESERVED = re.compile(
 )
 _CLEAN_FILENAME_RE = re.compile(r"[^\w_.()\[\] -]+")
 
+# `Path(name).suffix or Path(name).stem` below is how a dotfile such as
+# ".DS_Store" -- all stem, no suffix -- reaches this set.
+_SKIPPED_SUFFIXES = frozenset({".pyc", ".pyo", ".swp", ".DS_Store"})
+
 
 def clean_filename(name: str, replacement: str = "") -> str:
     if WINDOWS_RESERVED.match(name):
@@ -57,7 +61,7 @@ def zip_dir(
             for fname in filenames:
                 p = Path(fname)
                 ext = p.suffix or p.stem
-                if ext not in [".pyc", ".pyo", ".swp", ".DS_Store"]:
+                if ext not in _SKIPPED_SUFFIXES:
                     fpath = str(Path(dirpath, fname))
                     real_fpath = os.path.realpath(fpath)
                     if (
