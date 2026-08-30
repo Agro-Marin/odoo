@@ -16,10 +16,10 @@
                         invisible="state != 'draft' or move_type not in ('in_invoice', 'in_refund')"
                         readonly="state != 'draft'"
                         class="oe_edit_only"
-                        domain="[('partner_id.commercial_partner_id', '=', commercial_partner_id)] if partner_id else [] + [
-                            	'|',
-    	                    		('move_id', '=', False),
-                            		('move_id.move_type', '=', move_type)
+                        domain="([('partner_id.commercial_partner_id', '=', commercial_partner_id)] if partner_id else []) + [
+                            '|',
+                            ('move_id', '=', False),
+                            ('move_id.move_type', '=', move_type)
                         ]"
                         placeholder="Select a purchase document"
                         context="{'show_total_amount': True}"
