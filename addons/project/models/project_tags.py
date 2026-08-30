@@ -35,7 +35,7 @@ class ProjectTags(models.Model):
         order: str | None = None,
     ) -> list[dict]:
         if "project_id" in self.env.context:
-            tag_ids = [id_ for id_, _label in self.name_search()]
+            tag_ids = [id_ for id_, _label in self.name_search(limit=None)]
             domain = Domain.AND([domain, [("id", "in", tag_ids)]])
         return super().formatted_read_group(
             domain,
@@ -57,7 +57,7 @@ class ProjectTags(models.Model):
         order: str | None = None,
     ) -> list[ValuesType]:
         if "project_id" in self.env.context:
-            tag_ids = [id_ for id_, _label in self.name_search()]
+            tag_ids = [id_ for id_, _label in self.name_search(limit=None)]
             domain = Domain.AND([domain, [("id", "in", tag_ids)]])
             return self.arrange_tag_list_by_id(
                 super().search_read(
