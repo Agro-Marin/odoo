@@ -11,8 +11,12 @@ class PortalRating(http.Controller):
         website=True,
     )
     def publish_rating_comment(self, rating_id, publisher_comment):
+        try:
+            rating_id = int(rating_id)
+        except TypeError, ValueError:
+            return {"error": _("Invalid rating")}
         rating = request.env["rating.rating"].search_fetch(
-            [("id", "=", int(rating_id))],
+            [("id", "=", rating_id)],
             ["publisher_comment", "publisher_id", "publisher_datetime"],
         )
         if not rating:
