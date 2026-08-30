@@ -83,8 +83,8 @@ class StockWarehouseOrderpoint(models.Model):
         return super()._compute_qty_to_order_computed()
 
     @api.depends("supplier_id")
-    def _compute_lead_days(self):
-        return super()._compute_lead_days()
+    def _compute_lead_time(self):
+        return super()._compute_lead_time()
 
     @api.depends("effective_route_id")
     def _compute_show_supplier(self):

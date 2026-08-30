@@ -136,9 +136,15 @@ class StockRoute(models.Model):
 
     @api.depends("company_id")
     def _compute_warehouse_domain_ids(self):
-        for loc in self:
-            domain = [("company_id", "=", loc.company_id.id)] if loc.company_id else []
-            loc.warehouse_domain_ids = self.env["stock.warehouse"].search(domain)
+        Warehouse = self.env["stock.warehouse"]
+        per_company = {
+            company.id: Warehouse.search([("company_id", "=", company.id)])
+            for company in self.company_id
+        }
+        if not all(route.company_id for route in self):
+            per_company[False] = Warehouse.search([])
+        for route in self:
+            route.warehouse_domain_ids = per_company[route.company_id.id]
 
     @api.onchange("company_id")
     def _onchange_company(self):

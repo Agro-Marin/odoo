@@ -180,15 +180,15 @@ class ProductProduct(models.Model):
     )
     count_reordering_rules = fields.Integer(
         string="Reordering Rules",
-        compute="_compute_count_reordering_rules",
+        compute="_compute_reordering_rules",
         compute_sudo=False,
     )
     reordering_qty_min = fields.Float(
-        compute="_compute_count_reordering_rules",
+        compute="_compute_reordering_rules",
         compute_sudo=False,
     )
     reordering_qty_max = fields.Float(
-        compute="_compute_count_reordering_rules",
+        compute="_compute_reordering_rules",
         compute_sudo=False,
     )
     putaway_rule_ids = fields.One2many(
@@ -275,7 +275,7 @@ class ProductProduct(models.Model):
         counts = dict(
             Lot._read_group(
                 Domain("product_id", "in", self.ids)
-                & Domain(Lot._get_accessible_location_domain()),
+                & Domain(Lot._get_domain_accessible_location()),
                 ["product_id"],
                 ["__count"],
             )
@@ -313,7 +313,7 @@ class ProductProduct(models.Model):
 
     @api.depends_context("allowed_company_ids", "uid")
     @api.depends("orderpoint_ids.product_min_qty", "orderpoint_ids.product_max_qty")
-    def _compute_count_reordering_rules(self):
+    def _compute_reordering_rules(self):
         read_group_res = self.env["stock.warehouse.orderpoint"]._read_group(
             [("product_id", "in", self.ids)],
             ["product_id"],
@@ -569,7 +569,7 @@ class ProductProduct(models.Model):
         return totals, candidates
 
     @api.model
-    def _quantity_search_domain(self, totals, op, operator, value, field):
+    def _get_domain_quantity_search(self, totals, op, operator, value, field):
         matched = [record_id for record_id, total in totals.items() if op(total, value)]
         zero_matches = bool(op(0.0, value))
         if _logger.isEnabledFor(logging.DEBUG):
@@ -594,7 +594,7 @@ class ProductProduct(models.Model):
         if op is None:
             return filter_quantity_in_python(self, field, operator, value)
         totals, __ = self._search_quantity_totals(field)
-        return self._quantity_search_domain(totals, op, operator, value, field)
+        return self._get_domain_quantity_search(totals, op, operator, value, field)
 
     def _search_qty_available_from_quants(self, operator, value, filters=None):
         op = PY_OPERATORS.get(operator)
@@ -720,7 +720,7 @@ class ProductProduct(models.Model):
         )
         action["domain"] = [
             ("product_id", "=", self.id),
-            *self.env["stock.lot"]._get_accessible_location_domain(),
+            *self.env["stock.lot"]._get_domain_accessible_location(),
         ]
         action["context"] = {
             "default_product_id": self.id,
@@ -966,6 +966,19 @@ class ProductProduct(models.Model):
                     ["quantity:sum", "reserved_quantity:sum"],
                 )
             }
+        moves_in_res_past, moves_out_res_past = self._read_past_quantities(scope)
+        reads = QuantityReads(
+            quants=quants_res,
+            expired_unreserved=expired_unreserved_quants_res,
+            moves_in=moves_in_res,
+            moves_out=moves_out_res,
+            moves_in_past=moves_in_res_past,
+            moves_out_past=moves_out_res_past,
+        )
+        self._log_quantity_reads(reads)
+        return reads
+
+    def _read_past_quantities(self, scope):
         moves_in_res_past = defaultdict(float)
         moves_out_res_past = defaultdict(float)
         if scope.dates_in_the_past and scope.move_in_done_lines is not None:
@@ -978,11 +991,12 @@ class ProductProduct(models.Model):
                 (moves_in_res_past, scope.move_in_done_lines),
                 (moves_out_res_past, scope.move_out_done_lines),
             ):
-                for product, quantity in MoveLine._read_group(
+                for product, quantity in MoveLine._read_group(  # noqa: E8507 - two literal branches, not one query per record
                     domain, ["product_id"], ["quantity_product_uom:sum"]
                 ):
                     target[product.id] += quantity
         elif scope.dates_in_the_past:
+            Move = self.env["stock.move"]
             groupby = ["product_id", "product_uom_id"]
             past_in = Move._read_group(scope.move_in_done, groupby, ["quantity:sum"])
             past_out = Move._read_group(scope.move_out_done, groupby, ["quantity:sum"])
@@ -995,31 +1009,26 @@ class ProductProduct(models.Model):
                         quantity,
                         product.uom_id,
                     )
-        reads = QuantityReads(
-            quants=quants_res,
-            expired_unreserved=expired_unreserved_quants_res,
-            moves_in=moves_in_res,
-            moves_out=moves_out_res,
-            moves_in_past=moves_in_res_past,
-            moves_out_past=moves_out_res_past,
-        )
-        if _logger.isEnabledFor(logging.DEBUG):
-            for product in self:
-                pid = product._origin.id
-                quantity, reserved = reads.quants.get(pid, (0.0, 0.0))
-                _logger.debug(
-                    "quantities product=%s: quant=%s reserved=%s expired=%s "
-                    "in=%s out=%s past_in=%s past_out=%s",
-                    pid,
-                    quantity,
-                    reserved,
-                    reads.expired_unreserved.get(pid, 0.0),
-                    reads.moves_in.get(pid, 0.0),
-                    reads.moves_out.get(pid, 0.0),
-                    reads.moves_in_past.get(pid, 0.0),
-                    reads.moves_out_past.get(pid, 0.0),
-                )
-        return reads
+        return moves_in_res_past, moves_out_res_past
+
+    def _log_quantity_reads(self, reads):
+        if not _logger.isEnabledFor(logging.DEBUG):
+            return
+        for product in self:
+            pid = product._origin.id
+            quantity, reserved = reads.quants.get(pid, (0.0, 0.0))
+            _logger.debug(
+                "quantities product=%s: quant=%s reserved=%s expired=%s "
+                "in=%s out=%s past_in=%s past_out=%s",
+                pid,
+                quantity,
+                reserved,
+                reads.expired_unreserved.get(pid, 0.0),
+                reads.moves_in.get(pid, 0.0),
+                reads.moves_out.get(pid, 0.0),
+                reads.moves_in_past.get(pid, 0.0),
+                reads.moves_out_past.get(pid, 0.0),
+            )
 
     def _prepare_quantities_vals(self, filters, location_domains=None):
         scope = self._prepare_quantities_scope(

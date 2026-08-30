@@ -1091,7 +1091,7 @@ class TestPurchase(AccountTestInvoicingCommon):
         company_partner = self.env["res.partner"].create(
             {
                 "name": "Small Company",
-                "company_type": "company",
+                "is_company": True,
             }
         )
         self.partner_a.parent_id = company_partner

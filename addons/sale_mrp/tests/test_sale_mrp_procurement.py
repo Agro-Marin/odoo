@@ -16,7 +16,7 @@ class TestSaleMrpProcurement(TransactionCase):
         self.env.ref("stock.route_warehouse0_mto").active = True
         warehouse0 = self.env.ref("stock.warehouse0")
 
-        with mute_logger("odoo.tests.common.onchange"):
+        with mute_logger("odoo.tests.form.onchange"):
             pc = Form(self.env["product.category"])
         pc.name = "Mobile Products Sellable"
         product_category_allproductssellable0 = pc.save()

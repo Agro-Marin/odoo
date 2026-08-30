@@ -43,8 +43,8 @@
         id="menu_warehouse_config"
         name="Warehouse Management"
         parent="menu_stock_config_settings"
-        groups="stock.group_stock_manager"
-        sequence="1" />
+        sequence="1"
+        groups="stock.group_stock_manager" />
 
     <menuitem
         id="menu_product_in_config_stock"
@@ -61,24 +61,24 @@
 
     <menuitem
         id="menu_product_category_config_stock"
-        action="product.action_product_category"
         parent="stock.menu_product_in_config_stock"
+        action="product.action_product_category"
         sequence="2" />
 
     <menuitem
         id="menu_attribute_action"
-        action="product.action_product_attribute"
         parent="stock.menu_product_in_config_stock"
+        action="product.action_product_attribute"
         sequence="4"
         groups="product.group_product_variant" />
 
     <menuitem
         id="menu_stock_uom_form_action"
         name="Units &amp; Packagings"
-        action="uom.action_uom_uom"
-        groups="uom.group_uom"
         parent="menu_product_in_config_stock"
-        sequence="5" />
+        action="uom.action_uom_uom"
+        sequence="5"
+        groups="uom.group_uom" />
 
     <menuitem
         id="menu_stock_inventory_control"
@@ -89,14 +89,15 @@
     <menuitem
         id="stock.menu_warehouse_report"
         name="Reporting"
-        sequence="99"
         parent="stock.menu_stock_root"
+        sequence="99"
         groups="group_stock_manager" />
 
-    <!-- ═══════════════════════════
-         ROOT
-         ═══════════════════════════ -->
-
+    <!--
+        ═══════════════════════════
+        ROOT
+        ═══════════════════════════
+    -->
     <menuitem
         id="menu_stock_picking_type"
         name="Overview"
@@ -104,10 +105,11 @@
         action="stock_picking_type_action"
         sequence="0" />
 
-    <!-- ═══════════════════════════
-         OPERATIONS > TRANSFERS
-         ═══════════════════════════ -->
-
+    <!--
+        ═══════════════════════════
+        OPERATIONS > TRANSFERS
+        ═══════════════════════════
+    -->
     <menuitem
         id="menu_stock_picking_incoming"
         name="Receipts"
@@ -132,10 +134,11 @@
         sequence="22"
         groups="stock.group_stock_multi_locations" />
 
-    <!-- ═══════════════════════════
-         OPERATIONS > ADJUSTMENTS
-         ═══════════════════════════ -->
-
+    <!--
+        ═══════════════════════════
+        OPERATIONS > ADJUSTMENTS
+        ═══════════════════════════
+    -->
     <menuitem
         id="menu_action_inventory_tree"
         name="Physical Inventory"
@@ -150,10 +153,11 @@
         action="action_stock_scrap"
         sequence="99" />
 
-    <!-- ═══════════════════════════
-         OPERATIONS > PROCUREMENT
-         ═══════════════════════════ -->
-
+    <!--
+        ═══════════════════════════
+        OPERATIONS > PROCUREMENT
+        ═══════════════════════════
+    -->
     <menuitem
         id="menu_reordering_rules_replenish"
         name="Replenishment"
@@ -176,22 +180,23 @@
         sequence="135"
         groups="base.group_no_one" />
 
-    <!-- ═══════════════════════════
-         PRODUCTS
-         ═══════════════════════════ -->
-
+    <!--
+        ═══════════════════════════
+        PRODUCTS
+        ═══════════════════════════
+    -->
     <menuitem
         id="menu_product_variant_config_stock"
         name="Products"
-        action="product_template_action_product"
         parent="stock.menu_stock_inventory_control"
+        action="product_template_action_product"
         sequence="1" />
 
     <menuitem
         id="menu_stock_product_variant"
         name="Product Variants"
-        action="stock_product_normal_action"
         parent="menu_stock_inventory_control"
+        action="stock_product_normal_action"
         sequence="2"
         groups="product.group_product_variant" />
 
@@ -210,15 +215,16 @@
         sequence="102"
         groups="stock.group_tracking_lot" />
 
-    <!-- ═══════════════════════════
-         REPORTING
-         ═══════════════════════════ -->
-
+    <!--
+        ═══════════════════════════
+        REPORTING
+        ═══════════════════════════
+    -->
     <menuitem
         id="menu_product_stock"
         name="Stock"
-        action="stock.action_product_stock_view"
         parent="stock.menu_warehouse_report"
+        action="stock.action_product_stock_view"
         sequence="5" />
 
     <menuitem
@@ -230,22 +236,23 @@
         groups="stock.group_stock_multi_locations,stock.group_tracking_owner,base.group_no_one" />
 
     <menuitem
-        action="stock_move_line_action"
         id="menu_stock_move_line"
         parent="stock.menu_warehouse_report"
+        action="stock_move_line_action"
         sequence="200" />
 
     <menuitem
-        action="stock_move_action"
         id="menu_stock_move"
         name="Moves Analysis"
         parent="stock.menu_warehouse_report"
+        action="stock_move_action"
         sequence="230" />
 
-    <!-- ═══════════════════════════
-         CONFIGURATION > WAREHOUSE
-         ═══════════════════════════ -->
-
+    <!--
+        ═══════════════════════════
+        CONFIGURATION > WAREHOUSE
+        ═══════════════════════════
+    -->
     <menuitem
         id="menu_action_stock_warehouse"
         parent="menu_warehouse_config"
@@ -260,17 +267,17 @@
         sequence="2" />
 
     <menuitem
-        action="action_location_form"
         id="menu_action_location_form"
         parent="menu_warehouse_config"
+        action="action_location_form"
         sequence="3"
         groups="stock.group_stock_multi_locations" />
 
     <menuitem
         id="menu_routes_config"
-        action="action_routes_form"
         name="Routes"
         parent="menu_warehouse_config"
+        action="action_routes_form"
         sequence="4"
         groups="stock.group_adv_location" />
 
@@ -283,9 +290,9 @@
 
     <menuitem
         id="menu_storage_categoty_config"
-        action="action_stock_storage_category"
         name="Storage Categories"
         parent="menu_warehouse_config"
+        action="action_stock_storage_category"
         sequence="6"
         groups="stock.group_stock_multi_locations" />
 
@@ -297,16 +304,17 @@
         sequence="8"
         groups="stock.group_stock_multi_locations" />
 
-    <!-- ═══════════════════════════
-         CONFIGURATION > DELIVERY
-         ═══════════════════════════ -->
-
+    <!--
+        ═══════════════════════════
+        CONFIGURATION > DELIVERY
+        ═══════════════════════════
+    -->
     <menuitem
         id="menu_delivery"
         name="Delivery"
         parent="stock.menu_stock_config_settings"
-        groups="stock.group_stock_manager"
-        sequence="50" />
+        sequence="50"
+        groups="stock.group_stock_manager" />
 
     <menuitem
         id="menu_packaging_types"
@@ -315,10 +323,11 @@
         action="action_package_type_view"
         groups="stock.group_tracking_lot" />
 
-    <!-- ═══════════════════════════
-         CONFIGURATION > SETTINGS
-         ═══════════════════════════ -->
-
+    <!--
+        ═══════════════════════════
+        CONFIGURATION > SETTINGS
+        ═══════════════════════════
+    -->
     <menuitem
         id="menu_stock_general_settings"
         name="Settings"

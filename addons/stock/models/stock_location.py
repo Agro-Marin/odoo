@@ -339,7 +339,10 @@ class StockLocation(models.Model):
                 for location in self
                 if any(child._child_of(location) for child in descendants)
             )
-            raise UserError(
+            # @api.ondelete cannot express this check: unlink() re-dispatches on
+            # the expanded subtree, so a hook would see no descendants left to
+            # object to.
+            raise UserError(  # noqa: E8506 - uninstall already excluded above
                 _(
                     "You cannot delete location %(location)s: it still contains "
                     "%(count)s sub-location(s) (archived ones included). Delete or "

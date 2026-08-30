@@ -182,6 +182,14 @@ class StockReplenishmentReport(models.AbstractModel):
                 ["id:recordset"],
             )
         }
+        locations = self.env["stock.location"].browse(
+            {location_id for _product, location_id in shortages}
+        )
+        fallback_warehouse = {}
+        for warehouse in self.env["stock.warehouse"].search(
+            [("company_id", "in", locations.company_id.ids)]
+        ):
+            fallback_warehouse.setdefault(warehouse.company_id.id, warehouse.id)
         values_list = []
         for product_id, location_id in shortages:
             if (product_id, location_id) in existing:
@@ -192,9 +200,7 @@ class StockReplenishmentReport(models.AbstractModel):
                 {
                     "name": _("Replenishment Report"),
                     "warehouse_id": location.warehouse_id.id
-                    or self.env["stock.warehouse"]
-                    .search([("company_id", "=", location.company_id.id)], limit=1)
-                    .id,
+                    or fallback_warehouse.get(location.company_id.id, False),
                     "company_id": location.company_id.id,
                 },
             )

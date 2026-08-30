@@ -333,7 +333,7 @@ class StockPicking(models.Model):
     has_tracking = fields.Boolean(compute="_compute_has_tracking")
     products_availability = fields.Char(
         string="Product Availability",
-        compute="_compute_products_availability",
+        compute="_compute_availability_status",
         help="Latest product availability status of the picking",
     )
     products_availability_state = fields.Selection(
@@ -342,7 +342,7 @@ class StockPicking(models.Model):
             ("expected", "Expected"),
             ("late", "Late"),
         ],
-        compute="_compute_products_availability",
+        compute="_compute_availability_status",
         search="_search_products_availability_state",
     )
 
@@ -577,7 +577,7 @@ class StockPicking(models.Model):
         "move_ids.date_planned_forecast",
     )
     @api.depends_context("lang")
-    def _compute_products_availability(self):
+    def _compute_availability_status(self):
         pickings = self.filtered(
             lambda picking: (
                 picking.state in OPEN_PICKING_STATES
@@ -918,7 +918,7 @@ class StockPicking(models.Model):
     ):
         Move = self.env["stock.move"]
         candidates = Move.search(
-            Move._get_allocatable_demand_domain(
+            Move._get_domain_allocatable_demand(
                 self.env["stock.location"]._get_allocation_source_ids(
                     view_location.ids,
                 ),
@@ -1320,9 +1320,9 @@ class StockPicking(models.Model):
             wh_location_ids = self.env["stock.location"]._get_allocation_source_ids(
                 warehouse.view_location_id.ids,
             )
-            if Move.search_count(
+            if Move.search_count(  # noqa: E8507 - already batched per warehouse, and the loop breaks on the first hit
                 [
-                    *Move._get_allocatable_demand_domain(
+                    *Move._get_domain_allocatable_demand(
                         wh_location_ids,
                         lines.product_id.ids,
                     ),
@@ -1834,7 +1834,7 @@ class StockPicking(models.Model):
             states.append("assigned")
         return states
 
-    def _get_allocatable_demand_domain(self, location_ids, product_ids):
+    def _get_domain_allocatable_demand(self, location_ids, product_ids):
         return [
             (
                 "state",

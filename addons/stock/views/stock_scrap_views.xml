@@ -12,13 +12,21 @@
                 <field name="scrap_location_id" />
                 <field name="create_date" />
                 <group>
-                    <filter string="Product" name="product"
+                    <filter
+                        string="Product"
+                        name="product"
                         context="{'group_by':'product_id'}" />
-                    <filter string="Location" name="location"
+                    <filter
+                        string="Location"
+                        name="location"
                         context="{'group_by':'location_id'}" />
-                    <filter string="Scrap Location" name="scrap_location"
+                    <filter
+                        string="Scrap Location"
+                        name="scrap_location"
                         context="{'group_by':'scrap_location_id'}" />
-                    <filter string="Transfer" name="transfer"
+                    <filter
+                        string="Transfer"
+                        name="transfer"
                         context="{'group_by':'picking_id'}" />
                 </group>
             </search>
@@ -30,19 +38,37 @@
         <field name="model">stock.scrap</field>
         <field name="arch" type="xml">
             <list multi_edit="1" sample="1" decoration-info="state == 'draft'">
-                <field name="company_id" column_invisible="True" readonly="state == 'done'" />
+                <field
+                    name="company_id"
+                    column_invisible="True"
+                    readonly="state == 'done'" />
                 <field name="name" decoration-bf="1" />
                 <field name="date_done" />
                 <field name="product_id" readonly="1" />
                 <field name="scrap_qty" readonly="state == 'done'" />
-                <field name="product_uom_id" groups="uom.group_uom" widget="many2one_uom"
+                <field
+                    name="product_uom_id"
+                    groups="uom.group_uom"
+                    widget="many2one_uom"
                     readonly="state == 'done'" />
-                <field name="location_id" options="{'no_create': True}"
-                    groups="stock.group_stock_multi_locations" readonly="state == 'done'" />
-                <field name="scrap_location_id" options="{'no_create': True}"
-                    groups="stock.group_stock_multi_locations" readonly="state == 'done'" />
-                <field name="company_id" readonly="1" groups="base.group_multi_company" />
-                <field name="state" widget="badge" decoration-success="state == 'done'"
+                <field
+                    name="location_id"
+                    options="{'no_create': True}"
+                    groups="stock.group_stock_multi_locations"
+                    readonly="state == 'done'" />
+                <field
+                    name="scrap_location_id"
+                    options="{'no_create': True}"
+                    groups="stock.group_stock_multi_locations"
+                    readonly="state == 'done'" />
+                <field
+                    name="company_id"
+                    readonly="1"
+                    groups="base.group_multi_company" />
+                <field
+                    name="state"
+                    widget="badge"
+                    decoration-success="state == 'done'"
                     decoration-muted="state == 'draft'" />
             </list>
         </field>
@@ -58,7 +84,11 @@
                         <div class="row">
                             <field name="name" class="col-6 fw-bolder" />
                             <div class="col-6 fw-bolder text-end">
-                                <i class="fa-regular fa-clock" role="img" aria-label="Date" title="Date" />
+                                <i
+                                    class="fa-regular fa-clock"
+                                    role="img"
+                                    aria-label="Date"
+                                    title="Date" />
                                 <field name="date_done" />
                             </div>
                         </div>
@@ -66,7 +96,9 @@
                         <div class="row">
                             <field name="scrap_qty" class="col-6" />
                             <div class="col-6">
-                                <field name="state" class="float-end badge text-bg-secondary" />
+                                <field
+                                    name="state"
+                                    class="float-end badge text-bg-secondary" />
                             </div>
                         </div>
                     </t>
@@ -81,20 +113,38 @@
         <field name="arch" type="xml">
             <form string="Scrap">
                 <header>
-                    <button name="action_validate" invisible="state != 'draft'" string="Validate"
-                        type="object" class="oe_highlight" context="{'not_unlink_on_discard': True}"
+                    <button
+                        name="action_validate"
+                        invisible="state != 'draft'"
+                        string="Validate"
+                        type="object"
+                        class="oe_highlight"
+                        context="{'not_unlink_on_discard': True}"
                         data-hotkey="v" />
-                    <field name="state" widget="statusbar" statusbar_visible="draft,done" />
+                    <field
+                        name="state"
+                        widget="statusbar"
+                        statusbar_visible="draft,done" />
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
-                        <button class="oe_stat_button" name="action_get_stock_picking"
-                            string="Stock Operation" type="object"
-                            invisible="not picking_id" icon="fa-cogs" />
-                        <field name="picking_id" invisible="1" readonly="state == 'done'" />
-                        <button class="oe_stat_button" name="action_get_stock_move_lines"
+                        <button
+                            class="oe_stat_button"
+                            name="action_get_stock_picking"
+                            string="Stock Operation"
                             type="object"
-                            invisible="not move_ids" icon="fa-exchange">
+                            invisible="not picking_id"
+                            icon="fa-cogs" />
+                        <field
+                            name="picking_id"
+                            invisible="1"
+                            readonly="state == 'done'" />
+                        <button
+                            class="oe_stat_button"
+                            name="action_get_stock_move_lines"
+                            type="object"
+                            invisible="not move_ids"
+                            icon="fa-exchange">
                             <div class="o_stat_info">
                                 <span class="o_stat_text">Product Moves</span>
                             </div>
@@ -108,43 +158,70 @@
                     </div>
                     <group>
                         <group>
-                            <field name="product_id" context="{'default_is_storable': True}"
+                            <field
+                                name="product_id"
+                                context="{'default_is_storable': True}"
                                 readonly="state == 'done'" />
                             <field name="tracking" invisible="1" />
                             <label for="scrap_qty" />
                             <div class="o_row">
-                                <field name="scrap_qty"
+                                <field
+                                    name="scrap_qty"
                                     readonly="state == 'done' or tracking == 'serial'" />
-                                <field name="product_uom_id"
+                                <field
+                                    name="product_uom_id"
                                     readonly="state == 'done' or tracking == 'serial'"
-                                    widget="many2one_uom" groups="uom.group_uom" force_save="1" />
+                                    widget="many2one_uom"
+                                    groups="uom.group_uom"
+                                    force_save="1" />
                             </div>
-                            <field name="lot_id" context="{'default_product_id': product_id}"
+                            <field
+                                name="lot_id"
+                                context="{'default_product_id': product_id}"
                                 invisible="not product_id or tracking == 'none'"
-                                readonly="state == 'done'" required="tracking != 'none'"
+                                readonly="state == 'done'"
+                                required="tracking != 'none'"
                                 groups="stock.group_production_lot" />
                             <field name="should_replenish" readonly="state == 'done'" />
-                            <field name="scrap_reason_tag_ids" widget="many2many_tags"
+                            <field
+                                name="scrap_reason_tag_ids"
+                                widget="many2many_tags"
                                 options="{'no_create_edit': True}" />
                         </group>
                         <group>
-                            <field name="company_id" invisible="1" readonly="state == 'done'" />
-                            <field name="package_id" groups="stock.group_tracking_lot"
+                            <field
+                                name="company_id"
+                                invisible="1"
                                 readonly="state == 'done'" />
-                            <field name="owner_id" groups="stock.group_tracking_owner"
+                            <field
+                                name="package_id"
+                                groups="stock.group_tracking_lot"
                                 readonly="state == 'done'" />
-                            <field name="location_id" options="{'no_create': True, 'no_open': True}"
-                                groups="stock.group_stock_multi_locations" force_save="1"
+                            <field
+                                name="owner_id"
+                                groups="stock.group_tracking_owner"
                                 readonly="state == 'done'" />
-                            <field name="scrap_location_id"
+                            <field
+                                name="location_id"
                                 options="{'no_create': True, 'no_open': True}"
-                                groups="stock.group_stock_multi_locations" force_save="1"
+                                groups="stock.group_stock_multi_locations"
+                                force_save="1"
+                                readonly="state == 'done'" />
+                            <field
+                                name="scrap_location_id"
+                                options="{'no_create': True, 'no_open': True}"
+                                groups="stock.group_stock_multi_locations"
+                                force_save="1"
                                 readonly="state == 'done'" />
                             <field name="origin" />
                             <field name="date_done" invisible="state == 'draft'" />
-                            <field name="picking_id" invisible="not picking_id"
+                            <field
+                                name="picking_id"
+                                invisible="not picking_id"
                                 readonly="state == 'done'" />
-                            <field name="company_id" groups="base.group_multi_company"
+                            <field
+                                name="company_id"
+                                groups="base.group_multi_company"
                                 readonly="state == 'done'" />
                         </group>
                     </group>
@@ -162,44 +239,76 @@
                 <group>
                     <group>
                         <field name="state" invisible="1" />
-                        <field name="product_id" options="{'no_create': True}"
+                        <field
+                            name="product_id"
+                            options="{'no_create': True}"
                             domain="[('id', 'in', context.get('product_ids', []))]"
                             readonly="state == 'done'" />
                         <field name="tracking" invisible="1" />
                         <label for="scrap_qty" />
                         <div class="o_row">
                             <field name="scrap_qty" readonly="tracking == 'serial'" />
-                            <field name="product_uom_id" readonly="tracking == 'serial'"
-                                groups="uom.group_uom" widget="many2one_uom" />
+                            <field
+                                name="product_uom_id"
+                                readonly="tracking == 'serial'"
+                                groups="uom.group_uom"
+                                widget="many2one_uom" />
                         </div>
-                        <field name="lot_id" groups="stock.group_production_lot"
+                        <field
+                            name="lot_id"
+                            groups="stock.group_production_lot"
                             context="{'default_product_id': product_id}"
                             invisible="not product_id or tracking == 'none'"
                             readonly="state == 'done'"
                             required="tracking != 'none'" />
-                        <field name="scrap_reason_tag_ids" widget="many2many_tags"
+                        <field
+                            name="scrap_reason_tag_ids"
+                            widget="many2many_tags"
                             options="{'no_create_edit': True}" />
                     </group>
                     <group>
-                        <field name="picking_id" invisible="1" readonly="state == 'done'" />
-                        <field name="package_id" groups="stock.group_tracking_lot"
+                        <field
+                            name="picking_id"
+                            invisible="1"
                             readonly="state == 'done'" />
-                        <field name="owner_id" groups="stock.group_tracking_owner"
+                        <field
+                            name="package_id"
+                            groups="stock.group_tracking_lot"
                             readonly="state == 'done'" />
-                        <field name="company_id" invisible="1" readonly="state == 'done'" />
-                        <field name="location_id" groups="stock.group_stock_multi_locations"
+                        <field
+                            name="owner_id"
+                            groups="stock.group_tracking_owner"
+                            readonly="state == 'done'" />
+                        <field
+                            name="company_id"
+                            invisible="1"
+                            readonly="state == 'done'" />
+                        <field
+                            name="location_id"
+                            groups="stock.group_stock_multi_locations"
                             options="{'no_open': True, 'no_create': True}"
                             readonly="state == 'done'" />
-                        <field name="scrap_location_id" groups="stock.group_stock_multi_locations"
+                        <field
+                            name="scrap_location_id"
+                            groups="stock.group_stock_multi_locations"
                             options="{'no_open': True, 'no_create': True}"
                             readonly="state == 'done'" />
                         <field name="should_replenish" readonly="state == 'done'" />
                     </group>
                 </group>
                 <footer>
-                    <button name="action_validate" string="Scrap Products" type="object"
-                        class="btn-primary" data-hotkey="q" invisible="state != 'draft'" />
-                    <button string="Discard" class="btn-secondary" special="cancel" data-hotkey="x" />
+                    <button
+                        name="action_validate"
+                        string="Scrap Products"
+                        type="object"
+                        class="btn-primary"
+                        data-hotkey="q"
+                        invisible="state != 'draft'" />
+                    <button
+                        string="Discard"
+                        class="btn-secondary"
+                        special="cancel"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>

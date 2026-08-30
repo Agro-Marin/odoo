@@ -48,7 +48,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
         res = super()._get_report_header(
             product_template_ids, product_ids, wh_location_ids
         )
-        domain = self._product_domain(product_template_ids, product_ids)
+        domain = self._get_domain_product(product_template_ids, product_ids)
         domain += [("state", "=", "draft")]
 
         in_domain = domain + [("location_dest_id", "in", wh_location_ids)]

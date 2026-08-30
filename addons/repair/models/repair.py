@@ -453,14 +453,14 @@ class RepairOrder(models.Model):
             raise UserError(_("You cannot cancel a Repair Order that's already been completed"))
         for repair in self:
             if repair.sale_order_id:
-                repair.sale_order_line_id.write({'product_uom_qty': 0.0})  # Quantity of the product that generated the RO is set to 0
+                repair.sale_order_line_id.write({'product_qty': 0.0})  # Quantity of the product that generated the RO is set to 0
         self.move_ids._action_cancel()  # Quantity of parts added from the RO to the SO is set to 0
         return self.write({'state': 'cancel'})
 
     def action_repair_cancel_draft(self):
         if self.filtered(lambda repair: repair.state != 'cancel'):
             self.action_repair_cancel()
-        sale_line_to_update = self.move_ids.sale_line_id.filtered(lambda l: l.order_id.state != 'cancel' and l.product_uom_id.is_zero(l.product_uom_qty))
+        sale_line_to_update = self.move_ids.sale_line_id.filtered(lambda l: l.order_id.state != 'cancel' and l.product_uom_id.is_zero(l.product_qty))
         sale_line_to_update.move_ids._update_repair_sale_order_line()
         self.move_ids.state = 'draft'
         self.state = 'draft'
@@ -488,7 +488,7 @@ class RepairOrder(models.Model):
                 ro_origin_product = repair.sale_order_line_id.product_template_id
                 # TODO: As 'service_policy' only appears with 'sale_project' module, isolate conditions related to this field in a 'sale_project_repair' module if it's worth
                 if ro_origin_product.type == 'service' and (no_service_policy or ro_origin_product.service_policy == 'ordered_prepaid'):
-                    repair.sale_order_line_id.qty_transferred = repair.sale_order_line_id.product_uom_qty
+                    repair.sale_order_line_id.qty_transferred = repair.sale_order_line_id.product_qty
             if not repair.product_id:
                 continue
 

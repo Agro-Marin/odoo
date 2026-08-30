@@ -229,14 +229,14 @@ class TestRepair(TestRepairCommon):
                 # state != done !-> UserError (cf. end of this test)
             # POST
                 # moves_ids state == cancelled
-                # 'Lines" SOL product_uom_qty == 0
+                # 'Lines" SOL product_qty == 0
                 # state == cancel
 
         self.assertNotEqual(repair.state, "done")
         repair.action_repair_cancel()
         self.assertEqual(repair.state, "cancel")
         self.assertTrue(all(m.state == "cancel" for m in repair.move_ids))
-        self.assertTrue(all(float_is_zero(sol.product_uom_qty, 2) for sol in repair.sale_order_id.line_ids))
+        self.assertTrue(all(float_is_zero(sol.product_qty, 2) for sol in repair.sale_order_id.line_ids))
 
         # (*)/cancel -> draft (action_repair_cancel_draft)
             # PRE
@@ -341,14 +341,14 @@ class TestRepair(TestRepairCommon):
         repair_order = sale_order.repair_order_ids[0]
         self.assertEqual(sale_order, repair_order.sale_order_id)
         self.assertEqual(repair_order.state, 'confirmed')
-        order_line.product_uom_qty = 0
+        order_line.product_qty = 0
         self.assertEqual(repair_order.state, 'cancel')
-        order_line.product_uom_qty = 1
+        order_line.product_qty = 1
         line_section.name = 'updated section'
         self.assertEqual(repair_order.state, 'confirmed')
         repair_order.action_repair_cancel()
-        self.assertTrue(float_is_zero(order_line.product_uom_qty, 2))
-        order_line.product_uom_qty = 3
+        self.assertTrue(float_is_zero(order_line.product_qty, 2))
+        order_line.product_qty = 3
         self.assertEqual(repair_order.state, 'confirmed')
         # Add RO line
         ro_form = Form(repair_order)
@@ -359,13 +359,13 @@ class TestRepair(TestRepairCommon):
         ro_form.save()
         ro_line_0 = repair_order.move_ids[0]
         sol_part_0 = ro_line_0.sale_line_id
-        self.assertEqual(float_compare(sol_part_0.product_uom_qty, ro_line_0.product_uom_qty, 2), 0)
+        self.assertEqual(float_compare(sol_part_0.product_qty, ro_line_0.product_uom_qty, 2), 0)
         # chg qty in SO -> No effect on RO
-        sol_part_0.product_uom_qty = 5
-        self.assertNotEqual(float_compare(sol_part_0.product_uom_qty, ro_line_0.product_uom_qty, 2), 0)
+        sol_part_0.product_qty = 5
+        self.assertNotEqual(float_compare(sol_part_0.product_qty, ro_line_0.product_uom_qty, 2), 0)
         # chg qty in RO -> Update qty in SO
         ro_line_0.product_uom_qty = 3
-        self.assertEqual(float_compare(sol_part_0.product_uom_qty, ro_line_0.product_uom_qty, 2), 0)
+        self.assertEqual(float_compare(sol_part_0.product_qty, ro_line_0.product_uom_qty, 2), 0)
         # with/without warranty
         self.assertFalse(float_is_zero(sol_part_0.price_unit, 2))
         repair_order.under_warranty = True
@@ -376,13 +376,13 @@ class TestRepair(TestRepairCommon):
         # stock_move transitions
         #   add -> remove -> add -> recycle -> add transitions
         ro_line_0.repair_line_type = 'remove'
-        self.assertTrue(float_is_zero(sol_part_0.product_uom_qty, 2))
+        self.assertTrue(float_is_zero(sol_part_0.product_qty, 2))
         ro_line_0.repair_line_type = 'add'
-        self.assertEqual(float_compare(sol_part_0.product_uom_qty, ro_line_0.product_uom_qty, 2), 0)
+        self.assertEqual(float_compare(sol_part_0.product_qty, ro_line_0.product_uom_qty, 2), 0)
         ro_line_0.repair_line_type = 'recycle'
-        self.assertTrue(float_is_zero(sol_part_0.product_uom_qty, 2))
+        self.assertTrue(float_is_zero(sol_part_0.product_qty, 2))
         ro_line_0.repair_line_type = 'add'
-        self.assertEqual(float_compare(sol_part_0.product_uom_qty, ro_line_0.product_uom_qty, 2), 0)
+        self.assertEqual(float_compare(sol_part_0.product_qty, ro_line_0.product_uom_qty, 2), 0)
         #   remove and recycle line : not added to SO.
         sol_count = len(sale_order.line_ids)
         with ro_form.move_ids.new() as ro_line_form:
@@ -400,20 +400,20 @@ class TestRepair(TestRepairCommon):
         ro_line_1.repair_line_type = 'add'
         sol_part_1 = ro_line_1.sale_line_id
         self.assertNotEqual(len(sale_order.line_ids), sol_count)
-        self.assertEqual(float_compare(sol_part_1.product_uom_qty, ro_line_1.product_uom_qty, 2), 0)
+        self.assertEqual(float_compare(sol_part_1.product_qty, ro_line_1.product_uom_qty, 2), 0)
         # delete 'remove to add' line in RO -> SOL qty set to 0
         repair_order.move_ids = [(2, ro_line_1.id, 0)]
-        self.assertTrue(float_is_zero(sol_part_1.product_uom_qty, 2))
+        self.assertTrue(float_is_zero(sol_part_1.product_qty, 2))
 
         # repair_order.action_repair_end()
-        #   -> order_line.qty_delivered == order_line.product_uom_qty
+        #   -> order_line.qty_delivered == order_line.product_qty
         #   -> "RO Lines"'s SOL.qty_delivered == move.quantity
         repair_order.action_repair_start()
         for line in repair_order.move_ids:
             line.quantity = line.product_uom_qty
         repair_order.action_repair_end()
-        self.assertEqual(order_line.product_uom_qty, order_line.qty_transferred)
-        self.assertEqual(float_compare(sol_part_0.product_uom_qty, ro_line_0.quantity, 2), 0)
+        self.assertEqual(order_line.product_qty, order_line.qty_transferred)
+        self.assertEqual(float_compare(sol_part_0.product_qty, ro_line_0.quantity, 2), 0)
         self.assertTrue(float_is_zero(sol_part_1.qty_transferred, 2))
 
 

@@ -11,7 +11,7 @@ from odoo.exceptions import RedirectWarning, UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.datetime import timezone
 from odoo.modules.registry import Registry
-from odoo.tools import escape_psql, format_date, frozendict
+from odoo.tools import format_date, frozendict
 
 from odoo.addons.stock.const import PY_OPERATORS
 from odoo.addons.stock.models.stock_procurement import ProcurementException
@@ -227,8 +227,8 @@ class StockWarehouseOrderpoint(models.Model):
         string="Rules used",
         compute="_compute_rule_ids",
     )
-    lead_horizon_date = fields.Date(compute="_compute_lead_days")
-    lead_days = fields.Float(compute="_compute_lead_days")
+    lead_horizon_date = fields.Date(compute="_compute_lead_time")
+    lead_days = fields.Float(compute="_compute_lead_time")
     route_id = fields.Many2one(
         comodel_name="stock.route",
         string="Route",
@@ -422,7 +422,7 @@ class StockWarehouseOrderpoint(models.Model):
                         "child_of",
                         other_warehouse.view_location_id.id,
                     )
-            orderpoints.allowed_location_ids = self.env["stock.location"].search(
+            orderpoints.allowed_location_ids = self.env["stock.location"].search(  # noqa: E8507 - already batched: one query per (company, warehouse), not per orderpoint
                 loc_domain,
             )
 
@@ -587,7 +587,7 @@ class StockWarehouseOrderpoint(models.Model):
         "company_id.horizon_days",
     )
     @api.depends_context("global_horizon_days")
-    def _compute_lead_days(self):
+    def _compute_lead_time(self):
         orderpoints_to_compute = self.filtered(
             lambda orderpoint: orderpoint.product_id and orderpoint.location_id,
         )
@@ -1193,9 +1193,13 @@ class StockWarehouseOrderpoint(models.Model):
         return action
 
     def _refresh_stored_values(self):
-        self._compute_qty_to_order_computed()
-        self._compute_deadline_date()
-        self._compute_lead_time_stats()
+        # Marking the fields and flushing runs the computes through the ORM,
+        # which a direct call does not: it also refreshes the siblings each
+        # compute writes (ADR-0051).
+        stored = ("qty_to_order_computed", "deadline_date", "actual_lead_time_avg")
+        for field_name in stored:
+            self.env.add_to_compute(self._fields[field_name], self)
+        self.flush_recordset(stored)
 
     @api.model
     def _get_orderpoint_values(self, product_id, location_id):
@@ -1436,25 +1440,36 @@ class StockWarehouseOrderpoint(models.Model):
 
     def _schedule_procurement_failure_activities(self, failures):
         model_product_template_id = self.env.ref("product.model_product_template").id
+        reported = []
         for orderpoint, error_msg in failures:
-            if not orderpoint:
+            if orderpoint:
+                reported.append((orderpoint, error_msg))
+            else:
                 _logger.error("Orderpoint procurement failed: %s", error_msg)
-                continue
+
+        orderpoints = self.browse()
+        for orderpoint, _error_msg in reported:
+            orderpoints |= orderpoint
+        templates = orderpoints.product_id.product_tmpl_id
+        notes_per_template = defaultdict(list)
+        for activity in self.env["mail.activity"].search(
+            [
+                ("res_id", "in", templates.ids),
+                ("res_model_id", "=", model_product_template_id),
+            ]
+        ):
+            notes_per_template[activity.res_id].append(activity.note or "")
+
+        for orderpoint, error_msg in reported:
             template = orderpoint.product_id.product_tmpl_id
-            if self.env["mail.activity"].search_count(
-                [
-                    ("res_id", "=", template.id),
-                    ("res_model_id", "=", model_product_template_id),
-                    ("note", "=like", f"%{escape_psql(error_msg)}%"),
-                ],
-                limit=1,
-            ):
+            if any(error_msg in note for note in notes_per_template[template.id]):
                 continue
             template.with_user(SUPERUSER_ID).activity_schedule(
                 "mail.mail_activity_data_warning",
                 note=error_msg,
                 user_id=orderpoint.product_id.responsible_id.id or SUPERUSER_ID,
             )
+            notes_per_template[template.id].append(error_msg)
 
     def _procure_orderpoint_confirm(
         self,

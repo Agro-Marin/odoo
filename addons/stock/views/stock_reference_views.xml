@@ -34,7 +34,10 @@
                     </div>
                     <group>
                         <group>
-                            <field name="picking_ids" widget="many2many_tags" readonly="1" />
+                            <field
+                                name="picking_ids"
+                                widget="many2many_tags"
+                                readonly="1" />
                         </group>
                     </group>
                 </sheet>

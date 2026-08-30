@@ -157,7 +157,7 @@ class StockRule(models.Model):
         help="The 'Manual Operation' value will create a stock move after the current one. "
         "With 'Automatic No Step Added', the location is replaced in the original move.",
     )
-    rule_message = fields.Html(compute="_compute_action_message")
+    rule_message = fields.Html(compute="_compute_rule_message")
     push_domain = fields.Char(string="Push Applicability")
 
     @api.constrains("push_domain")
@@ -285,7 +285,7 @@ class StockRule(models.Model):
         "procure_method",
         "location_dest_from_rule",
     )
-    def _compute_action_message(self):
+    def _compute_rule_message(self):
         for rule in self:
             message_dict = rule._get_message_dict()
             if rule.action == "pull_push":

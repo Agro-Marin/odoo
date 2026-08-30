@@ -112,6 +112,7 @@ class StockReplenishmentInfo(models.TransientModel):
         )
 
     @api.depends("orderpoint_id")
+    @api.depends_context("lang")
     def _compute_json_lead_days(self):
         def _format_description(description):
             formatted_description = []
@@ -251,7 +252,7 @@ class StockReplenishmentInfo(models.TransientModel):
                 ],
             )
             quantity_out = (
-                self.env["stock.move"]._read_group(
+                self.env["stock.move"]._read_group(  # noqa: E8507 - the domain carries this record's own product, period and company
                     Domain.AND(
                         [
                             domain,
@@ -269,7 +270,7 @@ class StockReplenishmentInfo(models.TransientModel):
                 or 0.0
             )
             quantity_returned = (
-                self.env["stock.move"]._read_group(
+                self.env["stock.move"]._read_group(  # noqa: E8507 - the domain carries this record's own product, period and company
                     Domain.AND([domain, [("location_id.usage", "=", "customer")]]),
                     aggregates=["product_qty:sum"],
                 )[0][0]

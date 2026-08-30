@@ -3,12 +3,12 @@
 
     <template id="report_inventory">
         <t t-call="web.html_container">
-            <div class="oe_structure"></div>
+            <div class="oe_structure" />
             <t t-call="web.internal_layout">
                 <div class="page">
                     <h2 class="mt-4">Inventory Count Sheet</h2>
                     <t t-set="locations" t-value="docs.mapped('location_id')" />
-                    <div class="oe_structure"></div>
+                    <div class="oe_structure" />
                     <table class="table table-borderless">
                         <thead>
                             <tr>
@@ -25,14 +25,14 @@
                                     <td colspan="2">
                                         <span class="fw-bold" t-out="location.display_name">Shelf A</span>
                                     </td>
-                                    <td groups="stock.group_production_lot"></td>
-                                    <td groups="stock.group_tracking_lot"></td>
-                                    <td></td>
+                                    <td groups="stock.group_production_lot" />
+                                    <td groups="stock.group_tracking_lot" />
+                                    <td />
                                 </tr>
                                 <tr
                                     t-foreach="docs.filtered(lambda quant: quant.location_id.id == location.id)"
                                     t-as="line">
-                                    <td groups="stock.group_stock_multi_locations"></td>
+                                    <td groups="stock.group_stock_multi_locations" />
                                     <td>
                                         <span t-field="line.product_id">Laptop</span>
                                     </td>
@@ -47,19 +47,21 @@
                                         number -->
                                         <t
                                             t-if="not line.env['ir.config_parameter'].sudo().get_param('stock.show_expected_quantity_count', default='False') == 'True'">
-                                            <span></span>
+                                            <span />
                                         </t>
                                         <t t-else="">
                                             <span t-field="line.quantity" class="text-nowrap">7</span>
                                         </t>
-                                        <span t-field="line.product_uom_id" groups="uom.group_uom">
+                                        <span
+                                            t-field="line.product_uom_id"
+                                            groups="uom.group_uom">
                                             Units</span>
                                     </td>
                                 </tr>
                             </t>
                         </tbody>
                     </table>
-                    <div class="oe_structure"></div>
+                    <div class="oe_structure" />
                 </div>
             </t>
         </t>

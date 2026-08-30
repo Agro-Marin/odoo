@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <template id="report_stock_rule">
@@ -15,25 +15,29 @@
                                 <tr>
                                     <t t-foreach="locations" t-as="location">
                                         <th class="o_report_stock_rule_location_header">
-                                            <div t-att-res-id="location.id"
-                                                t-att-res-model="location._name" view-type="form">
+                                            <div
+                                                t-att-res-id="location.id"
+                                                t-att-res-model="location._name"
+                                                view-type="form">
                                                 <t t-out="location.display_name" />
                                             </div>
                                             <t t-if="header_lines.get(location.id)">
-                                                <t t-foreach="header_lines[location.id]['putaway']"
+                                                <t
+                                                    t-foreach="header_lines[location.id]['putaway']"
                                                     t-as="line">
-                                                    <div class="o_report_stock_rule_putaway"
+                                                    <div
+                                                        class="o_report_stock_rule_putaway"
                                                         t-att-res-id="location.id"
                                                         t-att-res-model="location._name"
                                                         view-type="form">
-                                                        <p>Putaway: <t
-                                                                t-out="line.location_out_id.display_name" /></p>
+                                                        <p>Putaway: <t t-out="line.location_out_id.display_name" /></p>
                                                     </div>
                                                 </t>
                                                 <t
                                                     t-foreach="header_lines[location.id]['orderpoint']"
                                                     t-as="line">
-                                                    <div class="o_report_stock_rule_putaway"
+                                                    <div
+                                                        class="o_report_stock_rule_putaway"
                                                         t-att-res-id="line.id"
                                                         t-att-res-model="line._name"
                                                         view-type="form">
@@ -54,12 +58,19 @@
                                         <t t-foreach="route_line" t-as="rule">
                                             <t t-if="rule">
                                                 <t t-if="rule[0]._name == 'stock.rule'">
-                                                    <t t-set="color" t-value="rule[2]" />
-                                                    <t t-if="acc > 0">
-                                                        <t t-set="acc" t-value="acc+1" />
-                                                        <td t-att-colspan="acc"
+                                                    <t
+                                                        t-set="color"
+                                                        t-value="rule[2]" />
+                                                    <t t-if="acc &gt; 0">
+                                                        <t
+                                                            t-set="acc"
+                                                            t-value="acc+1" />
+                                                        <td
+                                                            t-att-colspan="acc"
                                                             class="o_report_stock_rule_rule_cell">
-                                                            <t t-set="padding" t-value="50.0/acc" />
+                                                            <t
+                                                                t-set="padding"
+                                                                t-value="50.0/acc" />
                                                             <div
                                                                 class="o_report_stock_rule_rule_main"
                                                                 t-att-res-id="rule[0].id"
@@ -101,7 +112,8 @@
                                                                         <t
                                                                             t-call="stock.report_stock_rule_right_arrow" />
                                                                     </t>
-                                                                    <t t-if="rule[1] == 'origin'">
+                                                                    <t
+                                                                        t-if="rule[1] == 'origin'">
                                                                         <t
                                                                             t-if="rule[0].action in ('push', 'pull_push')">
                                                                             <t
@@ -127,12 +139,14 @@
                                                         <t t-set="acc" t-value="0" />
                                                     </t>
                                                     <t t-else="">
-                                                        <t t-set="acc" t-value="acc+1" />
+                                                        <t
+                                                            t-set="acc"
+                                                            t-value="acc+1" />
                                                     </t>
                                                 </t>
                                             </t>
                                             <t t-else="">
-                                                <t t-if="acc > 0">
+                                                <t t-if="acc &gt; 0">
                                                     <t t-set="acc" t-value="acc+1" />
                                                 </t>
                                                 <t t-if="acc == 0">
@@ -168,7 +182,8 @@
                                 <div class="o_report_stock_rule_legend_label">Trigger Another Rule</div>
                                 <div
                                     class="o_report_stock_rule_rule o_report_stock_rule_legend_symbol">
-                                    <t t-call="stock.report_stock_rule_suspension_points" />
+                                    <t
+                                        t-call="stock.report_stock_rule_suspension_points" />
                                     <t t-call="stock.report_stock_rule_line" />
                                 </div>
                             </div>
@@ -177,7 +192,8 @@
                                     If No Stock</div>
                                 <div
                                     class="o_report_stock_rule_rule o_report_stock_rule_legend_symbol">
-                                    <t t-call="stock.report_stock_rule_suspension_points" />
+                                    <t
+                                        t-call="stock.report_stock_rule_suspension_points" />
                                     <t t-call="stock.report_stock_rule_vertical_bar" />
                                     <t t-call="stock.report_stock_rule_line" />
                                 </div>
@@ -191,7 +207,11 @@
 
     <template id="report_stock_rule_line">
         <div class="o_report_stock_rule_line">
-            <svg width="100%" height="100%" viewBox="0 0 100 10" preserveAspectRatio="none">
+            <svg
+                width="100%"
+                height="100%"
+                viewBox="0 0 100 10"
+                preserveAspectRatio="none">
                 <line x1="0" y1="5" x2="100" y2="5" t-attf-style="stroke: #{color};" />
             </svg>
         </div>
@@ -209,7 +229,9 @@
         <div
             t-attf-class="o_report_stock_rule_arrow {{ 'o_report_stock_rule_rtl' if is_rtl else '' }}">
             <svg width="100%" height="100%" viewBox="0 0 10 10">
-                <polygon points="0,0 0,10 10,5" t-attf-style="stroke: #{color}; fill: #{color};" />
+                <polygon
+                    points="0,0 0,10 10,5"
+                    t-attf-style="stroke: #{color}; fill: #{color};" />
             </svg>
         </div>
     </template>
@@ -218,7 +240,9 @@
         <div
             t-attf-class="o_report_stock_rule_arrow {{ 'o_report_stock_rule_rtl' if is_rtl else '' }}">
             <svg width="100%" height="100%" viewBox="0 0 10 10">
-                <polygon points="0,5 10,10 10,0" t-attf-style="stroke: #{color}; fill: #{color};" />
+                <polygon
+                    points="0,5 10,10 10,0"
+                    t-attf-style="stroke: #{color}; fill: #{color};" />
             </svg>
         </div>
     </template>

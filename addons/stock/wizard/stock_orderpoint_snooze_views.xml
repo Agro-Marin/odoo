@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record id="view_stock_orderpoint_snooze" model="ir.ui.view">
@@ -9,14 +9,24 @@
                 <group>
                     <field name="orderpoint_ids" invisible="1" />
                     <field name="predefined_date" widget="radio" />
-                    <field name="snoozed_until" readonly="predefined_date != 'custom'"
+                    <field
+                        name="snoozed_until"
+                        readonly="predefined_date != 'custom'"
                         force_save="1" />
                 </group>
                 <footer>
-                    <button string="Snooze" name="action_snooze" type="object" class="btn-primary"
+                    <button
+                        string="Snooze"
+                        name="action_snooze"
+                        type="object"
+                        class="btn-primary"
                         data-hotkey="q" />
-                    <button string="Discard" name="cancel_button" class="btn-secondary"
-                        special="cancel" data-hotkey="x" />
+                    <button
+                        string="Discard"
+                        name="cancel_button"
+                        class="btn-secondary"
+                        special="cancel"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>

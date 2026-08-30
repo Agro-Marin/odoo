@@ -152,14 +152,14 @@ class StockQuant(models.Model):
     )
     date_last_movement = fields.Datetime(
         string="Last Movement",
-        compute="_compute_date_last_movement",
+        compute="_compute_last_movement",
         help="Date of the most recent done move line that took goods out of, or "
         "brought goods into, this quant. Inventory adjustments do not count: a "
         "cycle count is not a movement (see Last Count Date for those).",
     )
     days_since_last_movement = fields.Integer(
         string="Days Static",
-        compute="_compute_date_last_movement",
+        compute="_compute_last_movement",
         search="_search_days_since_last_movement",
         help="Days the goods in this quant have sat untouched. Counted from the "
         "incoming date when no movement has ever matched the quant.",
@@ -174,7 +174,7 @@ class StockQuant(models.Model):
         string="Inventoried Quantity",
         digits="Product Unit",
         compute="_compute_inventory_quantity_auto_apply",
-        inverse="_inverse_inventory_quantity",
+        inverse="_inverse_inventory_quantity_auto_apply",
         groups="stock.group_stock_manager",
     )
     inventory_diff_quantity = fields.Float(
@@ -585,7 +585,7 @@ class StockQuant(models.Model):
     @api.depends(
         "product_id", "location_id", "lot_id", "package_id", "owner_id", "in_date"
     )
-    def _compute_date_last_movement(self):
+    def _compute_last_movement(self):
         now = fields.Datetime.now()
         date_by_quant = self._read_move_line_dates(is_inventory=False)
         for quant in self:
@@ -779,7 +779,7 @@ class StockQuant(models.Model):
             return self._read_group_select("quantity:sum", query)
         return super()._read_group_select(aggregate_spec, query)
 
-    def _inverse_inventory_quantity(self):
+    def _inverse_inventory_quantity_auto_apply(self):
         if not self._is_inventory_mode():
             return
         quant_to_inventory = self.env["stock.quant"]

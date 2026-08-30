@@ -231,7 +231,7 @@ class TestSerialPrefixSequences(TransactionCase):
         self.env.flush_all()
         self.assertEqual(
             template.lot_sequence_id,
-            self.Tmpl._default_lot_sequence(),
+            self.Tmpl._default_lot_sequence_id(),
         )
 
 

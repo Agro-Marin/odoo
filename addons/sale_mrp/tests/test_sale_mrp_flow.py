@@ -1134,7 +1134,7 @@ class TestSaleMrpFlow(TestSaleMrpFlowCommon):
         for move in backorder_4.move_ids:
             self.assertEqual(move.product_qty, 1)
 
-    @mute_logger("odoo.tests.common.onchange")
+    @mute_logger("odoo.tests.form.onchange")
     def test_05_mrp_sale_kit_availability(self):
         warehouse_1 = self.env["stock.warehouse"].create(
             {"name": "Warehouse 1", "code": "WH1"}
@@ -1369,7 +1369,7 @@ class TestSaleMrpFlow(TestSaleMrpFlowCommon):
         line_ids._compute_qty_transferred()
         self.assertEqual(line_ids.qty_transferred, 10)
 
-    @mute_logger("odoo.tests.common.onchange")
+    @mute_logger("odoo.tests.form.onchange")
     def test_07_kit_availability_mixed_uom(self):
         component_uom_unit = self._cls_create_product("Comp Unit", self.uom_unit)
         component_uom_dozen = self._cls_create_product("Comp Dozen", self.uom_dozen)

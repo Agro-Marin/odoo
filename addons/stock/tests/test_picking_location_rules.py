@@ -368,14 +368,14 @@ class TestPickingCreateValues(TransactionCase):
         self.env["stock.picking"].create([vals])
         self.assertEqual(vals, before)
 
-    @mute_logger("odoo.sql_db")
+    @mute_logger("odoo.db.cursor")
     def test_creating_twice_from_one_dict_gives_two_references(self):
         vals = {"picking_type_id": self.type_in.id}
         pickings = self.env["stock.picking"].create([vals, vals])
         pickings.flush_recordset()
         self.assertEqual(len(set(pickings.mapped("name"))), 2)
 
-    @mute_logger("odoo.sql_db")
+    @mute_logger("odoo.db.cursor")
     def test_a_default_reference_does_not_collide_on_a_batch(self):
         pickings = (
             self.env["stock.picking"]

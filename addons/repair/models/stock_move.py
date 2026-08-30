@@ -148,7 +148,7 @@ class StockMove(models.Model):
             so_line_vals.append({
                 'order_id': move.repair_id.sale_order_id.id,
                 'product_id': move.product_id.id,
-                'product_uom_qty': product_qty, # When relying only on so_line compute method, the sol quantity is only updated on next sol creation
+                'product_qty': product_qty, # When relying only on so_line compute method, the sol quantity is only updated on next sol creation
                 'product_uom_id': move.product_uom_id.id,
                 'move_ids': [Command.link(move.id)],
                 'qty_transferred': move.quantity if move.state == 'done' else 0.0,
@@ -163,7 +163,7 @@ class StockMove(models.Model):
     def _clean_repair_sale_order_line(self):
         self.filtered(
             lambda m: m.repair_id and m.sale_line_id
-        ).mapped('sale_line_id').write({'product_uom_qty': 0.0})
+        ).mapped('sale_line_id').write({'product_qty': 0.0})
 
     def _update_repair_sale_order_line(self):
         if not self:
@@ -179,7 +179,7 @@ class StockMove(models.Model):
                 moves_to_update |= move
         moves_to_clean._clean_repair_sale_order_line()
         for sale_line, _ in groupby(moves_to_update, lambda m: m.sale_line_id):
-            sale_line.product_uom_qty = sum(sale_line.move_ids.mapped('product_uom_qty'))
+            sale_line.product_qty = sum(sale_line.move_ids.mapped('product_uom_qty'))
 
     def _is_consuming(self):
         return super()._is_consuming() or (self.repair_id and self.repair_line_type == 'add')

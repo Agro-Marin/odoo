@@ -1077,7 +1077,7 @@ class TestTemplateQuantitySearch(TransactionCase):
                 )
 
     def test_zero_matching_templates_are_included_when_the_operator_admits_zero(self):
-        # The branch _quantity_search_domain owns: a template with nothing in
+        # The branch _get_domain_quantity_search owns: a template with nothing in
         # scope has no row in `totals` at all, so it can only be matched by the
         # explicit "id not in totals" arm.
         empty = self.env["product.product"].create(

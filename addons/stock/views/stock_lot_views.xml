@@ -6,29 +6,47 @@
         <field name="model">stock.lot</field>
         <field name="arch" type="xml">
             <search string="Product Lots Filter">
-                <field name="name" string="Lot/Serial Number"
+                <field
+                    name="name"
+                    string="Lot/Serial Number"
                     filter_domain="['|', ('name', 'ilike', self),('ref', 'ilike', self)]" />
                 <field name="partner_ids" string="Customers" />
                 <field name="product_id" />
                 <field name="lot_properties" />
                 <field name="create_date" />
-                <filter string="At Customer" name="at_customer"
-                    domain="[('quant_ids.location_id.usage','=','customer'), ('quant_ids.quantity', '>', 0)]" />
-                <filter string="On Hand" name="on_hand"
-                    domain="[('product_qty', '>', 0)]" />
-                <filter string="Creation Date" name="creation_date"
+                <filter
+                    string="At Customer"
+                    name="at_customer"
+                    domain="[('quant_ids.location_id.usage','=','customer'), ('quant_ids.quantity', '&gt;', 0)]" />
+                <filter
+                    string="On Hand"
+                    name="on_hand"
+                    domain="[('product_qty', '&gt;', 0)]" />
+                <filter
+                    string="Creation Date"
+                    name="creation_date"
                     date="create_date" />
                 <group>
-                    <filter name="group_by_product" string="Product"
+                    <filter
+                        name="group_by_product"
+                        string="Product"
                         context="{'group_by': 'product_id'}" />
-                    <filter name="group_by_location" string="Location"
+                    <filter
+                        name="group_by_location"
+                        string="Location"
                         context="{'group_by': 'location_id'}"
                         groups="stock.group_stock_multi_locations" />
-                    <filter name="group_by_creation_date" string="Creation date"
+                    <filter
+                        name="group_by_creation_date"
+                        string="Creation date"
                         context="{'group_by': 'create_date'}" />
-                    <filter name="group_by_Company" string="Company"
+                    <filter
+                        name="group_by_Company"
+                        string="Company"
                         context="{'group_by': 'company_id'}" />
-                    <filter name="group_by_lot_properties" string="Properties"
+                    <filter
+                        name="group_by_lot_properties"
+                        string="Properties"
                         context="{'group_by': 'lot_properties'}" />
                 </group>
             </search>
@@ -45,7 +63,10 @@
                 <field name="ref" optional="hide" />
                 <field name="create_date" optional="show" />
                 <field name="company_id" groups="base.group_multi_company" />
-                <field name="partner_ids" optional="hide" widget="many2many_tags"
+                <field
+                    name="partner_ids"
+                    optional="hide"
+                    widget="many2many_tags"
                     string="Transfer to" />
                 <field name="activity_ids" widget="list_activity" optional="show" />
                 <field name="lot_properties" optional="hide" />
@@ -77,26 +98,41 @@
         <field name="priority">10</field>
         <field name="arch" type="xml">
             <form string="Lots/Serial Numbers">
-                <header></header>
+                <header />
                 <sheet>
                     <field name="company_id" invisible="1" />
                     <field name="display_complete" invisible="1" />
-                    <div class="oe_button_box" name="button_box"
+                    <div
+                        class="oe_button_box"
+                        name="button_box"
                         invisible="not display_complete">
-                        <button class="oe_stat_button" name="action_lot_open_transfers"
-                            type="object" icon="fa-truck" help="Transfers"
+                        <button
+                            class="oe_stat_button"
+                            name="action_lot_open_transfers"
+                            type="object"
+                            icon="fa-truck"
+                            help="Transfers"
                             invisible="count_transfer_outgoing == 0">
-                            <field name="count_transfer_outgoing" widget="statinfo" string="Transfers" />
+                            <field
+                                name="count_transfer_outgoing"
+                                widget="statinfo"
+                                string="Transfers" />
                         </button>
-                        <button name="action_lot_open_quants"
-                            groups="stock.group_stock_multi_locations" icon="fa-arrows"
-                            class="oe_stat_button" type="object">
+                        <button
+                            name="action_lot_open_quants"
+                            groups="stock.group_stock_multi_locations"
+                            icon="fa-arrows"
+                            class="oe_stat_button"
+                            type="object">
                             <div class="o_stat_info">
                                 <span class="o_stat_text">Location</span>
                             </div>
                         </button>
-                        <button name="%(action_stock_report)d" icon="oi-arrow-up"
-                            class="oe_stat_button" type="action">
+                        <button
+                            name="%(action_stock_report)d"
+                            icon="oi-arrow-up"
+                            class="oe_stat_button"
+                            type="action">
                             <div class="o_stat_info">
                                 <span class="o_stat_text">Traceability</span>
                             </div>
@@ -110,30 +146,46 @@
                     </div>
                     <group name="main_group">
                         <group string="Information">
-                            <field name="product_id"
+                            <field
+                                name="product_id"
                                 context="{'default_is_storable': True, 'default_tracking': 'lot'}"
-                                readonly="context.get('set_product_readonly', False)" force_save="1"
+                                readonly="context.get('set_product_readonly', False)"
+                                force_save="1"
                                 help="Product this lot/serial number contains. You cannot change it anymore if it has already been moved." />
                             <field name="ref" string="Reference" />
-                            <field name="company_id" groups="base.group_multi_company"
+                            <field
+                                name="company_id"
+                                groups="base.group_multi_company"
                                 placeholder="Visible to all" />
-                            <field name="partner_ids" string="Customer"
+                            <field
+                                name="partner_ids"
+                                string="Customer"
                                 invisible="not partner_ids or not location_id"
                                 groups="stock.group_stock_manager"
-                                widget="many2many_tags" options="{'edit_tags': True}" />
+                                widget="many2many_tags"
+                                options="{'edit_tags': True}" />
                         </group>
                         <group string="Inventory" name="inventory_group">
                             <label for="product_qty" invisible="not display_complete" />
                             <div invisible="not display_complete">
                                 <field name="product_qty" class="oe_inline me-1" />
-                                <field name="product_uom_id" groups="uom.group_uom"
+                                <field
+                                    name="product_uom_id"
+                                    groups="uom.group_uom"
                                     widget="many2one_uom"
-                                    options="{'no_open': True}" class="oe_inline" />
+                                    options="{'no_open': True}"
+                                    class="oe_inline" />
                             </div>
-                            <field name="location_id" invisible="not location_id"
+                            <field
+                                name="location_id"
+                                invisible="not location_id"
                                 groups="stock.group_stock_manager" />
                         </group>
-                        <field name="lot_properties" nolabel="1" columns="2" hideAddButton="1" />
+                        <field
+                            name="lot_properties"
+                            nolabel="1"
+                            columns="2"
+                            hideAddButton="1" />
                     </group>
                     <notebook invisible="not display_complete">
                         <page name="description" string="Description">
@@ -144,7 +196,8 @@
                                 <group>
                                 </group>
                                 <group>
-                                    <field name="company_id"
+                                    <field
+                                        name="company_id"
                                         placeholder="Visible to all coompanies"
                                         groups="base.group_multi_company" />
                                 </group>
@@ -161,15 +214,11 @@
         <field name="name">Lots / Serial Numbers</field>
         <field name="res_model">stock.lot</field>
         <field name="path">lots</field>
-        <field name="view_ids"
-            eval="[
-                (5, 0, 0),
-                (0, 0, {'view_mode': 'list', 'view_id': ref('view_stock_lot_list')}),
-                (0, 0, {'view_mode': 'kanban', 'view_id': ref('view_stock_lot_kanban')}),
-                (0, 0, {'view_mode': 'form', 'view_id': ref('view_stock_lot_form')})]" />
         <field name="search_view_id" ref="view_stock_lot_search" />
-        <field name="context">{'search_default_group_by_location': True, 'display_complete': True}</field>
-        <field name="domain">['|', ('location_id', '=', False), ('location_id.company_id', 'in', allowed_company_ids + [False])]</field>
+        <field
+            name="domain">['|', ('location_id', '=', False), ('location_id.company_id', 'in', allowed_company_ids + [False])]</field>
+        <field
+            name="context">{'search_default_group_by_location': True, 'display_complete': True}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Add a lot/serial number
@@ -180,20 +229,19 @@
                 as their composition.
             </p>
         </field>
+        <field
+            name="view_ids"
+            eval="[                 (5, 0, 0),                 (0, 0, {'view_mode': 'list', 'view_id': ref('view_stock_lot_list')}),                 (0, 0, {'view_mode': 'kanban', 'view_id': ref('view_stock_lot_kanban')}),                 (0, 0, {'view_mode': 'form', 'view_id': ref('view_stock_lot_form')})]" />
     </record>
 
     <record id="action_stock_lot_form_2" model="ir.actions.act_window">
         <field name="name">Lots/Serial Numbers</field>
         <field name="res_model">stock.lot</field>
-        <field name="view_ids"
-            eval="[
-                (5, 0, 0),
-                (0, 0, {'view_mode': 'kanban', 'view_id': ref('view_stock_lot_kanban')}),
-                (0, 0, {'view_mode': 'list', 'view_id': ref('view_stock_lot_list')}),
-                (0, 0, {'view_mode': 'form', 'view_id': ref('view_stock_lot_form')})]" />
         <field name="search_view_id" ref="view_stock_lot_search" />
-        <field name="context">{'search_default_group_by_product': 1, 'display_complete': True}</field>
-        <field name="domain">['|', ('location_id', '=', False), ('location_id.company_id', 'in', allowed_company_ids + [False])]</field>
+        <field
+            name="domain">['|', ('location_id', '=', False), ('location_id.company_id', 'in', allowed_company_ids + [False])]</field>
+        <field
+            name="context">{'search_default_group_by_product': 1, 'display_complete': True}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Add a lot/serial number
@@ -204,6 +252,9 @@
                 as their composition.
             </p>
         </field>
+        <field
+            name="view_ids"
+            eval="[                 (5, 0, 0),                 (0, 0, {'view_mode': 'kanban', 'view_id': ref('view_stock_lot_kanban')}),                 (0, 0, {'view_mode': 'list', 'view_id': ref('view_stock_lot_list')}),                 (0, 0, {'view_mode': 'form', 'view_id': ref('view_stock_lot_form')})]" />
     </record>
 
 </odoo>

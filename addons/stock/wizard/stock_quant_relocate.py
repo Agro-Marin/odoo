@@ -25,8 +25,8 @@ class StockQuantRelocate(models.TransientModel):
         domain="dest_package_id_domain",
     )
     message = fields.Text(string="Reason for relocation")
-    is_partial_package = fields.Boolean(compute="_compute_is_partial_package")
-    partial_package_names = fields.Char(compute="_compute_is_partial_package")
+    is_partial_package = fields.Boolean(compute="_compute_partial_packages")
+    partial_package_names = fields.Char(compute="_compute_partial_packages")
     is_multi_location = fields.Boolean(compute="_compute_is_multi_location")
 
     @api.constrains("quant_ids")
@@ -46,7 +46,7 @@ class StockQuantRelocate(models.TransientModel):
             wizard.company_id = wizard.quant_ids.company_id[:1]
 
     @api.depends("quant_ids")
-    def _compute_is_partial_package(self):
+    def _compute_partial_packages(self):
         self.is_partial_package = False
         self.partial_package_names = ""
         for wizard in self:

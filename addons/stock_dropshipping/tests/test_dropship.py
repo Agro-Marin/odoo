@@ -115,7 +115,7 @@ class TestDropship(common.TransactionCase):
         so_form.payment_term_id = self.env.ref(
             "account.account_payment_term_end_following_month"
         )
-        with mute_logger("odoo.tests.common.onchange"):
+        with mute_logger("odoo.tests.form.onchange"):
             # otherwise complains that there's not enough inventory and
             # apparently that's normal according to @jco and @sle
             with so_form.line_ids.new() as line:
@@ -369,7 +369,7 @@ class TestDropship(common.TransactionCase):
 
         so_form = Form(self.env["sale.order"])
         so_form.partner_id = self.customer
-        with mute_logger("odoo.tests.common.onchange"):
+        with mute_logger("odoo.tests.form.onchange"):
             with so_form.line_ids.new() as line:
                 line.product_id = self.dropship_product
                 line.product_qty = 1
@@ -391,7 +391,7 @@ class TestDropship(common.TransactionCase):
 
         so_form = Form(self.env["sale.order"])
         so_form.partner_id = self.customer
-        with mute_logger("odoo.tests.common.onchange"):
+        with mute_logger("odoo.tests.form.onchange"):
             with so_form.line_ids.new() as line:
                 line.product_id = self.dropship_product
                 line.product_qty = 2

@@ -133,7 +133,7 @@ class StockMoveLine(models.Model):
         comodel_name="stock.location",
         string="From",
         required=True,
-        compute="_compute_location_id",
+        compute="_compute_locations",
         store=True,
         precompute=True,
         readonly=False,
@@ -145,7 +145,7 @@ class StockMoveLine(models.Model):
         comodel_name="stock.location",
         string="To",
         required=True,
-        compute="_compute_location_id",
+        compute="_compute_locations",
         store=True,
         precompute=True,
         readonly=False,
@@ -464,7 +464,7 @@ class StockMoveLine(models.Model):
     @api.depends(
         "move_id", "move_id.location_id", "move_id.location_dest_id", "picking_id"
     )
-    def _compute_location_id(self):
+    def _compute_locations(self):
         for line in self:
             if (
                 not line.location_id
@@ -699,19 +699,23 @@ class StockMoveLine(models.Model):
     def _resolve_done_lots(self):
         ml_ids_tracked_without_lot = OrderedSet()
         ml_ids_to_create_lot = OrderedSet()
-        for (product, company), mls in self.grouped(
-            lambda ml: (ml.product_id, ml.company_id)
-        ).items():
-            lots = self.env["stock.lot"].search(
-                [
-                    "|",
-                    ("company_id", "=", False),
-                    ("company_id", "=", company.id),
-                    ("product_id", "=", product.id),
-                    ("name", "in", mls.mapped("lot_name")),
-                ]
-            )
-            lots = {lot.name: lot for lot in lots}
+        groups = self.grouped(lambda ml: (ml.product_id, ml.company_id))
+        lots_per_group = defaultdict(dict)
+        for lot in self.env["stock.lot"].search(
+            [
+                ("company_id", "in", [False, *self.company_id.ids]),
+                ("product_id", "in", self.product_id.ids),
+                ("name", "in", self.mapped("lot_name")),
+            ]
+        ):
+            for product, company in groups:
+                if lot.product_id == product and (
+                    not lot.company_id or lot.company_id == company
+                ):
+                    lots_per_group[product, company][lot.name] = lot
+
+        for (product, company), mls in groups.items():
+            lots = lots_per_group[product, company]
             for ml in mls:
                 lot = lots.get(ml.lot_name)
                 if lot:

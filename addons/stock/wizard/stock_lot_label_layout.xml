@@ -13,9 +13,17 @@
                     <field name="print_format" widget="radio" />
                 </group>
                 <footer>
-                    <button name="process" string="Confirm" type="object" class="btn-primary"
+                    <button
+                        name="process"
+                        string="Confirm"
+                        type="object"
+                        class="btn-primary"
                         data-hotkey="q" />
-                    <button string="Cancel" class="btn-secondary" special="cancel" data-hotkey="x" />
+                    <button
+                        string="Cancel"
+                        class="btn-secondary"
+                        special="cancel"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>

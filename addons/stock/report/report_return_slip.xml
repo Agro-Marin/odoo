@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <template id="stock.report_return_slip">
@@ -14,21 +14,17 @@
                             </h2>
                             <p> Please put this document inside your return parcel.<br /> Your
                                 parcel must be sent to this address: </p>
-                            <span
-                                t-field="(o if o.picking_type_code == 'incoming' else o.location_id.warehouse_id).partner_id"
-                                t-options='{"widget": "contact", "fields": ["address", "name"], "no_marker": True}'>Demo
+                            <span t-field="(o if o.picking_type_code == 'incoming' else o.location_id.warehouse_id).partner_id" t-options="{&quot;widget&quot;: &quot;contact&quot;, &quot;fields&quot;: [&quot;address&quot;, &quot;name&quot;], &quot;no_marker&quot;: True}">Demo
                                 Address and Name</span>
                         </div>
                         <div class="col-4 text-center mt-4">
                             <div>
-                                <span t-field="o.name"
-                                    t-options="{'widget': 'barcode', 'img_style': 'width:100%;'}">Default
+                                <span t-field="o.name" t-options="{'widget': 'barcode', 'img_style': 'width:100%;'}">Default
                                     Barcode Name</span>
                                 <span t-out="o.name">Default Name</span>
                             </div>
                             <div style="margin-top: 200px;">
-                                <span t-out="'OBTRETU'"
-                                    t-options="{'widget': 'barcode', 'img_style': 'width:100%;'}">Default
+                                <span t-out="'OBTRETU'" t-options="{'widget': 'barcode', 'img_style': 'width:100%;'}">Default
                                     OBTRETU Barcode</span>
                                 <span>OBTRETU</span>
                             </div>
@@ -39,7 +35,6 @@
             </t>
         </t>
     </template>
-
 
     <template id="report_return_document">
         <t t-foreach="docs" t-as="o">

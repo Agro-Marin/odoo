@@ -710,6 +710,7 @@ class StockMove(models.Model):
                 move.is_locked = False
 
     @api.depends("product_id", "has_tracking", "move_line_ids")
+    @api.depends_context("uid")
     def _compute_show_details_visible(self):
         has_package = self.env.user.has_group("stock.group_tracking_lot")
         multi_locations_enabled = self.env.user.has_group(
@@ -1421,7 +1422,7 @@ class StockMove(models.Model):
         return states
 
     @api.model
-    def _get_allocatable_demand_domain(
+    def _get_domain_allocatable_demand(
         self,
         location_ids,
         product_ids,

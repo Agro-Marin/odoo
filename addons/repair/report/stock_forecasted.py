@@ -16,7 +16,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
         and to a Sale Order, only take the data into account once, as a RO
         """
         sol_domain = super()._product_sale_domain(product_template_ids, product_ids)
-        move_domain = self._product_domain(product_template_ids, product_ids)
+        move_domain = self._get_domain_product(product_template_ids, product_ids)
         move_domain += [
             ('repair_id', '!=', False),
             ('sale_line_id', '!=', False),

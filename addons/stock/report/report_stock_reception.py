@@ -4,6 +4,13 @@ from odoo import _, api, models
 from odoo.exceptions import UserError
 from odoo.tools import format_date
 
+ASSIGNABLE_OUT_STATES = {
+    "confirmed",
+    "partially_available",
+    "waiting",
+    "assigned",
+}
+
 
 class ReportStockReport_Reception(models.AbstractModel):
     _name = "report.stock.report_reception"
@@ -108,13 +115,13 @@ class ReportStockReport_Reception(models.AbstractModel):
         Move = self.env["stock.move"]
         return Move.search(
             [
-                *Move._get_allocatable_demand_domain(
+                *Move._get_domain_allocatable_demand(
                     wh_location_ids,
                     product_ids,
                     include_assigned="done" in doc_states,
                 ),
                 ("move_orig_ids", "=", False),
-                *self._get_extra_domain(docs),
+                *self._get_domain_extra(docs),
             ],
             order="date_reservation, priority desc, date, id",
         )
@@ -263,7 +270,7 @@ class ReportStockReport_Reception(models.AbstractModel):
             lambda m: m.product_id.is_storable and m.state != "cancel"
         )
 
-    def _get_extra_domain(self, docs):
+    def _get_domain_extra(self, docs):
         return [("picking_id", "not in", docs.ids)]
 
     def _get_formatted_scheduled_date(self, source):
@@ -271,7 +278,7 @@ class ReportStockReport_Reception(models.AbstractModel):
             return format_date(self.env, source.date_planned)
         return False
 
-    def action_assign(self, move_ids, qtys, in_ids):
+    def _get_assignments(self, move_ids, qtys, in_ids):
         if in_ids and all(isinstance(in_id, int) for in_id in in_ids):
             if len(move_ids) == 1:
                 in_ids = [in_ids]
@@ -284,40 +291,41 @@ class ReportStockReport_Reception(models.AbstractModel):
                     " moves lists must have the same length."
                 )
             )
-        assignments = [
+        return [
             (out_id, qty, ins)
             for out_id, qty, ins in zip(move_ids, qtys, in_ids, strict=True)
             if ins
         ]
-        if not assignments:
-            return
-        allowed_out_states = {"confirmed", "partially_available", "waiting", "assigned"}
+
+    def _check_assignments(self, assignments):
         for out_id, _qty, ins in assignments:
             out = self.env["stock.move"].browse(out_id)
-            if out.state not in allowed_out_states:
+            if out.state not in ASSIGNABLE_OUT_STATES:
                 raise UserError(
                     _(
-                        "Cannot assign transfer %s in state %s.",
-                        out.display_name,
-                        out.state,
+                        "Cannot assign transfer %(transfer)s in state %(state)s.",
+                        transfer=out.display_name,
+                        state=out.state,
                     )
                 )
             if out.move_orig_ids:
                 raise UserError(
                     _("Transfer %s is already linked to a source.", out.display_name)
                 )
-            for in_move in self.env["stock.move"].browse(ins):
-                if in_move.company_id != out.company_id:
-                    raise UserError(
-                        _(
-                            "Cannot link transfers across companies (%(out)s / %(inc)s).",
-                            out=out.display_name,
-                            inc=in_move.display_name,
-                        )
-                    )
-        out_ids = [out_id for out_id, _qty, _ins in assignments]
-        outs = self.env["stock.move"].browse(out_ids)
+            self._check_same_company(out, self.env["stock.move"].browse(ins))
 
+    def _check_same_company(self, out, ins):
+        for in_move in ins:
+            if in_move.company_id != out.company_id:
+                raise UserError(
+                    _(
+                        "Transfers %(out)s and %(inc)s belong to different companies.",
+                        out=out.display_name,
+                        inc=in_move.display_name,
+                    )
+                )
+
+    def _split_outs(self, outs, assignments):
         new_move_vals = []
         split_out_ids = []
         for out, (_out_id, qty_to_link, _ins) in zip(outs, assignments, strict=True):
@@ -331,79 +339,87 @@ class ReportStockReport_Reception(models.AbstractModel):
             split_out_ids.append(out.id)
         new_outs = self.env["stock.move"].create(new_move_vals)
         new_outs.write({"state": "confirmed"})
-        out_to_new_out = dict(zip(split_out_ids, new_outs, strict=True))
+        return new_outs, dict(zip(split_out_ids, new_outs, strict=True))
+
+    def _reassign_move_lines(self, out, new_out, potential_ins, qty_to_link):
+        if potential_ins[0].state != "done" and out.quantity:
+            out.move_line_ids.move_id = new_out
+            return
+        if potential_ins[0].state != "done":
+            return
+        uom = out.product_id.uom_id
+        if (
+            uom.compare(
+                out.product_uom_id._compute_quantity(out.quantity, uom), qty_to_link
+            )
+            <= 0
+        ):
+            return
+
+        out.move_line_ids.move_id = new_out
+        assigned_amount = 0
+        matching_locations = potential_ins.location_dest_id
+        for move_line_id in new_out.move_line_ids.sorted(
+            lambda ml, matching_locations=matching_locations: (
+                ml.location_id not in matching_locations
+            )
+        ):
+            if assigned_amount + move_line_id.quantity_product_uom > qty_to_link:
+                new_move_line = move_line_id.copy({"quantity": 0})
+                new_move_line.quantity = move_line_id.quantity
+                move_line_id.quantity = uom._compute_quantity(
+                    qty_to_link - assigned_amount,
+                    out.product_uom_id,
+                    rounding_method="HALF-UP",
+                )
+                new_move_line.quantity -= uom._compute_quantity(
+                    move_line_id.quantity_product_uom,
+                    out.product_uom_id,
+                    rounding_method="HALF-UP",
+                )
+            move_line_id.move_id = out
+            assigned_amount += move_line_id.quantity_product_uom
+            if uom.compare(assigned_amount, qty_to_link) == 0:
+                break
+
+    def _link_ins(self, out, potential_ins, qty_to_link):
+        for in_move in reversed(potential_ins):
+            move_quantity = self._get_move_quantity(in_move)
+            quantity_remaining = move_quantity - sum(
+                in_move.move_dest_ids.mapped("product_qty")
+            )
+            if (
+                in_move.product_id != out.product_id
+                or in_move.product_id.uom_id.compare(0, quantity_remaining) >= 0
+            ):
+                continue
+
+            linked_qty = min(quantity_remaining, qty_to_link)
+            in_move.move_dest_ids |= out
+            self._share_source_references(in_move, out)
+            out.procure_method = "make_to_order"
+            qty_to_link -= linked_qty
+            if out.product_id.uom_id.is_zero(qty_to_link):
+                break
+
+    def action_assign(self, move_ids, qtys, in_ids):
+        assignments = self._get_assignments(move_ids, qtys, in_ids)
+        if not assignments:
+            return
+        self._check_assignments(assignments)
+
+        outs = self.env["stock.move"].browse(
+            [out_id for out_id, _qty, _ins in assignments]
+        )
+        new_outs, out_to_new_out = self._split_outs(outs, assignments)
 
         for out, (_out_id, qty_to_link, ins) in zip(outs, assignments, strict=True):
             potential_ins = self.env["stock.move"].browse(ins)
             if out.id in out_to_new_out:
-                new_out = out_to_new_out[out.id]
-                if potential_ins[0].state != "done" and out.quantity:
-                    out.move_line_ids.move_id = new_out
-                elif (
-                    potential_ins[0].state == "done"
-                    and out.product_id.uom_id.compare(
-                        out.product_uom_id._compute_quantity(
-                            out.quantity, out.product_id.uom_id
-                        ),
-                        qty_to_link,
-                    )
-                    > 0
-                ):
-                    out.move_line_ids.move_id = new_out
-                    assigned_amount = 0
-                    matching_locations = potential_ins.location_dest_id
-                    for move_line_id in new_out.move_line_ids.sorted(
-                        lambda ml, matching_locations=matching_locations: (
-                            ml.location_id not in matching_locations
-                        )
-                    ):
-                        if (
-                            assigned_amount + move_line_id.quantity_product_uom
-                            > qty_to_link
-                        ):
-                            new_move_line = move_line_id.copy({"quantity": 0})
-                            new_move_line.quantity = move_line_id.quantity
-                            move_line_id.quantity = (
-                                out.product_id.uom_id._compute_quantity(
-                                    qty_to_link - assigned_amount,
-                                    out.product_uom_id,
-                                    rounding_method="HALF-UP",
-                                )
-                            )
-                            new_move_line.quantity -= (
-                                out.product_id.uom_id._compute_quantity(
-                                    move_line_id.quantity_product_uom,
-                                    out.product_uom_id,
-                                    rounding_method="HALF-UP",
-                                )
-                            )
-                        move_line_id.move_id = out
-                        assigned_amount += move_line_id.quantity_product_uom
-                        if (
-                            out.product_id.uom_id.compare(assigned_amount, qty_to_link)
-                            == 0
-                        ):
-                            break
-
-            for in_move in reversed(potential_ins):
-                move_quantity = self._get_move_quantity(in_move)
-                quantity_remaining = move_quantity - sum(
-                    in_move.move_dest_ids.mapped("product_qty")
+                self._reassign_move_lines(
+                    out, out_to_new_out[out.id], potential_ins, qty_to_link
                 )
-                if (
-                    in_move.product_id != out.product_id
-                    or in_move.product_id.uom_id.compare(0, quantity_remaining) >= 0
-                ):
-                    continue
-
-                linked_qty = min(quantity_remaining, qty_to_link)
-                in_move.move_dest_ids |= out
-                self._share_source_references(in_move, out)
-                out.procure_method = "make_to_order"
-                quantity_remaining -= linked_qty
-                qty_to_link -= linked_qty
-                if out.product_id.uom_id.is_zero(qty_to_link):
-                    break
+            self._link_ins(out, potential_ins, qty_to_link)
 
         (outs | new_outs)._recompute_state()
 
@@ -413,28 +429,19 @@ class ReportStockReport_Reception(models.AbstractModel):
         out = self.env["stock.move"].browse(move_id)
         ins = self.env["stock.move"].browse(in_ids)
 
-        allowed_out_states = {"confirmed", "partially_available", "waiting", "assigned"}
-        if out.state not in allowed_out_states:
+        if out.state not in ASSIGNABLE_OUT_STATES:
             raise UserError(
                 _(
-                    "Cannot unassign transfer %s in state %s.",
-                    out.display_name,
-                    out.state,
+                    "Cannot unassign transfer %(transfer)s in state %(state)s.",
+                    transfer=out.display_name,
+                    state=out.state,
                 )
             )
         if not out.move_orig_ids:
             raise UserError(
                 _("Transfer %s is not linked to a source.", out.display_name)
             )
-        for in_move in ins:
-            if in_move.company_id != out.company_id:
-                raise UserError(
-                    _(
-                        "Cannot unlink transfers across companies (%(out)s / %(inc)s).",
-                        out=out.display_name,
-                        inc=in_move.display_name,
-                    )
-                )
+        self._check_same_company(out, ins)
 
         amount_unassigned = 0
         for in_move in ins:

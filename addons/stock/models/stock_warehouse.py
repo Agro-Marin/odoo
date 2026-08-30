@@ -546,7 +546,7 @@ class StockWarehouse(models.Model):
             ("stock.move", "location_id"),
             ("stock.move", "location_dest_id"),
         ):
-            record = self.env[model].search(
+            record = self.env[model].search(  # noqa: E8507 - three literal (model, field) probes
                 [(field_name, "in", locations.ids)], limit=1
             )
             if not record:
@@ -1522,92 +1522,102 @@ class StockWarehouse(models.Model):
         customer_loc, supplier_loc = self._get_partner_locations()
         return {
             warehouse.id: {
-                "one_step": [
-                    self.Routing(
-                        supplier_loc,
-                        warehouse.lot_stock_id,
-                        warehouse.in_type_id,
-                        "pull",
-                    )
-                ],
-                "two_steps": [
-                    self.Routing(
-                        supplier_loc,
-                        warehouse.lot_stock_id,
-                        warehouse.in_type_id,
-                        "pull",
-                    ),
-                    self.Routing(
-                        warehouse.wh_input_stock_loc_id,
-                        warehouse.lot_stock_id,
-                        warehouse.store_type_id,
-                        "push",
-                    ),
-                ],
-                "three_steps": [
-                    self.Routing(
-                        supplier_loc,
-                        warehouse.lot_stock_id,
-                        warehouse.in_type_id,
-                        "pull",
-                    ),
-                    self.Routing(
-                        warehouse.wh_input_stock_loc_id,
-                        warehouse.wh_qc_stock_loc_id,
-                        warehouse.qc_type_id,
-                        "push",
-                    ),
-                    self.Routing(
-                        warehouse.wh_qc_stock_loc_id,
-                        warehouse.lot_stock_id,
-                        warehouse.store_type_id,
-                        "push",
-                    ),
-                ],
-                "ship_only": [
-                    self.Routing(
-                        warehouse.lot_stock_id,
-                        customer_loc,
-                        warehouse.out_type_id,
-                        "pull",
-                    )
-                ],
-                "pick_ship": [
-                    self.Routing(
-                        warehouse.lot_stock_id,
-                        customer_loc,
-                        warehouse.pick_type_id,
-                        "pull",
-                    ),
-                    self.Routing(
-                        warehouse.wh_output_stock_loc_id,
-                        customer_loc,
-                        warehouse.out_type_id,
-                        "push",
-                    ),
-                ],
-                "pick_pack_ship": [
-                    self.Routing(
-                        warehouse.lot_stock_id,
-                        customer_loc,
-                        warehouse.pick_type_id,
-                        "pull",
-                    ),
-                    self.Routing(
-                        warehouse.wh_pack_stock_loc_id,
-                        warehouse.wh_output_stock_loc_id,
-                        warehouse.pack_type_id,
-                        "push",
-                    ),
-                    self.Routing(
-                        warehouse.wh_output_stock_loc_id,
-                        customer_loc,
-                        warehouse.out_type_id,
-                        "push",
-                    ),
-                ],
+                **self._get_reception_routings(warehouse, supplier_loc),
+                **self._get_delivery_routings(warehouse, customer_loc),
             }
             for warehouse in self
+        }
+
+    def _get_reception_routings(self, warehouse, supplier_loc):
+        return {
+            "one_step": [
+                self.Routing(
+                    supplier_loc,
+                    warehouse.lot_stock_id,
+                    warehouse.in_type_id,
+                    "pull",
+                )
+            ],
+            "two_steps": [
+                self.Routing(
+                    supplier_loc,
+                    warehouse.lot_stock_id,
+                    warehouse.in_type_id,
+                    "pull",
+                ),
+                self.Routing(
+                    warehouse.wh_input_stock_loc_id,
+                    warehouse.lot_stock_id,
+                    warehouse.store_type_id,
+                    "push",
+                ),
+            ],
+            "three_steps": [
+                self.Routing(
+                    supplier_loc,
+                    warehouse.lot_stock_id,
+                    warehouse.in_type_id,
+                    "pull",
+                ),
+                self.Routing(
+                    warehouse.wh_input_stock_loc_id,
+                    warehouse.wh_qc_stock_loc_id,
+                    warehouse.qc_type_id,
+                    "push",
+                ),
+                self.Routing(
+                    warehouse.wh_qc_stock_loc_id,
+                    warehouse.lot_stock_id,
+                    warehouse.store_type_id,
+                    "push",
+                ),
+            ],
+        }
+
+    def _get_delivery_routings(self, warehouse, customer_loc):
+        return {
+            "ship_only": [
+                self.Routing(
+                    warehouse.lot_stock_id,
+                    customer_loc,
+                    warehouse.out_type_id,
+                    "pull",
+                )
+            ],
+            "pick_ship": [
+                self.Routing(
+                    warehouse.lot_stock_id,
+                    customer_loc,
+                    warehouse.pick_type_id,
+                    "pull",
+                ),
+                self.Routing(
+                    warehouse.wh_output_stock_loc_id,
+                    customer_loc,
+                    warehouse.out_type_id,
+                    "push",
+                ),
+            ],
+            "pick_pack_ship": [
+                self.Routing(
+                    warehouse.lot_stock_id,
+                    customer_loc,
+                    warehouse.pick_type_id,
+                    "pull",
+                ),
+                self.Routing(
+                    warehouse.wh_pack_stock_loc_id,
+                    warehouse.wh_output_stock_loc_id,
+                    warehouse.pack_type_id,
+                    "push",
+                ),
+                self.Routing(
+                    warehouse.wh_output_stock_loc_id,
+                    customer_loc,
+                    warehouse.out_type_id,
+                    "push",
+                ),
+            ],
         }
 
     def _get_receive_rules_dict(self):
@@ -1877,7 +1887,7 @@ class StockWarehouse(models.Model):
         self.ensure_one()
         return self.env["stock.route"].search([("supplier_wh_id", "=", self.id)])
 
-    def _get_resupply_pick_leg_domain(self, routes):
+    def _get_domain_resupply_pick_leg(self, routes):
         self.ensure_one()
         return [
             ("route_id", "in", routes.ids),
@@ -1926,7 +1936,7 @@ class StockWarehouse(models.Model):
         )
         if change_to_multiple:
             existing = Rule.with_context(active_test=False).search(
-                self._get_resupply_pick_leg_domain(routes)
+                self._get_domain_resupply_pick_leg(routes)
             )
             missing_rule_vals = []
             for route in routes - existing.route_id:
@@ -1956,7 +1966,7 @@ class StockWarehouse(models.Model):
             return
         if multi_step is None:
             multi_step = self.delivery_steps != "ship_only"
-        Rule.search(self._get_resupply_pick_leg_domain(routes)).write(
+        Rule.search(self._get_domain_resupply_pick_leg(routes)).write(
             {"active": multi_step}
         )
         mto_domain = self._get_resupply_mto_leg_domain()

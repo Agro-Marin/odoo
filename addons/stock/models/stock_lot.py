@@ -688,7 +688,7 @@ class StockLot(models.Model):
         return {lot_id: list(pickings) for lot_id, pickings in delivery_by_lot.items()}
 
     @api.model
-    def _get_accessible_location_domain(self):
+    def _get_domain_accessible_location(self):
         return [
             "|",
             ("location_id", "=", False),

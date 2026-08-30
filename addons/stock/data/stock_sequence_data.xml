@@ -9,7 +9,7 @@
         <field name="padding">5</field>
         <field name="number_next">1</field>
         <field name="number_increment">1</field>
-        <field name="company_id"></field>
+        <field name="company_id" />
     </record>
 
     <!-- Sequences for pickings -->
@@ -25,7 +25,7 @@
     <record id="sequence_production_lots" model="ir.sequence">
         <field name="name">Serial Numbers</field>
         <field name="code">stock.lot.serial</field>
-        <field name="prefix"></field>
+        <field name="prefix" />
         <field name="padding">7</field>
         <field name="number_next">1</field>
         <field name="number_increment">1</field>
@@ -42,18 +42,15 @@
     </record>
 
     <!-- Scheduler -->
-    <record forcecreate="True" id="ir_cron_scheduler_action" model="ir.cron">
+    <record id="ir_cron_scheduler_action" model="ir.cron" forcecreate="True">
         <field name="name">Procurement: run scheduler</field>
         <field name="model_id" ref="model_stock_scheduler" />
         <field name="state">code</field>
-        <field name="code">
-            model.run(True)
-        </field>
-        <field eval="True" name="active" />
+        <field name="code">model.run(True)</field>
+        <field name="active" eval="True" />
         <field name="user_id" ref="base.user_root" />
         <field name="interval_number">1</field>
         <field name="interval_type">days</field>
     </record>
-
 
 </odoo>

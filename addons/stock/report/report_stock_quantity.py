@@ -46,10 +46,8 @@ class ReportStockQuantity(models.Model):
     def _get_product_qty_col(self):
         return "q.quantity"
 
-    def init(self):
-        drop_view_if_exists(self.env.cr, "report_stock_quantity")
-        query = f"""
-CREATE or REPLACE VIEW report_stock_quantity AS (
+    def _with_clause(self):
+        return """
 WITH
     existing_sm (id, product_id, tmpl_id, product_qty, quantity, date, state, company_id, whs_id, whd_id) AS (
         SELECT m.id, m.product_id, pt.id, m.product_qty,
@@ -92,16 +90,11 @@ WITH
             GENERATE_SERIES(0, 1, 1) is_duplicated,
             existing_sm sm
     )
-SELECT
-    MIN(id) as id,
-    product_id,
-    product_tmpl_id,
-    state,
-    date,
-    sum(product_qty) as product_qty,
-    company_id,
-    warehouse_id
-FROM (SELECT
+"""
+
+    def _select_moves(self):
+        return """
+    SELECT
         m.id,
         m.product_id,
         m.tmpl_id as product_tmpl_id,
@@ -124,7 +117,10 @@ FROM (SELECT
     WHERE
         m.product_qty != 0 AND
         m.state != 'done'
-    UNION ALL
+"""
+
+    def _select_quants(self):
+        return f"""
     SELECT
         -q.id as id,
         q.product_id,
@@ -143,7 +139,10 @@ FROM (SELECT
     WHERE
         (l.usage = 'internal' AND l.warehouse_id IS NOT NULL) OR
         l.usage = 'transit'
-    UNION ALL
+"""
+
+    def _select_forecast(self):
+        return """
     SELECT
         m.id,
         m.product_id,
@@ -172,17 +171,41 @@ FROM (SELECT
     FROM
         all_sm m
     WHERE
-        m.product_qty != 0) AS forecast_qty
-GROUP BY product_id, product_tmpl_id, state, date, company_id, warehouse_id
-);
+        m.product_qty != 0
 """
+
+    def _get_report_period(self):
         report_period = (
             self.env["ir.config_parameter"]
             .sudo()
             .get_param("stock.report_stock_quantity_period", default="3")
         )
         try:
-            report_period = int(report_period)
+            return int(report_period)
         except ValueError:
-            report_period = 3
-        self.env.cr.execute(query, {"report_period": report_period})
+            return 3
+
+    def init(self):
+        drop_view_if_exists(self.env.cr, "report_stock_quantity")
+        query = f"""
+CREATE or REPLACE VIEW report_stock_quantity AS (
+{self._with_clause()}
+SELECT
+    MIN(id) as id,
+    product_id,
+    product_tmpl_id,
+    state,
+    date,
+    sum(product_qty) as product_qty,
+    company_id,
+    warehouse_id
+FROM ({self._select_moves()}
+    UNION ALL
+{self._select_quants()}
+    UNION ALL
+{self._select_forecast()}
+) AS forecast_qty
+GROUP BY product_id, product_tmpl_id, state, date, company_id, warehouse_id
+);
+"""
+        self.env.cr.execute(query, {"report_period": self._get_report_period()})

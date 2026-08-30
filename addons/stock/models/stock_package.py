@@ -317,6 +317,7 @@ class StockPackage(models.Model):
             )
 
     @api.depends("contained_quant_ids.quantity", "contained_quant_ids.product_id")
+    @api.depends_context("lang", "uid")
     def _compute_content_description(self):
         precision = self.env["decimal.precision"].get_precision("Product Unit")
 

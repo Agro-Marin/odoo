@@ -73,7 +73,7 @@ class ProductTemplate(models.Model):
     lot_sequence_id = fields.Many2one(
         comodel_name="ir.sequence",
         string="Serial/Lot Numbers Sequence",
-        default=lambda self: self._default_lot_sequence(),
+        default=lambda self: self._default_lot_sequence_id(),
         help="Technical Field: The Ir.Sequence record that is used to generate serial/lot numbers for this product",
     )
     lot_name_format = fields.Char(
@@ -164,7 +164,7 @@ class ProductTemplate(models.Model):
     has_available_route_ids = fields.Boolean(
         string="Routes can be selected on this product",
         compute="_compute_has_available_route_ids",
-        default=lambda self: self._has_product_selectable_route(),
+        default=lambda self: self._default_has_available_route_ids(),
     )
     route_ids = fields.Many2many(
         comodel_name="stock.route",
@@ -188,15 +188,15 @@ class ProductTemplate(models.Model):
     )
     count_reordering_rules = fields.Integer(
         string="Reordering Rules",
-        compute="_compute_count_reordering_rules",
+        compute="_compute_reordering_rules",
         compute_sudo=False,
     )
     reordering_qty_min = fields.Float(
-        compute="_compute_count_reordering_rules",
+        compute="_compute_reordering_rules",
         compute_sudo=False,
     )
     reordering_qty_max = fields.Float(
-        compute="_compute_count_reordering_rules",
+        compute="_compute_reordering_rules",
         compute_sudo=False,
     )
     route_from_categ_ids = fields.Many2many(
@@ -426,7 +426,7 @@ class ProductTemplate(models.Model):
         return False if self.env.user._is_superuser() else self.env.uid
 
     @api.model
-    def _default_lot_sequence(self):
+    def _default_lot_sequence_id(self):
         return (
             self.env.ref("stock.sequence_production_lots", raise_if_not_found=False)
             or self.env["ir.sequence"]
@@ -437,7 +437,7 @@ class ProductTemplate(models.Model):
         "product_variant_ids.orderpoint_ids.product_min_qty",
         "product_variant_ids.orderpoint_ids.product_max_qty",
     )
-    def _compute_count_reordering_rules(self):
+    def _compute_reordering_rules(self):
         res = defaultdict(lambda: {"count": 0, "min": 0.0, "max": 0.0})
         for product, count, product_min_qty, product_max_qty in self.env[
             "stock.warehouse.orderpoint"
@@ -478,7 +478,7 @@ class ProductTemplate(models.Model):
         "lot_sequence_id.suffix",
     )
     def _compute_next_serial(self):
-        default_sequence = self._default_lot_sequence()
+        default_sequence = self._default_lot_sequence_id()
         for template in self:
             sequence = template.lot_sequence_id or default_sequence
             template.next_serial = sequence.preview_next() if sequence else ""
@@ -493,7 +493,7 @@ class ProductTemplate(models.Model):
 
     @api.depends_context("uid", "allowed_company_ids")
     def _compute_has_available_route_ids(self):
-        self.has_available_route_ids = self._has_product_selectable_route()
+        self.has_available_route_ids = self._default_has_available_route_ids()
 
     @api.depends_context("uid")
     @api.depends("product_variant_count", "tracking")
@@ -571,7 +571,7 @@ class ProductTemplate(models.Model):
         totals = defaultdict(float)
         for variant in candidates.filtered("active"):
             totals[variant.product_tmpl_id.id] += variant_totals[variant.id]
-        return Product._quantity_search_domain(
+        return Product._get_domain_quantity_search(
             totals, operation, operator, value, field_name
         )
 
@@ -588,7 +588,7 @@ class ProductTemplate(models.Model):
         return self._search_variant_quantity("qty_outgoing", operator, value)
 
     def _inverse_serial_prefix_format(self):
-        default_sequence = self._default_lot_sequence()
+        default_sequence = self._default_lot_sequence_id()
         valid_sequences = self.env["ir.sequence"].search(
             [
                 ("code", "=", "stock.lot.serial"),
@@ -691,7 +691,7 @@ class ProductTemplate(models.Model):
         )
         action["domain"] = [
             ("product_id.product_tmpl_id", "=", self.id),
-            *self.env["stock.lot"]._get_accessible_location_domain(),
+            *self.env["stock.lot"]._get_domain_accessible_location(),
         ]
         action["context"] = {
             "default_product_tmpl_id": self.id,
@@ -761,7 +761,7 @@ class ProductTemplate(models.Model):
         )
 
     @api.model
-    def _has_product_selectable_route(self):
+    def _default_has_available_route_ids(self):
         return bool(
             self.env["stock.route"].search_count(
                 [("product_selectable", "=", True)],

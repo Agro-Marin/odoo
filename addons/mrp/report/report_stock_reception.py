@@ -30,10 +30,10 @@ class ReportStockReport_Reception(models.AbstractModel):
             )
         return super()._get_moves(docs)
 
-    def _get_extra_domain(self, docs):
+    def _get_domain_extra(self, docs):
         if self.env.context.get("default_production_ids"):
             return [("raw_material_production_id", "not in", docs.ids)]
-        return super()._get_extra_domain(docs)
+        return super()._get_domain_extra(docs)
 
     def _get_formatted_scheduled_date(self, source):
         if source._name == "mrp.production":

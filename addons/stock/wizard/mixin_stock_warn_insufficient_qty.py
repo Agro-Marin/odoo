@@ -27,14 +27,28 @@ class MixinStockWarnInsufficientQty(models.AbstractModel):
 
     @api.depends("product_id")
     def _compute_quant_ids(self):
+        company_per_record = {
+            quantity.id: quantity._get_reference_document_company_id()
+            for quantity in self
+        }
+        quants = self.env["stock.quant"].search(
+            [
+                (
+                    "company_id",
+                    "in",
+                    [False, *{company.id for company in company_per_record.values()}],
+                ),
+                ("product_id", "in", self.product_id.ids),
+                ("location_id.usage", "=", "internal"),
+            ]
+        )
         for quantity in self:
-            company = quantity._get_reference_document_company_id()
-            quantity.quant_ids = self.env["stock.quant"].search(
-                [
-                    *self.env["stock.quant"]._check_company_domain(company),
-                    ("product_id", "=", quantity.product_id.id),
-                    ("location_id.usage", "=", "internal"),
-                ]
+            company = company_per_record[quantity.id]
+            quantity.quant_ids = quants.filtered(
+                lambda quant, company=company, product=quantity.product_id: (
+                    quant.product_id == product
+                    and quant.company_id.id in (False, company.id)
+                )
             )
 
     def action_done(self):

@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record id="digest_tip_stock_0" model="digest.tip">
@@ -13,7 +13,8 @@
                         <td class="tip_twocol_left" style="width: 45%;">
                             <img
                                 src="https://download.odoocdn.com/digests/stock/static/src/img/barcode.gif"
-                                class="tip_twocol_img" width="240" />
+                                class="tip_twocol_img"
+                                width="240" />
                         </td>
                         <td style="width: 55%;">
                             <p class="tip_content" style="margin: 0;">Enjoy a quick-paced experience
@@ -41,7 +42,8 @@
                     Number (condition, product info, ...).</p>
                 <img
                     src="https://download.odoocdn.com/digests/stock/static/src/img/18-stock-property-fields.gif"
-                    width="540" class="illustration_border" />
+                    width="540"
+                    class="illustration_border" />
             </div>
         </field>
     </record>

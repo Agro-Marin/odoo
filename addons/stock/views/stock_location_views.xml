@@ -7,37 +7,57 @@
         <field name="arch" type="xml">
             <search string="Stock Locations">
                 <field name="complete_name" string="Stock Locations" />
-                <filter name="in_location" string="Internal"
+                <filter
+                    name="in_location"
+                    string="Internal"
                     domain="[('usage', '=', 'internal')]"
                     help="Internal Locations" />
-                <filter name="customer" string="Customer"
+                <filter
+                    name="customer"
+                    string="Customer"
                     domain="[('usage', '=', 'customer')]"
                     help="Customer Locations" />
-                <filter name="inventory" string="Inventory Loss"
+                <filter
+                    name="inventory"
+                    string="Inventory Loss"
                     domain="[('usage', '=', 'inventory')]"
                     help="Inventory Loss Locations" />
-                <filter name="prod_inv_location" string="Production"
+                <filter
+                    name="prod_inv_location"
+                    string="Production"
                     domain="[('usage', '=', 'production')]"
                     help="Production Locations" />
-                <filter name="supplier" string="Vendor"
+                <filter
+                    name="supplier"
+                    string="Vendor"
                     domain="[('usage', '=', 'supplier')]"
                     help="Vendor Locations" />
-                <filter name="view" string="Virtual"
+                <filter
+                    name="view"
+                    string="Virtual"
                     domain="[('usage', '=', 'view')]"
                     help="Virtual Locations" />
                 <separator />
-                <filter name="empty_location" string="Empty Locations"
+                <filter
+                    name="empty_location"
+                    string="Empty Locations"
                     domain="[('is_empty', '=', True)]" />
                 <field name="location_id" string="Parent Location" />
                 <field name="usage" string="Location Type" />
                 <field name="warehouse_id" string="Warehouse" />
                 <separator />
-                <filter string="Archived" name="inactive"
+                <filter
+                    string="Archived"
+                    name="inactive"
                     domain="[('active','=',False)]" />
                 <group>
-                    <filter string="Warehouse" name="warehouse"
+                    <filter
+                        string="Warehouse"
+                        name="warehouse"
                         context="{'group_by': 'warehouse_id'}" />
-                    <filter string="Location Type" name="usage"
+                    <filter
+                        string="Location Type"
+                        name="usage"
                         context="{'group_by': 'usage'}" />
                 </group>
             </search>
@@ -49,14 +69,21 @@
         <field name="model">stock.location</field>
         <field name="priority" eval="2" />
         <field name="arch" type="xml">
-            <list string="Stock Location" decoration-info="usage=='view'" multi_edit="1">
+            <list
+                string="Stock Location"
+                decoration-info="usage=='view'"
+                multi_edit="1">
                 <field name="company_id" column_invisible="True" />
                 <field name="active" column_invisible="True" />
                 <field name="complete_name" string="Location" />
                 <field name="usage" />
-                <field name="is_empty" optional="hide"
+                <field
+                    name="is_empty"
+                    optional="hide"
                     invisible="usage not in ['internal', 'transit']" />
-                <field name="storage_category_id" readonly="usage != 'internal'"
+                <field
+                    name="storage_category_id"
+                    readonly="usage != 'internal'"
                     groups="stock.group_stock_multi_locations" />
                 <field name="company_id" groups="base.group_multi_company" />
             </list>
@@ -78,12 +105,13 @@
     <record id="act_product_location_open" model="ir.actions.act_window">
         <field name="name">Products</field>
         <field name="res_model">product.product</field>
-        <field name="context">{
+        <field name="search_view_id" ref="stock.stock_product_search_form_view" />
+        <field
+            name="context">{
             'location': active_id, 'search_default_real_stock_available': 1,
             'search_default_virtual_stock_available': 1,
             'search_default_virtual_stock_negative': 1, 'search_default_real_stock_negative': 1,
             'create': False}</field>
-        <field name="search_view_id" ref="stock.stock_product_search_form_view" />
     </record>
 
     <record id="view_stock_location_form" model="ir.ui.view">
@@ -109,7 +137,10 @@
                             class="oe_stat_button"
                             icon="fa-th-list" />
                     </div>
-                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
+                    <widget
+                        name="web_ribbon"
+                        title="Archived"
+                        bg_color="text-bg-danger"
                         invisible="active" />
                     <div class="oe_location_header">
                         <div>
@@ -119,7 +150,9 @@
                             </h1>
                             <label for="location_id" />
                             <h2>
-                                <field name="location_id" placeholder="e.g. Aisle 1"
+                                <field
+                                    name="location_id"
+                                    placeholder="e.g. Aisle 1"
                                     options="{'no_create': True}" />
                             </h2>
                         </div>
@@ -129,26 +162,41 @@
                         <group string="Additional Information" name="additional_info">
                             <field name="active" invisible="1" />
                             <field name="usage" />
-                            <field name="storage_category_id" invisible="usage != 'internal'"
+                            <field
+                                name="storage_category_id"
+                                invisible="usage != 'internal'"
                                 groups="stock.group_stock_multi_locations" />
-                            <field name="company_id" groups="base.group_multi_company"
-                                options="{'no_create': True}" placeholder="Visible to all" />
-                            <field name="replenish_location" invisible="usage != 'internal'" />
+                            <field
+                                name="company_id"
+                                groups="base.group_multi_company"
+                                options="{'no_create': True}"
+                                placeholder="Visible to all" />
+                            <field
+                                name="replenish_location"
+                                invisible="usage != 'internal'" />
                         </group>
-                        <group string="Cyclic Counting"
+                        <group
+                            string="Cyclic Counting"
                             invisible="usage not in ('internal', 'transit') or not company_id">
-                            <label for="cyclic_inventory_frequency" string="Inventory Frequency" />
+                            <label
+                                for="cyclic_inventory_frequency"
+                                string="Inventory Frequency" />
                             <div class="o_row">
-                                <field name="cyclic_inventory_frequency" nolabel="1"
+                                <field
+                                    name="cyclic_inventory_frequency"
+                                    nolabel="1"
                                     class="oe_inline" />
                                 <span>days</span>
                             </div>
                             <field name="last_inventory_date" />
                             <field name="next_inventory_date" invisible="not active" />
                         </group>
-                        <group string="Logistics"
+                        <group
+                            string="Logistics"
                             invisible="usage not in ('view', 'internal', 'transit') or (usage == 'transit' and not company_id)">
-                            <field name="removal_strategy_id" widget="radio"
+                            <field
+                                name="removal_strategy_id"
+                                widget="radio"
                                 options="{'no_create': True}" />
                         </group>
                     </group>

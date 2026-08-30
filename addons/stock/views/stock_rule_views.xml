@@ -7,12 +7,22 @@
         <field name="arch" type="xml">
             <search string="Search Procurement">
                 <field name="name" />
-                <filter string="Archived" name="inactive" domain="[('active','=',False)]" />
+                <filter
+                    string="Archived"
+                    name="inactive"
+                    domain="[('active','=',False)]" />
                 <group>
-                    <filter string='Route' name="groupby_route" context="{'group_by': 'route_id'}" />
-                    <filter string='Destination Location' name="groupby_location_dest"
+                    <filter
+                        string="Route"
+                        name="groupby_route"
+                        context="{'group_by': 'route_id'}" />
+                    <filter
+                        string="Destination Location"
+                        name="groupby_location_dest"
                         context="{'group_by': 'location_dest_id'}" />
-                    <filter string='Warehouse' name="groupby_warehouse"
+                    <filter
+                        string="Warehouse"
+                        name="groupby_warehouse"
                         context="{'group_by': 'warehouse_id'}"
                         groups="stock.group_stock_multi_warehouses" />
                 </group>
@@ -41,7 +51,10 @@
         <field name="arch" type="xml">
             <form string="Rules">
                 <sheet>
-                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
+                    <widget
+                        name="web_ribbon"
+                        title="Archived"
+                        bg_color="text-bg-danger"
                         invisible="active" />
                     <div class="oe_title">
                         <label for="name" />
@@ -56,14 +69,22 @@
                             <field name="picking_type_code_domain" invisible="1" />
                             <field name="action" />
                             <field name="picking_type_id" />
-                            <field name="location_src_id" options="{'no_create': True}"
+                            <field
+                                name="location_src_id"
+                                options="{'no_create': True}"
                                 required="action in ['pull', 'push', 'pull_push']" />
-                            <field name="location_dest_id" options="{'no_create': True}" />
-                            <field name="location_dest_from_rule"
+                            <field
+                                name="location_dest_id"
+                                options="{'no_create': True}" />
+                            <field
+                                name="location_dest_from_rule"
                                 invisible="action not in ['pull', 'pull_push']"
                                 groups="base.group_no_one" />
-                            <field name="auto" invisible="action not in ['push', 'pull_push']" />
-                            <field name="procure_method"
+                            <field
+                                name="auto"
+                                invisible="action not in ['push', 'pull_push']" />
+                            <field
+                                name="procure_method"
                                 invisible="action not in ['pull', 'pull_push']" />
                         </group>
                         <group>
@@ -78,24 +99,40 @@
                     <group>
                         <group name="apply_on" string="Applicability">
                             <field name="route_id" />
-                            <field name="warehouse_id" invisible="action == 'push'"
+                            <field
+                                name="warehouse_id"
+                                invisible="action == 'push'"
                                 groups="base.group_no_one" />
                             <field name="route_company_id" invisible="1" />
-                            <field name="company_id" options="{'no_create': True}"
-                                required="action == 'push'" groups="base.group_multi_company"
+                            <field
+                                name="company_id"
+                                options="{'no_create': True}"
+                                required="action == 'push'"
+                                groups="base.group_multi_company"
                                 placeholder="Visible to all" />
-                            <field name="sequence" string="Sequence" groups="base.group_no_one" />
+                            <field
+                                name="sequence"
+                                string="Sequence"
+                                groups="base.group_no_one" />
                         </group>
-                        <group string="Options"
+                        <group
+                            string="Options"
                             invisible="action not in ['pull', 'push', 'pull_push']">
-                            <field name="partner_address_id" invisible="action == 'push'" />
-                            <field name="propagate_cancel" invisible="action == 'push'" />
+                            <field
+                                name="partner_address_id"
+                                invisible="action == 'push'" />
+                            <field
+                                name="propagate_cancel"
+                                invisible="action == 'push'" />
                             <label for="delay" />
                             <div><field name="delay" class="oe_inline" /> days</div>
                         </group>
                     </group>
-                    <field name="push_domain" invisible="action not in ['push', 'pull_push']"
-                        widget="domain" options="{'model': 'stock.move'}" />
+                    <field
+                        name="push_domain"
+                        invisible="action not in ['push', 'pull_push']"
+                        widget="domain"
+                        options="{'model': 'stock.move'}" />
                 </sheet>
             </form>
         </field>
@@ -104,10 +141,10 @@
     <record id="view_stock_rule_form_2" model="ir.ui.view">
         <field name="name">stock.rule.form</field>
         <field name="model">stock.rule</field>
-        <field name="mode">primary</field>
         <field name="inherit_id" ref="stock.view_stock_rule_form" />
+        <field name="mode">primary</field>
         <field name="arch" type="xml">
-            <xpath expr="//field[@name='route_id']" position="replace"></xpath>
+            <xpath expr="//field[@name='route_id']" position="replace" />
             <xpath expr="//group[@name='apply_on']" position="attributes">
                 <attribute name="groups">base.group_multi_company,base.group_no_one</attribute>
             </xpath>

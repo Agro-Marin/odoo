@@ -10,14 +10,25 @@
                 <div>
                     <group>
                         <field name="inventory_adjustment_name" />
-                        <field name="counting_date" widget="datetime" placeholder="Today" />
+                        <field
+                            name="counting_date"
+                            widget="datetime"
+                            placeholder="Today" />
                     </group>
                 </div>
                 <footer>
-                    <button name="action_apply" string="Update Quantities" type="object"
-                        class="btn-primary" data-hotkey="q" />
-                    <button name="cancel_button" string="Discard" class="btn-secondary"
-                        special="cancel" data-hotkey="x" />
+                    <button
+                        name="action_apply"
+                        string="Update Quantities"
+                        type="object"
+                        class="btn-primary"
+                        data-hotkey="q" />
+                    <button
+                        name="cancel_button"
+                        string="Discard"
+                        class="btn-secondary"
+                        special="cancel"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>
@@ -28,10 +39,11 @@
         <field name="res_model">stock.inventory.adjustment.name</field>
         <field name="view_mode">form</field>
         <field name="view_id" ref="stock_inventory_adjustment_name_form_view" />
-        <field name="context">{
+        <field name="target">new</field>
+        <field
+            name="context">{
             'default_quant_ids': active_ids
             }</field>
-        <field name="target">new</field>
     </record>
 
 </odoo>
