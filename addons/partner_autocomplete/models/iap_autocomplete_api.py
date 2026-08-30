@@ -9,6 +9,11 @@ from odoo.addons.iap.tools import iap_tools
 _logger = logging.getLogger(__name__)
 
 
+class MissingIAPAccountTokenError(Exception):
+    """Raised by `_contact_iap` when the partner_autocomplete IAP account has
+    no `account_token` configured yet."""
+
+
 class IapAutocompleteApi(models.AbstractModel):
     _name = "iap.autocomplete.api"
     _description = "IAP Partner Autocomplete API"
@@ -20,7 +25,7 @@ class IapAutocompleteApi(models.AbstractModel):
             raise exceptions.ValidationError(_("Test mode"))
         account = self.env["iap.account"].get("partner_autocomplete")
         if not account.sudo().account_token:
-            raise ValueError(_("No account token"))
+            raise MissingIAPAccountTokenError(_("No account token"))
         params.update(
             {
                 "db_uuid": self.env["ir.config_parameter"]
@@ -66,6 +71,6 @@ class IapAutocompleteApi(models.AbstractModel):
                 "Insufficient Credits for Autocomplete Service: %s", exception
             )
             return False, "Insufficient Credit"
-        except ValueError:
+        except MissingIAPAccountTokenError:
             return False, "No account token"
         return results, False
