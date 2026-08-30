@@ -268,7 +268,7 @@ class TestPurchaseOrderConfirmPerf(AccountTestInvoicingCommon):
             po.action_confirm()
 
 
-@tagged("purchase_profile", "-at_install", "post_install")
+@tagged("purchase_profile", "-at_install", "post_install", "-standard")
 class TestPurchaseOrderProfiling(AccountTestInvoicingCommon):
     @classmethod
     def setUpClass(cls):
@@ -440,7 +440,7 @@ class TestPurchaseOrderProfiling(AccountTestInvoicingCommon):
             po.action_confirm()
 
 
-@tagged("purchase_scale", "-at_install", "post_install")
+@tagged("purchase_scale", "-at_install", "post_install", "-standard")
 class TestPurchaseOrderScaling(AccountTestInvoicingCommon):
     @classmethod
     def setUpClass(cls):
@@ -657,7 +657,7 @@ class TestPurchaseOrderScaling(AccountTestInvoicingCommon):
             )
 
 
-@tagged("purchase_stress", "-at_install", "post_install")
+@tagged("purchase_stress", "-at_install", "post_install", "-standard")
 class TestPurchaseOrderStress(AccountTestInvoicingCommon):
     @classmethod
     def setUpClass(cls):
@@ -1014,7 +1014,7 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
                 )
 
 
-@tagged("purchase_bottleneck", "-at_install", "post_install")
+@tagged("purchase_bottleneck", "-at_install", "post_install", "-standard")
 class TestPurchaseBottlenecks(AccountTestInvoicingCommon):
     @classmethod
     def setUpClass(cls):
