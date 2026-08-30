@@ -9,6 +9,7 @@ import psycopg.errors
 from werkzeug.exceptions import (
     HTTPException,
     NotFound,
+    RequestEntityTooLarge,
     UnsupportedMediaType,
 )
 
@@ -26,11 +27,14 @@ from .constants import NOT_FOUND_NODB, NOT_FOUND_NODB_TEXT, STATIC_CACHE
 from .core import borrow_request
 from .dispatcher import _dispatchers, infer_dispatcher_for_unmatched
 from .exceptions import RegistryError, get_error_response, set_error_response
-from .helpers import is_cors_preflight
+from .helpers import is_cors_preflight, rewind_uploaded_files
 from .stream import Stream
 from .wrappers import Response
 
 _logger = logging.getLogger(__name__)
+
+_PROMOTE = object()
+"""What `_serve_readonly` answers when the handler must be replayed read/write."""
 
 
 class _RequestServeMixin(RequestState):
@@ -99,7 +103,7 @@ class _RequestServeMixin(RequestState):
                 rule, args = router.match(return_rule=True)
             except NotFound as exc:
                 self.dispatcher = infer_dispatcher_for_unmatched(self)(self)
-                exc.response = self._nodb_not_found_response(exc)
+                set_error_response(exc, self._nodb_not_found_response(exc))
                 raise
             self._set_request_dispatcher(rule)
             self.dispatcher.pre_dispatch(rule, args)
@@ -112,6 +116,16 @@ class _RequestServeMixin(RequestState):
             return self._serve_aborted(exc)
 
     def _nodb_not_found_response(self, exc: NotFound) -> Response:
+        # The result travels on `error_response`, not on werkzeug's own
+        # `exc.response`. Both would reach the client -- `Application` asks
+        # `get_error_response` first and werkzeug's `get_response` honours
+        # `exc.response` -- but only the first is a channel `_ensure_error_response`
+        # reads, so the werkzeug one had the dispatcher build this body and then
+        # threw it away and asked for another. `Json2Dispatcher.handle_error`
+        # happened to short-circuit on `exc.response` and paid only a rewrap;
+        # `JsonRPCDispatcher.handle_error` has no such branch and serialized the
+        # exception a second time on every 404 a JSON-RPC client sent to a
+        # database-less instance.
         if self.dispatcher.routing_type == "http":
             return Response(
                 NOT_FOUND_NODB,
@@ -162,6 +176,76 @@ class _RequestServeMixin(RequestState):
                 cr.close()
             raise
 
+    def _resolve_serve_target(self, registry: Registry) -> tuple[Any, bool]:
+        try:
+            rule, args = registry["ir.http"]._match(self.httprequest.path)
+        except NotFound as not_found_exc:
+            self.dispatcher = infer_dispatcher_for_unmatched(self)(self)
+            return functools.partial(self._serve_ir_http_fallback, not_found_exc), True
+
+        self._set_request_dispatcher(rule)
+        readonly = rule.endpoint.routing["readonly"]
+        if callable(readonly):
+            readonly = readonly(rule.endpoint.func.__self__, rule, args)
+        return functools.partial(self._serve_ir_http, rule, args), bool(readonly)
+
+    def _run_serve_func(self, serve_func: Any) -> Response:
+        try:
+            return retrying(serve_func, env=self.env)
+        except Exception as exc:
+            self._update_served_exception(exc)
+            raise
+
+    def _serve_readonly(self, serve_func: Any) -> Any:
+        # Answers `_PROMOTE` -- never a response -- when the handler wrote and
+        # has to be replayed against a read/write cursor.
+        current_worker_thread().cursor_mode = "ro"
+        try:
+            return retrying(serve_func, env=self.env)
+        except psycopg.errors.ReadOnlySqlTransaction as exc:
+            _logger.warning(
+                "%s, retrying with a read/write cursor — readonly route "
+                "%s %s attempted a write, so its handler runs a second "
+                "time; keep non-transactional side effects (emails, "
+                "outbound calls, token burns) out until the first write",
+                exc.args[0].rstrip(),
+                self.httprequest.method,
+                self.httprequest.path,
+                exc_info=True,
+            )
+            current_worker_thread().cursor_mode = "ro->rw"
+            RequestRetryParticipant(self).on_rollback(exc)
+            # Not `on_retry`: it also resets the request against `self.env.cr`,
+            # which here is the read-only cursor `_serve_db` is about to close.
+            # `_serve_db` resets again with the read/write cursor it opens, so
+            # the first reset only built an Environment on a doomed cursor.
+            rewind_uploaded_files(self.httprequest, cause=exc)
+            return _PROMOTE
+        except Exception as exc:
+            self._update_served_exception(exc)
+            raise
+
+    def _open_read_write_cursor(self, cr: Any) -> Any:
+        # Closes `cr` and answers the cursor to use instead, so the caller can
+        # rebind before its `finally` closes one of them.
+        env = self.env
+        assert env is not None
+        if cr.readonly:
+            cr.close()
+            cr = env.registry.cursor()
+        else:
+            cr.rollback()
+        if cr.readonly:
+            # Not a type narrowing -- this is the invariant the promotion
+            # exists to establish, and `assert` would be stripped by -O.
+            e = (
+                f"{self.httprequest.method} {self.httprequest.path} needs a "
+                f"read/write cursor and the registry handed back a read-only "
+                f"one; refusing to run the handler against it."
+            )
+            raise RuntimeError(e)
+        return cr
+
     def _serve_db(self) -> Response:
         cr: Any = None
         try:
@@ -173,74 +257,25 @@ class _RequestServeMixin(RequestState):
             self.env = odoo.api.Environment(
                 cr, self.session.uid, self.session.context or {}
             )
-            try:
-                rule, args = registry["ir.http"]._match(self.httprequest.path)
-            except NotFound as not_found_exc:
-                self.dispatcher = infer_dispatcher_for_unmatched(self)(self)
-                serve_func = functools.partial(
-                    self._serve_ir_http_fallback, not_found_exc
-                )
-                readonly = True
-            else:
-                self._set_request_dispatcher(rule)
-                serve_func = functools.partial(self._serve_ir_http, rule, args)
-                readonly = rule.endpoint.routing["readonly"]
-                if callable(readonly):
-                    readonly = readonly(rule.endpoint.func.__self__, rule, args)
+            serve_func, readonly = self._resolve_serve_target(registry)
 
             promoted = False
-
             if readonly and cr.readonly:
-                current_worker_thread().cursor_mode = "ro"
-                try:
-                    return retrying(serve_func, env=self.env)
-                except psycopg.errors.ReadOnlySqlTransaction as exc:
-                    _logger.warning(
-                        "%s, retrying with a read/write cursor — readonly route "
-                        "%s %s attempted a write, so its handler runs a second "
-                        "time; keep non-transactional side effects (emails, "
-                        "outbound calls, token burns) out until the first write",
-                        exc.args[0].rstrip(),
-                        self.httprequest.method,
-                        self.httprequest.path,
-                        exc_info=True,
-                    )
-                    current_worker_thread().cursor_mode = "ro->rw"
-                    participant = RequestRetryParticipant(self)
-                    participant.on_rollback(exc)
-                    participant.on_retry(exc)
-                    promoted = True
-                except Exception as exc:
-                    self._update_served_exception(exc)
-                    raise
+                served = self._serve_readonly(serve_func)
+                if served is not _PROMOTE:
+                    return served
+                promoted = True
             else:
                 current_worker_thread().cursor_mode = "rw"
 
             env = self.env
             assert env is not None
-            if cr.readonly:
-                cr.close()
-                cr = env.registry.cursor()
-            else:
-                cr.rollback()
-            if cr.readonly:
-                # Not a type narrowing -- this is the invariant the promotion
-                # exists to establish, and `assert` would be stripped by -O.
-                e = (
-                    f"{self.httprequest.method} {self.httprequest.path} needs a "
-                    f"read/write cursor and the registry handed back a read-only "
-                    f"one; refusing to run the handler against it."
-                )
-                raise RuntimeError(e)
+            cr = self._open_read_write_cursor(cr)
             if promoted:
                 self._reset_for_replay(cr)
             else:
                 self.env = env(cr=cr)
-            try:
-                return retrying(serve_func, env=self.env)
-            except Exception as exc:
-                self._update_served_exception(exc)
-                raise
+            return self._run_serve_func(serve_func)
         except HTTPException as exc:
             if exc.code is not None:
                 raise
@@ -269,10 +304,29 @@ class _RequestServeMixin(RequestState):
         assert registry is not None, "ir.http is only reachable with a registry"
         return registry
 
+    def _reject_oversized_body(self) -> None:
+        # Deferring the body (see `Request.params`) also deferred the one thing
+        # the eager parse did besides producing params: raising
+        # `RequestEntityTooLarge`. `_apply_max_upload_size` runs immediately
+        # above and would otherwise have no effect at all on a path with no
+        # endpoint, so the limit is checked against the DECLARED length here --
+        # which is also the cheaper question, since the old answer required
+        # decoding the megabytes in order to find out there were too many.
+        #
+        # A body with no declared length (chunked) is not caught here and is
+        # answered 404 without being read, which is the safe outcome: nothing
+        # allocates it. Should a fallback go on to read `params`, werkzeug
+        # enforces `max_content_length` during the parse exactly as before.
+        limit = self.httprequest.max_content_length
+        length = self.httprequest.content_length
+        if limit is not None and length is not None and length > limit:
+            raise RequestEntityTooLarge
+
     def _serve_ir_http_fallback(self, not_found: NotFound) -> Response:
         registry = self._bound_registry()
         registry["ir.http"]._apply_max_upload_size()
-        self.params = self.get_http_params()
+        self._reject_oversized_body()
+        self._params_source = self.get_http_params
         registry["ir.http"]._auth_method_public()
         response = registry["ir.http"]._serve_fallback()
         if response:

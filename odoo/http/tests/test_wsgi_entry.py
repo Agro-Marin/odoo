@@ -185,3 +185,30 @@ def test_a_rerouted_request_has_its_second_httprequest_closed():
     with mock.patch.object(app, "get_static_file", return_value=None):
         _run(app, _environ(), req)
     rerouted.close.assert_called_once()
+
+
+def test_a_memoised_singleton_shadows_a_class_level_replacement():
+    """`_locked_cached_property` memoises into `instance.__dict__`, so patching
+    `Application.session_store` on the CLASS -- what `test_http`'s setUpClass
+    does for the session store and both geoip readers -- is a no-op on a `root`
+    that has already served a request. `odoo.libs.func.reset_cached_properties`
+    is what makes that patch land, and it can only do so while the class
+    attribute is still the descriptor: called AFTER the patch it no longer
+    recognises the name and clears nothing. The reset has to come first, and
+    nothing but this test says so.
+    """
+    from odoo.libs.func import reset_cached_properties
+
+    app = application.Application()
+    app.__dict__["session_store"] = "memoised"
+
+    with mock.patch.object(application.Application, "session_store", "patched"):
+        assert app.session_store == "memoised"
+        reset_cached_properties(app)
+        assert app.session_store == "memoised", (
+            "reset after the patch clears nothing: the name no longer resolves "
+            "to a cached_property, so reset_cached_properties skips it"
+        )
+
+    reset_cached_properties(app)
+    assert "session_store" not in app.__dict__, "reset first, patch second"

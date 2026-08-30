@@ -16,9 +16,9 @@ from odoo.http import (
     SESSION_ROTATION_INTERVAL,
     STORED_SESSION_BYTES,
     Session,
-    _session_identifier_re,
     root,
 )
+from odoo.http.session import _session_identifier_re
 from odoo.tests import get_db_name, tagged
 from odoo.tools import config, mute_logger, reset_cached_properties
 
@@ -479,10 +479,13 @@ class TestHttpSession(TestHttpBase):
             },
         )
         self.assertEqual(res.status_code, 403, res.text)
-        self.assertIn(
-            "Cannot use both the session_id cookie and the x-odoo-database header.",
-            res.text,
-        )
+        # The rule is a MISMATCH rule, not a "one or the other" rule --
+        # test_session14 above sends both and gets a 200. The message used to
+        # say the opposite, and named neither of the two databases it refused
+        # to choose between.
+        self.assertIn(get_db_name(), res.text)
+        self.assertIn(f"not-{get_db_name()}", res.text)
+        self.assertIn("X-Odoo-Database", res.text)
 
     def test_session16_soft_rotate_with_abort(self):
         session = self.authenticate("admin", "admin")

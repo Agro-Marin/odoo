@@ -1,4 +1,3 @@
-import collections.abc
 import functools
 from typing import TYPE_CHECKING, Any
 
@@ -82,7 +81,28 @@ _GEOIP_COUNTRY_MODEL_ATTRS = frozenset(
 _GEOIP_CITY_ONLY_MODEL_ATTRS = frozenset({"city", "location", "postal", "subdivisions"})
 
 
-class GeoIP(collections.abc.Mapping):
+_GEOIP_ITEM_KEYS = frozenset(
+    {
+        "city",
+        "country_code",
+        "country_name",
+        "latitude",
+        "longitude",
+        "region",
+        "time_zone",
+    }
+)
+
+
+# Not a `collections.abc.Mapping`, deliberately. It registered as one while
+# `__iter__` and `__len__` raised, so `isinstance(geoip, Mapping)` said yes and
+# `len()`, `dict()`, `{**geoip}` and every generic Mapping consumer then blew
+# up on a value that had advertised itself as safe. The dict API is deprecated
+# -- saying so by not claiming the protocol is the honest version of that. The
+# three readers that still index it (`geoip.get("country_name")` and friends)
+# keep working; `get` and `__contains__` are spelled out below because they
+# came from the base class.
+class GeoIP:
     def __init__(self, ip: str | None, app: Any) -> None:
         self.app = app
         self.ip = ip
@@ -165,6 +185,18 @@ class GeoIP(collections.abc.Mapping):
                 return _none_if_null(self.location.time_zone)
             case _:
                 raise KeyError(item)
+
+    def __contains__(self, item: str) -> bool:
+        return item in _GEOIP_ITEM_KEYS
+
+    def get(self, item: str, default: Any = None) -> Any:
+        # What `Mapping.get` did: the default stands in for a missing KEY, not
+        # for a key whose value is None. `geoip.get("city", "?")` on a resolved
+        # address with no city still answers None.
+        try:
+            return self[item]
+        except KeyError:
+            return default
 
     def __iter__(self) -> Iterator[str]:
         msg = "The dictionary GeoIP API is deprecated."

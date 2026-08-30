@@ -178,3 +178,108 @@ def test_list_of_ints_and_untyped_list():
         "raw": ["a", 3],
     }
     assert coerce_params({"ids": "7"}, specs) == {"ids": [7]}
+
+
+_FUZZ_TARGETS = [
+    (int, None),
+    (float, None),
+    (bool, None),
+    (str, None),
+    (list, None),
+    (list, int),
+    (list, float),
+    (list, bool),
+    (list, str),
+]
+
+_FUZZ_VALUES = [
+    None,
+    True,
+    False,
+    0,
+    1,
+    -1,
+    2**63,
+    10**500,  # a 400-digit `<int:...>` URL segment; float() raises OverflowError
+    0.0,
+    1.5,
+    float("nan"),
+    float("inf"),
+    float("-inf"),
+    1e308,
+    "",
+    " ",
+    "0",
+    "  12  ",
+    "+12",
+    "1_000",
+    "0x10",
+    "1e3",
+    "true",
+    "  yes ",
+    "maybe",
+    "nan",
+    "inf",
+    "١٢٣",  # Arabic-Indic digits: int() accepts them, JSON does not
+    "１２３",  # fullwidth digits, same reason
+    "9" * 5000,  # over CPython's int<->str digit limit: ValueError, not a crash
+    "\x00",
+    [],
+    [1, 2],
+    [None],
+    [[1]],
+    [{"a": 1}],
+    (1, 2),
+    {"a": 1},
+    {},
+    b"12",
+    bytearray(b"1"),
+    range(3),
+    object(),
+]
+
+
+@pytest.mark.parametrize(("target", "item"), _FUZZ_TARGETS)
+@pytest.mark.parametrize("allow_none", [True, False])
+def test_no_value_escapes_coercion_as_anything_but_a_bad_request(
+    target, item, allow_none
+):
+    """The contract of `coerce_params` is that untrusted input either coerces or
+    becomes a 400. Anything else is a 500 the caller cannot see coming, and this
+    is the only test that says so across the whole value space rather than one
+    case at a time. It caught `float(10**500)` raising `OverflowError`, which is
+    reachable through werkzeug's unbounded `<int:...>` converter.
+    """
+    spec = {
+        "p": ParamSpec(target=target, item=item, allow_none=allow_none, required=True)
+    }
+    for value in _FUZZ_VALUES:
+        try:
+            coerce_params({"p": value}, spec)
+        except BadRequest:
+            pass
+        except Exception as exc:
+            pytest.fail(
+                f"target={target.__name__} item={item} allow_none={allow_none} "
+                f"value={value!r} escaped as {type(exc).__name__}: {exc}"
+            )
+
+
+def test_an_int_too_large_for_a_double_is_a_bad_request_not_a_crash():
+    spec = {"n": ParamSpec(target=float, item=None, allow_none=False, required=True)}
+    with pytest.raises(BadRequest, match="must be a finite number"):
+        coerce_params({"n": int("9" * 400)}, spec)
+
+
+def test_the_int_converter_werkzeug_hands_us_really_is_unbounded():
+    """The reachability half of the case above: if this ever gains a bound, the
+    test beside it stops standing for anything real."""
+    import werkzeug.routing
+
+    adapter = werkzeug.routing.Map(
+        [werkzeug.routing.Rule("/r/<int:n>", endpoint="e")]
+    ).bind("h")
+    _, args = adapter.match("/r/" + "9" * 400, return_rule=True)
+
+    assert isinstance(args["n"], int)
+    assert args["n"].bit_length() > 1024

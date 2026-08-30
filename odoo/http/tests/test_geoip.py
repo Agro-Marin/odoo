@@ -75,3 +75,37 @@ def test_getattr_typo_raises_even_without_geoip2():
         geoip_mod.geoip2, geoip_mod.GEOIP_EMPTY_COUNTRY, geoip_mod.GEOIP_EMPTY_CITY = (
             saved
         )
+
+
+def _app():
+    import types
+
+    return types.SimpleNamespace(geoip_city_db=None, geoip_country_db=None)
+
+
+def test_geoip_does_not_claim_a_mapping_it_cannot_honour():
+    """It registered as a `collections.abc.Mapping` while `__iter__` and
+    `__len__` raised, so `isinstance(g, Mapping)` said yes and every generic
+    Mapping consumer blew up on a value that advertised itself as safe."""
+    import collections.abc
+
+    from odoo.http.geoip import GeoIP
+
+    geoip = GeoIP("1.2.3.4", app=_app())
+
+    assert not isinstance(geoip, collections.abc.Mapping)
+
+
+def test_the_indexing_api_three_callers_still_use_keeps_working():
+    from odoo.http.geoip import GeoIP
+
+    geoip = GeoIP("1.2.3.4", app=_app())
+
+    assert geoip["country_name"] is None
+    assert geoip.get("country_name") is None
+    # the default stands in for a missing KEY, as Mapping.get did -- not for a
+    # known key whose value happens to be None
+    assert geoip.get("country_name", "fallback") is None
+    assert geoip.get("not_a_geoip_key", "fallback") == "fallback"
+    assert "country_code" in geoip
+    assert "not_a_geoip_key" not in geoip

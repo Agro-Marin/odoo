@@ -91,6 +91,13 @@ class Stream:
     @classmethod
     def from_binary_field(cls, record: Any, field_name: str) -> Stream:
         data = record[field_name] or b""
+        if isinstance(data, str):
+            # A Binary field answers bytes, but this is a public classmethod and
+            # nothing stops a caller handing it a Char. Encoding here keeps the
+            # failure at the field's own type rather than surfacing three lines
+            # down as `replace() argument 1 must be str, not bytes`, which names
+            # neither the record nor the field.
+            data = data.encode()
 
         with contextlib.suppress(ValueError):
             data = base64.b64decode(
@@ -106,51 +113,55 @@ class Stream:
             public=record.env.user._is_public(),
         )
 
+    def _payload(self, attr: str) -> Any:
+        # The one place a Stream says "you gave me a type but not the thing it
+        # names". Every consumer needs the check AND the narrowing, so spelling
+        # it per branch produced the same sentence five times and two branches
+        # that could not be reached: `get_response` validated
+        # `getattr(self, self.type)` generically and then re-validated
+        # `self.data` / `self.path` inside the branch it had just proved.
+        value = getattr(self, attr)
+        if value is None:
+            e = f"There is nothing to stream, missing {attr!r} attribute."
+            raise ValueError(e)
+        return value
+
+    def _check_type(self) -> None:
+        if self.type not in ("url", "data", "path"):
+            e = f"Invalid type: {self.type!r}, should be 'url', 'data' or 'path'."
+            raise ValueError(e)
+
     def read(self) -> bytes:
         if self.type == "url":
             msg = "Cannot read an URL"
             raise ValueError(msg)
 
+        self._check_type()
+
         if self.type == "data":
-            if self.data is None:
-                msg = "There is nothing to stream, missing 'data' attribute."
-                raise ValueError(msg)
-            return self.data
+            return self._payload("data")
 
-        if self.type == "path":
-            if self.path is None:
-                msg = "There is nothing to stream, missing 'path' attribute."
-                raise ValueError(msg)
-            return Path(self.path).read_bytes()
-
-        msg = f"Invalid type: {self.type!r}, should be 'url', 'data' or 'path'."
-        raise ValueError(msg)
+        return Path(self._payload("path")).read_bytes()
 
     def _get_url_redirect(self) -> Any:
-        if self.url is None:
-            msg = "There is nothing to stream, missing 'url' attribute."
-            raise ValueError(msg)
+        url = self._payload("url")
         if self.max_age is not None:
-            res = request.redirect(self.url, code=302, local=False)
+            res = request.redirect(url, code=302, local=False)
             res.headers["Cache-Control"] = f"max-age={self.max_age}"
             return res
-        return request.redirect(self.url, code=301, local=False)
+        return request.redirect(url, code=301, local=False)
 
     def _send_path(self, send_file_kwargs: dict[str, Any]) -> Any:
-        if self.path is None:
-            msg = "There is nothing to stream, missing 'path' attribute."
-            raise ValueError(msg)
+        path = self._payload("path")
         send_file_kwargs["use_x_sendfile"] = False
         x_accel_redirect: str | None = None
         if config["x_sendfile"]:
             with contextlib.suppress(ValueError):
-                fspath = Path(self.path).relative_to(
-                    Path(config["data_dir"]) / "filestore"
-                )
+                fspath = Path(path).relative_to(Path(config["data_dir"]) / "filestore")
                 x_accel_redirect = f"/web/filestore/{fspath}"
                 send_file_kwargs["use_x_sendfile"] = True
 
-        res = _send_file(self.path, **send_file_kwargs)
+        res = _send_file(path, **send_file_kwargs)
         if "X-Sendfile" in res.headers and x_accel_redirect is not None:
             res.headers["X-Accel-Redirect"] = x_accel_redirect
             res.headers.pop("X-Sendfile", None)
@@ -165,12 +176,7 @@ class Stream:
         environ: dict[str, Any] | None = None,
         **send_file_kwargs: Any,
     ) -> Any:
-        if self.type not in ("url", "data", "path"):
-            e = f"Invalid type: {self.type!r}, should be 'url', 'data' or 'path'."
-            raise ValueError(e)
-        if getattr(self, self.type) is None:
-            e = f"There is nothing to stream, missing {self.type!r} attribute."
-            raise ValueError(e)
+        self._check_type()
 
         if self.type == "url":
             return self._get_url_redirect()
@@ -194,10 +200,7 @@ class Stream:
         }
 
         if self.type == "data":
-            if self.data is None:
-                msg = "There is nothing to stream, missing 'data' attribute."
-                raise ValueError(msg)
-            res = _send_file(BytesIO(self.data), **send_file_kwargs)
+            res = _send_file(BytesIO(self._payload("data")), **send_file_kwargs)
         else:
             res = self._send_path(send_file_kwargs)
 

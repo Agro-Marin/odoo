@@ -1,4 +1,6 @@
 import collections
+import logging
+import random
 import sys
 from types import ModuleType
 from typing import Any
@@ -207,3 +209,199 @@ def test_leaf_order_survives_fusion():
 
     grouped = _group_controller_trees([(A, [L1, L2]), (B, [L2, L3])])
     assert grouped == [(A, [L1, L2, L3])]
+
+
+# --- randomised property test over the whole assembly ------------------------
+#
+# The cases above are hand-built shapes. This one generates hierarchies -- chains,
+# diamonds, multiple inheritance, overlapping leaf sets -- and asserts the two
+# properties that hold for ANY of them, which is what "routes doubled on a shared
+# controller leaf" (c4d193577f9) violated:
+#
+#   * every declared URL appears EXACTLY once: none lost, none duplicated
+#   * an overridden method resolves to the most-derived implementation
+#
+# The generator declares each URL with @route in exactly one place and makes
+# overrides use a bare @route() that inherits the routes, so the expected answer
+# is knowable without re-implementing the merge. It also allows at most one
+# override per method: with two, the winner is decided by the synthesized class's
+# MRO and the expectation would have to model that too.
+
+
+def _gen_hierarchy(rng, tag):
+    n_base = rng.randint(1, 4)
+    base_src = ["from odoo.http import Controller, route", ""]
+    declared: dict[str, tuple[str, str]] = {}
+    methods: list[tuple[str, str]] = []
+    for i in range(n_base):
+        cls = f"B{i}"
+        body = []
+        for j in range(rng.randint(1, 3)):
+            meth, url = f"m{i}_{j}", f"/{tag}/b{i}/{j}"
+            declared[url] = (cls, meth)
+            methods.append((cls, meth))
+            body.append(
+                f'    @route("{url}", auth="none")\n'
+                f'    def {meth}(self):\n        return "{cls}.{meth}"\n'
+            )
+        base_src.append(f"class {cls}(Controller):\n" + "\n".join(body))
+
+    names = [f"B{i}" for i in range(n_base)]
+    der_src = [
+        "from odoo.http import route",
+        f"from odoo.addons.{tag}_base import " + ", ".join(names),
+        "",
+    ]
+    overrides: dict[str, str] = {}
+    derived: list[str] = []
+    ancestors: dict[str, set[str]] = {n: set() for n in names}
+    for k in range(rng.randint(0, 4)):
+        cls = f"D{k}"
+        pool = names + derived
+        # Two constraints, both so the generator emits hierarchies Python
+        # accepts -- what this test measures is the ASSEMBLY, and the two shapes
+        # it would otherwise stumble into have their own tests:
+        #   * canonical order, since two classes taking the same bases in
+        #     opposite orders is the MRO defect covered further down;
+        #   * no class beside its own ancestor, which Python rejects outright.
+        chosen = rng.sample(pool, rng.randint(1, min(2, len(pool))))
+        chosen = [
+            c for c in chosen if not any(c in ancestors[o] for o in chosen if o != c)
+        ]
+        bases = sorted(chosen, key=pool.index)
+        body = []
+        candidates = [
+            (c, m)
+            for (c, m) in methods
+            if (c in bases or any(c in b for b in bases)) and m not in overrides
+        ]
+        if candidates and rng.random() < 0.7:
+            _, meth = rng.choice(candidates)
+            body.append(
+                "    @route(auth='none')\n"
+                f'    def {meth}(self):\n        return "{cls}.{meth}"\n'
+            )
+            overrides[meth] = cls
+        if rng.random() < 0.6:
+            meth, url = f"n{k}", f"/{tag}/d{k}"
+            declared[url] = (cls, meth)
+            methods.append((cls, meth))
+            body.append(
+                f'    @route("{url}", auth="none")\n'
+                f'    def {meth}(self):\n        return "{cls}.{meth}"\n'
+            )
+        if not body:
+            body.append("    pass\n")
+        der_src.append(f"class {cls}({', '.join(bases)}):\n" + "\n".join(body))
+        ancestors[cls] = set(bases).union(*(ancestors[b] for b in bases))
+        derived.append(cls)
+
+    return "\n".join(base_src), "\n".join(der_src), declared, overrides
+
+
+@pytest.mark.parametrize("seed", range(40))
+def test_a_random_hierarchy_yields_every_route_once_and_the_deepest_override(
+    seed, monkeypatch
+):
+    from odoo.http.controller import Controller
+
+    rng = random.Random(seed)
+    tag = f"rdfuzz{seed}"
+    base_src, der_src, declared, overrides = _gen_hierarchy(rng, tag)
+    try:
+        _install(monkeypatch, f"{tag}_base", base_src)
+        _install(monkeypatch, f"{tag}_der", der_src)
+    except TypeError as exc:  # pragma: no cover - generator hygiene
+        if "method resolution order" in str(exc):
+            pytest.skip("the generator emitted an invalid MRO")
+        raise
+    try:
+        rules = list(_generate_routing_rules([f"{tag}_base", f"{tag}_der"], False))
+
+        assert collections.Counter(url for url, _ in rules) == dict.fromkeys(
+            declared, 1
+        )
+
+        for url, endpoint in rules:
+            _, meth = declared[url]
+            if meth in overrides:
+                # `route_wrapper` wraps an http return value in a Response
+                body = endpoint().get_data(as_text=True)
+                assert body.startswith(overrides[meth] + "."), url
+    finally:
+        for name in (f"{tag}_base", f"{tag}_der"):
+            Controller.children_classes.pop(name, None)
+
+
+MRO_BASES = """
+from odoo.http import Controller, route
+
+class B0(Controller):
+    @route("/mro/b0", auth="none")
+    def b0(self):
+        return "b0"
+
+class B1(Controller):
+    @route("/mro/b1", auth="none")
+    def b1(self):
+        return "b1"
+
+class Innocent(Controller):
+    @route("/mro/innocent", auth="none")
+    def innocent(self):
+        return "innocent"
+"""
+
+MRO_ADDON_A = """
+from odoo.http import route
+from odoo.addons.mro_base import B0, B1
+
+class DA(B0, B1):
+    @route("/mro/da", auth="none")
+    def da(self):
+        return "da"
+"""
+
+MRO_ADDON_B = """
+from odoo.http import route
+from odoo.addons.mro_base import B0, B1
+
+class DB(B1, B0):
+    @route("/mro/db", auth="none")
+    def db(self):
+        return "db"
+"""
+
+
+@pytest.fixture
+def incompatible_orders(monkeypatch):
+    _install(monkeypatch, "mro_base", MRO_BASES)
+    _install(monkeypatch, "mro_a", MRO_ADDON_A)
+    _install(monkeypatch, "mro_b", MRO_ADDON_B)
+    yield
+    from odoo.http.controller import Controller
+
+    for name in ("mro_base", "mro_a", "mro_b"):
+        Controller.children_classes.pop(name, None)
+
+
+def test_controllers_extending_shared_bases_in_opposite_orders_cost_only_themselves(
+    incompatible_orders, caplog
+):
+    """`class DA(B0, B1)` and `class DB(B1, B0)` are each legal, written by
+    authors who cannot see one another. The class this synthesizes from both has
+    no linearisation, and the `TypeError` used to escape `_generate_routing_rules`
+    -- through `ir.http.routing_map`, which is ormcached, so it recurred on every
+    request in every worker. Measured before the guard: the WHOLE map died,
+    `/mro/innocent` with it.
+    """
+    with caplog.at_level(logging.ERROR, logger="odoo.http.routing"):
+        urls = _urls(["mro_base", "mro_a", "mro_b"])
+
+    assert "/mro/innocent" in urls, "an unrelated controller must survive"
+    assert "/mro/da" not in urls
+    assert "/mro/db" not in urls
+
+    message = "\n".join(r.getMessage() for r in caplog.records)
+    assert "mro_a.DA" in message and "mro_b.DB" in message
+    assert "incompatible orders" in message

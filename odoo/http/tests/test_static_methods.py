@@ -38,6 +38,10 @@ def test_options_answers_the_allow_list_without_the_body():
     assert response.status_code == 204
     assert response.headers["Allow"] == "GET, HEAD, OPTIONS"
     assert request.served == []
+    # This 204 returns straight to the WSGI server: the 405 and the file itself
+    # reach `set_csp` by other routes, so a missing call here was invisible
+    # except on the one static reply a browser sends before a CORS asset fetch.
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
 
 
 @pytest.mark.parametrize("method", ["POST", "PUT", "PATCH", "DELETE"])

@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from odoo.http.constants import STORED_SESSION_BYTES
+from odoo.http.constants import STORED_SESSION_BYTES, get_default_session
 from odoo.http.request_class import Request
 from odoo.http.session import FilesystemSessionStore, Session, _coerce_session_value
 from odoo.http.wrappers import FutureResponse
@@ -308,3 +308,115 @@ def test_keep_alive_persists_a_session_with_no_file_yet(store):
     store.keep_alive(s)
 
     assert path.exists()
+
+
+def test_session_files_are_readable_only_by_their_owner(store):
+    """The `xx/` shards are already 0o700, so this is the file's own claim
+    rather than the barrier -- but a `session_token` should not sit in a file
+    whose mode says anyone may read it."""
+    session = store.new()
+    session["uid"] = 2
+    store.save(session)
+
+    mode = pathlib.Path(store.get_session_filename(session.sid)).stat().st_mode
+    assert mode & 0o777 == 0o600
+
+
+def test_the_vendored_store_defines_no_on_disk_layout_of_its_own():
+    """It took a `filename_template`, asserted about its suffix, and never read
+    it: `odoo.http.FilesystemSessionStore` shards by the sid's first two
+    characters and overrides `get_session_filename`. Two stores over one
+    directory with different templates produced the same filename, and every
+    store in the tree is that subclass -- so the layout is the subclass's to
+    define and the base has no default to offer."""
+    from odoo.libs._vendor import sessions
+
+    base = sessions.FilesystemSessionStore(path="/tmp", session_class=Session)
+    with pytest.raises(NotImplementedError):
+        base.get_session_filename("x" * 84)
+
+    assert not hasattr(base, "filename_template")
+
+
+def test_the_odoo_store_shards_by_the_first_two_characters(store):
+    sid = store.new().sid
+    assert pathlib.Path(store.get_session_filename(sid)).parts[-2:] == (sid[:2], sid)
+
+
+def _token_for(sid):
+    return "tok:" + sid
+
+
+class _TokenEnv(dict):
+    """`env["res.users"].browse(uid)._compute_session_token(sid)`, and nothing else."""
+
+    def __getitem__(self, key):
+        return SimpleNamespace(
+            browse=lambda uid: SimpleNamespace(_compute_session_token=_token_for)
+        )
+
+
+def _rotating_session(store, uid=7):
+    session = store.new()
+    for key, value in get_default_session().items():
+        session.setdefault(key, value)
+    session["uid"] = uid
+    session["session_token"] = _token_for(session.sid)
+    session.mark_clean()
+    store.save(session)
+    return session.sid
+
+
+@pytest.mark.parametrize("follower_is_modified", [True, False])
+def test_following_a_soft_rotation_adopts_the_peer_identity_with_its_sid(
+    store, follower_is_modified
+):
+    """`check_session` recomputes the token from the sid and logs the user out
+    when they disagree, so a session that adopts a new sid has to adopt the
+    token that goes with it -- whether or not it is about to be written.
+
+    The unmodified branch used to take the sid alone. Nothing wrote the result,
+    because `_save_session` is an if/elif chain and a request that rotates never
+    also saves; that made this function's correctness rest on the shape of a
+    different one.
+    """
+    env = _TokenEnv()
+    sid0 = _rotating_session(store)
+
+    leader = store.get(sid0)
+    leader.mark_clean()
+    leader.should_rotate = True
+    store.rotate(leader, env, True)
+    assert leader.sid != sid0
+
+    follower = store.get(sid0)
+    follower.mark_clean()
+    if follower_is_modified:
+        follower["marker"] = 1
+    follower.should_rotate = True
+    store.rotate(follower, env, True)
+
+    assert follower.sid == leader.sid
+    assert follower["session_token"] == _token_for(follower.sid)
+    assert "next_sid" not in follower
+    assert "deletion_time" not in follower
+
+
+def test_a_save_after_following_a_rotation_does_not_log_the_owner_out(store):
+    """The failure the asymmetry allowed, written as the thing that must not
+    happen rather than as the branch that used to allow it."""
+    env = _TokenEnv()
+    sid0 = _rotating_session(store)
+
+    leader = store.get(sid0)
+    leader.mark_clean()
+    store.rotate(leader, env, True)
+
+    follower = store.get(sid0)
+    follower.mark_clean()
+    store.rotate(follower, env, True)
+    store.save(follower)
+
+    on_disk = store.get(follower.sid)
+    assert on_disk["session_token"] == _token_for(follower.sid)
+    assert on_disk["uid"] == 7

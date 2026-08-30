@@ -131,9 +131,7 @@ class TestHttp(http.Controller):
 
     @http.route("/test_http/openapi.json", type="http", auth="none", methods=["GET"])
     def openapi_json(self):
-        from odoo.http.openapi import openapi_from_map
-
-        spec = openapi_from_map(
+        spec = http.openapi_from_map(
             request.app.nodb_routing_map, title="test_http API", typed_only=True
         )
         return request.make_json_response(spec)

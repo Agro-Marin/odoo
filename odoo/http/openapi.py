@@ -194,6 +194,26 @@ def build_openapi(
         if typed_only and not route.routing.get("typed"):
             continue
         template, path_params = _path_template(route.rule)
+
+        repeated = {p["name"] for p in path_params}
+        if len(repeated) != len(path_params):
+            # OpenAPI forbids two parameters sharing a (name, in) pair, and a
+            # consumer that rejects the document rejects ALL of it -- so one
+            # malformed rule would cost every other route its documentation.
+            #
+            # Bare werkzeug never lets such a rule exist: `Map.add` compiles the
+            # URL builder and dies with "duplicate argument 'id' in function
+            # definition". `FasterRule` defers that compilation, so the rule
+            # loads and only raises if someone builds a URL for it -- which is
+            # the trade this generator has to survive, not one it can assume
+            # away.
+            _logger.warning(
+                "OpenAPI: %r repeats a path parameter name and cannot be "
+                "described; werkzeug will also refuse to build a URL for it.",
+                route.rule,
+            )
+            continue
+
         path_item = paths.setdefault(template, {})
         for method in sorted(_effective_methods(route)):
             verb = method.lower()

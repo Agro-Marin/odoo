@@ -29,6 +29,7 @@ if TYPE_CHECKING:
         geoip: GeoIP
         httprequest: HTTPRequest
         params: dict[str, Any]
+        _params_source: Callable[[], dict[str, Any]] | None
         registry: Registry | None
         session: Session
 
@@ -80,19 +81,23 @@ class HasRouting(Protocol):
     routing: Mapping[str, Any]
 
 
-class Endpoint(HasRouting, Protocol):
-    func: MethodType
-    _param_specs: dict[str, Any] | None
-    typed_list_params: frozenset[str] | None
-
-    def __call__(self, *args: Any, **kwargs: Any) -> Any: ...
-
-
 class RoutedMethod(Protocol):
     original_routing: Mapping[str, Any]
     original_endpoint: Callable
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any: ...
+
+
+class Endpoint(HasRouting, RoutedMethod, Protocol):
+    # An endpoint IS a routed method: `_generate_routing_rules` builds it as a
+    # `functools.partial` over the bound `route_wrapper` and calls
+    # `functools.update_wrapper`, which copies the wrapper's `__dict__` -- so
+    # `original_routing` and `original_endpoint` come across with it. The
+    # protocol did not say so, while `openapi.iter_map_routes` reads
+    # `original_endpoint` off exactly this object.
+    func: MethodType
+    _param_specs: dict[str, Any] | None
+    typed_list_params: frozenset[str] | None
 
 
 @runtime_checkable

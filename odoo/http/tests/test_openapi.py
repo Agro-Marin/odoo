@@ -1,6 +1,8 @@
+import functools
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
+import pytest
 import werkzeug.routing
 
 from odoo.http.openapi import (
@@ -10,6 +12,10 @@ from odoo.http.openapi import (
     build_openapi,
     openapi_from_map,
 )
+from odoo.http.routing import build_routing_map
+
+if TYPE_CHECKING:
+    from odoo.http._protocols import Endpoint
 
 
 def _route(rule, *, methods=frozenset(), routing=None, handler=None):
@@ -202,3 +208,75 @@ def test_two_verbs_on_one_template_are_both_kept():
         ]
     )
     assert sorted(doc["paths"]["/a"]) == ["get", "post"]
+
+
+def _endpoint(rule, handler=None, **routing):
+    """A routing-map endpoint of the shape `_generate_routing_rules` produces."""
+
+    def default(self, **kw):
+        pass
+
+    handler = handler or default
+    partial = functools.partial(handler)
+    functools.update_wrapper(partial, handler)
+    routing.setdefault("type", "http")
+    routing.setdefault("auth", "public")
+    routing.setdefault("methods", None)
+    routing["routes"] = [rule]
+    # The cast is what `_generate_routing_rules` does with the same object: a
+    # `functools.partial` carrying the three attributes `@route` stuffs onto it
+    # is an `Endpoint` by protocol, and nothing else in the type system says so.
+    endpoint = cast("Endpoint", partial)
+    endpoint.routing = routing
+    endpoint.original_endpoint = handler
+    endpoint._param_specs = None
+    return endpoint
+
+
+def test_a_rule_repeating_a_path_parameter_is_skipped_not_emitted():
+    """OpenAPI forbids two parameters sharing (name, in), and a consumer that
+    rejects the document rejects all of it -- so one malformed rule must not
+    cost every other route its documentation."""
+    routes = [
+        RouteInfo(
+            rule="/dup/<int:id>/<int:id>",
+            methods=frozenset({"GET"}),
+            routing={"type": "http", "auth": "public"},
+            handler=lambda self, **kw: None,
+        ),
+        RouteInfo(
+            rule="/fine/<int:id>",
+            methods=frozenset({"GET"}),
+            routing={"type": "http", "auth": "public"},
+            handler=lambda self, **kw: None,
+        ),
+    ]
+
+    doc = build_openapi(routes)
+
+    assert "/dup/{id}/{id}" not in doc["paths"]
+    assert "/fine/{id}" in doc["paths"], "one bad rule must not cost the good ones"
+    for path_item in doc["paths"].values():
+        for operation in path_item.values():
+            seen = [(p["name"], p["in"]) for p in operation.get("parameters", [])]
+            assert len(seen) == len(set(seen))
+
+
+def test_the_lazy_builder_lets_a_duplicate_parameter_rule_into_the_map():
+    """Why the guard above is load-bearing rather than defensive.
+
+    `werkzeug.routing.Map.add` compiles the URL builder and refuses such a rule
+    outright; `FasterRule` defers that compilation, so the rule loads, matches,
+    and raises only if someone builds a URL for it.
+    """
+    with pytest.raises(SyntaxError):
+        werkzeug.routing.Map(
+            [werkzeug.routing.Rule("/dup/<int:id>/<int:id>", endpoint="e")]
+        )
+
+    routing_map = build_routing_map(
+        [("/dup/<int:id>/<int:id>", _endpoint("/dup/<int:id>/<int:id>"))]
+    )
+
+    assert [r.rule for r in routing_map.iter_rules()] == ["/dup/<int:id>/<int:id>"]
+    assert "/dup/{id}/{id}" not in openapi_from_map(routing_map)["paths"]

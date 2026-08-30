@@ -16,7 +16,7 @@ from odoo.tools.misc import submap
 
 from ._params import build_param_specs
 from .constants import ROUTING_KEYS
-from .controller import Controller
+from .controller import Controller, newest_by_identity
 
 if TYPE_CHECKING:
     from ._protocols import Endpoint, HasRouting, RoutedMethod
@@ -31,6 +31,7 @@ _KNOWN_ROUTING_PARAMETERS: set[str] = {
     "captcha",
     "cors",
     "cors_credentials",
+    "cors_allow_headers",
     "cors_expose_headers",
     "csrf",
     "handle_params_access_error",
@@ -240,20 +241,6 @@ def _is_from_installed_addon(cls: type, modules: Collection[str]) -> bool:
     return path[:2] == ["odoo", "addons"] and path[2] in modules
 
 
-def _newest_by_identity(classes: Iterable[type]) -> list[type]:
-    by_key: dict[tuple[str, str], int] = {}
-    result: list[type] = []
-    for cls in classes:
-        key = (cls.__module__, cls.__qualname__)
-        idx = by_key.get(key)
-        if idx is None:
-            by_key[key] = len(result)
-            result.append(cls)
-        else:
-            result[idx] = cls
-    return result
-
-
 def _get_leaf_classes(cls: type, modules: Collection[str]) -> list[type]:
     result = []
     for subcls in cls.__subclasses__():
@@ -261,7 +248,7 @@ def _get_leaf_classes(cls: type, modules: Collection[str]) -> list[type]:
             result.extend(_get_leaf_classes(subcls, modules))
     if not result and _is_from_installed_addon(cls, modules):
         result.append(cls)
-    return _newest_by_identity(result)
+    return newest_by_identity(result)
 
 
 def _group_controller_trees(
@@ -280,7 +267,7 @@ def _group_controller_trees(
             for other in also:
                 groups[target].extend(groups[other])
                 groups[other] = []
-            groups[target] = _newest_by_identity([*groups[target], *leaves])
+            groups[target] = newest_by_identity([*groups[target], *leaves])
         else:
             target = len(groups)
             groups.append(list(leaves))
@@ -313,7 +300,32 @@ def _get_controllers(modules: Collection[str]) -> Generator[Controller]:
             )
             name += f" (extended by {extended_by})"
 
-        Ctrl = type(name, tuple(reversed(leaf_controllers)), {})
+        try:
+            Ctrl = type(name, tuple(reversed(leaf_controllers)), {})
+        except TypeError:
+            # Two addons extending the same bases in OPPOSITE order. Each class
+            # is individually legal -- `class D0(B0, B1)` in one and
+            # `class D1(B1, B0)` in another -- and neither author can see the
+            # other; it is the combined class synthesized here that has no
+            # linearisation.
+            #
+            # This has to be caught for the reason `RouteDefinitionError` gives:
+            # `ir.http.routing_map` is ormcached, so raising through it recurs on
+            # every request in every worker. Measured before the guard: one such
+            # pair took down the WHOLE map, an unrelated third controller's
+            # routes included. One unserviceable tree costs its own routes now.
+            _logger.error(
+                "Cannot combine the controllers %s: they extend a shared base "
+                "in incompatible orders, so no method resolution order exists "
+                "for them. Their routes are not served. Make the base order "
+                "agree between them. (%s)",
+                ", ".join(f"{c.__module__}.{c.__qualname__}" for c in leaf_controllers),
+                " / ".join(
+                    f"{c.__name__}: {' -> '.join(b.__name__ for b in c.__mro__[:-2])}"
+                    for c in leaf_controllers
+                ),
+            )
+            continue
         yield Ctrl()
 
 

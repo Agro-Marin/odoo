@@ -4,6 +4,7 @@ from unittest import mock
 
 import psycopg
 import pytest
+import werkzeug.datastructures
 
 from odoo.http import _serve
 from odoo.libs.worker_thread import current_worker_thread
@@ -76,7 +77,13 @@ def _make(readonly_route=True, replica=True):
         registry=registry,
         env=None,
         session=types.SimpleNamespace(uid=1, context={}),
-        httprequest=types.SimpleNamespace(method="GET", path="/x"),
+        httprequest=types.SimpleNamespace(
+            method="GET",
+            path="/x",
+            # `_serve_readonly` rewinds uploads before the promoted replay, so
+            # the fake needs the shape `rewind_uploaded_files` reads.
+            files=werkzeug.datastructures.MultiDict(),
+        ),
         dispatcher=None,
         _acquire_registry_cursor=lambda: first,
         _set_request_dispatcher=lambda r: None,
@@ -84,6 +91,18 @@ def _make(readonly_route=True, replica=True):
         _update_served_exception=lambda exc: None,
         _reset_for_replay=lambda cr=None: calls["reset_for_replay"].append(cr),
     )
+    # `_serve_db` is called unbound against this namespace, so the pieces it
+    # delegates to have to be reachable on it. These are its own decomposition
+    # rather than collaborators -- bind the real ones, so what the branches
+    # below measure is still the real cursor handling and not a stub of it.
+    for helper in (
+        "_resolve_serve_target",
+        "_run_serve_func",
+        "_serve_readonly",
+        "_open_read_write_cursor",
+    ):
+        setattr(this, helper, getattr(_serve._RequestServeMixin, helper).__get__(this))
+
     this.calls = calls
     this.first_cursor = first
     return this, env
@@ -146,6 +165,12 @@ def test_a_write_from_a_readonly_route_is_promoted_and_replayed():
         return func()
 
     with mock.patch.object(_serve, "RequestRetryParticipant") as participant:
+        # Stand in for what the real `on_retry` does, so the assertion below is
+        # load-bearing: it resets the request against `self.env.cr`, which at
+        # that point is still the read-only cursor.
+        participant.return_value.on_retry.side_effect = lambda exc: (
+            this._reset_for_replay()
+        )
         served = _run(this, env, retrying)
 
     assert served == "served"
@@ -154,11 +179,39 @@ def test_a_write_from_a_readonly_route_is_promoted_and_replayed():
     assert this.first_cursor.closed, "the readonly cursor must be closed"
     assert len(this.calls["opened"]) == 1, "a read/write cursor must be opened"
     assert this.calls["reset_for_replay"] == this.calls["opened"], (
-        "the replay must rebuild the environment on the NEW cursor"
+        "the replay must rebuild the environment on the NEW cursor, and only "
+        "on it -- an extra reset here binds an Environment to the read-only "
+        "cursor the next line closes"
     )
     participant.assert_called_once_with(this)
     instance = participant.return_value
-    assert instance.on_rollback.called and instance.on_retry.called
+    assert instance.on_rollback.called, "the session is reloaded before the replay"
+    assert not instance.on_retry.called, (
+        "on_retry resets against the doomed read-only cursor; _serve_db resets "
+        "against the read/write one it opens"
+    )
+
+
+def test_a_promotion_rewinds_the_uploaded_files_before_the_replay():
+    """The replay re-reads the body, so a consumed upload stream would arrive
+    empty the second time. `on_retry` used to carry this; dropping the call had
+    to keep it."""
+    this, env = _make(readonly_route=True, replica=True)
+    upload = mock.Mock()
+    upload.seekable.return_value = True
+    this.httprequest.files = werkzeug.datastructures.MultiDict({"f": upload})
+    attempts = []
+
+    def retrying(func, env):
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise psycopg.errors.ReadOnlySqlTransaction("cannot execute UPDATE ")
+        return func()
+
+    with mock.patch.object(_serve, "RequestRetryParticipant"):
+        assert _run(this, env, retrying) == "served"
+
+    upload.seek.assert_called_once_with(0)
 
 
 def test_a_read_write_route_with_a_replica_swaps_to_a_read_write_cursor():

@@ -2,7 +2,7 @@ import contextlib
 import functools
 import logging
 import time
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import Any
 
 import babel.core
@@ -32,15 +32,11 @@ from .helpers import (
     get_session_max_inactivity,
 )
 from .session import Session
-from .wrappers import FutureResponse, HTTPRequest, Response
+from .wrappers import FutureResponse, HTTPRequest, Response, cookie_name
 
 _logger = logging.getLogger(__name__)
 
 _UNIONED_HEADERS = frozenset({"vary"})
-
-
-def _cookie_name(set_cookie_value: str) -> str:
-    return set_cookie_value.partition("=")[0].strip()
 
 
 def _union_header_tokens(values: Iterable[str]) -> str:
@@ -55,27 +51,24 @@ def _union_header_tokens(values: Iterable[str]) -> str:
     return ", ".join(seen.values())
 
 
+# Resolve through the package's public ``db_list``, not around it.
+#
+# ``odoo.http.db_list`` is the name the database selector calls, the name
+# ``iot_drivers`` replaces to say "this box serves no database", and the name
+# ``test_http`` patches. Reaching past it into ``odoo.service.db`` -- which is
+# what a private copy of the listing did -- made every one of those a half
+# measure: it changed what was *listed* and not what was *resolved*.
+#
+# The import is function-local because ``odoo.http.__init__`` imports this
+# module, so the package cannot be reached at import time. Measured at 211 ns
+# against a 19 ns module-global lookup, once per ``_get_session_and_dbname`` and
+# once more on the monodb path -- against 16 us to read a session off disk and 29
+# to write one, so it is not worth a cached module reference. Frozen at
+# 2026-08-29; re-measure before treating it as a cost.
 def _monodb_dblist(host: str) -> list[str]:
     from odoo import http
 
     return http.db_list(force=True, host=host)
-
-
-"""Resolve through the package's public ``db_list``, not around it.
-
-``odoo.http.db_list`` is the name the database selector calls, the name
-``iot_drivers`` replaces to say "this box serves no database", and the name
-``test_http`` patches. Reaching past it into ``odoo.service.db`` -- which is
-what a private copy of the listing did -- made every one of those a half
-measure: it changed what was *listed* and not what was *resolved*.
-
-The import is function-local because ``odoo.http.__init__`` imports this
-module, so the package cannot be reached at import time. Measured at 211 ns
-against a 19 ns module-global lookup, once per ``_get_session_and_dbname`` and
-once more on the monodb path -- against 16 us to read a session off disk and 29
-to write one, so it is not worth a cached module reference. Frozen at
-2026-08-29; re-measure before treating it as a cost.
-"""
 
 
 clear_monodb_cache = clear_db_list_cache
@@ -88,7 +81,8 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         self.httprequest: HTTPRequest = httprequest
         self.future_response: FutureResponse = FutureResponse()
         self.dispatcher = _dispatchers["http"](self)
-        self.params: dict[str, Any] = {}
+        self._params: dict[str, Any] = {}
+        self._params_source: Callable[[], dict[str, Any]] | None = None
 
         self.geoip: GeoIP = GeoIP(httprequest.remote_addr, app=app)
         self.registry: Registry | None = None
@@ -137,7 +131,11 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         if session.db and http.db_filter([session.db], host=host):
             dbname = session.db
             if header_dbname and header_dbname != dbname:
-                e = "Cannot use both the session_id cookie and the x-odoo-database header."
+                e = (
+                    f"The session cookie is bound to database {dbname!r} and the "
+                    f"X-Odoo-Database header names {header_dbname!r}. Send one or "
+                    f"the other, or make them agree."
+                )
                 raise werkzeug.exceptions.Forbidden(e)
         elif header_dbname:
             session.can_save = False
@@ -159,6 +157,32 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
 
         session.mark_clean()
         return session, dbname
+
+    @property
+    def params(self) -> dict[str, Any]:
+        # Materialised on first read, so that a path with no endpoint does not
+        # pay for a body nothing is going to look at.
+        #
+        # `_serve_ir_http_fallback` used to spell this `self.params =
+        # self.get_http_params()`, which reads `httprequest.form` and
+        # `httprequest.files` and therefore decodes the WHOLE body -- measured:
+        # `request.params` on an unmatched path held a 1 000 000-character string
+        # for a 1 MB form post, and a `FileStorage` wrapping 3 000 000 bytes for a
+        # multipart one, at ~0.7 ms per MB. It cannot simply be dropped: `base`'s
+        # `_serve_fallback` never reads `params`, but `website`'s does
+        # (`_build_url_w_params(redirect.url_to, request.params)`). Deferring it
+        # is what serves both -- the module that needs the body still gets it,
+        # and the unauthenticated 404 that nobody routed stops decoding one.
+        source = self._params_source
+        if source is not None:
+            self._params_source = None
+            self._params = source()
+        return self._params
+
+    @params.setter
+    def params(self, params: dict[str, Any]) -> None:
+        self._params_source = None
+        self._params = params
 
     def update_env(
         self,
@@ -267,11 +291,11 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
 
         staged_cookies = staged.getlist("Set-Cookie")
         if staged_cookies:
-            staged_names = {_cookie_name(cookie) for cookie in staged_cookies}
+            staged_names = {cookie_name(cookie) for cookie in staged_cookies}
             kept = [
                 cookie
                 for cookie in headers.getlist("Set-Cookie")
-                if _cookie_name(cookie) not in staged_names
+                if cookie_name(cookie) not in staged_names
             ]
             headers.setlist("Set-Cookie", kept + staged_cookies)
 
@@ -323,7 +347,9 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
             elif content_changed:
                 root.session_store.save(sess)
                 written = True
-            elif modified:
+            elif sess.is_dirty:
+                # `modified` here would be `is_dirty`: the branch above already
+                # claimed every state where `content_changed` holds.
                 root.session_store.keep_alive(sess)
                 written = True
             else:

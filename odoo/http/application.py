@@ -41,7 +41,7 @@ from .geoip import geoip2, maxminddb
 from .request_class import Request
 from .routing import _generate_routing_rules, build_routing_map
 from .session import FilesystemSessionStore, Session
-from .wrappers import HTTPRequest, no_content
+from .wrappers import HTTPRequest, Response, no_content
 
 _logger = logging.getLogger(__name__)
 
@@ -116,9 +116,25 @@ class Application:
 
     def get_static_file(self, url: str, host: str = "") -> str | None:
 
-        netloc, path = urlparse(url)[1:3]
         try:
-            _leading, module, static, resource = path.split("/", 3)
+            netloc, path = urlparse(url)[1:3]
+        except ValueError:
+            # `urlparse` raises "Invalid IPv6 URL" on an unbalanced bracket in a
+            # netloc, and the comment below -- that a resolver contracted to
+            # answer `str | None` must not raise at one caller because another
+            # filters first -- covered everything AFTER this line while this
+            # line itself could raise.
+            #
+            # NOT reachable from a request path: werkzeug collapses `//x` to
+            # `/x` before `httprequest.path`, so `GET //[` arrives here as `/[`,
+            # which parses to an empty netloc. Measured, because the opposite was
+            # assumed first. The caller that can reach it is
+            # `ir.attachment._get_static_file_path`, which passes an attachment's
+            # stored `url` -- database content, and the one caller the contract
+            # above was written for.
+            return None
+        try:
+            leading_segment, module, static, resource = path.split("/", 3)
         except ValueError:
             return None
 
@@ -126,7 +142,9 @@ class Application:
         if netloc and netloc.lower() != host:
             return None
 
-        if not netloc and _leading and _leading.lower() != host:
+        # Empty for a rooted path ("/web/static/..."); the host for the
+        # netloc-less absolute URL an ir.attachment carries.
+        if not netloc and leading_segment and leading_segment.lower() != host:
             return None
 
         if not (static == "static" and resource):
@@ -195,7 +213,7 @@ class Application:
             )
             return None
 
-    def set_csp(self, response: WerkzeugResponse) -> None:
+    def set_csp(self, response: WerkzeugResponse | Response) -> None:
         headers = response.headers
         if "X-Content-Type-Options" not in headers:
             headers["X-Content-Type-Options"] = "nosniff"
@@ -261,7 +279,13 @@ class Application:
 
         allow = allow_header(STATIC_ALLOWED_METHODS)
         if method == "OPTIONS":
-            return no_content(headers=[("Allow", allow)])
+            # The 405 below reaches `set_csp` through the error path; this 204
+            # returns straight to the WSGI server, so without the call the one
+            # static reply that carried no `X-Content-Type-Options` was the one
+            # a browser sends before every cross-origin asset fetch.
+            response = no_content(headers=[("Allow", allow)])
+            self.set_csp(response)
+            return response
         raise MethodNotAllowed(valid_methods=allow.split(", "))
 
     def _log_request_exception(self, exc: Exception) -> None:
@@ -282,29 +306,31 @@ class Application:
         else:
             _logger.error("Exception during request handling.", exc_info=exc)
 
-    def _ensure_error_response(self, exc: Exception, request: Request | None) -> None:
-        if get_error_response(exc) is not None:
-            return
+    def _ensure_error_response(self, exc: Exception, request: Request | None) -> Any:
+        existing = get_error_response(exc)
+        if existing is not None:
+            return existing
         if isinstance(exc, AccessDenied):
             exc.suppress_traceback()
         if request is None:
-            set_error_response(exc, InternalServerError(str(exc) or None))
-            return
-        try:
-            set_error_response(exc, request.dispatcher.handle_error(exc))
-        except Exception:
-            _logger.exception("The dispatcher could not build an error response")
-            set_error_response(exc, InternalServerError())
+            response: Any = InternalServerError(str(exc) or None)
+        else:
+            try:
+                response = request.dispatcher.handle_error(exc)
+            except Exception:
+                _logger.exception("The dispatcher could not build an error response")
+                response = InternalServerError()
+        set_error_response(exc, response)
+        return response
 
-    def _finalize_error_response(self, exc: Exception, request: Request | None) -> None:
-        if request is None or not request._post_init_done:
-            return
+    def _finalize_error_response(
+        self, exc: Exception, request: Request | None, response: Any
+    ) -> Any:
+        if request is None or not request._post_init_done or response is None:
+            return response
         try:
-            response = get_error_response(exc)
             if isinstance(response, HTTPException):
                 response = response.get_response(request.httprequest.environ)
-            if response is None:
-                return
             request.dispatcher.post_dispatch(response)
             set_error_response(exc, response)
         except Exception:
@@ -313,6 +339,7 @@ class Application:
                 "CORS/session headers may be missing.",
                 exc_info=True,
             )
+        return response
 
     def __call__(
         self, environ: dict[str, object], start_response: Callable
@@ -356,9 +383,9 @@ class Application:
                 self._log_request_exception(exc)
                 if _hands_over_to_the_debugger(request):
                     raise
-                self._ensure_error_response(exc, request)
-                self._finalize_error_response(exc, request)
-                error_response = get_error_response(exc)
+                error_response = self._finalize_error_response(
+                    exc, request, self._ensure_error_response(exc, request)
+                )
                 if error_response is None:
                     error_response = InternalServerError(str(exc) or None)
                 return error_response(environ, start_response)

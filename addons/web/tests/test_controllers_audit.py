@@ -294,6 +294,21 @@ class TestIsLocalUrl(BaseCase):
         self.assertFalse(self._is_local_url("https://evil.com"))
         self.assertFalse(self._is_local_url("http://evil.com/odoo"))
 
+    def test_unparseable_url_rejected_rather_than_raising(self):
+        """`urlsplit` raises "Invalid IPv6 URL" on an unbalanced bracket, and
+        this predicate is applied to `/web/login?redirect=...`. A url it cannot
+        parse is a url it cannot vouch for; raising here is a 500 on the login
+        flow rather than a refusal."""
+        for vector in ("http://[", "http://[x", "http://a[b"):
+            with self.subTest(vector=vector):
+                self.assertFalse(self._is_local_url(vector))
+
+    def test_a_bracket_outside_an_authority_is_an_ordinary_path(self):
+        """Only a bracket inside a netloc raises; `[` and `/a[b` are paths, and
+        refusing them would be the guard overreaching."""
+        self.assertTrue(self._is_local_url("/["))
+        self.assertTrue(self._is_local_url("/a[b"))
+
     def test_embedded_tab_newline_rejected(self):
         for vector in (
             "/\t\t//evil.com",

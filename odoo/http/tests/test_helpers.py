@@ -2,12 +2,16 @@ import threading
 import types
 from typing import Any
 
+import werkzeug.exceptions
+
+from odoo.http import helpers
 from odoo.http.helpers import (
     _normalize_dbfilter_host,
     _restore_thread_attr,
     content_disposition,
     is_cors_preflight,
 )
+from odoo.tools import config
 
 
 def test_content_disposition_encodes_unicode_and_quotes():
@@ -150,3 +154,172 @@ def test_no_registered_prefix_matches_nothing():
         assert not constants.is_ensure_db_path("/anything")
     finally:
         constants.ENSURE_DB_PATH_PREFIXES = before
+
+
+def test_a_dbfilter_that_ignores_the_host_caches_one_regex_for_every_host():
+    """`host` comes from the Host header, which werkzeug does not validate, so
+    it used to be an attacker-chosen lru_cache key: rotating it evicted all 512
+    entries and made every legitimate request recompile. A pattern that does
+    not interpolate the host must not vary with it."""
+    helpers._compiled_dbfilter.cache_clear()
+    with config.patch(dbfilter=".*", db_name=[]):
+        for i in range(600):
+            helpers.db_filter(["somedb"], host=f"attacker-{i}.example.com")
+
+    assert helpers._compiled_dbfilter.cache_info().currsize == 1
+
+
+def test_a_dbfilter_that_reads_the_host_still_gets_a_regex_per_host():
+    helpers._compiled_dbfilter.cache_clear()
+    with config.patch(dbfilter="^%d_", db_name=[]):
+        assert helpers.db_filter(["alpha_x"], host="alpha.example.com") == ["alpha_x"]
+        assert helpers.db_filter(["alpha_x"], host="beta.example.com") == []
+
+    assert helpers._compiled_dbfilter.cache_info().currsize == 2
+
+
+def test_db_filter_orders_the_same_way_through_both_of_its_filters():
+    """The `db_name` filter used to be spelled twice -- inside the `dbfilter`
+    branch, and as `sorted(set(db_name) & dbs)` for the branch without one -- so
+    the selector listed the same databases in two different orders depending on
+    which knob was set."""
+    catalogue = ["zeta", "alpha", "mid"]
+
+    with config.patch(dbfilter=".*", db_name=[]):
+        _reset_dbfilter_caches()
+        by_pattern = helpers.db_filter(catalogue, host="x.example")
+    with config.patch(dbfilter="", db_name=list(catalogue)):
+        _reset_dbfilter_caches()
+        by_name = helpers.db_filter(catalogue, host="x.example")
+    with config.patch(dbfilter=".*", db_name=list(catalogue)):
+        _reset_dbfilter_caches()
+        by_both = helpers.db_filter(catalogue, host="x.example")
+
+    assert by_pattern == catalogue
+    assert by_name == catalogue
+    assert by_both == catalogue
+
+
+def test_db_filter_applies_both_filters_when_both_are_set():
+    with config.patch(dbfilter="a.*", db_name=["alpha", "zeta"]):
+        _reset_dbfilter_caches()
+        assert helpers.db_filter(["zeta", "alpha", "abc"], host="x.example") == [
+            "alpha"
+        ]
+
+
+def _reset_dbfilter_caches():
+    helpers._compiled_dbfilter.cache_clear()
+    helpers._dbfilter_reads_the_host.cache_clear()
+
+
+# Every string an HTTP client controls, in the shapes that break parsers. The
+# unbalanced-bracket family is the one that mattered: `urlsplit`/`urlparse`
+# raise "Invalid IPv6 URL" there, which is a 500 rather than a refusal.
+HOSTILE_STRINGS = [
+    "",
+    " ",
+    "\x00",
+    "a\x00b",
+    "\n",
+    "\r\n",
+    "..",
+    "../" * 50,
+    "/",
+    "//",
+    "///",
+    "\\",
+    ":",
+    "::",
+    "[",
+    "]",
+    "[]",
+    "[::1",
+    "[::1]:x",
+    "a:b:c",
+    "http://[",
+    "http://[x",
+    "http://a[b",
+    "//[",
+    "//[/static/x",
+    "http://x:99999999999",
+    "http://x:y",
+    "http:///",
+    "https://x@y:z",
+    "%",
+    "%%",
+    "%zz",
+    "%2e%2e",
+    "=",
+    ";",
+    ",",
+    '"',
+    "`",
+    "%h",
+    "%d",
+    "%(x)s",
+    "{}",
+    "$(x)",
+    "é",
+    "日本",
+    "🙂",
+    "a" * 10000,
+    "www.",
+    "WWW.X",
+]
+
+
+def _hostile_probe(fn):
+    """Anything but an HTTPException is a 500 the caller cannot see coming."""
+    escapes = []
+    for value in HOSTILE_STRINGS:
+        try:
+            fn(value)
+        except werkzeug.exceptions.HTTPException:
+            pass
+        except Exception as exc:
+            escapes.append(f"{value!r} -> {type(exc).__name__}: {exc}")
+    return escapes
+
+
+def test_no_hostile_host_header_escapes_the_dbfilter_path():
+    assert _hostile_probe(_normalize_dbfilter_host) == []
+    assert _hostile_probe(lambda h: helpers.db_filter(["a", "b"], host=h)) == []
+
+
+def test_no_hostile_origin_escapes_cors_same_host():
+    """`Origin: http://[` used to raise ValueError out of `pre_dispatch`, which
+    is a 500 on every route with a `cors=` callable -- in tree that reaches
+    `/bus/websocket_worker_bundle`, which is auth='public'."""
+
+    def resolve(origin):
+        return helpers.cors_same_host(
+            types.SimpleNamespace(
+                httprequest=types.SimpleNamespace(
+                    headers={"Origin": origin},
+                    host_url="http://app.example/",
+                    is_secure=False,
+                )
+            )
+        )
+
+    assert _hostile_probe(resolve) == []
+    assert resolve("http://[") is None
+    assert resolve("http://app.example") == "http://app.example"
+
+
+def test_no_hostile_url_escapes_get_static_file():
+    """Its own comment promises `str | None` and never raising, for the
+    `ir.attachment._get_static_file_path` caller that passes a stored url. The
+    promise covered everything after the `urlparse` and not the `urlparse`."""
+    from odoo.http.application import Application
+
+    assert _hostile_probe(Application().get_static_file) == []
+    assert Application().get_static_file("//[/static/x") is None
+
+
+def test_no_hostile_cookie_or_filename_escapes():
+    from odoo.http.wrappers import cookie_name
+
+    assert _hostile_probe(cookie_name) == []
+    assert _hostile_probe(content_disposition) == []

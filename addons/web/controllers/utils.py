@@ -28,7 +28,14 @@ def _is_local_url(url: str | None) -> bool:
         return False
     if "\\" in url or url.startswith("//"):
         return False
-    parsed = urlsplit(url)
+    try:
+        parsed = urlsplit(url)
+    except ValueError:
+        # "Invalid IPv6 URL" on an unbalanced bracket. This is a predicate over
+        # a query parameter (`/web/login?redirect=...`), so a url it cannot
+        # parse is a url it cannot vouch for -- and raising here is a 500 on the
+        # login flow rather than a refusal.
+        return False
     return not parsed.scheme and not parsed.netloc
 
 

@@ -16,6 +16,16 @@ from .core import request
 _logger = logging.getLogger(__name__)
 
 
+def cookie_name(set_cookie_value: str) -> str:
+    # The one answer to "which cookie does this Set-Cookie header name".
+    # `_drop_staged_cookie` and `Request._inject_future_response` both ask it;
+    # when they asked it separately one compared `startswith(f"{key}=")` and the
+    # other partitioned-and-stripped, so a value with leading whitespace was the
+    # same cookie to one and a different one to the other, and a replace became
+    # an append.
+    return set_cookie_value.partition("=")[0].strip()
+
+
 def _apply_cookie_defaults(
     expires: datetime | int | None,
     max_age: int | None,
@@ -232,6 +242,13 @@ class _Response(werkzeug.wrappers.Response):
     def flatten(self) -> None:
         if self.template:
             self.response.append(self.render())
+            # `qcontext["response_template"]` deliberately survives this, and is
+            # NOT stale bookkeeping to tidy away: `ir.http._dispatch` flattens
+            # before `_post_dispatch` runs, and website's
+            # `_handle_webpage_dispatch` reads the template name back out of
+            # qcontext at that point to decide whether to track the visit
+            # (addons/website/models/ir_http.py). Clearing it here silently
+            # turns visitor tracking off for every qweb page.
             self.template = None
 
     def set_cookie(
@@ -445,9 +462,8 @@ class FutureResponse:
         self.headers = werkzeug.datastructures.Headers()
 
     def _drop_staged_cookie(self, key: str) -> None:
-        prefix = f"{key}="
         staged = self.headers.getlist("Set-Cookie")
-        kept = [cookie for cookie in staged if not cookie.startswith(prefix)]
+        kept = [cookie for cookie in staged if cookie_name(cookie) != key]
         if len(kept) != len(staged):
             self.headers.setlist("Set-Cookie", kept)
 

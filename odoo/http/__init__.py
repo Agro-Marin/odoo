@@ -22,8 +22,6 @@ from .constants import (
     register_session_rotation_excluded_paths,
 )
 
-from .session import _session_identifier_re
-
 from .exceptions import (
     RegistryError,
     SessionExpiredException,
@@ -70,6 +68,13 @@ from .geoip import (
     GeoIP,
     geoip2,
     maxminddb,
+)
+
+from .openapi import (
+    build_openapi,
+    iter_map_routes,
+    openapi_from_map,
+    RouteInfo,
 )
 
 from .core import (
@@ -148,6 +153,7 @@ __all__ = [
     "Response",
     "ResponseCacheControl",
     "ResponseStream",
+    "RouteInfo",
     "Session",
     "SessionExpiredException",
     "Stream",
@@ -157,6 +163,7 @@ __all__ = [
     "_generate_routing_rules",
     "_request_stack",
     "borrow_request",
+    "build_openapi",
     "build_routing_map",
     "content_disposition",
     "cors_same_host",
@@ -169,8 +176,10 @@ __all__ = [
     "get_session_max_inactivity",
     "is_cors_preflight",
     "is_ensure_db_path",
+    "iter_map_routes",
     "maxminddb",
     "no_content",
+    "openapi_from_map",
     "register_ensure_db_paths",
     "register_routing_parameters",
     "register_session_rotation_excluded_paths",

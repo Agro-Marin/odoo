@@ -23,6 +23,7 @@ from odoo.exceptions import UserError
 
 from ._params import coerce_params
 from .constants import (
+    CORS_DEFAULT_ALLOWED_HEADERS,
     CORS_DEFAULT_ALLOWED_METHODS,
     CORS_MAX_AGE,
     MISSING_CSRF_WARNING,
@@ -142,22 +143,41 @@ class Dispatcher(ABC):
         is_preflight = bool(cors) and httprequest.method == "OPTIONS"
         if is_preflight:
             set_header("Access-Control-Max-Age", CORS_MAX_AGE)
-            set_header(
-                "Access-Control-Allow-Headers",
-                httprequest.headers.get("Access-Control-Request-Headers")
-                or "Origin, X-Requested-With, Content-Type, Accept, Authorization, Range",
-            )
-            vary.append("Access-Control-Request-Headers")
+            allow_headers = routing.get("cors_allow_headers")
+            if allow_headers is None:
+                # No declaration: echo what the page asked for, which is a rubber
+                # stamp -- the reply says "every header you proposed is allowed",
+                # `Authorization` included. That is the historical behaviour and
+                # it stays the default, because narrowing it globally would break
+                # every route that relies on it. `cors_allow_headers` is how a
+                # route opts out, the request-side counterpart of the
+                # `cors_expose_headers` that already existed for the response.
+                set_header(
+                    "Access-Control-Allow-Headers",
+                    httprequest.headers.get("Access-Control-Request-Headers")
+                    or CORS_DEFAULT_ALLOWED_HEADERS,
+                )
+                vary.append("Access-Control-Request-Headers")
+            else:
+                set_header(
+                    "Access-Control-Allow-Headers",
+                    allow_headers
+                    if isinstance(allow_headers, str)
+                    else ", ".join(allow_headers),
+                )
 
         if vary:
             set_header("Vary", ", ".join(vary))
 
-        if is_preflight:
-            werkzeug.exceptions.abort(no_content())
-
-        if httprequest.method == "OPTIONS" and "OPTIONS" not in (
-            routing.get("methods") or ()
+        if httprequest.method == "OPTIONS" and (
+            is_preflight or "OPTIONS" not in (routing.get("methods") or ())
         ):
+            # One 204 for both OPTIONS exits. They were separate, and only the
+            # non-CORS one carried `Allow` -- so the single OPTIONS request a
+            # browser actually sends, the CORS preflight, was the one reply that
+            # never said which methods the URL takes (RFC 9110 s9.3.7). A
+            # preflight the resolver refused answers this too: it carries no
+            # `Access-Control-Allow-Origin`, and `Allow` is what is left to say.
             werkzeug.exceptions.abort(
                 no_content(headers=[("Allow", allow_header(routing.get("methods")))])
             )
@@ -395,7 +415,9 @@ class Json2Dispatcher(Dispatcher):
 
     def handle_error(self, exc: Exception) -> Response:
         if isinstance(exc, HTTPException) and exc.response:
-            return exc.response
+            # `exc.response` is whatever was attached to the exception, usually
+            # a bare werkzeug response; the caller is annotated for ours.
+            return Response(exc.response)
 
         headers = None
         if isinstance(exc, (UserError, SessionExpiredException)):

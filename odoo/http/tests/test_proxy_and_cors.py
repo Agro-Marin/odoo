@@ -1,4 +1,5 @@
 import types
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -196,3 +197,57 @@ def test_cors_methods_resolves_each_step_with_is_none():
     assert tuple(_cors_methods(None, {"methods": ()})) == ()
     assert tuple(_cors_methods(("POST",), {"methods": ("PUT",)})) == ("POST",)
     assert tuple(_cors_methods(None, {"methods": ("PUT",)})) == ("PUT",)
+
+
+class _Sec:
+    """Enough of HTTPRequest for `cors_same_host`: an Origin, a host_url, and
+    whether we believe we are on https."""
+
+    def __init__(self, origin, host_url, is_secure=False):
+        self.headers = {"Origin": origin} if origin is not None else {}
+        self.host_url = host_url
+        self.is_secure = is_secure
+
+
+def _same_host(origin, host_url="http://app.example.com/", is_secure=False):
+    from odoo.http.helpers import cors_same_host
+
+    return cors_same_host(
+        SimpleNamespace(httprequest=_Sec(origin, host_url, is_secure))
+    )
+
+
+@pytest.mark.parametrize(
+    ("origin", "host_url", "is_secure", "allowed"),
+    [
+        # the same origin, spelled the way a browser spells it
+        ("http://app.example.com", "http://app.example.com/", False, True),
+        ("https://app.example.com", "https://app.example.com/", True, True),
+        ("http://app.example.com:8069", "http://app.example.com:8069/", False, True),
+        # a DIFFERENT port on the same hostname is a different origin: this is
+        # what the hostname-only comparison used to hand credentials to.
+        ("http://app.example.com:9999", "http://app.example.com/", False, False),
+        ("http://app.example.com", "http://app.example.com:8069/", False, False),
+        # a different hostname was already refused, and still is
+        ("https://evil.example", "http://app.example.com/", False, False),
+        ("http://localhost", "http://app.example.com/", False, False),
+        # an http origin against a server that KNOWS it is https is a downgrade
+        ("http://app.example.com", "https://app.example.com/", True, False),
+        # ...but when we only think we are http, an https Origin is the ordinary
+        # shape of a TLS terminator nobody declared with proxy_mode. Measured:
+        # host_url stays 'http://...' there. Refusing it breaks a working
+        # deployment to close a hole this side cannot see.
+        ("https://app.example.com", "http://app.example.com/", False, True),
+        # an Origin whose port cannot be parsed is not an origin we allow.
+        # `urlsplit` gives it hostname 'app.example.com' and raises on .port.
+        ("http://app.example.com:80.evil.com", "http://app.example.com/", False, False),
+        # no Origin at all
+        (None, "http://app.example.com/", False, False),
+        ("", "http://app.example.com/", False, False),
+        ("null", "http://app.example.com/", False, False),
+    ],
+)
+def test_cors_same_host_compares_the_whole_origin(origin, host_url, is_secure, allowed):
+    got = _same_host(origin, host_url, is_secure)
+    expected = origin if allowed else None
+    assert got == expected, f"{origin!r} vs {host_url!r}: got {got!r}"

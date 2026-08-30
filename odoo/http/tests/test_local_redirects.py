@@ -40,6 +40,15 @@ HOSTILE = [
     "//evil.com@good.com/",
     "\\/\\/evil.com",
     "http://good.com\\@evil.com",
+    # `urlsplit` raises "Invalid IPv6 URL" on an unbalanced bracket, and this
+    # corpus is fed from a query parameter -- `auth_signup.web_login` passes
+    # `request.params.get("redirect")` straight in -- so these were a 500 on the
+    # login flow, measured against a real server, rather than a refusal.
+    "http://[",
+    "http://[x",
+    "//[",
+    "//[evil.com",
+    "http://a[b",
 ]
 
 
@@ -136,3 +145,22 @@ def test_redirect_query_uses_an_ampersand_when_the_url_already_has_one():
         "Location"
     ]
     assert location == "/x?a=1&b=2", location
+
+
+@pytest.mark.parametrize(
+    "location", ["http://[", "http://[x", "//[", "//[evil.com", "http://a[b"]
+)
+def test_an_unparseable_location_lands_where_every_other_non_local_one_does(location):
+    """Not a destination invented for this case: a hostile absolute URL with no
+    path already reduces to the root, because `https://evil.com` splits to an
+    empty path and the sanitiser builds `"/" + ""`. A location with nothing
+    local to recover from it goes to the same place."""
+    assert _location(location) == "/"
+    assert _location("https://evil.com") == "/", "the shape it is consistent with"
+
+
+@pytest.mark.parametrize(("location", "expected"), [("/[", "/["), ("/a[b", "/a[b")])
+def test_a_bracket_outside_an_authority_is_an_ordinary_path(location, expected):
+    """Only a bracket inside a netloc makes `urlsplit` raise. Sending these to
+    the root instead would be the guard overreaching on a legitimate path."""
+    assert _location(location) == expected

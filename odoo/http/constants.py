@@ -24,6 +24,15 @@ def allow_header(methods: Iterable[str] | None = None) -> str:
 
 CORS_DEFAULT_ALLOWED_METHODS = ("GET", "POST")
 
+CORS_DEFAULT_ALLOWED_HEADERS = (
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization, Range"
+)
+"""What a preflight allows when the client names no `Access-Control-Request-Headers`.
+
+A route narrows this with `@route(cors_allow_headers=...)`; without one the
+preflight echoes whatever the client asked for and this is only the fallback.
+"""
+
 REJECTED_HTTP_METHODS = ("TRACE",)
 
 CSRF_TOKEN_MAX_AGE = 60 * 60 * 24 * 365
@@ -145,5 +154,3 @@ STORED_SESSION_BYTES = 42
 STATIC_CACHE = 60 * 60 * 24 * 7
 
 STATIC_CACHE_LONG = 60 * 60 * 24 * 365
-
-DB_LIST_CACHE_TTL = 5.0

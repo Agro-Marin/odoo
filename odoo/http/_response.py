@@ -50,9 +50,23 @@ class _RequestResponseMixin(RequestState):
 
     def redirect(self, location: str, code: int = 303, local: bool = True) -> Response:
         if local:
-            location = "/" + urlunsplit(
-                urlsplit(location)._replace(scheme="", netloc="")
-            ).lstrip("/\\")
+            try:
+                stripped = urlsplit(location)._replace(scheme="", netloc="")
+            except ValueError:
+                # `urlsplit` raises "Invalid IPv6 URL" on an unbalanced bracket,
+                # and this is fed straight from a query parameter --
+                # `auth_signup.web_login` passes `request.params.get("redirect")`
+                # and `auth_oauth` does the same -- so `/web/login?redirect=http://[`
+                # was a 500 on the login flow. Measured against a real server.
+                #
+                # The root is not a new answer invented for this case: a hostile
+                # absolute URL with no path already lands there, because
+                # `https://evil.com` splits to an empty path and this builds
+                # `"/" + ""`. A location with nothing local that can be recovered
+                # from it goes where every other such location goes.
+                location = "/"
+            else:
+                location = "/" + urlunsplit(stripped).lstrip("/\\")
         if self.db and self.env is not None:
             return self.env["ir.http"]._redirect(location, code)
         return werkzeug.utils.redirect(location, code, Response=Response)
@@ -85,7 +99,10 @@ class _RequestResponseMixin(RequestState):
     ) -> Response:
         response = Response(template=template, qcontext=qcontext, **kw)
         if not lazy:
-            return response.render()
+            # `flatten` renders into the body and clears the template, so an
+            # eager render still answers the `Response` this is annotated to
+            # return. It used to hand back the raw bytes of `render()`.
+            response.flatten()
         return response
 
     def reroute(self, path: str | bytes, query_string: str | None = None) -> None:

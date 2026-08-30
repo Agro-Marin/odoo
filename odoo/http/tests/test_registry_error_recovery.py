@@ -140,6 +140,6 @@ def test_finalize_without_an_error_response_does_not_post_dispatch():
     request: Any = mock.Mock()
     request._post_init_done = True
 
-    app._finalize_error_response(ValueError("no response attached"), request)
+    app._finalize_error_response(ValueError("no response attached"), request, None)
 
     request.dispatcher.post_dispatch.assert_not_called()
