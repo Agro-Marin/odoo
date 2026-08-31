@@ -33,7 +33,12 @@ class SaleOrderLine(models.Model):
     @api.depends("product_id", "company_id", "currency_id", "product_uom_id")
     def _compute_purchase_price(self):
         for line in self:
-            if not line.product_id:
+            # A combo master line prices at 0 by design (`_get_price_display`) --
+            # its real revenue and cost live on the linked combo-item lines
+            # (`_get_lines_with_price`). Costing it from its own product's
+            # `standard_price` would create a phantom cost with no matching
+            # revenue.
+            if not line.product_id or line.product_type == "combo":
                 line.purchase_price = 0.0
                 continue
             line = line.with_company(line.company_id)
