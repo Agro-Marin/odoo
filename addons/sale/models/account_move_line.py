@@ -26,7 +26,7 @@ class AccountMoveLine(models.Model):
             "sale.group_warning_sale",
         )
 
-    @api.depends("balance")
+    @api.depends("balance", "is_downpayment", "company_id.account_storno")
     def _compute_is_storno(self):
         super()._compute_is_storno()
         for line in self:
