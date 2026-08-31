@@ -17,6 +17,19 @@ class SaleOrder(models.Model):
             ).mapped("price_unit")
         )
 
+    def set_delivery_line(self, carrier, amount):
+        res = super().set_delivery_line(carrier, amount)
+        for order in self:
+            # A shipping reward claimed before a carrier was chosen is
+            # created with price_unit=0 (see _get_reward_values_free_shipping
+            # below). Nothing else re-triggers the loyalty recompute when a
+            # delivery line is added afterward, so without this the reward
+            # line stays stuck at 0 on a still-open quotation until the order
+            # is confirmed.
+            if any(line.reward_id.reward_type == "shipping" for line in order.line_ids):
+                order._update_programs_and_rewards()
+        return res
+
     # sale_loyalty overrides
 
     def _get_no_effect_on_threshold_lines(self):
