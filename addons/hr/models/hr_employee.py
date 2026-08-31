@@ -269,6 +269,10 @@ class HrEmployee(models.Model):
         string="Private Country",
         groups="hr.group_hr_user",
         tracking=True,
+        # Most employees live where they work, and the country drives
+        # allowed_country_state_ids: without it the state dropdown starts empty
+        # and a city typed before the country has to be retyped.
+        default=lambda self: self.env.company.country_id,
     )
 
     distance_home_work = fields.Integer(
@@ -1613,6 +1617,19 @@ class HrEmployee(models.Model):
             raise AccessError(
                 self.env._("You do not have access to this document.")
             ) from error
+
+    @api.model
+    def _search_display_name(self, operator, value):
+        domain = super()._search_display_name(operator, value)
+        if self.env.context.get("import_file"):
+            # ``hr_employee_comp_rule`` is not a plain company filter: it ORs
+            # three hierarchy clauses onto it, so one's own record, one's
+            # manager and one's subordinates' manager stay readable even when
+            # their company is not selected. That is right for reading and
+            # wrong for an import, where a homonym would silently update an
+            # employee of a company the importer is not working in.
+            domain &= Domain("company_id", "in", self.env.companies.ids)
+        return domain
 
     @api.model
     def search_fetch(self, domain, field_names=None, offset=0, limit=None, order=None):

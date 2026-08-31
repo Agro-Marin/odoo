@@ -25,3 +25,4 @@ access_hr_payroll_structure_type_hr_contract_manager,hr.payroll.structure.type.c
 access_hr_resource_manager,hr.employee.resource.manager,resource.model_resource_resource,hr.group_hr_manager,1,1,1,1
 access_hr_resource_calendar_user,hr.employee.resource.calendar.user,resource.model_resource_calendar,hr.group_hr_user,1,1,1,1
 access_hr_resource_calendar_attendance_user,hr.employee.resource.calendar.attendance.user,resource.model_resource_calendar_attendance,hr.group_hr_user,1,1,1,1
+access_hr_employee_create_version_wizard,hr.employee.create.version.wizard,model_hr_employee_create_version_wizard,group_hr_user,1,1,1,1
