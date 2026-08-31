@@ -1,3 +1,5 @@
+import json
+import logging
 import re
 
 import psycopg
@@ -6,6 +8,8 @@ from odoo import SUPERUSER_ID, Command, _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.modules.registry import Registry
 from odoo.tools.safe_eval import safe_eval
+
+_logger = logging.getLogger(__name__)
 
 
 class DeliveryCarrier(models.Model):
@@ -103,6 +107,25 @@ class DeliveryCarrier(models.Model):
         "Max Weight",
         help="If the total weight of the order is over this weight, the method won't be available.",
     )
+    # ADR-0081: every carrier's secrets rest in credential.credential, and the
+    # plumbing is here rather than in each carrier module because the shape
+    # repeats twenty-two times across ten of them. The carriers keep their own
+    # field NAMES -- they are in the views and in every request builder -- and
+    # turn them into doors onto this.
+    #
+    # The vault field a given secret maps to is the carrier's decision, because
+    # the shapes differ: DHL has a key and a secret, Sendcloud has one key,
+    # Easypost has one per environment. `api_key`/`api_secret` take a pair, and
+    # `credential_data` takes anything that is neither.
+    carrier_credential_id = fields.Many2one(
+        comodel_name="credential.credential",
+        string="Credential",
+        ondelete="restrict",
+        copy=False,
+        groups="base.group_system",
+        help="Holds this carrier's API secrets.",
+    )
+
     weight_uom_name = fields.Char(
         string="Weight unit of measure label", compute="_compute_weight_uom_name"
     )
@@ -654,3 +677,74 @@ class DeliveryCarrier(models.Model):
             raise UserError(_("Not available for current order"))
 
         return price
+
+    def _carrier_secret(self, field_name):
+        """One secret out of this carrier's credential, or False."""
+        self.ensure_one()
+        credential = self.carrier_credential_id.sudo()
+        if not credential:
+            return False
+        if field_name in ("api_key", "api_secret", "username", "password"):
+            return credential[field_name] or False
+        try:
+            data = json.loads(credential.credential_data or "{}")
+        except ValueError:
+            _logger.warning(
+                "Carrier %s has a credential whose data is not JSON", self.id
+            )
+            return False
+        return data.get(field_name) or False
+
+    def _carrier_store_secret(self, field_name, value):
+        """Write one secret into this carrier's credential.
+
+        One field at a time, because a carrier writes them one at a time: an
+        inverse fires per field, and a store that rewrote the whole credential
+        would clear the siblings that were not part of this write.
+        """
+        self.ensure_one()
+        credential = self.carrier_credential_id.sudo()
+        native = field_name in ("api_key", "api_secret", "username", "password")
+
+        if not credential:
+            if not value:
+                return
+            # `custom`, not `api_key`: the api_key category requires an api_key or
+            # a credential_value at create, and a carrier's FIRST write is often
+            # neither -- DHL's inverse may fire for the secret before the key.
+            # Satisfying that constraint with a placeholder would leave the
+            # placeholder readable as the key. `custom` names no required field,
+            # which is the honest shape for a record whose contents differ per
+            # carrier.
+            credential = self.env["credential.credential"].sudo().create({
+                "name": self.name or str(self.id),
+                "category_id": self.env.ref("credential.credential_category_custom").id,
+                "company_id": self.company_id.id,
+            })
+            self.carrier_credential_id = credential.id
+
+        if native:
+            credential[field_name] = value or False
+        else:
+            try:
+                data = json.loads(credential.credential_data or "{}")
+            except ValueError:
+                data = {}
+            if value:
+                data[field_name] = value
+            else:
+                data.pop(field_name, None)
+            credential.credential_data = json.dumps(data)
+
+        if not any(
+            (
+                credential.api_key,
+                credential.api_secret,
+                credential.username,
+                credential.password,
+                json.loads(credential.credential_data or "{}"),
+            )
+        ):
+            # Nothing left: a carrier holding no secrets holds no credential.
+            self.carrier_credential_id = False
+            credential.unlink()

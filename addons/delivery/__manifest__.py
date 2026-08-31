@@ -8,7 +8,7 @@ Allows you to add delivery methods in sale orders.
 You can define your own carrier for prices.
 The system is able to add and compute the shipping line.
 """,
-    'depends': ['sale', 'payment_custom'],
+    'depends': ['sale', 'payment_custom', 'credential'],
     'data': [
         'data/delivery_data.xml',
         'data/payment_method_data.xml',
