@@ -3406,3 +3406,52 @@ class TestLeaveRequests(TestHrHolidaysCommon):
         )
 
         self.assertEqual(leave.number_of_hours, 13.0)
+
+    def test_cleared_approver_survives_a_manager_change(self):
+        """Clearing the Time Off Approver must mean something.
+
+        The field's own help says that when it is empty the approval falls to
+        an Administrator or Approver. So emptying it is a deliberate setting,
+        not a hole to be filled: changing the employee's manager afterwards
+        must not quietly appoint the new manager as approver.
+        """
+        employee = self.env["hr.employee"].create(
+            {
+                "name": "Reporting Employee",
+                "parent_id": self.employee_hruser.id,
+                "company_id": self.company.id,
+            }
+        )
+        self.assertEqual(
+            employee.leave_manager_id,
+            self.user_hruser,
+            "A new report inherits its manager as approver.",
+        )
+
+        employee.leave_manager_id = False
+        self.assertFalse(employee.leave_manager_id)
+
+        employee.parent_id = self.employee_responsible
+        self.assertFalse(
+            employee.leave_manager_id,
+            "An approver cleared on purpose must stay cleared when the "
+            "employee's manager changes.",
+        )
+
+    def test_approver_follows_the_manager_when_it_was_the_manager(self):
+        """The useful half of the rule still has to work."""
+        employee = self.env["hr.employee"].create(
+            {
+                "name": "Other Reporting Employee",
+                "parent_id": self.employee_hruser.id,
+                "company_id": self.company.id,
+            }
+        )
+        self.assertEqual(employee.leave_manager_id, self.user_hruser)
+
+        employee.parent_id = self.employee_responsible
+        self.assertEqual(
+            employee.leave_manager_id,
+            self.user_responsible,
+            "An approver that was just the old manager follows the new one.",
+        )

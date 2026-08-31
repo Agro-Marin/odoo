@@ -287,9 +287,17 @@ class HrEmployee(models.Model):
             previous_manager = employee._origin.parent_id.user_id
             manager = employee.parent_id.user_id
             if (
-                manager and employee.leave_manager_id == previous_manager
-            ) or not employee.leave_manager_id:
+                manager
+                and employee.leave_manager_id
+                and employee.leave_manager_id == previous_manager
+            ):
                 employee.leave_manager_id = manager
+            elif not employee.leave_manager_id:
+                # An approver emptied on purpose stays empty -- the help text
+                # says an empty approver hands the approval to an
+                # Administrator. The branch is still needed so the compute
+                # assigns a value on a record that never had one.
+                employee.leave_manager_id = False
 
     def _compute_show_leaves(self):
         show_leaves = self.env.user.has_group("hr_holidays.group_hr_holidays_user")
@@ -347,10 +355,11 @@ class HrEmployee(models.Model):
         if "parent_id" in values:
             manager = self.env["hr.employee"].browse(values["parent_id"]).user_id
             if manager:
+                # Two empty recordsets compare equal, so the truthiness test
+                # is what keeps a cleared approver cleared here.
                 to_change = self.filtered(
                     lambda e: (
-                        e.leave_manager_id == e.parent_id.user_id
-                        or not e.leave_manager_id
+                        e.leave_manager_id and e.leave_manager_id == e.parent_id.user_id
                     )
                 )
                 to_change.write(

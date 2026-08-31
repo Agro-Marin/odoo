@@ -1,6 +1,7 @@
 from freezegun import freeze_time
 
 from odoo.exceptions import AccessError, ValidationError
+from odoo.tests import tagged
 
 from odoo.addons.hr_holidays.tests.common import TestHrHolidaysCommon
 
@@ -130,3 +131,56 @@ class TestHrLeaveType(TestHrHolidaysCommon):
         )
 
         self.assertFalse(leave_types, "Got valid leaves outside vaild period")
+
+
+@tagged("leave_type")
+class TestLeaveTypeCountry(TestHrHolidaysCommon):
+    def test_offered_types_are_limited_to_the_company_country(self):
+        """A Mexican company has no business being offered Belgian time off.
+
+        hr_leave_type_data.xml ships one time off type per country it covers
+        and none of them is archived, so the Time Off Type drop-down offered
+        every one of them to everybody.
+        """
+        mexico = self.env.ref("base.mx")
+        belgium = self.env.ref("base.be")
+        self.company.country_id = mexico
+
+        global_type, mexican_type, belgian_type = self.env["hr.leave.type"].create(
+            [
+                {
+                    "name": "Everywhere",
+                    "requires_allocation": False,
+                    "country_id": False,
+                },
+                {
+                    "name": "Mexican only",
+                    "requires_allocation": False,
+                    "country_id": mexico.id,
+                },
+                {
+                    "name": "Belgian only",
+                    "requires_allocation": False,
+                    "country_id": belgium.id,
+                },
+            ]
+        )
+
+        leave = self.env["hr.leave"].new({"employee_id": self.employee_emp_id})
+        self.assertEqual(leave.company_id, self.company)
+
+        # .new() wraps the related records in NewId, so compare the origins.
+        offered = leave.allowed_holiday_status_ids._origin
+        self.assertIn(global_type, offered, "A type with no country fits anywhere.")
+        self.assertIn(mexican_type, offered, "The company's own country fits.")
+        self.assertNotIn(belgian_type, offered, "Another country's type does not.")
+
+    def test_offered_types_fall_back_to_the_global_ones(self):
+        """A company with no country still has to see something."""
+        self.company.country_id = False
+        global_type = self.env["hr.leave.type"].create(
+            {"name": "Everywhere", "requires_allocation": False, "country_id": False}
+        )
+
+        leave = self.env["hr.leave"].new({"employee_id": self.employee_emp_id})
+        self.assertIn(global_type, leave.allowed_holiday_status_ids._origin)

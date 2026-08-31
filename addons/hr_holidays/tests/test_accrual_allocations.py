@@ -6845,3 +6845,20 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
             allocation.action_refuse()
             self.env["hr.leave"]._cancel_invalid_leaves()
             self.assertEqual(leave.state, "cancel")
+
+    def test_reset_date_is_configurable_without_carry_over(self):
+        """A plan that resets unused time must let you say *when* it resets.
+
+        `carryover_date` is not only the carry-over date: when the plan does not
+        carry over, `_compute_action_with_unused_accruals` forces the level to
+        'lost' and `_process_accrual_plans` drops the days on that very date.
+        Hiding the field behind `can_be_carryover` therefore nails every
+        resetting plan to the 1st of January, which is the field's default.
+        """
+        plan_form = Form(self.env["hr.leave.accrual.plan"])
+        plan_form.name = "Reset on the allocation date"
+        plan_form.can_be_carryover = False
+        plan_form.carryover_date = "allocation"
+        plan = plan_form.save()
+
+        self.assertEqual(plan.carryover_date, "allocation")

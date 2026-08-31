@@ -202,6 +202,14 @@ class HrLeave(models.Model):
     holiday_status_requires_allocation = fields.Boolean(
         related="holiday_status_id.requires_allocation"
     )
+    allowed_holiday_status_ids = fields.Many2many(
+        "hr.leave.type",
+        string="Time Off Types of the Company Country",
+        compute="_compute_allowed_holiday_status_ids",
+        export_string_translation=False,
+        help="Technical field narrowing the Time Off Type drop-down to the "
+        "types that apply where the company is established.",
+    )
     color = fields.Integer("Color", related="holiday_status_id.color")
     validation_type = fields.Selection(
         string="Validation Type",
@@ -325,6 +333,11 @@ class HrLeave(models.Model):
     )
     supported_attachment_ids_count = fields.Integer(
         compute="_compute_supported_attachment_ids"
+    )
+    attachment_is_visible = fields.Boolean(
+        compute="_compute_attachment_is_visible",
+        compute_sudo=True,
+        export_string_translation=False,
     )
     # UX fields
     leave_type_request_unit = fields.Selection(
@@ -770,6 +783,27 @@ Versions:
                 ):
                     holiday.holiday_status_id = False
 
+    @api.depends("company_id.country_id")
+    def _compute_allowed_holiday_status_ids(self):
+        """The types on offer: the company's own country, plus the global ones.
+
+        hr_leave_type_data.xml ships a type per country it covers and archives
+        none of them, so without this every company is offered every country's
+        types. Grouped by country rather than searched per record, since a list
+        of leaves shares one company far more often than not.
+        """
+        leave_types = self.env["hr.leave.type"]
+        global_types = leave_types.search([("country_id", "=", False)])
+        by_country = {
+            country.id: global_types
+            | leave_types.search([("country_id", "=", country.id)])
+            for country in self.company_id.country_id
+        }
+        for leave in self:
+            leave.allowed_holiday_status_ids = by_country.get(
+                leave.company_id.country_id.id, global_types
+            )
+
     @api.depends("employee_id")
     def _compute_department_id(self):
         for holiday in self:
@@ -1103,6 +1137,28 @@ Versions:
         for holiday in self:
             holiday.supported_attachment_ids = holiday.attachment_ids
             holiday.supported_attachment_ids_count = len(holiday.attachment_ids.ids)
+
+    @api.depends_context("uid")
+    @api.depends("user_id", "create_uid")
+    def _compute_attachment_is_visible(self):
+        """Who may be shown the file attached to a time off request.
+
+        A supporting document is usually a medical certificate. The employee
+        it belongs to, whoever filed the request, and the time off officers
+        may see it; the line manager approving the day off may not, even
+        though hr_leave_rule_responsible_read lets them read the request.
+        """
+        # group_hr_holidays_manager implies group_hr_holidays_user, so the one
+        # group covers both officers and administrators.
+        is_officer = self.env.user.has_group("hr_holidays.group_hr_holidays_user")
+        for leave in self:
+            leave.attachment_is_visible = (
+                is_officer
+                # A request that is still being typed has no create_uid to
+                # match yet, and whoever is filing it is about to become one.
+                or not leave.id
+                or self.env.uid in (leave.user_id.id, leave.create_uid.id)
+            )
 
     @api.depends("employee_id", "holiday_status_id")
     def _compute_leaves(self):
@@ -2120,7 +2176,9 @@ is approved, validated or refused."
             "name": _("Allocation Requests"),
             "type": "ir.actions.act_window",
             "res_model": "hr.leave.allocation",
-            "views": [[self.env.ref(view_name).id, "list"]],
+            # The form view is what makes the list rows clickable; without it
+            # the dashboard can only show the count, never open a request.
+            "views": [(self.env.ref(view_name).id, "list"), (False, "form")],
             "domain": domain,
             "context": context,
         }
