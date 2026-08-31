@@ -9,8 +9,6 @@ from odoo.tests.common import TransactionCase, tagged
 
 @tagged("attendance_process")
 class TestHrAttendance(TransactionCase):
-    """Test for presence validity"""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -33,11 +31,9 @@ class TestHrAttendance(TransactionCase):
 
     def setUp(self):
         super().setUp()
-        # Cache error if not done during setup
         (self.test_employee | self.employee_kiosk).last_attendance_id.unlink()
 
     def test_employee_state(self):
-        # Make sure the attendance of the employee will display correctly
         assert self.test_employee.attendance_state == "checked_out"
         self.test_employee._attendance_action_change()
         assert self.test_employee.attendance_state == "checked_in"
@@ -45,7 +41,6 @@ class TestHrAttendance(TransactionCase):
         assert self.test_employee.attendance_state == "checked_out"
 
     def test_employee_group_id(self):
-        # Create attendance for one of them
         self.env["hr.attendance"].create(
             {
                 "employee_id": self.employee_kiosk.id,
@@ -68,7 +63,6 @@ class TestHrAttendance(TransactionCase):
         self.assertNotIn(self.test_employee.id, grouped_employee_ids)
         self.assertIn(self.employee_kiosk.id, grouped_employee_ids)
 
-        # Specific to gantt view.
         context["gantt_start_date"] = fields.Datetime.now()
         context["allowed_company_ids"] = [self.env.company.id]
 
@@ -81,13 +75,10 @@ class TestHrAttendance(TransactionCase):
 
         grouped_employee_ids = [g["employee_id"][0] for g in groups]
 
-        # Check that both employees appears
         self.assertIn(self.test_employee.id, grouped_employee_ids)
         self.assertIn(self.employee_kiosk.id, grouped_employee_ids)
 
     def test_hours_today(self):
-        """Test day start is correctly computed according to the employee's timezone"""
-
         def tz_datetime(year, month, day, hour, minute):
             tz = timezone("Europe/Brussels")
             return (
@@ -103,9 +94,7 @@ class TestHrAttendance(TransactionCase):
         self.env["hr.attendance"].create(
             {
                 "employee_id": employee.id,
-                "check_in": tz_datetime(
-                    2019, 3, 1, 22, 0
-                ),  # should count from midnight in the employee's timezone (=the previous day in utc!)
+                "check_in": tz_datetime(2019, 3, 1, 22, 0),
                 "check_out": tz_datetime(2019, 3, 2, 2, 0),
             }
         )
@@ -116,7 +105,6 @@ class TestHrAttendance(TransactionCase):
             }
         )
 
-        # now = 2019/3/2 14:00 in the employee's timezone
         with patch.object(
             fields.Datetime,
             "now",
@@ -130,36 +118,3 @@ class TestHrAttendance(TransactionCase):
         attendance_form.check_in = False
         with self.assertRaises(AssertionError):
             attendance_form.save()
-
-    # @freeze_time("2024-02-1")
-    # def test_change_in_out_mode_when_manual_modification(self):
-    #     TODO naja: cron should work eventually when the adjustment feature is back
-    #     company = self.env['res.company'].create({
-    #         'name': 'Monsters, Inc.',
-    #         'absence_management': True,
-    #     })
-
-    #     employee = self.env['hr.employee'].create({
-    #         'name': "James P. Sullivan",
-    #         'company_id': company.id,
-    #         'date_version': date(2021, 1, 1),
-    #         'contract_date_start': date(2021, 1, 1),
-    #     })
-    #     breakpoint()
-
-    #     self.env['hr.attendance']._cron_absence_detection()
-
-    #     attendance = self.env['hr.attendance'].search([('employee_id', '=', employee.id)])
-
-    #     self.assertEqual(attendance.in_mode, 'technical')
-    #     self.assertEqual(attendance.out_mode, 'technical')
-    #     self.assertEqual(attendance.color, 1)
-
-    #     attendance.write({
-    #         'check_in': datetime(2021, 1, 4, 8, 0),
-    #         'check_out': datetime(2021, 1, 4, 17, 0),
-    #     })
-
-    #     self.assertEqual(attendance.in_mode, 'manual')
-    #     self.assertEqual(attendance.out_mode, 'manual')
-    #     self.assertEqual(attendance.color, 0)

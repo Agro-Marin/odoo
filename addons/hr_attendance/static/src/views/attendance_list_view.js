@@ -11,16 +11,13 @@ export class AttendanceListRenderer extends ListRenderer {
         AttendanceActionHelper,
     };
 
-    /** @override **/
     get showNoContentHelper() {
-        // Rows's length need to be lower than 6 to avoid nocontent overlapping
         return super.showNoContentHelper && this.props.list.count < 6 ;
     }
 };
 
 export class AttendanceListModel extends listView.Model {
 
-    /** @override **/
     async load(params = {}) {
         const activeDomainParam = params.domain?.some((index) => Array.isArray(index) && index[0] == "employee_id.active");
         if (!activeDomainParam) {

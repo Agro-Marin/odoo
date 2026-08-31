@@ -136,7 +136,6 @@ class kioskAttendanceApp extends Component{
 
     async makeRpcWithGeolocation(route, params) {
         if (!this.props.deviceTrackingEnabled || !navigator.geolocation || isIosApp()) {
-            // iOS app lacks permissions or tracking disabled
             return rpc(route, { ...params });
         }
 

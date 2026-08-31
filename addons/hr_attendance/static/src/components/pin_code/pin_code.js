@@ -12,7 +12,7 @@ export class KioskPinCode extends Component {
 
     setup() {
         this.padButtons = [
-            ...Array.from({ length: 9 }, (_, i) => [i + 1]), // [[1], ..., [9]]
+            ...Array.from({ length: 9 }, (_, i) => [i + 1]),
             ["C", "btn-warning"],
             [0],
             ["OK", "btn-primary"],
@@ -25,7 +25,7 @@ export class KioskPinCode extends Component {
         this.checkedIn = this.props.employeeData.attendance_state === 'checked_in';
 
         const onKeyDown = async (ev) => {
-            const allowedKeys = [...Array(10).keys()].reduce((acc, value) => { // { from '0': '0' ... to '9': '9' }
+            const allowedKeys = [...Array(10).keys()].reduce((acc, value) => {
                 acc[value] = value;
                 return acc;
             }, {
@@ -64,9 +64,6 @@ export class KioskPinCode extends Component {
             this.lockPad = true;
             await this.props.onPinConfirm(this.props.employeeData.id, this.state.codePin)
             this.state.codePin = "";
-            // Escalating delay before the next attempt is accepted: defense-in-depth
-            // against PIN brute-forcing (this component is destroyed on a successful
-            // check-in/out, so the counter only ever grows across wrong guesses).
             this.failedAttempts += 1;
             const backoff = Math.min(this.failedAttempts * 500, 5000);
             await new Promise((resolve) => browser.setTimeout(resolve, backoff));

@@ -10,9 +10,6 @@
                 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no"/>
                 <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
                 <t t-call-assets="hr_attendance.assets_public_attendance" t-js="false"/>
-                <!-- Data for the bundle's boot module (public_kiosk/main.js):
-                     a classic inline script runs while the document parses,
-                     before any (deferred) module script evaluates. -->
                 <script type="text/javascript">
                     odoo.__kiosk_backend_info__ = <t t-out="json.dumps(kiosk_backend_info)"/>;
                 </script>

@@ -24,7 +24,6 @@ class TestHrAttendanceDomainTranslation(TransactionCase):
     def test_searchbar_with_user_domain(self):
         companies_ids = self.env["res.company"].search([]).ids
 
-        # Checks that this domain returns no attendance
         self.assertEqual(
             self.hr_attendance.search(
                 [
@@ -38,8 +37,6 @@ class TestHrAttendanceDomainTranslation(TransactionCase):
             self.hr_attendance,
         )
 
-        # Ensure that if an employee is searched with the search bar even if he doesn't have any attendance,
-        # he will be returned.
         self.assertEqual(
             self.hr_attendance.with_context(
                 allowed_company_ids=companies_ids,

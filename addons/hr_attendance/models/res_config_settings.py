@@ -1,17 +1,9 @@
-from odoo import api, fields, models
+from odoo import fields, models
 
 
 class ResConfigSettings(models.TransientModel):
     _inherit = "res.config.settings"
 
-    # TODO: Remove in master
-    overtime_company_threshold = fields.Integer(
-        string="Tolerance Time In Favor Of Company", readonly=False
-    )
-    # TODO: Remove in master
-    overtime_employee_threshold = fields.Integer(
-        string="Tolerance Time In Favor Of Employee", readonly=False
-    )
     hr_attendance_display_overtime = fields.Boolean(
         related="company_id.hr_attendance_display_overtime", readonly=False
     )
@@ -44,31 +36,6 @@ class ResConfigSettings(models.TransientModel):
     attendance_device_tracking = fields.Boolean(
         related="company_id.attendance_device_tracking", readonly=False
     )
-
-    @api.model
-    def get_values(self):
-        res = super().get_values()
-        company = self.env.company
-        res.update(
-            {
-                "overtime_company_threshold": company.overtime_company_threshold,
-                "overtime_employee_threshold": company.overtime_employee_threshold,
-            }
-        )
-        return res
-
-    def set_values(self):
-        super().set_values()
-        company = self.env.company
-        # Done this way to have all the values written at the same time,
-        # to avoid recomputing the overtimes several times with
-        # invalid company configurations
-        fields_to_check = [
-            "overtime_company_threshold",
-            "overtime_employee_threshold",
-        ]
-        if any(self[field] != company[field] for field in fields_to_check):
-            company.write({field: self[field] for field in fields_to_check})
 
     def regenerate_kiosk_key(self):
         if self.env.user.has_group("hr_attendance.group_hr_attendance_user"):

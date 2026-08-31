@@ -9,8 +9,6 @@ from odoo.tests.common import TransactionCase, tagged
 
 @tagged("hr_attendance_overtime_ruleset")
 class TestHrAttendanceOvertime(TransactionCase):
-    """Tests for overtime"""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -66,7 +64,7 @@ class TestHrAttendanceOvertime(TransactionCase):
                     "hours_per_day": 7.6,
                     "full_time_required_hours": 38,
                     "attendance_ids": [
-                        (5, 0, 0),  # Clear existing attendances
+                        (5, 0, 0),
                         (
                             0,
                             0,
@@ -148,7 +146,6 @@ class TestHrAttendanceOvertime(TransactionCase):
 
     def test_daily_overtime_8_hours_rule(self):
         with freeze_time("2021-01-04"):
-            # Attendance: 10 hours (8 expected + 2 overtime at 150%)
             attendance = self.env["hr.attendance"].create(
                 {
                     "employee_id": self.employee.id,
@@ -165,9 +162,7 @@ class TestHrAttendanceOvertime(TransactionCase):
             )
 
     def test_daily_overtime_10_hours_rule(self):
-        """Test daily overtime for the 10-hour rule"""
         with freeze_time("2021-01-04"):
-            # Attendance: 12 hours (10 expected + 2 overtime at 200%)
             attendance = self.env["hr.attendance"].create(
                 {
                     "employee_id": self.employee.id,
@@ -184,9 +179,7 @@ class TestHrAttendanceOvertime(TransactionCase):
             )
 
     def test_no_overtime(self):
-        """Test no overtime when working expected hours or less"""
         with freeze_time("2021-01-04"):
-            # Attendance: 8 hours (exactly 8 expected, no overtime)
             attendance = self.env["hr.attendance"].create(
                 {
                     "employee_id": self.employee.id,
@@ -202,18 +195,16 @@ class TestHrAttendanceOvertime(TransactionCase):
             )
 
     def test_weekly_overtime(self):
-        """Test weekly overtime for the 40-hour rule"""
         with freeze_time("2021-01-04"):
-            # Week: Mon-Fri, 10 hours/day = 50 hours total (40 expected + 10 overtime at 200%)
             [
                 self.env["hr.attendance"].create(
                     {
-                        "employee_id": self.employee.id,  # This employee have a calendar with no lunch
+                        "employee_id": self.employee.id,
                         "check_in": datetime(2021, 1, day, 8, 0),
                         "check_out": datetime(2021, 1, day, 18, 0),
                     }
                 )
-                for day in range(4, 9)  # Monday to Friday
+                for day in range(4, 9)
             ]
             self.assertAlmostEqual(
                 self.employee.total_overtime,
@@ -223,9 +214,7 @@ class TestHrAttendanceOvertime(TransactionCase):
             )
 
     def test_multiple_attendances_same_day(self):
-        """Test multiple attendances in one day"""
         with freeze_time("2021-01-04"):
-            # Two attendances: 6 hours + 6 hours = 12 hours (10 expected + 2 overtime at 200%)
             self.env["hr.attendance"].create(
                 [
                     {
@@ -249,9 +238,7 @@ class TestHrAttendanceOvertime(TransactionCase):
             )
 
     def test_partial_week(self):
-        """Test partial week with overtime"""
         with freeze_time("2021-01-04"):
-            # Week: Mon-Wed, 12 hours/day = 36 hours total (no weekly overtime, daily overtime applies)
             [
                 self.env["hr.attendance"].create(
                     {
@@ -260,7 +247,7 @@ class TestHrAttendanceOvertime(TransactionCase):
                         "check_out": datetime(2021, 1, day, 20, 0),
                     }
                 )
-                for day in range(4, 7)  # Monday to Wednesday
+                for day in range(4, 7)
             ]
 
             self.assertAlmostEqual(
@@ -271,10 +258,6 @@ class TestHrAttendanceOvertime(TransactionCase):
             )
 
     def test_access_ruleset_on_employee(self):
-        """
-        Test the access rights of the ruleset on the employee
-        Only the employee admin should be able to see and change the ruleset on the employee
-        """
         user = new_test_user(
             self.env, login="usr", groups="hr.group_hr_user", company_id=self.company.id
         ).with_company(self.company)
@@ -286,15 +269,12 @@ class TestHrAttendanceOvertime(TransactionCase):
         with Form(employee.with_user(user)) as employee_form:
             self.assertFalse("ruleset_id" in employee_form._view["fields"])
 
-        # HR Mangers should be able to see the ruleset on the employee
         user.group_ids |= self.env.ref("hr.group_hr_manager")
-        # fix le truc chelou de pas pouvoir ecrire la surrement les access rule
         with Form(employee.with_user(user)) as employee_form:
             self.assertTrue("ruleset_id" in employee_form._view["fields"])
             employee_form.record.ruleset_id = self.ruleset.id
 
     def test_is_manager_with_overtime(self):
-        """Test the computation of is_manager with overtime"""
         user = new_test_user(
             self.env,
             login="usr",

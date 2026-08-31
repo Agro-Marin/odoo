@@ -102,7 +102,6 @@ class HrEmployee(models.Model):
         old_officers = self.env["res.users"]
         if "attendance_manager_id" in vals:
             old_officers = self.attendance_manager_id
-            # Officer was added
             if vals["attendance_manager_id"]:
                 officer = self.env["res.users"].browse(vals["attendance_manager_id"])
                 officers_group = self.env.ref(
@@ -139,7 +138,7 @@ class HrEmployee(models.Model):
     def _compute_total_overtime(self):
         mapped_validated_overtimes = dict(
             self.env["hr.attendance.overtime.line"]._read_group(
-                domain=[("status", "=", "approved")],
+                domain=[("status", "=", "approved"), ("employee_id", "in", self.ids)],
                 groupby=["employee_id"],
                 aggregates=["manual_duration:sum"],
             )
@@ -149,58 +148,47 @@ class HrEmployee(models.Model):
             employee.total_overtime = mapped_validated_overtimes.get(employee, 0)
 
     def _compute_hours_last_month(self):
-        """
-        Compute hours and overtime hours in the current month, if we are the 15th of october, will compute from 1 oct to 15 oct
-        """
         now = fields.Datetime.now()
         now_utc = now.replace(tzinfo=UTC)
-        for employee in self:
-            tz = timezone(employee.tz or "UTC")
-            now_tz = now_utc.astimezone(tz)
-            start_tz = now_tz.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            start_naive = start_tz.astimezone(UTC).replace(tzinfo=None)
-            end_tz = now_tz
-            end_naive = end_tz.astimezone(UTC).replace(tzinfo=None)
-
-            current_month_attendances = employee.attendance_ids.filtered(
-                lambda att, start_naive=start_naive, end_naive=end_naive: (
-                    att.check_in >= start_naive
-                    and att.check_out
-                    and att.check_out <= end_naive
-                )
+        totals = {}
+        for tz_name, employees in self.grouped(lambda e: e.tz or "UTC").items():
+            now_tz = now_utc.astimezone(timezone(tz_name))
+            start_naive = (
+                now_tz.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                .astimezone(UTC)
+                .replace(tzinfo=None)
             )
-            hours = 0
-            overtime_hours = 0
-            for att in current_month_attendances:
-                hours += att.worked_hours or 0
-                overtime_hours += att.validated_overtime_hours or 0
-            employee.hours_last_month = round(hours, 2)
+            grouped = self.env["hr.attendance"]._read_group(
+                domain=[
+                    ("employee_id", "in", employees.ids),
+                    ("check_in", ">=", start_naive),
+                    ("check_out", "<=", now),
+                ],
+                groupby=["employee_id"],
+                aggregates=["worked_hours:sum", "validated_overtime_hours:sum"],
+            )
+            totals.update(
+                {
+                    employee.id: (worked, overtime)
+                    for employee, worked, overtime in grouped
+                }
+            )
+        for employee in self:
+            worked, overtime = totals.get(employee.id, (0.0, 0.0))
+            employee.hours_last_month = round(worked, 2)
             employee.hours_last_month_display = "%g" % employee.hours_last_month
-            # overtime_adjustments = sum(
-            #     ot.duration or 0
-            #     for ot in employee.overtime_ids.filtered(
-            #         lambda ot: ot.date >= start_tz.date() and ot.date <= end_tz.date() and ot.adjustment
-            #     )
-            # )
-            employee.hours_last_month_overtime = round(overtime_hours, 2)
+            employee.hours_last_month_overtime = round(overtime, 2)
 
     def _compute_hours_today(self):
         now = fields.Datetime.now()
         now_utc = now.replace(tzinfo=UTC)
-        # One query per distinct timezone, not per employee. "Today" is the only
-        # thing here that varies between employees, and it varies by their tz --
-        # of which a company has one or a handful, while the Attendances
-        # overview computes this for every employee it lists.
         by_tz = self.grouped("tz")
         for tz_name, employees in by_tz.items():
             start_tz = now_utc.astimezone(timezone(tz_name)) + relativedelta(
                 hour=0, minute=0
-            )  # day start in the employee's timezone
+            )
             start_naive = start_tz.astimezone(UTC).replace(tzinfo=None)
 
-            # One search per distinct timezone, not per employee: every
-            # employee sharing a tz is fetched by this one call, and
-            # TestAttendanceComputeBatchCost pins the cost flat from 2 to 20.
             attendances = self.env["hr.attendance"].search(  # noqa: E8507  loop is over timezones, not records
                 [
                     ("employee_id", "in", employees.ids),
@@ -230,11 +218,6 @@ class HrEmployee(models.Model):
 
     @api.depends("attendance_ids")
     def _compute_last_attendance_id(self):
-        # Two queries whatever the number of employees, instead of one search
-        # per employee: ask for each employee's latest check_in, then fetch the
-        # attendances sitting on those. The `limit=1` per employee that used to
-        # be here is what makes this the classic latest-per-group N+1, and the
-        # Attendances overview walks every employee it lists.
         Attendance = self.env["hr.attendance"]
         self.last_attendance_id = False
         if not self:
@@ -254,8 +237,6 @@ class HrEmployee(models.Model):
             ]
         )
         by_employee = {}
-        # Ordered so that a tie on `check_in` resolves the same way the old
-        # `order="check_in desc"` with `limit=1` did: the last row wins.
         for attendance in Attendance.search(domain, order="id"):
             by_employee[attendance.employee_id.id] = attendance
         for employee in self:
@@ -274,10 +255,6 @@ class HrEmployee(models.Model):
             ) or "checked_out"
 
     def _attendance_action_change(self, geo_information=None):
-        """Check In/Check Out action
-        Check In: create a new attendance record
-        Check Out: modify check_out field of appropriate attendance record
-        """
         self.check_singleton()
         action_date = fields.Datetime.now()
 
@@ -358,10 +335,6 @@ class HrEmployee(models.Model):
 
     @api.depends("user_id.im_status", "attendance_state")
     def _compute_hr_presence_state(self):
-        """
-        Override to include checkin/checkout in the presence state
-        Attendance has the second highest priority after login
-        """
         super()._compute_hr_presence_state()
         employees = self.filtered(lambda e: e.hr_presence_state != "present")
         employee_to_check_working = self.filtered(
@@ -383,7 +356,6 @@ class HrEmployee(models.Model):
 
     def _compute_presence_icon(self):
         res = super()._compute_presence_icon()
-        # All employee must chek in or check out. Everybody must have an icon
         for employee in self:
             employee.show_hr_icon_display = (
                 employee.company_id.hr_presence_control_attendance
@@ -411,7 +383,7 @@ class HrEmployee(models.Model):
                 employees_by_calendar[version.resource_calendar_id] |= employee
 
         for cal, employees in employees_by_calendar.items():
-            if not cal:  # employees are fully flex
+            if not cal:
                 continue
             cal_leave_intervals_by_resource = cal._leave_intervals_batch(
                 start,

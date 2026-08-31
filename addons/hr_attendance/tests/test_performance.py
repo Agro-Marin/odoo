@@ -271,17 +271,6 @@ class TestHrAttendancePerformance(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestAttendanceComputeBatchCost(TransactionCase):
-    """The employee computes must cost the same whatever the headcount.
-
-    Both of these back the Attendances overview, which lists every employee, and
-    both used to issue their query inside `for employee in self`. Measured at 40
-    employees before the fix: `hours_today` 82 queries, `last_attendance_id` 47.
-
-    The assertion is on the MARGINAL cost between two sizes, not an absolute
-    count: an absolute pin at one size cannot see an N+1 at all, and it breaks
-    on every unrelated query added elsewhere.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -304,16 +293,9 @@ class TestAttendanceComputeBatchCost(TransactionCase):
     def _queries_for(self, compute_name, field_name, count):
         records = self.employees[:count]
         self.env.invalidate_all()
-        records.mapped("attendance_ids")  # the dependency is not what is measured
+        records.mapped("attendance_ids")
         before = self.env.cr.sql_log_count
         if field_name is None:
-            # `last_attendance_id` is stored, so reading it is a column read and
-            # never runs the compute; the recompute path is the one with the
-            # cost, and calling it is the only way to reach it. Non-stored
-            # fields are read through instead -- a direct call runs outside
-            # `Field.compute_value`'s `env.protecting`, so assigning re-enters
-            # `__get__` per record and inflates the count with invocations no
-            # reader pays for.
             getattr(records, compute_name)()
         else:
             records.mapped(field_name)
@@ -322,10 +304,6 @@ class TestAttendanceComputeBatchCost(TransactionCase):
     def _assert_flat(self, compute_name, field_name=None):
         small = self._queries_for(compute_name, field_name, 2)
         large = self._queries_for(compute_name, field_name, 20)
-        # Not equality: the small measurement runs first and warms caches the
-        # large one reuses, so the large size can legitimately cost *less*. The
-        # invariant is that it must not cost MORE -- that is what per-employee
-        # querying looks like from outside.
         self.assertLessEqual(
             large,
             small,
@@ -340,3 +318,81 @@ class TestAttendanceComputeBatchCost(TransactionCase):
 
     def test_last_attendance_id_does_not_query_per_employee(self):
         self._assert_flat("_compute_last_attendance_id")
+
+
+@tagged("post_install", "-at_install")
+class TestAttendanceComputeQueryScope(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.employees = cls.env["hr.employee"].create(
+            [{"name": f"scope {i}", "tz": "Europe/Brussels"} for i in range(3)]
+        )
+        now = fields.Datetime.now()
+        cls.env["hr.attendance"].create(
+            [
+                {
+                    "employee_id": employee.id,
+                    "check_in": now - relativedelta(hours=3),
+                    "check_out": now - relativedelta(hours=1),
+                }
+                for employee in cls.employees
+            ]
+        )
+        cls.env.flush_all()
+
+    def _sql_for(self, field_name, table):
+        self.env.invalidate_all()
+        captured = []
+        run = self.env.cr.execute
+
+        def spy(query, params=None, *args, **kwargs):
+            captured.append(" ".join(str(query).split()))
+            return run(query, params, *args, **kwargs)
+
+        self.env.cr.execute = spy
+        try:
+            self.employees.mapped(field_name)
+        finally:
+            self.env.cr.execute = run
+        return [query for query in captured if table in query]
+
+    def test_hours_last_month_bounds_the_month_in_sql(self):
+        selects = self._sql_for("hours_last_month", "hr_attendance")
+        self.assertTrue(selects, "reading the field must query hr_attendance")
+        self.assertTrue(
+            all("check_in" in query for query in selects),
+            "the month window must be a database filter: narrowing in Python "
+            "makes the cost of a one-month figure grow with the whole history "
+            f"behind it. Queries issued: {selects}",
+        )
+
+    def test_total_overtime_asks_only_about_the_employees_being_read(self):
+        aggregates = self._sql_for("total_overtime", "hr_attendance_overtime_line")
+        self.assertTrue(aggregates, "reading the field must query the overtime lines")
+        conditions = [
+            query.partition(" WHERE ")[2].partition(" GROUP BY ")[0]
+            for query in aggregates
+        ]
+        self.assertTrue(
+            all("employee_id" in condition for condition in conditions),
+            "the aggregate must be scoped to `self`: unscoped it sums every "
+            f"approved line in the database. WHERE clauses seen: {conditions}",
+        )
+
+    def test_hours_last_month_ignores_attendances_outside_the_month(self):
+        employee = self.employees[0]
+        last_year = fields.Datetime.now() - relativedelta(years=1)
+        self.env["hr.attendance"].create(
+            {
+                "employee_id": employee.id,
+                "check_in": last_year,
+                "check_out": last_year + relativedelta(hours=8),
+            }
+        )
+        self.env.invalidate_all()
+        self.assertEqual(
+            employee.hours_last_month,
+            2.0,
+            "only the two hours worked this month count towards it",
+        )

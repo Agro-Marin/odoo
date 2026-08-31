@@ -1,7 +1,7 @@
 from calendar import monthrange
 from collections import defaultdict
 from datetime import UTC, datetime, time, timedelta
-from itertools import chain
+from itertools import chain, pairwise
 from random import randint
 
 from dateutil.relativedelta import MO, SU, relativedelta
@@ -158,9 +158,7 @@ class HrAttendance(models.Model):
     @api.depends("check_in", "employee_id")
     def _compute_date(self):
         for attendance in self:
-            if (
-                not attendance.employee_id or not attendance.check_in
-            ):  # weird precompute edge cases. Never after creation
+            if not attendance.employee_id or not attendance.check_in:
                 attendance.date = fields.Datetime.now()
                 continue
             tz = timezone(attendance.employee_id._get_tz())
@@ -175,7 +173,9 @@ class HrAttendance(models.Model):
                 attendance.worked_hours - attendance.overtime_hours
             )
 
+    @api.depends("check_in", "check_out", "worked_hours", "out_mode")
     def _compute_color(self):
+        stale = fields.Datetime.now() - timedelta(days=1)
         for attendance in self:
             if attendance.check_out:
                 attendance.color = (
@@ -184,12 +184,10 @@ class HrAttendance(models.Model):
                     or attendance.out_mode == "technical"
                     else 0
                 )
+            elif not attendance.check_in:
+                attendance.color = 0
             else:
-                attendance.color = (
-                    1
-                    if attendance.check_in < (fields.Datetime.now() - timedelta(days=1))
-                    else 10
-                )
+                attendance.color = 1 if attendance.check_in < stale else 10
 
     @api.depends("check_in", "check_out", "employee_id")
     def _compute_overtime_status(self):
@@ -293,9 +291,6 @@ class HrAttendance(models.Model):
 
     @api.depends("check_in", "check_out")
     def _compute_worked_hours(self):
-        """Computes the worked hours of the attendance record.
-        The worked hours of resource with flexible calendar is computed as the difference
-        between check_in and check_out, without taking into account the lunch_interval"""
         for attendance in self:
             if attendance.check_out and attendance.check_in and attendance.employee_id:
                 attendance.worked_hours = attendance._get_worked_hours_in_range(
@@ -305,13 +300,6 @@ class HrAttendance(models.Model):
                 attendance.worked_hours = False
 
     def _get_worked_hours_in_range(self, start_dt, end_dt):
-        """Returns the amount of hours worked because of this attendance during the
-        interval defined by [start_dt, end_dt]
-
-        :param start_dt: datetime starting the interval.
-        :param end_dt: datetime ending the interval.
-        :returns: float, hours worked
-        """
         self.check_singleton()
         calendar = self._get_employee_calendar()
         resource = self.employee_id.resource_id
@@ -334,7 +322,6 @@ class HrAttendance(models.Model):
 
     @api.constrains("check_in", "check_out")
     def _check_validity_check_in_check_out(self):
-        """verifies if check_in is earlier than check_out."""
         for attendance in self:
             if attendance.check_in and attendance.check_out:
                 if attendance.check_out < attendance.check_in:
@@ -344,95 +331,52 @@ class HrAttendance(models.Model):
 
     @api.constrains("check_in", "check_out", "employee_id")
     def _check_validity(self):
-        """Verifies the validity of the attendance record compared to the others from the same employee.
-        For the same employee we must have :
-            * maximum 1 "open" attendance record (without check_out)
-            * no overlapping time slices with previous employee records
+        """No employee may be in two places at once.
+
+        An attendance occupies [check_in, check_out); one that has not been
+        checked out yet occupies [check_in, infinity), because the employee is
+        still there. Treating an open attendance as a point rather than an
+        open-ended span is what used to let a completed attendance be created
+        around one -- an impossible state that only surfaced later, when
+        closing the open one produced an overlap nothing had checked.
         """
-        for attendance in self:
-            # we take the latest attendance before our check_in time and check it doesn't overlap with ours
-            last_attendance_before_check_in = self.env["hr.attendance"].search(
-                [
-                    ("employee_id", "=", attendance.employee_id.id),
-                    ("check_in", "<=", attendance.check_in),
-                    ("id", "!=", attendance.id),
-                ],
-                order="check_in desc",
-                limit=1,
-            )
-            if (
-                last_attendance_before_check_in
-                and last_attendance_before_check_in.check_out
-                and last_attendance_before_check_in.check_out > attendance.check_in
-            ):
+        for employee, attendances in self.grouped("employee_id").items():
+            for earlier, later in self._sorted_span_pairs(employee, attendances):
+                if earlier.check_out and earlier.check_out <= later.check_in:
+                    continue
                 raise exceptions.ValidationError(
                     _(
                         "Cannot create new attendance record for %(empl_name)s, the employee was already checked in on %(datetime)s",
-                        empl_name=attendance.employee_id.name,
+                        empl_name=employee.sudo().name,
                         datetime=format_datetime(
-                            self.env, attendance.check_in, dt_format=False
+                            self.env, earlier.check_in, dt_format=False
                         ),
                     )
                 )
 
-            if not attendance.check_out:
-                # if our attendance is "open" (no check_out), we verify there is no other "open" attendance
-                no_check_out_attendances = self.env["hr.attendance"].search(
-                    [
-                        ("employee_id", "=", attendance.employee_id.id),
-                        ("check_out", "=", False),
-                        ("id", "!=", attendance.id),
-                    ],
-                    order="check_in desc",
-                    limit=1,
-                )
-                if no_check_out_attendances:
-                    raise exceptions.ValidationError(
-                        _(
-                            "Cannot create new attendance record for %(empl_name)s, the employee hasn't checked out since %(datetime)s",
-                            empl_name=attendance.employee_id.name,
-                            datetime=format_datetime(
-                                self.env,
-                                no_check_out_attendances.check_in,
-                                dt_format=False,
-                            ),
-                        )
-                    )
-            else:
-                # we verify that the latest attendance with check_in time before our check_out time
-                # is the same as the one before our check_in time computed before, otherwise it overlaps
-                last_attendance_before_check_out = self.env["hr.attendance"].search(
-                    [
-                        ("employee_id", "=", attendance.employee_id.id),
-                        ("check_in", "<", attendance.check_out),
-                        ("id", "!=", attendance.id),
-                    ],
-                    order="check_in desc",
-                    limit=1,
-                )
-                if (
-                    last_attendance_before_check_out
-                    and last_attendance_before_check_in
-                    != last_attendance_before_check_out
-                ):
-                    raise exceptions.ValidationError(
-                        _(
-                            "Cannot create new attendance record for %(empl_name)s, the employee was already checked in on %(datetime)s",
-                            empl_name=attendance.employee_id.name,
-                            datetime=format_datetime(
-                                self.env,
-                                last_attendance_before_check_out.check_in,
-                                dt_format=False,
-                            ),
-                        )
-                    )
+    def _sorted_span_pairs(self, employee, attendances):
+        """Consecutive pairs of the employee's attendances around `attendances`.
+
+        One query per employee rather than the three per record the pairwise
+        form needed, and it compares the records being checked against each
+        other as well -- a batch that overlaps within itself never reached the
+        database in the pairwise form.
+        """
+        window_start = min(attendances.mapped("check_in"))
+        domain = Domain("employee_id", "=", employee.id) & Domain(
+            Domain("check_out", "=", False) | Domain("check_out", ">", window_start)
+        )
+        if all(attendance.check_out for attendance in attendances):
+            # Every checked attendance is closed, so nothing starting after the
+            # last of them can reach back into one. An open attendance among
+            # them has no end, so no upper bound applies.
+            domain &= Domain("check_in", "<", max(attendances.mapped("check_out")))
+        neighbours = self.env["hr.attendance"].sudo().search(domain)
+        spans = (neighbours | attendances).sorted(lambda a: (a.check_in, a.id))
+        return pairwise(spans)
 
     @api.model
-    def _get_day_start_and_day(
-        self, employee, dt
-    ):  # TODO probably no longer need by the end
-        # Returns a tuple containing the datetime in naive UTC of the employee's start of the day
-        # and the date it was for that employee
+    def _get_day_start_and_day(self, employee, dt):
         if not dt.tzinfo:
             calendar_tz = employee._get_calendar_tz_batch(dt)[employee.id]
             date_employee_tz = dt.replace(tzinfo=UTC).astimezone(timezone(calendar_tz))
@@ -484,7 +428,7 @@ class HrAttendance(models.Model):
 
         start_check_in = min(all_attendances.mapped("check_in")).date() - relativedelta(
             days=1
-        )  # for timezone
+        )
         min_check_in = datetime.combine(start_check_in, datetime.min.time()).replace(
             tzinfo=UTC
         )
@@ -494,7 +438,7 @@ class HrAttendance(models.Model):
         ).date() + relativedelta(days=1)
         max_check_out = datetime.combine(start_check_out, datetime.max.time()).replace(
             tzinfo=UTC
-        )  # for timezone
+        )
 
         version_periods_by_employee = (
             all_attendances.employee_id.sudo()._get_version_periods(
@@ -574,8 +518,6 @@ class HrAttendance(models.Model):
         domain_pre = self._get_overtimes_to_update_domain()
         result = super().write(vals)
         if any(field in vals for field in ["employee_id", "check_in", "check_out"]):
-            # Merge attendance dates before and after write to recompute the
-            # overtime if the attendances have been moved to another day
             domain_post = self._get_overtimes_to_update_domain()
             self._update_overtime(Domain.OR([domain_pre, domain_post]))
         return result
@@ -616,7 +558,6 @@ class HrAttendance(models.Model):
     def has_demo_data(self):
         if not self.env.user.has_group("hr_attendance.group_hr_attendance_user"):
             return True
-        # This record only exists if the scenario has been already launched
         demo_tag = self.env.ref(
             "hr_attendance.resource_calendar_std_38h", raise_if_not_found=False
         )
@@ -629,7 +570,6 @@ class HrAttendance(models.Model):
             return None
         env_sudo = self.sudo().with_context({}).env
         env_sudo["hr.employee"]._load_scenario()
-        # Load employees, schedules, departments and partners
         convert.convert_file(
             env_sudo,
             "hr_attendance",
@@ -637,149 +577,109 @@ class HrAttendance(models.Model):
             None,
             mode="init",
         )
-
-        employee_sj = self.env.ref("hr.employee_sj")
-        employee_mw = self.env.ref("hr.employee_mw")
-        employee_eg = self.env.ref("hr.employee_eg")
-
-        # Retrieve employee from xml file
-        # Calculate attendances records for the previous month and the current until today
-        now = fields.Datetime.now()
-        previous_month_datetime = now - relativedelta(months=1)
-        date_range = (
-            now.day
-            + monthrange(previous_month_datetime.year, previous_month_datetime.month)[1]
-        )
-        city_coordinates = (50.27, 5.31)
-        city_coordinates_exception = (51.01, 2.82)
-        city_dict = {
-            "latitude": city_coordinates_exception[0],
-            "longitude": city_coordinates_exception[1],
-            "city": "Rellemstraat",
-        }
-        city_exception_dict = {
-            "latitude": city_coordinates[0],
-            "longitude": city_coordinates[1],
-            "city": "Waillet",
-        }
-        attendance_values = []
-        for i in range(1, date_range):
-            check_in_date = now.replace(
-                hour=6, minute=0, second=randint(0, 59)
-            ) + timedelta(days=-i, minutes=randint(-2, 3))
-            if check_in_date.weekday() not in range(5):
-                continue
-            check_out_date = now.replace(
-                hour=10, minute=0, second=randint(0, 59)
-            ) + timedelta(days=-i, minutes=randint(-2, -1))
-            check_in_date_after_lunch = now.replace(
-                hour=11, minute=0, second=randint(0, 59)
-            ) + timedelta(days=-i, minutes=randint(-2, -1))
-            check_out_date_after_lunch = now.replace(
-                hour=15, minute=0, second=randint(0, 59)
-            ) + timedelta(days=-i, minutes=randint(1, 3))
-
-            # employee_eg doesn't work on friday
-            eg_data = []
-            if check_in_date.weekday() != 4:
-                # employee_eg will compensate her work's hours between weeks.
-                if check_in_date.isocalendar().week % 2:
-                    employee_eg_hours = {
-                        "check_in_date": check_in_date + timedelta(hours=1),
-                        "check_out_date": check_out_date,
-                        "check_in_date_after_lunch": check_in_date_after_lunch,
-                        "check_out_date_after_lunch": check_out_date_after_lunch
-                        + timedelta(hours=-1),
-                    }
-                else:
-                    employee_eg_hours = {
-                        "check_in_date": check_in_date,
-                        "check_out_date": check_out_date,
-                        "check_in_date_after_lunch": check_in_date_after_lunch,
-                        "check_out_date_after_lunch": check_out_date_after_lunch
-                        + timedelta(hours=1, minutes=30),
-                    }
-                eg_data = [
-                    {
-                        "employee_id": employee_eg.id,
-                        "check_in": employee_eg_hours["check_in_date"],
-                        "check_out": employee_eg_hours["check_out_date"],
-                        "in_mode": "kiosk",
-                        "out_mode": "kiosk",
-                    },
-                    {
-                        "employee_id": employee_eg.id,
-                        "check_in": employee_eg_hours["check_in_date_after_lunch"],
-                        "check_out": employee_eg_hours["check_out_date_after_lunch"],
-                        "in_mode": "kiosk",
-                        "out_mode": "kiosk",
-                    },
-                ]
-
-            # calculate GPS coordination for employee_mw (systray attendance)
-            if randint(1, 10) == 1:
-                city_data = city_exception_dict
-            else:
-                city_data = city_dict
-            mw_data = [
-                {
-                    "employee_id": employee_mw.id,
-                    "check_in": check_in_date,
-                    "check_out": check_out_date,
-                    "in_mode": "systray",
-                    "out_mode": "systray",
-                    "in_longitude": city_data["longitude"],
-                    "out_longitude": city_data["longitude"],
-                    "in_latitude": city_data["latitude"],
-                    "out_latitude": city_data["latitude"],
-                    "in_location": city_data["city"],
-                    "out_location": city_data["city"],
-                    "in_ip_address": "127.0.0.1",
-                    "out_ip_address": "127.0.0.1",
-                    "in_browser": "chrome",
-                    "out_browser": "chrome",
-                },
-                {
-                    "employee_id": employee_mw.id,
-                    "check_in": check_in_date_after_lunch,
-                    "check_out": check_out_date_after_lunch,
-                    "in_mode": "systray",
-                    "out_mode": "systray",
-                    "in_longitude": city_data["longitude"],
-                    "out_longitude": city_data["longitude"],
-                    "in_latitude": city_data["latitude"],
-                    "out_latitude": city_data["latitude"],
-                    "in_location": city_data["city"],
-                    "out_location": city_data["city"],
-                    "in_ip_address": "127.0.0.1",
-                    "out_ip_address": "127.0.0.1",
-                    "in_browser": "chrome",
-                    "out_browser": "chrome",
-                },
-            ]
-            sj_data = [
-                {
-                    "employee_id": employee_sj.id,
-                    "check_in": check_in_date + timedelta(minutes=randint(-10, -5)),
-                    "check_out": check_out_date,
-                    "in_mode": "manual",
-                    "out_mode": "manual",
-                },
-                {
-                    "employee_id": employee_sj.id,
-                    "check_in": check_in_date_after_lunch,
-                    "check_out": check_out_date_after_lunch
-                    + timedelta(hours=1, minutes=randint(-20, 10)),
-                    "in_mode": "manual",
-                    "out_mode": "manual",
-                },
-            ]
-            attendance_values.extend(eg_data + mw_data + sj_data)
-        self.env["hr.attendance"].create(attendance_values)
+        self.env["hr.attendance"].create(self._demo_attendance_vals())
         return {
             "type": "ir.actions.client",
             "tag": "reload",
         }
+
+    def _demo_working_days(self):
+        now = fields.Datetime.now()
+        previous_month = now - relativedelta(months=1)
+        days_back = now.day + monthrange(previous_month.year, previous_month.month)[1]
+        for offset in range(1, days_back):
+            morning_in = now.replace(
+                hour=6, minute=0, second=randint(0, 59)
+            ) + timedelta(days=-offset, minutes=randint(-2, 3))
+            if morning_in.weekday() not in range(5):
+                continue
+            yield {
+                "morning_in": morning_in,
+                "morning_out": now.replace(hour=10, minute=0, second=randint(0, 59))
+                + timedelta(days=-offset, minutes=randint(-2, -1)),
+                "afternoon_in": now.replace(hour=11, minute=0, second=randint(0, 59))
+                + timedelta(days=-offset, minutes=randint(-2, -1)),
+                "afternoon_out": now.replace(hour=15, minute=0, second=randint(0, 59))
+                + timedelta(days=-offset, minutes=randint(1, 3)),
+            }
+
+    @staticmethod
+    def _demo_day_vals(employee, mode, morning, afternoon, **extra):
+        return [
+            {
+                "employee_id": employee.id,
+                "check_in": check_in,
+                "check_out": check_out,
+                "in_mode": mode,
+                "out_mode": mode,
+                **extra,
+            }
+            for check_in, check_out in (morning, afternoon)
+        ]
+
+    def _demo_kiosk_day_vals(self, employee, day):
+        if day["morning_in"].weekday() == 4:
+            return []
+        if day["morning_in"].isocalendar().week % 2:
+            morning_shift, afternoon_shift = timedelta(hours=1), timedelta(hours=-1)
+        else:
+            morning_shift = timedelta()
+            afternoon_shift = timedelta(hours=1, minutes=30)
+        return self._demo_day_vals(
+            employee,
+            "kiosk",
+            (day["morning_in"] + morning_shift, day["morning_out"]),
+            (day["afternoon_in"], day["afternoon_out"] + afternoon_shift),
+        )
+
+    def _demo_systray_day_vals(self, employee, day):
+        usual = {"latitude": 51.01, "longitude": 2.82, "city": "Rellemstraat"}
+        occasional = {"latitude": 50.27, "longitude": 5.31, "city": "Waillet"}
+        where = occasional if randint(1, 10) == 1 else usual
+        return self._demo_day_vals(
+            employee,
+            "systray",
+            (day["morning_in"], day["morning_out"]),
+            (day["afternoon_in"], day["afternoon_out"]),
+            **{
+                f"{side}_{key}": value
+                for side in ("in", "out")
+                for key, value in (
+                    ("latitude", where["latitude"]),
+                    ("longitude", where["longitude"]),
+                    ("location", where["city"]),
+                    ("ip_address", "127.0.0.1"),
+                    ("browser", "chrome"),
+                )
+            },
+        )
+
+    def _demo_manual_day_vals(self, employee, day):
+        return self._demo_day_vals(
+            employee,
+            "manual",
+            (
+                day["morning_in"] + timedelta(minutes=randint(-10, -5)),
+                day["morning_out"],
+            ),
+            (
+                day["afternoon_in"],
+                day["afternoon_out"] + timedelta(hours=1, minutes=randint(-20, 10)),
+            ),
+        )
+
+    def _demo_attendance_vals(self):
+        by_employee = (
+            (self.env.ref("hr.employee_eg"), self._demo_kiosk_day_vals),
+            (self.env.ref("hr.employee_mw"), self._demo_systray_day_vals),
+            (self.env.ref("hr.employee_sj"), self._demo_manual_day_vals),
+        )
+        return [
+            vals
+            for day in self._demo_working_days()
+            for employee, build in by_employee
+            for vals in build(employee, day)
+        ]
 
     def action_try_kiosk(self):
         if not self.env.user.has_group("hr_attendance.group_hr_attendance_user"):
@@ -805,7 +705,6 @@ class HrAttendance(models.Model):
         if not self.env.user.has_group("hr_attendance.group_hr_attendance_user"):
             employee_domain &= Domain("attendance_manager_id", "=", self.env.user.id)
         if user_domain.is_true():
-            # Workaround to make it work only for list view.
             if "gantt_start_date" in self.env.context:
                 return self.env["hr.employee"].search(employee_domain)
             return resources & self.env["hr.employee"].search(employee_domain)
@@ -835,7 +734,6 @@ class HrAttendance(models.Model):
 
     def _cron_auto_check_out(self):
         def check_in_tz(attendance):
-            """Returns check-in time in calendar's timezone."""
             return attendance.check_in.astimezone(
                 timezone(attendance.employee_id._get_tz())
             )
@@ -900,16 +798,11 @@ class HrAttendance(models.Model):
                     ).mapped("duration_hours")
                 )
 
-                # Attendances where Last open attendance time + previously worked time on that day + tolerance greater than the attendances hours (including lunch) in his calendar
                 if (
                     current_attendance_duration
                     + previous_attendances_duration
                     - max_tol
                 ) > expected_worked_hours:
-                    # Set check_out on the in-memory record only (no write()) to force
-                    # worked_hours to recompute against this end-of-day boundary; the
-                    # real check_out, clamped by excess_hours below, is what actually
-                    # gets persisted via the write() call further down.
                     att.check_out = att.check_in.replace(hour=23, minute=59, second=59)
                     excess_hours = att.worked_hours - (
                         expected_worked_hours + max_tol - previous_attendances_duration
@@ -930,46 +823,53 @@ class HrAttendance(models.Model):
                     )
 
     def _cron_absence_detection(self):
-        """
-        Objective is to create technical attendances on absence days to have negative overtime created for that day
-        """
-        yesterday = fields.Datetime.now().replace(
-            hour=0, minute=0, second=0
-        ) - relativedelta(days=1)
+        yesterday = fields.Date.today() - relativedelta(days=1)
         companies = self.env["res.company"].search([("absence_management", "=", True)])
         if not companies:
             return
 
+        # `date` on an overtime line is a Date; comparing it against a datetime
+        # left the domain to coerce a value that was midnight in the server's
+        # own time zone rather than a calendar day.
         checked_in_employees = (
             self.env["hr.attendance.overtime.line"]
             .search([("date", "=", yesterday)])
             .employee_id
         )
+        # An employee who never checked out is not absent -- they are recorded
+        # as still being there. Marking them absent contradicts their own open
+        # attendance, and the marker cannot be placed without overlapping it.
+        still_checked_in = (
+            self.env["hr.attendance"].search([("check_out", "=", False)]).employee_id
+        )
 
         technical_attendances_vals = []
         absent_employees = self.env["hr.employee"].search(
             [
-                ("id", "not in", checked_in_employees.ids),
+                ("id", "not in", (checked_in_employees | still_checked_in).ids),
                 ("company_id", "in", companies.ids),
                 ("resource_calendar_id.flexible_hours", "=", False),
                 (
                     "current_version_id.contract_date_start",
                     "<=",
-                    fields.Date.today() - relativedelta(days=1),
+                    yesterday,
                 ),
             ]
         )
 
         for emp in absent_employees:
-            local_day_start = yesterday.replace(tzinfo=UTC).astimezone(
-                timezone(emp._get_tz())
+            # Midnight of the absent day *in the employee's own time zone*,
+            # expressed in UTC for storage. Converting the server's midnight
+            # into the employee's zone and then storing that wall clock as UTC
+            # placed the marker a whole day off for anyone far enough east.
+            local_day_start = datetime.combine(yesterday, time.min).replace(
+                tzinfo=timezone(emp._get_tz())
             )
+            check_in = local_day_start.astimezone(UTC).replace(tzinfo=None)
             technical_attendances_vals.append(
                 {
-                    "check_in": local_day_start.strftime("%Y-%m-%d %H:%M:%S"),
-                    "check_out": (local_day_start + relativedelta(seconds=1)).strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    ),
+                    "check_in": check_in,
+                    "check_out": check_in + relativedelta(seconds=1),
                     "in_mode": "technical",
                     "out_mode": "technical",
                     "employee_id": emp.id,

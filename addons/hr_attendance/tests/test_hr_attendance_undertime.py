@@ -7,8 +7,6 @@ from odoo.tests.common import tagged
 
 @tagged("hr_attendance_overtime")
 class TestHrAttendanceUndertime(HttpCase):
-    """Tests for undertime"""
-
     @classmethod
     def setUpClass(cls):
         def set_calendar_and_tz(employee, tz):
@@ -263,7 +261,6 @@ class TestHrAttendanceUndertime(HttpCase):
         self.assertAlmostEqual(self.employee.total_overtime, 1)
 
     def test_simple_undertime_multiple_rules(self):
-        """Checks that only the least consequent undertime of the rules is considered."""
         ruleset = (
             self.env["hr.attendance.overtime.ruleset"]
             .with_company(self.company)
@@ -309,7 +306,6 @@ class TestHrAttendanceUndertime(HttpCase):
         self.assertEqual(overtime.duration, -3.0)
 
     def test_simple_undertime_multiple_rules_on_several_periods(self):
-        """Whatever the period type, only the least consequent undertime of the rules is considered."""
         ruleset = (
             self.env["hr.attendance.overtime.ruleset"]
             .with_company(self.company)
@@ -379,7 +375,6 @@ class TestHrAttendanceUndertime(HttpCase):
         self.assertEqual(self.employee.total_overtime, 0)
 
     def test_undertime_far_timezones(self):
-        # Since dates have to be stored in utc these are the tokyo timezone times for 7-12 / 13-18 (UTC+9)
         (self.jpn_employee | self.honolulu_employee).ruleset_id = self.ruleset
         self.env["hr.attendance"].create(
             {
@@ -388,9 +383,7 @@ class TestHrAttendanceUndertime(HttpCase):
                 "check_out": datetime(2021, 1, 4, 4, 0),
             }
         )
-        # Lunch time is at 3-4 UTC in Tokyo, and we don't work during lunch.
 
-        # Same but for alaskan times (UTC-10)
         self.env["hr.attendance"].create(
             {
                 "employee_id": self.honolulu_employee.id,
@@ -452,15 +445,12 @@ class TestHrAttendanceUndertime(HttpCase):
                 ("date", "=", datetime(2023, 1, 3)),
             ]
         )
-        # Total overtime for that day : 5 hours
         self.assertEqual(
             len(overtime_2),
             1,
             "Only one overtime record should be created for that day.",
         )
         self.assertEqual(overtime_2.duration, 1)
-
-        # Attendance Modification case
 
         m_attendance_3.write(
             {
@@ -469,7 +459,6 @@ class TestHrAttendanceUndertime(HttpCase):
         )
         self.assertAlmostEqual(m_attendance_3.overtime_hours, 2, 2)
 
-        # Deleting previous attendances should update correctly the overtime hours in other attendances
         m_attendance_2.unlink()
         self.assertAlmostEqual(m_attendance_3.overtime_hours, -2, 2)
 
@@ -485,21 +474,18 @@ class TestHrAttendanceUndertime(HttpCase):
         )
         self.assertAlmostEqual(early_attendance.overtime_hours, -3, 2)
 
-        # Total overtime for that day : -3 hours
         overtime_record = early_attendance.linked_overtime_ids
         self.assertAlmostEqual(overtime_record.duration, -3, 2)
 
-        # Check that the calendar's timezones take priority and that overtimes and attendances dates are consistent
         self.europe_employee.resource_calendar_id.tz = "America/New_York"
 
         early_attendance2 = self.env["hr.attendance"].create(
             {
                 "employee_id": self.europe_employee.id,
-                "check_in": datetime(2024, 5, 30, 3, 0),  # 23:00 NY prev day
-                "check_out": datetime(2024, 5, 30, 10, 0),  # 6:00 NY
+                "check_in": datetime(2024, 5, 30, 3, 0),
+                "check_out": datetime(2024, 5, 30, 10, 0),
             }
         )
-        # First day you only work 1 hour and second day you work 6 hours, that's -1 hours of overtime
         self.assertAlmostEqual(early_attendance2.overtime_hours, -1, 2)
 
         overtime_record2 = early_attendance2.linked_overtime_ids
@@ -513,22 +499,14 @@ class TestHrAttendanceUndertime(HttpCase):
         early_attendance3 = self.env["hr.attendance"].create(
             {
                 "employee_id": self.europe_employee.id,
-                "check_in": datetime(2024, 5, 31, 4, 0),  # 00:00 NY
-                "check_out": datetime(2024, 5, 31, 10, 0),  # 6:00 NY
+                "check_in": datetime(2024, 5, 31, 4, 0),
+                "check_out": datetime(2024, 5, 31, 10, 0),
             }
         )
         self.assertAlmostEqual(early_attendance3.overtime_hours, -2, 2)
 
     def test_undertime_hours_flexible_resource(self):
-        """Test the computation of overtime hours for a single flexible resource with 8 hours_per_day.
-        =========
-        Test Case
-        1) | 8:00  | 16:00 | -> No overtime
-        2) | 12:00 | 18:00 | -> -2 hours of overtime
-        3) | 10:00 | 22:00 | -> 4 hours of overtime
-        """
         self.flexible_employee.ruleset_id = self.ruleset
-        # 1) 8:00 - 16:00 should contain 0 hours of overtime
         attendance = self.env["hr.attendance"].create(
             {
                 "employee_id": self.flexible_employee.id,
@@ -542,8 +520,6 @@ class TestHrAttendanceUndertime(HttpCase):
             "There should be no overtime for the flexible resource.",
         )
 
-        # 2) 12:00 - 18:00 should contain -2 hours of overtime
-        # as we expect the employee to work 8 hours per day
         attendance.write(
             {
                 "check_in": datetime(2023, 1, 3, 12, 0),
@@ -557,7 +533,6 @@ class TestHrAttendanceUndertime(HttpCase):
             "There should be -2 hours of overtime for the flexible resource.",
         )
 
-        # 3) 10:00 - 22:00 should contain 4 hours of overtime
         attendance.write(
             {
                 "check_in": datetime(2023, 1, 4, 10, 0),
@@ -572,19 +547,8 @@ class TestHrAttendanceUndertime(HttpCase):
         )
 
     def test_undertime_hours_multiple_flexible_resources(self):
-        """Test the computation of overtime hours for multiple flexible resources on a single workday with 8 hours_per_day.
-        =========
-
-        We should see that the overtime hours are recomputed correctly when new attendance records are created.
-
-        Test Case
-        1) | 8:00  | 12:00 | -> -4 hours of overtime
-        2) (| 8:00 | 12:00 |, | 13:00 | 15:00 |) -> (0, -2) hours of overtime
-        3) (| 8:00 | 12:00 |, | 13:00 | 15:00 |, | 16:00 | 18:00 |) -> (0, 0, 0) hours of overtime
-        """
         self.flexible_employee.ruleset_id = self.ruleset
 
-        # 1) 8:00 - 12:00 should contain -4 hours of overtime
         attendance_1 = self.env["hr.attendance"].create(
             {
                 "employee_id": self.flexible_employee.id,
@@ -599,7 +563,6 @@ class TestHrAttendanceUndertime(HttpCase):
             "There should be -4 hours of overtime for the flexible resource.",
         )
 
-        # 2) 8:00 - 12:00 and 13:00 - 15:00 should contain 0 and -2 hours of overtime
         attendance_2 = self.env["hr.attendance"].create(
             {
                 "employee_id": self.flexible_employee.id,
@@ -619,7 +582,6 @@ class TestHrAttendanceUndertime(HttpCase):
             "There should be -2 hours of overtime for the flexible resource.",
         )
 
-        # 3) 8:00 - 12:00, 13:00 - 15:00 and 16:00 - 18:00 should contain 0, 0 and 0 hours of overtime
         attendance_3 = self.env["hr.attendance"].create(
             {
                 "employee_id": self.flexible_employee.id,
@@ -670,15 +632,9 @@ class TestHrAttendanceUndertime(HttpCase):
         self.assertEqual(attendance.validated_overtime_hours, 0)
 
     def test_no_validation_extra_hours_change(self):
-        """
-        In case of attendances requiring no validation, check that extra hours are not recomputed
-        if the value is different from `validated_hours` (meaning it has been modified by the user).
-        """
         self.company.attendance_overtime_validation = "no_validation"
 
         attendance = self.env["hr.attendance"]
-        # Form is used here as it will send a `validated_overtime_hours` value of 0 when saved.
-        # This should not be considered as a manual edition of the field by the user.
         with Form(attendance) as attendance_form:
             attendance_form.employee_id = self.employee
             attendance_form.check_in = datetime(2023, 1, 2, 8, 0)
@@ -689,11 +645,20 @@ class TestHrAttendanceUndertime(HttpCase):
         self.assertAlmostEqual(attendance.validated_overtime_hours, -2, 2)
 
         attendance.linked_overtime_ids.manual_duration = previous = -1.5
-        self.assertNotEqual(
-            attendance.validated_overtime_hours, attendance.overtime_hours
+        self.assertAlmostEqual(
+            attendance.overtime_hours,
+            previous,
+            2,
+            "the correction is what the attendance now reports",
+        )
+        self.assertAlmostEqual(
+            attendance.validated_overtime_hours,
+            previous,
+            2,
+            "and the approved figure agrees with it -- an attendance must not "
+            "carry two extra-hours numbers that contradict each other",
         )
 
-        # Create another attendance for the same employee
         self.env["hr.attendance"].create(
             {
                 "employee_id": self.employee.id,
@@ -752,12 +717,8 @@ class TestHrAttendanceUndertime(HttpCase):
         attendance = self.env["hr.attendance"].create(
             {
                 "employee_id": self.employee.id,
-                "check_in": datetime(
-                    2021, 1, 8, 8, 0
-                ),  # Friday 8 AM - 17 PM work, 17 - 24 overtime (7 hours)
-                "check_out": datetime(
-                    2021, 1, 9, 3, 0
-                ),  # Saturday 0-3 AM overtime (3 hours)
+                "check_in": datetime(2021, 1, 8, 8, 0),
+                "check_out": datetime(2021, 1, 9, 3, 0),
             }
         )
 

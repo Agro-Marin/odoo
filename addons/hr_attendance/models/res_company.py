@@ -1,7 +1,6 @@
 import uuid
 
 from odoo import api, fields, models
-from odoo.fields import Domain
 from odoo.libs.web import urljoin as url_join
 
 
@@ -11,11 +10,9 @@ class ResCompany(models.Model):
     def _default_company_token(self):
         return str(uuid.uuid4())
 
-    # TODO: Remove in master
     overtime_company_threshold = fields.Integer(
         string="Tolerance Time In Favor Of Company", default=0
     )
-    # TODO: Remove in master
     overtime_employee_threshold = fields.Integer(
         string="Tolerance Time In Favor Of Employee", default=0
     )
@@ -72,15 +69,7 @@ class ResCompany(models.Model):
                 "/hr_attendance/%s" % company.attendance_kiosk_key,
             )
 
-    # ---------------------------------------------------------
-    # ORM Overrides
-    # ---------------------------------------------------------
     def _init_column(self, column_name):
-        """Initialize the value of the given column for existing rows.
-        Overridden here because we need to generate different access tokens
-        and by default _init_column calls the default method once and applies
-        it for every record.
-        """
         if column_name != "attendance_kiosk_key":
             super()._init_column(column_name)
         else:
@@ -100,40 +89,12 @@ class ResCompany(models.Model):
             """
             self.env.cr.execute_values(query, values_args)
 
-    def write(self, vals):
-        search_domain = Domain.FALSE  # Overtime to generate
-        # Also recompute if the threshold have changed
-        if (
-            "overtime_company_threshold" in vals
-            or "overtime_employee_threshold" in vals
-        ):
-            # If we modify the thresholds only
-            search_domain = Domain.OR(
-                Domain("employee_id.company_id", "=", company.id)
-                for company in self
-                if (
-                    vals.get("overtime_company_threshold")
-                    != company.overtime_company_threshold
-                )
-                or (
-                    vals.get("overtime_employee_threshold")
-                    != company.overtime_employee_threshold
-                )
-            )
-
-        res = super().write(vals)
-        if not search_domain.is_false():
-            self.env["hr.attendance"].search(search_domain)._update_overtime()
-
-        return res
-
     def _regenerate_attendance_kiosk_key(self):
         self.check_singleton()
         self.write({"attendance_kiosk_key": uuid.uuid4().hex})
 
     def _check_hr_presence_control(self, at_install):
-        companies = self.env.companies
-        for company in companies:
+        for company in self.env["res.company"].sudo().search([]):
             if at_install and company.hr_presence_control_login:
                 company.hr_presence_control_attendance = True
             if not at_install and company.hr_presence_control_attendance:

@@ -1,11 +1,12 @@
-import datetime
+from datetime import UTC
 
 from requests.exceptions import RequestException
 
-from odoo import _, http
-from odoo.exceptions import UserError
+from odoo import _, fields, http
+from odoo.exceptions import AccessError, UserError
 from odoo.fields import Domain
 from odoo.http import request
+from odoo.libs.datetime import timezone
 from odoo.service.common import exp_version
 from odoo.tools import SQL, float_round, py_to_js_locale
 from odoo.tools.image import image_data_uri
@@ -41,6 +42,24 @@ class HrAttendance(http.Controller):
         return response
 
     @staticmethod
+    def _get_overtime_today(employee):
+        today = (
+            fields.Datetime.now()
+            .replace(tzinfo=UTC)
+            .astimezone(timezone(employee._get_tz()))
+            .date()
+        )
+        groups = (
+            employee.env["hr.attendance.overtime.line"]
+            .sudo()
+            ._read_group(
+                domain=[("employee_id", "=", employee.id), ("date", "=", today)],
+                aggregates=["duration:sum"],
+            )
+        )
+        return groups[0][0] or 0
+
+    @staticmethod
     def _get_employee_info_response(employee):
         response = {}
         if employee:
@@ -57,18 +76,7 @@ class HrAttendance(http.Controller):
                     "check_in": employee.last_attendance_id.check_in,
                     "check_out": employee.last_attendance_id.check_out,
                 },
-                "overtime_today": sum(
-                    request.env["hr.attendance.overtime.line"]
-                    .sudo()
-                    .search(
-                        [
-                            ("employee_id", "=", employee.id),
-                            ("date", "=", datetime.date.today()),
-                        ]
-                    )
-                    .mapped("duration")
-                )
-                or 0,
+                "overtime_today": HrAttendance._get_overtime_today(employee),
                 "use_pin": employee.company_id.attendance_kiosk_use_pin,
                 "display_overtime": employee.company_id.hr_attendance_display_overtime,
                 "device_tracking_enabled": employee.company_id.attendance_device_tracking,
@@ -88,11 +96,15 @@ class HrAttendance(http.Controller):
         except UserError, RequestException:
             location = _("Unknown")
 
+        if latitude is False or latitude is None:
+            latitude = request.geoip.location.latitude
+        if longitude is False or longitude is None:
+            longitude = request.geoip.location.longitude
         response.update(
             {
                 "location": location,
-                "latitude": latitude or request.geoip.location.latitude or False,
-                "longitude": longitude or request.geoip.location.longitude or False,
+                "latitude": latitude if latitude is not None else False,
+                "longitude": longitude if longitude is not None else False,
                 "ip_address": request.geoip.ip,
                 "browser": request.httprequest.user_agent.browser,
             }
@@ -105,9 +117,6 @@ class HrAttendance(http.Controller):
     )
     def kiosk_menu_item_action(self, company_id):
         if request.env.user.has_group("hr_attendance.group_hr_attendance_user"):
-            # Auto log out will prevent users from forgetting to log out of their session
-            # before leaving the kiosk mode open to the public. This is a prevention security
-            # measure.
             if self.has_password():
                 request.session.logout(keep_db=True)
             return request.redirect(
@@ -120,7 +129,6 @@ class HrAttendance(http.Controller):
         "/hr_attendance/get_employees_without_badge", type="jsonrpc", auth="public"
     )
     def get_employees_without_badge(self, token, name=None, limit=20):
-        """Fetch only employees without a badge (barcode)."""
         company = self._get_company(token)
         if company:
             domain = Domain([("barcode", "=", False), ("company_id", "=", company.id)])
@@ -137,12 +145,24 @@ class HrAttendance(http.Controller):
     @http.route("/hr_attendance/set_badge", type="jsonrpc", auth="public")
     def set_badge(self, employee_id, badge, token):
         company = self._get_company(token)
-        if company:
-            employee = request.env["hr.employee"].sudo().browse(employee_id)
-            if employee and employee.company_id == company:
-                employee.write({"barcode": badge})
-                return {"status": "success"}
-        return {}
+        if not company:
+            return {}
+        employee = request.env["hr.employee"].sudo().browse(employee_id).exists()
+        if not employee or employee.company_id != company:
+            return {}
+        if employee.barcode:
+            return {
+                "status": "error",
+                "message": _("This employee already has a badge."),
+            }
+        try:
+            request.env["hr.employee"].browse(employee.id).barcode = badge
+        except AccessError:
+            return {
+                "status": "error",
+                "message": _("You are not allowed to assign badges."),
+            }
+        return {"status": "success"}
 
     @http.route("/hr_attendance/create_employee", type="jsonrpc", auth="public")
     def create_employee(self, name, token):
@@ -273,7 +293,7 @@ class HrAttendance(http.Controller):
         for condition in domain:
             if not isinstance(condition, (list, tuple)) or len(condition) != 3:
                 continue
-            field_name, operator, _value = condition  # Force '&' implicit syntax
+            field_name, operator, _value = condition
             if field_name not in ("name", "department_id") or operator not in (
                 "=",
                 "ilike",
@@ -339,24 +359,30 @@ class HrAttendance(http.Controller):
         return self._get_user_attendance_data(employee)
 
     def has_password(self):
-        # With this method we try to know whether it's the user is on trial mode or not.
-        # We assume that in trial, people have not configured their password yet and their password should be empty.
         request.env.cr.execute(
             SQL(
-                """
-                SELECT COUNT(password)
-                  FROM res_users
-                 WHERE id=%(user_id)s
-                   AND password IS NOT NULL
-                 LIMIT 1
-                """,
+                "SELECT password IS NOT NULL FROM res_users WHERE id = %(user_id)s",
                 user_id=request.env.user.id,
             )
         )
-        return bool(request.env.cr.fetchone()[0])
+        row = request.env.cr.fetchone()
+        return bool(row and row[0])
 
     @http.route("/hr_attendance/set_settings", type="jsonrpc", auth="public")
     def set_attendance_settings(self, token, mode):
         company = self._get_company(token)
-        if company:
-            request.env.user.company_id.attendance_kiosk_mode = mode
+        if not company:
+            return {}
+        modes = dict(
+            request.env["res.company"]._fields["attendance_kiosk_mode"].selection
+        )
+        if mode not in modes:
+            return {"status": "error", "message": _("Unknown kiosk mode.")}
+        try:
+            request.env["res.company"].browse(company.id).attendance_kiosk_mode = mode
+        except AccessError:
+            return {
+                "status": "error",
+                "message": _("You are not allowed to change the kiosk settings."),
+            }
+        return {"status": "success"}

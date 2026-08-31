@@ -52,12 +52,9 @@ export class KioskManualSelection extends Component {
     }
 
     calculateLimit() {
-        // This function calculates the maximum number of employee cards that can fit on the screen based on his size,
-        // font size, and the number of cards per row.
         let employeeCardPerLine = 1;
         let fontSizeMultiplication = 1;
         let searchBarHeight = 0;
-        // for small screen the searchbar is higher
         if (screen.width <= MEDIAS_BREAKPOINTS[SIZES.SM].maxWidth){
             searchBarHeight += 38;
         } else if(screen.width <= MEDIAS_BREAKPOINTS[SIZES.MD].maxWidth){
@@ -67,7 +64,7 @@ export class KioskManualSelection extends Component {
             employeeCardPerLine = 2;
         } else if (screen.width <= MEDIAS_BREAKPOINTS[SIZES.XL].maxWidth){
             fontSizeMultiplication *= 1.25;
-            if (screen.width < 1400){ //grid breakpoint xxl
+            if (screen.width < 1400){
                 employeeCardPerLine = 3;
             } else {
                 employeeCardPerLine = 4;

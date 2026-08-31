@@ -26,40 +26,21 @@ class HrAttendanceOvertimeLine(models.Model):
         precompute=True,
     )
     duration = fields.Float(string="Extra Hours", default=0.0, required=True)
-    manual_duration = fields.Float(  # TODO -> real_duration for easier upgrade
+    manual_duration = fields.Float(
         string="Extra Hours (encoded)",
         compute="_compute_manual_duration",
         store=True,
         readonly=False,
     )
 
-    time_start = fields.Datetime(
-        string="Start"
-    )  # time_start will be equal to attendance.check_in
-    time_stop = fields.Datetime(
-        string="Stop"
-    )  # time_stop will be equal to attendance.check_out
+    time_start = fields.Datetime(string="Start")
+    time_stop = fields.Datetime(string="Stop")
     amount_rate = fields.Float("Overtime pay rate", required=True, default=1.0)
 
     is_manager = fields.Boolean(compute="_compute_is_manager")
 
     rule_ids = fields.Many2many("hr.attendance.overtime.rule", string="Applied Rules")
 
-    # in payroll: rate, work_entry_type
-    # in time_off: convertible_to_time_off
-
-    # Check no overlapping overtimes for the same employee.
-    # Technical explanation: Exclude constraints compares the given expression on rows 2 by 2 using the given operator; && on tsrange is the intersection.
-    # cf: https://www.postgresql.org/docs/current/ddl-constraints.html#DDL-CONSTRAINTS-EXCLUSION
-    # for employee_id we compare [employee_id -> employee_id] ranges bc raw integer is not supported (?)
-    # _overtime_no_overlap_same_employee = models.Constraint("""
-    #     EXCLUDE USING GIST (
-    #         tsrange(time_start, time_stop, '()') WITH &&,
-    #         int4range(employee_id, employee_id, '[]') WITH =
-    #     )
-    #     """,
-    #     "Employee cannot have overlapping overtimes",
-    # )
     _overtime_start_before_end = models.Constraint(
         "CHECK (time_stop > time_start)",
         "Starting time should be before end time.",
@@ -109,11 +90,49 @@ class HrAttendanceOvertimeLine(models.Model):
             ]
         )
 
+    # The attendance fields derived from these lines. `hr.attendance` declares
+    # them `@api.depends("check_in", "check_out", "employee_id")`, which is not
+    # where their value comes from: it comes from the lines below, reached
+    # through a non-stored computed many2many the ORM cannot traverse backwards.
+    # So the dependency is hand-rolled here, and it has to name every one of
+    # them -- `overtime_hours` was missing, which left an attendance reporting
+    # `validated_overtime_hours` and `overtime_hours` that contradicted each
+    # other after any correction to the encoded hours.
+    # `expected_hours` is `worked_hours - overtime_hours`. Marking a stored
+    # field through `add_to_compute` does not cascade to the fields that depend
+    # on it, so anything downstream has to be named here too.
+    _ATTENDANCE_DERIVED_FIELDS = (
+        "overtime_hours",
+        "validated_overtime_hours",
+        "overtime_status",
+        "expected_hours",
+    )
+    # `employee_id` and `time_start` are here because they decide WHICH
+    # attendance a line belongs to: changing one moves the line, and both the
+    # attendance it left and the one it joined have to be recomputed.
+    _ATTENDANCE_TRIGGER_FIELDS = frozenset(
+        {"status", "duration", "manual_duration", "employee_id", "time_start"}
+    )
+
+    def _mark_to_recompute(self, attendances):
+        # Marked AFTER the write or unlink, never before: both flush pending
+        # computes on their way in, which would compute these fields against
+        # the old rows and mark them clean again.
+        for field_name in self._ATTENDANCE_DERIVED_FIELDS:
+            self.env.add_to_compute(attendances._fields[field_name], attendances)
+
     def write(self, vals):
-        if any(key in vals for key in ["status", "manual_duration"]):
-            attendances = self._linked_attendances()
-            self.env.add_to_compute(attendances._fields["overtime_status"], attendances)
-            self.env.add_to_compute(
-                attendances._fields["validated_overtime_hours"], attendances
-            )
-        return super().write(vals)
+        if self._ATTENDANCE_TRIGGER_FIELDS.isdisjoint(vals):
+            return super().write(vals)
+        # A line that moves leaves one attendance and joins another; both are
+        # wrong afterwards, and only the one it left is reachable beforehand.
+        previously_linked = self._linked_attendances()
+        res = super().write(vals)
+        self._mark_to_recompute(previously_linked | self._linked_attendances())
+        return res
+
+    def unlink(self):
+        orphaned = self._linked_attendances()
+        res = super().unlink()
+        self._mark_to_recompute(orphaned)
+        return res

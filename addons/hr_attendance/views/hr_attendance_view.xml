@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- views -->
-
     <record id="view_attendance_tree" model="ir.ui.view">
         <field name="name">hr.attendance.list</field>
         <field name="model">hr.attendance</field>
@@ -114,7 +112,6 @@
                                         style="width:5ch"
                                         widget="float_time"
                                         readonly="1"/>
-                                    <!-- TODO algin icons baseline with text -->
                                     <button
                                         class="oe_stat_button flex-shrink-0"
                                         string=" "
@@ -302,8 +299,6 @@
         </field>
     </record>
 
-    <!-- actions -->
-
     <record id="action_try_kiosk" model="ir.actions.server">
         <field name="name">Try kiosk</field>
         <field name="model_id" ref="hr_attendance.model_hr_attendance"/>
@@ -462,8 +457,6 @@
         </field>
         <field name="group_ids" eval="[(4, ref('hr_attendance.group_hr_attendance_user'))]"/>
     </record>
-
-    <!-- Menus -->
 
     <menuitem id="menu_hr_attendance_root" name="Attendances" sequence="205" groups="hr_attendance.group_hr_attendance_officer" web_icon="hr_attendance,static/description/icon.png"/>
 

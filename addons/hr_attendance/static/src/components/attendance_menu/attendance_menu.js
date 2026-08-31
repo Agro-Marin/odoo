@@ -27,7 +27,6 @@ export class ActivityMenu extends Component {
         this.date_formatter = registry.category("formatters").get("float_time")
         this.dropdown = useDropdownState();
         onWillStart(()=> {
-            // access lazy session but do no wait for it, to prevent from delaying the whole webclient
             this.lazySession.getValue("attendance_user_data", (employee) => {
                 if (employee) {
                     this.employee = employee;
@@ -96,7 +95,6 @@ export class ActivityMenu extends Component {
 
         const trackingEnabled = this.employee && this.employee.device_tracking_enabled;
         if (trackingEnabled && !isIosApp() && navigator.geolocation && navigator.onLine) {
-            // iOS app lacks permissions to call `getCurrentPosition`
             navigator.geolocation.getCurrentPosition(
                 async ({coords: {latitude, longitude}}) => {
                     await this.checking(latitude,longitude);

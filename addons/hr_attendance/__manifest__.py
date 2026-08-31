@@ -42,9 +42,7 @@ actions(Check in/Check out) performed by them.
             "hr_attendance/static/tests/*.test.js",
         ],
         "hr_attendance.assets_public_attendance": [
-            # Define attendance variables (takes priority)
             "hr_attendance/static/src/scss/kiosk/primary_variables.scss",
-            # Front-end libraries
             ("include", "web._assets_helpers"),
             ("include", "web._assets_primary_variables"),
             "hr_attendance/static/src/scss/kiosk/bootstrap_overridden.scss",
@@ -63,22 +61,16 @@ actions(Check in/Check out) performed by them.
             "web/static/src/libs/fontawesome7/css/solid.css",
             "web/static/src/libs/fontawesome7/css/regular.css",
             "web/static/src/libs/fontawesome7/css/brands.css",
-            # web._assets_core carries the component stylesheets that read the
-            # `--o-*` palette, and an unresolvable var() voids the declaration
-            # rather than falling back to a colour.
             "web/static/src/scss/tokens.scss",
             ("include", "web._assets_core"),
-            # Public Kiosk app and its components
             "hr_attendance/static/src/public_kiosk/**/*",
             "hr_attendance/static/src/components/**/*",
             ("remove", "hr_attendance/static/src/components/attendance_menu/**/*"),
             "hr_attendance/static/src/scss/kiosk/hr_attendance.scss",
             "web/static/src/core/formatters.js",
-            # document link
             "web/static/src/session.js",
             "web/static/src/views/widgets/standard_widget_props.js",
             "web/static/src/views/widgets/documentation_link/*",
-            # Barcode reader utils
             "barcodes/static/src/components/barcode_scanner.js",
             "barcodes/static/src/components/barcode_scanner.xml",
             "barcodes/static/src/components/barcode_scanner.scss",
@@ -93,10 +85,6 @@ actions(Check in/Check out) performed by them.
         "bundles": [
             "hr_attendance.assets_public_attendance",
         ],
-        # The attendance kiosk page renders web.assets_tests after this app
-        # bundle in test mode; declare it a secondary so the served import map
-        # carries the singleton-preserving bridges (browser/registry/…) the test
-        # bundle externalises. See web.assets_tests / the 2026-07 split note.
         "secondary_import_map_includes": {
             "hr_attendance.assets_public_attendance": ["web.assets_tests"],
         },

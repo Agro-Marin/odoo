@@ -4,7 +4,6 @@ from odoo import fields, models
 class HrEmployeePublic(models.Model):
     _inherit = "hr.employee.public"
 
-    # These are required for manual attendance
     attendance_state = fields.Selection(
         related="employee_id.attendance_state",
         readonly=True,
