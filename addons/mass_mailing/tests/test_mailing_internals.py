@@ -867,7 +867,7 @@ class TestMassMailFeatures(MassMailCommon, CronMixinCase):
                             }
                         )
                         mailing.action_put_in_queue()
-                    capt.records.ensure_one()
+                    capt.records.check_singleton()
                     self.assertLessEqual(capt.records.call_at, truth)
 
     @users("user_marketing")

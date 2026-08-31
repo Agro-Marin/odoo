@@ -44,7 +44,7 @@ class LivechatController(http.Controller):
         if not built:
             raise ServiceUnavailable
         url, code = built
-        response = request.make_response(
+        response = request.prepare_response(
             code,
             [
                 ("Content-Type", "text/javascript; charset=utf-8"),
@@ -271,7 +271,7 @@ class LivechatController(http.Controller):
             ("Content-Length", len(pdf)),
             ("Content-Type", "application/pdf"),
         ]
-        return request.make_response(pdf, headers=headers)
+        return request.prepare_response(pdf, headers=headers)
 
     @http.route("/im_livechat/visitor_leave_session", type="jsonrpc", auth="public")
     @add_guest_to_context

@@ -55,7 +55,7 @@ class MarketingCardController(Controller):
             raise request.not_found()
 
         image_bytes = base64.b64decode(card.image)
-        return request.make_response(image_bytes, [
+        return request.prepare_response(image_bytes, [
             ('Content-Type', ' image/jpeg'),
             ('Content-Length', len(image_bytes)),
             ('Content-Disposition', content_disposition('card.jpg')),

@@ -47,7 +47,7 @@ class UtmMedium(models.Model):
                     utm_medium.name
                 ))
 
-    def _fetch_or_create_utm_medium(self, name, module='utm'):
+    def _get_or_create_utm_medium(self, name, module='utm'):
         name_normalized = re.sub(r"[\s|.]", "_", name.lower())
         try:
             return self.env.ref(f'{module}.utm_medium_{name_normalized}')

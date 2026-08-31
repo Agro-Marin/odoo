@@ -78,7 +78,7 @@ class ResPartner(models.Model):
             odoobot.im_status = "bot"
 
     def _get_needaction_count(self) -> int:
-        self.ensure_one()
+        self.check_singleton()
         self.env["mail.notification"].flush_model(["is_read", "res_partner_id"])
         self.env.cr.execute(
             """
@@ -222,11 +222,11 @@ class ResPartner(models.Model):
         ]
 
     def _get_im_status_access_token(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         return limited_field_access_token(self, "im_status", scope="mail.presence")
 
     def _get_mention_token(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         return limited_field_access_token(self, "id", scope="mail.message_mention")
 
     def _get_fields_store_mention(self) -> list[StoreFieldSpec]:

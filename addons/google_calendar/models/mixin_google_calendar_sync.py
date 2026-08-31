@@ -295,7 +295,7 @@ class MixinGoogleCalendarSync(models.AbstractModel):
         """ Implement this method to return True if the event needs a video call
         :return: bool
         """
-        self.ensure_one()
+        self.check_singleton()
         return True
 
     @after_commit

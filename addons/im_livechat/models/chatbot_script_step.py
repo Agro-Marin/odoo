@@ -178,8 +178,8 @@ class ChatbotScriptStep(models.Model):
                 return answer.mail_message_id
         return self.env["mail.message"]
 
-    def _fetch_next_step(self, selected_answer_ids):
-        self.ensure_one()
+    def _get_next_step(self, selected_answer_ids):
+        self.check_singleton()
         domain = Domain('chatbot_script_id', '=', self.chatbot_script_id.id) & Domain('sequence', '>', self.sequence)
         if selected_answer_ids:
             domain &= Domain('triggering_answer_ids', 'in', selected_answer_ids.ids + [False])
@@ -196,7 +196,7 @@ class ChatbotScriptStep(models.Model):
         return self.env['chatbot.script.step']
 
     def _get_parent_step(self, all_parent_steps):
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.chatbot_script_id.ids:
             return self.env['chatbot.script.step']
@@ -214,10 +214,10 @@ class ChatbotScriptStep(models.Model):
         return self.env['chatbot.script.step']
 
     def _is_last_step(self, discuss_channel=False):
-        self.ensure_one()
+        self.check_singleton()
         discuss_channel = discuss_channel or self.env['discuss.channel']
 
-        if self.step_type != "question_selection" and not self._fetch_next_step(
+        if self.step_type != "question_selection" and not self._get_next_step(
             discuss_channel.sudo().chatbot_message_ids.user_script_answer_id
         ):
             return True
@@ -225,7 +225,7 @@ class ChatbotScriptStep(models.Model):
         return False
 
     def _process_answer(self, discuss_channel, message_body):
-        self.ensure_one()
+        self.check_singleton()
 
         user_text_answer = html2plaintext(message_body)
         if self.step_type == 'question_email' and not email_normalize(user_text_answer):
@@ -246,10 +246,10 @@ class ChatbotScriptStep(models.Model):
                 chatbot_message.write({'user_raw_answer': message_body})
                 self.env.flush_all()
 
-        return self._fetch_next_step(discuss_channel.sudo().chatbot_message_ids.user_script_answer_id)
+        return self._get_next_step(discuss_channel.sudo().chatbot_message_ids.user_script_answer_id)
 
     def _process_step(self, discuss_channel):
-        self.ensure_one()
+        self.check_singleton()
         if self.step_type == 'forward_operator':
             return discuss_channel._forward_human_operator(chatbot_script_step=self)
         return discuss_channel._chatbot_post_message(self.chatbot_script_id, self.message)

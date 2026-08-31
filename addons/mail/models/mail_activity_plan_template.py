@@ -144,7 +144,7 @@ class MailActivityPlanTemplate(models.Model):
             template.summary = template.activity_type_id.summary
 
     def _get_date_deadline(self, base_date: date | Literal[False] = False) -> date:
-        self.ensure_one()
+        self.check_singleton()
         base_date = base_date or fields.Date.context_today(self)
         delta = self._get_delay_delta()
         if self.delay_from == "after_plan_date":
@@ -154,7 +154,7 @@ class MailActivityPlanTemplate(models.Model):
     def _determine_responsible(
         self, on_demand_responsible: ResUsers, applied_on_record: models.BaseModel
     ) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         error = False
         warning = False
         if self.responsible_type == "other":

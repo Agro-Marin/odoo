@@ -290,7 +290,7 @@ class MailAlias(models.Model):
                 )
 
     def _get_alias_defaults(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         defaults = ast.literal_eval(self.alias_defaults or "{}")
         if not isinstance(defaults, dict):
             msg = f"alias_defaults must be a dict, got {type(defaults).__name__}"
@@ -535,7 +535,7 @@ class MailAlias(models.Model):
     def _alias_open_document(
         self, kind: Literal["owner", "target"]
     ) -> dict | Literal[False]:
-        self.ensure_one()
+        self.check_singleton()
         model_fname, thread_fname = alias_document_fields[kind]
         if not self[model_fname] or not self[thread_fname]:
             return False
@@ -549,7 +549,7 @@ class MailAlias(models.Model):
     def _alias_get_document(
         self, kind: Literal["owner", "target"]
     ) -> models.Model | None:
-        self.ensure_one()
+        self.check_singleton()
         model_fname, thread_fname = alias_document_fields[kind]
         model = self[model_fname].model
         thread_id = self[thread_fname]
@@ -558,7 +558,7 @@ class MailAlias(models.Model):
         return self.env[model].browse(thread_id).exists() or None
 
     def _alias_get_company(self) -> ResCompany:
-        self.ensure_one()
+        self.check_singleton()
         for kind in alias_document_fields:
             document = self._alias_get_document(kind)
             if document is None:
@@ -577,7 +577,7 @@ class MailAlias(models.Model):
         self.sudo().alias_status = "invalid"
 
     def _alias_with_author_lang(self, message_dict: dict) -> Self:
-        self.ensure_one()
+        self.check_singleton()
         partner = self.env["res.partner"].sudo().browse(message_dict.get("author_id"))
         lang = partner.exists().lang
         return self.with_context(lang=lang) if lang else self
@@ -602,7 +602,7 @@ class MailAlias(models.Model):
         )
 
     def _get_alias_bounced_body(self, message_dict: dict) -> Markup:
-        self.ensure_one()
+        self.check_singleton()
         self = self._alias_with_author_lang(message_dict)
         if is_html_empty(self.alias_bounced_content):
             body = self._alias_bounce_wrap(
@@ -640,7 +640,7 @@ class MailAlias(models.Model):
         return _("some specific addresses")
 
     def _get_alias_invalid_body(self, message_dict: dict) -> Markup:
-        self.ensure_one()
+        self.check_singleton()
         self = self._alias_with_author_lang(message_dict)
         content = Markup(
             _(
@@ -657,7 +657,7 @@ class MailAlias(models.Model):
     def _alias_get_bounce_body(
         self, message_dict: dict, is_config_error: bool = True
     ) -> Markup:
-        self.ensure_one()
+        self.check_singleton()
         if is_config_error:
             return self._get_alias_invalid_body(message_dict)
         return self._get_alias_bounced_body(message_dict)

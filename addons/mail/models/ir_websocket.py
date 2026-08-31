@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 from odoo import models
 from odoo.fields import Domain
-from odoo.tools.misc import verify_limited_field_access_token
+from odoo.tools.misc import is_valid_limited_field_access_token
 
 from odoo.addons.mail.tools.discuss import add_guest_to_context
 
@@ -66,7 +66,7 @@ class IrWebsocket(models.AbstractModel):
         allowed_partners = (
             partners.filtered(
                 lambda p: (
-                    verify_limited_field_access_token(
+                    is_valid_limited_field_access_token(
                         p,
                         "im_status",
                         model_ids_to_token["res.partner"][p.id],
@@ -85,7 +85,7 @@ class IrWebsocket(models.AbstractModel):
         allowed_guests = (
             guests.filtered(
                 lambda g: (
-                    verify_limited_field_access_token(
+                    is_valid_limited_field_access_token(
                         g,
                         "im_status",
                         model_ids_to_token["mail.guest"][g.id],

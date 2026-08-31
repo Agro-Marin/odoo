@@ -44,7 +44,7 @@ class TestDiscussResRole(TestResRole):
                 )
                 if is_member:
                     channel.add_members(partner_ids=user.partner_id.ids)
-                data = self.make_jsonrpc_request(
+                data = self.call_jsonrpc(
                     "/mail/message/post",
                     {
                         "thread_model": "discuss.channel",

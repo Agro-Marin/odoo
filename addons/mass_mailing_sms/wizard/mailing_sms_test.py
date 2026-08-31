@@ -37,7 +37,7 @@ class MailingSmsTest(models.TransientModel):
         return trace_values, body
 
     def action_send_sms(self):
-        self.ensure_one()
+        self.check_singleton()
 
         numbers = [number.strip() for number in self.numbers.splitlines()]
         sanitized_numbers = [self.env.user._phone_format(number=number) for number in numbers]

@@ -11,7 +11,7 @@ export class IrWebSocket extends models.ServerModel {
     /**
      * @returns {string[]}
      */
-    _build_bus_channel_list(channels = []) {
+    _get_bus_channels(channels = []) {
         /** @type {import("mock_models").ResPartner} */
         const ResPartner = this.env["res.partner"];
 

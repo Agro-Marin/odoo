@@ -16,7 +16,7 @@ from odoo.addons.base.tests.common import HttpCaseWithUserDemo
 
 class TestWebsocketController(HttpCaseWithUserDemo):
     def test_websocket_peek(self):
-        result = self.make_jsonrpc_request(
+        result = self.call_jsonrpc(
             "/websocket/peek_notifications",
             {
                 "channels": [],
@@ -33,7 +33,7 @@ class TestWebsocketController(HttpCaseWithUserDemo):
         self.assertIsNotNone(notifications)
         self.assertIsInstance(notifications, list)
 
-        result = self.make_jsonrpc_request(
+        result = self.call_jsonrpc(
             "/websocket/peek_notifications",
             {
                 "channels": [],
@@ -45,7 +45,7 @@ class TestWebsocketController(HttpCaseWithUserDemo):
         self.assertIsNotNone(result)
 
     def test_websocket_peek_session_expired_login(self):
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             "/websocket/peek_notifications",
             {
                 "channels": [],
@@ -56,7 +56,7 @@ class TestWebsocketController(HttpCaseWithUserDemo):
 
         self.authenticate("admin", "admin")
         with self.assertRaisesRegex(JsonRpcException, "SessionExpired"):
-            self.make_jsonrpc_request(
+            self.call_jsonrpc(
                 "/websocket/peek_notifications",
                 {
                     "channels": [],
@@ -67,7 +67,7 @@ class TestWebsocketController(HttpCaseWithUserDemo):
 
     def test_websocket_peek_session_expired_logout(self):
         self.authenticate("demo", "demo")
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             "/websocket/peek_notifications",
             {
                 "channels": [],
@@ -77,7 +77,7 @@ class TestWebsocketController(HttpCaseWithUserDemo):
         )
         self.url_open("/web/session/logout")
         with self.assertRaisesRegex(JsonRpcException, "SessionExpired"):
-            self.make_jsonrpc_request(
+            self.call_jsonrpc(
                 "/websocket/peek_notifications",
                 {
                     "channels": [],
@@ -93,7 +93,7 @@ class TestWebsocketController(HttpCaseWithUserDemo):
         original_session_obj = root.session_store.get(original_session)
         original_session_obj["create_time"] -= SESSION_ROTATION_INTERVAL
         root.session_store.save(original_session_obj)
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             "/websocket/peek_notifications",
             {
                 "channels": [],
@@ -108,7 +108,7 @@ class TestWebsocketController(HttpCaseWithUserDemo):
         original_session_obj = root.session_store.get(original_session)
         original_session_obj["create_time"] -= SESSION_ROTATION_INTERVAL
         root.session_store.save(original_session_obj)
-        self.make_jsonrpc_request("/websocket/on_closed")
+        self.call_jsonrpc("/websocket/on_closed")
         self.assertEqual(self.opener.cookies["session_id"], original_session)
 
     def test_has_missed_notifications_rejects_non_integer(self):
@@ -118,13 +118,13 @@ class TestWebsocketController(HttpCaseWithUserDemo):
                 mute_logger("odoo.http"),
                 self.assertRaises(JsonRpcException),
             ):
-                self.make_jsonrpc_request(
+                self.call_jsonrpc(
                     "/bus/has_missed_notifications",
                     {"last_notification_id": bad_value},
                 )
 
     def test_has_missed_notifications_with_integer(self):
-        result = self.make_jsonrpc_request(
+        result = self.call_jsonrpc(
             "/bus/has_missed_notifications", {"last_notification_id": 0}
         )
         self.assertTrue(result)
@@ -135,7 +135,7 @@ class TestWebsocketController(HttpCaseWithUserDemo):
         notification = self.env["bus.bus"].sudo().search([], order="id desc", limit=1)
         self.assertTrue(notification)
         self.assertFalse(
-            self.make_jsonrpc_request(
+            self.call_jsonrpc(
                 "/bus/has_missed_notifications",
                 {"last_notification_id": notification.id},
             ),
@@ -144,7 +144,7 @@ class TestWebsocketController(HttpCaseWithUserDemo):
         notification_id = notification.id
         notification.unlink()
         self.assertTrue(
-            self.make_jsonrpc_request(
+            self.call_jsonrpc(
                 "/bus/has_missed_notifications",
                 {"last_notification_id": notification_id},
             ),

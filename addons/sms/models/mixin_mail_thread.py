@@ -83,7 +83,7 @@ class MixinMailThread(models.AbstractModel):
         :param template_fallback: plaintext (inline_template-enabled) in case template
           and template xml id are falsy (for example due to deleted data);
         """
-        self.ensure_one()
+        self.check_singleton()
         if not template and template_xmlid:
             template = self.env.ref(template_xmlid, raise_if_not_found=False)
         if template:
@@ -106,7 +106,7 @@ class MixinMailThread(models.AbstractModel):
         :param sms_numbers: see ``_notify_thread_by_sms``;
         :param sms_pid_to_number: see ``_notify_thread_by_sms``;
         """
-        self.ensure_one()
+        self.check_singleton()
         sms_pid_to_number = sms_pid_to_number if sms_pid_to_number is not None else {}
 
         if number_field or (partner_ids is False and sms_numbers is None):

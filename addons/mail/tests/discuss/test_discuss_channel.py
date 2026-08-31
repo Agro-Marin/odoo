@@ -1061,9 +1061,7 @@ class TestChannelInternals(MailCommon, HttpCase):
 
     def test_mail_message_starred_group(self):
         self.authenticate(self.user_employee.login, self.user_employee.login)
-        data = self.make_jsonrpc_request(
-            "/mail/data", {"fetch_params": ["init_messaging"]}
-        )
+        data = self.call_jsonrpc("/mail/data", {"fetch_params": ["init_messaging"]})
         self.assertEqual(data["Store"]["starred"]["counter"], 0)
         test_group = self.env["discuss.channel"].create(
             {
@@ -1079,24 +1077,18 @@ class TestChannelInternals(MailCommon, HttpCase):
         test_group_own_message.write(
             {"starred_partner_ids": [(6, 0, self.partner_employee.ids)]}
         )
-        data = self.make_jsonrpc_request(
-            "/mail/data", {"fetch_params": ["init_messaging"]}
-        )
+        data = self.call_jsonrpc("/mail/data", {"fetch_params": ["init_messaging"]})
         self.assertEqual(data["Store"]["starred"]["counter"], 1)
 
         test_group_message = test_group.message_post(body="TestingMessage")
         test_group_message.write(
             {"starred_partner_ids": [(6, 0, self.partner_employee.ids)]}
         )
-        data = self.make_jsonrpc_request(
-            "/mail/data", {"fetch_params": ["init_messaging"]}
-        )
+        data = self.call_jsonrpc("/mail/data", {"fetch_params": ["init_messaging"]})
         self.assertEqual(data["Store"]["starred"]["counter"], 2)
 
         test_group.write({"channel_partner_ids": False})
-        data = self.make_jsonrpc_request(
-            "/mail/data", {"fetch_params": ["init_messaging"]}
-        )
+        data = self.call_jsonrpc("/mail/data", {"fetch_params": ["init_messaging"]})
         self.assertEqual(data["Store"]["starred"]["counter"], 1)
 
     def test_multi_company_chat(self):

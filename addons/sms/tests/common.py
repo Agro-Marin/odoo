@@ -374,4 +374,4 @@ class SMSCommon(MailCommon, SMSCase):
         })
 
     def _make_webhook_jsonrpc_request(self, statuses):
-        return self.make_jsonrpc_request('/sms/status', {'message_statuses': statuses})
+        return self.call_jsonrpc('/sms/status', {'message_statuses': statuses})

@@ -16,7 +16,7 @@ class CalendarController(http.Controller):
     # authenticated an anonymous visitor and let them answer the invitation, and
     # on `calendar.event` -- where a NULL token is the norm, every event without
     # a videocall link has one -- it matched them all at once and crashed
-    # `action_join_meeting`'s `ensure_one()`. Both lookups go through these two
+    # `action_join_meeting`'s `check_singleton()`. Both lookups go through these two
     # helpers so the rule is stated once.
 
     @staticmethod
@@ -101,7 +101,7 @@ class CalendarController(http.Controller):
                 'event': event,
                 'attendee': attendee,
             })
-        return request.make_response(response_content, headers=[('Content-Type', 'text/html')])
+        return request.prepare_response(response_content, headers=[('Content-Type', 'text/html')])
 
     @http.route('/calendar/meeting/join', type='http', auth="user", website=True)
     def calendar_join_meeting(self, token, **kwargs):

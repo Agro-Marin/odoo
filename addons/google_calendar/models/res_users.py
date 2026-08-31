@@ -46,7 +46,7 @@ class ResUsers(models.Model):
     )
 
     def _get_google_calendar_token(self):
-        self.ensure_one()
+        self.check_singleton()
         if (
             self.res_users_settings_id.sudo().google_calendar_rtoken
             and not self.res_users_settings_id._is_google_calendar_valid()
@@ -84,7 +84,7 @@ class ResUsers(models.Model):
         return pending_events or pending_recurrences
 
     def _sync_google_calendar(self, calendar_service: GoogleCalendarService):
-        self.ensure_one()
+        self.check_singleton()
         results = self._sync_request(calendar_service)
         if not results or (
             not results.get("events") and not self._check_pending_odoo_records()
@@ -141,7 +141,7 @@ class ResUsers(models.Model):
     def _sync_single_event(
         self, calendar_service: GoogleCalendarService, odoo_event, event_id
     ):
-        self.ensure_one()
+        self.check_singleton()
         results = self._sync_request(calendar_service, event_id)
         if not results or not results.get("events"):
             return False
@@ -163,7 +163,7 @@ class ResUsers(models.Model):
             return False
         # don't attempt to sync when another sync is already in progress, as we wouldn't be
         # able to commit the transaction anyway (row is locked)
-        self.ensure_one()
+        self.check_singleton()
         try:
             self.lock_for_update(allow_referencing=True)
         except LockError:
@@ -235,18 +235,18 @@ class ResUsers(models.Model):
     def is_google_calendar_synced(self):
         """True if Google Calendar settings are filled (Client ID / Secret) and user calendar is synced
         meaning we can make API calls, false otherwise."""
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.sudo().google_calendar_token
             and self._get_google_sync_status() == "sync_active"
         )
 
     def stop_google_synchronization(self):
-        self.ensure_one()
+        self.check_singleton()
         self.sudo().google_synchronization_stopped = True
 
     def restart_google_synchronization(self):
-        self.ensure_one()
+        self.check_singleton()
         self.sudo().google_synchronization_stopped = False
         self.env["calendar.recurrence"]._restart_google_sync()
         self.env["calendar.event"]._restart_google_sync()

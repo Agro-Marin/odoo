@@ -47,7 +47,7 @@ class GoogleEvent(abc.Set):
         return bool(self._events)
 
     def __getattr__(self, name):
-        # ensure_one
+        # check_singleton
         try:
             _event, = self._events.keys()
         except ValueError as e:

@@ -25,7 +25,7 @@ class MailTestTLead(models.Model):
     phone = fields.Char()
 
     def _creation_message(self):
-        self.ensure_one()
+        self.check_singleton()
         return _(
             "A new lead has been created and is assigned to %(user_name)s.",
             user_name=self.user_id.name or _("nobody"),

@@ -55,6 +55,6 @@ class CardCard(models.Model):
         return self._get_path('redirect')
 
     def _get_path(self, suffix):
-        self.ensure_one()
+        self.check_singleton()
         card_slug = self.env['ir.http']._slug(self)
         return f'{self.get_base_url()}/cards/{card_slug}/{suffix}'

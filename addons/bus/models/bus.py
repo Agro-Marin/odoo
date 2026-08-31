@@ -72,7 +72,7 @@ os.register_at_fork(after_in_child=_reset_notify_state_in_child)
 def _get_notify_conn_locked():
     global _notify_conn  # noqa: PLW0603
     if _notify_conn is None or _notify_conn.closed:
-        _dbname, params = odoo.db.connection_info_for("postgres")
+        _dbname, params = odoo.db.get_connection_info_for("postgres")
         _notify_conn = psycopg.connect(autocommit=True, **params)
     return _notify_conn
 
@@ -227,7 +227,7 @@ class BusBus(models.Model):
 
     @api.model
     def _sendone(self, target, notification_type, message):
-        self._ensure_hooks()
+        self._add_commit_hooks()
         channel = channel_with_db(self.env.cr.dbname, target)
         self.env.cr.precommit.data["bus.bus.values"].append(
             {
@@ -242,7 +242,7 @@ class BusBus(models.Model):
         )
         self.env.cr.postcommit.data["bus.bus.channels"].add(channel)
 
-    def _ensure_hooks(self):
+    def _add_commit_hooks(self):
         if "bus.bus.values" not in self.env.cr.precommit.data:
             self.env.cr.precommit.data["bus.bus.values"] = []
 
@@ -394,7 +394,7 @@ class ImDispatch(threading.Thread):
 
     def loop(self):
         _logger.info("Bus.loop listen imbus on db postgres")
-        _dbname, params = odoo.db.connection_info_for("postgres")
+        _dbname, params = odoo.db.get_connection_info_for("postgres")
         with (
             psycopg.connect(autocommit=True, **params) as conn,
             selectors.DefaultSelector() as sel,

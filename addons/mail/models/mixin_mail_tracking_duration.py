@@ -148,7 +148,7 @@ class MixinMailTrackingDuration(models.AbstractModel):
                     record.rotting_days = (now - since).days
 
     def _get_duration_from_tracking(self, trackings: list[dict]) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         fname = self._track_duration_field
         now = self.env.cr.now()
         durations = defaultdict(int)

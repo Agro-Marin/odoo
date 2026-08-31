@@ -155,7 +155,7 @@ class TestComposerForm(TestMailComposer):
     def test_composer_comment_without_res_ids(self):
         """A comment composer created with a model but no active_ids (RPC /
         automation) must not crash its computes on the empty recordset
-        (browse([])._message_compute_subject() used to raise ensure_one())."""
+        (browse([])._message_compute_subject() used to raise check_singleton())."""
         composer = self.env["mail.compose.message"].create(
             {
                 "model": "res.partner",

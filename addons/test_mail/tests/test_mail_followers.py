@@ -2292,7 +2292,7 @@ class UnfollowLinkTest(MailCommon, HttpCase):
         )
         # The user doesn't follow the record
         self.authenticate(self.env.user.login, self.env.user.login)
-        message_data = self.make_jsonrpc_request("/mail/inbox/messages")["data"]
+        message_data = self.call_jsonrpc("/mail/inbox/messages")["data"]
         self.assertFalse(message_data["mixin.mail.thread"][0]["selfFollower"])
         self.assertFalse(
             message_data.get("mail.followers"), "Should not have void followers data"
@@ -2304,7 +2304,7 @@ class UnfollowLinkTest(MailCommon, HttpCase):
         follower = test_record.message_follower_ids.filtered(
             lambda follower: follower.partner_id == self.env.user.partner_id
         )
-        message_data = self.make_jsonrpc_request("/mail/inbox/messages")["data"]
+        message_data = self.call_jsonrpc("/mail/inbox/messages")["data"]
         self.assertEqual(
             message_data["mail.followers"],
             [

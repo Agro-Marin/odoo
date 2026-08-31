@@ -40,7 +40,7 @@ class TestIrWebsocket(WebsocketCase):
             channels = set(
                 channel_keys(
                     self.env,
-                    ir_websocket_model._build_bus_channel_list(["test_channel"]),
+                    ir_websocket_model._get_bus_channels(["test_channel"]),
                 )
             )
         expected_channels = set(
@@ -64,7 +64,7 @@ class TestIrWebsocket(WebsocketCase):
 class TestBuildBusChannelList(TransactionCase):
     def test_callable_without_any_request_bound(self):
         keys = channel_keys(
-            self.env, self.env["ir.websocket"]._build_bus_channel_list(["custom"])
+            self.env, self.env["ir.websocket"]._get_bus_channels(["custom"])
         )
         self.assertIn(channel_key(self.env, "custom"), keys)
         self.assertIn(channel_key(self.env, "broadcast"), keys)
@@ -73,7 +73,7 @@ class TestBuildBusChannelList(TransactionCase):
         user = new_test_user(self.env, login="bus_chan_user")
         keys = channel_keys(
             self.env,
-            self.env["ir.websocket"].with_user(user)._build_bus_channel_list([]),
+            self.env["ir.websocket"].with_user(user)._get_bus_channels([]),
         )
         self.assertIn(channel_key(self.env, user.partner_id), keys)
 
@@ -81,7 +81,7 @@ class TestBuildBusChannelList(TransactionCase):
         public = self.env.ref("base.public_user")
         keys = channel_keys(
             self.env,
-            self.env["ir.websocket"].with_user(public)._build_bus_channel_list([]),
+            self.env["ir.websocket"].with_user(public)._get_bus_channels([]),
         )
         self.assertNotIn(channel_key(self.env, public.partner_id), keys)
 

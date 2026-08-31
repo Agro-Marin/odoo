@@ -84,7 +84,7 @@ class CalendarPopoverDeleteWizard(models.TransientModel):
 
         :return: Action URL to redirect to the calendar view
         """
-        self.ensure_one()
+        self.check_singleton()
         # The policy reaches this wizard in either vocabulary -- its own
         # 'one'/'next'/'all' from the popover view, or `recurrence_update`'s
         # 'self_only'/'future_events'/'all_events' from the calendar form

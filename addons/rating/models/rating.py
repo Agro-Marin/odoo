@@ -157,7 +157,7 @@ class RatingRating(models.Model):
             rating.parent_res_name = name
 
     def _get_rating_image_filename(self):
-        self.ensure_one()
+        self.check_singleton()
         return "rating_%s.png" % rating_data._rating_to_threshold(self.rating)
 
     @api.depends("rating")
@@ -233,7 +233,7 @@ class RatingRating(models.Model):
     # ------------------------------------------------------------
 
     def action_view_rated_object(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "res_model": self.res_model,

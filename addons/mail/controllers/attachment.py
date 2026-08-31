@@ -67,7 +67,7 @@ class AttachmentController(ThreadController):
             ("Content-Length", len(content)),
             ("Content-Disposition", content_disposition(name)),
         ]
-        return request.make_response(content, headers)
+        return request.prepare_response(content, headers)
 
     @http.route("/mail/attachment/upload", methods=["POST"], type="http", auth="public")
     @add_guest_to_context
@@ -132,7 +132,7 @@ class AttachmentController(ThreadController):
                     "You are not allowed to upload an attachment here."
                 )
             }
-        return request.make_json_response(res)
+        return request.prepare_json_response(res)
 
     @http.route(
         "/mail/attachment/delete", methods=["POST"], type="jsonrpc", auth="public"
@@ -247,4 +247,4 @@ class AttachmentController(ThreadController):
             headers.append(
                 ("Content-Disposition", content_disposition(attachment.name))
             )
-        return request.make_response(content, headers)
+        return request.prepare_response(content, headers)

@@ -166,8 +166,8 @@ class CalendarRecurrence(models.Model):
         """
         return self.base_event_id._microsoft_values(fields_to_sync, initial_values={**dict(initial_values), 'type': 'seriesMaster'})
 
-    def _ensure_attendees_have_email(self):
-        self.calendar_event_ids.filtered(lambda e: e.active)._ensure_attendees_have_email()
+    def _check_attendees_have_email(self):
+        self.calendar_event_ids.filtered(lambda e: e.active)._check_attendees_have_email()
 
     def _split_from(self, event, recurrence_values=None):
         """
@@ -187,14 +187,14 @@ class CalendarRecurrence(models.Model):
 
     def _get_event_user_m(self, user_id=None):
         """ Get the user who will send the request to Microsoft (organizer if synchronized and current user otherwise). """
-        self.ensure_one()
+        self.check_singleton()
         event = self._get_first_event()
         if event:
             return event._get_event_user_m(user_id)
         return self.env.user
 
     def _is_microsoft_insertion_blocked(self, sender_user):
-        self.ensure_one()
+        self.check_singleton()
         has_base_event = self.base_event_id
         has_different_owner = self.base_event_id.user_id and self.base_event_id.user_id != sender_user
         return has_base_event and has_different_owner

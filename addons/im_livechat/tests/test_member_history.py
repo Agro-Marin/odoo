@@ -15,7 +15,7 @@ class TestLivechatMemberHistory(TestGetOperatorCommon, chatbot_common.ChatbotCas
                 "user_ids": [bob.id],
             },
         )
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session", {"channel_id": livechat_channel.id}
         )
         channel = self.env["discuss.channel"].browse(data["channel_id"])
@@ -43,7 +43,7 @@ class TestLivechatMemberHistory(TestGetOperatorCommon, chatbot_common.ChatbotCas
 
     def test_get_session_create_history_with_bot(self):
         john = self._create_operator("fr_FR")
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session",
             {
                 "chatbot_script_id": self.chatbot_script.id,
@@ -82,7 +82,7 @@ class TestLivechatMemberHistory(TestGetOperatorCommon, chatbot_common.ChatbotCas
                 "user_ids": john.ids,
             },
         )
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session", {"channel_id": livechat_channel.id}
         )
         channel = self.env["discuss.channel"].browse(data["channel_id"])
@@ -101,7 +101,7 @@ class TestLivechatMemberHistory(TestGetOperatorCommon, chatbot_common.ChatbotCas
             self.env, login="visitor_user", groups="im_livechat.im_livechat_group_manager"
         )
         self.authenticate("visitor_user", "visitor_user")
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/discuss/channel/notify_typing",
             {"channel_id": channel.id, "is_typing": True},
             cookies={
@@ -127,7 +127,7 @@ class TestLivechatMemberHistory(TestGetOperatorCommon, chatbot_common.ChatbotCas
         livechat_channel = self.env["im_livechat.channel"].create(
             {"name": "Livechat Channel", "user_ids": [john.id]},
         )
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session",
             {"channel_id": livechat_channel.id},
         )

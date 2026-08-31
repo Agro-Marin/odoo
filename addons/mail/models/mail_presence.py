@@ -65,7 +65,7 @@ class MailPresence(models.Model):
         return res
 
     def _get_im_status(self, manual_im_status: str | Literal[False]) -> str:
-        self.ensure_one()
+        self.check_singleton()
         if self.status == "offline" or not self.status:
             return "offline"
         return manual_im_status or self.status

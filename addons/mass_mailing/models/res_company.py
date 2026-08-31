@@ -5,7 +5,7 @@ class ResCompany(models.Model):
     _inherit = "res.company"
 
     def _get_social_media_links(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "social_facebook": self.social_facebook,
             "social_linkedin": self.social_linkedin,

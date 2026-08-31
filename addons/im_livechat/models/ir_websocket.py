@@ -4,7 +4,7 @@ from odoo import models
 class IrWebsocket(models.AbstractModel):
     _inherit = "ir.websocket"
 
-    def _build_bus_channel_list(self, channels):
+    def _get_bus_channels(self, channels):
         channels = list(channels)
         if any(
             channel == "im_livechat.looking_for_help"
@@ -16,4 +16,4 @@ class IrWebsocket(models.AbstractModel):
                     (self.env.ref("im_livechat.im_livechat_group_user"), "LOOKING_FOR_HELP")
                 )
             channels.remove("im_livechat.looking_for_help")
-        return super()._build_bus_channel_list(channels)
+        return super()._get_bus_channels(channels)

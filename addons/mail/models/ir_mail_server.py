@@ -56,7 +56,7 @@ class IrMail_Server(models.Model):
         return super()._get_default_from_address()
 
     def _get_test_email_from(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         if mail_from := self._from_filter_sender():
             return mail_from
         if domain := self._from_filter_domain():
@@ -80,8 +80,8 @@ class IrMail_Server(models.Model):
     def _filter_mail_servers_fallback(self, servers: IrMail_Server) -> IrMail_Server:
         return servers.filtered(lambda s: not s.owner_user_id)
 
-    def _find_mail_server_allowed_domain(self) -> str:
-        domain = super()._find_mail_server_allowed_domain()
+    def _get_domain_mail_servers_allowed(self) -> str:
+        domain = super()._get_domain_mail_servers_allowed()
         domain &= Domain("owner_user_id", "=", False)
         return domain
 

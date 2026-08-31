@@ -567,7 +567,7 @@ class ResUsers(models.Model):
             )
 
     def _init_messaging(self, store: Store) -> None:
-        self.ensure_one()
+        self.check_singleton()
         user = self.with_user(self)
         bus_last_id = user.env["bus.bus"].sudo()._bus_last_id()
         store.add_global_values(

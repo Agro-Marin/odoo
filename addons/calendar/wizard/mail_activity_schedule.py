@@ -7,7 +7,7 @@ class MailActivitySchedule(models.TransientModel):
     _inherit = 'mail.activity.schedule'
 
     def action_create_calendar_event(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.is_batch_mode:
             raise UserError(_("Scheduling an activity using the calendar is not possible on more than one record."))
         if not self.res_model:

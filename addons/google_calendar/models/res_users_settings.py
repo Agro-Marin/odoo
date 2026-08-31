@@ -114,15 +114,15 @@ class ResUsersSettings(models.Model):
             )
 
     def _google_calendar_authenticated(self):
-        self.ensure_one()
+        self.check_singleton()
         return bool(self.sudo().google_calendar_rtoken)
 
     def _is_google_calendar_valid(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.sudo().google_calendar_token_validity and self.sudo().google_calendar_token_validity >= (fields.Datetime.now() + timedelta(minutes=1))
 
     def _refresh_google_calendar_token(self):
-        self.ensure_one()
+        self.check_singleton()
 
         try:
             access_token, ttl = self.env['google.service']._refresh_google_token('calendar', self.sudo().google_calendar_rtoken)

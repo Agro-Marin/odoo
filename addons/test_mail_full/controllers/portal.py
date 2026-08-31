@@ -9,7 +9,7 @@ class PortalTest(http.Controller):
         "/my/test_portal/<int:res_id>", type="http", auth="public", methods=["GET"]
     )
     def test_portal_record_view(self, res_id, access_token=None, **kwargs):
-        return request.make_response(
+        return request.prepare_response(
             f"Record view of test_portal {res_id} ({access_token}, {kwargs})"
         )
 
@@ -59,4 +59,4 @@ class PortalTest(http.Controller):
         methods=["GET"],
     )
     def test_public_record_view(self, res_id):
-        return request.make_response(f"Testing public controller for {res_id}")
+        return request.prepare_response(f"Testing public controller for {res_id}")

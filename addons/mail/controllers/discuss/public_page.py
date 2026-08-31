@@ -9,7 +9,7 @@ from odoo import http
 from odoo.exceptions import UserError
 from odoo.http import Response, request
 from odoo.tools import consteq, email_normalize, replace_exceptions
-from odoo.tools.misc import verify_hash_signed
+from odoo.tools.misc import resolve_hash_signed
 
 from odoo.addons.mail.controllers.utils import get_channel_or_404
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
@@ -72,7 +72,7 @@ class PublicPageController(http.Controller):
     def discuss_channel_invitation(
         self, channel_id: int, invitation_token: str, email_token: str | None = None
     ) -> Response:
-        guest_email = email_token and verify_hash_signed(
+        guest_email = email_token and resolve_hash_signed(
             self.env(su=True), "mail.invite_email", email_token
         )
         guest_email = email_normalize(guest_email)

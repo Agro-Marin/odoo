@@ -2001,7 +2001,7 @@ class TestMailMailRace(MailCommon):
         notif = env["mail.notification"].search(
             [("res_partner_id", "=", self.partner.id)]
         )
-        notif.ensure_one()  # for patched method
+        notif.check_singleton()  # for patched method
         # we need to commit transaction or cr will keep the lock on notif
         cr.commit()
 

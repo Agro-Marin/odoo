@@ -93,7 +93,7 @@ class TestMessageHelpersRobustness(MailCommon, HttpCase):
 
     def test_load_message_failures(self):
         self.authenticate(self.user_employee.login, self.user_employee.login)
-        result = self.make_jsonrpc_request("/mail/data", {"fetch_params": ["failures"]})
+        result = self.call_jsonrpc("/mail/data", {"fetch_params": ["failures"]})
         # the payload never mentions the deleted record
         self.assertEqual(
             sorted(r["thread"]["id"] for r in result["mail.message"]),
@@ -139,9 +139,7 @@ class TestMessageHelpersRobustness(MailCommon, HttpCase):
             contextlib.suppress(Exception),
             mute_logger("odoo.http", "odoo.db.cursor"),
         ):  # suppress logged error due to readonly route doing an update
-            res = self.make_jsonrpc_request(
-                "/mail/data", {"fetch_params": ["failures"]}
-            )
+            res = self.call_jsonrpc("/mail/data", {"fetch_params": ["failures"]})
             self.assertEqual(
                 sorted(t["name"] for t in res["mixin.mail.thread"]),
                 sorted(
@@ -160,7 +158,7 @@ class TestMessageHelpersRobustness(MailCommon, HttpCase):
         p2_notifications.is_read = False
 
         self.authenticate(self.user_employee_2.login, self.user_employee_2.login)
-        result = self.make_jsonrpc_request("/mail/inbox/messages", {})["data"]
+        result = self.call_jsonrpc("/mail/inbox/messages", {})["data"]
         self.assertEqual(
             {
                 r["thread"]["id"] if r["thread"] else False
@@ -173,7 +171,7 @@ class TestMessageHelpersRobustness(MailCommon, HttpCase):
             self.user_employee_2
         ).mail_message_id.set_message_done()
 
-        result = self.make_jsonrpc_request("/mail/history/messages", {})["data"]
+        result = self.call_jsonrpc("/mail/history/messages", {})["data"]
         self.assertEqual(
             {
                 r["thread"]["id"] if r["thread"] else False

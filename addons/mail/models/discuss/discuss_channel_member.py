@@ -207,7 +207,7 @@ class DiscussChannelMember(models.Model):
 
         def custom_pinned(model: models.BaseModel, alias: str, query: Query) -> SQL:
             channel_model = model.browse().channel_id
-            channel_alias = query.make_alias(alias, "channel_id")
+            channel_alias = query.get_table_alias(alias, "channel_id")
             query.add_join(
                 "LEFT JOIN",
                 channel_alias,
@@ -500,13 +500,13 @@ class DiscussChannelMember(models.Model):
     def _get_store_partner_fields(
         self, field_specs: list[StoreFieldSpec]
     ) -> list[StoreFieldSpec]:
-        self.ensure_one()
+        self.check_singleton()
         return field_specs
 
     def _get_store_guest_fields(
         self, field_specs: list[StoreFieldSpec]
     ) -> list[StoreFieldSpec]:
-        self.ensure_one()
+        self.check_singleton()
         return field_specs
 
     def _rtc_join_call(
@@ -515,7 +515,7 @@ class DiscussChannelMember(models.Model):
         check_rtc_session_ids: list[int] | None = None,
         camera: bool = False,
     ) -> None:
-        self.ensure_one()
+        self.check_singleton()
         session_domain = []
         if self.partner_id:
             session_domain = [("partner_id", "=", self.partner_id.id)]
@@ -637,7 +637,7 @@ class DiscussChannelMember(models.Model):
         }
 
     def _rtc_leave_call(self, session_id: int | None = None) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if self.rtc_session_ids:
             if session_id:
                 self.rtc_session_ids.filtered(lambda rec: rec.id == session_id).unlink()
@@ -649,7 +649,7 @@ class DiscussChannelMember(models.Model):
     def _rtc_sync_sessions(
         self, check_rtc_session_ids: list[int] | None = None
     ) -> tuple:
-        self.ensure_one()
+        self.check_singleton()
         self.channel_id.rtc_session_ids._remove_inactive_rtc_sessions()
         checked_ids = []
         for check_rtc_session_id in check_rtc_session_ids or []:
@@ -666,7 +666,7 @@ class DiscussChannelMember(models.Model):
     def _get_rtc_invite_members_domain(
         self, member_ids: list[int] | None = None
     ) -> Domain:
-        self.ensure_one()
+        self.check_singleton()
         domain = Domain.AND(
             [
                 [("channel_id", "=", self.channel_id.id)],
@@ -687,7 +687,7 @@ class DiscussChannelMember(models.Model):
         return domain
 
     def _rtc_invite_members(self, member_ids: list[int] | None = None) -> Self:
-        self.ensure_one()
+        self.check_singleton()
         members = self.env["discuss.channel.member"].search(
             self._get_rtc_invite_members_domain(member_ids)
         )
@@ -760,7 +760,7 @@ class DiscussChannelMember(models.Model):
         return members
 
     def _mark_as_read(self, last_message_id: int) -> None:
-        self.ensure_one()
+        self.check_singleton()
         domain = [
             ("model", "=", "discuss.channel"),
             ("res_id", "=", self.channel_id.id),
@@ -773,7 +773,7 @@ class DiscussChannelMember(models.Model):
         self._set_new_message_separator(last_message.id + 1)
 
     def _set_last_seen_message(self, message: MailMessage, notify: bool = True) -> None:
-        self.ensure_one()
+        self.check_singleton()
         bus_channel = self._bus_channel()
         if self.seen_message_id.id < message.id:
             self.write(
@@ -802,7 +802,7 @@ class DiscussChannelMember(models.Model):
         ).bus_send()
 
     def _set_new_message_separator(self, message_id: int) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if message_id == self.new_message_separator:
             bus_last_id = self.env["bus.bus"].sudo()._bus_last_id()
             Store(bus_channel=self._bus_channel()).add(

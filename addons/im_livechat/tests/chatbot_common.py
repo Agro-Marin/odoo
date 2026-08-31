@@ -144,7 +144,7 @@ class ChatbotCase(common.HttpCase):
     def _post_answer_and_trigger_next_step(
         self, discuss_channel, body=None, email=None, chatbot_script_answer=None
     ):
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/mail/message/post",
             {
                 "thread_model": "discuss.channel",
@@ -157,12 +157,12 @@ class ChatbotCase(common.HttpCase):
             },
         )
         if email:
-            self.make_jsonrpc_request(
+            self.call_jsonrpc(
                 "/chatbot/step/validate_email", {"channel_id": discuss_channel.id}
             )
         if chatbot_script_answer:
             message = self.env["mail.message"].browse(data["message_id"])
-            self.make_jsonrpc_request(
+            self.call_jsonrpc(
                 "/chatbot/answer/save",
                 {
                     "channel_id": discuss_channel.id,
@@ -170,4 +170,4 @@ class ChatbotCase(common.HttpCase):
                     "selected_answer_id": chatbot_script_answer.id,
                 },
             )
-        self.make_jsonrpc_request("/chatbot/step/trigger", {"channel_id": discuss_channel.id})
+        self.call_jsonrpc("/chatbot/step/trigger", {"channel_id": discuss_channel.id})

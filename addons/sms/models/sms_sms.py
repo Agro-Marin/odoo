@@ -217,7 +217,7 @@ class SmsSms(models.Model):
         sms_api = self.env.context.get("sms_api")
         if not sms_api:
             company = self._get_sms_company()
-            company.ensure_one()  # This should always be the case since the grouping is done in `send`
+            company.check_singleton()  # This should always be the case since the grouping is done in `send`
             sms_api = company._get_sms_api_class()(self.env)
 
         return self._send_with_api(

@@ -814,7 +814,7 @@ class CalendarEvent(models.Model):
                 event._set_discuss_videocall_location()
 
     def _is_partner_unavailable(self, partner, partner_events):
-        self.ensure_one()
+        self.check_singleton()
         return any(
             intervals_overlap(
                 (self.start, self.stop), (partner_event.start, partner_event.stop)
@@ -1227,7 +1227,7 @@ class CalendarEvent(models.Model):
         All-day events need no special case: ``start``/``stop`` are Datetimes
         and are populated for them like any other event.
         """
-        self.ensure_one()
+        self.check_singleton()
         if not self.start or not self.stop or self.show_as != "busy":
             return []
 
@@ -1590,7 +1590,7 @@ class CalendarEvent(models.Model):
 
     def _check_private_event_conditions(self):
         """Checks if the event is private, returning True if the conditions match and False otherwise."""
-        self.ensure_one()
+        self.check_singleton()
         event_is_private = self.privacy == "private"
         calendar_is_private = (
             not self.privacy
@@ -1981,7 +1981,7 @@ class CalendarEvent(models.Model):
 
         :return: True if the event is over, False otherwise
         """
-        self.ensure_one()
+        self.check_singleton()
         now = fields.Datetime.now()
         today = fields.Date.today()
 
@@ -2058,7 +2058,7 @@ class CalendarEvent(models.Model):
 
     def action_join_meeting(self, partner_id):
         """Method used when an existing user wants to join"""
-        self.ensure_one()
+        self.check_singleton()
         partner = self.env["res.partner"].browse(partner_id)
         if partner not in self.partner_ids:
             self.write({"partner_ids": [(4, partner.id)]})
@@ -2094,7 +2094,7 @@ class CalendarEvent(models.Model):
         self.action_mass_deletion(policy)
 
     def action_mass_deletion(self, recurrence_update_setting):
-        self.ensure_one()
+        self.check_singleton()
         if recurrence_update_setting == "all_events":
             events = self.recurrence_id.calendar_event_ids
             self.recurrence_id.unlink()
@@ -2124,7 +2124,7 @@ class CalendarEvent(models.Model):
         """
         The aim of this action purpose is to be called from sync calendar module when mass deletion is not possible.
         """
-        self.ensure_one()
+        self.check_singleton()
         if recurrence_update_setting == "all_events":
             self.recurrence_id.calendar_event_ids.write(self._get_archive_values())
         elif recurrence_update_setting == "future_events":
@@ -2146,7 +2146,7 @@ class CalendarEvent(models.Model):
         return False
 
     def _get_mail_tz(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.event_tz or self.env.user.tz
 
     def _sync_activities(self, fields):
@@ -2244,7 +2244,7 @@ class CalendarEvent(models.Model):
         return triggers_by_events
 
     def get_next_alarm_date(self, events_by_alarm):
-        self.ensure_one()
+        self.check_singleton()
         now = fields.Datetime.now()
         sorted_alarms = self.alarm_ids.sorted("duration_minutes")
         triggered_alarms = sorted_alarms.filtered(
@@ -2433,7 +2433,7 @@ class CalendarEvent(models.Model):
 
         :return: the event the resulting series is rooted at.
         """
-        self.ensure_one()
+        self.check_singleton()
         base_event = self
         update_dict = self._get_time_update_dict(base_event, time_values)
         time_values.update(update_dict)
@@ -2492,7 +2492,7 @@ class CalendarEvent(models.Model):
             archived and the series rebuilt from the base, so a write on any
             other occurrence leaves ``self`` archived and detached.
         """
-        self.ensure_one()
+        self.check_singleton()
         base_event = (
             self.recurrence_id.base_event_id
             or self.recurrence_id._get_first_event(include_outliers=False)
@@ -2541,7 +2541,7 @@ class CalendarEvent(models.Model):
     # ------------------------------------------------------------
 
     def change_attendee_status(self, status, recurrence_update_setting):
-        self.ensure_one()
+        self.check_singleton()
         if recurrence_update_setting == "all_events":
             events = self.recurrence_id.calendar_event_ids
         elif recurrence_update_setting == "future_events":
@@ -2567,7 +2567,7 @@ class CalendarEvent(models.Model):
             sentinel matches the return type, so callers can read e.g. `.name`
             on the result even when there is no such partner).
         """
-        self.ensure_one()
+        self.check_singleton()
         return next(
             (
                 attendee.partner_id
@@ -2614,12 +2614,12 @@ class CalendarEvent(models.Model):
         return self.start.date()
 
     def _range(self):
-        self.ensure_one()
+        self.check_singleton()
         return (self.start, self.stop)
 
     def get_display_time_tz(self, tz=False):
         """get the display_time of the meeting, forcing the timezone. This method is called from email template, to not use sudo()."""
-        self.ensure_one()
+        self.check_singleton()
         if tz:
             self = self.with_context(tz=tz)
         return self._get_display_time(self.start, self.stop, self.duration, self.allday)
@@ -2683,7 +2683,7 @@ class CalendarEvent(models.Model):
 
     def _ics_add_alarms(self, vevent):
         """Add one VALARM per reminder, triggered relative to the start."""
-        self.ensure_one()
+        self.check_singleton()
         for alarm in self.alarm_ids:
             valarm = vevent.add("valarm")
             trigger = valarm.add("TRIGGER")
@@ -2693,7 +2693,7 @@ class CalendarEvent(models.Model):
 
     def _ics_add_people(self, vevent):
         """Add the ATTENDEE lines and, where there is an address, ORGANIZER."""
-        self.ensure_one()
+        self.check_singleton()
         for attendee in self.attendee_ids:
             vevent.add("attendee").value = "MAILTO:" + (attendee.email or "")
         if self.partner_id.email:
@@ -2726,7 +2726,7 @@ class CalendarEvent(models.Model):
           not about the series" -- `_send_reminder` sets it for every reminder,
           and `_write_notify_attendees` for a single-occurrence move.
         """
-        self.ensure_one()
+        self.check_singleton()
         if not self.rrule or self.env.context.get(
             "calendar_template_ignore_recurrence"
         ):

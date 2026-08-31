@@ -329,7 +329,7 @@ class TestLinkTracker(common.TransactionCase, MockLinkTracker):
             self.env['link.tracker'].get_url_from_code('chosen01'), tracker.redirected_url)
 
     def test_code_cleared_on_several_records(self):
-        """An inverse is handed the whole recordset; it must not `ensure_one`.
+        """An inverse is handed the whole recordset; it must not `check_singleton`.
 
         Clearing `code` over several trackers is a well-defined no-op -- there is
         nothing to rename -- and it used to raise a bare

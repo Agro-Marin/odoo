@@ -280,9 +280,7 @@ class TestWebsocketCaryall(WebsocketCase):
     def test_subscribe_to_custom_channel(self):
         channel = self.env["res.partner"].create({"name": "John"})
         websocket = self.websocket_connect()
-        with patch.object(
-            IrWebsocket, "_build_bus_channel_list", return_value=[channel]
-        ):
+        with patch.object(IrWebsocket, "_get_bus_channels", return_value=[channel]):
             self.subscribe(websocket, [], self.env["bus.bus"]._bus_last_id())
             channel._bus_send("notif_on_global_channel", "message")
             channel._bus_send(
@@ -297,7 +295,7 @@ class TestWebsocketCaryall(WebsocketCase):
             self.assertEqual(notifications[0]["message"]["payload"], "message")
 
         with patch.object(
-            IrWebsocket, "_build_bus_channel_list", return_value=[(channel, "PRIVATE")]
+            IrWebsocket, "_get_bus_channels", return_value=[(channel, "PRIVATE")]
         ):
             self.subscribe(websocket, [], self.env["bus.bus"]._bus_last_id())
             channel._bus_send("notif_on_global_channel", "message")

@@ -908,7 +908,7 @@ class MixinMailRender(models.AbstractModel):
     def _render_lang(
         self, res_ids: list[int], engine: str = "inline_template"
     ) -> dict[int, str | Literal[False]]:
-        self.ensure_one()
+        self.check_singleton()
         if self.lang:
             return self._render_template(
                 self.lang, self.render_model, res_ids, engine=engine
@@ -926,7 +926,7 @@ class MixinMailRender(models.AbstractModel):
     def _get_res_ids_lang(
         self, res_ids: list[int], engine: str = "inline_template"
     ) -> dict[int, str]:
-        self.ensure_one()
+        self.check_singleton()
         if preview_lang := self.env.context.get("template_preview_lang"):
             return dict.fromkeys(res_ids, preview_lang)
         return self._render_lang(res_ids, engine=engine)
@@ -938,7 +938,7 @@ class MixinMailRender(models.AbstractModel):
         res_ids_lang: dict[int, str] | None = None,
         default_lang: str | Literal[False] | None = None,
     ) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         if res_ids_lang is None:
             res_ids_lang = self._get_res_ids_lang(res_ids, engine=engine)
 
@@ -970,7 +970,7 @@ class MixinMailRender(models.AbstractModel):
             raise ValueError(
                 f"Cannot render {field!r}: it is not a field of {self._name}."
             )
-        self.ensure_one()
+        self.check_singleton()
         if res_ids_lang:
             templates_res_ids = self._classify_per_lang(
                 res_ids,

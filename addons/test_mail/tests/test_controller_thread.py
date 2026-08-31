@@ -162,7 +162,7 @@ class TestMessageController(MailControllerThreadCommon):
         )
 
         # 1. posting a message
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/mail/message/post",
             {
                 "thread_model": "res.partner",

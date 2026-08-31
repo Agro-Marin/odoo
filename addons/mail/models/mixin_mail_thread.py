@@ -31,7 +31,7 @@ from odoo.tools import (
     ormcache,
 )
 from odoo.tools.mail import (
-    append_content_to_html,
+    add_html_content,
     email_normalize,
     email_normalize_all,
     email_split_and_format_normalize,
@@ -648,7 +648,7 @@ class MixinMailThread(models.AbstractModel):
         }
 
     def _creation_message(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         doc_name = self.env["ir.model"]._get(self._name).name
         return _("%s created", doc_name)
 
@@ -708,7 +708,7 @@ class MixinMailThread(models.AbstractModel):
     def _track_filter_for_display(
         self, tracking_values: MailTrackingValue
     ) -> MailTrackingValue:
-        self.ensure_one()
+        self.check_singleton()
         return tracking_values
 
     def _track_finalize(self) -> None:
@@ -795,7 +795,7 @@ class MixinMailThread(models.AbstractModel):
         return frozenset(self.fields_get(model_fields, attributes=()))
 
     def _track_subtype(self, initial_values: dict) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return False
 
     def _message_track(
@@ -1073,7 +1073,7 @@ class MixinMailThread(models.AbstractModel):
         body_is_html: bool = False,
         **kwargs,
     ) -> MailMessage:
-        self.ensure_one()
+        self.check_singleton()
 
         self._message_post_check_parameters(
             kwargs, message_type, attachments, attachment_ids, partner_ids
@@ -1165,7 +1165,7 @@ class MixinMailThread(models.AbstractModel):
         attachment_ids: list[int],
         body_is_html: bool = False,
     ) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         msg_values = dict(msg_kwargs)
         msg_values.setdefault("email_add_signature", True)
         if body_is_html:
@@ -1566,7 +1566,7 @@ class MixinMailThread(models.AbstractModel):
         if "res_id" in message_values:
             model, res_id = message_values["model"], message_values["res_id"]
         else:
-            self.ensure_one()
+            self.check_singleton()
             model, res_id = self._name, self.id
         body = ""
         if message_values.get("body"):
@@ -1794,7 +1794,7 @@ class MixinMailThread(models.AbstractModel):
         **kwargs,
     ) -> MailMessage:
         if self:
-            self.ensure_one()
+            self.check_singleton()
         key = self.id if self else False
         return self._message_notify_batch(
             {key: body},
@@ -2107,7 +2107,7 @@ class MixinMailThread(models.AbstractModel):
         attachment_ids: list[int] | Literal[False] = False,
         tracking_value_ids: list | Literal[False] = False,
     ) -> MailMessage:
-        self.ensure_one()
+        self.check_singleton()
 
         return self._message_log_batch(
             {self.id: body},
@@ -2279,7 +2279,7 @@ class MixinMailThread(models.AbstractModel):
         return parents
 
     def _message_compute_subject(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         return self.display_name
 
     def _message_create(self, values_list: list[dict]) -> MailMessage:
@@ -4350,7 +4350,7 @@ class MixinMailThread(models.AbstractModel):
         limit: int | None = None,
         filter_recipients: bool = False,
     ) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         store = Store()
         self._message_followers_to_store(
             store, after, limit or self._FOLLOWER_PAGE_LIMIT, filter_recipients
@@ -4466,7 +4466,7 @@ class MixinMailThread(models.AbstractModel):
         filter_recipients: bool = False,
         reset: bool = False,
     ) -> MailFollowers:
-        self.ensure_one()
+        self.check_singleton()
         self.check_access("read")
         limit = self._FOLLOWER_PAGE_LIMIT if limit is None else limit
         domain = self._message_followers_domain(filter_recipients)
@@ -4495,7 +4495,7 @@ class MixinMailThread(models.AbstractModel):
         new_thread: models.BaseModel,
         new_parent_message: MailMessage | Literal[False] = False,
     ) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         self.check_access("write")
         new_thread.check_access("read")
         MailMessage = self.env["mail.message"]
@@ -4523,7 +4523,7 @@ class MixinMailThread(models.AbstractModel):
                 lambda msg: msg.subtype_id.description
             )
             for message in messages_with_description:
-                body = append_content_to_html(
+                body = add_html_content(
                     message.subtype_id.description,
                     message.body,
                 )
@@ -4574,7 +4574,7 @@ class MixinMailThread(models.AbstractModel):
         strict: bool = True,
         **kwargs,
     ) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if strict:
             self._check_can_update_message_content(message.sudo())
 
@@ -4767,7 +4767,7 @@ class MixinMailThread(models.AbstractModel):
         followers_total: dict,
         recipients_total: dict,
     ) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         void = self.env["mail.followers"]
         followers = followers_by_res_id.get(self.id, void)
         recipients = recipients_by_res_id.get(self.id, void)

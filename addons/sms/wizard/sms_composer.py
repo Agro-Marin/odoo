@@ -202,7 +202,7 @@ class SmsComposer(models.TransientModel):
             if not records or not composer.comment_single_recipient:
                 composer.recipient_single_number_itf = ""
                 continue
-            records.ensure_one()
+            records.check_singleton()
             # If the composer was opened with a specific field use that, otherwise get the partner's
             res = records._sms_get_recipients_info(
                 force_field=composer.number_field_name,
@@ -223,7 +223,7 @@ class SmsComposer(models.TransientModel):
                 composer.recipient_single_description = False
                 composer.recipient_single_number = ""
                 continue
-            records.ensure_one()
+            records.check_singleton()
             res = records._sms_get_recipients_info(
                 force_field=composer.number_field_name, partner_fallback=True
             )
@@ -361,7 +361,7 @@ class SmsComposer(models.TransientModel):
         # if invalid. As a consequence, the test cannot be based on recipient_invalid_count, which count is based
         # on the numbers in the database.
         records = records if records is not None else self._get_records()
-        records.ensure_one()
+        records.check_singleton()
         if not self.number_field_name or self.number_field_name not in records:
             self.numbers = (
                 self.recipient_single_number_itf or self.recipient_single_number

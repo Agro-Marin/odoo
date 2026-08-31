@@ -19,7 +19,7 @@ class MailingContactToList(models.TransientModel):
     def action_add_contacts_and_send_mailing(self):
         """Add contacts to the mailing list and redirect to a new mailing on
         this list."""
-        self.ensure_one()
+        self.check_singleton()
 
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mass_mailing.mailing_mailing_action_mail"
@@ -30,7 +30,7 @@ class MailingContactToList(models.TransientModel):
         return self._add_contacts_to_mailing_list(action)
 
     def _add_contacts_to_mailing_list(self, action):
-        self.ensure_one()
+        self.check_singleton()
 
         contacts_to_add = self.contact_ids.filtered(
             lambda c: c not in self.mailing_list_id.contact_ids

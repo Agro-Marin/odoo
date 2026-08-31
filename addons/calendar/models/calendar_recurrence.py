@@ -510,7 +510,7 @@ class CalendarRecurrence(models.Model):
         """
         if recurrence_values is None:
             recurrence_values = {}
-        event.ensure_one()
+        event.check_singleton()
         if not self:
             return None
         [values] = self.copy_data()
@@ -533,7 +533,7 @@ class CalendarRecurrence(models.Model):
 
         :return: detached events from the recurrence
         """
-        self.ensure_one()
+        self.check_singleton()
         events = self._get_events_from(event.start)
         detached_events = self._detach_events(events)
         if not self.calendar_event_ids:
@@ -735,7 +735,7 @@ class CalendarRecurrence(models.Model):
             We can easily filter these range values but then the count value may be wrong...
             In that case, we just increase the count value, recompute the ranges and dismiss the useless values
         """
-        self.ensure_one()
+        self.check_singleton()
 
         def only_future(ranges):
             return {
@@ -775,7 +775,7 @@ class CalendarRecurrence(models.Model):
             _range_calculation); leaves the stored value untouched
         :return: iterable of datetimes
         """
-        self.ensure_one()
+        self.check_singleton()
         dtstart = self._get_start_of_period(dtstart)
         if self._is_allday():
             return self._get_rrule(dtstart=dtstart, count=count)
@@ -869,7 +869,7 @@ class CalendarRecurrence(models.Model):
         :param count: for a ``count`` recurrence, use this instead of the stored
             ``count`` field (see _range_calculation) without mutating the record.
         """
-        self.ensure_one()
+        self.check_singleton()
         freq = self.rrule_type
         rrule_params = {
             "dtstart": dtstart,
@@ -917,7 +917,7 @@ class CalendarRecurrence(models.Model):
 
         :return: True if all events are over, False otherwise
         """
-        self.ensure_one()
+        self.check_singleton()
         if not self.calendar_event_ids:
             return False
 

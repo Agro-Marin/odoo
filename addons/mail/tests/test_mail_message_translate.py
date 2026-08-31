@@ -74,14 +74,14 @@ class TestTranslationController(HttpCaseWithUserDemo):
 
     def _mock_translation_request(self, data):
         with patch.object(requests, "post", self._patched_post):
-            return self.make_jsonrpc_request("/mail/message/translate", data)
+            return self.call_jsonrpc("/mail/message/translate", data)
 
     def test_update_message(self):
         self.authenticate("admin", "admin")
         result = self._mock_translation_request({"message_id": self.message.id})
         self.assertFalse(result.get("error"))
         self.assertEqual(self.env["mail.message.translation"].search_count([]), 1)
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             "/mail/message/update_content",
             {
                 "message_id": self.message.id,
@@ -89,7 +89,7 @@ class TestTranslationController(HttpCaseWithUserDemo):
             },
         )
         self.assertEqual(self.env["mail.message.translation"].search_count([]), 1)
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             "/mail/message/update_content",
             {
                 "message_id": self.message.id,

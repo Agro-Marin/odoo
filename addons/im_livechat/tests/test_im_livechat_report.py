@@ -25,7 +25,7 @@ class TestImLivechatReport(TestImLivechatCommon):
             ),
             freeze_time("2023-03-17 06:05:54"),
         ):
-            channel_id = self.make_jsonrpc_request(
+            channel_id = self.call_jsonrpc(
                 "/im_livechat/get_session",
                 {"channel_id": self.livechat_channel.id},
             )["channel_id"]
@@ -42,7 +42,7 @@ class TestImLivechatReport(TestImLivechatCommon):
         partner_message.model = 'res.partner'
 
         with freeze_time("2023-03-17 09:20:54"):
-            self.make_jsonrpc_request(
+            self.call_jsonrpc(
                 "/im_livechat/visitor_leave_session",
                 {"channel_id": channel_id}
             )
@@ -126,7 +126,7 @@ class TestImLivechatReport(TestImLivechatCommon):
         for i in range(1, 8):
             date = today_dt + timedelta(days=i)
             with freeze_time(date):
-                channel_id = self.make_jsonrpc_request(
+                channel_id = self.call_jsonrpc(
                     "/im_livechat/get_session",
                     {"anonymous_name": f"Visitor_{i}", "channel_id": livechat_channel.id},
                 )["channel_id"]
@@ -150,7 +150,7 @@ class TestImLivechatReport(TestImLivechatCommon):
 
     def test_time_to_answer_does_not_count_messages_after_close(self):
         with freeze_time("2025-05-20 06:00:00") as frozen_time:
-            data = self.make_jsonrpc_request(
+            data = self.call_jsonrpc(
                     "/im_livechat/get_session",
                     {"channel_id": self.livechat_channel.id},
                 )
@@ -159,7 +159,7 @@ class TestImLivechatReport(TestImLivechatCommon):
             chat.message_post(body="Question", message_type="comment")
             self._create_message(chat, self.env.user.partner_id, datetime.now())
             frozen_time.tick(delta=timedelta(minutes=5))
-            self.make_jsonrpc_request("/im_livechat/visitor_leave_session", {"channel_id": chat.id})
+            self.call_jsonrpc("/im_livechat/visitor_leave_session", {"channel_id": chat.id})
             frozen_time.tick(delta=timedelta(minutes=5))
             self._create_message(chat, chat.livechat_operator_id, datetime.now())
             report = self.env["im_livechat.report.channel"].search([("channel_id", "=", chat.id)])

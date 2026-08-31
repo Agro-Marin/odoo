@@ -526,7 +526,7 @@ class DiscussChannel(models.Model):
         return _('Visitor left the conversation.')
 
     def _close_livechat_session(self, **kwargs):
-        self.ensure_one()
+        self.check_singleton()
         if not self.livechat_end_dt:
             member = self.channel_member_ids.filtered(lambda m: m.is_self)
             if member:
@@ -595,7 +595,7 @@ class DiscussChannel(models.Model):
         ) % json.dumps({"fileData": attachment_data})
 
     def _get_channel_history(self):
-        self.ensure_one()
+        self.check_singleton()
         parts = []
         previous_message_author = None
         messages = (
@@ -793,7 +793,7 @@ class DiscussChannel(models.Model):
             Store(bus_channel=self).add(channel_sudo, "livechat_end_dt").bus_send()
 
     def livechat_join_channel_needing_help(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.livechat_status != "need_help":
             return False
         self._add_members(users=self.env.user)

@@ -6,7 +6,7 @@ from odoo import models
 class IrWebsocket(models.AbstractModel):
     _inherit = "ir.websocket"
 
-    def _build_bus_channel_list(self, channels: list) -> list:
+    def _get_bus_channels(self, channels: list) -> list:
         remaining = []
         discuss_channel_ids = []
         token_guest = self.env["mail.guest"]
@@ -30,4 +30,4 @@ class IrWebsocket(models.AbstractModel):
         remaining.extend(all_user_channels)
         if not self.env.user.share:
             remaining.extend((c, "internal_users") for c in all_user_channels)
-        return super()._build_bus_channel_list(remaining)
+        return super()._get_bus_channels(remaining)

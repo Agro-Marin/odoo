@@ -7,7 +7,7 @@ from odoo.addons.im_livechat.tests.common import TestImLivechatCommon
 @tagged("-at_install", "post_install")
 class TestImLivechatTranscript(TestImLivechatCommon, HttpCaseWithUserDemo, HttpCaseWithUserPortal):
     def test_download_transcript(self):
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session",
             {"channel_id": self.livechat_channel.id},
         )
@@ -17,7 +17,7 @@ class TestImLivechatTranscript(TestImLivechatCommon, HttpCaseWithUserDemo, HttpC
 
     def test_download_transcript_non_member(self):
         self.authenticate("demo", "demo")
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session",
             {"channel_id": self.livechat_channel.id},
         )
@@ -30,12 +30,12 @@ class TestImLivechatTranscript(TestImLivechatCommon, HttpCaseWithUserDemo, HttpC
 
     def test_email_transcript_portal_user(self):
         self.authenticate(self.user_portal.login, self.user_portal.login)
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session",
             {"channel_id": self.livechat_channel.id},
         )
         with self.assertRaises(JsonRpcException, msg="werkzeug.exceptions.NotFound"):
-            self.make_jsonrpc_request(
+            self.call_jsonrpc(
                 "/im_livechat/email_livechat_transcript",
                 {"channel_id": data["channel_id"], "email": self.partner_portal.email},
             )

@@ -135,7 +135,7 @@ class MixinMicrosoftCalendarSync(models.AbstractModel):
             records_to_sync = self
         cancelled_records = self - records_to_sync
 
-        records_to_sync._ensure_attendees_have_email()
+        records_to_sync._check_attendees_have_email()
         updated_records = records_to_sync._get_synced_events()
         new_records = records_to_sync - updated_records
 
@@ -389,7 +389,7 @@ class MixinMicrosoftCalendarSync(models.AbstractModel):
         sender_user = self._get_event_user_m(user_id)
         with microsoft_calendar_token(sender_user.sudo()) as token:
             if token:
-                self._ensure_attendees_have_email()
+                self._check_attendees_have_email()
                 res = microsoft_service.patch(event_id, values, token=token, timeout=timeout)
                 self.with_context(dont_notify=True).write({
                     'need_sync_m': not res,
@@ -410,7 +410,7 @@ class MixinMicrosoftCalendarSync(models.AbstractModel):
         sender_user = self._get_event_user_m()
         with microsoft_calendar_token(sender_user.sudo()) as token:
             if token:
-                self._ensure_attendees_have_email()
+                self._check_attendees_have_email()
                 event_id, uid = microsoft_service.insert(values, token=token, timeout=timeout)
                 self.with_context(dont_notify=True).write({
                     'microsoft_id': event_id,
@@ -424,7 +424,7 @@ class MixinMicrosoftCalendarSync(models.AbstractModel):
         microsoft_service = self._get_microsoft_service()
         with microsoft_calendar_token(self.env.user.sudo()) as token:
             if token:
-                self._ensure_attendees_have_email()
+                self._check_attendees_have_email()
                 # Fetch the event's id (ms_organizer_event_id) using its iCalUId (ms_universal_event_id) since the
                 # former differs for each attendee. This info is required for sending the event answer and Odoo currently
                 # saves the event's id of the last user who synced the event (who might be or not the current user).
@@ -477,7 +477,7 @@ class MixinMicrosoftCalendarSync(models.AbstractModel):
         """
         raise NotImplementedError()
 
-    def _ensure_attendees_have_email(self):
+    def _check_attendees_have_email(self):
         raise NotImplementedError()
 
     def _get_microsoft_sync_domain(self):
@@ -529,7 +529,7 @@ class MixinMicrosoftCalendarSync(models.AbstractModel):
         Implement this method to return True if the event needs a video call
         :return: bool
         """
-        self.ensure_one()
+        self.check_singleton()
         return True
 
     def _is_microsoft_insertion_blocked(self, sender_user):

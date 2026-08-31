@@ -106,7 +106,7 @@ class TestImLivechatChannel(TestImLivechatCommon, TestGetOperator):
         livechat_channel = self.env["im_livechat.channel"].create(
             {"name": "Livechat Channel", "user_ids": [john.id]},
         )
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session",
             {"channel_id": livechat_channel.id},
         )

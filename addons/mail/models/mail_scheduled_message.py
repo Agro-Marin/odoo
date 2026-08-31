@@ -183,7 +183,7 @@ class MailScheduledMessage(models.Model):
         return res
 
     def open_edit_form(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "name": _("Edit Scheduled Note")
@@ -200,14 +200,14 @@ class MailScheduledMessage(models.Model):
         }
 
     def post_message(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if self.env.is_admin() or self.create_uid.id == self.env.uid:
             self._post_message()
         else:
             raise UserError(_("You are not allowed to send this scheduled message"))
 
     def _message_created_hook(self, message: MailMessage) -> None:
-        self.ensure_one()
+        self.check_singleton()
 
     def _post_message(self, raise_exception: bool = True) -> None:
         notification_parameters_whitelist = self._notification_parameters_whitelist()

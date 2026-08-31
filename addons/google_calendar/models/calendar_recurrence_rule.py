@@ -231,14 +231,14 @@ class CalendarRecurrence(models.Model):
         return values
 
     def _get_event_user(self):
-        self.ensure_one()
+        self.check_singleton()
         event = self._get_first_event()
         if event:
             return event._get_event_user()
         return self.env.user
 
     def _is_google_insertion_blocked(self, sender_user):
-        self.ensure_one()
+        self.check_singleton()
         has_base_event = self.base_event_id
         has_different_owner = self.base_event_id.user_id and self.base_event_id.user_id != sender_user
         return has_base_event and has_different_owner

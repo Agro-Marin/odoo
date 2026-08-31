@@ -498,7 +498,7 @@ class MailActivitySchedule(models.TransientModel):
         }
 
     def _check_plan_templates(self, applied_on: models.BaseModel) -> tuple[set, set]:
-        self.ensure_one()
+        self.check_singleton()
         errors, warnings = set(), set()
         for activity_template in self.plan_id.template_ids:
             for record in applied_on:
@@ -548,7 +548,7 @@ class MailActivitySchedule(models.TransientModel):
         )
 
     def _evaluate_res_ids(self) -> list[int]:
-        self.ensure_one()
+        self.check_singleton()
         return parse_res_ids(self.res_ids, self.env) or []
 
     def _get_applied_on_records(self) -> models.Model | None:
@@ -557,7 +557,7 @@ class MailActivitySchedule(models.TransientModel):
         return self.env[self.res_model].browse(self._evaluate_res_ids())
 
     def _get_plan_available_base_domain(self) -> Domain:
-        self.ensure_one()
+        self.check_singleton()
         return Domain.AND(
             [
                 [

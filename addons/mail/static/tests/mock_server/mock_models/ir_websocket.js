@@ -3,8 +3,8 @@ import { makeKwArgs } from "@web/../tests/web_test_helpers";
 import { isIterable } from "@web/core/utils/collections/arrays";
 
 export class IrWebSocket extends busModels.IrWebSocket {
-    /** @type {typeof busModels.IrWebSocket["prototype"]["_build_bus_channel_list"]} */
-    _build_bus_channel_list(channels) {
+    /** @type {typeof busModels.IrWebSocket["prototype"]["_get_bus_channels"]} */
+    _get_bus_channels(channels) {
         /** @type {import("mock_models").DiscussChannel} */
         const DiscussChannel = this.env["discuss.channel"];
         /** @type {import("mock_models").DiscussChannelMember} */
@@ -14,7 +14,7 @@ export class IrWebSocket extends busModels.IrWebSocket {
         /** @type {import("mock_models").ResPartner} */
         const ResPartner = this.env["res.partner"];
 
-        channels = [...super._build_bus_channel_list(channels)];
+        channels = [...super._get_bus_channels(channels)];
         const guest = MailGuest._get_guest_from_context();
         const authenticatedUserId = this.env.cookie.get("authenticated_user_sid");
         const [authenticatedPartner] = authenticatedUserId

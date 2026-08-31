@@ -271,7 +271,7 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
         self.update(self._prepare_server_type_defaults())
 
     def _prepare_server_type_defaults(self) -> ValuesType:
-        self.ensure_one()
+        self.check_singleton()
         return {"port": default_port(self.server_type, self.encryption)}
 
     @api.model_create_multi
@@ -327,7 +327,7 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
         }
 
     def action_poll_mailbox(self) -> None:
-        self.ensure_one().check_access("write")
+        self.check_singleton().check_access("write")
         if not self.filtered_domain(MAIL_SERVER_DOMAIN):
             raise UserError(
                 _(
@@ -341,11 +341,11 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
             raise exception
 
     def _get_connection_type(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         return self.server_type
 
     def _connect__(self, allow_archived: bool = False) -> IncomingMailConnection:
-        self.ensure_one()
+        self.check_singleton()
         if not allow_archived and not self.active:
             raise UserError(
                 _(
@@ -386,11 +386,11 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
         return connection
 
     def _imap_login__(self, connection: OdooIMAP4) -> None:
-        self.ensure_one()
+        self.check_singleton()
         connection.login(self.user, self.password)
 
     def _connection_test_error(self, exc: Exception) -> UserError:
-        self.ensure_one()
+        self.check_singleton()
         for exc_types, make_message in CONNECTION_ERROR_MESSAGES:
             if isinstance(exc, exc_types):
                 return UserError(make_message(exc))
@@ -408,7 +408,7 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
         return {"error_since": False, "error_message": False}
 
     def _register_fetch_failure(self, exc: Exception) -> None:
-        self.ensure_one()
+        self.check_singleton()
         now = fields.Datetime.now()
         self.error_message = str(exc) or repr(exc)
         if not self.error_since:
@@ -468,7 +468,7 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
         return result_exception
 
     def _poll_mailbox(self, batch_limit: int, remaining: int) -> _FetchOutcome:
-        self.ensure_one()
+        self.check_singleton()
         label = (self.server_type, self.name)
         _logger.info("Start checking for new emails on %s server %s", *label)
         beyond_this_server = remaining
@@ -540,7 +540,7 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
         )
 
     def _prepare_message_sink(self, message_cr: BaseCursor) -> _MessageSink:
-        self.ensure_one()
+        self.check_singleton()
         return _MessageSink(
             thread=self.env["mixin.mail.thread"]
             .with_env(self.env(cr=message_cr))

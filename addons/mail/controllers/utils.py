@@ -86,7 +86,7 @@ def message_fetch_response(
 def javascript_file_response(path: str) -> http.Response:
     with file_open(path, "rb") as file:
         data = file.read()
-    return request.make_response(
+    return request.prepare_response(
         data,
         headers=[
             ("Content-Type", "application/javascript"),

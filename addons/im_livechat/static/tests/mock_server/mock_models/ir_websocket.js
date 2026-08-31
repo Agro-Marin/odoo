@@ -4,10 +4,10 @@ import { serverState } from "@web/../tests/web_test_helpers";
 export class IrWebSocket extends mailModels.IrWebSocket {
     /**
      * @override
-     * @type {typeof busModels.IrWebSocket["prototype"]["_build_bus_channel_list"]}
+     * @type {typeof busModels.IrWebSocket["prototype"]["_get_bus_channels"]}
      */
-    _build_bus_channel_list(channels) {
-        channels = [...super._build_bus_channel_list(channels)];
+    _get_bus_channels(channels) {
+        channels = [...super._get_bus_channels(channels)];
         const result = channels;
         for (const channel of channels) {
             if (channel === "im_livechat.looking_for_help") {

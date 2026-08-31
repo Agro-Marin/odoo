@@ -26,7 +26,7 @@ class ResUsers(models.Model):
         if not self:
             return None
 
-        self.ensure_one()
+        self.check_singleton()
         if self.sudo().microsoft_calendar_rtoken and not self._is_microsoft_calendar_valid():
             self._refresh_microsoft_calendar_token()
         return self.sudo().microsoft_calendar_token
@@ -35,7 +35,7 @@ class ResUsers(models.Model):
         return self.sudo().microsoft_calendar_token_validity and self.sudo().microsoft_calendar_token_validity >= (fields.Datetime.now() + timedelta(minutes=1))
 
     def _refresh_microsoft_calendar_token(self, service='calendar'):
-        self.ensure_one()
+        self.check_singleton()
         try:
             access_token, ttl = self.env['microsoft.service']._refresh_microsoft_token('calendar', self.sudo().microsoft_calendar_rtoken)
             self.sudo().write({
@@ -74,7 +74,7 @@ class ResUsers(models.Model):
         return status
 
     def _sync_microsoft_calendar(self):
-        self.ensure_one()
+        self.check_singleton()
         self.sudo().microsoft_last_sync_date = datetime.now()
         if self._get_microsoft_sync_status() != "sync_active":
             return False
@@ -122,12 +122,12 @@ class ResUsers(models.Model):
                 self.env.cr.rollback()
 
     def stop_microsoft_synchronization(self):
-        self.ensure_one()
+        self.check_singleton()
         self.sudo().microsoft_synchronization_stopped = True
         self.sudo().microsoft_last_sync_date = None
 
     def restart_microsoft_synchronization(self):
-        self.ensure_one()
+        self.check_singleton()
         self.sudo().microsoft_last_sync_date = datetime.now()
         self.sudo().microsoft_synchronization_stopped = False
         self.env['calendar.recurrence']._restart_microsoft_sync()

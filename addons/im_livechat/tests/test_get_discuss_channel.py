@@ -25,7 +25,7 @@ class TestGetDiscussChannel(TestImLivechatCommon, MailCommon):
 
         operator = self.operators[0]
         with patch('odoo.http.GeoIP.country_code', new_callable=PropertyMock(return_value=belgium.code)):
-            data = self.make_jsonrpc_request(
+            data = self.call_jsonrpc(
                 "/im_livechat/get_session",
                 {
                     "previous_operator_id": operator.partner_id.id,
@@ -93,7 +93,7 @@ class TestGetDiscussChannel(TestImLivechatCommon, MailCommon):
             ),
         )
         self.authenticate(test_user.login, self.password)
-        data = self.make_jsonrpc_request('/im_livechat/get_session', {
+        data = self.call_jsonrpc('/im_livechat/get_session', {
             'previous_operator_id': operator.partner_id.id,
             'channel_id': self.livechat_channel.id,
         })["store_data"]
@@ -213,7 +213,7 @@ class TestGetDiscussChannel(TestImLivechatCommon, MailCommon):
         self.assertEqual(data["res.country"], [{"code": "BE", "id": belgium.id, "name": "Belgium"}])
         operator = self.operators[0]
         self.authenticate(operator.login, self.password)
-        data = self.make_jsonrpc_request('/im_livechat/get_session', {
+        data = self.call_jsonrpc('/im_livechat/get_session', {
             'previous_operator_id': operator.partner_id.id,
             'channel_id': self.livechat_channel.id,
         })["store_data"]
@@ -306,7 +306,7 @@ class TestGetDiscussChannel(TestImLivechatCommon, MailCommon):
     def _open_livechat_discuss_channel(self):
         discuss_channels = []
         for _i in range(5):
-            data = self.make_jsonrpc_request(
+            data = self.call_jsonrpc(
                 "/im_livechat/get_session", {"channel_id": self.livechat_channel.id}
             )
             discuss_channels.append(
@@ -322,7 +322,7 @@ class TestGetDiscussChannel(TestImLivechatCommon, MailCommon):
 
     def test_channel_not_pinned_for_operator_before_first_message(self):
         operator = self.operators[0]
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session",
             {
                 "channel_id": self.livechat_channel.id,
@@ -336,12 +336,12 @@ class TestGetDiscussChannel(TestImLivechatCommon, MailCommon):
         channel.message_post(body="cc", message_type="comment")
         self.assertTrue(member.is_pinned, "channel should be pinned for operator after visitor sent a message")
         self.authenticate(operator.login, self.password)
-        data = self.make_jsonrpc_request("/mail/data", {"fetch_params": ["channels_as_member"]})
+        data = self.call_jsonrpc("/mail/data", {"fetch_params": ["channels_as_member"]})
         channel_ids = [channel["id"] for channel in data["discuss.channel"]]
         self.assertIn(channel.id, channel_ids, "channel should be fetched by operator on new page")
 
     def test_read_channel_unpined_for_operator_after_one_day(self):
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session", {"channel_id": self.livechat_channel.id}
         )
         member_of_operator = self.env["discuss.channel.member"].search(
@@ -358,7 +358,7 @@ class TestGetDiscussChannel(TestImLivechatCommon, MailCommon):
         self.assertTrue(member_of_operator.channel_id.livechat_end_dt)
 
     def test_unread_channel_not_unpined_for_operator_after_autovacuum(self):
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session", {"channel_id": self.livechat_channel.id}
         )
         member_of_operator = self.env["discuss.channel.member"].search(
@@ -411,7 +411,7 @@ class TestGetDiscussChannel(TestImLivechatCommon, MailCommon):
         test_user = new_test_user(self.env, "meow_user")
         guest = self.env["mail.guest"].create({"name": "Guest"})
         self.authenticate(test_user.login, test_user.password)
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session",
             {"channel_id": self.livechat_channel.id},
             cookies={guest._cookie_name: guest._format_auth_cookie()},

@@ -18,7 +18,7 @@ class MixinDelay(models.AbstractModel):
     )
 
     def _get_delay_delta(self):
-        self.ensure_one()
+        self.check_singleton()
         # `get_timedelta` is the framework's one spelling of this arithmetic and
         # takes a SINGULAR granularity, which is the vocabulary
         # `mixin.recurrence.rule` and `ir.cron` already use. These two values are

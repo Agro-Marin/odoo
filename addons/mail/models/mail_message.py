@@ -404,7 +404,7 @@ class MailMessage(models.Model):
         return [("starred_partner_ids", "in", self.env.user.partner_id.ids)]
 
     def _is_thread_model(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return self._is_thread_model_name(self.sudo().model)
 
     @api.model
@@ -414,7 +414,7 @@ class MailMessage(models.Model):
         )
 
     def _get_thread_model(self) -> models.Model:
-        self.ensure_one()
+        self.check_singleton()
         return self.env[
             self.sudo().model if self._is_thread_model() else "mixin.mail.thread"
         ]
@@ -751,7 +751,7 @@ class MailMessage(models.Model):
         return super().export_data(fields_to_export)
 
     def action_view_document(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         if not self._is_thread_message() or self.sudo().model not in self.env:
             raise UserError(self.env._("This message is not attached to a document."))
         return {
@@ -816,7 +816,7 @@ class MailMessage(models.Model):
         )
 
     def toggle_message_starred(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         self.check_access("read")
         starred = not self.starred
         if starred:
@@ -840,7 +840,7 @@ class MailMessage(models.Model):
         guest: MailGuest,
         store: Store | None = None,
     ) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if action not in ("add", "remove"):
             raise ValueError(f"Wrong reaction action ({action})")
         group = self._reaction_group(content)
@@ -897,14 +897,14 @@ class MailMessage(models.Model):
         store.add(self, {"reactions": reaction_group})
 
     def _bus_channel(self) -> models.Model:
-        self.ensure_one()
+        self.check_singleton()
         return self.env.user
 
     def _filter_empty(self) -> Self:
         return self.filtered(lambda message: message._is_empty())
 
     def _is_empty(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return (
             (not self.body or tools.is_html_empty(self.body))
             and (not self.subtype_id or not self.subtype_id.description)

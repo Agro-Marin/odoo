@@ -15,7 +15,7 @@ class BusController(Controller):
         unknown = [name for name in model_names if name not in request.env]
         if unknown:
             raise BadRequest(f"Unknown models: {', '.join(sorted(unknown))}")
-        return request.make_response(
+        return request.prepare_response(
             dumps(
                 request.env["ir.model"]._get_model_definitions(model_names),
             )

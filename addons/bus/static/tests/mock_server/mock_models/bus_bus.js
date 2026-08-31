@@ -38,7 +38,7 @@ export class BusBus extends models.Model {
                 ? (this.env.cookie.get("authenticated_user_sid") ?? this.env.uid)
                 : null;
         const channels = [
-            ...IrWebSocket._build_bus_channel_list(
+            ...IrWebSocket._get_bus_channels(
                 this.channelsByUser[authenticatedUserId] || [],
             ),
         ];
@@ -134,7 +134,7 @@ export class BusBus extends models.Model {
                 ? (this.env.cookie.get("authenticated_user_sid") ?? this.env.uid)
                 : null;
         const channels = [
-            ...IrWebSocket._build_bus_channel_list(
+            ...IrWebSocket._get_bus_channels(
                 this.channelsByUser[authenticatedUserId] || [],
             ),
         ];

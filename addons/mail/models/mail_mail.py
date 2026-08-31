@@ -342,7 +342,7 @@ class MailMail(models.Model):
         self.filtered(lambda mail: mail.state == "exception").mark_outgoing()
 
     def action_view_document(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "res_id": self.res_id,
             "res_model": self.model,
@@ -550,7 +550,7 @@ class MailMail(models.Model):
         self._notify_notification_status_change(failed | was_failing)
 
     def _record_unreached_notifications(self, unreached: MailNotification) -> None:
-        self.ensure_one()
+        self.check_singleton()
         by_address = unreached.filtered(lambda notif: not notif.res_partner_id)
         if by_address:
             by_address.sudo().write(
@@ -648,7 +648,7 @@ class MailMail(models.Model):
         )
 
     def _prepare_outgoing_body(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         if tools.is_html_empty(self.body_html):
             return ""
         return self.env["mixin.mail.render"]._replace_local_links(self.body_html)
@@ -677,7 +677,7 @@ class MailMail(models.Model):
         partner: ResPartner | Literal[False] = False,
         doc_to_followers: dict | None = None,
     ) -> str:
-        self.ensure_one()
+        self.check_singleton()
         block = self._find_unfollow_block(body) if body else None
         if not self._has_unfollow_block(body) or block is None:
             return self._strip_unfollow_block(body)
@@ -717,7 +717,7 @@ class MailMail(models.Model):
     def _get_already_sent_pids(
         self, already_sent_pids: dict[int, set[int]] | None = None
     ) -> set[int]:
-        self.ensure_one()
+        self.check_singleton()
         if already_sent_pids is not None:
             return already_sent_pids.get(self.id) or set()
         return self._get_already_sent_pids_batch(self.ids)[self.id]
@@ -763,7 +763,7 @@ class MailMail(models.Model):
         mail_server: IrMail_Server | Literal[False] = False,
         smtp_session: smtplib.SMTP | None = None,
     ) -> tuple[str, list[tuple]]:
-        self.ensure_one()
+        self.check_singleton()
         attachments = self.sudo().attachment_ids
         if body and attachments:
             link_ids = {
@@ -826,7 +826,7 @@ class MailMail(models.Model):
 
     def _link_instead_of_attach(self, body: str, attachments: IrAttachment) -> str:
         attachments.generate_access_token()
-        return tools.mail.append_content_to_html(
+        return tools.mail.add_html_content(
             body,
             self.env["ir.qweb"]._render(
                 "mail.mail_attachment_links", {"attachments": attachments}
@@ -837,7 +837,7 @@ class MailMail(models.Model):
     def _prepare_recipient_groups(
         self, already_sent_pids: dict | None = None
     ) -> list[dict]:
-        self.ensure_one()
+        self.check_singleton()
         email_list = []
         if self.email_to:
             email_to_normalized = tools.mail.email_normalize_all(self.email_to)
@@ -906,7 +906,7 @@ class MailMail(models.Model):
         smtp_session: smtplib.SMTP | None = None,
         already_sent_pids: dict | None = None,
     ) -> list[dict]:
-        self.ensure_one()
+        self.check_singleton()
         body = self._prepare_outgoing_body()
 
         headers = {}
@@ -1020,7 +1020,7 @@ class MailMail(models.Model):
                 yield mail_server_id, alias_domain_id, smtp_from, batch_ids
 
     def _raw_address_message_count(self) -> int:
-        self.ensure_one()
+        self.check_singleton()
         return int(bool((self.email_to or "").strip() or (self.email_cc or "").strip()))
 
     def _personal_server_cost(self) -> int:
@@ -1128,7 +1128,7 @@ class MailMail(models.Model):
     def _split_off_sendable_copy(
         self, notifs: MailNotification, to_keep: int, raw_cost: int
     ) -> Self:
-        self.ensure_one()
+        self.check_singleton()
         recipient_ids = self.recipient_ids
         moved_partners = recipient_ids[:to_keep]
         new_mail = (
@@ -1397,7 +1397,7 @@ class MailMail(models.Model):
         )
 
     def _send_one(self, batch: _SendBatch, raise_exception: bool = False) -> None:
-        self.ensure_one()
+        self.check_singleton()
         IrMailServer = self.env["ir.mail_server"]
         outcome = _SendOutcome()
         email_list = []
@@ -1467,7 +1467,7 @@ class MailMail(models.Model):
         batch: _SendBatch,
         pending_notification_ids: list[int],
     ) -> _SendingMark:
-        self.ensure_one()
+        self.check_singleton()
         mark = self._mark_sending(pending_notification_ids=pending_notification_ids)
         if mark.failure_type:
             outcome.failure_type = mark.failure_type
@@ -1487,7 +1487,7 @@ class MailMail(models.Model):
         raise exception
 
     def _deliver_all(self, outcome: _SendOutcome, batch: _SendBatch) -> list[dict]:
-        self.ensure_one()
+        self.check_singleton()
         email_list = self._prepare_outgoing_list(
             mail_server=batch.mail_server or self.mail_server_id,
             doc_to_followers=batch.doc_to_followers,
@@ -1510,7 +1510,7 @@ class MailMail(models.Model):
         mark: _SendingMark,
         pending_notification_ids: list[int] | None = None,
     ) -> None:
-        self.ensure_one()
+        self.check_singleton()
         nothing_left_to_deliver = (
             mark.had_recipients
             and not email_list
@@ -1540,7 +1540,7 @@ class MailMail(models.Model):
         mark: _SendingMark,
         pending_notification_ids: list[int] | None = None,
     ) -> None:
-        self.ensure_one()
+        self.check_singleton()
         outcome.failure_type, outcome.failure_reason = self._classify_send_error(
             exception,
             failure_type=outcome.failure_type,
@@ -1572,7 +1572,7 @@ class MailMail(models.Model):
     def _mark_sending(
         self, pending_notification_ids: list[int] | None = None
     ) -> _SendingMark:
-        self.ensure_one()
+        self.check_singleton()
         no_recipients = (
             not (self.email_to or "").strip()
             and not self.recipient_ids
@@ -1630,7 +1630,7 @@ class MailMail(models.Model):
         batch: _SendBatch,
         previous_failure_type: str | None = None,
     ) -> _DeliveryResult:
-        self.ensure_one()
+        self.check_singleton()
         IrMailServer = self.env["ir.mail_server"]
         email_to_normalized = email.get("email_to_normalized") or []
         send_context = {"send_validated_to": email_to_normalized}
@@ -1708,7 +1708,7 @@ class MailMail(models.Model):
         nothing_left_to_deliver: bool = False,
         writable_message_ids: Collection[int] | None = None,
     ) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if not outcome.message_id:
             mail_vals = {}
             if outcome.failure_reason:
@@ -1807,5 +1807,5 @@ class MailMail(models.Model):
         ]
 
     def _get_notification_status(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         return self._NOTIFICATION_STATUS_PER_STATE.get(self.state, "ready")

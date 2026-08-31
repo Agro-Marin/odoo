@@ -617,7 +617,7 @@ class MailingMailing(models.Model):
         for mailing in self:
             if mailing.mailing_type == "mail" and not mailing.medium_id:
                 mailing.medium_id = (
-                    self.env["utm.medium"]._fetch_or_create_utm_medium("email").id
+                    self.env["utm.medium"]._get_or_create_utm_medium("email").id
                 )
 
     @api.depends("mailing_model_id")
@@ -896,7 +896,7 @@ class MailingMailing(models.Model):
         }
 
     def action_duplicate(self):
-        self.ensure_one()
+        self.check_singleton()
         if mass_mailing_copy := self.copy():
             return {
                 "type": "ir.actions.act_window",
@@ -908,7 +908,7 @@ class MailingMailing(models.Model):
         return False
 
     def action_test(self):
-        self.ensure_one()
+        self.check_singleton()
         ctx = dict(
             self.env.context, default_mass_mailing_id=self.id, dialog_size="medium"
         )
@@ -929,7 +929,7 @@ class MailingMailing(models.Model):
         pass
 
     def action_schedule(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.schedule_date and self.schedule_date > fields.Datetime.now():
             return self.action_put_in_queue()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
@@ -1122,7 +1122,7 @@ class MailingMailing(models.Model):
 
     def action_view_mailing_contacts(self):
         """Show the mailing contacts who are in a mailing list selected for this mailing."""
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mass_mailing.action_view_mass_mailing_contacts"
         )
@@ -1174,7 +1174,7 @@ class MailingMailing(models.Model):
     # ------------------------------------------------------
 
     def action_compare_versions(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.campaign_id:
             raise ValueError(_("No mailing campaign has been found"))
         return {
@@ -1235,7 +1235,7 @@ class MailingMailing(models.Model):
         return final_mailing.action_select_as_winner()
 
     def action_select_as_winner(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.ab_testing_enabled:
             raise ValueError(_("A/B test option has not been enabled"))
         final_mailing = self.copy(
@@ -1255,7 +1255,7 @@ class MailingMailing(models.Model):
         return action
 
     def _get_ab_testing_description_values(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "mailing": self,
             "ab_testing_count": self.ab_testing_mailings_count,
@@ -1310,7 +1310,7 @@ class MailingMailing(models.Model):
         # FIXME: The function and docstring say it returns a list but opt_out
         #        is initialized as a dict, and `_mailing_get_opt_out_list`
         #        actually returns a set. So is it a list, a set, or a dict?
-        self.ensure_one()
+        self.check_singleton()
         opt_out = {}
         target = self.env[self.mailing_model_real]
         if hasattr(self.env[self.mailing_model_name], "_mailing_get_opt_out_list"):
@@ -1330,7 +1330,7 @@ class MailingMailing(models.Model):
         return opt_out
 
     def _get_link_tracker_values(self):
-        self.ensure_one()
+        self.check_singleton()
         vals = {"mass_mailing_id": self.id}
 
         if self.campaign_id:
@@ -1343,7 +1343,7 @@ class MailingMailing(models.Model):
 
     def _get_seen_list(self):
         """Returns a set of emails already targeted by current mailing/campaign (no duplicates)"""
-        self.ensure_one()
+        self.check_singleton()
         target = self.env[self.mailing_model_real]
 
         query = """
@@ -1707,7 +1707,7 @@ class MailingMailing(models.Model):
         Each item in the returned list will be displayed as a table, with a title and
         1, 2 or 3 columns.
         """
-        self.ensure_one()
+        self.check_singleton()
         mailing_type = self._get_pretty_mailing_type()
         kpi = {}
         if self.mailing_type == "mail":
@@ -2067,7 +2067,7 @@ class MailingMailing(models.Model):
             raise ImportValidationError(_("Could not retrieve URL: %s", url)) from e
 
     def _parse_mailing_domain(self):
-        self.ensure_one()
+        self.check_singleton()
         try:
             mailing_domain = literal_eval(self.mailing_domain)
         except Exception:
@@ -2083,7 +2083,7 @@ class MailingMailing(models.Model):
           is performed;
         :param str email: recipient email, used to unsubscribe / blacklist;
         """
-        self.ensure_one()
+        self.check_singleton()
         assert isinstance(email, str)
         secret = self.env["ir.config_parameter"].sudo().get_param("database.secret")
         token = (self.env.cr.dbname, self.id, int(document_id), email)

@@ -195,7 +195,7 @@ class MailBot(models.AbstractModel):
         :param values: msg_values of the message_post or other values needed by logic
         :param command: the name of the called command if the logic is not triggered by a message_post
         """
-        channel.ensure_one()
+        channel.check_singleton()
         odoobot = self._get_odoobot()
         if values.get("author_id") == odoobot.id or (
             values.get("message_type") != "comment" and not command

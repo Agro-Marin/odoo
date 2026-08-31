@@ -416,7 +416,7 @@ class MailTemplate(models.Model):
     def _compile_dynamic_fields(
         self, fnames: Collection[str]
     ) -> tuple[str, Exception] | None:
-        self.ensure_one()
+        self.check_singleton()
         for fname in sorted(fnames):
             source = self[fname]
             if not source:
@@ -498,7 +498,7 @@ class MailTemplate(models.Model):
         sample: models.BaseModel | None = None,
     ) -> typing.NoReturn:
 
-        self.ensure_one()
+        self.check_singleton()
         _logger.info(
             "mail.template %s: field %s does not render", self.id, fname, exc_info=error
         )
@@ -616,7 +616,7 @@ class MailTemplate(models.Model):
         return True
 
     def action_view_mail_preview(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         action = self.env.ref("mail.mail_template_preview_action")._get_action_dict()
         action.update(
             {
@@ -679,7 +679,7 @@ class MailTemplate(models.Model):
         render_fields: Collection[str],
         render_results: RenderResults | None = None,
     ) -> RenderResults:
-        self.ensure_one()
+        self.check_singleton()
         res_ids = list(res_ids)
         render_fields = set(render_fields)
         contribution: RenderResults = {}
@@ -741,7 +741,7 @@ class MailTemplate(models.Model):
         find_or_create_partners: bool = False,
         render_results: RenderResults | None = None,
     ) -> RenderResults:
-        self.ensure_one()
+        self.check_singleton()
         res_ids = list(res_ids)
         render_fields = set(render_fields)
         contribution: RenderResults = {}
@@ -870,7 +870,7 @@ class MailTemplate(models.Model):
     def _prepare_scheduled_date_vals(
         self, res_ids: Collection[int], render_results: RenderResults | None = None
     ) -> RenderResults:
-        self.ensure_one()
+        self.check_singleton()
         res_ids = list(res_ids)
         scheduled_dates = self._render_field("scheduled_date", res_ids)
         contribution = {
@@ -891,7 +891,7 @@ class MailTemplate(models.Model):
         render_fields: Collection[str],
         render_results: RenderResults | None = None,
     ) -> RenderResults:
-        self.ensure_one()
+        self.check_singleton()
         render_fields = set(render_fields)
         static = {
             "auto_delete": self.auto_delete,
@@ -921,7 +921,7 @@ class MailTemplate(models.Model):
         find_or_create_partners: bool = False,
         res_ids_lang: dict[int, str] | None = None,
     ) -> RenderResults:
-        self.ensure_one()
+        self.check_singleton()
         self._check_has_model()
         res_ids = list(res_ids)
         render_fields_set = set(render_fields)
@@ -1017,7 +1017,7 @@ class MailTemplate(models.Model):
         email_values: dict | None = None,
         email_layout_xmlid: str | Literal[False] = False,
     ) -> int:
-        self.ensure_one()
+        self.check_singleton()
         return self.send_mail_batch(
             [res_id],
             force_send=force_send,
@@ -1034,7 +1034,7 @@ class MailTemplate(models.Model):
         email_values: dict | None = None,
         email_layout_xmlid: str | Literal[False] = False,
     ) -> MailMail:
-        self.ensure_one()
+        self.check_singleton()
         res_ids = list(dict.fromkeys(res_ids))
         self._send_check_access(res_ids)
         layout_xmlid = email_layout_xmlid or self.email_layout_xmlid
@@ -1056,7 +1056,7 @@ class MailTemplate(models.Model):
         layout_xmlid: str | Literal[False],
         email_values: dict | None,
     ) -> MailMail:
-        self.ensure_one()
+        self.check_singleton()
         res_ids_lang = self._get_res_ids_lang(res_ids)
         values_by_res_id = self._prepare_mail_vals(
             res_ids, SEND_RENDER_FIELDS, res_ids_lang=res_ids_lang
@@ -1093,7 +1093,7 @@ class MailTemplate(models.Model):
         company: models.BaseModel | None,
         email_values: dict | None,
     ) -> None:
-        self.ensure_one()
+        self.check_singleton()
         values["recipient_ids"] = [
             Command.link(pid) for pid in (values.get("partner_ids") or [])
         ]

@@ -140,12 +140,12 @@ class SnailmailLetter(models.Model):
         pdf_bin = self.env['ir.actions.report'].with_context(snailmail_layout=not self.cover, lang='en_US')._render_qweb_pdf(report, self.res_id)[0]
         return filename, pdf_bin
 
-    def _fetch_attachment(self):
+    def _get_or_create_attachment(self):
         """
         This method will check if we have any existent attachement matching the model
         and res_ids and create them if not found.
         """
-        self.ensure_one()
+        self.check_singleton()
         if not self.attachment_id:
             report = self.report_template
             if not report:
@@ -277,7 +277,7 @@ class SnailmailLetter(models.Model):
                 document.update({
                     'company_logo': letter.company_id.logo_web and letter.company_id.logo_web.decode('utf-8') or False,
                 })
-                attachment = letter._fetch_attachment()
+                attachment = letter._get_or_create_attachment()
                 if attachment:
                     document.update({
                         'pdf_bin': route == 'print' and attachment.datas.decode('utf-8'),
@@ -462,7 +462,7 @@ class SnailmailLetter(models.Model):
 
     @api.model
     def _is_valid_address(self, record):
-        record.ensure_one()
+        record.check_singleton()
         required_keys = ['street', 'city', 'zip', 'country_id']
         return all(record[key] for key in required_keys)
 

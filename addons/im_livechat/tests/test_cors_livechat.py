@@ -19,7 +19,7 @@ class TestCorsLivechat(HttpCase):
 
     def test_ignore_user_cookie(self):
         self.authenticate("admin", "admin")
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/cors/get_session",
             {
                 "channel_id": self.livechat_channel.id,
@@ -33,7 +33,7 @@ class TestCorsLivechat(HttpCase):
 
     def test_ignore_guest_cookie(self):
         guest = self.env["mail.guest"].create({"name": "Visitor"})
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/cors/get_session",
             {
                 "channel_id": self.livechat_channel.id,
@@ -46,7 +46,7 @@ class TestCorsLivechat(HttpCase):
         self.assertNotEqual(channel_guest, guest)
 
     def test_access_routes_with_valid_guest_token(self):
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/cors/get_session",
             {
                 "channel_id": self.livechat_channel.id,
@@ -54,7 +54,7 @@ class TestCorsLivechat(HttpCase):
             },
         )
         self.authenticate(None, None)
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             "/im_livechat/cors/channel/messages",
             {
                 "guest_token": data["store_data"]["Store"]["guest_token"],
@@ -63,7 +63,7 @@ class TestCorsLivechat(HttpCase):
         )
 
     def test_access_denied_for_wrong_channel(self):
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/cors/get_session",
             {
                 "channel_id": self.livechat_channel.id,
@@ -73,7 +73,7 @@ class TestCorsLivechat(HttpCase):
         guest = self.env["mail.guest"].create({"name": "Visitor"})
         self.authenticate(None, None)
         with self.assertRaises(JsonRpcException, msg="werkzeug.exceptions.NotFound"):
-            self.make_jsonrpc_request(
+            self.call_jsonrpc(
                 "/im_livechat/cors/channel/messages",
                 {
                     "guest_token": guest.access_token,

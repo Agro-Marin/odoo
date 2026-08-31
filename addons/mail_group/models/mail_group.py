@@ -13,7 +13,7 @@ from odoo.addons.mail.tools.alias_error import AliasError
 from odoo.exceptions import ValidationError, UserError
 from odoo.fields import Domain
 from odoo.tools import hmac
-from odoo.tools.mail import email_normalize, generate_tracking_message_id, append_content_to_html
+from odoo.tools.mail import email_normalize, generate_tracking_message_id, add_html_content
 
 _logger = logging.getLogger(__name__)
 
@@ -212,16 +212,16 @@ class MailGroup(models.Model):
         return values
 
     def action_close(self):
-        self.ensure_one()
+        self.check_singleton()
         self.is_closed = True
 
     def action_open(self):
-        self.ensure_one()
+        self.check_singleton()
         self.is_closed = False
 
     def _alias_get_error(self, message, message_dict, alias):
         """Return the error barring ``message``'s sender from the list, or None."""
-        self.ensure_one()
+        self.check_singleton()
 
         email = email_normalize(message_dict.get('email_from', ''))
         email_has_access = self.search_count([('id', '=', self.id), ('access_group_id.user_ids.email_normalized', '=', email)])
@@ -249,7 +249,7 @@ class MailGroup(models.Model):
         The group is not a ``mixin.mail.thread``, so this drives the whole flow itself:
         the message, the ``mail.group.message`` wrapping it, and the moderation.
         """
-        self.ensure_one()
+        self.check_singleton()
         Mailthread = self.env['mixin.mail.thread']
         values = dict((key, val) for key, val in kwargs.items() if key in self.env['mail.message']._fields)
         author_id, email_from = Mailthread._message_compute_author(author_id, email_from)
@@ -322,7 +322,7 @@ class MailGroup(models.Model):
 
     def action_send_guidelines(self, members=None):
         """ Send guidelines to given members. """
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.env.is_admin() and not self.is_moderator:
             raise UserError(_('Only an administrator or a moderator can send guidelines to group members.'))
@@ -361,7 +361,7 @@ class MailGroup(models.Model):
 
     def _notify_members(self, message):
         """Send the given message to all members of the mail group (except the author)."""
-        self.ensure_one()
+        self.check_singleton()
 
         if message.mail_group_id != self:
             raise UserError(_('The group of the message do not match.'))
@@ -415,7 +415,7 @@ class MailGroup(models.Model):
                     'unsub_url':  unsubscribe_url,
                 }
                 footer = self.env['ir.qweb']._render('mail_group.mail_group_footer', template_values, minimal_qcontext=True)
-                member_body = append_content_to_html(body, footer, plaintext=False)
+                member_body = add_html_content(body, footer, plaintext=False)
 
                 mail_values.append({
                     'auto_delete': True,
@@ -515,7 +515,7 @@ class MailGroup(models.Model):
         _logger.info('"%s" (#%s) leaved mail.group "%s" (#%s)', partner.name, partner.id, self.name, self.id)
 
     def _join_group(self, email, partner_id=None):
-        self.ensure_one()
+        self.check_singleton()
 
         if partner_id:
             partner = self.env['res.partner'].browse(partner_id).exists()
@@ -548,7 +548,7 @@ class MailGroup(models.Model):
 
         Otherwise, remove the most appropriate.
         """
-        self.ensure_one()
+        self.check_singleton()
         if all_members and not partner_id:
             self.env['mail.group.member'].search([
                 ('mail_group_id', '=', self.id),
@@ -561,7 +561,7 @@ class MailGroup(models.Model):
 
     def _send_subscribe_confirmation_email(self, email):
         """Send an email to the given address to subscribe / unsubscribe to the mailing list."""
-        self.ensure_one()
+        self.check_singleton()
         confirm_action_url = self._generate_action_url(email, 'subscribe')
 
         template = self.env.ref('mail_group.mail_template_list_subscribe')
@@ -580,7 +580,7 @@ class MailGroup(models.Model):
         _logger.info('Subscription email sent to %s.', email)
 
     def _send_unsubscribe_confirmation_email(self, email):
-        self.ensure_one()
+        self.check_singleton()
         confirm_action_url = self._generate_action_url(email, 'unsubscribe')
 
         template = self.env.ref('mail_group.mail_template_list_unsubscribe')
@@ -601,7 +601,7 @@ class MailGroup(models.Model):
     def _generate_action_url(self, email, action):
         if action not in ['subscribe', 'unsubscribe']:
             raise ValueError(_('Invalid action for URL generation (%s)', action))
-        self.ensure_one()
+        self.check_singleton()
 
         confirm_action_url = '/group/%s-confirm?%s' % (
             action,
@@ -618,7 +618,7 @@ class MailGroup(models.Model):
     def _generate_action_token(self, email, action):
         if action not in ['subscribe', 'unsubscribe']:
             raise ValueError(_('Invalid action for URL generation (%s)', action))
-        self.ensure_one()
+        self.check_singleton()
 
         email_normalized = email_normalize(email)
         if not email_normalized:
@@ -635,7 +635,7 @@ class MailGroup(models.Model):
         return tools.hmac(self.env(su=True), 'mail_group-access-token-portal-email', (self.id, email))
 
     def _generate_group_access_token(self):
-        self.ensure_one()
+        self.check_singleton()
         return hmac(self.env(su=True), 'mail_group-access-token-portal', self.id)
 
     def _get_email_unsubscribe_url(self, email_to):
@@ -649,7 +649,7 @@ class MailGroup(models.Model):
         )
 
     def _find_member(self, email, partner_id=None):
-        self.ensure_one()
+        self.check_singleton()
 
         result = self._get_members(email, partner_id)
         return result.get(self.id)

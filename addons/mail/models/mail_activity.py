@@ -414,7 +414,7 @@ class MailActivity(models.Model):
         return todo
 
     def _todo_key(self) -> tuple:
-        self.ensure_one()
+        self.check_singleton()
         return (
             (self.res_model, self.res_id)
             if self.res_model
@@ -960,7 +960,7 @@ class MailActivity(models.Model):
         feedback: str | Literal[False] = False,
         attachment_ids: list[int] | None = None,
     ) -> dict | Literal[False]:
-        self.ensure_one()
+        self.check_singleton()
         ctx = dict(
             clean_context(self.env.context),
             default_previous_activity_type_id=self.activity_type_id.id,
@@ -1130,7 +1130,7 @@ class MailActivity(models.Model):
 
     @api.readonly
     def action_view_document(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         if not self.res_model:
             view_id = self.env.ref("mail.mail_activity_view_form_popup").id
             return {
@@ -1406,7 +1406,7 @@ class MailActivity(models.Model):
             yield model, activities, activities.mapped("res_id")
 
     def _prepare_next_activity_values(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         vals = self.default_get(list(self._fields))
 
         vals.update(

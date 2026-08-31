@@ -181,7 +181,7 @@ class MixinMailAliasMixinOptional(models.AbstractModel):
     def _get_alias_defaults(self) -> dict:
         if not self:
             return {}
-        self.ensure_one()
+        self.check_singleton()
         return self.alias_id._get_alias_defaults() if self.alias_id else {}
 
     def _alias_get_creation_values(self) -> dict:

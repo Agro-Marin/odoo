@@ -241,7 +241,7 @@ class MailActivityType(models.Model):
         return super().unlink()
 
     def _get_date_deadline(self, user: ResUsers | None = None) -> date:
-        self.ensure_one()
+        self.check_singleton()
         if self.delay_from == "previous_activity" and self.env.context.get(
             "activity_previous_deadline"
         ):

@@ -47,7 +47,7 @@ class MailMessage(models.Model):
             )
 
     def _bus_channel(self) -> models.Model:
-        self.ensure_one()
+        self.check_singleton()
         if self.channel_id:
             return self.channel_id
         guest = self.env["mail.guest"]._get_guest_from_context()

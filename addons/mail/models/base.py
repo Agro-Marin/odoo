@@ -261,7 +261,7 @@ class Base(models.AbstractModel):
         }
 
     def _mail_get_customer(self, introspect_fields: bool = False) -> ResPartner:
-        self.ensure_one()
+        self.check_singleton()
         customers = self._mail_get_partners(introspect_fields=introspect_fields)[
             self.id
         ]
@@ -363,7 +363,7 @@ class Base(models.AbstractModel):
     def _mail_track(
         self, tracked_fields: dict[str, dict], initial_values: dict[str, Any]
     ) -> tuple[set[str], list[list]]:
-        self.ensure_one()
+        self.check_singleton()
         updated = set()
         tracking_value_ids = []
 
@@ -490,7 +490,7 @@ class Base(models.AbstractModel):
     def _mail_first_field_value(
         self, fnames: Iterable[str], field_types: Collection[str]
     ) -> Any:
-        self.ensure_one()
+        self.check_singleton()
         return next(
             (
                 self[fname]
@@ -794,7 +794,7 @@ class Base(models.AbstractModel):
         no_create: bool = False,
     ) -> ResPartner:
         if self:
-            self.ensure_one()
+            self.check_singleton()
         return self._partner_find_from_emails(
             {self: emails},
             avoid_alias=avoid_alias,
@@ -1050,7 +1050,7 @@ class Base(models.AbstractModel):
         primary_email: str | Literal[False] = False,
         additional_partners: ResPartner | None = None,
     ) -> list[SuggestedRecipient]:
-        self.ensure_one()
+        self.check_singleton()
         return self._message_get_suggested_recipients_batch(
             reply_discussion=reply_discussion,
             reply_message=reply_message,
@@ -1241,7 +1241,7 @@ class Base(models.AbstractModel):
         headers = dict(headers or {})
         if not self:
             return headers
-        self.ensure_one()
+        self.check_singleton()
         headers.setdefault("X-Odoo-Objects", f"{self._name}-{self.id}")
         if "Return-Path" not in headers:
             company = self._mail_get_companies(default=self.env.company)[self.id]
@@ -1250,7 +1250,7 @@ class Base(models.AbstractModel):
         return headers
 
     def _get_html_link(self, title: str | None = None) -> Markup:
-        self.ensure_one()
+        self.check_singleton()
         return Markup("<a href=# data-oe-model='%s' data-oe-id='%s'>%s</a>") % (
             self._name,
             self.id,
@@ -1263,7 +1263,7 @@ class Base(models.AbstractModel):
 
     def _mail_get_field_path_value(self, field_path: str) -> str:
         if self:
-            self.ensure_one()
+            self.check_singleton()
         if not field_path:
             return ""
 

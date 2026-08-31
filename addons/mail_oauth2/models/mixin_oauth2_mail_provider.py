@@ -77,7 +77,7 @@ class MixinOauth2MailProvider(models.AbstractModel):
         An action rather than a bare URL so the form is saved first: the record
         must exist in DB for its id to travel in the callback state.
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.env.is_admin():
             raise AccessError(_('Only the administrator can link a mail server to %s.', provider.label))
@@ -213,7 +213,7 @@ class MixinOauth2MailProvider(models.AbstractModel):
             an access token alone, Microsoft rotates the refresh token and adds
             an id token -- so persisting it stays with them.
         """
-        self.ensure_one()
+        self.check_singleton()
         now_timestamp = int(time.time())
         expiration = self[provider.field('access_token_expiration')]
 
@@ -236,7 +236,7 @@ class MixinOauth2MailProvider(models.AbstractModel):
         This prevents a malicious person from making an admin user disconnect
         the mail servers.
         """
-        self.ensure_one()
+        self.check_singleton()
         _logger.info('%s: generate CSRF token for %s #%i', provider.label, self._name, self.id)
         return hmac(
             env=self.env(su=True),

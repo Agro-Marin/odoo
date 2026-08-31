@@ -2,7 +2,7 @@ import logging
 from email.message import EmailMessage
 from typing import NamedTuple
 
-from odoo.tools.mail import append_content_to_html, html_sanitize
+from odoo.tools.mail import add_html_content, html_sanitize
 
 # Relative, because `html_body` is the module next to this one. Spelling it
 # `odoo.addons.mail.tools.html_body` asked the *addons* machinery to resolve a sibling,
@@ -177,7 +177,7 @@ def _leaf(part: EmailMessage, stop_at_first_body: bool = False) -> _Fragment:
         return _Fragment("", attachments, False)
     if part.get_content_type() == "text/html":
         return _Fragment(content, [], True)
-    return _Fragment(append_content_to_html("", content, preserve=True), [], False)
+    return _Fragment(add_html_content("", content, preserve=True), [], False)
 
 
 def _alternative(part: EmailMessage, stop_at_first_body: bool) -> _Fragment:
@@ -205,7 +205,7 @@ def _sequence(parts: list[EmailMessage], stop_at_first_body: bool) -> _Fragment:
             break
         fragment = _assemble(child, stop_at_first_body)
         if fragment.body:
-            body = append_content_to_html(body, fragment.body, plaintext=False)
+            body = add_html_content(body, fragment.body, plaintext=False)
         attachments.extend(fragment.attachments)
         html = html or fragment.html
     return _Fragment(body, attachments, html)

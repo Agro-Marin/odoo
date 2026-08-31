@@ -14,7 +14,7 @@ class TestUserLivechatUsername(TestGetOperatorCommon):
                 "user_ids": [bob.id],
             }
         )
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session", {"channel_id": livechat_channel.id, "persisted": True}
         )
         john.partner_id.user_livechat_username = "ELOPERADOR"
@@ -31,13 +31,13 @@ class TestUserLivechatUsername(TestGetOperatorCommon):
         livechat_channel = self.env["im_livechat.channel"].create(
             {"name": "Livechat Channel", "user_ids": [john.id]}
         )
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session", {"channel_id": livechat_channel.id}
         )
         channel = self.env["discuss.channel"].browse(data["channel_id"])
         message = channel.message_post(body="Hello, How can I help you?")
         session = self.authenticate(john.login, john.login)
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/mail/message/reaction",
             {"action": "add", "content": "👍", "message_id": message.id},
             cookies={"session_id": session.sid},

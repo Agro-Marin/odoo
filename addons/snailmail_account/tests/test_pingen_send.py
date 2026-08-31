@@ -55,7 +55,7 @@ class TestPingenSend(HttpCase):
     def render_and_send(self, report_name):
         self.sample_invoice.company_id.external_report_layout_id = self.env.ref('web.' + report_name)
         self.letter.attachment_id = False
-        attachment_id = self.letter.with_context(force_report_rendering=True)._fetch_attachment()
+        attachment_id = self.letter.with_context(force_report_rendering=True)._get_or_create_attachment()
 
         files = {
             'file': ('pingen_test_%s.pdf' % report_name, base64.b64decode(attachment_id.datas), 'application/pdf'),

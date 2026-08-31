@@ -309,7 +309,7 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
         self.env["mail.presence"]._update_presence(self.users[0])
         self.authenticate("test1", self.password)
         self.channel_livechat_1 = Channel.browse(
-            self.make_jsonrpc_request(
+            self.call_jsonrpc(
                 "/im_livechat/get_session",
                 {
                     "channel_id": self.im_livechat_channel.id,
@@ -333,7 +333,7 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
             new_callable=PropertyMock(return_value=self.env.ref("base.be").code),
         ):
             self.channel_livechat_2 = Channel.browse(
-                self.make_jsonrpc_request(
+                self.call_jsonrpc(
                     "/im_livechat/get_session",
                     {
                         "channel_id": self.im_livechat_channel.id,
@@ -342,7 +342,7 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
                 )["channel_id"]
             )
         self.guest = self.channel_livechat_2.channel_member_ids.guest_id.sudo()
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             "/mail/message/post",
             {
                 "post_data": {
@@ -404,7 +404,7 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
 
     def _add_reactions(self, message, reactions):
         for reaction in reactions:
-            self.make_jsonrpc_request(
+            self.call_jsonrpc(
                 "/mail/message/reaction",
                 {
                     "action": "add",
@@ -447,7 +447,7 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
     def test_20_init_messaging(self):
         """Test performance of `init_messaging`."""
         self._run_test(
-            fn=lambda: self.make_jsonrpc_request(
+            fn=lambda: self.call_jsonrpc(
                 "/mail/data",
                 {
                     "fetch_params": [
@@ -466,7 +466,7 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
     def test_30_discuss_channels(self):
         """Test performance of `/mail/data` with `channels_as_member`."""
         self._run_test(
-            fn=lambda: self.make_jsonrpc_request(
+            fn=lambda: self.call_jsonrpc(
                 "/mail/data", {"fetch_params": ["channels_as_member"]}
             ),
             count=self._query_count_discuss_channels,

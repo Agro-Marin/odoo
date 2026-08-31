@@ -139,7 +139,7 @@ class MailingTrace(models.Model):
         return super().create(vals_list)
 
     def action_view_contact(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "view_mode": "form",

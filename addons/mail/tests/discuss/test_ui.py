@@ -40,9 +40,7 @@ class TestUi(HttpCaseWithUserDemo):
             )
         )
         self.authenticate("bob", "bob")
-        self.make_jsonrpc_request(
-            "/mail/rtc/channel/join_call", {"channel_id": group_chat.id}
-        )
+        self.call_jsonrpc("/mail/rtc/channel/join_call", {"channel_id": group_chat.id})
         self.start_tour(
             f"/odoo/discuss?active_id=discuss.channel_{group_chat.id}&fullscreen=1",
             "discuss.meeting_view_tour",

@@ -111,7 +111,7 @@ class MixinMailComposer(models.AbstractModel):
         return template_field
 
     def _is_value_from_template(self, field: str) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         if not self.template_id:
             return False
         if field == "body":
@@ -121,7 +121,7 @@ class MixinMailComposer(models.AbstractModel):
         return value == template_value or not (value or template_value)
 
     def _must_render_template_value(self, field: str) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return (
             field == "body"
             and not self.is_mail_template_editor
@@ -129,7 +129,7 @@ class MixinMailComposer(models.AbstractModel):
         )
 
     def _render_lang(self, res_ids: list[int], engine: str = "inline_template") -> dict:
-        self.ensure_one()
+        self.check_singleton()
         record = self
         if self._is_value_from_template("lang") and not self.is_mail_template_editor:
             record = self.with_context(
@@ -148,7 +148,7 @@ class MixinMailComposer(models.AbstractModel):
         add_context: dict | None = None,
         options: dict | None = None,
     ) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         if not self.template_id:
             return super()._render_field(
                 field,

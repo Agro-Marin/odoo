@@ -26,14 +26,14 @@ class IrActionsServer(models.Model):
         return super()._get_states_needing_a_live_record() | {'sms'}
 
     def _is_batchable(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.state == 'sms' or super()._is_batchable()
 
     def _name_depends(self):
         return [*super()._name_depends(), "sms_template_id"]
 
     def _prepare_automated_name(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.state == 'sms' and self.sms_template_id:
             return _('Send %(template_name)s', template_name=self.sms_template_id.name)
         return super()._prepare_automated_name()
@@ -88,7 +88,7 @@ class IrActionsServer(models.Model):
         ]
 
     def _get_warning_messages(self):
-        self.ensure_one()
+        self.check_singleton()
         warnings = super()._get_warning_messages()
 
         if self.state == 'sms':

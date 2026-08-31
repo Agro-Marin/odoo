@@ -23,7 +23,7 @@ class MixinBusListener(models.AbstractModel):
                 )
             if not main_channel:
                 continue
-            main_channel.ensure_one()
+            main_channel.check_singleton()
             channel = main_channel if subchannel is None else (main_channel, subchannel)
             bus._sendone(channel, notification_type, message)
 

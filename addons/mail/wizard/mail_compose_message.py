@@ -751,7 +751,7 @@ class MailComposeMessage(models.TransientModel):
         return {"type": "ir.actions.act_window_close"}
 
     def _prepare_schedule_message_post_values(self, post_values: dict) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "attachment_ids": post_values.pop("attachment_ids"),
             "author_id": post_values.pop("author_id"),
@@ -834,7 +834,7 @@ class MailComposeMessage(models.TransientModel):
         return result_mails_su, result_messages
 
     def _action_send_mail_comment(self, res_ids: list[int]) -> MailMessage:
-        self.ensure_one()
+        self.check_singleton()
         post_values_all = self._manage_mail_values(self._prepare_mail_values(res_ids))
         ActiveModel = (
             self.env[self.model]
@@ -942,7 +942,7 @@ class MailComposeMessage(models.TransientModel):
         return create_vals_all
 
     def open_template_creation_wizard(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "view_mode": "form",
@@ -957,7 +957,7 @@ class MailComposeMessage(models.TransientModel):
         }
 
     def create_mail_template(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         if not self.model or self.model not in self.env:
             raise UserError(
                 _("Template creation from composer requires a valid model.")
@@ -997,7 +997,7 @@ class MailComposeMessage(models.TransientModel):
         )
 
     def cancel_save_template(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         return _reopen(
             self,
             self.id,
@@ -1013,7 +1013,7 @@ class MailComposeMessage(models.TransientModel):
         )
 
     def _prepare_mail_values(self, res_ids: list[int]) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         email_mode = self.composition_mode == "mass_mail"
         rendering_mode = email_mode or self.composition_batch
 
@@ -1042,7 +1042,7 @@ class MailComposeMessage(models.TransientModel):
         return mail_values_all
 
     def _prepare_mail_values_static(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         email_mode = self.composition_mode == "mass_mail"
 
         if email_mode:
@@ -1087,7 +1087,7 @@ class MailComposeMessage(models.TransientModel):
         return values
 
     def _prepare_mail_values_dynamic(self, res_ids: list[int]) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         RecordsModel = self.env[self.model].with_prefetch(res_ids)
         email_mode = self.composition_mode == "mass_mail"
         records = RecordsModel.browse(res_ids)
@@ -1274,7 +1274,7 @@ class MailComposeMessage(models.TransientModel):
             )
 
     def _prepare_mail_values_rendered(self, res_ids: list[int]) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         email_mode = self.composition_mode == "mass_mail"
 
         if (
@@ -1380,7 +1380,7 @@ class MailComposeMessage(models.TransientModel):
         allow_suggested: bool = False,
         find_or_create_partners: bool = True,
     ) -> dict:
-        self.ensure_one()
+        self.check_singleton()
 
         template_fields = {
             COMPOSER_FIELD_TO_TEMPLATE_FIELD.get(fname, fname)
@@ -1483,7 +1483,7 @@ class MailComposeMessage(models.TransientModel):
         return recipients_info
 
     def _evaluate_res_domain(self) -> Domain:
-        self.ensure_one()
+        self.check_singleton()
         if isinstance(self.res_domain, (str, bool)) and not self.res_domain:
             return Domain.FALSE
         try:
@@ -1505,7 +1505,7 @@ class MailComposeMessage(models.TransientModel):
         return domain
 
     def _evaluate_res_ids(self) -> list[int] | str | bool | None:
-        self.ensure_one()
+        self.check_singleton()
         return (
             parse_res_ids(
                 self.env.context.get("composer_force_res_ids")
@@ -1519,7 +1519,7 @@ class MailComposeMessage(models.TransientModel):
     def _set_value_from_template(
         self, template_fname: str, composer_fname: str | Literal[False] = False
     ) -> Any:
-        self.ensure_one()
+        self.check_singleton()
         composer_fname = composer_fname or template_fname
 
         template_value = self.template_id[template_fname] if self.template_id else False

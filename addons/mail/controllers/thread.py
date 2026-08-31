@@ -9,7 +9,7 @@ from odoo import http, models
 from odoo.exceptions import UserError
 from odoo.http import request
 from odoo.tools.mail import email_normalize
-from odoo.tools.misc import verify_limited_field_access_token
+from odoo.tools.misc import is_valid_limited_field_access_token
 
 from odoo.addons.mail.controllers.utils import (
     message_fetch_response,
@@ -341,7 +341,7 @@ class ThreadController(http.Controller):
             lambda p: (
                 p.id in readable_ids
                 or (
-                    verify_limited_field_access_token(
+                    is_valid_limited_field_access_token(
                         p,
                         "id",
                         mention_tokens.get(str(p.id), ""),

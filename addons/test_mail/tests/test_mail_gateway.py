@@ -3156,7 +3156,7 @@ class TestMailgateway(MailGatewayCommon):
             )
             self.env["mixin.mail.thread"].message_process("mail.test.gateway", mail)
 
-        capture.records.ensure_one()
+        capture.records.check_singleton()
         self.assertEqual(capture.records.name, subject)
         self.assertEqual(
             capture.records.message_ids.attachment_ids.raw.decode(charset), content
@@ -3174,7 +3174,7 @@ class TestMailgateway(MailGatewayCommon):
             self.env["mixin.mail.thread"].message_process(
                 "mail.test.gateway", THAI_EMAIL_WINDOWS_874
             )
-        capture.records.ensure_one()
+        capture.records.check_singleton()
         self.assertEqual(capture.records.name, "เรื่อง")
         self.assertEqual(str(capture.records.message_ids.body), "<pre>ร่างกาย</pre>\n")
 

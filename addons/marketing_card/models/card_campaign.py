@@ -206,28 +206,28 @@ class CardCampaign(models.Model):
         return write_res
 
     def action_view_cards(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.env["ir.actions.actions"]._get_action_dict_by_xml_id("marketing_card.cards_card_action") | {
             'context': {},
             'domain': [('campaign_id', '=', self.id)],
         }
 
     def action_view_cards_clicked(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.env["ir.actions.actions"]._get_action_dict_by_xml_id("marketing_card.cards_card_action") | {
             'context': {'search_default_filter_visited': True},
             'domain': [('campaign_id', '=', self.id)],
         }
 
     def action_view_cards_shared(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.env["ir.actions.actions"]._get_action_dict_by_xml_id("marketing_card.cards_card_action") | {
             'context': {'search_default_filter_shared': True},
             'domain': [('campaign_id', '=', self.id)],
         }
 
     def action_view_mailings(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             'name': _('%(card_campaign_name)s Mailings', card_campaign_name=self.name),
             'type': 'ir.actions.act_window',
@@ -238,12 +238,12 @@ class CardCampaign(models.Model):
         }
 
     def action_preview(self):
-        self.ensure_one()
-        card = self._fetch_or_create_preview_card()
+        self.check_singleton()
+        card = self._get_or_create_preview_card()
         return {'type': 'ir.actions.act_url', 'url': card._get_path('preview'), 'target': 'new'}
 
     def action_share(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             'type': 'ir.actions.act_window',
             'name': _('Send Cards'),
@@ -259,13 +259,13 @@ class CardCampaign(models.Model):
             'target': 'current',
         }
 
-    def _fetch_or_create_preview_card(self):
+    def _get_or_create_preview_card(self):
         """Fetch the card corresponding to the preview record, or create one if none exists.
 
         The image also gets the preview render if it has none. It is also archived to ensure
         it is rerendered later if sent.
         """
-        self.ensure_one()
+        self.check_singleton()
         card = self.env['card.card'].with_context(active_test=False).search([
             ('campaign_id', '=', self.id),
             ('res_id', '=', self.preview_record_ref.id),
@@ -287,7 +287,7 @@ class CardCampaign(models.Model):
 
     def _action_share_get_default_body(self):
         # try to pick a relevant card if users try to visit during preview/test mailings
-        preview_card = self._fetch_or_create_preview_card() if self else self.env['card.card']
+        preview_card = self._get_or_create_preview_card() if self else self.env['card.card']
         return f"""
 <div class="o_layout oe_unremovable oe_unmovable o_empty_theme" data-name="Mailing">
 <style id="design-element"></style>
@@ -351,7 +351,7 @@ class CardCampaign(models.Model):
 
     def _update_cards(self, domain, auto_commit=False):
         """Create missing cards and update cards if necessary based for the domain."""
-        self.ensure_one()
+        self.check_singleton()
         TargetModel = self.env[self.res_model]
         res_ids = TargetModel.search(domain).ids
         cards = self.env['card.card'].with_context(active_test=False).search_fetch([
@@ -404,7 +404,7 @@ class CardCampaign(models.Model):
 
     def _get_card_element_values(self, record):
         """Helper to get the right value for dynamic fields."""
-        self.ensure_one()
+        self.check_singleton()
         result = {
             'image1': images[0] if (images := self.content_image1_path and self.content_image1_path in record and record.mapped(self.content_image1_path)) else False,
             'image2': images[0] if (images := self.content_image2_path and self.content_image2_path in record and record.mapped(self.content_image2_path)) else False,

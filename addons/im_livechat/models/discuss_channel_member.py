@@ -136,7 +136,7 @@ class DiscussChannelMember(models.Model):
         ]
 
     def _get_store_partner_fields(self, field_specs):
-        self.ensure_one()
+        self.check_singleton()
         if self.channel_id.channel_type == 'livechat':
             new_fields = [
                 "active",
@@ -152,7 +152,7 @@ class DiscussChannelMember(models.Model):
         return super()._get_store_partner_fields(field_specs)
 
     def _get_store_guest_fields(self, field_specs):
-        self.ensure_one()
+        self.check_singleton()
         if self.channel_id.channel_type == 'livechat':
             return [
                 "avatar_128",

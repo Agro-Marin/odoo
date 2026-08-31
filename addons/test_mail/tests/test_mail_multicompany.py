@@ -342,7 +342,7 @@ class TestMultiCompanyControllers(TestMailMCCommon, HttpCase):
             customer_c3.with_user(self.user_employee_c2).check_access("read")
 
         self.authenticate(self.user_employee_c2.login, self.user_employee_c2.login)
-        result = self.make_jsonrpc_request(
+        result = self.call_jsonrpc(
             "/mail/data",
             {
                 "fetch_params": [
@@ -393,7 +393,7 @@ class TestMultiCompanyControllers(TestMailMCCommon, HttpCase):
                 # crash if calling using portal users -> dedicated portal routes currently
                 if test_user in self.user_portal + self.user_portal_c2:
                     with self.assertRaises(JsonRpcException):
-                        result = self.make_jsonrpc_request(
+                        result = self.call_jsonrpc(
                             "/mail/data",
                             {
                                 "fetch_params": [
@@ -409,7 +409,7 @@ class TestMultiCompanyControllers(TestMailMCCommon, HttpCase):
                             },
                         )
                 else:
-                    result = self.make_jsonrpc_request(
+                    result = self.call_jsonrpc(
                         "/mail/data",
                         {
                             "fetch_params": [

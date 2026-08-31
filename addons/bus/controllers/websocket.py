@@ -21,7 +21,7 @@ class WebsocketController(Controller):
         healthy = dispatch.is_healthy
         data = json_dumps({"status": "pass" if healthy else "fail"})
         headers = [("Content-Type", "application/json"), ("Cache-Control", "no-store")]
-        return request.make_response(data, headers, status=200 if healthy else 503)
+        return request.prepare_response(data, headers, status=200 if healthy else 503)
 
     @route("/websocket/peek_notifications", type="jsonrpc", auth="public", cors="*")
     def peek_notifications(self, channels, last, is_first_poll=False):
@@ -56,7 +56,7 @@ class WebsocketController(Controller):
         bundle = request.env["ir.qweb"]._get_websocket_worker_bundle()
         if bundle:
             url, code = bundle
-            response = request.make_response(
+            response = request.prepare_response(
                 code,
                 [
                     ("Content-Type", "text/javascript; charset=utf-8"),

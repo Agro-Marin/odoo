@@ -10,9 +10,9 @@ class TestWebsocketController(HttpCaseWithUserDemo):
         self.env["mail.presence"]._update_presence(self.user_demo)
         self.env.cr.precommit.run()
         self.env["bus.bus"].search([]).unlink()
-        self.make_jsonrpc_request("/websocket/on_closed", {})
+        self.call_jsonrpc("/websocket/on_closed", {})
         self.env.cr.precommit.run()
-        message = self.make_jsonrpc_request(
+        message = self.call_jsonrpc(
             "/websocket/peek_notifications",
             {
                 "channels": [f"odoo-presence-res.partner_{self.partner_demo.id}"],
@@ -30,7 +30,7 @@ class TestWebsocketController(HttpCaseWithUserDemo):
         self.env["mail.presence"]._update_presence(self.user_demo)
         self.env.cr.precommit.run()
         last_id = self.env["bus.bus"]._bus_last_id()
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             "/websocket/peek_notifications",
             {
                 "channels": [f"odoo-presence-res.partner_{self.partner_demo.id}"],
@@ -39,7 +39,7 @@ class TestWebsocketController(HttpCaseWithUserDemo):
             },
         )
         self.env.cr.precommit.run()
-        notification = self.make_jsonrpc_request(
+        notification = self.call_jsonrpc(
             "/websocket/peek_notifications",
             {
                 "channels": [f"odoo-presence-res.partner_{self.partner_demo.id}"],
@@ -69,7 +69,7 @@ class TestWebsocketController(HttpCaseWithUserDemo):
         channel.add_members(guest_ids=guest.ids)
         self.authenticate(None, None)
         self.opener.cookies[guest._cookie_name] = guest._format_auth_cookie()
-        result = self.make_jsonrpc_request(
+        result = self.call_jsonrpc(
             "/websocket/peek_notifications",
             {"channels": [], "last": 0, "is_first_poll": True},
         )
@@ -85,7 +85,7 @@ class TestWebsocketController(HttpCaseWithUserDemo):
         original_session_obj = root.session_store.get(original_session)
         original_session_obj["create_time"] -= SESSION_ROTATION_INTERVAL
         root.session_store.save(original_session_obj)
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             "/websocket/peek_notifications",
             {
                 "channels": [],
@@ -93,9 +93,7 @@ class TestWebsocketController(HttpCaseWithUserDemo):
                 "is_first_poll": True,
             },
         )
-        self.make_jsonrpc_request(
-            "/websocket/update_bus_presence", {"inactivity_period": 0}
-        )
+        self.call_jsonrpc("/websocket/update_bus_presence", {"inactivity_period": 0})
         self.assertEqual(self.opener.cookies["session_id"], original_session)
         self.url_open("/odoo")
         self.assertNotEqual(self.opener.cookies["session_id"], original_session)

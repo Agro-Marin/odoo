@@ -362,7 +362,7 @@ class CalendarAttendee(models.Model):
         if he is part of the attendees. But for reminders, mail_notify_author could be forced
         (Override in appointment to ignore that rule and notify all attendees if it's an appointment)
         """
-        self.ensure_one()
+        self.check_singleton()
         partner_not_sender = self.partner_id != self.env.user.partner_id
         return partner_not_sender or notify_author
 
@@ -387,7 +387,7 @@ class CalendarAttendee(models.Model):
     def _log_answer(self, body_format):
         """Log each attendee's answer on its own event, in as few rounds as possible.
 
-        `message_post` is `ensure_one`, so a loop over `self` paid a full post
+        `message_post` is `check_singleton`, so a loop over `self` paid a full post
         per attendee: answering a twenty-occurrence series posted twenty
         messages one at a time. Measured at **5.39 queries per attendee**,
         attributed by control -- `do_tentative` performs the same `write` with

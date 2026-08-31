@@ -393,7 +393,7 @@ class CalendarEvent(models.Model):
 
     def action_mass_archive(self, recurrence_update_setting):
         """Delete recurrence in Odoo if in 'all_events' or in 'future_events' edge case, triggering one mail."""
-        self.ensure_one()
+        self.check_singleton()
         google_service = GoogleCalendarService(self.env["google.service"])
         archive_future_events = (
             recurrence_update_setting == "future_events"
@@ -546,11 +546,11 @@ class CalendarEvent(models.Model):
         attendees.state = "declined"
 
     def _get_event_user(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.user_id and self.user_id.sudo().google_calendar_token:
             return self.user_id
         return self.env.user
 
     def _is_google_insertion_blocked(self, sender_user):
-        self.ensure_one()
+        self.check_singleton()
         return self.user_id and self.user_id != sender_user

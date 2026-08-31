@@ -57,7 +57,7 @@ class TestImLivechatMessage(ChatbotCase, MailCommon):
 
     def test_chatbot_message_format(self):
         self.authenticate(self.users[0].login, self.password)
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session",
             {
                 "channel_id": self.livechat_channel.id,
@@ -123,7 +123,7 @@ class TestImLivechatMessage(ChatbotCase, MailCommon):
         self.env["mail.presence"]._update_presence(self.users[0])
         self.authenticate(self.users[1].login, self.password)
         channel_livechat_1 = self.env["discuss.channel"].browse(
-            self.make_jsonrpc_request(
+            self.call_jsonrpc(
                 "/im_livechat/get_session",
                 {
                     "previous_operator_id": self.users[0].partner_id.id,
@@ -236,7 +236,7 @@ class TestImLivechatMessage(ChatbotCase, MailCommon):
         self.env["mail.presence"]._update_presence(self.users[0])
         self.authenticate(self.env.user.login, self.env.user.login)
         channel = self.env["discuss.channel"].browse(
-            self.make_jsonrpc_request(
+            self.call_jsonrpc(
                 "/im_livechat/get_session",
                 {
                     "previous_operator_id": self.users[0].partner_id.id,
@@ -341,7 +341,7 @@ class TestImLivechatMessage(ChatbotCase, MailCommon):
             )
 
         with self.assertBus(get_params=_get_feedback_bus):
-            self.make_jsonrpc_request(
+            self.call_jsonrpc(
                 "/im_livechat/feedback",
                 {
                     "channel_id": channel.id,

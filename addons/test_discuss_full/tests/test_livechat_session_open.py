@@ -12,7 +12,7 @@ class TestImLivechatSessions(TestImLivechatCommon):
             login="operator",
             groups="base.group_user,im_livechat.im_livechat_group_manager",
         )
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             "/im_livechat/get_session", {"channel_id": self.livechat_channel.id}
         )
         action = self.env.ref(

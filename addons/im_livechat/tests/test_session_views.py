@@ -15,7 +15,7 @@ class TestImLivechatSessionViews(TestImLivechatCommon):
         self.env["mail.presence"]._update_presence(operator)
         self.livechat_channel.user_ids |= operator
         self.authenticate(None, None)
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session",
             {
                 "channel_id": self.livechat_channel.id,
@@ -103,7 +103,7 @@ class TestImLivechatLookingForHelpViews(TestImLivechatSessionViews):
         if guest_name:
             guest = self.env["mail.guest"].create({"name": guest_name})
             cookies = {guest._cookie_name: guest._format_auth_cookie()}
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session",
             {
                 "channel_id": self.livechat_channel.id,

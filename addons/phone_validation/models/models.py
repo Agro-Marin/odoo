@@ -81,7 +81,7 @@ class Base(models.AbstractModel):
         if not number:
             # if no number is given, having a singletong recordset is mandatory to
             # always have a number as input
-            self.ensure_one()
+            self.check_singleton()
             fnames = self._phone_get_number_fields() if not fname else [fname]
             # Keep `fname in self and self[fname]`: `self` is a recordset (field-membership `in`
             # + `self[fname]` access), NOT a dict — RUF019's self.get(fname) rewrite would crash.
@@ -95,7 +95,7 @@ class Base(models.AbstractModel):
         # fetch country info only if self is a singleton recordset allowing to
         # effectively try to find a country
         if not country and self:
-            self.ensure_one()
+            self.check_singleton()
             country = self._phone_get_country().get(self.id)
         if not country:
             country = self.env.company.country_id

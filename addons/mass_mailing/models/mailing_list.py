@@ -103,7 +103,7 @@ class MailingList(models.Model):
         self.env.flush_all()
 
         # 1. Fetch contact data and associated counts (total / blacklist / opt-out)
-        contact_statistics_per_mailing = self._fetch_contact_statistics()
+        contact_statistics_per_mailing = self._get_contact_statistics()
 
         # 2. Fetch bounce data
         # Optimized SQL way of fetching the count of contacts that have
@@ -309,7 +309,7 @@ class MailingList(models.Model):
         # Then we create the Many2many relation between the destination list and the contacts
         # while avoiding to insert an existing email address (if the destination is in the source
         # for example)
-        self.ensure_one()
+        self.check_singleton()
         # Put destination is sources lists if not already the case
         src_lists |= self
         self.env.flush_all()
@@ -486,7 +486,7 @@ class MailingList(models.Model):
     # UTILITY
     # ------------------------------------------------------
 
-    def _fetch_contact_statistics(self):
+    def _get_contact_statistics(self):
         """Compute number of contacts matching various conditions.
         (see '_get_contact_count_select_fields' for details)
 

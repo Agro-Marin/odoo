@@ -217,7 +217,7 @@ class TestPortalFlow(MailCommon, HttpCase):
         # By removing the time-based hashing from this function we can ensure the stability of
         # the url during the tests.
         def patched_generate_signup_token(self, *_, **__):
-            self.ensure_one()
+            self.check_singleton()
             return str([self.id, self._get_login_date(), self.signup_type])
 
         cls.classPatch(

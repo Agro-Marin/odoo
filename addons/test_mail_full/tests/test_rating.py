@@ -378,7 +378,7 @@ class TestRatingRoutes(TestRatingCommon):
         self.assertFalse(message2.rating_id, "rating was not added to m2")
         # from controller
         self.authenticate("portal_test", "portal_test")
-        res = self.make_jsonrpc_request(
+        res = self.call_jsonrpc(
             "/mail/message/post",
             {
                 "post_data": {

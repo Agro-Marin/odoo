@@ -14,7 +14,7 @@ class IrWebsocket(models.AbstractModel):
     _name = "ir.websocket"
     _description = "websocket message handling"
 
-    def _build_bus_channel_list(self, channels):
+    def _get_bus_channels(self, channels):
         channels = [*channels, "broadcast", *self.env.user.all_group_ids]
         if not self.env.user._is_public():
             channels = [*channels, self.env.user.partner_id]
@@ -44,7 +44,7 @@ class IrWebsocket(models.AbstractModel):
             last = 0 if last > self.env["bus.bus"].sudo()._bus_last_id() else last
         channels = [c for c in channels if self._is_subscribable_channel(c)]
         return {
-            "channels": OrderedSet(self._build_bus_channel_list(list(channels))),
+            "channels": OrderedSet(self._get_bus_channels(list(channels))),
             "last": last,
         }
 

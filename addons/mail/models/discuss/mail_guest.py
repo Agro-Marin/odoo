@@ -123,7 +123,7 @@ class MailGuest(models.Model):
         return timezone if timezone in all_timezones() else False
 
     def _update_name(self, name: str) -> None:
-        self.ensure_one()
+        self.check_singleton()
         name = name.strip()
         if len(name) < 1:
             raise UserError(_("Guest's name cannot be empty."))
@@ -138,7 +138,7 @@ class MailGuest(models.Model):
                     target._bus_send("mail.record/insert", payload)
 
     def _update_timezone(self, timezone: str) -> None:
-        self.ensure_one()
+        self.check_singleton()
         query = """
             UPDATE mail_guest
             SET timezone = %s
@@ -151,7 +151,7 @@ class MailGuest(models.Model):
         self.invalidate_recordset(["timezone"])
 
     def _get_im_status_access_token(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         return limited_field_access_token(self, "im_status", scope="mail.presence")
 
     def _field_store_repr(self, field_spec: StoreFieldSpec) -> list[StoreFieldSpec]:
@@ -176,7 +176,7 @@ class MailGuest(models.Model):
         return ["avatar_128", "im_status", "name"]
 
     def _set_auth_cookie(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         expiration_date = datetime.now() + timedelta(days=365)
         request.future_response.set_cookie(
             self._cookie_name,
@@ -187,5 +187,5 @@ class MailGuest(models.Model):
         request.update_context(guest=self.sudo(False))
 
     def _format_auth_cookie(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         return f"{self.id}{self._cookie_separator}{self.access_token}"

@@ -13,7 +13,7 @@ class MailingContactImport(models.TransientModel):
 
     def action_import(self):
         """Import each lines of "contact_list" as a new contact."""
-        self.ensure_one()
+        self.check_singleton()
         contacts = tools.mail.email_split_tuples(
             ", ".join((self.contact_list or "").splitlines())
         )
@@ -135,7 +135,7 @@ class MailingContactImport(models.TransientModel):
 
     def action_view_base_import(self):
         """Open the base import wizard to import mailing list contacts with a xlsx file."""
-        self.ensure_one()
+        self.check_singleton()
 
         return {
             "type": "ir.actions.client",

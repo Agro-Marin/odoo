@@ -24,7 +24,7 @@ class MailGroupMessageReject(models.TransientModel):
             wizard.send_email = not tools.is_html_empty(wizard.body)
 
     def action_send_mail(self):
-        self.ensure_one()
+        self.check_singleton()
 
         if self.action == 'reject' and self.send_email:
             self.mail_group_message_id.action_moderate_reject_with_comment(self.subject, self.body)

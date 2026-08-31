@@ -33,7 +33,7 @@ class TestMailingScheduleDateWizard(MassMailCommon, CronMixinCase):
                     }
                 )
                 mailing.action_launch()
-            capt.records.ensure_one()
+            capt.records.check_singleton()
 
             # assert that the schedule_date and schedule_type fields are correct and that the mailing is put in queue
             self.assertEqual(mailing.next_departure, datetime(2023, 2, 17, 9, 0))
@@ -58,7 +58,7 @@ class TestMailingScheduleDateWizard(MassMailCommon, CronMixinCase):
                     }
                 )
                 mailing.action_schedule()
-            capt.records.ensure_one()
+            capt.records.check_singleton()
 
             self.assertEqual(mailing.schedule_date, datetime(2023, 2, 17, 11, 0))
             self.assertEqual(mailing.next_departure, datetime(2023, 2, 17, 11, 0))
@@ -83,7 +83,7 @@ class TestMailingScheduleDateWizard(MassMailCommon, CronMixinCase):
                     }
                 )
                 mailing.action_schedule()
-            capt.records.ensure_one()
+            capt.records.check_singleton()
 
             self.assertEqual(mailing.schedule_date, datetime(2024, 2, 17, 11, 0))
             self.assertEqual(mailing.next_departure, datetime(2024, 2, 17, 11, 0))
@@ -121,7 +121,7 @@ class TestMailingScheduleDateWizard(MassMailCommon, CronMixinCase):
                 wizard_form.schedule_date = datetime(2022, 2, 17, 11, 0)
                 wizard = wizard_form.save()
                 wizard.action_schedule_date()
-            capt.records.ensure_one()
+            capt.records.check_singleton()
 
             self.assertEqual(mailing.schedule_date, datetime(2022, 2, 17, 11, 0))
             self.assertEqual(mailing.next_departure, datetime(2023, 2, 17, 9, 0))  # now

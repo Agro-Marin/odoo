@@ -702,7 +702,7 @@ class TestActivitySystray(TestActivityCommon, HttpCase):
         self.authenticate(self.user_employee.login, self.user_employee.login)
         with freeze_time(self.dt_reference):
             groups_data = (
-                self.make_jsonrpc_request(
+                self.call_jsonrpc(
                     "/mail/data", {"fetch_params": ["systray_get_activities"]}
                 )
                 .get("Store", {})
@@ -863,7 +863,7 @@ class TestActivitySystray(TestActivityCommon, HttpCase):
         self.authenticate(self.user_employee.login, self.user_employee.login)
         with freeze_time(self.dt_reference):
             groups_data = (
-                self.make_jsonrpc_request(
+                self.call_jsonrpc(
                     "/mail/data", {"fetch_params": ["systray_get_activities"]}
                 )
                 .get("Store", {})
@@ -904,7 +904,7 @@ class TestActivitySystray(TestActivityCommon, HttpCase):
         # to see them (change in 18+)
         with freeze_time(self.dt_reference):
             groups_data = (
-                self.make_jsonrpc_request(
+                self.call_jsonrpc(
                     "/mail/data",
                     {
                         "fetch_params": ["systray_get_activities"],
@@ -948,7 +948,7 @@ class TestActivitySystray(TestActivityCommon, HttpCase):
         self.user_employee.write({"company_ids": [(3, self.company_2.id)]})
         with freeze_time(self.dt_reference):
             groups_data = (
-                self.make_jsonrpc_request(
+                self.call_jsonrpc(
                     "/mail/data",
                     {
                         "fetch_params": ["systray_get_activities"],
@@ -4163,7 +4163,7 @@ class TestActivityFilingIsAnActionOnTheDocument(TestActivityCommon):
                 "perm_unlink": True,
             }
         )
-        # The rule is rolled back with the class, but `ir.rule._compute_domain`
+        # The rule is rolled back with the class, but `ir.rule._get_domain_accessible_records`
         # is an ormcache on the *registry*, which a rollback does not touch --
         # so without this the entries computed while the rule existed outlive it
         # and decide access for whatever class runs next. Measured: three

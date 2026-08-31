@@ -359,7 +359,7 @@ class TestMailMessageAccess(MessageAccessCommon):
                 )
                 # controller check
                 self.authenticate(user.login, user.login)
-                res = self.make_jsonrpc_request(
+                res = self.call_jsonrpc(
                     route="/mail/message/post",
                     params={
                         "thread_model": record._name,

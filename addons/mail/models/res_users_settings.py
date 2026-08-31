@@ -59,7 +59,7 @@ class ResUsersSettings(models.Model):
     def set_volume_setting(
         self, partner_id: int, volume: float, guest_id: int | None = None
     ) -> None:
-        self.ensure_one()
+        self.check_singleton()
         volume_setting = self.env["res.users.settings.volumes"].search(
             [
                 ("user_setting_id", "=", self.id),

@@ -8,7 +8,7 @@ from odoo import _, api, fields, models, tools
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.http import request
-from odoo.tools.mail import validate_url
+from odoo.tools.mail import normalize_url
 
 from odoo.addons.mail.tools import link_preview
 
@@ -80,7 +80,7 @@ class LinkTracker(models.Model):
         and every consumer used to re-implement that carve-out.
         """
         if isinstance(values, models.BaseModel):
-            values.ensure_one()
+            values.check_singleton()
             return (
                 values.url or '',
                 values.campaign_id.id or False,
@@ -190,7 +190,7 @@ class LinkTracker(models.Model):
     def _inverse_code(self):
         """Rename the tracker's latest code, or issue one if it has none.
 
-        Batched, and without ``ensure_one``: an inverse is handed the whole
+        Batched, and without ``check_singleton``: an inverse is handed the whole
         recordset, and this one used to raise a bare ValueError on any
         multi-record write.
         """
@@ -273,7 +273,7 @@ class LinkTracker(models.Model):
             if url.startswith(('?', '#')):
                 raise UserError(_(
                     "“%s” is not a valid link, links cannot redirect to the current page.", url))
-            vals['url'] = validate_url(url)
+            vals['url'] = normalize_url(url)
         return vals
 
     def _check_url_is_not_a_short_url(self, vals_list):
@@ -472,14 +472,14 @@ class LinkTracker(models.Model):
         return self.env['ir.http'].is_a_bot()
 
     def action_view_statistics(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env['ir.actions.act_window']._get_action_dict_by_xml_id('link_tracker.link_tracker_click_action_statistics')
         action['domain'] = [('link_id', '=', self.id)]
         action['context'] = dict(self.env.context, create=False)
         return action
 
     def action_visit_page(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             'name': _("Visit Webpage"),
             'type': 'ir.actions.act_url',

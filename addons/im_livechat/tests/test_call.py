@@ -22,7 +22,7 @@ class TestCall(HttpCase):
                 self.authenticate(None, None)
             if guest:
                 self.opener.cookies[guest._cookie_name] = guest._format_auth_cookie()
-            data = self.make_jsonrpc_request(
+            data = self.call_jsonrpc(
                 "/im_livechat/get_session",
                 {
                     "anonymous_name": "Visitor",
@@ -31,7 +31,7 @@ class TestCall(HttpCase):
                 },
             )
             with self.assertRaises(JsonRpcException, msg="werkzeug.exceptions.NotFound"):
-                self.make_jsonrpc_request(
+                self.call_jsonrpc(
                     "/mail/rtc/channel/join_call",
                     {"channel_id": data["channel_id"]},
                 )

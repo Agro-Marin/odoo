@@ -38,7 +38,7 @@ class TestResRole(MailCommon, HttpCase):
             (role_js, user_js + user_discuss_js),
             (role_discuss + role_js, user_discuss + user_js + user_discuss_js),
         ]:
-            data = self.make_jsonrpc_request(
+            data = self.call_jsonrpc(
                 "/mail/message/post",
                 {
                     "thread_model": "res.partner",

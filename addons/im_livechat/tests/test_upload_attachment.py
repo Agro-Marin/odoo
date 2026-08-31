@@ -12,14 +12,14 @@ class TestUploadAttachment(HttpCase):
         livechat_channel = self.env["im_livechat.channel"].create(
             {"name": "Test Livechat Channel", "user_ids": [operator.id]}
         )
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session",
             {
                 "channel_id": livechat_channel.id,
                 "persisted": True,
             },
         )
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             "/im_livechat/visitor_leave_session", {"channel_id": data["channel_id"]}
         )
         with mute_logger("odoo.http"), file_open("addons/web/__init__.py") as file:

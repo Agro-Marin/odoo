@@ -22,13 +22,13 @@ class ResCompany(models.Model):
     sms_twilio_number_ids = fields.One2many("sms.twilio.number", "company_id", "Numbers")
 
     def _get_sms_api_class(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.sms_provider == 'twilio':
             return SmsApiTwilio
         return super()._get_sms_api_class()
 
     def _assert_twilio_sid(self):
-        self.ensure_one()
+        self.check_singleton()
         account_sid = self.sms_twilio_account_sid
         if not account_sid or len(account_sid) != 34 or not account_sid.startswith('AC'):
             raise UserError(_("Invalid Twilio Account SID: must start with 'AC' and be 34 characters long."))

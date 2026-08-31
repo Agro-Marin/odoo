@@ -924,7 +924,7 @@ class TestMessageLog(TestMessagePostCommon):
     def test_message_log_batch_author_from_email(self):
         """Giving 'email_from' without 'author_id' on more than one record used
         to raise "Expected singleton": _message_compute_author falls through to
-        _partner_find_from_emails_single, which is ensure_one()'d. The batch API
+        _partner_find_from_emails_single, which is check_singleton()'d. The batch API
         documents batch support and guards its other multi-record hazards
         explicitly, so this one was an oversight."""
         test_records = self.test_records.with_env(self.env)

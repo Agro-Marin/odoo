@@ -71,7 +71,7 @@ class MailMessage(models.Model):
         )
 
     def _get_search_access_rows(self, query: Query, pid: int) -> list[tuple]:
-        rel_alias = query.make_alias(self._table, "partner_ids")
+        rel_alias = query.get_table_alias(self._table, "partner_ids")
         query.add_join(
             "LEFT JOIN",
             rel_alias,
@@ -84,7 +84,7 @@ class MailMessage(models.Model):
                 pid,
             ),
         )
-        notif_alias = query.make_alias(self._table, "notification_ids")
+        notif_alias = query.get_table_alias(self._table, "notification_ids")
         query.add_join(
             "LEFT JOIN",
             notif_alias,

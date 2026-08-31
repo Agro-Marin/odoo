@@ -210,19 +210,19 @@ class Im_LivechatChannel(models.Model):
             record.nbr_channel = channel_count.get(record.id, 0)
 
     def action_join(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.env.user.has_group("im_livechat.im_livechat_group_user"):
             raise AccessError(_("Only Live Chat operators can join Live Chat channels"))
         self.sudo().user_ids = [Command.link(self.env.user.id)]
         Store(bus_channel=self.env.user).add(self, ["are_you_inside", "name"]).bus_send()
 
     def action_quit(self):
-        self.ensure_one()
+        self.check_singleton()
         self.sudo().user_ids = [Command.unlink(self.env.user.id)]
         Store(bus_channel=self.env.user).add(self.sudo(), ["are_you_inside", "name"]).bus_send()
 
     def action_view_rating(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "im_livechat.discuss_channel_action_from_livechat_channel"
         )
@@ -365,7 +365,7 @@ class Im_LivechatChannel(models.Model):
     def _get_operator(
         self, previous_operator_id=None, lang=None, country_id=None, expertises=None, users=None
     ):
-        self.ensure_one()
+        self.check_singleton()
         self.env["discuss.channel.rtc.session"].sudo()._gc_inactive_sessions()
         users = users if users is not None else self.available_operator_ids
         if not users:
@@ -464,7 +464,7 @@ class Im_LivechatChannel(models.Model):
         return self._get_less_active_operator(operator_statuses, users)
 
     def _get_channel_infos(self):
-        self.ensure_one()
+        self.check_singleton()
 
         return {
             'header_background_color': self.header_background_color,
@@ -479,7 +479,7 @@ class Im_LivechatChannel(models.Model):
         }
 
     def get_livechat_info(self, username=None):
-        self.ensure_one()
+        self.check_singleton()
 
         if username is None:
             username = _('Visitor')

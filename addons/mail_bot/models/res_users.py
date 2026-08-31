@@ -34,7 +34,7 @@ class ResUsers(models.Model):
             self._init_odoobot()
 
     def _init_odoobot(self):
-        self.ensure_one()
+        self.check_singleton()
         odoobot = self.env['mail.bot']._get_odoobot()
         channel = self.env['discuss.channel']._get_or_create_chat([odoobot.id, self.partner_id.id])
         message = Markup("%s<br/>%s<br/><b>%s</b> <span class=\"o_odoobot_command\">:)</span>") % (

@@ -23,7 +23,7 @@ class MailTestTicket(models.Model):
     container_id = fields.Many2one("mail.test.container", tracking=True)
 
     def _message_compute_subject(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             f"Ticket for {self.name} on {self.datetime.strftime('%m/%d/%Y, %H:%M:%S')}"
         )
@@ -73,7 +73,7 @@ class MailTestTicket(models.Model):
         return super()._creation_subtype()
 
     def _track_subtype(self, init_values):
-        self.ensure_one()
+        self.check_singleton()
         if "container_id" in init_values and self.container_id:
             return self.env.ref("test_mail.st_mail_test_ticket_container_upd")
         return super()._track_subtype(init_values)
@@ -162,7 +162,7 @@ class MailTestTicketMc(models.Model):
         return super()._creation_subtype()
 
     def _track_subtype(self, init_values):
-        self.ensure_one()
+        self.check_singleton()
         if "container_id" in init_values and self.container_id:
             return self.env.ref("test_mail.st_mail_test_ticket_container_mc_upd")
         return super()._track_subtype(init_values)

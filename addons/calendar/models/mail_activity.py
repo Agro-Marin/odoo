@@ -36,7 +36,7 @@ class MailActivity(models.Model):
         return res
 
     def action_create_calendar_event(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("calendar.action_calendar_event")
         action['context'] = {
             'default_activity_type_id': self.activity_type_id.id,

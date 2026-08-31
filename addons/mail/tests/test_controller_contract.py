@@ -29,7 +29,7 @@ class TestMailControllerContract(MailControllerCommon):
     def assertRejected(self, route, params, msg):
         self.authenticate("contract_user", "contract_user")
         with self.assertRaises(JsonRpcException, msg=msg) as capture:
-            self.make_jsonrpc_request(route, params)
+            self.call_jsonrpc(route, params)
         self.assertEqual(
             capture.exception.code,
             404,
@@ -86,7 +86,7 @@ class TestMailControllerContract(MailControllerCommon):
             message_type="comment",
             subtype_xmlid="mail.mt_comment",
         )
-        result = self.make_jsonrpc_request(
+        result = self.call_jsonrpc(
             "/mail/thread/messages",
             {"thread_model": "res.partner", "thread_id": self.record.id},
         )
@@ -139,7 +139,7 @@ class TestMailControllerContract(MailControllerCommon):
             subtype_xmlid="mail.mt_comment",
         )
         message.sudo().write({"email_from": '"Known" <known@example.com>'})
-        result = self.make_jsonrpc_request(
+        result = self.call_jsonrpc(
             "/mail/thread/recipients",
             {
                 "thread_model": "res.partner",
@@ -154,7 +154,7 @@ class TestMailControllerContract(MailControllerCommon):
     def test_a_client_context_key_does_not_reach_the_orm(self):
         self.authenticate("admin", "admin")
         bystander = self.env["res.partner"].create({"name": "Bystander"})
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             "/mail/message/post",
             {
                 "thread_model": "res.partner",
@@ -176,7 +176,7 @@ class TestMailControllerContract(MailControllerCommon):
 
     def test_the_context_a_client_does_send_still_works(self):
         self.authenticate("admin", "admin")
-        result = self.make_jsonrpc_request(
+        result = self.call_jsonrpc(
             "/mail/message/post",
             {
                 "thread_model": "res.partner",
@@ -196,7 +196,7 @@ class TestMailControllerContract(MailControllerCommon):
             },
         )
         self.assertTrue(result["message_id"], "the post must still go through")
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             "/mail/data",
             {"fetch_params": ["init_messaging"], "context": {"active_test": False}},
         )
@@ -223,12 +223,12 @@ class TestMailControllerContract(MailControllerCommon):
 
     def test_mute_still_accepts_its_sentinels(self):
         self.authenticate("contract_user", "contract_user")
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             "/discuss/settings/mute", {"minutes": -1, "channel_id": self.channel.id}
         )
         member = self.channel.with_user(self.contract_user).self_member_id
         self.assertTrue(member.mute_until_dt, "-1 means muted forever")
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             "/discuss/settings/mute", {"minutes": 0, "channel_id": self.channel.id}
         )
         self.assertFalse(member.mute_until_dt, "0 means unmuted")
@@ -267,12 +267,12 @@ class TestMailControllerContract(MailControllerCommon):
 
     def test_fetch_params_that_is_not_a_mapping_means_no_params(self):
         self.authenticate("contract_user", "contract_user")
-        baseline = self.make_jsonrpc_request(
+        baseline = self.call_jsonrpc(
             "/discuss/channel/messages", {"channel_id": self.channel.id}
         )
         for value in (["search_term"], "search_term", 1.5, 7, True):
             with self.subTest(fetch_params=value):
-                result = self.make_jsonrpc_request(
+                result = self.call_jsonrpc(
                     "/discuss/channel/messages",
                     {"channel_id": self.channel.id, "fetch_params": value},
                 )
@@ -361,14 +361,12 @@ class TestMailControllerContract(MailControllerCommon):
 
     def test_gif_favorite_routes_still_accept_a_numeric_id(self):
         self.authenticate("contract_user", "contract_user")
-        self.make_jsonrpc_request("/discuss/gif/add_favorite", {"tenor_gif_id": 12345})
+        self.call_jsonrpc("/discuss/gif/add_favorite", {"tenor_gif_id": 12345})
         favorite = self.env["discuss.gif.favorite"].search(
             [("create_uid", "=", self.contract_user.id)]
         )
         self.assertEqual(favorite.tenor_gif_id, "12345", "stored as the char it is")
-        self.make_jsonrpc_request(
-            "/discuss/gif/remove_favorite", {"tenor_gif_id": 12345}
-        )
+        self.call_jsonrpc("/discuss/gif/remove_favorite", {"tenor_gif_id": 12345})
         self.assertFalse(favorite.exists(), "and removable by the same id")
 
     def test_zip_route_caps_its_id_list(self):
@@ -399,7 +397,7 @@ class TestMailDataBatching(MailControllerCommon):
 
     def test_a_failing_param_does_not_take_the_batch_down(self):
         self.authenticate("batch_user", "batch_user")
-        result = self.make_jsonrpc_request(
+        result = self.call_jsonrpc(
             "/mail/data",
             {
                 "fetch_params": [
@@ -418,7 +416,7 @@ class TestMailDataBatching(MailControllerCommon):
             ("res.currency", "a model that carries no chatter"),
         ):
             with self.subTest(thread_model=thread_model):
-                result = self.make_jsonrpc_request(
+                result = self.call_jsonrpc(
                     "/mail/data",
                     {
                         "fetch_params": [
@@ -452,15 +450,13 @@ class TestMailDataBatching(MailControllerCommon):
                 JsonRpcException, msg="an expired session must not be swallowed"
             ),
         ):
-            self.make_jsonrpc_request(
-                "/mail/data", {"fetch_params": ["init_messaging"]}
-            )
+            self.call_jsonrpc("/mail/data", {"fetch_params": ["init_messaging"]})
 
     def test_the_batch_answers_the_same_data_as_isolated_params(self):
         self.authenticate("batch_user", "batch_user")
         params = ["init_messaging", "mail.canned.response"]
-        batched = self.make_jsonrpc_request("/mail/data", {"fetch_params": params})
-        isolated = self.make_jsonrpc_request("/mail/action", {"fetch_params": params})
+        batched = self.call_jsonrpc("/mail/data", {"fetch_params": params})
+        isolated = self.call_jsonrpc("/mail/action", {"fetch_params": params})
         self.assertEqual(
             set(batched),
             set(isolated),

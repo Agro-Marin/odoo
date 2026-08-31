@@ -14,7 +14,7 @@ from odoo import Command, api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Domain
-from odoo.libs.colors import hsl_from_seed
+from odoo.libs.colors import get_hsl_from_seed
 from odoo.libs.sql import SQL
 from odoo.tools import email_normalize, format_list, html_escape
 from odoo.tools.misc import OrderedSet, hash_sign
@@ -561,11 +561,11 @@ class DiscussChannel(models.Model):
             )
 
     def _generate_avatar(self) -> bytes | Literal[False]:
-        self.ensure_one()
+        self.check_singleton()
         if not is_channel_or_group(self):
             return False
         avatar = GROUP_AVATAR if self.channel_type == "group" else CHANNEL_AVATAR
-        bgcolor = hsl_from_seed(self.uuid)
+        bgcolor = get_hsl_from_seed(self.uuid)
         avatar = avatar.replace('fill="#875a7b"', f'fill="{bgcolor}"')
         return base64.b64encode(avatar.encode())
 
@@ -740,7 +740,7 @@ class DiscussChannel(models.Model):
     def _get_notification_member_domain(
         self, pids: list[int], author_id: int | Literal[False]
     ) -> Domain:
-        self.ensure_one()
+        self.check_singleton()
         settings = "partner_id.user_ids.res_users_settings_ids.channel_notifications"
         opted_in = Domain("custom_notifications", "=", "all") | (
             Domain("custom_notifications", "=", False) & Domain(settings, "=", "all")
@@ -773,7 +773,7 @@ class DiscussChannel(models.Model):
     def _notify_get_recipients(
         self, message: MailMessage, msg_vals: dict | Literal[False] = False, **kwargs
     ) -> list:
-        self.ensure_one()
+        self.check_singleton()
         msg_vals = msg_vals or {}
 
         message_type = msg_vals.get("message_type", message.message_type)
@@ -982,7 +982,7 @@ class DiscussChannel(models.Model):
         return super()._get_allowed_message_params() | {"special_mentions", "parent_id"}
 
     def _get_allowed_message_partner_ids(self, partner_ids: list[int]) -> list[int]:
-        self.ensure_one()
+        self.check_singleton()
         partners = self.env["res.partner"].browse(partner_ids)
         if is_channel(self):
             if self.group_public_id:
@@ -1138,7 +1138,7 @@ class DiscussChannel(models.Model):
         )
 
     def set_message_pin(self, message_id: int, pinned: bool) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if not self.env.is_admin() and not self.self_member_id:
             raise AccessError(
                 self.env._(
@@ -1198,7 +1198,7 @@ class DiscussChannel(models.Model):
         guest: MailGuest | None = None,
         post_leave_message: bool = True,
     ) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if partner is None:
             partner = self.env["res.partner"]
         if guest is None:
@@ -1417,7 +1417,7 @@ class DiscussChannel(models.Model):
     def _post_joined_messages(
         self, new_members: DiscussChannelMember, inviting_partner: ResPartner
     ) -> None:
-        self.ensure_one()
+        self.check_singleton()
         body_template = Markup(
             '<div class="o_mail_notification" data-oe-type="channel-joined">%s</div>'
         )
@@ -1476,7 +1476,7 @@ class DiscussChannel(models.Model):
             raise UserError(error_msg) from mde
 
     def _get_uninvited_emails(self, emails: list[str]) -> OrderedSet:
-        self.ensure_one()
+        self.check_singleton()
         eligible_emails = OrderedSet(
             norm for email in emails if email and (norm := email_normalize(email))
         )
@@ -1495,7 +1495,7 @@ class DiscussChannel(models.Model):
         return eligible_emails
 
     def _get_invitation_mail_values(self, addresses: OrderedSet) -> list[dict]:
-        self.ensure_one()
+        self.check_singleton()
         mail_body = (
             Markup("<p>%s</p>")
             % self.env._(
@@ -1577,7 +1577,7 @@ class DiscussChannel(models.Model):
         }
 
     def _get_or_create_member_for_self(self) -> DiscussChannelMember:
-        self.ensure_one()
+        self.check_singleton()
         if member := self.self_member_id:
             return member
         if not self.env.user._is_public():
@@ -1595,7 +1595,7 @@ class DiscussChannel(models.Model):
         create_member_params: dict | None = None,
         post_joined_message: bool = True,
     ) -> tuple:
-        self.ensure_one()
+        self.check_singleton()
         guest = self.env["mail.guest"]
         if member := self.self_member_id:
             return member.partner_id, member.guest_id
@@ -1639,7 +1639,7 @@ class DiscussChannel(models.Model):
         self._add_members(users=self.env.user)
 
     def channel_pin(self, pinned: bool = False) -> None:
-        self.ensure_one()
+        self.check_singleton()
         member = self.self_member_id.filtered(lambda m: m.is_pinned != pinned)
         if member:
             member.write({"unpin_dt": False if pinned else fields.Datetime.now()})
@@ -1708,11 +1708,11 @@ class DiscussChannel(models.Model):
             )
 
     def _get_call_notification_tag(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         return f"call_{self.id}"
 
     def _rtc_cancel_invitations(self, member_ids: list[int] | None = None) -> None:
-        self.ensure_one()
+        self.check_singleton()
         channel_member_domain = Domain(
             [
                 ("channel_id", "=", self.id),
@@ -1757,7 +1757,7 @@ class DiscussChannel(models.Model):
                 )
 
     def _should_invite_members_to_join_call(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return len(self.rtc_session_ids) == 1 and self.channel_type != "channel"
 
     @api.model
@@ -1812,7 +1812,7 @@ class DiscussChannel(models.Model):
     def _create_sub_channel(
         self, from_message_id: int | None = None, name: str | None = None
     ) -> Self:
-        self.ensure_one()
+        self.check_singleton()
         message = self.env["mail.message"]
         if from_message_id:
             message = self.env["mail.message"].search([("id", "=", from_message_id)])
@@ -1933,7 +1933,7 @@ class DiscussChannel(models.Model):
         return channel
 
     def channel_set_custom_name(self, name: str) -> None:
-        self.ensure_one()
+        self.check_singleton()
         self.self_member_id.custom_channel_name = name
         Store(bus_channel=self.self_member_id._bus_channel()).add(
             self.self_member_id,
@@ -1941,7 +1941,7 @@ class DiscussChannel(models.Model):
         ).bus_send()
 
     def channel_rename(self, name: str) -> None:
-        self.ensure_one()
+        self.check_singleton()
         self.write({"name": name})
         body = (
             Markup(
@@ -1954,7 +1954,7 @@ class DiscussChannel(models.Model):
         )
 
     def channel_change_description(self, description: str) -> None:
-        self.ensure_one()
+        self.check_singleton()
         self.write({"description": description})
 
     @api.readonly
@@ -2077,7 +2077,7 @@ class DiscussChannel(models.Model):
                 ).bus_send()
 
     def execute_command_help(self, **kwargs) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if self.channel_type == "channel":
             msg = self.env._(
                 "You are in channel %(bold_start)s#%(channel_name)s%(bold_end)s.",
@@ -2162,7 +2162,7 @@ class DiscussChannel(models.Model):
     def _get_access_action(
         self, access_uid: int | None = None, force_website: bool = False
     ) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         if not self.env.user._is_internal() or force_website:
             return {
                 "type": "ir.actions.act_url",

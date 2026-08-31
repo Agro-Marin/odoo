@@ -140,7 +140,7 @@ class MailMessageSchedule(models.Model):
         return json.dumps(serializable)
 
     def _deserialize_notification_parameters(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         params = json.loads(self.notification_parameters or "{}")
         company_id = params.get("force_email_company")
         if company_id:

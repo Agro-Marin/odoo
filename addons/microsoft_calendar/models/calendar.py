@@ -135,7 +135,7 @@ class CalendarEvent(models.Model):
         """
         Check if an event matches with the provided timeslot
         """
-        self.ensure_one()
+        self.check_singleton()
 
         event_start, event_stop = self._range()
         if allday:
@@ -231,7 +231,7 @@ class CalendarEvent(models.Model):
 
     def _recreate_event_different_organizer(self, values, sender_user):
         """ Copy current event values, delete it and recreate it with the new organizer user. """
-        self.ensure_one()
+        self.check_singleton()
         event_copy = {**self.copy_data()[0], 'microsoft_id': False}
         self.env['calendar.event'].with_user(sender_user).with_context(skip_contact_description=True).create(
             {**event_copy, **values},
@@ -270,7 +270,7 @@ class CalendarEvent(models.Model):
 
     def action_mass_archive(self, recurrence_update_setting):
         # Do not allow archiving if recurrence is synced with Outlook. Suggest updating directly from Outlook.
-        self.ensure_one()
+        self.check_singleton()
         if self._check_microsoft_sync_status() and self.microsoft_id:
             self._forbid_recurrence_update()
         super().action_mass_archive(recurrence_update_setting)
@@ -629,7 +629,7 @@ class CalendarEvent(models.Model):
 
         return values
 
-    def _ensure_attendees_have_email(self):
+    def _check_attendees_have_email(self):
         invalid_event_ids = self.env['calendar.event'].search_read(
             domain=[('id', 'in', self.ids), ('attendee_ids.partner_id.email', '=', False)],
             fields=['display_time', 'display_name'],
@@ -685,7 +685,7 @@ class CalendarEvent(models.Model):
 
     def _get_event_user_m(self, user_id=None):
         """ Get the user who will send the request to Microsoft (organizer if synchronized and current user otherwise). """
-        self.ensure_one()
+        self.check_singleton()
         # Current user must have access to token in order to access event properties (non-public user).
         current_user_status = self.env.user._get_microsoft_calendar_token()
         if user_id != self.env.user and current_user_status:
@@ -696,6 +696,6 @@ class CalendarEvent(models.Model):
         return self.env.user
 
     def _is_microsoft_insertion_blocked(self, sender_user):
-        self.ensure_one()
+        self.check_singleton()
         has_different_owner = self.user_id and self.user_id != sender_user
         return has_different_owner

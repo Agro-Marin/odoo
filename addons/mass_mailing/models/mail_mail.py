@@ -29,7 +29,7 @@ class MailMail(models.Model):
     def _prepare_outgoing_body(self):
         """Override to add the tracking URL to the body and to add trace ID in
         shortened urls"""
-        self.ensure_one()
+        self.check_singleton()
         # super() already cleans pseudo-void content from editor
         body = super()._prepare_outgoing_body()
 
@@ -49,7 +49,7 @@ class MailMail(models.Model):
 
             # generate tracking URL
             tracking_url = self._get_tracking_url()
-            body = tools.mail.append_content_to_html(
+            body = tools.mail.add_html_content(
                 body,
                 f'<img src="{tracking_url}"/>',
                 plaintext=False,

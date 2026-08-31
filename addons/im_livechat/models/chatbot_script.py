@@ -128,7 +128,7 @@ class ChatbotScript(models.Model):
         return res
 
     def _get_welcome_steps(self):
-        self.ensure_one()
+        self.check_singleton()
 
         welcome_steps = self.env['chatbot.script.step']
         for step in self.script_step_ids:
@@ -139,7 +139,7 @@ class ChatbotScript(models.Model):
         return welcome_steps
 
     def _post_welcome_steps(self, discuss_channel):
-        self.ensure_one()
+        self.check_singleton()
         posted_messages = self.env['mail.message']
 
         for welcome_step in self._get_welcome_steps():
@@ -156,7 +156,7 @@ class ChatbotScript(models.Model):
         return posted_messages
 
     def action_view_livechat_channels(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env['ir.actions.act_window']._get_action_dict_by_xml_id('im_livechat.im_livechat_channel_action')
         action['domain'] = [('rule_ids.chatbot_script_id', 'in', self.ids)]
         return action
@@ -165,7 +165,7 @@ class ChatbotScript(models.Model):
     def _to_store_defaults(self, target):
         return [Store.One("operator_partner_id", ["name"]), "title"]
 
-    def _validate_email(self, email_address, discuss_channel):
+    def _get_email_check(self, email_address, discuss_channel):
         email_address = html2plaintext(email_address)
         email_normalized = email_normalize(email_address)
 

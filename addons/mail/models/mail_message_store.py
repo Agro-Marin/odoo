@@ -41,7 +41,7 @@ class MailMessage(models.Model):
         return [field_spec]
 
     def _is_envelope_visible(self, target: Store.Target) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return target.is_internal(self.env) or not (
             self.author_id or self.author_guest_id
         )
@@ -151,7 +151,7 @@ class MailMessage(models.Model):
 
     def _store_scheduled_datetimes(self, msg_vals: dict | Literal[False]) -> dict:
         if msg_vals:
-            self.ensure_one()
+            self.check_singleton()
             return {self.id: msg_vals.get("scheduled_date", False)}
         if not self:
             return {}
@@ -233,7 +233,7 @@ class MailMessage(models.Model):
         return record_fields
 
     def _store_message_extras(self, store: Store, record, scheduled_datetime) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         if record:
             try:
                 if isinstance(record, self.pool["mixin.mail.thread"]):
@@ -280,13 +280,13 @@ class MailMessage(models.Model):
         return data
 
     def _get_store_partner_name_fields(self) -> list[StoreFieldSpec]:
-        self.ensure_one()
+        self.check_singleton()
         return ["name"]
 
     def _get_store_attachment_fields(
         self, target: Store.Target
     ) -> list[StoreFieldSpec]:
-        self.ensure_one()
+        self.check_singleton()
         if target.is_current_user(self.env) and self.is_current_user_or_guest_author:
             return self.env["ir.attachment"]._get_fields_store_ownership()
         return []

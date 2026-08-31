@@ -139,7 +139,7 @@ class MixinMailActivity(models.AbstractModel):
         )
 
     def _next_activity(self, user_id: int | None = None) -> MailActivity:
-        self.ensure_one()
+        self.check_singleton()
         activities = self._open_activities()
         if user_id is not None:
             activities = (
@@ -414,7 +414,7 @@ class MixinMailActivity(models.AbstractModel):
         link: str,
         user_id: int | None = None,
     ) -> str:
-        join_alias = Query.make_alias(alias, link)
+        join_alias = Query.get_table_alias(alias, link)
         if join_alias in query._joins:
             return join_alias
         Activity = self.env["mail.activity"]

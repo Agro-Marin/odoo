@@ -183,7 +183,7 @@ class MailControllerAttachmentCommon(MailControllerCommon):
 
     def _delete_attachment(self, attachment, token):
         with mute_logger("odoo.http"):
-            self.make_jsonrpc_request(
+            self.call_jsonrpc(
                 route="/mail/attachment/delete",
                 params={
                     "attachment_id": attachment.id,
@@ -221,7 +221,7 @@ class MailControllerBinaryCommon(MailControllerCommon):
 
     def _post_message(self, document, auth_pseudo_user):
         _user, _guest = self._authenticate_pseudo_user(auth_pseudo_user)
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             route="/mail/message/post",
             params={
                 "thread_model": document._name,
@@ -271,7 +271,7 @@ class MailControllerReactionCommon(MailControllerCommon):
                         self._remove_reaction(message, self.reaction, route_kw)
 
     def _add_reaction(self, message, content, route_kw):
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             route="/mail/message/reaction",
             params={
                 "action": "add",
@@ -282,7 +282,7 @@ class MailControllerReactionCommon(MailControllerCommon):
         )
 
     def _remove_reaction(self, message, content, route_kw):
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             route="/mail/message/reaction",
             params={
                 "action": "remove",
@@ -330,7 +330,7 @@ class MailControllerThreadCommon(MailControllerCommon):
                         self._message_post(record, test.post_data, test.route_kw)
 
     def _message_post(self, record, post_data, route_kw):
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             route="/mail/message/post",
             params={
                 "thread_model": record._name,
@@ -376,7 +376,7 @@ class MailControllerUpdateCommon(MailControllerCommon):
                         )
 
     def _update_content(self, message_id, body, route_kw):
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             route="/mail/message/update_content",
             params={
                 "message_id": message_id,

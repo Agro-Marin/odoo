@@ -152,7 +152,7 @@ class IrActionsServer(models.Model):
         return [*super()._name_depends(), "template_id.name", "activity_type_id.name"]
 
     def _prepare_automated_name(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         if self.state == "mail_post" and self.template_id:
             return _("Send %(template_name)s", template_name=self.template_id.name)
         if self.state == "next_activity" and self.activity_type_id:
@@ -166,11 +166,11 @@ class IrActionsServer(models.Model):
         return super()._get_states_needing_a_live_record() | MAIL_STATES
 
     def _is_batchable(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return self.state in MAIL_STATES or super()._is_batchable()
 
     def _get_mail_model_flag(self) -> str | Literal[False]:
-        self.ensure_one()
+        self.check_singleton()
         if self.state == "mail_post":
             return "is_mail_thread" if self.mail_post_method != "email" else False
         return STATE_MODEL_FLAG.get(self.state, False)
@@ -260,7 +260,7 @@ class IrActionsServer(models.Model):
                 )
 
     def _default_partner_field_name(self) -> str | Literal[False]:
-        self.ensure_one()
+        self.check_singleton()
         model = self._get_target_model()
         if model is None:
             return False
@@ -312,7 +312,7 @@ class IrActionsServer(models.Model):
                 action.activity_user_field_name = action._default_user_field_name()
 
     def _default_user_field_name(self) -> str | Literal[False]:
-        self.ensure_one()
+        self.check_singleton()
         model = self._get_target_model()
         if model is None:
             return False
@@ -322,14 +322,14 @@ class IrActionsServer(models.Model):
         return False
 
     def _get_target_model(self) -> models.BaseModel | None:
-        self.ensure_one()
+        self.check_singleton()
         model_name = self.model_id.model
         if not model_name or model_name not in self.env.registry:
             return None
         return self.env[model_name]
 
     def _path_leads_to(self, field_name: str, comodel: str) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         if self._get_target_model() is None:
             return False
         field_chain = self._get_relation_chain(field_name)
@@ -354,7 +354,7 @@ class IrActionsServer(models.Model):
         ]
 
     def _get_warning_messages(self) -> list[str]:
-        self.ensure_one()
+        self.check_singleton()
         warnings = super()._get_warning_messages()
 
         if self.state == "mail_post" and not self.template_id:
@@ -432,7 +432,7 @@ class IrActionsServer(models.Model):
         unset_message: Callable[[], str],
         wrong_comodel_message: Callable[[str], str],
     ) -> list[str]:
-        self.ensure_one()
+        self.check_singleton()
         if not self[field_name]:
             return [unset_message()]
         field_chain = self._get_relation_chain(field_name)
@@ -481,7 +481,7 @@ class IrActionsServer(models.Model):
         return False
 
     def _subscribe_followers(self, subscribe: bool) -> None:
-        records = self._get_target_records().with_context(self._get_run_context())
+        records = self._get_records_targeted().with_context(self._get_run_context())
         if not records:
             return
         for partner_ids, batch in self._get_follower_batches(records).items():
@@ -530,7 +530,7 @@ class IrActionsServer(models.Model):
         return pending
 
     def _is_recompute(self) -> bool:
-        return bool(self._get_recompute_pending(self._get_target_records()))
+        return bool(self._get_recompute_pending(self._get_records_targeted()))
 
     def _get_run_context(self) -> dict:
         return {
@@ -546,7 +546,7 @@ class IrActionsServer(models.Model):
         return context
 
     def _run_action_mail_post_multi(self, eval_context: dict | None = None) -> bool:
-        records = self._get_target_records()
+        records = self._get_records_targeted()
         records -= self._get_recompute_pending(records)
         if not self.template_id or not records:
             return False
@@ -581,7 +581,7 @@ class IrActionsServer(models.Model):
         )._action_send_mail()
 
     def _run_action_next_activity_multi(self, eval_context: dict | None = None) -> bool:
-        records = self._get_target_records()
+        records = self._get_records_targeted()
         records -= self._get_recompute_pending(records)
         if not self.activity_type_id or not records:
             return False
@@ -625,7 +625,7 @@ class IrActionsServer(models.Model):
             for user_id, batch in by_user_id.items()
         ]
 
-    def _get_eval_context(self, action: Self) -> dict:
+    def _prepare_eval_context(self, action: Self) -> dict:
         return super(
             IrActionsServer, self.with_context(mail_notify_force_send=False)
-        )._get_eval_context(action=action)
+        )._prepare_eval_context(action=action)

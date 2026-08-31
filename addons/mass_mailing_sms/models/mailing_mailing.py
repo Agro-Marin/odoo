@@ -59,10 +59,10 @@ class MailingMailing(models.Model):
     def _compute_medium_id(self):
         super()._compute_medium_id()
         for mailing in self:
-            if mailing.mailing_type == 'sms' and (not mailing.medium_id or mailing.medium_id == self.env['utm.medium']._fetch_or_create_utm_medium('email')):
-                mailing.medium_id = self.env['utm.medium']._fetch_or_create_utm_medium("sms", module="mass_mailing_sms").id
-            elif mailing.mailing_type == 'mail' and (not mailing.medium_id or mailing.medium_id == self.env['utm.medium']._fetch_or_create_utm_medium("sms", module="mass_mailing_sms")):
-                mailing.medium_id = self.env['utm.medium']._fetch_or_create_utm_medium('email').id
+            if mailing.mailing_type == 'sms' and (not mailing.medium_id or mailing.medium_id == self.env['utm.medium']._get_or_create_utm_medium('email')):
+                mailing.medium_id = self.env['utm.medium']._get_or_create_utm_medium("sms", module="mass_mailing_sms").id
+            elif mailing.mailing_type == 'mail' and (not mailing.medium_id or mailing.medium_id == self.env['utm.medium']._get_or_create_utm_medium("sms", module="mass_mailing_sms")):
+                mailing.medium_id = self.env['utm.medium']._get_or_create_utm_medium('email').id
 
     @api.depends('sms_template_id', 'mailing_type')
     def _compute_body_plaintext(self):
@@ -155,7 +155,7 @@ class MailingMailing(models.Model):
         :returns: opt-outed record IDs
         :rtype: list
         """
-        self.ensure_one()
+        self.check_singleton()
         opt_out = []
         target = self.env[self.mailing_model_real]
         if hasattr(self.env[self.mailing_model_name], '_mailing_get_opt_out_list_sms'):
@@ -167,7 +167,7 @@ class MailingMailing(models.Model):
 
     def _get_seen_list_sms(self):
         """Returns a set of emails already targeted by current mailing/campaign (no duplicates)"""
-        self.ensure_one()
+        self.check_singleton()
         target = self.env[self.mailing_model_real]
 
         partner_fields = []
@@ -321,7 +321,7 @@ class MailingMailing(models.Model):
         :returns: Character counts used for links, formatted as ``{link: str, unsubscribe: str}``.
         """
         if self:
-            self.ensure_one()
+            self.check_singleton()
 
         self.check_access('write')
 

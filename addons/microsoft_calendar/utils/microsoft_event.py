@@ -41,7 +41,7 @@ class MicrosoftEvent(abc.Set):
         return bool(self._events)
 
     def __getattr__(self, name):
-        # ensure_one
+        # check_singleton
         try:
             event, = self._events.keys()
         except ValueError:

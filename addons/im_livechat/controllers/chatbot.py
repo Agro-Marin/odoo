@@ -127,7 +127,7 @@ class LivechatChatbotScriptController(http.Controller):
         last_user_message = self.env["mail.message"].sudo().search(domain, order="id desc", limit=1)
         result = {}
         if last_user_message:
-            result = chatbot._validate_email(last_user_message.body, discuss_channel)
+            result = chatbot._get_email_check(last_user_message.body, discuss_channel)
             if posted_message := result.pop("posted_message"):
                 store = Store().add(posted_message)
                 store.add(discuss_channel, {

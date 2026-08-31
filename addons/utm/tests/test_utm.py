@@ -65,16 +65,16 @@ class TestUtm(TestUTMCommon):
             })
         # fetch existing medium
         self.assertEqual(new_medium, self.env.ref('utm.utm_medium_new_medium'))
-        self.assertEqual(new_medium, self.env['utm.medium']._fetch_or_create_utm_medium('New Medium'))
-        self.assertEqual(new_medium, self.env['utm.medium']._fetch_or_create_utm_medium('new medium'))
-        self.assertEqual(new_medium, self.env['utm.medium']._fetch_or_create_utm_medium('new_medium'))
-        self.assertEqual(new_medium, self.env['utm.medium']._fetch_or_create_utm_medium('new.Medium'))
+        self.assertEqual(new_medium, self.env['utm.medium']._get_or_create_utm_medium('New Medium'))
+        self.assertEqual(new_medium, self.env['utm.medium']._get_or_create_utm_medium('new medium'))
+        self.assertEqual(new_medium, self.env['utm.medium']._get_or_create_utm_medium('new_medium'))
+        self.assertEqual(new_medium, self.env['utm.medium']._get_or_create_utm_medium('new.Medium'))
 
         # create and fetch medium
-        other_medium = self.env['utm.medium']._fetch_or_create_utm_medium('Another Medium')
-        self.assertEqual(other_medium, self.env['utm.medium']._fetch_or_create_utm_medium('Another Medium'))
+        other_medium = self.env['utm.medium']._get_or_create_utm_medium('Another Medium')
+        self.assertEqual(other_medium, self.env['utm.medium']._get_or_create_utm_medium('Another Medium'))
         self.assertEqual(other_medium, self.env.ref('utm.utm_medium_another_medium'))
-        self.assertEqual(other_medium, self.env['utm.medium']._fetch_or_create_utm_medium('another medium'))
+        self.assertEqual(other_medium, self.env['utm.medium']._get_or_create_utm_medium('another medium'))
 
     def test_find_or_create_record_case(self):
         """ Find-or-create should be case insensitive to avoid useless duplication """

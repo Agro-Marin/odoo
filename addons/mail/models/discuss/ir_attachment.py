@@ -17,7 +17,7 @@ class IrAttachment(models.Model):
     )
 
     def _bus_channel(self) -> models.Model:
-        self.ensure_one()
+        self.check_singleton()
         if self.res_model == "discuss.channel" and self.res_id:
             return self.env["discuss.channel"].browse(self.res_id)
         guest = self.env["mail.guest"]._get_guest_from_context()

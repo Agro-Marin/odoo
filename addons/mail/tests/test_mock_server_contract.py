@@ -164,13 +164,13 @@ class TestMockServerContract(HttpCase):
     def _run_scenarios(self):
         self.authenticate("contract_anna", "contract_anna")
         payloads = {
-            "init_messaging": self.make_jsonrpc_request(
+            "init_messaging": self.call_jsonrpc(
                 "/mail/data", {"fetch_params": ["init_messaging"]}
             ),
-            "channels_as_member": self.make_jsonrpc_request(
+            "channels_as_member": self.call_jsonrpc(
                 "/mail/data", {"fetch_params": ["channels_as_member"]}
             ),
-            "chatter_thread": self.make_jsonrpc_request(
+            "chatter_thread": self.call_jsonrpc(
                 "/mail/data",
                 {
                     "fetch_params": [
@@ -185,15 +185,15 @@ class TestMockServerContract(HttpCase):
                     ]
                 },
             ),
-            "channel_messages": self.make_jsonrpc_request(
+            "channel_messages": self.call_jsonrpc(
                 "/discuss/channel/messages",
                 {"channel_id": self.channel.id, "fetch_params": {"limit": 30}},
             )["data"],
-            "channel_members": self.make_jsonrpc_request(
+            "channel_members": self.call_jsonrpc(
                 "/discuss/channel/members",
                 {"channel_id": self.channel.id, "known_member_ids": []},
             ),
-            "message_post": self.make_jsonrpc_request(
+            "message_post": self.call_jsonrpc(
                 "/mail/message/post",
                 {
                     "thread_model": "discuss.channel",
@@ -205,7 +205,7 @@ class TestMockServerContract(HttpCase):
                     },
                 },
             )["store_data"],
-            "get_or_create_chat": self.make_jsonrpc_request(
+            "get_or_create_chat": self.call_jsonrpc(
                 "/mail/action",
                 {
                     "fetch_params": [

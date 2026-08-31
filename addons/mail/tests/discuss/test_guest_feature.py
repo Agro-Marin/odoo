@@ -22,7 +22,7 @@ class TestGuestFeature(WebsocketCase, MailCommon):
             lambda m: m.guest_id == guest
         )
         self.assertEqual(guest_member.seen_message_id, self.env["mail.message"])
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             "/discuss/channel/mark_as_read",
             {
                 "channel_id": channel.id,

@@ -15,7 +15,7 @@ class TestDiscussChannel(TestImLivechatCommon, TestGetOperatorCommon, MailCase):
         bob_user = new_test_user(
             self.env, "bob_user", groups="base.group_user,im_livechat.im_livechat_group_manager"
         )
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session", {"channel_id": self.livechat_channel.id}
         )
         chat = self.env["discuss.channel"].browse(data["channel_id"])
@@ -26,7 +26,7 @@ class TestDiscussChannel(TestImLivechatCommon, TestGetOperatorCommon, MailCase):
         self.assertTrue(chat.livechat_end_dt)
 
     def test_human_operator_failure_states(self):
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session", {"channel_id": self.livechat_channel.id}
         )
         chat = self.env["discuss.channel"].browse(data["channel_id"])
@@ -50,7 +50,7 @@ class TestDiscussChannel(TestImLivechatCommon, TestGetOperatorCommon, MailCase):
         bob_operator = new_test_user(
             self.env, "bob_user", groups="im_livechat.im_livechat_group_user"
         )
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session",
             {"chatbot_script_id": chatbot_script.id, "channel_id": self.livechat_channel.id},
         )
@@ -73,7 +73,7 @@ class TestDiscussChannel(TestImLivechatCommon, TestGetOperatorCommon, MailCase):
         self.assertEqual(chat.livechat_failure, "no_failure")
 
     def test_livechat_description_sync_to_internal_user_bus(self):
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session",
             {"channel_id": self.livechat_channel.id},
         )
@@ -97,7 +97,7 @@ class TestDiscussChannel(TestImLivechatCommon, TestGetOperatorCommon, MailCase):
             channel.description = "Description of the conversation"
 
     def test_livechat_note_sync_to_internal_user_bus(self):
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session",
             {"channel_id": self.livechat_channel.id},
         )
@@ -124,7 +124,7 @@ class TestDiscussChannel(TestImLivechatCommon, TestGetOperatorCommon, MailCase):
             channel.livechat_note = "This is a note for the internal user."
 
     def test_livechat_status_sync_to_internal_user_bus(self):
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session",
             {"channel_id": self.livechat_channel.id},
         )
@@ -249,7 +249,7 @@ class TestDiscussChannel(TestImLivechatCommon, TestGetOperatorCommon, MailCase):
             "message": "Hello joey, how you doing?",
             "step_type": "text",
         })
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session",
             {
                 "anonymous_name": "Thomas",
@@ -286,7 +286,7 @@ class TestDiscussChannel(TestImLivechatCommon, TestGetOperatorCommon, MailCase):
         )
         self.livechat_channel.user_ids = jane
         self.livechat_channel.rule_ids = [Command.create({"chatbot_script_id": chatbot_script.id})]
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session",
             {
                 "chatbot_script_id": chatbot_script.id,
@@ -294,7 +294,7 @@ class TestDiscussChannel(TestImLivechatCommon, TestGetOperatorCommon, MailCase):
             },
         )
         channel = self.env["discuss.channel"].browse(data["channel_id"])
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             "/chatbot/step/trigger",
             {"channel_id": channel.id, "chatbot_script_id": chatbot_script.id},
         )
@@ -302,7 +302,7 @@ class TestDiscussChannel(TestImLivechatCommon, TestGetOperatorCommon, MailCase):
         self.assertEqual(channel.livechat_expertise_ids, operator_expertise_ids)
         cat_expertise = self.env["im_livechat.expertise"].create({"name": "Cat"})
         self.authenticate(jane.login, jane.login)
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             "/im_livechat/conversation/write_expertises",
             {
                 "channel_id": channel.id,

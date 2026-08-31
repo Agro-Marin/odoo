@@ -80,7 +80,7 @@ class MailingMailing(models.Model):
         }
 
     def _prepare_statistics_email_values(self):
-        self.ensure_one()
+        self.check_singleton()
         values = super()._prepare_statistics_email_values()
         if not self.user_id:
             return values

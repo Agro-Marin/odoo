@@ -191,7 +191,7 @@ class DiscussChannelRtcSession(models.Model):
         self.filtered_domain(self._get_domain_inactive_rtc_sessions()).unlink()
 
     def _notify_peers(self, notifications: list[tuple]) -> None:
-        self.ensure_one()
+        self.check_singleton()
         payload_by_target = defaultdict(
             lambda: {"sender": self.id, "notifications": []}
         )

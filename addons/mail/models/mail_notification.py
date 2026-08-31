@@ -129,7 +129,7 @@ class MailNotification(models.Model):
         return len(records), len(records) == GC_UNLINK_LIMIT
 
     def format_failure_reason(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         if self.failure_type != "unknown":
             return dict(
                 self._fields["failure_type"]._description_selection(self.env)

@@ -5,7 +5,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
 from odoo.tools.misc import (
     limited_field_access_token,
-    verify_limited_field_access_token,
+    is_valid_limited_field_access_token,
 )
 
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput, StoreFieldSpec
@@ -37,7 +37,7 @@ class IrAttachment(models.Model):
                 return False
             if attachment.sudo(False).has_access("write"):
                 return True
-            return token and verify_limited_field_access_token(
+            return token and is_valid_limited_field_access_token(
                 attachment, "id", token, scope="attachment_ownership"
             )
 
@@ -137,11 +137,11 @@ class IrAttachment(models.Model):
         ]
 
     def _get_ownership_token(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         return limited_field_access_token(
             self, field_name="id", scope="attachment_ownership"
         )
 
     def _get_thumbnail_token(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         return limited_field_access_token(self, "thumbnail", scope="binary")

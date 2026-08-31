@@ -45,7 +45,7 @@ class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
                          "Only step 'step_no_one_available' should be flagged as forward operator child.")
 
     def test_chatbot_steps(self):
-        data = self.make_jsonrpc_request("/im_livechat/get_session", {
+        data = self.call_jsonrpc("/im_livechat/get_session", {
             'chatbot_script_id': self.chatbot_script.id,
             'channel_id': self.livechat_channel.id,
         })
@@ -104,7 +104,7 @@ class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
 
     def test_chatbot_not_invited_to_rtc_calls(self):
         with freeze_all_time():
-            data = self.make_jsonrpc_request(
+            data = self.call_jsonrpc(
                 "/im_livechat/get_session",
                 {
                     "channel_id": self.livechat_channel.id,
@@ -128,7 +128,7 @@ class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
 
     @freeze_time("2020-03-22 10:42:06")
     def test_forward_to_specific_operator(self):
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session",
             {
                 "channel_id": self.livechat_channel.id,
@@ -472,7 +472,7 @@ class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
 
     def test_chatbot_member_type(self):
         self.authenticate(self.user_employee.login, self.user_employee.login)
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session",
             {
                 "chatbot_script_id": self.chatbot_script.id,

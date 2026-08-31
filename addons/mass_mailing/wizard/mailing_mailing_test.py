@@ -40,7 +40,7 @@ class MailingMailingTest(models.TransientModel):
     )
 
     def send_mail_test(self):
-        self.ensure_one()
+        self.check_singleton()
         ctx = dict(self.env.context)
         ctx.pop("default_state", None)
         self = self.with_context(ctx)

@@ -42,7 +42,7 @@ class TestInboxPerformance(HttpCase, MailCommon):
         #       - search mail_notification
         #       7 _filtered_for_web_client:
         #           - fetch mail_notification
-        #           4 _compute_domain:
+        #           4 _get_domain_accessible_records:
         #               - search ir_rule (_get_rules for res.partner)
         #               - search res_groups_users_rel
         #               - search rule_group_rel
@@ -78,4 +78,4 @@ class TestInboxPerformance(HttpCase, MailCommon):
             )
         self.authenticate(self.user_employee.login, self.user_employee.password)
         with self.assertQueryCount(42):
-            self.make_jsonrpc_request("/mail/inbox/messages")
+            self.call_jsonrpc("/mail/inbox/messages")

@@ -56,8 +56,8 @@ class ResPartner(models.Model):
             return {p_id: list(meetings.get(p_id, set())) for p_id in self.ids}
         return {}
 
-    def _compute_application_statistics_hook(self):
-        data_list = super()._compute_application_statistics_hook()
+    def _get_application_statistics(self):
+        data_list = super()._get_application_statistics()
         for partner in self.filtered('meeting_count'):
             stat_info = {'iconClass': 'fa-solid fa-calendar', 'value': partner.meeting_count, 'label': _('Meetings'), 'tagClass': 'o_tag_color_3'}
             data_list[partner.id].append(stat_info)
@@ -102,7 +102,7 @@ class ResPartner(models.Model):
         })
 
     def schedule_meeting(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("calendar.action_calendar_event")
         # Not `partner_ids = self.ids; partner_ids.append(...)`: that reads as a
         # mutation of the recordset's own ids and is only safe because `ids`

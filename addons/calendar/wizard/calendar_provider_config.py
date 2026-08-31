@@ -40,7 +40,7 @@ class CalendarProviderConfig(models.TransientModel):
         Make sure that the provider calendar module is installed or install it. Then, set
         the API keys into the applicable config parameters.
         """
-        self.ensure_one()
+        self.check_singleton()
         calendar_module = self.env['ir.module.module'].search([
             ('name', '=', f'{self.external_calendar_provider}_calendar')])
 

@@ -34,7 +34,7 @@ class ResUsers(models.Model):
         always eligible -- ``resource.resource`` declines ``check_company`` for
         that same reason.
         """
-        self.ensure_one()
+        self.check_singleton()
         resources = self.sudo().resource_ids.filtered(
             lambda resource: (
                 not resource.company_id or resource.company_id == self.company_id
@@ -59,7 +59,7 @@ class ResUsers(models.Model):
                  If 'include_user' is True, the list will also include the current user's partner ID.
         :rtype: list
         """
-        self.ensure_one()
+        self.check_singleton()
         partner_ids = (
             self.env["calendar.filters"]
             .search([("user_id", "=", self.id), ("partner_checked", "=", True)])
