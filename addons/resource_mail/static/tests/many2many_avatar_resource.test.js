@@ -81,7 +81,6 @@ beforeEach(async () => {
         const resources = pyEnv['resource.resource'].read([resourceId]);
         const result = resources.map(resource => ({
             name: resource.name,
-            role_ids: resource.role_ids,
             email:resource.email,
             phone: resource.phone,
             user_id: resource.user_id,
