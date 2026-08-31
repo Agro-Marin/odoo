@@ -539,3 +539,45 @@ test("data-name is injected when missing and preserved when already set on snipp
     expect(":iframe .s_test").toHaveAttribute("data-name", "Test");
     expect(":iframe .s_test_existing").toHaveAttribute("data-name", "Existing Name");
 });
+
+test("a block is still found when its name is mistyped", async () => {
+    const snippets = [
+        { name: "gravy", groupName: "a", innerHTML: "content 1", keywords: ["jumper"] },
+        { name: "bandage", groupName: "a", innerHTML: "content 2", keywords: ["order"] },
+        {
+            name: "banana",
+            groupName: "b",
+            innerHTML: "content 3",
+            keywords: ["grape", "orange"],
+        },
+    ];
+    await setupHTMLBuilder("<div><p>Text</p></div>", {
+        snippets: {
+            snippet_groups: [
+                '<div name="A" data-oe-thumbnail="a.svg" data-oe-snippet-id="123" data-o-snippet-group="a"><section data-snippet="s_snippet_group"></section></div>',
+                '<div name="B" data-oe-thumbnail="b.svg" data-oe-snippet-id="123" data-o-snippet-group="b"><section data-snippet="s_snippet_group"></section></div>',
+            ],
+            snippet_structure: createTestSnippets({ snippets, withName: false }).map(
+                (snippetDesc) => getSnippetStructure(snippetDesc)
+            ),
+        },
+    });
+    await click(".o-snippets-menu #snippet_groups .o_snippet_thumbnail .o_snippet_thumbnail_area");
+    await waitForSnippetDialog();
+
+    const previews = () =>
+        queryAll(".o_add_snippet_dialog .o_add_snippet_iframe:iframe .o_snippet_preview_wrap > div");
+
+    // One substitution away from "bandage", and deliberately not a subsequence
+    // of it -- that is the whole class of typo the subsequence pass cannot see.
+    await contains(".o_add_snippet_dialog aside input[type='search']").edit("bandaje");
+    expect(previews().length).toBe(1);
+    expect(previews()[0].innerHTML).toBe(
+        createTestSnippets({ snippets, withName: true })[1].content
+    );
+
+    // The fallback stays a search: a term close to nothing still matches
+    // nothing, rather than falling back to the whole list.
+    await contains(".o_add_snippet_dialog aside input[type='search']").edit("zzzzzzz");
+    expect(previews().length).toBe(0);
+});
