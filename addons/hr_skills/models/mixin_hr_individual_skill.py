@@ -4,7 +4,7 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
-from odoo.fields import Domain
+from odoo.fields import Command, Domain
 
 
 class MixinHrIndividualSkill(models.AbstractModel):
@@ -17,29 +17,14 @@ class MixinHrIndividualSkill(models.AbstractModel):
         raise NotImplementedError
 
     def _get_fields_passive(self):
-        """Return extra field names to copy onto new (versioned) skills.
-
-        :return: list of field names to copy to new skills
-        :rtype: list[str]
-        """
-        # Passive fields are carried over when a new skill version is created
-        # because a core/active field changed (linked_field, skill_id,
-        # skill_level_id, skill_type_id), but editing a passive field does NOT
-        # itself trigger a new version. Core/active fields are preserved
-        # automatically and must NOT be listed here.
         return []
 
     def _can_edit_certification_validity_period(self):
-        # If True, the overlapping constraint on a certification is released:
-        # two certifications are overlapping each other if they have the same skill_level_id, valid_from and valid_to.
-        # This behavior is wanted when the user can change the validity.
         return True
 
     def _default_skill_type_id(self):
         if self.env.context.get("certificate_skill", False):
-            return self.env["hr.skill.type"].search(
-                [("is_certification", "=", True)], limit=1
-            )
+            return self.env["hr.skill.type"]._get_certification_type()
         return self.env["hr.skill.type"].search([], limit=1)
 
     skill_id = fields.Many2one(
@@ -68,7 +53,9 @@ class MixinHrIndividualSkill(models.AbstractModel):
     )
     level_progress = fields.Integer(related="skill_level_id.level_progress")
     color = fields.Integer(related="skill_type_id.color")
-    valid_from = fields.Date(string="Validity Start", default=fields.Date.today)
+    valid_from = fields.Date(
+        string="Validity Start", default=fields.Date.today, required=True
+    )
     valid_to = fields.Date(string="Validity Stop")
     levels_count = fields.Integer(related="skill_type_id.levels_count")
     certification_skill_type_count = fields.Integer(
@@ -77,8 +64,10 @@ class MixinHrIndividualSkill(models.AbstractModel):
     )
     is_certification = fields.Boolean(
         related="skill_type_id.is_certification", export_string_translation=False
-    )  # if is_certification change the model will not trigger the constrains
-    display_warning_message = fields.Boolean()
+    )
+    display_warning_message = fields.Boolean(
+        compute="_compute_display_warning_message", export_string_translation=False
+    )
 
     @api.constrains(
         lambda self: [
@@ -91,24 +80,6 @@ class MixinHrIndividualSkill(models.AbstractModel):
         ]
     )
     def _check_not_overlapping_regular_skill(self):
-        """Forbid overlapping regular skills and duplicate certifications for the same record."""
-        # Core behaviour and difference between the two models:
-        # Skills:
-        #   1. Only one active skill per skill_id (e.g. only one level of English).
-        #   2. Skills are not deleted unless created within the last 24 hours;
-        #      otherwise they are archived to preserve the record's skill history.
-        #   3. Skills are not written to in place: the previous skill is archived
-        #      and a new one with the new values is created, again to keep history.
-        # Certifications:
-        #   1. Many certifications with the same skill_id and skill_level may exist
-        #      as long as valid_from/valid_to differ, e.g. "Odoo:Certified
-        #      2025-1-1 to 2025-12-31" alongside "Odoo:Certified 2024-6-1 to 2025-5-31".
-        #   2. Certifications can be deleted at any point.
-        #   3. Certifications are not written to in place: the previous one is
-        #      archived and a new one with the new values is created.
-        # For both models:
-        #   1. No two records may have exactly the same values.
-        #   2. A record is active when valid_to is unset or set to a future date.
         overlapping_dict = self._get_overlapping_individual_skill(
             [
                 {
@@ -129,7 +100,17 @@ class MixinHrIndividualSkill(models.AbstractModel):
             errors = []
             for existing_ind_skill, new_ind_skills in overlapping_dict.items():
                 errors.append(
-                    f"• {', '.join([str(ind_skill) for ind_skill in new_ind_skills])} conflicts with the existing skill/certification {existing_ind_skill.display_name} from {existing_ind_skill.valid_from} to {existing_ind_skill.valid_to}",
+                    self.env._(
+                        "\u2022 %(new_skills)s conflicts with the existing skill/certification %(existing)s from %(valid_from)s to %(valid_to)s",
+                        new_skills=", ".join(
+                            self._describe_individual_skill_vals(ind_skill)
+                            for ind_skill in new_ind_skills
+                        ),
+                        existing=existing_ind_skill.display_name,
+                        valid_from=existing_ind_skill.valid_from,
+                        valid_to=existing_ind_skill.valid_to
+                        or self.env._("no end date"),
+                    ),
                 )
 
             error_msg = self.env._(
@@ -138,172 +119,153 @@ class MixinHrIndividualSkill(models.AbstractModel):
             )
             raise ValidationError(error_msg)
 
+    def _describe_individual_skill_vals(self, vals):
+        skill = self.env["hr.skill"].browse(vals.get("skill_id"))
+        level = self.env["hr.skill.level"].browse(vals.get("skill_level_id"))
+        return self.env._(
+            "%(skill)s: %(level)s from %(valid_from)s to %(valid_to)s",
+            skill=skill.name,
+            level=level.name,
+            valid_from=vals.get("valid_from"),
+            valid_to=vals.get("valid_to") or self.env._("no end date"),
+        )
+
+    def _certification_identity(
+        self, linked_id, skill_id, level_id, valid_from, valid_to
+    ):
+        return (
+            linked_id,
+            skill_id,
+            level_id,
+            fields.Date.from_string(valid_from),
+            fields.Date.from_string(valid_to),
+        )
+
+    def _covers_date(self, individual_skill, day):
+        return (
+            bool(day)
+            and individual_skill.valid_from <= day
+            and (not individual_skill.valid_to or individual_skill.valid_to >= day)
+        )
+
+    def _get_matching_individual_skill_domain(self, vals, as_certification):
+        linked_field = self._linked_field_name()
+        domain = Domain.AND(
+            [
+                Domain(linked_field, "=", vals[linked_field]),
+                Domain("skill_id", "=", vals["skill_id"]),
+                Domain("id", "!=", vals["id"]),
+            ]
+        )
+        if as_certification:
+            return Domain.AND(
+                [
+                    domain,
+                    Domain("skill_level_id", "=", vals["skill_level_id"]),
+                    Domain("valid_from", "=", vals["valid_from"]),
+                    Domain("valid_to", "=", vals["valid_to"]),
+                ]
+            )
+        return Domain.AND(
+            [
+                domain,
+                Domain.OR(
+                    [
+                        self._covering_date_domain(vals["valid_from"]),
+                        self._covering_date_domain(vals["valid_to"]),
+                    ]
+                ),
+            ]
+        )
+
+    def _covering_date_domain(self, day):
+        return Domain.AND(
+            [
+                Domain("valid_from", "<=", day),
+                Domain.OR(
+                    [Domain("valid_to", "=", False), Domain("valid_to", ">=", day)]
+                ),
+            ]
+        )
+
     def _get_overlapping_individual_skill(self, vals_list):
         can_edit_certification_validity_period = (
             self._can_edit_certification_validity_period()
         )
+        linked_field = self._linked_field_name()
         matching_skill_domain = Domain.FALSE
         overlapping_dict = defaultdict(list)
         certification_dict = defaultdict(list)
         regular_dict = defaultdict(list)
-        for individual_skill_vals in vals_list:
-            ind_domain = Domain.AND(
+
+        for vals in vals_list:
+            as_certification = (
+                can_edit_certification_validity_period and vals["is_certification"]
+            )
+            matching_skill_domain = Domain.OR(
                 [
-                    Domain(
-                        f"{self._linked_field_name()}.id",
-                        "=",
-                        individual_skill_vals[self._linked_field_name()],
-                    ),
-                    Domain("skill_id.id", "=", individual_skill_vals["skill_id"]),
-                    Domain("id", "!=", individual_skill_vals["id"]),
+                    matching_skill_domain,
+                    self._get_matching_individual_skill_domain(vals, as_certification),
                 ]
             )
-
-            if (
-                can_edit_certification_validity_period
-                and individual_skill_vals["is_certification"]
-            ):
-                ind_domain = Domain.AND(
-                    [
-                        ind_domain,
-                        Domain(
-                            "skill_level_id.id",
-                            "=",
-                            individual_skill_vals["skill_level_id"],
-                        ),
-                        Domain("valid_from", "=", individual_skill_vals["valid_from"]),
-                        Domain("valid_to", "=", individual_skill_vals["valid_to"]),
-                    ]
-                )
-                key = (
-                    individual_skill_vals[self._linked_field_name()],
-                    individual_skill_vals["skill_id"],
-                    individual_skill_vals["skill_level_id"],
-                    fields.Date.from_string(individual_skill_vals["valid_from"]),
-                    fields.Date.from_string(individual_skill_vals["valid_to"]),
-                )
-                certification_dict[key].append(individual_skill_vals)
+            if as_certification:
+                certification_dict[
+                    self._certification_identity(
+                        vals[linked_field],
+                        vals["skill_id"],
+                        vals["skill_level_id"],
+                        vals["valid_from"],
+                        vals["valid_to"],
+                    )
+                ].append(vals)
             else:
-                ind_domain = Domain.AND(
-                    [
-                        ind_domain,
-                        Domain.OR(
-                            [
-                                Domain.AND(
-                                    [
-                                        Domain(
-                                            "valid_from",
-                                            "<=",
-                                            individual_skill_vals["valid_from"],
-                                        ),
-                                        Domain.OR(
-                                            [
-                                                Domain("valid_to", "=", False),
-                                                Domain(
-                                                    "valid_to",
-                                                    ">=",
-                                                    individual_skill_vals["valid_from"],
-                                                ),
-                                            ]
-                                        ),
-                                    ]
-                                ),
-                                Domain.AND(
-                                    [
-                                        Domain(
-                                            "valid_from",
-                                            "<=",
-                                            individual_skill_vals["valid_to"],
-                                        ),
-                                        Domain.OR(
-                                            [
-                                                Domain("valid_to", "=", False),
-                                                Domain(
-                                                    "valid_to",
-                                                    ">=",
-                                                    individual_skill_vals["valid_to"],
-                                                ),
-                                            ]
-                                        ),
-                                    ]
-                                ),
-                            ]
+                regular_dict[(vals[linked_field], vals["skill_id"])].append(vals)
+
+        for stored in self.env[self._name].search(matching_skill_domain):
+            if can_edit_certification_validity_period and stored.is_certification:
+                overlapping_dict[stored].extend(
+                    certification_dict.get(
+                        self._certification_identity(
+                            stored[linked_field].id,
+                            stored.skill_id.id,
+                            stored.skill_level_id.id,
+                            stored.valid_from,
+                            stored.valid_to,
                         ),
-                    ]
-                )
-
-                key = (
-                    individual_skill_vals[self._linked_field_name()],
-                    individual_skill_vals["skill_id"],
-                )
-                regular_dict[key].append(individual_skill_vals)
-
-            matching_skill_domain = Domain.OR([matching_skill_domain, ind_domain])
-        matching_individual_skills = self.env[self._name].search(matching_skill_domain)
-        for matching_ind_skill in matching_individual_skills:
-            if (
-                can_edit_certification_validity_period
-                and matching_ind_skill.is_certification
-            ):
-                similar_certifications = certification_dict.get(
-                    (
-                        matching_ind_skill[self._linked_field_name()].id,
-                        matching_ind_skill.skill_id.id,
-                        matching_ind_skill.skill_level_id.id,
-                        fields.Date.from_string(matching_ind_skill.valid_from),
-                        fields.Date.from_string(matching_ind_skill.valid_to),
+                        [],
                     )
                 )
-                if similar_certifications:
-                    overlapping_dict[matching_ind_skill].extend(similar_certifications)
-            else:
-                similar_regular_skills = regular_dict.get(
-                    (
-                        matching_ind_skill[self._linked_field_name()].id,
-                        matching_ind_skill.skill_id.id,
-                    ),
-                    [],
-                )
-                for similar_regular_skill in similar_regular_skills:
-                    if (
-                        matching_ind_skill.valid_from
-                        <= similar_regular_skill["valid_from"]
-                        and (
-                            not matching_ind_skill.valid_to
-                            or matching_ind_skill.valid_to
-                            >= similar_regular_skill["valid_from"]
-                        )
-                    ) or (
-                        matching_ind_skill.valid_from
-                        <= similar_regular_skill["valid_to"]
-                        and (
-                            not matching_ind_skill.valid_to
-                            or matching_ind_skill.valid_to
-                            >= similar_regular_skill["valid_to"]
-                        )
-                    ):
-                        overlapping_dict[matching_ind_skill].append(
-                            similar_regular_skill
-                        )
+                if not overlapping_dict[stored]:
+                    del overlapping_dict[stored]
+                continue
+            for vals in regular_dict.get(
+                (stored[linked_field].id, stored.skill_id.id), []
+            ):
+                if self._covers_date(stored, vals["valid_from"]) or self._covers_date(
+                    stored, vals["valid_to"]
+                ):
+                    overlapping_dict[stored].append(vals)
         return overlapping_dict
 
     @api.constrains("valid_from", "valid_to")
     def _check_date(self):
-        error_ind_skill_msg = ""
-        for ind_skill in self:
-            if ind_skill.valid_to and ind_skill.valid_from > ind_skill.valid_to:
-                error_ind_skill_msg += self.env._(
-                    "• %(skill_name)s from %(valid_from)s to %(valid_to)s",
-                    skill_name=ind_skill.display_name,
-                    valid_from=ind_skill.valid_from,
-                    valid_to=ind_skill.valid_to,
-                )
-        if error_ind_skill_msg:
+        errors = [
+            self.env._(
+                "• %(skill_name)s from %(valid_from)s to %(valid_to)s",
+                skill_name=ind_skill.display_name,
+                valid_from=ind_skill.valid_from,
+                valid_to=ind_skill.valid_to,
+            )
+            for ind_skill in self
+            if ind_skill.valid_to and ind_skill.valid_from > ind_skill.valid_to
+        ]
+        if errors:
             raise ValidationError(
                 self.env._(
-                    "The following skills have their valid stop date prior to their valid start date:\n"
+                    "The following skills have their valid stop date prior to "
+                    "their valid start date:\n%(collisions)s",
+                    collisions="\n".join(errors),
                 )
-                + error_ind_skill_msg
             )
 
     @api.constrains("skill_id", "skill_type_id")
@@ -331,12 +293,10 @@ class MixinHrIndividualSkill(models.AbstractModel):
                 )
 
     def _compute_certification_skill_type_count(self):
-        certification_skill_type_count = self.env["hr.skill.type"].search_count(
-            domain=[("is_certification", "=", True)]
+        self.certification_skill_type_count = self.env["hr.skill.type"].search_count(
+            [("is_certification", "=", True)]
         )
-        self.certification_skill_type_count = certification_skill_type_count
 
-    #  To reset the validity period if the skill become certified or uncertified
     @api.onchange("is_certification")
     def _onchange_is_certification(self):
         self.valid_from = fields.Date.today()
@@ -346,49 +306,34 @@ class MixinHrIndividualSkill(models.AbstractModel):
     @api.depends("skill_type_id")
     def _compute_skill_id(self):
         for record in self:
-            if record.skill_type_id:
-                record.skill_id = (
-                    record.skill_type_id.skill_ids[0]
-                    if record.skill_type_id.skill_ids
-                    else False
-                )
-            else:
-                record.skill_id = False
+            record.skill_id = record.skill_type_id.skill_ids[:1]
 
-    @api.depends("skill_id")
+    @api.depends("skill_id", "skill_type_id")
     def _compute_skill_level_id(self):
         for record in self:
             if not record.skill_id:
                 record.skill_level_id = False
-            else:
-                skill_levels = record.skill_type_id.skill_level_ids
-                record.skill_level_id = (
-                    skill_levels.filtered("default_level") or skill_levels[0]
-                    if skill_levels
-                    else False
-                )
+                continue
+            skill_levels = record.skill_type_id.skill_level_ids
+            record.skill_level_id = (
+                skill_levels.filtered("default_level")[:1] or skill_levels[:1]
+            )
 
     @api.depends("skill_id", "skill_level_id")
     def _compute_display_name(self):
         for individual_skill in self:
             individual_skill.display_name = f"{individual_skill.skill_id.name}: {individual_skill.skill_level_id.name}"
 
-    @api.onchange("valid_to", "valid_from")
-    def _onchange_valid_date(self):
-        self.display_warning_message = (
-            self.valid_to and self.valid_from and self.valid_to < self.valid_from
-        )
+    @api.depends("valid_from", "valid_to")
+    def _compute_display_warning_message(self):
+        for individual_skill in self:
+            individual_skill.display_warning_message = bool(
+                individual_skill.valid_to
+                and individual_skill.valid_from
+                and individual_skill.valid_to < individual_skill.valid_from
+            )
 
     def _expire_individual_skills(self):
-        """Archive or delete every individual skill in ``self``.
-
-        :return: list of WRITE and DELETE (x2many) commands
-        :rtype: list
-        """
-        # A skill created within the last 24h (valid_from >= yesterday) or already
-        # expired (valid_to <= yesterday) is deleted. Otherwise it is archived by
-        # setting valid_to to yesterday, unless doing so would break a constraint
-        # (overlap), in which case it is deleted instead.
         yesterday = fields.Date.today() - relativedelta(days=1)
         to_remove = self.env[self._name]
         to_archive = self.env[self._name]
@@ -426,22 +371,21 @@ class MixinHrIndividualSkill(models.AbstractModel):
             )
             to_archive -= changed_to_remove
             to_remove += changed_to_remove
-        return [[2, skill.id] for skill in to_remove] + [
-            [1, skill.id, {"valid_to": yesterday}] for skill in to_archive
+        return [Command.delete(skill.id) for skill in to_remove] + [
+            Command.update(skill.id, {"valid_to": yesterday}) for skill in to_archive
         ]
 
-    def _create_individual_skills(self, vals_list):
-        """Transform CREATE commands into CREATE, WRITE and DELETE commands.
-
-        :param list vals_list: values dicts from the CREATE commands
-        :return: list of CREATE, WRITE and DELETE (x2many) commands
-        :rtype: list
-        """
-        # Archiving the previous skill instead of overwriting it keeps the record
-        # logs/history and keeps the overlap constraints satisfied.
+    def _create_individual_skills(self, vals_list, individuals=None):
         can_edit_certification_validity_period = (
             self._can_edit_certification_validity_period()
         )
+        linked_field = self._linked_field_name()
+        replay_ids = individuals.ids if individuals else []
+
+        def linked_ids_of(vals):
+            explicit = vals.get(linked_field, False)
+            return [explicit] if explicit else replay_ids or [False]
+
         seen_skills = set()
         skills_to_archive = self.env[self._name]
         vals_to_return = []
@@ -467,11 +411,7 @@ class MixinHrIndividualSkill(models.AbstractModel):
                     [
                         Domain.AND(
                             [
-                                Domain(
-                                    f"{self._linked_field_name()}",
-                                    "=",
-                                    vals.get(self._linked_field_name(), False),
-                                ),
+                                Domain(linked_field, "in", linked_ids_of(vals)),
                                 Domain("skill_id", "=", vals.get("skill_id", False)),
                             ]
                         )
@@ -484,7 +424,7 @@ class MixinHrIndividualSkill(models.AbstractModel):
 
         existing_skills = self.env[self._name].search(existing_skills_domain)
         existing_skills_grouped = existing_skills.grouped(
-            lambda skill: (skill[self._linked_field_name()].id, skill.skill_id.id)
+            lambda skill: (skill[linked_field].id, skill.skill_id.id)
         )
 
         if can_edit_certification_validity_period:
@@ -494,7 +434,7 @@ class MixinHrIndividualSkill(models.AbstractModel):
             certification_set = {}
             for cert in existing_certifications:
                 key = (
-                    cert[self._linked_field_name()].id,
+                    cert[linked_field].id,
                     cert.skill_id.id,
                     cert.skill_level_id.id,
                     fields.Date.from_string(cert.valid_from),
@@ -509,7 +449,7 @@ class MixinHrIndividualSkill(models.AbstractModel):
                 .ids
             )
         for vals in vals_list:
-            individual_skill_id = vals.get(self._linked_field_name(), False)
+            individual_skill_id = vals.get(linked_field, False)
             skill_id = vals["skill_id"]
             skill_type_id = vals["skill_type_id"]
             skill_level_id = vals["skill_level_id"]
@@ -523,59 +463,37 @@ class MixinHrIndividualSkill(models.AbstractModel):
 
             skill_key = (individual_skill_id, skill_id, valid_from, valid_to)
 
-            # Remove duplicate skills
             if skill_key in seen_skills:
                 continue
             seen_skills.add(skill_key)
 
             if is_certificate:
-                key = (
-                    individual_skill_id,
-                    skill_id,
-                    skill_level_id,
-                    valid_from,
-                    valid_to,
-                )
-                # Remove duplicate certification
-                if certification_set.get(key):
+                keys = [
+                    (linked_id, skill_id, skill_level_id, valid_from, valid_to)
+                    for linked_id in linked_ids_of(vals)
+                ]
+                if all(certification_set.get(key) for key in keys):
                     continue
-            # Archive existing regular skill if the person already have one with the same skill
-            elif existing_skill := existing_skills_grouped.get(
-                (individual_skill_id, skill_id)
-            ):
-                skills_to_archive += existing_skill
+            else:
+                for linked_id in linked_ids_of(vals):
+                    if existing_skill := existing_skills_grouped.get(
+                        (linked_id, skill_id)
+                    ):
+                        skills_to_archive += existing_skill
 
             vals_to_return.append(vals)
 
         return skills_to_archive._expire_individual_skills() + [
-            [0, 0, new_create_val] for new_create_val in vals_to_return
+            Command.create(new_create_val) for new_create_val in vals_to_return
         ]
 
     def _write_individual_skills(self, commands):
-        """Transform WRITE commands into CREATE, WRITE and DELETE commands.
-
-        :param commands: list of WRITE commands
-        :return: list of CREATE, WRITE and DELETE (x2many) commands
-        :rtype: list
-        """
-        # If none of skill_type_id, skill_id, skill_level_id or the linked field
-        # is being written, this behaves like a standard write. Otherwise the
-        # current record is archived (valid_to set to yesterday) and a new one is
-        # created from vals merged over self, with vals taking priority.
         self_dict = self.grouped("id")
         result_command = []
         create_vals = []
         remove_from_expire = self.env[self._name]
 
         def _get_passive_field_value(field, skill):
-            """
-            Extracts the appropriate value from a field to be passed into a vals dict for record creation/writing.
-            Returns the raw value for most fields but extracts id(s) for relational fields.
-
-            :param field: Field name as a string to process
-            :param skill: Source record to extract value from
-            :return: ORM-ready value for the field
-            """
             field_type = self._fields[field].type
             if field_type == "many2one":
                 return skill[field].id
@@ -595,7 +513,7 @@ class MixinHrIndividualSkill(models.AbstractModel):
                     self._linked_field_name(),
                 ]
             ):
-                result_command.append([1, ind_skill.id, vals])
+                result_command.append(Command.update(ind_skill.id, vals))
                 remove_from_expire += ind_skill
                 continue
 
@@ -638,22 +556,6 @@ class MixinHrIndividualSkill(models.AbstractModel):
         )
 
     def _get_transformed_commands(self, commands, individuals):
-        """Rewrite ORM commands to honour the skill/certification business rules.
-
-        :param commands: list of CREATE, WRITE and UNLINK commands
-        :param individuals: recordset of the linked field's model
-        :return: list of CREATE, WRITE and UNLINK commands
-        """
-        # Business rules enforced here:
-        # - Skills: only one active skill per skill_id (e.g. one "English" per record).
-        # - Certifications (is_certification=True): several with the same skill_id
-        #   and skill_level_id may coexist as long as their date ranges differ, e.g.
-        #   "Odoo Certified (2024-01-01 → 2024-12-31)" and "(2024-06-01 → 2025-05-31)".
-        # - Updates always create a new record and archive the old one instead of
-        #   writing in place; no two records may have all fields identical.
-        # - A record is active while valid_to is unset or in the future, archived
-        #   otherwise, and deleted only when valid_from is within the last 24h or it
-        #   is already expired.
         if not commands:
             return None
         updated_ids = set()
@@ -667,23 +569,18 @@ class MixinHrIndividualSkill(models.AbstractModel):
             elif command[0] == 2:
                 unlinked_ids.add(command[1])
             elif command[0] == 0:
-                if individuals:
-                    for individual in individuals:
-                        individual_command = command[2]
-                        individual_command[self._linked_field_name()] = individual.id
-                        created_values.append(individual_command)
-                else:
-                    created_values.append(command[2])
+                individual_command = dict(command[2])
+                if len(individuals) == 1:
+                    individual_command[self._linked_field_name()] = individuals.id
+                created_values.append(individual_command)
         mixed_command_ids = list(updated_ids & unlinked_ids)
         if mixed_command_ids:
-            # reset updated values
             updated_ids = set()
             updated_commands = []
             for command in commands:
                 if command[1] not in mixed_command_ids and command[0] == 1:
                     updated_commands.append(command)
                     updated_ids.add(command[1])
-        # Process individual_skill_ids values
         unlinked_commands = (
             self.env[self._name].browse(list(unlinked_ids))._expire_individual_skills()
         )
@@ -693,6 +590,20 @@ class MixinHrIndividualSkill(models.AbstractModel):
             ._write_individual_skills(updated_commands)
         )
         created_commands = self.env[self._name]._create_individual_skills(
-            created_values
+            created_values, individuals
         )
         return unlinked_commands + updated_commands + created_commands
+
+    def _commands_for_individual(self, commands, individual):
+        linked_field = self._linked_field_name()
+        owner_of_line = {
+            line.id: line[linked_field].id
+            for line in self.browse(
+                [command[1] for command in commands if command[0] in (1, 2)]
+            ).exists()
+        }
+        return [
+            command
+            for command in commands
+            if command[0] == 0 or owner_of_line.get(command[1]) == individual.id
+        ]

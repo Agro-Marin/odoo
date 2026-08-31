@@ -27,7 +27,7 @@ class HrResumeLine(models.Model):
         default="external",
         required=True,
     )
-    color = fields.Char(compute="_compute_color", default="#000000")
+    color = fields.Char(compute="_compute_color")
     external_url = fields.Char(
         string="External URL",
         compute="_compute_external_url",
@@ -63,5 +63,6 @@ class HrResumeLine(models.Model):
     @api.depends("course_type")
     def _compute_color(self):
         for resume_line in self:
-            if resume_line.course_type == "external":
-                resume_line.color = "#a2a2a2"
+            resume_line.color = (
+                "#a2a2a2" if resume_line.course_type == "external" else "#000000"
+            )

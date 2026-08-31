@@ -1,11 +1,10 @@
 /** @odoo-module native */
 import { TagsList } from "@web/components/tags_list";
 
-
 export class SkillsTagList extends TagsList {
     static template = "hr_skills.SkillsTagsList";
 
-    getTextStyle(tag) {
-        return tag.defaultLevel
+    isDefaultLevel(tag) {
+        return tag.defaultLevel;
     }
 }

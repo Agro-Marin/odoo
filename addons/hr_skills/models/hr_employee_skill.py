@@ -17,7 +17,7 @@ class HrEmployeeSkill(models.Model):
     def _linked_field_name(self):
         return "employee_id"
 
-    def get_current_skills_by_employee(self):
+    def _get_current_skills_by_employee(self):
         emp_skill_grouped = dict(
             self.grouped(lambda emp_skill: (emp_skill.employee_id, emp_skill.skill_id))
         )
@@ -49,7 +49,7 @@ class HrEmployeeSkill(models.Model):
             "context": {
                 "show_employee": True,
                 "default_skill_type_id": self.env["hr.skill.type"]
-                .search([("is_certification", "=", True)], limit=1)
+                ._get_certification_type()
                 .id,
             },
             "views": [

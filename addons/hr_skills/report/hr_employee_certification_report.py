@@ -17,12 +17,13 @@ class HrEmployeeCertificationReport(models.BaseModel):
     skill_type_id = fields.Many2one("hr.skill.type", readonly=True)
     skill_level = fields.Char(readonly=True)
     level_progress = fields.Float(readonly=True, aggregator="avg")
-    active = fields.Boolean(readonly=False)
+    active = fields.Boolean(
+        readonly=True, help="A certification is active while it is valid today."
+    )
 
     def init(self):
         drop_view_if_exists(self.env.cr, self._table)
 
-        today = fields.Date.context_today(self)
         self.env.cr.execute(
             SQL(
                 """
@@ -36,7 +37,8 @@ class HrEmployeeCertificationReport(models.BaseModel):
                 s.skill_type_id AS skill_type_id,
                 sl.level_progress / 100.0 AS level_progress,
                 sl.name AS skill_level,
-                (s.valid_to IS NULL OR s.valid_to >= %s) AND s.valid_from <= %s AS active
+                (s.valid_to IS NULL OR s.valid_to >= (now() AT TIME ZONE 'UTC')::date)
+                    AND s.valid_from <= (now() AT TIME ZONE 'UTC')::date AS active
             FROM hr_employee e
             LEFT JOIN hr_version v ON e.current_version_id = v.id
             LEFT OUTER JOIN hr_employee_skill s ON e.id = s.employee_id
@@ -46,7 +48,5 @@ class HrEmployeeCertificationReport(models.BaseModel):
         )
         """,
                 SQL.identifier(self._table),
-                today,
-                today,
             )
         )

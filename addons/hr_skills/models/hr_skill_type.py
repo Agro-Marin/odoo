@@ -1,6 +1,6 @@
 from random import randint
 
-from odoo import Command, _, api, fields, models
+from odoo import Command, api, fields, models
 from odoo.exceptions import ValidationError
 
 
@@ -30,6 +30,10 @@ class HrSkillType(models.Model):
         "Certification", help="if checked the skill type become a certification type"
     )
 
+    @api.model
+    def _get_certification_type(self):
+        return self.search([("is_certification", "=", True)], limit=1)
+
     @api.constrains("skill_ids", "skill_level_ids")
     def _check_no_null_skill_or_skill_level(self):
         incorrect_skill_type = self.env["hr.skill.type"]
@@ -38,7 +42,7 @@ class HrSkillType(models.Model):
                 incorrect_skill_type |= skill_type
         if incorrect_skill_type:
             raise ValidationError(
-                _(
+                self.env._(
                     "The following skills type must contain at least one skill and one level: %s",
                     "\n".join(skill_type.name for skill_type in incorrect_skill_type),
                 )
@@ -48,9 +52,7 @@ class HrSkillType(models.Model):
     def _compute_display_name(self):
         for skill_type in self:
             if skill_type.is_certification:
-                skill_type.display_name = (
-                    skill_type.name + "\U0001f396"
-                )  # Military Medal's unicode
+                skill_type.display_name = skill_type.name + "\U0001f396"
             else:
                 skill_type.display_name = skill_type.name
 
@@ -71,7 +73,6 @@ class HrSkillType(models.Model):
         for level in self.skill_level_ids:
             if level.technical_is_new_default:
                 (self.skill_level_ids - level).write({"default_level": False})
-                # This value need to be set to False, to reset it for the frontend.
                 level.technical_is_new_default = False
                 break
 
@@ -85,17 +86,14 @@ class HrSkillType(models.Model):
                 ),
                 "color": 0,
                 "skill_ids": [
-                    Command.create({"name": skill.name})
-                    for skill in skill_type.skill_ids
+                    Command.create(skill_vals)
+                    for skill_vals in skill_type.skill_ids.copy_data()
                 ],
             }
             for skill_type, vals in zip(self, vals_list, strict=True)
         ]
 
     def copy_translations(self, new, excluded=()):
-        # ``copy_data`` renames ``name`` in the duplicating user's language
-        # only; without this the copy would keep the source record's exact
-        # ``name`` in every other language.
         super().copy_translations(new, excluded=(*excluded, "name"))
         self._copy_translations_of_renamed_field(
             new,

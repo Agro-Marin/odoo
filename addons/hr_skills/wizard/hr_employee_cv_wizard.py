@@ -1,6 +1,6 @@
 from urllib.parse import urlencode
 
-from odoo import _, api, fields, models
+from odoo import api, fields, models
 
 
 class HrEmployeeCvWizard(models.TransientModel):
@@ -24,21 +24,21 @@ class HrEmployeeCvWizard(models.TransientModel):
     show_contact = fields.Boolean(string="Contact Information", default=True)
     show_others = fields.Boolean(string="Others", default=True)
 
-    can_show_others = fields.Boolean(compute="_compute_can_show_others")
-    can_show_skills = fields.Boolean(compute="_compute_can_show_others")
+    can_show_others = fields.Boolean(compute="_compute_printable_sections")
+    can_show_skills = fields.Boolean(compute="_compute_printable_sections")
 
     @api.depends("employee_ids")
-    def _compute_can_show_others(self):
+    def _compute_printable_sections(self):
         for wizard in self:
-            wizard.can_show_others = wizard.employee_ids.resume_line_ids.filtered(
-                lambda l: not l.line_type_id
+            wizard.can_show_others = any(
+                not line.line_type_id for line in wizard.employee_ids.resume_line_ids
             )
-            wizard.can_show_skills = wizard.employee_ids.skill_ids
+            wizard.can_show_skills = bool(wizard.employee_ids.skill_ids)
 
     def action_validate(self):
         self.check_singleton()
         return {
-            "name": _("Print Resume"),
+            "name": self.env._("Print Resume"),
             "type": "ir.actions.act_url",
             "url": "/print/cv?"
             + urlencode(

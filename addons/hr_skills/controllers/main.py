@@ -1,7 +1,8 @@
 import re
 
-from odoo import _
 from odoo.http import Controller, content_disposition, request, route
+
+EMPLOYEE_IDS_RE = re.compile(r"^[0-9]+(,[0-9]+)*$")
 
 
 class HrEmployeeCV(Controller):
@@ -15,8 +16,8 @@ class HrEmployeeCV(Controller):
     ):
         if (
             not request.env.user._is_internal()
-            or not employee_ids
-            or re.search(r"[^0-9|,]", employee_ids)
+            or not isinstance(employee_ids, str)
+            or not EMPLOYEE_IDS_RE.match(employee_ids)
         ):
             return request.not_found()
 
@@ -56,9 +57,9 @@ class HrEmployeeCV(Controller):
         )
 
         if len(employees) == 1:
-            report_name = _("Resume %s", employees.name)
+            report_name = request.env._("Resume %s", employees.name)
         else:
-            report_name = _("Resumes")
+            report_name = request.env._("Resumes")
 
         pdfhttpheaders = [
             ("Content-Type", "application/pdf"),

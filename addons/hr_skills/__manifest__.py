@@ -2,7 +2,7 @@
     "name": "Skills Management",
     "category": "Human Resources/Employees",
     "sequence": 270,
-    "version": "1.0",
+    "version": "1.1",
     "summary": "Manage skills, knowledge and resume of your employees",
     "description": """
 Skills and Resume for HR
@@ -48,9 +48,6 @@ This module introduces skills and resume management for employees.
             "hr_skills/static/src/fields/skills_one2many/*",
             "hr_skills/static/src/fields/**/*",
             "hr_skills/static/src/scss/*.scss",
-            # Wildcard loads every view file, including ``skills_graph.js``
-            # (registers the ``skills_graph`` view type used by the Skill
-            # History report).
             "hr_skills/static/src/views/**/*",
             "hr_skills/static/src/components/**/*",
         ],

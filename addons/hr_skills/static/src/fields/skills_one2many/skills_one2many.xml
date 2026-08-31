@@ -58,6 +58,7 @@
             </tr>
             <t t-foreach="skill_group[1].list.records" t-as="record" t-key="record.id">
                 <t t-set="group" t-value="skill_group[1]"/>
+                <t t-set="api" t-value="rowApi"/>
                 <t t-call="{{ constructor.recordRowTemplate }}"/>
             </t>
         </t>

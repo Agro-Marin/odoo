@@ -8,6 +8,10 @@ from odoo.exceptions import AccessError
 from odoo.fields import Domain
 from odoo.tools import convert
 
+_SKILL_COMMAND_FIELDS = frozenset(
+    {"current_employee_skill_ids", "certification_ids", "employee_skill_ids"}
+)
+
 
 class HrEmployee(models.Model):
     _inherit = "hr.employee"
@@ -27,7 +31,10 @@ class HrEmployee(models.Model):
         readonly=False,
     )
     skill_ids = fields.Many2many(
-        "hr.skill", compute="_compute_skill_ids", store=True, groups="hr.group_hr_user"
+        "hr.skill",
+        compute="_compute_skill_ids",
+        search="_search_skill_ids",
+        groups="hr.group_hr_user",
     )
     certification_ids = fields.One2many(
         "hr.employee.skill", compute="_compute_certification_ids", readonly=False
@@ -39,17 +46,36 @@ class HrEmployee(models.Model):
     @api.depends("employee_skill_ids")
     def _compute_current_employee_skill_ids(self):
         current_employee_skill_by_employee = (
-            self.employee_skill_ids.get_current_skills_by_employee()
+            self.employee_skill_ids._get_current_skills_by_employee()
         )
         for employee in self:
             employee.current_employee_skill_ids = current_employee_skill_by_employee[
                 employee.id
             ]
 
-    @api.depends("employee_skill_ids.skill_id")
+    @api.depends("employee_skill_ids.skill_id", "employee_skill_ids.valid_to")
     def _compute_skill_ids(self):
         for employee in self:
-            employee.skill_ids = employee.employee_skill_ids.skill_id
+            employee.skill_ids = employee.current_employee_skill_ids.skill_id
+
+    def _search_skill_ids(self, operator, value):
+        if operator not in ("in", "not in"):
+            raise NotImplementedError
+        current = self.env["hr.employee.skill"]._search(
+            Domain.AND(
+                [
+                    Domain("skill_id", "in", value),
+                    Domain.OR(
+                        [
+                            Domain("valid_to", "=", False),
+                            Domain("valid_to", ">=", fields.Date.today()),
+                        ]
+                    ),
+                ]
+            )
+        )
+        result = Domain("employee_skill_ids", "in", current)
+        return ~result if operator == "not in" else result
 
     @api.depends("employee_skill_ids")
     def _compute_certification_ids(self):
@@ -60,9 +86,7 @@ class HrEmployee(models.Model):
 
     def _compute_display_certification_page(self):
         self.display_certification_page = bool(
-            self.env["hr.skill.type"].search_count(
-                [("is_certification", "=", True)], limit=1
-            )
+            self.env["hr.skill.type"]._get_certification_type()
         )
 
     @api.model_create_multi
@@ -73,25 +97,36 @@ class HrEmployee(models.Model):
                 + vals.pop("certification_ids", [])
                 + vals.get("employee_skill_ids", [])
             )
-            vals["employee_skill_ids"] = self.env[
-                "hr.employee.skill"
-            ]._get_transformed_commands(vals_emp_skill, self)
+            if vals_emp_skill:
+                vals["employee_skill_ids"] = self.env[
+                    "hr.employee.skill"
+                ]._get_transformed_commands(vals_emp_skill, self.env["hr.employee"])
+            else:
+                vals.pop("employee_skill_ids", None)
         return super().create(vals_list)
 
     def write(self, vals):
-        if (
-            "current_employee_skill_ids" in vals
-            or "certification_ids" in vals
-            or "employee_skill_ids" in vals
-        ):
-            vals_emp_skill = (
-                vals.pop("current_employee_skill_ids", [])
-                + vals.pop("certification_ids", [])
-                + vals.get("employee_skill_ids", [])
-            )
-            vals["employee_skill_ids"] = self.env[
-                "hr.employee.skill"
-            ]._get_transformed_commands(vals_emp_skill, self)
+        if not (_SKILL_COMMAND_FIELDS & vals.keys()):
+            return super().write(vals)
+        vals_emp_skill = (
+            vals.pop("current_employee_skill_ids", [])
+            + vals.pop("certification_ids", [])
+            + vals.pop("employee_skill_ids", [])
+        )
+        if len(self) > 1:
+            result = super().write(vals) if vals else True
+            for employee in self:
+                employee.write(
+                    {
+                        "employee_skill_ids": self.env[
+                            "hr.employee.skill"
+                        ]._commands_for_individual(vals_emp_skill, employee)
+                    }
+                )
+            return result
+        vals["employee_skill_ids"] = self.env[
+            "hr.employee.skill"
+        ]._get_transformed_commands(vals_emp_skill, self)
         return super().write(vals)
 
     @api.model
@@ -142,12 +177,6 @@ class HrEmployee(models.Model):
             ),
         )
 
-        # Group by (employee, skill, level) instead of overwriting on every
-        # record: an employee can legitimately hold both an expired
-        # certification and its currently-valid renewal for the same
-        # skill/level (mixin_hr_individual_skill's own business rules), and a
-        # plain last-write-wins assignment picks whichever happens to be
-        # iterated last instead of the currently-valid one.
         employee_cert_data = defaultdict(dict)
         emp_skills_by_key = dict(
             emp_skills.grouped(
@@ -204,7 +233,7 @@ class HrEmployee(models.Model):
                 activity = employee.activity_schedule(
                     act_type_xmlid="hr_skills.mail_activity_data_upload_certification",
                     summary=summary,
-                    note="Certification missing or expiring soon",
+                    note=self.env._("Certification missing or expiring soon"),
                     date_deadline=valid_to_date or today,
                     user_id=responsible.id,
                 )
@@ -219,9 +248,6 @@ class HrEmployee(models.Model):
         )
         if demo_tag:
             return
-        convert.convert_file(
-            self.env, "hr", "data/scenarios/hr_scenario.xml", None, mode="init"
-        )
         convert.convert_file(
             self.env,
             "hr_skills",

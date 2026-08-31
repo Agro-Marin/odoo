@@ -85,13 +85,6 @@ class TestCertificationActivities(TransactionCase):
         )
 
     def _own_activities(self, *extra_employees):
-        """Run the cron method and scope its result to this class's employees.
-
-        The class runs at_install, on the hr_skills load snapshot: demo data
-        from later modules has not landed yet, so demo employees can
-        legitimately gain activities at that point in the load. Absolute
-        counts must therefore only consider the employees this test created.
-        """
         own = self.t_employee_1
         for employee in extra_employees:
             own |= employee
@@ -99,7 +92,6 @@ class TestCertificationActivities(TransactionCase):
         return activities.filtered(lambda act: act.res_id in own.ids)
 
     def test_employee_with_no_certifications_gets_activity(self):
-        """Employee missing all job certifications gets one activity per missing certification."""
         activities = self._own_activities()
         self.assertEqual(len(activities), 2)
         self.assertEqual(
@@ -109,7 +101,6 @@ class TestCertificationActivities(TransactionCase):
         self.assertEqual(set(activities.mapped("res_id")), set(self.t_employee_1.ids))
 
     def test_employee_with_correct_certifications_gets_no_activity(self):
-        """Employee with all job certifications gets no activity."""
         self.env["hr.employee.skill"].create(
             [
                 {
@@ -134,7 +125,6 @@ class TestCertificationActivities(TransactionCase):
         self.assertFalse(activities)
 
     def test_employee_with_wrong_certifications_gets_activity(self):
-        """Employee with the correct certification but the wrong level gets an activity."""
         self.env["hr.employee.skill"].create(
             {
                 "employee_id": self.t_employee_1.id,
@@ -154,7 +144,6 @@ class TestCertificationActivities(TransactionCase):
         self.assertEqual(set(activities.mapped("res_id")), set(self.t_employee_1.ids))
 
     def test_employee_with_one_correct_certification_gets_one_activity(self):
-        """Employee with one of two job certifications gets one activity."""
         self.env["hr.employee.skill"].create(
             {
                 "employee_id": self.t_employee_1.id,
@@ -173,7 +162,6 @@ class TestCertificationActivities(TransactionCase):
         self.assertEqual(set(activities.mapped("res_id")), set(self.t_employee_1.ids))
 
     def test_employee_with_correct_but_expired_certifications_gets_activity(self):
-        """Employee whose job certifications are expired (valid_to < today) gets activities."""
         self.env["hr.employee.skill"].create(
             [
                 {
@@ -205,7 +193,6 @@ class TestCertificationActivities(TransactionCase):
     def test_employee_with_correct_but_expiring_in_3_months_certifications_gets_activity(
         self,
     ):
-        """Employee with a job certification expiring within the next 3 months gets an activity."""
         self.env["hr.employee.skill"].create(
             [
                 {
@@ -234,7 +221,6 @@ class TestCertificationActivities(TransactionCase):
         self.assertEqual(set(activities.mapped("res_id")), set(self.t_employee_1.ids))
 
     def test_activities_are_only_created_once(self):
-        """An activity is created only once for an employee missing skills."""
         activities = self._own_activities()
         self.assertEqual(len(activities), 2)
         self.assertEqual(
@@ -247,7 +233,6 @@ class TestCertificationActivities(TransactionCase):
         self.assertFalse(new_activities)
 
     def test_activities_are_created_for_multiple_employees_with_no_certification(self):
-        """Activities are created for multiple employees with no certifications."""
         employee_2 = self.env["hr.employee"].create(
             {
                 "name": "test employee 2",
@@ -267,7 +252,6 @@ class TestCertificationActivities(TransactionCase):
         )
 
     def test_no_activities_are_created_for_multiple_employees_with_certification(self):
-        """No activities are created for multiple employees with the correct certifications."""
         employee_2 = self.env["hr.employee"].create(
             {
                 "name": "test employee 2",

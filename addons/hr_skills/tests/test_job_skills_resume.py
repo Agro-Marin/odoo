@@ -1,5 +1,3 @@
-"""Tests for current job skills filtering and internal resume lines."""
-
 from datetime import date
 
 from dateutil.relativedelta import relativedelta
@@ -11,8 +9,6 @@ from odoo.tests.common import TransactionCase, new_test_user
 
 @tagged("post_install", "-at_install")
 class TestCurrentJobSkills(TransactionCase):
-    """Validity filtering of a job's current skill requirements."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -54,11 +50,9 @@ class TestCurrentJobSkills(TransactionCase):
         )
 
     def test_current_job_skills_exclude_expired(self):
-        """Only skills valid today appear in current_job_skill_ids."""
         self.assertEqual(self.job.current_job_skill_ids, self.job_skill_live)
 
     def test_current_job_skills_searchable(self):
-        """The computed field is searchable with the 'in' operator."""
         jobs = self.env["hr.job"].search(
             [("current_job_skill_ids", "in", self.job_skill_live.ids)]
         )
@@ -69,16 +63,24 @@ class TestCurrentJobSkills(TransactionCase):
         )
         self.assertNotIn(self.job, jobs_dead)
 
+    def test_current_job_skills_negated_search(self):
+        jobs = self.env["hr.job"].search(
+            [("current_job_skill_ids", "not in", self.job_skill_live.ids)]
+        )
+        self.assertNotIn(self.job, jobs)
+
+        jobs_dead = self.env["hr.job"].search(
+            [("current_job_skill_ids", "not in", self.job_skill_dead.ids)]
+        )
+        self.assertIn(self.job, jobs_dead)
+
     def test_current_job_skills_unsupported_operator(self):
-        """Unsupported search operators must fail loudly, not silently."""
         with self.assertRaises(NotImplementedError):
             self.env["hr.job"]._search_current_job_skill_ids("=", True)
 
 
 @tagged("post_install", "-at_install")
 class TestInternalResumeLines(TransactionCase):
-    """Version-derived resume lines exposed to the profile page."""
-
     def test_no_res_id_returns_empty(self):
         self.assertEqual(
             self.env["hr.employee"].get_internal_resume_lines(False, "hr.employee"),
@@ -98,7 +100,6 @@ class TestInternalResumeLines(TransactionCase):
         self.assertFalse(lines[0]["date_end"])
 
     def test_portal_user_cannot_access_resume(self):
-        """A portal user without employee access is denied the resume lines."""
         employee = self.env["hr.employee"].create({"name": "Guarded employee"})
         portal_user = new_test_user(
             self.env, login="portal.resume.user", groups="base.group_portal"

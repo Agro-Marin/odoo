@@ -1,6 +1,8 @@
 from odoo import api, fields, models
 from odoo.fields import Domain
 
+_SKILL_COMMAND_FIELDS = frozenset({"current_job_skill_ids", "job_skill_ids"})
+
 
 class HrJob(models.Model):
     _inherit = "hr.job"
@@ -20,7 +22,7 @@ class HrJob(models.Model):
     skill_ids = fields.Many2many(
         comodel_name="hr.skill",
         compute="_compute_skill_ids",
-        store=True,
+        search="_search_skill_ids",
     )
 
     @api.depends("job_skill_ids")
@@ -35,7 +37,6 @@ class HrJob(models.Model):
     def _search_current_job_skill_ids(self, operator, value):
         if operator not in ("in", "not in", "any"):
             raise NotImplementedError
-        job_skill_ids = []
         domain = Domain.OR(
             [
                 Domain("valid_to", "=", False),
@@ -44,17 +45,25 @@ class HrJob(models.Model):
         )
         if operator == "any" and isinstance(value, Domain):
             domain = Domain.AND([domain, value])
-
-        elif operator in ("in", "not in"):
+        else:
             domain = Domain.AND([domain, Domain("id", "in", value)])
 
         job_skill_ids = self.env["hr.job.skill"]._search(domain)
-        return Domain("job_skill_ids", "in", job_skill_ids)
+        result = Domain("job_skill_ids", "in", job_skill_ids)
+        return ~result if operator == "not in" else result
 
-    @api.depends("job_skill_ids.skill_id")
+    @api.depends("job_skill_ids.skill_id", "job_skill_ids.valid_to")
     def _compute_skill_ids(self):
         for job in self:
-            job.skill_ids = job.job_skill_ids.skill_id
+            job.skill_ids = job.current_job_skill_ids.skill_id
+
+    def _search_skill_ids(self, operator, value):
+        if operator not in ("in", "not in"):
+            raise NotImplementedError
+        result = self._search_current_job_skill_ids(
+            "any", Domain("skill_id", "in", value)
+        )
+        return ~result if operator == "not in" else result
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -62,17 +71,32 @@ class HrJob(models.Model):
             vals_job_skill = vals.pop("current_job_skill_ids", []) + vals.get(
                 "job_skill_ids", []
             )
-            vals["job_skill_ids"] = self.env["hr.job.skill"]._get_transformed_commands(
-                vals_job_skill, self
-            )
+            if vals_job_skill:
+                vals["job_skill_ids"] = self.env[
+                    "hr.job.skill"
+                ]._get_transformed_commands(vals_job_skill, self.env["hr.job"])
+            else:
+                vals.pop("job_skill_ids", None)
         return super().create(vals_list)
 
     def write(self, vals):
-        if "current_job_skill_ids" in vals or "job_skill_ids" in vals:
-            vals_job_skill = vals.pop("current_job_skill_ids", []) + vals.get(
-                "job_skill_ids", []
-            )
-            vals["job_skill_ids"] = self.env["hr.job.skill"]._get_transformed_commands(
-                vals_job_skill, self
-            )
+        if not (_SKILL_COMMAND_FIELDS & vals.keys()):
+            return super().write(vals)
+        vals_job_skill = vals.pop("current_job_skill_ids", []) + vals.pop(
+            "job_skill_ids", []
+        )
+        if len(self) > 1:
+            result = super().write(vals) if vals else True
+            for job in self:
+                job.write(
+                    {
+                        "job_skill_ids": self.env[
+                            "hr.job.skill"
+                        ]._commands_for_individual(vals_job_skill, job)
+                    }
+                )
+            return result
+        vals["job_skill_ids"] = self.env["hr.job.skill"]._get_transformed_commands(
+            vals_job_skill, self
+        )
         return super().write(vals)

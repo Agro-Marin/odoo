@@ -1,5 +1,3 @@
-"""`hr.skill.type.display_name` appends a badge when `is_certification`."""
-
 from odoo.tests import TransactionCase, tagged
 
 

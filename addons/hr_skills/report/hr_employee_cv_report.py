@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from odoo import _, models
+from odoo import models
 
 
 class ReportHr_SkillsReport_Employee_Cv(models.AbstractModel):
@@ -13,11 +13,15 @@ class ReportHr_SkillsReport_Employee_Cv(models.AbstractModel):
 
         resume_lines = {}
         for employee in employees:
-            resume_lines[employee] = defaultdict(self.env["hr.resume.line"].browse)
+            grouped = defaultdict(self.env["hr.resume.line"].browse)
             for line in employee.resume_line_ids:
                 if not show_others and not line.line_type_id:
                     continue
-                resume_lines[employee][line.line_type_id.name or _("Other")] |= line
+                grouped[line.line_type_id] |= line
+            resume_lines[employee] = {
+                line_type.name or self.env._("Other"): lines
+                for line_type, lines in grouped.items()
+            }
 
         return {
             "doc_ids": docids,

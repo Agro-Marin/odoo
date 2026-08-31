@@ -11,11 +11,14 @@ export class One2ManyTagsSkillsField extends X2ManyField {
         ...X2ManyField.components,
         TagsList,
     };
-    static template = "hr_recruitment_skills.One2ManyTagsSkillsField";
+    static template = "hr_skills.One2ManyTagsSkillsField";
 
     setup() {
         super.setup();
-        const { saveAndLink, updateRecord } = useX2ManyCrud(() => this.list, this.isMany2Many);
+        const { saveAndLink, updateRecord } = useX2ManyCrud(
+            () => this.list,
+            this.isMany2Many,
+        );
 
         const openRecord = useOpenX2ManyRecord({
             resModel: this.list.resModel,
@@ -41,14 +44,16 @@ export class One2ManyTagsSkillsField extends X2ManyField {
             colorIndex: record.data.color,
             canEdit: true,
             onClick: (ev) => this.onTagClick(ev, record),
-            onDelete: !this.props.readonly ? () => this.activeActions.onDelete(record) : undefined,
+            onDelete: !this.props.readonly
+                ? () => this.activeActions.onDelete(record)
+                : undefined,
         };
         return tagProps;
     }
 
     get tags() {
         return this.props.record.data[this.props.name].records.map((record) =>
-            this.getTagProps(record)
+            this.getTagProps(record),
         );
     }
 

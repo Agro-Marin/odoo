@@ -42,7 +42,8 @@ class HrEmployeeSkillReport(models.BaseModel):
             LEFT OUTER JOIN hr_employee_skill s ON e.id = s.employee_id
             LEFT OUTER JOIN hr_skill_level sl ON sl.id = s.skill_level_id
             LEFT OUTER JOIN hr_skill_type st ON st.id = sl.skill_type_id
-            WHERE st.active IS True AND st.is_certification IS NOT TRUE AND s.valid_to IS NULL
+            WHERE st.active IS True AND st.is_certification IS NOT TRUE
+              AND (s.valid_to IS NULL OR s.valid_to >= (now() AT TIME ZONE 'UTC')::date)
         )
         """,
                 SQL.identifier(self._table),
@@ -53,7 +54,6 @@ class HrEmployeeSkillReport(models.BaseModel):
     def formatted_read_grouping_sets(
         self, domain, grouping_sets, aggregates=(), *, order=None
     ):
-        # In the pivot view, we don't want the hierarchical naming of department_id (hr.department)
         self_contexted = self.with_context(hierarchical_naming=False)
         return super(
             HrEmployeeSkillReport, self_contexted

@@ -1,0 +1,8 @@
+{
+  "expected": {},
+  "note": "Green at 94, measured on a detached worktree of this commit's tree, so no other session's uncommitted work is in the reading; verified_at names the base commit it sits on, since a baseline cannot name the commit that carries it. Was 23 with 1 standing failure: TestEmployeeSkills was disabled by a skipTest in setUpClass (18 tests) and SkillsTestUI.test_ui died rendering a resume line.",
+  "run_spec": "-u hr_skills --test-enable --test-tags /hr_skills",
+  "suite": "/hr_skills",
+  "tests_total": 94,
+  "verified_at": "2625e29db1a"
+}

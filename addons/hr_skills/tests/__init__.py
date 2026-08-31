@@ -5,3 +5,10 @@ from . import test_resource
 from . import test_ui
 from . import test_job_skills_resume
 from . import test_individual_skill_versioning
+from . import test_multi_record_skill_write
+from . import test_skill_library
+from . import test_skill_reports
+from . import test_cv_controller
+from . import test_valid_from_migration
+from . import test_overlap_constraint
+from . import test_current_skill_set

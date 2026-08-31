@@ -4,7 +4,7 @@ from odoo import api, fields, models
 class HrSkill(models.Model):
     _name = "hr.skill"
     _description = "Skill"
-    _order = "sequence, name"
+    _order = "sequence, name, id"
 
     name = fields.Char(required=True, translate=True)
     sequence = fields.Integer(default=10)

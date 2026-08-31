@@ -1,5 +1,3 @@
-"""Tests for the individual-skill versioning engine on employees."""
-
 from datetime import date
 
 from dateutil.relativedelta import relativedelta
@@ -11,14 +9,6 @@ from odoo.tests.common import TransactionCase
 
 @tagged("post_install", "-at_install")
 class TestIndividualSkillVersioning(TransactionCase):
-    """Same-day edits replace; past skills version with an expiry date.
-
-    The employee-side contract mirrors the defect tracked for applicants in
-    t24152 (same-day edit leaving a duplicated versioned row): these tests
-    pin the CORRECT behaviour so the applicant fix can be verified against
-    the same expectations.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -50,7 +40,6 @@ class TestIndividualSkillVersioning(TransactionCase):
         return self.employee.employee_skill_ids.filtered(lambda s: s.skill_id == skill)
 
     def test_same_day_level_edit_replaces_record(self):
-        """Editing a skill created today must replace it, never duplicate."""
         skill = self.env["hr.employee.skill"].create(
             {
                 "employee_id": self.employee.id,
@@ -74,7 +63,6 @@ class TestIndividualSkillVersioning(TransactionCase):
         self.assertEqual(rows.skill_level_id, self.level_2)
 
     def test_past_skill_level_edit_versions_history(self):
-        """Editing an old skill expires it yesterday and creates the new row."""
         skill = self.env["hr.employee.skill"].create(
             {
                 "employee_id": self.employee.id,
@@ -102,7 +90,6 @@ class TestIndividualSkillVersioning(TransactionCase):
         self.assertFalse(new.valid_to)
 
     def test_valid_to_before_valid_from_raises(self):
-        """A skill whose end date precedes its start date fails validation."""
         with self.assertRaises(ValidationError):
             self.env["hr.employee.skill"].create(
                 {

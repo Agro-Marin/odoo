@@ -30,7 +30,6 @@ class TestEmployeeSkills(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.skipTest(cls, "To be reintroduced post 18.4 freeze")
         cls.employee = cls.env["hr.employee"].create(
             [
                 {"name": "Test Employee"},
@@ -70,34 +69,6 @@ class TestEmployeeSkills(TransactionCase):
                 },
             ]
         )
-
-        # |-------------------------------|  |----------------------------------|
-        # |           Skills              |  |              Level               |
-        # |-------------------------------|  |----------------------------------|---------------------------------|
-        # | Id  |  Skill Type  |   Name   |  |   Id  |  Skill Type  |   Name    | Index (in skill_type.level_ids) |
-        # |   1 |  Certificate |     Odoo |  |     1 |  Certificate |       20% |                               0 |
-        # |   2 |  Certificate |    Scrum |  |     2 |  Certificate |       50% |                               1 |
-        # |     |              |          |  |     3 |  Certificate |       70% |                               2 |
-        # |     |              |          |  |     4 |  Certificate |      100% |                               3 |
-        # |-------------------------------|  |----------------------------------|---------------------------------|
-        # |   2 |    Languages |  Arabic  |  |     5 |    Languages |        A1 |                               0 |
-        # |   3 |    Languages | English  |  |     6 |    Languages |        A2 |                               1 |
-        # |   4 |    Languages |  French  |  |     7 |    Languages |        B1 |                               2 |
-        # |     |              |          |  |     8 |    Languages |        B2 |                               3 |
-        # |     |              |          |  |     9 |    Languages |        C1 |                               4 |
-        # |     |              |          |  |    10 |    Languages |        C2 |                               5 |
-        # |-------------------------------|  |----------------------------------|---------------------------------|
-
-        # |-------------------------------------------------------------------------------------|
-        # |                                Employee Skill                                       |
-        # |-------------------------------------------------------------------------------------|
-        # |  Id  |  Skill Type  |  Skill  |  Level  | Certificate  |  Start Date  |  Stop Date  |
-        # |    1 |  Certificate |    Odoo |     50% |        True  |     24-03-02 |           - |
-        # |    2 |  Certificate |    Odoo |     20% |        True  |     24-01-01 |    24-04-01 | <- not present in current_employee_skill (because a valid certification for this skill exist)
-        # |    3 |    Languages | English |     A2  |       False  |     24-01-01 |           - |
-        # |    4 |    Languages |  Arabic |     A2  |       False  |     24-02-01 |           - |
-        # |    4 |    Languages |  Arabic |     A1  |       False  |     24-01-01 |    24-01-31 | <- not present in current_employee_skill (because this regular skill is expired)
-        # |-------------------------------------------------------------------------------------|
 
         cls.line1, cls.line2, cls.line3, cls.line4, cls.line5 = cls.env[
             "hr.employee.skill"
@@ -340,7 +311,6 @@ class TestEmployeeSkills(TransactionCase):
             "The test employee should start with 5 skills.",
         )
 
-        # Remove one of the skills from the setup
         index = self.employee.current_employee_skill_ids.ids.index(self.line3.id)
         employee_form.current_employee_skill_ids.remove(index=index)
         employee = employee_form.save()
@@ -357,7 +327,6 @@ class TestEmployeeSkills(TransactionCase):
         )
 
         previous_employee_skills = self.employee.employee_skill_ids
-        # Add French C1
         with employee_form.current_employee_skill_ids.new() as employee_skill_form:
             employee_skill_form.skill_type_id = self.language
             employee_skill_form.skill_id = self.language.skill_ids[2]
@@ -370,7 +339,6 @@ class TestEmployeeSkills(TransactionCase):
             "Creating a new skill should result in the employee having 6 skills.",
         )
 
-        # Remove it
         index = self.employee.current_employee_skill_ids.ids.index(
             new_employee_skill.id
         )
@@ -390,7 +358,6 @@ class TestEmployeeSkills(TransactionCase):
             "The test employee should start with 5 skills.",
         )
 
-        # Remove one of certification from the setup (not expired certification)
         index = self.employee.current_employee_skill_ids.ids.index(self.line1.id)
         employee_form.current_employee_skill_ids.remove(index=index)
         employee = employee_form.save()
@@ -403,7 +370,6 @@ class TestEmployeeSkills(TransactionCase):
             self.line1.valid_to, fields.Date.today() - relativedelta(days=1)
         )
 
-        # Remove one of certification from the setup (expired certification)
         index = self.employee.current_employee_skill_ids.ids.index(self.line1.id)
         employee_form.current_employee_skill_ids.remove(index=index)
         employee = employee_form.save()
@@ -424,12 +390,8 @@ class TestEmployeeSkills(TransactionCase):
             employee_skill_form.skill_type_id = self.certification
             employee_skill_form.skill_id = self.certification.skill_ids[0]
             employee_skill_form.skill_level_id = self.certification.skill_level_ids[2]
-            employee_skill_form.valid_from = datetime.date(
-                2024, 1, 1
-            )  # so same as odoo 20%
-            employee_skill_form.valid_to = datetime.date(
-                2024, 4, 1
-            )  # so same as odoo 20%
+            employee_skill_form.valid_from = datetime.date(2024, 1, 1)
+            employee_skill_form.valid_to = datetime.date(2024, 4, 1)
 
         employee = employee_form.save()
         self.assertEqual(
@@ -448,9 +410,7 @@ class TestEmployeeSkills(TransactionCase):
         with employee_form.current_employee_skill_ids.new() as employee_skill_form:
             employee_skill_form.skill_type_id = self.certification
             employee_skill_form.skill_id = self.certification.skill_ids[0]
-            employee_skill_form.skill_level_id = self.certification.skill_level_ids[
-                1
-            ]  # so same as odoo 50%
+            employee_skill_form.skill_level_id = self.certification.skill_level_ids[1]
             employee_skill_form.valid_from = datetime.date(2024, 1, 1)
 
         employee = employee_form.save()
@@ -461,10 +421,6 @@ class TestEmployeeSkills(TransactionCase):
         )
 
     def test_multiple_exact_same_skills_are_deduplicated_before_creation(self):
-        """
-        Assert that when you add multiple entries of the same skill:level,
-        only one employee skill will be created.
-        """
         employee_form = Form(self.employee)
         previous_employee_skills = self.employee.employee_skill_ids
         for _ in range(3):
@@ -483,10 +439,6 @@ class TestEmployeeSkills(TransactionCase):
         self.assertEqual(len(self.employee.employee_skill_ids), 6)
 
     def test_multiple_same_skill_different_level_are_deduplicated_before_creation(self):
-        """
-        Assert that when you add multiple entries of the same skill but different level,
-        only one employee skill will be created.
-        """
         skill_levels = self.language.skill_level_ids
         employee_form = Form(self.employee)
         previous_employee_skills = self.employee.employee_skill_ids
@@ -575,17 +527,6 @@ class TestEmployeeSkills(TransactionCase):
         )
 
     def test_rpc_call_editing_range_date_regular_skill(self):
-        """Ensure a direct create/write (bypassing the form view) can edit a regular skill's date range."""
-
-        # French levels for the test employee, before and after shifting the A1/A2 boundary:
-        # start:
-        #         2025-01-15        2025-03-20                             2025-05-20
-        # -------------|-----------------|--------------------------------------|------------------
-        #             A1                 A2                                     B1
-        # stop:
-        #         2025-01-15                          2025-04-20           2025-05-20
-        # -------------|----------------------------------|---------------------|------------------
-        #             A1                                  A2                    B1
         french_a1, french_a2, _ = self.env["hr.employee.skill"].create(
             [
                 {
@@ -660,10 +601,6 @@ class TestEmployeeSkills(TransactionCase):
 
 
 class TestSkillFieldDefaults(TransactionCase):
-    """Regression: hr.individual.skill.mixin.valid_from default must be a callable
-    (evaluated per-record at create time), not fields.Date.today() captured once at
-    class-body/module-load time."""
-
     def test_valid_from_default_evaluated_per_record(self):
         skill_type = self.env["hr.skill.type"].create({"name": "Default Test Type"})
         level = self.env["hr.skill.level"].create(
