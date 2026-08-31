@@ -2087,6 +2087,18 @@ class TestSaleToInvoice(TestSaleCommon):
         self.assertTrue(invoice)
         self.assertEqual(invoice.partner_id, sale_order.partner_id)
 
+    def test_view_draft_invoices_domain(self):
+        """view_draft_invoices()'s action domain must resolve against a real
+        field on account.move.line (sale_line_ids, plural) rather than raise
+        on a nonexistent one."""
+        wizard = (
+            self.env["sale.advance.payment.inv"].with_context(self.context).create({})
+        )
+        action = wizard.view_draft_invoices()
+        # Executing the domain against the ORM is what would raise if the
+        # referenced field did not exist.
+        self.env["account.move"].search(action["domain"])
+
     def test_downpayment_storno(self):
         def create_so_with_downpayments():
             sale_order = self.env["sale.order"].create(
