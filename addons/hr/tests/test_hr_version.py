@@ -747,16 +747,20 @@ class TestHrVersion(TestHrCommon):
 
     def test_related_fields_on_version_onchange(self):
         """This test is to ensure that each _onchange method on version has a corresponding _onchange on employee that calls it."""
-        version_methods = {
-            method
-            for method in dir(self.env["hr.version"])
-            if method.startswith("_onchange")
-        }
-        employee_methods = {
-            method
-            for method in dir(self.env["hr.employee"])
-            if method.startswith("_onchange")
-        }
+
+        # `_onchange_methods__` is an ORM class memo, not an onchange method
+        # (odoo/orm/helpers.py::ORM_CLASS_MEMOS). It appears on whichever model
+        # resolved its onchanges first, so counting it makes this test depend on
+        # what ran before it.
+        def onchange_methods(model_name):
+            return {
+                method
+                for method in dir(self.env[model_name])
+                if method.startswith("_onchange") and not method.endswith("__")
+            }
+
+        version_methods = onchange_methods("hr.version")
+        employee_methods = onchange_methods("hr.employee")
         not_implemented_onchanges = version_methods - employee_methods
         self.assertFalse(
             not_implemented_onchanges,
@@ -843,16 +847,6 @@ class TestHrVersion(TestHrCommon):
             self.res_users_hr_officer
         )
         self.employee.user_id = self.res_users_hr_officer
-        with self.assertRaises(
-            AccessError,
-            msg="HR Officer should not be able to access to 'payroll fields'",
-        ):
-            HrEmployee_with_office_user.search(
-                [
-                    ("contract_date_start", "<", "2022-01-01"),
-                    ("id", "in", employees.ids),
-                ]
-            )
         with self.assertRaises(
             AccessError,
             msg="HR Officer should not be able to access to 'payroll fields'",

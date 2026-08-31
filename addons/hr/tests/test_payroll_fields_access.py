@@ -79,6 +79,10 @@ class TestPayrollFieldsAccess(TransactionCase):
             )
         }
         whitelist_field_names = [
+            # Widened to hr.group_hr_user (the officer owns onboarding) while
+            # staying inside the manager-only Payroll page.
+            "contract_date_start",
+            "contract_date_end",
             "resource_calendar_id",
             "employee_type",
             "tz",

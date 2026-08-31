@@ -71,6 +71,9 @@ class ResUsers(models.Model):
         store=False,
     )
 
+    department_id = fields.Many2one(
+        related="employee_id.department_id", string="Department"
+    )
     job_title = fields.Char(related="employee_id.job_title")
     work_phone = fields.Char(
         related="employee_id.work_phone", readonly=False, related_sudo=False

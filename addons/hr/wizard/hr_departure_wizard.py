@@ -13,7 +13,7 @@ class HrDepartureWizard(models.TransientModel):
         else:
             departure_date = False
 
-        return departure_date or fields.Date.today()
+        return departure_date or fields.Date.context_today(self)
 
     def _default_employee_ids(self):
         active_ids = self.env.context.get("active_ids", [])

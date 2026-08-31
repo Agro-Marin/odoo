@@ -74,7 +74,7 @@ class HrVersion(models.Model):
 
     date_version = fields.Date(
         required=True,
-        default=fields.Date.today,
+        default=fields.Date.context_today,
         tracking=True,
         groups="hr.group_hr_user",
     )
@@ -180,41 +180,37 @@ class HrVersion(models.Model):
 
     # Contract Information
     contract_date_start = fields.Date(
-        "Contract Start Date", tracking=True, groups="hr.group_hr_manager"
+        "Contract Start Date", tracking=True, groups="hr.group_hr_user"
     )
     contract_date_end = fields.Date(
         "Contract End Date",
         tracking=True,
         help="End date of the contract (if it's a fixed-term contract).",
-        groups="hr.group_hr_manager",
+        groups="hr.group_hr_user",
     )
     trial_date_end = fields.Date(
         "End of Trial Period",
         help="End date of the trial period (if there is one).",
-        groups="hr.group_hr_manager",
+        groups="hr.group_hr_user",
         tracking=True,
     )
     date_start = fields.Date(
         compute="_compute_dates",
-        groups="hr.group_hr_manager",
+        groups="hr.group_hr_user",
         search="_search_date_start",
     )
     date_end = fields.Date(
         compute="_compute_dates",
-        groups="hr.group_hr_manager",
+        groups="hr.group_hr_user",
         search="_search_date_end",
     )
     is_current = fields.Boolean(
-        compute="_compute_date_state", groups="hr.group_hr_manager"
+        compute="_compute_date_state", groups="hr.group_hr_user"
     )
-    is_past = fields.Boolean(
-        compute="_compute_date_state", groups="hr.group_hr_manager"
-    )
-    is_future = fields.Boolean(
-        compute="_compute_date_state", groups="hr.group_hr_manager"
-    )
+    is_past = fields.Boolean(compute="_compute_date_state", groups="hr.group_hr_user")
+    is_future = fields.Boolean(compute="_compute_date_state", groups="hr.group_hr_user")
     is_in_contract = fields.Boolean(
-        compute="_compute_is_in_contract", groups="hr.group_hr_manager"
+        compute="_compute_is_in_contract", groups="hr.group_hr_user"
     )
 
     contract_template_id = fields.Many2one(
@@ -501,8 +497,48 @@ class HrVersion(models.Model):
             )
         return dates_vals
 
+    def _notify_new_hr_responsible(self, vals):
+        """Tell the employees whose HR Responsible just changed who it now is.
+
+        The field is `groups="hr.group_hr_user"` and mail filters every tracking
+        row by field access, so this change cannot reach the employee through
+        the chatter: it is the only channel they have.
+
+        One message for the whole write, not one per version. Versions of the
+        same employee are written together routinely, and `write` re-enters
+        itself under ``sync_contract_dates`` to reconcile the contract dates --
+        both would otherwise send the same sentence twice.
+        """
+        responsible_id = vals.get("hr_responsible_id")
+        if not responsible_id or self.env.context.get("sync_contract_dates"):
+            return
+
+        recipients = self.env["res.partner"]
+        for version in self:
+            if (
+                version.hr_responsible_id.id == responsible_id
+                or not version.employee_id
+            ):
+                continue
+            employee = version.employee_id
+            recipients |= employee.user_id.partner_id or employee.work_contact_id
+        if not recipients:
+            return
+
+        responsible = self.env["res.users"].browse(responsible_id)
+        # sudo: the recipient cannot read hr.version, and the message carries no
+        # document -- it is posted to their Inbox, not onto a record.
+        self.env["mixin.mail.thread"].sudo().message_notify(
+            body=self.env._(
+                "Your HR Responsible has been updated to %s.", responsible.name
+            ),
+            partner_ids=recipients.ids,
+            subject=self.env._("HR Responsible Update"),
+        )
+
     def write(self, vals):
         self._check_employee_keeps_a_version(vals)
+        self._notify_new_hr_responsible(vals)
 
         if self.env.context.get("sync_contract_dates") or (
             "contract_date_start" not in vals and "contract_date_end" not in vals
@@ -593,7 +629,7 @@ class HrVersion(models.Model):
 
     @api.depends("date_start", "date_end")
     def _compute_date_state(self):
-        today = fields.Date.today()
+        today = fields.Date.context_today(self)
         for version in self:
             version.is_current = version.date_start <= today and (
                 not version.date_end or version.date_end >= today
@@ -607,7 +643,7 @@ class HrVersion(models.Model):
             version.is_in_contract = version._is_in_contract()
 
     def _is_in_contract(self, date=None):
-        date = date or fields.Date.today()
+        date = date or fields.Date.context_today(self)
         # Return True if the employee is in contract on a given date
         if not self.contract_date_start:
             return False

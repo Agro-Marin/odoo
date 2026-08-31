@@ -421,42 +421,42 @@ class HrEmployee(models.Model):
         readonly=False,
         related="version_id.contract_date_start",
         inherited=True,
-        groups="hr.group_hr_manager",
+        groups="hr.group_hr_user",
     )
     contract_date_end = fields.Date(
         readonly=False,
         related="version_id.contract_date_end",
         inherited=True,
-        groups="hr.group_hr_manager",
+        groups="hr.group_hr_user",
     )
     trial_date_end = fields.Date(
         readonly=False,
         related="version_id.trial_date_end",
         inherited=True,
-        groups="hr.group_hr_manager",
+        groups="hr.group_hr_user",
     )
     contract_wage = fields.Monetary(
         related="version_id.contract_wage", inherited=True, groups="hr.group_hr_manager"
     )
     date_start = fields.Date(
-        related="version_id.date_start", inherited=True, groups="hr.group_hr_manager"
+        related="version_id.date_start", inherited=True, groups="hr.group_hr_user"
     )
     date_end = fields.Date(
-        related="version_id.date_end", inherited=True, groups="hr.group_hr_manager"
+        related="version_id.date_end", inherited=True, groups="hr.group_hr_user"
     )
     is_current = fields.Boolean(
-        related="version_id.is_current", inherited=True, groups="hr.group_hr_manager"
+        related="version_id.is_current", inherited=True, groups="hr.group_hr_user"
     )
     is_past = fields.Boolean(
-        related="version_id.is_past", inherited=True, groups="hr.group_hr_manager"
+        related="version_id.is_past", inherited=True, groups="hr.group_hr_user"
     )
     is_future = fields.Boolean(
-        related="version_id.is_future", inherited=True, groups="hr.group_hr_manager"
+        related="version_id.is_future", inherited=True, groups="hr.group_hr_user"
     )
     is_in_contract = fields.Boolean(
         related="version_id.is_in_contract",
         inherited=True,
-        groups="hr.group_hr_manager",
+        groups="hr.group_hr_user",
     )
     structure_type_id = fields.Many2one(
         readonly=False,
@@ -1003,10 +1003,11 @@ class HrEmployee(models.Model):
     def _compute_current_version_id(self):
         # Single batched query for all employees to avoid an N+1 search
         # (the cron runs this over the whole table).
+        today = fields.Date.context_today(self)
         versions = self.env["hr.version"].search(
             [
                 ("employee_id", "in", self.ids),
-                ("date_version", "<=", fields.Date.today()),
+                ("date_version", "<=", today),
             ],
             order="date_version asc",
         )
@@ -1050,7 +1051,7 @@ class HrEmployee(models.Model):
         Return the version that should be used for the given date.
         If no valid version is found, we return the very first version of the employee.
         """
-        date = date or fields.Date.today()
+        date = date or fields.Date.context_today(self)
         self.ensure_one()
         versions = self.version_ids.filtered_domain([("date_version", "<=", date)])
         return (
@@ -1536,6 +1537,7 @@ class HrEmployee(models.Model):
 
     @api.depends("user_id")
     def _compute_last_activity(self):
+        today = fields.Date.context_today(self)
         for employee in self:
             tz = employee.tz
             # sudo: res.users - can access presence of accessible user
@@ -1546,7 +1548,7 @@ class HrEmployee(models.Model):
                     .replace(tzinfo=None)
                 )
                 employee.last_activity = last_activity_datetime.date()
-                if employee.last_activity == fields.Date.today():
+                if employee.last_activity == today:
                     employee.last_activity_time = format_time(
                         self.env, last_presence, time_format="short"
                     )
@@ -2874,7 +2876,7 @@ We can redirect you to the public employee list."""
         # Primarily used in the archive wizard
         # to pick a good default for the departure date
         self.ensure_one()
-        if self.date_end and self.date_end < fields.Date.today():
+        if self.date_end and self.date_end < fields.Date.context_today(self):
             return self.departure_date
         return False
 
