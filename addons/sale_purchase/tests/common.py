@@ -14,7 +14,7 @@ class TestSalePurchaseCommon(TestSaleCommon):
         # Create category
         cls.product_category_purchase = cls.env["product.category"].create(
             {
-                "name": "Product Category with Income account",
+                "name": "Product Category with Expense account",
                 "property_account_income_categ_id": cls.company_data[
                     "default_account_expense"
                 ].id,
