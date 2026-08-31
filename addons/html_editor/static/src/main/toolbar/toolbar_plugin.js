@@ -96,7 +96,7 @@ export const DISABLED_NAMESPACE = "disabled";
 export class ToolbarPlugin extends Plugin {
     static id = "toolbar";
     static dependencies = ["overlay", "selection", "userCommand"];
-    static shared = ["getToolbarInfo"];
+    static shared = ["getToolbarInfo", "getIsToolbarOpen"];
     /** @type {import("plugins").EditorResources} */
     resources = {
         selectionchange_handlers: this.handleSelectionChange.bind(this),
@@ -266,6 +266,13 @@ export class ToolbarPlugin extends Plugin {
         );
         this.buttonsByNamespace[namespace] = button;
         return button;
+    }
+
+    /**
+     * @returns {Boolean} whether the toolbar is currently displayed
+     */
+    getIsToolbarOpen() {
+        return this.overlay.isOpen;
     }
 
     getToolbarInfo() {
