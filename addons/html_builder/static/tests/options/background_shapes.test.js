@@ -39,3 +39,19 @@ test("the Blurry group offers 07 and 08", async () => {
     expect(ids).toInclude("html_builder/Blurry/08");
     await expectShapesAreShipped(["html_builder/Blurry/07", "html_builder/Blurry/08"]);
 });
+
+test("the Nature, Travel and extra Miscellaneous shapes are offered", async () => {
+    expect(shapeIdsOf("nature")).toHaveLength(8);
+    expect(shapeIdsOf("travel")).toHaveLength(6);
+    // Five drawings join the eight the group already borrowed from Floats/Zigs.
+    const miscellaneous = shapeIdsOf("miscellaneous").filter((id) =>
+        id.startsWith("html_builder/Miscellaneous/")
+    );
+    expect(miscellaneous).toHaveLength(5);
+
+    await expectShapesAreShipped([
+        ...shapeIdsOf("nature"),
+        ...shapeIdsOf("travel"),
+        ...miscellaneous,
+    ]);
+});
