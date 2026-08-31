@@ -133,10 +133,10 @@ class StockLot(models.Model):
             if duplicates > 1:
                 duplicate_pairs.add((product, name))
         if duplicate_pairs:
-            self._raise_duplicate_lot_error(duplicate_pairs)
+            raise self._prepare_duplicate_lot_error(duplicate_pairs)
 
     @api.model
-    def _raise_duplicate_lot_error(self, product_name_pairs):
+    def _prepare_duplicate_lot_error(self, product_name_pairs) -> ValidationError:
         error_message_lines = sorted(
             _(
                 " - Product: %(product)s, Lot/Serial Number: %(lot)s",
@@ -145,7 +145,7 @@ class StockLot(models.Model):
             )
             for product, name in product_name_pairs
         )
-        raise ValidationError(
+        return ValidationError(
             _(
                 "The combination of lot/serial number and product must be unique within a company including when no company is defined.\nThe following combinations contain duplicates:\n%(error_lines)s",
                 error_lines="\n".join(error_message_lines),
@@ -181,7 +181,7 @@ class StockLot(models.Model):
                 {product_id for product_id, __, __ in duplicates}
             )
             product_by_id = {product.id: product for product in products}
-            self._raise_duplicate_lot_error(
+            raise self._prepare_duplicate_lot_error(
                 {
                     (product_by_id[product_id], name)
                     for product_id, name, __ in duplicates
@@ -263,7 +263,7 @@ class StockLot(models.Model):
         vals_list = super().copy_data(default=default)
         if "name" not in default:
             for lot, vals in zip(self, vals_list, strict=True):
-                vals["name"] = self._find_free_lot_name(
+                vals["name"] = self._get_free_lot_name(
                     lot.company_id,
                     lot.product_id,
                     _("(copy of) %s", lot.name),
@@ -526,7 +526,7 @@ class StockLot(models.Model):
         ]
 
     @api.model
-    def _find_free_lot_name(self, company, product, first_name, batch=100) -> str:
+    def _get_free_lot_name(self, company, product, first_name, batch=100) -> str:
         Lot = self.with_context(active_test=False)
         owned = Domain("product_id", "=", product.id) & (
             Domain("company_id", "=", company.id) | Domain("company_id", "=", False)
@@ -556,13 +556,13 @@ class StockLot(models.Model):
         )
         if not last_serial:
             return False
-        return self._find_free_lot_name(company, product, last_serial.name)
+        return self._get_free_lot_name(company, product, last_serial.name)
 
     @api.model
     def _prepare_next_lot_vals(self, company, product) -> dict:
         return {
             "product_id": product.id,
-            "name": self._find_free_lot_name(
+            "name": self._get_free_lot_name(
                 company, product, self._get_next_sequence_value(product)
             ),
         }

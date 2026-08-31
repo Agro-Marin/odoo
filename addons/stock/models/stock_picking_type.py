@@ -643,7 +643,7 @@ class StockPickingType(models.Model):
         return matched if positive == operator else ~matched
 
     @api.onchange("code")
-    def _onchange_picking_code(self):
+    def _onchange_code(self):
         if self.code == "internal" and not self.env.user.has_group(
             "stock.group_stock_multi_locations"
         ):

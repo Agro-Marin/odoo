@@ -458,7 +458,7 @@ class StockPicking(models.Model):
             for picking in self:
                 picking._attach_sign()
         if vals.get("move_ids"):
-            self._clear_cancellation()
+            self._update_is_cancelled()
             self._autoconfirm_picking()
 
         return res
@@ -1153,7 +1153,7 @@ class StockPicking(models.Model):
 
     def action_confirm(self):
         self._check_company()
-        self._clear_cancellation()
+        self._update_is_cancelled()
         self.move_ids.filtered(lambda move: move.state == "draft")._action_confirm()
 
         self.move_ids.filtered(
@@ -1804,7 +1804,7 @@ class StockPicking(models.Model):
         )
         return [action] if action else []
 
-    def _clear_cancellation(self):
+    def _update_is_cancelled(self):
         self.filtered(
             lambda picking: (
                 picking.is_cancelled

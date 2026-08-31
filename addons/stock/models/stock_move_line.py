@@ -25,8 +25,6 @@ LOGGED_RELATIONS = [
 ]
 
 
-# Distinguishes "caller said nothing" from "caller said None", which for a
-# package or owner is a real, different request.
 _KEEP = object()
 
 RESERVATION_KEY_FIELDS = (
@@ -37,10 +35,6 @@ RESERVATION_KEY_FIELDS = (
     "owner_id",
 )
 
-# Derived, not restated: `_log_quant_corrections` gates on this set while
-# `_resolve_logged_relations` fills it from LOGGED_RELATIONS, so a row added
-# there and forgotten here would silently stop that field's corrections
-# reaching the chatter. "quantity" is the one key with no relation behind it.
 RENDERED_KEYS = frozenset(
     {"quantity", *(rendered for _field, rendered in LOGGED_RELATIONS)}
 )
@@ -53,22 +47,6 @@ RESTOCK_TRIGGER_FIELDS = tuple(dict.fromkeys(SOURCE_QUANT_FIELDS + DEST_QUANT_FI
 
 
 class WritePlan(NamedTuple):
-    """What `write()` measures before `super().write()` and spends after it.
-
-    The split is the whole point of the type. Every field here is a reading of
-    state as it stood BEFORE the row changed -- `before` and `deltas` are
-    literally comparisons against the old columns, `reverted_in_dates` records
-    quants already rolled back, `progressed` was decided from the old quantity --
-    and none of it can be re-derived once the write has landed. Putting them in
-    one value makes the boundary a method call rather than a line number.
-
-    That boundary is not decoration: both defects fixed in 56f635b3aa8 were
-    failures of it. `watched` was computed from vals that a later line replaced,
-    and `self` was read after a helper had deleted rows from it. A capture that
-    lives in `_prepare_write` cannot drift below the write, because
-    `_prepare_write` has returned before `super().write()` is called.
-    """
-
     vals: dict[str, Any]
     watched: bool
     before: dict[int, tuple[int, float]] | None
@@ -373,7 +351,7 @@ class StockMoveLine(models.Model):
         mls._reserve_new_move_lines()
         created_moves._post_process_created_moves()
         done_lines = mls.filtered(lambda ml: ml.state == "done")
-        for ml in done_lines.with_context(quants_cache=done_lines._quants_cache()):
+        for ml in done_lines.with_context(quants_cache=done_lines._get_quants_cache()):
             ml._settle_quant_move()
 
         if next_moves := done_lines._get_pending_dest_moves():
@@ -393,23 +371,11 @@ class StockMoveLine(models.Model):
         return res
 
     def _prepare_write(self, vals):
-        """Everything that must be read or done while the columns still hold
-        their pre-write values. Returns before `super().write()` is called, so
-        nothing captured here can drift below it."""
         self._check_write_allowed(vals)
         if vals.get("quant_id"):
             vals = {**vals, **self._prepare_quant_vals(vals)}
             self._check_write_allowed(vals)
 
-        # Below the expansion, never above it. `_prepare_quant_vals` injects
-        # every RESERVATION_KEY_FIELDS value off the quant, `location_id`
-        # included, so a write naming only `quant_id` relocates the line without
-        # ever saying so in the vals it arrived with. `watched` used to be
-        # computed from those un-expanded vals and never recomputed, which left
-        # `_check_blocked_outgoing` unreached on exactly that path: writing
-        # `location_id` outright was refused, writing the quant that lives there
-        # was not. Both calls above only read or raise, so taking the snapshot
-        # here still reads pre-write values.
         watched = "quantity" in vals or "location_id" in vals
         before = (
             {line.id: (line.location_id.id, line.quantity) for line in self}
@@ -440,7 +406,6 @@ class StockMoveLine(models.Model):
 
         progressed = self._get_progressed_lines(vals, updates)
         if progressed == self:
-            # Whole batch: one UPDATE instead of a second write afterwards.
             vals = {**vals, "date": fields.Datetime.now()}
             progressed = self.browse()
 
@@ -461,22 +426,11 @@ class StockMoveLine(models.Model):
         )
 
     def _apply_write(self, plan):
-        """Everything that can only run once the write has landed."""
         if plan.progressed:
             plan.progressed.date = fields.Datetime.now()
         plan.to_restock._reapply_quant_moves(plan.reverted_in_dates)
         plan.to_adjust._apply_quantity_deltas(plan.deltas)
 
-        # Both settlements above reach `_free_reservation`, which resolves an
-        # over-allocation by unlinking competing reservations -- and its candidate
-        # search spans the table, not just lines outside this batch. A sibling of
-        # `self` can therefore be gone by now, and every reader below touches it.
-        # Re-anchoring on the survivors rather than shielding the batch is
-        # deliberate: those siblings are open reservations losing to stock that
-        # has actually moved, which is exactly what freeing them is for.
-        # (`_apply_done_quant_moves` shields its batch instead, because there
-        # every line is about to consume its own reservation -- a different
-        # situation, not an inconsistency.)
         survivors = self.exists()
 
         plan.packages_to_check._update_orphaned_package_dests()
@@ -755,7 +709,7 @@ class StockMoveLine(models.Model):
         )
         (
             mls_without_lot | mls_needing_lot_check._resolve_done_lots()
-        )._raise_missing_lot()
+        )._check_lots_supplied()
 
         mls_to_delete.unlink()
 
@@ -826,11 +780,6 @@ class StockMoveLine(models.Model):
         groups = self.grouped(lambda ml: (ml.product_id, ml.company_id))
         lots_per_group = defaultdict(dict)
         archived_per_group = defaultdict(dict)
-        # `active_test=False` matches the scope `stock.lot._check_unique_lot` and
-        # the UNIQUE index enforce. Searching with it on made the resolver blind
-        # to an archived namesake, so the line fell through to
-        # `_create_production_lots` and the user was told they had created a
-        # duplicate -- of a lot no list view or dropdown shows them.
         for lot in (
             self.env["stock.lot"]
             .with_context(active_test=False)
@@ -865,12 +814,12 @@ class StockMoveLine(models.Model):
                     ml_ids_tracked_without_lot.add(ml.id)
 
         if blocked_by_archived:
-            self._raise_archived_lots(blocked_by_archived)
+            raise self._prepare_archived_lots_error(blocked_by_archived)
         self.browse(ml_ids_to_create_lot)._create_production_lots()
         return self.browse(ml_ids_tracked_without_lot)
 
     @api.model
-    def _raise_archived_lots(self, product_lot_pairs):
+    def _prepare_archived_lots_error(self, product_lot_pairs):
         listed = "\n".join(
             sorted(
                 _(
@@ -881,7 +830,7 @@ class StockMoveLine(models.Model):
                 for product, lot in product_lot_pairs
             )
         )
-        raise UserError(
+        return UserError(
             _(
                 "These Lot/Serial Numbers exist but are archived, so they cannot "
                 "receive stock:\n%(lots)s\n\n"
@@ -890,7 +839,7 @@ class StockMoveLine(models.Model):
             ),
         )
 
-    def _raise_missing_lot(self):
+    def _check_lots_supplied(self):
         if not self:
             return
         products_list = "\n".join(
@@ -906,7 +855,7 @@ class StockMoveLine(models.Model):
 
     def _apply_done_quant_moves(self):
         ml_ids_to_ignore = OrderedSet()
-        for ml in self.with_context(quants_cache=self._quants_cache()):
+        for ml in self.with_context(quants_cache=self._get_quants_cache()):
             ml.with_context(bypass_entire_pack=True)._settle_quant_move(
                 release_reserved=True, ml_ids_to_ignore=ml_ids_to_ignore
             )
@@ -926,14 +875,6 @@ class StockMoveLine(models.Model):
         }
 
     def _get_lines_in_pack_scope(self):
-        # `_pre_put_in_pack_hook` puts the full line set in the action context so
-        # the wizard, which only carries the subset being packed, can hand it
-        # back. That makes the widening caller-supplied: `action_put_in_pack` is
-        # RPC-callable, so any id list can arrive here and become the recordset
-        # the method acts on instead of `self`. Bounding it to the transfers
-        # `self` already belongs to keeps the round-trip intact -- the wizard
-        # only ever hands back lines of the same pickings -- while a forged list
-        # reaches nothing outside the operation the caller is already in.
         scope_ids = self.env.context.get("all_move_line_ids")
         if not scope_ids:
             return self
@@ -1131,7 +1072,7 @@ class StockMoveLine(models.Model):
     def _revert_quant_moves(self, keeping_destination=None):
         keep = set((keeping_destination or self.browse())._ids)
         in_dates = {}
-        for ml in self.with_context(quants_cache=self._quants_cache()):
+        for ml in self.with_context(quants_cache=self._get_quants_cache()):
             _available_qty, in_date = ml._apply_quant_move(reverse=True)
             if ml.id in keep:
                 in_dates[ml.id] = in_date
@@ -1141,7 +1082,7 @@ class StockMoveLine(models.Model):
 
     def _reapply_quant_moves(self, in_dates=None):
         in_dates = in_dates or {}
-        for ml in self.with_context(quants_cache=self._quants_cache()):
+        for ml in self.with_context(quants_cache=self._get_quants_cache()):
             ml._settle_quant_move(in_date=in_dates.get(ml.id, False))
 
     def _get_quantity_deltas(self, vals, updates):
@@ -1152,7 +1093,7 @@ class StockMoveLine(models.Model):
         }
 
     def _apply_quantity_deltas(self, deltas):
-        for ml in self.with_context(quants_cache=self._quants_cache()):
+        for ml in self.with_context(quants_cache=self._get_quants_cache()):
             ml._settle_quant_move(quantity=deltas[ml.id])
         if self.move_id:
             self.move_id._check_quantity()
@@ -1174,7 +1115,7 @@ class StockMoveLine(models.Model):
                 subtype_xmlid="mail.mt_note",
             )
 
-    def _quants_cache(self):
+    def _get_quants_cache(self):
         if not self:
             return None
         return self.env["stock.quant"]._get_quants_by_products_locations(
@@ -1201,12 +1142,6 @@ class StockMoveLine(models.Model):
             )
 
     def _reservation_key(self, overrides=None):
-        # `overrides` lets a caller ask for the key this line WOULD have after a
-        # write, without the two sides of one delta map being built by different
-        # code. `_resync_reservation` releases against the stored key and
-        # acquires against the pending one; when it spelled the second out by
-        # hand, a field added to RESERVATION_KEY_FIELDS would have been picked up
-        # by the release side only, and the halves would have keyed differently.
         self.check_singleton()
         overrides = overrides or {}
         return tuple(overrides.get(name, self[name]) for name in RESERVATION_KEY_FIELDS)
@@ -1583,10 +1518,6 @@ class StockMoveLine(models.Model):
         return {"quants": quants, "move_lines": lines}
 
     def _get_similar_move_lines(self):
-        # Excludes `self._origin` as well as `self`. The caller is an onchange, so
-        # `self` is a NewId while `picking.move_line_ids` are the stored rows:
-        # subtracting a NewId from them removes nothing and the line was compared
-        # against its own saved serial, warning about a duplicate of itself.
         self.check_singleton()
         picking = self.move_id.picking_id or self.picking_id
         others = picking.move_line_ids - self - self._origin
@@ -2031,10 +1962,6 @@ class StockMoveLine(models.Model):
         package=_KEEP,
         owner=_KEEP,
     ):
-        # `lot`/`package`/`owner` are named rather than collected into **kwargs so
-        # a misspelling is a TypeError instead of a silent fall-back to this
-        # line's own value. _KEEP, not None: None is a legitimate request for
-        # "no package", which is not the same as "use mine".
         lot = self.lot_id if lot is _KEEP else lot
         package = self.package_id if package is _KEEP else package
         owner = self.owner_id if owner is _KEEP else owner
@@ -2120,23 +2047,9 @@ class StockMoveLine(models.Model):
         return None
 
     def _check_write_allowed(self, vals):
-        # The stored state, never `vals.get("state", ...)`. `state` is
-        # `related="move_id.state", store=True`, so a move-less line's stored
-        # value is always False and the "draft" escape hatch could never open
-        # from real data -- it opened only when the caller put `state` in the
-        # same vals, which any authenticated stock user can do over RPC. Since
-        # `product_id` is not in RESTOCK_TRIGGER_FIELDS, `_resync_reservation`
-        # then leaves the old product's reservation behind permanently, outliving
-        # even the line's own deletion.
         if "product_id" in vals and any(
             ml.product_id
             and vals["product_id"] != ml.product_id.id
-            # `ml.state`, never `vals.get("state", ...)`. `state` is a stored
-            # related mirror of `move_id.state`, so on a move-less line it is
-            # always False and this escape hatch could never open from stored
-            # data -- it opened only when the caller supplied `state` in the same
-            # write, which let any RPC caller switch the guard off and leave the
-            # old product's quant reserved by nothing.
             and (ml.move_id or ml.state != "draft")
             for ml in self
         ):
@@ -2174,13 +2087,5 @@ class StockMoveLine(models.Model):
         return len(picking_type) == 1 and picking_type.set_package_type
 
     def _should_show_lot_in_invoice(self):
-        """Whether this move line's lot belongs on the related invoice.
-
-        Declared here as the base of the chain. `sale_stock` and `purchase_stock`
-        each contribute a side of it, and both used to open with
-        `try: super() ... except AttributeError: res = False` because no base
-        existed -- a guard that also swallowed any genuine AttributeError raised
-        inside a sibling's implementation.
-        """
         self.check_singleton()
         return False

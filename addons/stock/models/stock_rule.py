@@ -207,7 +207,7 @@ class StockRule(models.Model):
         )
 
     @api.onchange("picking_type_id")
-    def _onchange_picking_type(self):
+    def _onchange_picking_type_id(self):
         self.location_src_id = self.picking_type_id.default_location_src_id.id
         self.location_dest_id = self.picking_type_id.default_location_dest_id.id
 
@@ -429,7 +429,7 @@ class StockRule(models.Model):
             if rule.procure_method == "mts_else_mto":
                 procure_method = "make_to_stock"
 
-            move_values = rule._get_stock_move_values(procurement)
+            move_values = rule._prepare_stock_move_vals(procurement)
             move_values["procure_method"] = procure_method
             moves_values_by_company[procurement.company_id.id].append(move_values)
         self._propagate_transit_partner(procurements)
@@ -451,7 +451,7 @@ class StockRule(models.Model):
     def _get_fields_custom_move(self):
         return []
 
-    def _get_stock_move_values(self, procurement):
+    def _prepare_stock_move_vals(self, procurement):
         product_uom_id = procurement.product_uom_id
         values = procurement.values
         date_scheduled = fields.Datetime.to_string(
@@ -574,7 +574,7 @@ class StockRule(models.Model):
         return delays, delay_description
 
     @api.model
-    def _get_procurement_defaults(self, procurement):
+    def _prepare_procurement_defaults(self, procurement):
         return {
             "company_id": procurement.location_id.company_id,
             "priority": "0",
@@ -584,7 +584,7 @@ class StockRule(models.Model):
         }
 
     @api.model
-    def _skip_procurement(self, procurement):
+    def _is_nothing_to_procure(self, procurement):
         return procurement.product_id.type != "consu" or float_is_zero(
             procurement.product_qty,
             precision_rounding=procurement.product_uom_id.rounding,
@@ -602,10 +602,10 @@ class StockRule(models.Model):
         procurement_errors = []
         valid_procurements = [
             procurement._replace(
-                values=self._get_procurement_defaults(procurement),
+                values=self._prepare_procurement_defaults(procurement),
             )
             for procurement in procurements
-            if not self._skip_procurement(procurement)
+            if not self._is_nothing_to_procure(procurement)
         ]
         rules = self._get_rules_batch(valid_procurements)
         for procurement, rule in zip(valid_procurements, rules, strict=True):

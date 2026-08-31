@@ -219,8 +219,8 @@ class StockRule(models.Model):
             )
         return True
 
-    def _get_stock_move_values(self, procurement):
-        res = super()._get_stock_move_values(procurement)
+    def _prepare_stock_move_vals(self, procurement):
+        res = super()._prepare_stock_move_vals(procurement)
         res["production_group_id"] = procurement.values.get("production_group_id")
         return res
 

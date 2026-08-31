@@ -133,7 +133,7 @@ class ResConfigSettings(models.TransientModel):
             self.module_stock_sms = True
 
     @api.onchange("group_stock_adv_location")
-    def onchange_adv_location(self):
+    def _onchange_group_stock_adv_location(self):
         if self.group_stock_adv_location and not self.group_stock_multi_locations:
             self.group_stock_multi_locations = True
 

@@ -122,7 +122,7 @@ class StockPutawayRule(models.Model):
         return None
 
     @api.onchange("location_in_id")
-    def _onchange_location_in(self):
+    def _onchange_location_in_id(self):
         loc_in, loc_out = self.location_in_id, self.location_out_id
         if not loc_out or (loc_in and not loc_out._is_child_of(loc_in)):
             self.location_out_id = self.location_in_id

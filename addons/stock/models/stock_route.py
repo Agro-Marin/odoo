@@ -147,7 +147,7 @@ class StockRoute(models.Model):
             route.warehouse_domain_ids = per_company[route.company_id.id]
 
     @api.onchange("company_id")
-    def _onchange_company(self):
+    def _onchange_company_id(self):
         if self.company_id:
             self.warehouse_ids = self.warehouse_ids.filtered(
                 lambda w: w.company_id == self.company_id

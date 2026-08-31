@@ -277,7 +277,7 @@ class StockReturnPicking(models.TransientModel):
         for line in self.product_return_moves:
             if not line.move_id:
                 continue
-            proc_values = self._get_proc_values(line)
+            proc_values = self._prepare_procurement_vals(line)
             proc_list.append(
                 self.env["stock.rule"].Procurement(
                     line.product_id,
@@ -294,7 +294,7 @@ class StockReturnPicking(models.TransientModel):
             self.env["stock.rule"].run(proc_list)
         return action
 
-    def _get_proc_values(self, line):
+    def _prepare_procurement_vals(self, line):
         self.check_singleton()
         return {
             "reference_ids": self.picking_id.reference_ids,

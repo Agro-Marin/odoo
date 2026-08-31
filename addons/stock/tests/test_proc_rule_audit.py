@@ -120,7 +120,7 @@ class TestProcurementMoveValues(ProcRuleAuditCommon):
             "company_id": self.env.company,
             "partner_id": False,
         }
-        move_values = rule._get_stock_move_values(
+        move_values = rule._prepare_stock_move_vals(
             self.env["stock.rule"].Procurement(
                 product,
                 1.0,
@@ -144,7 +144,7 @@ class TestProcurementMoveValues(ProcRuleAuditCommon):
             self.stock_location,
         )
         product = self._product("No address product")
-        move_values = rule._get_stock_move_values(
+        move_values = rule._prepare_stock_move_vals(
             self.env["stock.rule"].Procurement(
                 product,
                 1.0,

@@ -10,8 +10,8 @@ class StockRule(models.Model):
             res["sale_line_id"] = procurement.values["sale_line_id"]
         return res
 
-    def _get_stock_move_values(self, procurement):
-        move_values = super()._get_stock_move_values(procurement)
+    def _prepare_stock_move_vals(self, procurement):
+        move_values = super()._prepare_stock_move_vals(procurement)
         sol_id = procurement.values.get("sale_line_id")
         if not sol_id or "product_id" not in move_values:
             return move_values
