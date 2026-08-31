@@ -306,9 +306,8 @@ class SaleOrderLine(models.Model):
     @api.depends("order_id", "partner_id", "product_id")
     def _compute_display_name(self):
         name_per_id = self._additional_name_per_id()
-        partner_lang = {line.id: line.partner_id.lang for line in self.sudo()}
         for line in self:
-            if partner_lang.get(line.id):
+            if line.sudo().partner_id.lang:
                 line = line.with_context(lang=line.order_id._get_lang())
             if (product := line.product_id).display_name:
                 default_name = line._get_line_multiline_description_sale()
@@ -1134,14 +1133,6 @@ class SaleOrderLine(models.Model):
 
         if base_price is None:
             base_price = self._get_pricelist_price_before_discount()
-
-        return max(base_price, pricelist_price)
-
-    def _get_price_display_from_prices(self, pricelist_price, base_price):
-        self.ensure_one()
-
-        if not self.pricelist_item_id._show_discount():
-            return pricelist_price
 
         return max(base_price, pricelist_price)
 
