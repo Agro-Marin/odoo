@@ -191,6 +191,10 @@ class MixinSpreadsheet(models.AbstractModel):
         if file_path.startswith("data:image/png;base64,"):
             return base64.b64decode(file_path.split(",")[1])
         match = re.match(r"/web/image/(\d+)", file_path)
+        if not match:
+            raise ValidationError(
+                _("Invalid image path: %(file_path)s", file_path=file_path)
+            )
         file_record = self.env["ir.binary"]._get_record(
             res_model="ir.attachment",
             res_id=int(match.group(1)),
