@@ -30,6 +30,14 @@ describe("visibility", () => {
         expect(".o_we_power_buttons").toBeVisible();
     });
 
+    test("should hide power buttons when the block's font size differs", async () => {
+        await setupEditor(
+            `<p><span style="font-size: 36px;" data-oe-zws-empty-inline="">[]\u200B</span></p>`,
+        );
+        expect(".o-we-hint").toHaveCount(0);
+        expect(".o_we_power_buttons").not.toBeVisible();
+    });
+
     test("should show power buttons on P tag containing em (italic)", async () => {
         await setupEditor(`<p><em data-oe-zws-empty-inline="">[]\u200B</em></p>`);
         expect(".o_we_power_buttons").toBeVisible();
