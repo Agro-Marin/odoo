@@ -4,7 +4,7 @@ import {
     waitForSnippetDialog,
 } from "@html_builder/../tests/helpers";
 import { describe, expect, test } from "@odoo/hoot";
-import { queryOne } from "@odoo/hoot-dom";
+import { animationFrame, queryOne } from "@odoo/hoot-dom";
 import { contains } from "@web/../tests/web_test_helpers";
 
 describe.current.tags("desktop");
@@ -43,4 +43,40 @@ test("a block can still be dropped while the mobile preview is on", async () => 
     await confirmAddSnippet("s_test");
     expect(".o_add_snippet_dialog").toHaveCount(0);
     expect(editableContent.querySelectorAll("[data-snippet='s_test']")).toHaveLength(1);
+});
+
+/**
+ * A keydown raised inside the preview iframe. The point of the test is that the
+ * top window never sees it, so it cannot be sent with the usual helpers.
+ */
+async function pressInPreview(hotkey) {
+    const iframeDoc = queryOne(SNIPPET_IFRAME).contentDocument;
+    iframeDoc.body.focus();
+    iframeDoc.body.dispatchEvent(
+        new iframeDoc.defaultView.KeyboardEvent("keydown", {
+            key: hotkey.key,
+            altKey: Boolean(hotkey.altKey),
+            bubbles: true,
+        })
+    );
+    await animationFrame();
+}
+
+test("Escape closes the dialog from inside the preview", async () => {
+    await setupHTMLBuilderWithDummySnippet("<h1>Homepage</h1>");
+    await openSnippetDialog();
+    expect(".o_add_snippet_dialog").toHaveCount(1);
+
+    await pressInPreview({ key: "Escape" });
+    expect(".o_add_snippet_dialog").toHaveCount(0);
+});
+
+test("the search box has a hotkey of its own", async () => {
+    await setupHTMLBuilderWithDummySnippet("<h1>Homepage</h1>");
+    await openSnippetDialog();
+    expect(".o_add_snippet_dialog_search").toHaveAttribute("data-hotkey", "S");
+
+    await pressInPreview({ key: "s", altKey: true });
+    await animationFrame();
+    expect(".o_add_snippet_dialog_search").toBeFocused();
 });
