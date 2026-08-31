@@ -5,6 +5,7 @@ from markupsafe import Markup
 from odoo import api, fields, models
 from odoo.libs.sql import SQL
 from odoo.tools import plaintext2html
+from odoo.tools.translate import _
 
 
 class CalendarAlarm_Manager(models.AbstractModel):
@@ -277,6 +278,9 @@ class CalendarAlarm_Manager(models.AbstractModel):
                 alarm.mail_template_id,
                 force_send=len(attendees) <= force_send_limit,
                 notify_author=True,
+                completion_log_message=_(
+                    "The %s reminder was sent", Markup("<i>%s</i>") % alarm.name
+                ),
             )
 
         events._setup_event_recurrent_alarms(events_by_alarm)

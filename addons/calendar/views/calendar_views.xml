@@ -172,7 +172,8 @@
                                     </div>
                                 </div>
                             </div>
-                            <field name="res_id" string="Linked to" invisible="not res_id" readonly="1" />
+                            <field name="res_record" readonly="not user_can_edit"/>
+                            <field name="res_id" invisible="1"/>
                             <field name="res_model" invisible="1"/>
                             <field name="videocall_source" invisible="1"/>
                             <field name="access_token" invisible="1" force_save="1"/>
@@ -184,7 +185,8 @@
                             <label for="privacy" string="Status"/>
                             <div class="d-flex">
                                 <field name="show_as" class="oe_inline me-2" readonly="not user_can_edit" nolabel="1"/>
-                                <field name="privacy" class="oe_inline me-2" readonly="not user_can_edit" nolabel="1" placeholder="User default"
+                                <field name="privacy_placeholder" invisible="1"/>
+                                <field name="privacy" class="oe_inline me-2" readonly="not user_can_edit" nolabel="1" options="{'placeholder_field': 'privacy_placeholder'}"
                                     help="Set whether you're available for other simultaneous events and the privacy of this event to others. Manage your default privacy in your user preferences."/>
                             </div>
                             <field name="should_show_status" invisible="1"/>
@@ -247,7 +249,10 @@
                                 <group>
                                     <field name="alarm_ids" widget="many2many_tags" options="{'no_quick_create': True}" readonly="not user_can_edit"/>
                                     <field name="recurrence_id" invisible="1" />
-                                    <field name="rrule_type" invisible="1" />
+                                    <!-- Carries the guard too: the modifiers of a field declared
+                                         twice are combined, so leaving this one unqualified would
+                                         make `rrule_type` writable again for a non-editor. -->
+                                    <field name="rrule_type" invisible="1" readonly="not user_can_edit"/>
                                     <label for="recurrency" string="Recurrent"/>
                                     <div class="d-flex align-items-baseline gap-1">
                                         <field name="recurrency" widget="boolean_toggle" options="{'autosave': False}" class="w-auto" readonly="not user_can_edit"/>
@@ -256,8 +261,8 @@
                                     </div>
                                     <label for="interval" class="fw-bold text-900" invisible="not recurrency or rrule_type_ui != 'custom'"/>
                                     <div class="d-flex gap-1" invisible="not recurrency or rrule_type_ui != 'custom'">
-                                        <field name="interval" string="Repeat every" class="oe_inline w-auto o_input_5ch" />
-                                        <field name="rrule_type" nolabel="1" class="oe_inline" required="rrule_type_ui == 'custom'"/>
+                                        <field name="interval" string="Repeat every" class="oe_inline w-auto o_input_5ch" readonly="not user_can_edit"/>
+                                        <field name="rrule_type" nolabel="1" class="oe_inline" required="rrule_type_ui == 'custom'" readonly="not user_can_edit"/>
                                     </div>
                                     <span class="fw-bold text-nowrap" invisible="rrule_type_ui not in ['weekly', 'custom'] or (rrule_type_ui == 'custom' and rrule_type != 'weekly')">Repeat on</span>
                                     <div invisible="rrule_type_ui not in ['weekly', 'custom'] or (rrule_type_ui == 'custom' and rrule_type != 'weekly')" ><widget name="calendar_week_days" readonly="not user_can_edit"/></div>
@@ -334,6 +339,14 @@
         <field name="priority" eval="2"/>
         <field name="arch" type="xml">
             <form string="Meetings" class="o_calendar_event_form_quick_create" js_class="calendar_quick_create_form_view">
+                <!-- The full form signals a clash through the many2many_attendee widget;
+                     this one renders plain tags, so without the banner booking over
+                     somebody's existing meeting from the grid says nothing at all. -->
+                <div class="o_unavailable_attendees_alert alert alert-warning border-0 d-flex flex-wrap m-0 mb-3" role="alert"
+                    invisible="not unavailable_partner_ids or allday">
+                    <span class="me-1">The following attendees are not available at the selected time</span>
+                    <field name="unavailable_partner_ids" widget="many2many_tags"/>
+                </div>
                 <field name="invalid_email_partner_ids" invisible="1"/> <!--used in many2many_attendees widget-->
                 <div class="d-flex align-items-center" colspan="2">
                     <i class="fa-solid fa-tag text-600" title="Booking Name"/>
@@ -394,16 +407,17 @@
                     <i class="fa-solid fa-video text-600" title="Videocall URL"/>
                     <field name="videocall_location" nolabel="1"
                         widget="CopyClipboardChar"
-                        class="w-100 mb-0 o_field_CopyClipboardChar" 
+                        class="w-100 mb-0 o_field_CopyClipboardChar"
                     />
                     <button name="clear_videocall_location" class="btn btn-sm px-0"><i class="fa-solid fa-xmark" title="Remove"/></button>
                 </div>
                 <div class="d-flex align-items-center" colspan="2">
                     <i class="fa-solid fa-lock text-600" title="Visibility"/>
-                    <field name="privacy" nolabel="1" class="w-100 mb-0" placeholder="Visibility"/>
+                    <field name="privacy_placeholder" invisible="1"/>
+                    <field name="privacy" nolabel="1" class="w-100 mb-0" options="{'placeholder_field': 'privacy_placeholder'}"/>
                 </div>
                 <div class="d-flex" colspan="2">
-                    <i class="fa-solid fa-sticky-note mt-2 text-600" title="Notes"/> 
+                    <i class="fa-solid fa-sticky-note mt-2 text-600" title="Notes"/>
                     <field name="notes" nolabel="1" class="w-100" placeholder="Notes" widget="calendar_event_notes_html"/>
                 </div>
             </form>

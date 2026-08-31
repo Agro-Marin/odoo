@@ -231,6 +231,7 @@ class CalendarEvent(models.Model):
         help="Whether the event is private, considering the user privacy",
         compute="_compute_effective_privacy",
     )
+    privacy_placeholder = fields.Char(compute="_compute_privacy_placeholder")
     show_as = fields.Selection(
         [("free", "Available"), ("busy", "Busy")],
         "Show as",
@@ -305,6 +306,12 @@ class CalendarEvent(models.Model):
         "Document Model Name", related="res_model_id.model", readonly=True, store=True
     )
     res_model_name = fields.Char(related="res_model_id.name")
+    res_record = fields.Reference(
+        string="Linked to",
+        selection="_selection_res_record",
+        compute="_compute_res_record",
+        inverse="_inverse_res_record",
+    )
     # messaging
     activity_ids = fields.One2many(
         "mail.activity", "calendar_event_id", string="Activities"
@@ -519,11 +526,67 @@ class CalendarEvent(models.Model):
                 lambda a: not (a.email and single_email_re.match(a.email))
             )
 
+    @api.model
+    def _selection_res_record(self):
+        """Every model a meeting can be about: the ones that carry a chatter.
+
+        sudo: reading `ir.model` is what building a selection needs, and the
+        selection is the same for everybody; the records themselves are still
+        read as the user, and an unreadable one simply cannot be picked.
+        """
+        return [
+            (model.model, model.name)
+            for model in self.env["ir.model"]
+            .sudo()
+            .search(
+                [
+                    ("is_mail_thread", "=", True),
+                    ("abstract", "=", False),
+                    ("transient", "=", False),
+                ]
+            )
+        ]
+
+    @api.depends("res_model", "res_id")
+    def _compute_res_record(self):
+        for event in self:
+            event.res_record = (
+                f"{event.res_model},{event.res_id}"
+                if event.res_model and event.res_id
+                else False
+            )
+
+    def _inverse_res_record(self):
+        for event in self:
+            if not event.res_record:
+                event.res_model_id = False
+                event.res_id = False
+                continue
+            event.res_model_id = self.env["ir.model"]._get_id(event.res_record._name)
+            event.res_id = event.res_record.id
+
     @api.depends("privacy", "user_id")
     def _compute_effective_privacy(self):
         for event in self:
             event.effective_privacy = (
                 event.privacy or event.sudo().user_id.calendar_default_privacy
+            )
+
+    @api.depends("effective_privacy")
+    def _compute_privacy_placeholder(self):
+        """The label the empty `privacy` field stands for, for use as placeholder.
+
+        `privacy` is left unset by design -- the event then follows the organiser's
+        own default -- so the field is blank on almost every event and the reader
+        has no way to tell what it resolves to. `effective_privacy` already knows;
+        this only turns it into the label the selection would have shown.
+        """
+        labels = dict(
+            self._fields["effective_privacy"]._description_selection(self.env)
+        )
+        for event in self:
+            event.privacy_placeholder = labels.get(
+                event.effective_privacy, _("User default")
             )
 
     @api.depends_context("active_model", "active_id")

@@ -173,12 +173,22 @@ class CalendarAttendee(models.Model):
             force_send=True,
         )
 
-    def _notify_attendees(self, mail_template, notify_author=False, force_send=False):
+    def _notify_attendees(
+        self,
+        mail_template,
+        notify_author=False,
+        force_send=False,
+        completion_log_message=False,
+    ):
         """Notify attendees about event main changes (invite, cancel, ...) based
         on template.
 
         :param mail_template: a mail.template record
         :param force_send: if set to True, the mail(s) will be sent immediately (instead of the next queue processing)
+        :param completion_log_message: if set, logged once on every event that got
+            at least one notification, so the chatter records that the mails went
+            out. The notifications themselves are `message_notify` calls addressed
+            to one attendee each, which say who was written to but not why.
         :return: None. Nothing reads the result; the early exits used to answer
             False and the ordinary one None, which said nothing either way.
         """
@@ -255,6 +265,13 @@ class CalendarAttendee(models.Model):
             )
             if len(recipients) < force_send_limit:
                 mail_messages.sudo().mail_ids.send_after_commit()
+        if completion_log_message:
+            # Queued or sent immediately, the mails exist either way, so the log
+            # does not hang off `force_send`.
+            events = recipients.event_id
+            events._message_log_batch(
+                bodies=dict.fromkeys(events.ids, completion_log_message)
+            )
         return
 
     def _notify_attendees_recipients(self, notify_author=False):
