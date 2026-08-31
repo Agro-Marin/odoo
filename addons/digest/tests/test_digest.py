@@ -114,27 +114,38 @@ class TestDigest(TestDigestCommon):
     @users("admin")
     def test_digest_numbers(self):
         digest = self.env["digest.digest"].browse(self.digest_1.ids)
-        digest._action_subscribe_users(self.user_employee)
 
-        # digest creates its mails in auto_delete mode so we need to capture
-        # the formatted body during the sending process
-        digest.flush_recordset()
-        with self.mock_mail_gateway():
-            digest.action_send()
+        # the message KPI is reserved to base.group_system, so what the mail
+        # carries depends on who is receiving it: the employee gets the digest
+        # with that table dropped, the administrator gets the numbers.
+        for user, expected_kpis in (
+            (self.user_employee, []),
+            (self.user_admin, ["3", "8", "15"]),
+        ):
+            with self.subTest(login=user.login):
+                digest._action_unsubscribe_users(self.user_employee + self.user_admin)
+                digest._action_subscribe_users(user)
 
-        self.assertEqual(
-            len(self._new_mails), 1, "A new mail.mail should have been created"
-        )
-        mail = self._new_mails[0]
-        # check mail.mail content
-        self.assertEqual(mail.author_id, self.partner_admin)
-        self.assertEqual(mail.email_from, self.company_admin.email_formatted)
-        self.assertEqual(mail.state, "outgoing", "Mail should use the queue")
+                # digest creates its mails in auto_delete mode so we need to
+                # capture the formatted body during the sending process
+                digest.flush_recordset()
+                with self.mock_mail_gateway():
+                    digest.action_send()
 
-        kpi_message_values = html.fromstring(mail.body_html).xpath(
-            '//table[@data-field="kpi_mail_message_total"]//*[hasclass("kpi_value")]/text()'
-        )
-        self.assertEqual([t.strip() for t in kpi_message_values], ["3", "8", "15"])
+                self.assertEqual(
+                    len(self._new_mails), 1, "A new mail.mail should have been created"
+                )
+                mail = self._new_mails[0]
+                # check mail.mail content
+                self.assertEqual(mail.author_id, self.partner_admin)
+                self.assertEqual(mail.email_from, self.company_admin.email_formatted)
+                self.assertEqual(mail.state, "outgoing", "Mail should use the queue")
+
+                kpi_message_values = html.fromstring(mail.body_html).xpath(
+                    '//table[@data-field="kpi_mail_message_total"]'
+                    '//*[hasclass("kpi_value")]/text()'
+                )
+                self.assertEqual([t.strip() for t in kpi_message_values], expected_kpis)
 
     @users("admin")
     def test_digest_subscribe(self):
@@ -1389,4 +1400,201 @@ class TestUnsubscribeRoutes(MailCommon, HttpCaseWithUserDemo):
             response.status_code,
             404,
             "it used to redirect to /odoo/digest.digest/False",
+        )
+
+
+@tagged("digest")
+class TestDigestPreview(TestDigestCommon):
+    """`digest.test`: render a digest to yourself before switching it on.
+
+    Until this wizard existed the only way to see a digest was
+    ``action_send_manual``, which writes to every subscriber and consumes a tip
+    for each of them -- so "let me check what this looks like" cost the whole
+    recipient list a mail and burned a tip nobody had read yet.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        # the real recipient list, which a preview must NOT write to
+        cls.digest_1.user_ids = cls.user_employee
+
+    @users("admin")
+    def test_preview_writes_only_to_the_chosen_recipients(self):
+        digest = self.digest_1.with_user(self.env.user)
+        wizard = self.env["digest.test"].create(
+            {
+                "digest_id": digest.id,
+                "user_ids": [Command.set(self.env.user.ids)],
+            }
+        )
+
+        with self.mock_mail_gateway():
+            wizard.send_mail_test()
+
+        self.assertEqual(len(self._new_mails), 1, "one preview, one mail")
+        self.assertEqual(
+            self._new_mails.email_to,
+            self.env.user.email_formatted,
+            "the subscriber list stays untouched: only the chosen user is written to",
+        )
+
+    @users("admin")
+    def test_preview_is_sent_at_once_not_parked_as_outgoing(self):
+        """A preview you have to wait for the cron to see is not a preview."""
+        wizard = self.env["digest.test"].create(
+            {
+                "digest_id": self.digest_1.id,
+                "user_ids": [Command.set(self.env.user.ids)],
+            }
+        )
+
+        with self.mock_mail_gateway():
+            wizard.send_mail_test()
+
+        self.assertEqual(
+            self._new_mails.state,
+            "sent",
+            "the real send leaves mails 'outgoing' for the cron; a preview must not",
+        )
+
+    @users("admin")
+    def test_preview_does_not_burn_a_tip(self):
+        """Tips are consumed once per user for good, so a preview that consumed
+        one would silently cost the reader a tip they never saw."""
+        Tip = self.env["digest.tip"].sudo()
+        Tip.search([]).unlink()
+        tip = Tip.create(
+            {"name": "Unread tip", "sequence": 1, "tip_description": "<p>T</p>"}
+        )
+        wizard = self.env["digest.test"].create(
+            {
+                "digest_id": self.digest_1.id,
+                "user_ids": [Command.set(self.env.user.ids)],
+            }
+        )
+
+        with self.mock_mail_gateway():
+            wizard.send_mail_test()
+
+        self.assertNotIn(
+            self.env.user,
+            tip.user_ids,
+            "the preview must leave the tip unread",
+        )
+
+        with self.mock_mail_gateway():
+            self.digest_1.with_user(self.env.user)._action_send_to_user(self.env.user)
+
+        self.assertIn(
+            self.env.user,
+            tip.user_ids,
+            "...while a real send still consumes it",
+        )
+
+    @users("admin")
+    def test_preview_renders_in_the_recipient_s_language_not_the_sender_s(self):
+        """`_action_send` renders each mail under the recipient's lang and tz
+        (`digest.py`, `_action_send`). A preview that skipped that would show
+        the sender their own locale and misreport what the recipient receives.
+        """
+        seen = []
+        digest_cls = type(self.env["digest.digest"])
+        original = digest_cls._action_send_to_user
+
+        def _spy(records, user, *args, **kwargs):
+            seen.append(
+                (user, records.env.context.get("lang"), records.env.context.get("tz"))
+            )
+            return original(records, user, *args, **kwargs)
+
+        reader = self.env["res.users"].create(
+            {
+                "name": "Preview Reader",
+                "login": "digest_preview_reader",
+                "email": "preview.reader@test.example.com",
+                "lang": "en_US",
+                "tz": "America/Mexico_City",
+                "group_ids": [Command.link(self.env.ref("base.group_user").id)],
+            }
+        )
+        wizard = self.env["digest.test"].create(
+            {
+                "digest_id": self.digest_1.id,
+                "user_ids": [Command.set(reader.ids)],
+            }
+        )
+
+        with patch.object(digest_cls, "_action_send_to_user", _spy):
+            with self.mock_mail_gateway():
+                wizard.send_mail_test()
+
+        self.assertEqual(
+            seen,
+            [(reader, reader.lang, reader.tz)],
+            "the preview must render under the recipient's locale, as a real send does",
+        )
+
+
+@tagged("digest")
+class TestDigestKpiAccess(TestDigestCommon):
+    """The two KPIs this module contributes itself are administrative.
+
+    Every other module that contributes a KPI guards it behind the group that
+    owns the data -- `sales_team.group_sale_salesman` in `crm`,
+    `account.group_account_invoice` in `account`, and so on for six more. The
+    two defined here were the only ones with no guard at all, so a plain
+    internal subscriber was mailed how many people logged into the company and
+    how many messages were posted, while the digest form already reserves both
+    toggles to `base.group_system`.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.digest_1.user_ids = cls.user_employee
+
+    def _kpi_names_for(self, user):
+        return [
+            kpi["kpi_name"] for kpi in self.digest_1._get_kpi_data(self.company_1, user)
+        ]
+
+    def test_the_base_kpis_are_withheld_from_a_plain_subscriber(self):
+        self.assertFalse(
+            self.user_employee.has_group("base.group_system"),
+            "the premise: this recipient is not an administrator",
+        )
+
+        names = self._kpi_names_for(self.user_employee)
+
+        self.assertNotIn(
+            "kpi_res_users_connected",
+            names,
+            "a non-admin subscriber must not be mailed the company login count",
+        )
+        self.assertNotIn(
+            "kpi_mail_message_total",
+            names,
+            "nor the message count",
+        )
+
+    def test_an_administrator_still_receives_them(self):
+        """The guard drops the KPI for the reader who may not have it, not for
+        everyone: the digest would otherwise lose its two default KPIs."""
+        names = self._kpi_names_for(self.user_admin)
+
+        self.assertIn("kpi_res_users_connected", names)
+        self.assertIn("kpi_mail_message_total", names)
+
+    def test_the_digest_still_renders_for_a_denied_subscriber(self):
+        """A withheld KPI is skipped, not fatal: `_update_kpi_columns` catches
+        the AccessError and drops that KPI for the rest of the render."""
+        with self.mock_mail_gateway():
+            self.digest_1.with_context(
+                lang=self.user_employee.lang,
+                tz=self.user_employee.tz,
+            )._action_send_to_user(self.user_employee)
+
+        self.assertEqual(
+            len(self._new_mails), 1, "the recipient still gets their digest"
         )
