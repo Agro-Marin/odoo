@@ -11,14 +11,7 @@ class TestSaleCouponProgramNumbers(TestSaleCouponNumbersCommon):
     def test_program_numbers_free_and_paid_product_qty(self):
         # These tests will focus on numbers (free product qty, SO total, reduction total..)
         order = self.empty_order
-        sol1 = self.env["sale.order.line"].create(
-            {
-                "product_id": self.largeCabinet.id,
-                "name": "Large Cabinet",
-                "product_qty": 3.0,
-                "order_id": order.id,
-            }
-        )
+        sol1 = self._add_line(order, self.largeCabinet, 3.0, name="Large Cabinet")
 
         # Check we correctly get a free product
         self._auto_rewards(order, self.all_programs)
@@ -81,22 +74,8 @@ class TestSaleCouponProgramNumbers(TestSaleCouponNumbersCommon):
         # Check if we have enough paid product to receive free product in case of a free product that is different from the paid product required
         # Buy A, get free b. (remember we need a paid B in cart to receive free b). If your cart is 4A 1B then you should receive 1b (you are eligible to receive 4 because you have 4A but since you dont have enought B in your cart, you are limited to the B quantity)
         order = self.empty_order
-        sol1 = self.env["sale.order.line"].create(
-            {
-                "product_id": self.drawerBlack.id,
-                "name": "drawer black",
-                "product_qty": 3.0,
-                "order_id": order.id,
-            }
-        )
-        sol2 = self.env["sale.order.line"].create(
-            {
-                "product_id": self.largeMeetingTable.id,
-                "name": "Large Meeting Table",
-                "product_qty": 1.0,
-                "order_id": order.id,
-            }
-        )
+        sol1 = self._add_line(order, self.drawerBlack, 3.0, name="drawer black")
+        sol2 = self._add_line(order, self.largeMeetingTable, 1.0)
         self._auto_rewards(order, self.all_programs)
         self.assertEqual(
             len(order.line_ids.ids),
@@ -198,14 +177,7 @@ class TestSaleCouponProgramNumbers(TestSaleCouponNumbersCommon):
         self.all_programs |= p_specific_product
         order = self.empty_order
         self.largeCabinet.taxes_id = percent_tax
-        sol1 = self.env["sale.order.line"].create(
-            {
-                "product_id": self.largeCabinet.id,
-                "name": "Large Cabinet",
-                "product_qty": 1.0,
-                "order_id": order.id,
-            }
-        )
+        sol1 = self._add_line(order, self.largeCabinet, 1.0, name="Large Cabinet")
 
         self._auto_rewards(order, self.all_programs)
         self.assertEqual(
@@ -757,14 +729,7 @@ class TestSaleCouponProgramNumbers(TestSaleCouponNumbersCommon):
         )
         self.all_programs |= p1_copy
         order = self.empty_order
-        self.env["sale.order.line"].create(
-            {
-                "product_id": self.largeCabinet.id,
-                "name": "Large Cabinet",
-                "product_qty": 1.0,
-                "order_id": order.id,
-            }
-        )
+        self._add_line(order, self.largeCabinet, 1.0, name="Large Cabinet")
         self._auto_rewards(order, self.all_programs)
         self.assertEqual(
             len(order.line_ids.ids),

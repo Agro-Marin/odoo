@@ -312,6 +312,16 @@ class TestSaleCouponCommon(SaleCommon):
                 continue
             self._claim_reward(order, program, coupons_per_program[program])
 
+    def _add_line(self, order, product, qty, **extra):
+        vals = {
+            "product_id": product.id,
+            "name": product.name,
+            "product_qty": qty,
+            "order_id": order.id,
+        }
+        vals.update(extra)
+        return self.env["sale.order.line"].create(vals)
+
     def _generate_coupons(self, loyality_program, coupon_qty=1):
         self.env["loyalty.generate.wizard"].with_context(
             active_id=loyality_program.id
