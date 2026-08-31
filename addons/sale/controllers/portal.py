@@ -160,7 +160,12 @@ class CustomerPortal(payment_portal.PaymentPortal, OrderPortalMixin):
             )
 
         is_link_preview = request.httprequest.headers.get("Odoo-Link-Preview")
-        if request.env.user.share and access_token and is_link_preview != "True":
+        if (
+            order_sudo.state == "draft"
+            and request.env.user.share
+            and access_token
+            and is_link_preview != "True"
+        ):
             today = fields.Date.today().isoformat()
             session_obj_date = request.session.get("view_quote_%s" % order_sudo.id)
             if session_obj_date != today:
@@ -358,7 +363,7 @@ class CustomerPortal(payment_portal.PaymentPortal, OrderPortalMixin):
             return {"error": _("Invalid signature data.")}
 
         if not order_sudo._has_to_be_paid():
-            order_sudo._confirm_order()
+            order_sudo.with_context(sale_include_signature=True)._confirm_order()
 
         pdf = (
             request.env["ir.actions.report"]
