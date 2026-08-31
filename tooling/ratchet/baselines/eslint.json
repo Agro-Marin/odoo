@@ -1,5 +1,5 @@
 {
-  "count": 22257,
-  "measured_at": "b7b596cd004b13ff0031a8f8a1ee850bfa02589a",
-  "note": "Re-measured after rebasing this branch onto origin/19.0-marin (214 upstream commits). Neither side's floor described the merged tree: both had driven counts down independently from a common base, so every one of these had to be re-derived rather than merged. Measured at HEAD in the workspace checkout; mypy per section 9.3 in a detached worktree with mypy==2.3.0 alone."
+  "count": 22171,
+  "measured_at": "fea0dbf827af317f45bcf08e2874b6b4dd293fa6",
+  "note": "Re-derived: the floor was ORPHANED-BASE at b7b596cd004, a commit not in this history, so 22257 described a tree this branch never had. Measured 22171 at HEAD fea0dbf827a in a detached worktree with node_modules symlinked, using lint.yml own command (npx eslint . --format=json, then jq [.[].errorCount]|add) -- NOT the text summary, which reports 22173 by counting 2 warnings the gate ignores. A worktree because the shared checkout held 56 dirty JS/SCSS files from a session that exited without committing; measured in place, that uncommitted work would have been banked as if it were HEAD. The -86 reconciles to -85 against four committed changes: hr_work_entry 52 -> 0 (7bdbad68bcb and the front-end fixes after it, 46 prettier findings plus 6 real no-unused-vars, one of them an updateData(data) overriding via ...arguments instead of the parameter it declared), hr_skills 86 -> 56 across that module commits, -1 in ba391c0994d and -2 in 0daed4a3328. One unit is unexplained and is recorded as unexplained rather than absorbed: the orphaned base cannot be reconciled exactly, which is the point of the ORPHANED-BASE flag."
 }
