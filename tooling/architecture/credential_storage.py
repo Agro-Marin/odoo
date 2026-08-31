@@ -29,8 +29,58 @@ SKIP_DIRS = frozenset({"__pycache__", "node_modules", ".git", "tests", "migratio
 VAULT_MODULE = "credential"
 
 SECRET = re.compile(
-    r"(password|secret|api_?key|token|passphrase|private_key|client_secret|credential)",
+    r"(password|secret|api_?key|token|passphrase|private_key|client_secret"
+    r"|credential|_key$)",
     re.IGNORECASE,
+)
+
+# A key that is published on purpose, or is not a key at all.
+#
+# `_key$` was added to SECRET because a signing key is a secret whatever it is
+# called, and `api_?key` missed every one that does not spell out "api":
+# `adyen_hmac_key`, `paymob_hmac_key`, `authorize_signature_key`,
+# `authorize_transaction_key` and `openai_key` are all stored secrets the gate
+# reported nothing about. But `_key` is also the ordinary English word for a
+# dictionary index and for the public half of a keypair, so it needs the
+# counterpart these two patterns provide.
+#
+# Public by design -- these are handed to browsers, and vaulting one protects
+# nothing (see PUBLISHED above for the same argument about a Maps key).
+PUBLIC_KEY = re.compile(
+    r"(public_key|publishable_key|site_key|website_key|client_key)$",
+    re.IGNORECASE,
+)
+
+# Not a credential in any sense: an index, a lookup, a keyboard key.
+NOT_A_KEY = re.compile(
+    r"^(cache_key|bucket_key|grouping_key|job_key|period_key|source_key"
+    r"|partner_key|zip_key|website_form_key|avatar_cache_key|push_to_talk_key"
+    r"|attendance_kiosk_key|identity_key)$",
+    re.IGNORECASE,
+)
+
+# `_key` names that ARE identifiers, decided per field because the name does not
+# say. Each is either the public half of a client-credentials pair, a document
+# number printed on the document, or an id the browser already has.
+IDENTIFIER_KEYS = frozenset(
+    {
+        # OAuth client ids. Their client_secret sibling is a secret and is on
+        # the backlog; the id is what you send in the clear to ask for a token.
+        "delivery_fedex.fedex_developer_key",
+        "delivery_fedex_rest.fedex_rest_developer_key",
+        "sale_lazada.app_key",
+        # The NF-e access key: 44 digits identifying the invoice, printed on the
+        # DANFE and quoted back by anyone tracking it.
+        "l10n_br_edi.l10n_br_access_key",
+        "l10n_br_edi_pos.l10n_br_access_key",
+        # An Amazon seller identifier, which appears in the API paths built from
+        # it -- `sale_amazon` migrated its refresh token and left this.
+        "sale_amazon.seller_key",
+        # Rendered into the page for the browser to use, like the Maps key in
+        # PUBLISHED above.
+        "website.google_analytics_key",
+        "website_slides.website_slide_google_app_key",
+    }
 )
 
 # Names that are *about* a secret rather than one.
@@ -234,6 +284,10 @@ def findings() -> list[Finding]:
                     if f"{module}.{name}" in SHARE_FIELDS | PUBLISHED:
                         continue
                     if CURSOR.search(name) or name in hashed:
+                        continue
+                    if PUBLIC_KEY.search(name) or NOT_A_KEY.match(name):
+                        continue
+                    if f"{module}.{name}" in IDENTIFIER_KEYS:
                         continue
                     if not _is_stored_field(call):
                         continue

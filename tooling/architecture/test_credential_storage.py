@@ -326,3 +326,50 @@ class TestTheFourAmbiguousNames:
             assert module in gate.module_names(), (
                 f"{key} names a module the tree does not have"
             )
+
+
+class TestKeysThatAreNotSecrets:
+    """`_key` joined SECRET, so the counterparts have to hold."""
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "stripe_publishable_key",
+            "mercado_pago_public_key",
+            "turnstile_site_key",
+            "buckaroo_website_key",
+            "adyen_client_key",
+        ],
+    )
+    def test_a_key_published_to_the_browser_is_not_a_secret(
+        self, tmp_path, monkeypatch, name
+    ):
+        _write(tmp_path, monkeypatch, f"{name} = fields.Char()")
+        assert gate.offenders() == []
+
+    @pytest.mark.parametrize(
+        "name", ["cache_key", "bucket_key", "grouping_key", "identity_key"]
+    )
+    def test_a_lookup_key_is_not_a_credential(self, tmp_path, monkeypatch, name):
+        """`ir.job.identity_key` is the dedup key that stops one job being
+        enqueued twice. It authorises nothing."""
+        _write(tmp_path, monkeypatch, f"{name} = fields.Char()")
+        assert gate.offenders() == []
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "adyen_hmac_key",
+            "paymob_hmac_key",
+            "authorize_signature_key",
+            "authorize_transaction_key",
+            "openai_key",
+        ],
+    )
+    def test_a_signing_key_is_a_secret_however_it_is_spelled(
+        self, tmp_path, monkeypatch, name
+    ):
+        """The gap `_key` closed: `api_?key` matched none of these, and every
+        one is a stored secret the gate reported nothing about."""
+        _write(tmp_path, monkeypatch, f"{name} = fields.Char()")
+        assert [f.field for f in gate.offenders()] == [name]

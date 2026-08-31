@@ -223,3 +223,42 @@ returns the result, so it never reaches a browser and stays in the backlog.
 Tests assert both directions for both rules: the hashed field and the published
 key are exempt, and a password merely sitting in a file that hashes something
 else, and the near-namesake used server-side, are not.
+
+### 2026-08-31 — `_key` joins the pattern, and nineteen secrets become visible
+
+The scan matched `api_?key` and therefore missed every key that does not spell
+out "api". `payment_adyen`'s `adyen_hmac_key`, `payment_paymob`'s
+`paymob_hmac_key`, `payment_authorize`'s `authorize_signature_key` and
+`authorize_transaction_key`, `pos_qfpay`'s two, `pos_tyro`'s
+`tyro_integration_key`, `pos_viva_com`'s webhook verification key and
+`payment_worldline`'s are all stored signing secrets, and the gate reported
+nothing about any of them while claiming no stored credential lacked an entry.
+That is the worst failure a gate of this kind has: not a wrong answer but a
+confident silence.
+
+Found the ordinary way — working a carrier and noticing that two of its four
+credential-shaped fields were on the backlog and two were not.
+
+`_key$` now joins SECRET, and the count went from 140 to 159. Nineteen entries,
+none of them migrated yet, all of them previously invisible.
+
+**A suffix that broad needs its counterparts, and they are the substance of this
+amendment.** `_key` is also the ordinary English word for a dictionary index and
+for the public half of a keypair:
+
+- `PUBLIC_KEY` excludes `public_key`, `publishable_key`, `site_key`,
+  `website_key` and `client_key` by pattern. These are handed to browsers;
+  vaulting one protects nothing, which is the argument `PUBLISHED` already makes
+  about a Maps key.
+- `NOT_A_KEY` excludes the ones that authorise nothing — a cache key, a bucket
+  key, a grouping key, a keyboard key, and `base`'s `identity_key`, which is
+  what stops one job being enqueued twice.
+- `IDENTIFIER_KEYS` decides the rest per field, because the name does not say.
+  It holds OAuth client ids whose `client_secret` sibling IS on the backlog, the
+  Brazilian NF-e access key that is printed on the invoice it identifies, an
+  Amazon seller id that appears in the API paths built from it, and two ids
+  rendered into the page for the browser.
+
+Tests assert both directions for each: a published key and a lookup key are
+exempt, and a signing key is a finding however it is spelled. A pattern that only
+ever excludes is indistinguishable from not having been widened.
