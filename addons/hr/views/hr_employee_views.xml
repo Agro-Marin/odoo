@@ -401,7 +401,7 @@
                                         <label for="barcode"/>
                                         <div class="o_row">
                                             <field name="barcode"/>
-                                            <button string="Generate" class="btn btn-link" type="object" name="generate_random_barcode" invisible="barcode"/>
+                                            <button string="Generate" class="btn btn-link" type="object" name="action_generate_random_barcode" invisible="barcode"/>
                                             <button name="%(hr_employee_print_badge)d" string="Print Badge" class="btn btn-link" type="action" invisible="not barcode"/>
                                         </div>
                                     </group>

@@ -85,7 +85,7 @@ class TestContractCalendars(TestHrCommon):
         end = Datetime.to_datetime("2015-11-28 18:00:00")
         leave3 = create_calendar_leave(start, end)
 
-        self.calendar_richard.transfer_leaves_to(
+        self.calendar_richard.transfer_leaves_to_calendar(
             self.calendar_35h,
             resources=self.employee.resource_id,
             from_date=Date.to_date("2015-11-21"),
@@ -107,7 +107,7 @@ class TestContractCalendars(TestHrCommon):
             "It should be transferred to the other calendar",
         )
 
-        self.calendar_richard.transfer_leaves_to(
+        self.calendar_richard.transfer_leaves_to_calendar(
             self.calendar_35h, resources=None, from_date=Date.to_date("2015-11-21")
         )
 

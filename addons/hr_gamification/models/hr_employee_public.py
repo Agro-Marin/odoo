@@ -10,7 +10,7 @@ class HrEmployeePublic(models.Model):
     has_badges = fields.Boolean(compute="_compute_has_badges")
 
     def _compute_has_badges(self):
-        self._compute_from_employee("has_badges")
+        self._update_fields_from_employee("has_badges")
 
     def _compute_badge_ids(self):
-        self._compute_from_employee("badge_ids")
+        self._update_fields_from_employee("badge_ids")

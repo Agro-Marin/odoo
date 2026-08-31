@@ -67,7 +67,7 @@ class ResourceResource(models.Model):
             if resource.calendar_id != resource.employee_id.resource_calendar_id:
                 resource.employee_id.resource_calendar_id = resource.calendar_id
 
-    def _get_resource_without_contract(self):
+    def _get_resources_without_contract(self):
         employee_ids_with_active_contracts = {
             employee.id
             for [employee] in self.env["hr.version"]._read_group(
@@ -134,7 +134,7 @@ class ResourceResource(models.Model):
         calendars_within_period_per_resource = defaultdict(
             lambda: defaultdict(Intervals)
         )
-        resource_without_contract = self._get_resource_without_contract()
+        resource_without_contract = self._get_resources_without_contract()
         if resource_without_contract:
             calendars_within_period_per_resource.update(
                 super(
@@ -161,7 +161,7 @@ class ResourceResource(models.Model):
         calendars_within_period_per_resource = defaultdict(
             lambda: defaultdict(Intervals)
         )
-        resource_without_contract = self.sudo()._get_resource_without_contract()
+        resource_without_contract = self.sudo()._get_resources_without_contract()
         for resource in resource_without_contract:
             calendar = False if resource._is_fully_flexible() else resource.calendar_id
             calendars_within_period_per_resource[resource.id][calendar] = (

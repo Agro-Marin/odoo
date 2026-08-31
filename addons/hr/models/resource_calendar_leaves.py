@@ -9,7 +9,7 @@ class ResourceCalendarLeaves(models.Model):
 
     @api.depends("date_from")
     def _compute_calendar_id(self):
-        def date2datetime(date, tz):
+        def _date_to_datetime(date, tz):
             dt = datetime.fromordinal(date.toordinal())
             return dt.replace(tzinfo=tz).astimezone(UTC).replace(tzinfo=None)
 
@@ -22,9 +22,9 @@ class ResourceCalendarLeaves(models.Model):
         )
         for contract, leaves in leaves_by_contract.items():
             tz = timezone(contract.resource_calendar_id.tz or "UTC")
-            start_dt = date2datetime(contract.date_start, tz)
+            start_dt = _date_to_datetime(contract.date_start, tz)
             end_dt = (
-                date2datetime(contract.date_end + timedelta(days=1), tz)
+                _date_to_datetime(contract.date_end + timedelta(days=1), tz)
                 if contract.date_end
                 else datetime.max  # noqa: DTZ901 - naive sentinel, compared only
             )

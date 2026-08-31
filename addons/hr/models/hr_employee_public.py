@@ -46,7 +46,7 @@ class HrEmployeePublic(models.Model):
         default="out_of_working_hour",
     )
     hr_icon_display = fields.Selection(
-        selection="_get_selection_hr_icon_display", compute="_compute_presence_icon"
+        selection="_selection_hr_icon_display", compute="_compute_presence_icon"
     )
     show_hr_icon_display = fields.Boolean(compute="_compute_presence_icon")
     last_activity = fields.Date(compute="_compute_last_activity")
@@ -104,14 +104,14 @@ class HrEmployeePublic(models.Model):
         "Newly Hired", compute="_compute_newly_hired", search="_search_newly_hired"
     )
 
-    def _get_selection_hr_icon_display(self):
+    def _selection_hr_icon_display(self):
         return (
             self.env["hr.employee"]
             ._fields["hr_icon_display"]
             ._description_selection(self.env)
         )
 
-    def _compute_from_employee(self, field_names):
+    def _update_fields_from_employee(self, field_names):
         if isinstance(field_names, str):
             field_names = [field_names]
         employees_sudo = self.sudo().env["hr.employee"].browse(self.ids)
@@ -123,11 +123,11 @@ class HrEmployeePublic(models.Model):
 
     @api.depends("user_id")
     def _compute_last_activity(self):
-        self._compute_from_employee(["last_activity", "last_activity_time"])
+        self._update_fields_from_employee(["last_activity", "last_activity_time"])
 
     @api.depends("company_id.country_id")
     def _compute_country_code(self):
-        self._compute_from_employee("country_code")
+        self._update_fields_from_employee("country_code")
 
     @api.depends_context("uid")
     @api.depends("parent_id")
@@ -152,16 +152,16 @@ class HrEmployeePublic(models.Model):
 
     @api.depends("user_id.im_status", "active")
     def _compute_hr_presence_state(self):
-        self._compute_from_employee("hr_presence_state")
+        self._update_fields_from_employee("hr_presence_state")
 
     @api.depends("resource_calendar_id", "hr_presence_state")
     def _compute_presence_icon(self):
-        self._compute_from_employee(["hr_icon_display", "show_hr_icon_display"])
+        self._update_fields_from_employee(["hr_icon_display", "show_hr_icon_display"])
 
     @api.depends_context("uid", "company")
     @api.depends("department_id")
     def _compute_member_of_department(self):
-        self._compute_from_employee("member_of_department")
+        self._update_fields_from_employee("member_of_department")
 
     def _get_fields_manager_only(self):
         return []
@@ -181,9 +181,9 @@ class HrEmployeePublic(models.Model):
                 for f in manager_fields:
                     employee[f] = False
 
-    @api.depends(lambda self: [self.env["hr.employee"]._get_new_hire_field()])
+    @api.depends(lambda self: [self.env["hr.employee"]._get_new_hire_field_name()])
     def _compute_newly_hired(self):
-        self._compute_from_employee("newly_hired")
+        self._update_fields_from_employee("newly_hired")
 
     def _search_newly_hired(self, operator, value):
         return self.env["hr.employee"]._search_newly_hired(operator, value)
@@ -191,7 +191,7 @@ class HrEmployeePublic(models.Model):
     _PUBLIC_BASE_FIELDS = ("id", "employee_id", "name", "active")
 
     @api.model
-    def _get_public_field_names(self):
+    def _get_field_names_public(self):
         return [
             name
             for name, field in self._fields.items()
@@ -201,7 +201,7 @@ class HrEmployeePublic(models.Model):
         ]
 
     @api.model
-    def _get_fields(self):
+    def _prepare_view_columns_sql(self):
         version_fields = self.env["hr.version"]._fields
         return (
             "e.id AS id,e.id AS employee_id,e.name AS name,e.active AS active,"
@@ -211,7 +211,7 @@ class HrEmployeePublic(models.Model):
                     if name in version_fields and version_fields[name].store
                     else f"e.{name}"
                 )
-                for name in self._get_public_field_names()
+                for name in self._get_field_names_public()
             )
         )
 
@@ -225,8 +225,8 @@ class HrEmployeePublic(models.Model):
             JOIN hr_version v
               ON v.id = e.current_version_id
         )"""
-            % (self._table, self._get_fields())
+            % (self._table, self._prepare_view_columns_sql())
         )
 
-    def get_avatar_card_data(self, fields):
-        return self.read(fields)
+    def get_avatar_card_data(self, field_names):
+        return self.read(field_names)

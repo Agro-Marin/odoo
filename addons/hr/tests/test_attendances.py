@@ -82,7 +82,7 @@ class TestAttendances(TestHrCommon):
         check_out_tz = datetime.combine(
             datetime(2024, 6, 30), datetime.max.time()
         ).astimezone(tz)
-        intervals = self.employee._employee_attendance_intervals(
+        intervals = self.employee._get_attendance_intervals(
             check_in_tz, check_out_tz, lunch=False
         )
         self.assertEqual(len(intervals), 40)
@@ -93,7 +93,7 @@ class TestAttendances(TestHrCommon):
         check_out_tz = datetime.combine(
             datetime(2024, 7, 31), datetime.max.time()
         ).astimezone(tz)
-        intervals = self.employee._employee_attendance_intervals(
+        intervals = self.employee._get_attendance_intervals(
             check_in_tz, check_out_tz, lunch=False
         )
         self.assertEqual(len(intervals), 25)
@@ -104,7 +104,7 @@ class TestAttendances(TestHrCommon):
         check_out_tz = datetime.combine(
             datetime(2024, 8, 31), datetime.max.time()
         ).astimezone(tz)
-        intervals = self.employee._employee_attendance_intervals(
+        intervals = self.employee._get_attendance_intervals(
             check_in_tz, check_out_tz, lunch=False
         )
         self.assertEqual(len(intervals), 20)

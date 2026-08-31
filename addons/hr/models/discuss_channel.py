@@ -12,7 +12,7 @@ class DiscussChannel(models.Model):
     )
 
     @api.constrains("subscription_department_ids")
-    def _constraint_subscription_department_ids_channel(self):
+    def _check_department_subscription_requires_channel(self):
         failing_channels = self.sudo().filtered(
             lambda channel: (
                 channel.channel_type != "channel"

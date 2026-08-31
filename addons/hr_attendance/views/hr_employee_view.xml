@@ -71,7 +71,7 @@
             <xpath expr="//field[@name='barcode']" position="attributes">
                 <attribute name="string">RFID/Badge Number</attribute>
             </xpath>
-            <xpath expr="//button[@name='generate_random_barcode']" position="after">
+            <xpath expr="//button[@name='action_generate_random_barcode']" position="after">
                 <button name="open_barcode_scanner" string="Read a badge" type="object" class="btn btn-link" invisible="barcode"/>
             </xpath>
             <group name="identification_group" position="inside">

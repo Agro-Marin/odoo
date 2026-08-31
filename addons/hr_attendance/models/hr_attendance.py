@@ -312,7 +312,7 @@ class HrAttendance(models.Model):
 
         lunch_intervals = []
         if not resource._is_flexible():
-            lunch_intervals = self.employee_id._employee_attendance_intervals(
+            lunch_intervals = self.employee_id._get_attendance_intervals(
                 start_dt_tz, end_dt_tz, lunch=True
             )
         attendance_intervals = (

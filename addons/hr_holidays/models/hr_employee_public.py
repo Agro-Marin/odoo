@@ -27,19 +27,19 @@ class HrEmployeePublic(models.Model):
     )
 
     def _compute_show_leaves(self):
-        self._compute_from_employee("show_leaves")
+        self._update_fields_from_employee("show_leaves")
 
     def _compute_leave_manager_id(self):
-        self._compute_from_employee("leave_manager_id")
+        self._update_fields_from_employee("leave_manager_id")
 
     def _compute_leave_status(self):
-        self._compute_from_employee(["leave_date_to", "is_absent"])
+        self._update_fields_from_employee(["leave_date_to", "is_absent"])
 
     def _search_is_absent(self, operator, value):
         return self.env["hr.employee"]._search_is_absent(operator, value)
 
     def _compute_allocation_display(self):
-        self._compute_from_employee("allocation_display")
+        self._update_fields_from_employee("allocation_display")
 
     def action_time_off_dashboard(self):
         self.check_singleton()

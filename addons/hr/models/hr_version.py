@@ -619,9 +619,9 @@ class HrVersion(models.Model):
         if not self:
             return 0
         self.check_singleton()
-        return self[self._get_contract_wage_field()]
+        return self[self._get_contract_wage_field_name()]
 
-    def _get_contract_wage_field(self):
+    def _get_contract_wage_field_name(self):
         self.check_singleton()
         return "wage"
 

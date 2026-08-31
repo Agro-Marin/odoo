@@ -75,10 +75,10 @@ class HrEmployeePublic(models.Model):
     child_count = fields.Integer(compute="_compute_child_count")
 
     def _compute_child_all_count(self):
-        self._compute_from_employee("child_all_count")
+        self._update_fields_from_employee("child_all_count")
 
     def _compute_department_color(self):
-        self._compute_from_employee("department_color")
+        self._update_fields_from_employee("department_color")
 
     def _compute_child_count(self):
-        self._compute_from_employee("child_count")
+        self._update_fields_from_employee("child_count")

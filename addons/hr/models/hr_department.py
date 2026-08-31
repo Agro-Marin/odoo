@@ -261,16 +261,16 @@ class HrDepartment(models.Model):
             },
         }
 
-    def get_children_department_ids(self):
+    def get_child_departments(self):
         return self.env["hr.department"].search([("id", "child_of", self.ids)])
 
-    def action_view_view_child_departments(self):
+    def action_view_child_departments(self):
         self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "res_model": "hr.department",
             "views": [[False, "kanban"], [False, "list"], [False, "form"]],
-            "domain": [["id", "in", self.get_children_department_ids().ids]],
+            "domain": [["id", "in", self.get_child_departments().ids]],
             "name": "Child departments",
         }
 

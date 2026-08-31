@@ -405,7 +405,7 @@ class TestHrAuditRound3(TestHrCommon):
             employee._get_version_periods(
                 datetime(2026, 1, 1, tzinfo=ZoneInfo("UTC")),
                 datetime(2026, 3, 1, tzinfo=ZoneInfo("UTC")),
-                field="barcode",
+                field_name="barcode",
             )
 
     def test_expiry_cron_is_idempotent(self):
@@ -646,14 +646,14 @@ class TestHrAuditRound3(TestHrCommon):
         )
         self.env.flush_all()
 
-        employees.generate_random_barcode()
+        employees.action_generate_random_barcode()
         self.env.flush_all()
 
         barcodes = employees.mapped("barcode")
         self.assertEqual(len(barcodes), len(set(barcodes)), "no duplicate in a batch")
         self.assertTrue(all(code.startswith("041") for code in barcodes))
         more = self.Employee.create([{"name": "R3 Badge more"}])
-        more.generate_random_barcode()
+        more.action_generate_random_barcode()
         self.env.flush_all()
         self.assertNotIn(more.barcode, barcodes)
 

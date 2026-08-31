@@ -295,7 +295,7 @@ class HrEmployee(models.Model):
     )
 
     marital = fields.Selection(
-        selection="_get_marital_status_selection",
+        selection="_selection_marital_status",
         string="Marital Status",
         groups="hr.group_hr_user",
         default="single",
@@ -368,7 +368,7 @@ class HrEmployee(models.Model):
         groups="hr.group_hr_user",
     )
     certificate = fields.Selection(
-        selection="_get_certificate_selection",
+        selection="_selection_certificate",
         string="Certificate Level",
         groups="hr.group_hr_user",
         tracking=True,
@@ -792,7 +792,7 @@ class HrEmployee(models.Model):
             )
 
     @api.model
-    def _get_marital_status_selection(self):
+    def _selection_marital_status(self):
         return [
             ("single", self.env._("Single")),
             ("married", self.env._("Married")),
@@ -826,12 +826,12 @@ class HrEmployee(models.Model):
             )
 
     @api.model
-    def _get_new_hire_field(self):
+    def _get_new_hire_field_name(self):
         return "create_date"
 
-    @api.depends(lambda self: [self._get_new_hire_field()])
+    @api.depends(lambda self: [self._get_new_hire_field_name()])
     def _compute_newly_hired(self):
-        new_hire_field = self._get_new_hire_field()
+        new_hire_field = self._get_new_hire_field_name()
         new_hire_date = fields.Datetime.now() - timedelta(days=90)
         for employee in self:
             if not employee[new_hire_field]:
@@ -848,7 +848,7 @@ class HrEmployee(models.Model):
             employee.show_hr_icon_display = bool(employee.user_id)
 
     @api.model
-    def _get_certificate_selection(self):
+    def _selection_certificate(self):
         return [
             ("graduate", self.env._("Graduate")),
             ("bachelor", self.env._("Bachelor")),
@@ -1218,7 +1218,7 @@ class HrEmployee(models.Model):
     def _search_newly_hired(self, operator, value):
         if operator not in ("in", "not in"):
             return NotImplemented
-        new_hire_field = self._get_new_hire_field()
+        new_hire_field = self._get_new_hire_field_name()
         threshold = fields.Datetime.now() - timedelta(days=90)
         if operator == "in":
             return Domain(new_hire_field, ">", threshold)
@@ -1606,7 +1606,7 @@ class HrEmployee(models.Model):
         return None
 
     @contextmanager
-    def _domain_errors_as_access_errors(self):
+    def _mask_domain_errors_as_access_errors(self):
         try:
             yield
         except (ValueError, RuntimeError) as error:
@@ -1626,12 +1626,12 @@ class HrEmployee(models.Model):
         ]
         self._check_private_fields(field_names)
         self.flush_model(field_names)
-        with self._domain_errors_as_access_errors():
+        with self._mask_domain_errors_as_access_errors():
             public = self.env["hr.employee.public"].search_fetch(
                 domain, field_names, offset, limit, order
             )
         employees = self.browse(public._ids)
-        employees._copy_cache_from(public, field_names)
+        employees._copy_cache_from_public(public, field_names)
         return employees
 
     def fetch(self, field_names=None):
@@ -1658,7 +1658,7 @@ class HrEmployee(models.Model):
                 and private_field.inherited_field.model_name == "hr.version"
             ):
                 public.mapped(field_name)
-        self._copy_cache_from(public, field_names)
+        self._copy_cache_from_public(public, field_names)
         return None
 
     def _check_access(self, operation):
@@ -1682,7 +1682,7 @@ class HrEmployee(models.Model):
                 )
             )
 
-    def _copy_cache_from(self, public, field_names):
+    def _copy_cache_from_public(self, public, field_names):
         for fname in field_names:
             values = self.env.cache.get_values(public, public._fields[fname])
             if self._fields[fname].translate:
@@ -1806,7 +1806,7 @@ We can redirect you to the public employee list."""
                 else cond
             )
         )
-        with self._domain_errors_as_access_errors():
+        with self._mask_domain_errors_as_access_errors():
             ids = self.env["hr.employee.public"]._search(
                 domain, offset, limit, order, **kwargs
             )
@@ -2155,7 +2155,7 @@ We can redirect you to the public employee list."""
             self.env, "hr", "data/scenarios/hr_scenario.xml", None, mode="init"
         )
 
-    def generate_random_barcode(self):
+    def action_generate_random_barcode(self):
         Employee = self.env["hr.employee"].sudo().with_context(active_test=False)
         minted = set()
         for employee in self:
@@ -2231,12 +2231,12 @@ We can redirect you to the public employee list."""
         naive = datetime.combine(day, moment)
         return localize_standard(naive, tz) if tz else naive
 
-    def _get_version_periods(self, start, stop, field=None, check_contract=False):
-        if field and field not in self.env["hr.version"]._fields:
+    def _get_version_periods(self, start, stop, field_name=None, check_contract=False):
+        if field_name and field_name not in self.env["hr.version"]._fields:
             raise UserError(
                 self.env._(
                     "This field %(field_name)s doesn't exist on this model (hr.version).",
-                    field_name=field,
+                    field_name=field_name,
                 )
             )
         version_periods_by_employee = defaultdict(list)
@@ -2273,7 +2273,7 @@ We can redirect you to the public employee list."""
                 (
                     max(date_start, start),
                     min(date_end, stop),
-                    version[field] if field else version,
+                    version[field_name] if field_name else version,
                 )
             )
         return version_periods_by_employee
@@ -2360,7 +2360,7 @@ We can redirect you to the public employee list."""
             )
             yield version, max(start, window_start), min(stop, window_stop), calendar
 
-    def _employee_attendance_intervals(self, start, stop, lunch=False):
+    def _get_attendance_intervals(self, start, stop, lunch=False):
         self.check_singleton()
         if not lunch:
             return self._get_expected_attendances(start, stop)

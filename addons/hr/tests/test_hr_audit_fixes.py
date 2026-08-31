@@ -378,6 +378,6 @@ class TestHrAuditRound2(TestHrCommon):
             "open-ended version must overlap the window to exercise the bug",
         )
 
-        emp._employee_attendance_intervals(start, stop)
-        emp._employee_attendance_intervals(start, stop, lunch=True)
+        emp._get_attendance_intervals(start, stop)
+        emp._get_attendance_intervals(start, stop, lunch=True)
         emp._get_calendar_attendances(start, stop)
