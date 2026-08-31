@@ -31,9 +31,13 @@ class StockLot(models.Model):
                 ),
             ]
         )
+        orders = move_lines.move_id.sale_line_id.order_id
+        readable_order_ids = set(
+            orders.with_user(self.env.user)._filtered_access("read").ids
+        )
         for ml in move_lines:
             so = ml.move_id.sale_line_id.order_id
-            if so.with_user(self.env.user).has_access("read"):
+            if so.id in readable_order_ids:
                 sale_orders[ml.lot_id.id].add(so.id)
         for lot in self:
             so_ids = sale_orders.get(lot.id, set())
