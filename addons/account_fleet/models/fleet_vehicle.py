@@ -34,7 +34,7 @@ class FleetVehicle(models.Model):
             vehicle.account_move_ids = [Command.set(vehicle_move_mapping.get(vehicle.id, []))]
 
     def action_view_bills(self):
-        self.ensure_one()
+        self.check_singleton()
 
         form_view_ref = self.env.ref('account.view_move_form', False)
         list_view_ref = self.env.ref('account_fleet.account_move_view_tree', False)

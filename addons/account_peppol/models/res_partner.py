@@ -235,7 +235,7 @@ class ResPartner(models.Model):
         The lookup should be done on NAPTR DNS from 2025-11-01
         (ref:https://peppol.helger.com/public/locale-en_US/menuitem-docs-doc-exchange)
         """
-        self.ensure_one()
+        self.check_singleton()
         if not company:
             company = self.env.company
 

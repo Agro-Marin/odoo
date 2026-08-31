@@ -5,7 +5,7 @@ from odoo.exceptions import AccessError, MissingError
 from odoo.fields import Domain
 from odoo.http import request
 from odoo.tools import email_normalize, email_normalize_all
-from odoo.tools.misc import verify_hash_signed
+from odoo.tools.misc import resolve_hash_signed
 
 from odoo.addons.account.controllers.download_docs import (
     _build_zip_from_data,
@@ -242,14 +242,14 @@ class PortalAccount(CustomerPortal):
                 headers = self._get_http_headers(
                     invoice_sudo, report_type, docs_data[0]["content"], download
                 )
-                return request.make_response(
+                return request.prepare_response(
                     docs_data[0]["content"], list(headers.items())
                 )
             else:
                 filename = invoice_sudo._get_invoice_report_filename(extension="zip")
                 zip_content = _build_zip_from_data(docs_data)
                 headers = _get_headers(filename, "application/zip", zip_content)
-                return request.make_response(zip_content, headers)
+                return request.prepare_response(zip_content, headers)
         elif report_type in ("html", "pdf", "text"):
             has_generated_invoice = bool(invoice_sudo.invoice_pdf_report_id)
             request.update_context(proforma_invoice=not has_generated_invoice)
@@ -289,7 +289,7 @@ class PortalAccount(CustomerPortal):
 
         if access_token := kw.get("token"):
             try:
-                token_data = verify_hash_signed(
+                token_data = resolve_hash_signed(
                     request.env(su=True),
                     request.env[
                         "account.journal"

@@ -63,7 +63,7 @@ class FlutterwaveController(http.Controller):
                 signature = request.httprequest.headers.get('verif-hash')
                 self._verify_signature(signature, tx_sudo)
             tx_sudo._process('flutterwave', payment_data)
-        return request.make_json_response('')
+        return request.prepare_json_response('')
 
     @staticmethod
     def _verify_signature(received_signature, tx_sudo):

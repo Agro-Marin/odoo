@@ -69,7 +69,7 @@ class PaymentProvider(models.Model):
 
     def _get_default_payment_method_codes(self):
         """ Override of `payment` to return the default payment method codes. """
-        self.ensure_one()
+        self.check_singleton()
         if self.code != 'authorize':
             return super()._get_default_payment_method_codes()
         return const.DEFAULT_PAYMENT_METHOD_CODES
@@ -78,7 +78,7 @@ class PaymentProvider(models.Model):
 
     def action_update_merchant_details(self):
         """ Fetch the merchant details to update the client key and the account currency. """
-        self.ensure_one()
+        self.check_singleton()
 
         if self.state == 'disabled':
             raise UserError(_("This action cannot be performed while the provider is disabled."))
@@ -118,12 +118,12 @@ class PaymentProvider(models.Model):
     def _authorize_get_inline_form_values(self):
         """ Return a serialized JSON of the required values to render the inline form.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :return: The JSON serial of the required values to render the inline form.
         :rtype: str
         """
-        self.ensure_one()
+        self.check_singleton()
 
         inline_form_values = {
             'state': self.state,

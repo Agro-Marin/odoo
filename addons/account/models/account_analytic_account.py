@@ -48,7 +48,7 @@ class AccountAnalyticAccount(models.Model):
             account.vendor_bill_count = data.get(account.id, 0)
 
     def action_view_invoice(self):
-        self.ensure_one()
+        self.check_singleton()
         account_move_lines = self.env["account.move.line"].search_fetch(
             [
                 ("move_id.move_type", "in", self.env["account.move"].get_sale_types()),
@@ -66,7 +66,7 @@ class AccountAnalyticAccount(models.Model):
         }
 
     def action_view_vendor_bill(self):
-        self.ensure_one()
+        self.check_singleton()
         account_move_lines = self.env["account.move.line"].search_fetch(
             [
                 (

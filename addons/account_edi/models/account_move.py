@@ -125,7 +125,7 @@ class AccountMove(models.Model):
             )
 
     def _check_edi_documents_for_reset_to_draft(self):
-        self.ensure_one()
+        self.check_singleton()
         for doc in self.edi_document_ids:
             move_applicability = doc.edi_format_id._get_move_applicability(self)
             if (
@@ -341,7 +341,7 @@ class AccountMove(models.Model):
         return res
 
     def _edi_allow_action_draft(self):
-        self.ensure_one()
+        self.check_singleton()
         return not self.edi_show_cancel_button
 
     def action_draft(self):
@@ -434,7 +434,7 @@ class AccountMove(models.Model):
     ####################################################
 
     def button_process_edi_web_services(self):
-        self.ensure_one()
+        self.check_singleton()
         self.action_process_edi_web_services(with_commit=False)
 
     def action_process_edi_web_services(self, with_commit=True):

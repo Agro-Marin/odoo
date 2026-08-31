@@ -539,7 +539,7 @@ class ResCompany(models.Model):
             )
 
     def get_next_batch_payment_communication(self):
-        self.ensure_one()
+        self.check_singleton()
         company_sudo = self.sudo()
         if not company_sudo.batch_payment_sequence_id:
             company_sudo.batch_payment_sequence_id = (
@@ -558,8 +558,8 @@ class ResCompany(models.Model):
             )
         return company_sudo.batch_payment_sequence_id.next_by_id()
 
-    def _get_company_root_delegated_field_names(self):
-        return super()._get_company_root_delegated_field_names() + [
+    def _get_root_delegated_field_names(self):
+        return super()._get_root_delegated_field_names() + [
             "fiscalyear_last_day",
             "fiscalyear_last_month",
             "account_storno",
@@ -722,7 +722,7 @@ class ResCompany(models.Model):
         return new_prefix + tail.rjust(digits - len(new_prefix), "0")
 
     def reflect_code_prefix_change(self, old_code, new_code):
-        self.ensure_one()
+        self.check_singleton()
         if not old_code or new_code == old_code:
             return
         accounts = (
@@ -863,7 +863,7 @@ class ResCompany(models.Model):
         )
 
     def _get_user_lock_date(self, soft_lock_date_field, ignore_exceptions=False):
-        self.ensure_one()
+        self.check_singleton()
         soft_lock_date = date.min
         for company in self.with_context(active_test=False).sudo().parent_ids:
             if company[soft_lock_date_field]:
@@ -882,7 +882,7 @@ class ResCompany(models.Model):
         return soft_lock_date
 
     def _get_user_fiscal_lock_date(self, journal, ignore_exceptions=False):
-        self.ensure_one()
+        self.check_singleton()
         company = self.with_context(ignore_exceptions=ignore_exceptions)
         lock = max(company.user_fiscalyear_lock_date, company.user_hard_lock_date)
         if journal.type == "sale":
@@ -894,7 +894,7 @@ class ResCompany(models.Model):
     def _get_violated_soft_lock_date(self, soft_lock_date_field, accounting_date):
         if not self:
             return None
-        self.ensure_one()
+        self.check_singleton()
         user_lock_date_field = f"user_{soft_lock_date_field}"
         regular_lock_date = self.with_context(ignore_exceptions=True)[
             user_lock_date_field
@@ -915,7 +915,7 @@ class ResCompany(models.Model):
         tax=True,
         hard=True,
     ):
-        self.ensure_one()
+        self.check_singleton()
         locks = []
 
         if not accounting_date:
@@ -1039,7 +1039,7 @@ class ResCompany(models.Model):
         }
 
     def _get_default_opening_move_values(self):
-        self.ensure_one()
+        self.check_singleton()
         default_journal = self.env["account.journal"].search(
             domain=[
                 *self.env["account.journal"]._check_company_domain(self),
@@ -1182,7 +1182,7 @@ class ResCompany(models.Model):
         return commands
 
     def _update_opening_move(self, to_update):
-        self.ensure_one()
+        self.check_singleton()
 
         opening_move = self.account_opening_move_id
         if opening_move and opening_move.state != "draft":
@@ -1253,7 +1253,7 @@ class ResCompany(models.Model):
         )
 
     def action_save_onboarding_company_data(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.street:
             ref = "account.onboarding_onboarding_step_company_data"
             self.env["onboarding.onboarding.step"].with_company(
@@ -1286,7 +1286,7 @@ class ResCompany(models.Model):
         return res
 
     def _existing_accounting(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return bool(
             self.env["account.move.line"]
             .sudo()
@@ -1454,7 +1454,7 @@ class ResCompany(models.Model):
         return True
 
     def compute_fiscalyear_dates(self, current_date):
-        self.ensure_one()
+        self.check_singleton()
         date_from, date_to = date_utils.get_fiscal_year(
             current_date,
             day=self.fiscalyear_last_day,

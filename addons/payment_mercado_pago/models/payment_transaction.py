@@ -22,7 +22,7 @@ class PaymentTransaction(models.Model):
     def _get_specific_rendering_values(self, processing_values):
         """ Override of `payment` to return Mercado Pago-specific rendering values.
 
-        Note: self.ensure_one() from `_get_rendering_values`.
+        Note: self.check_singleton() from `_get_rendering_values`.
 
         :param dict processing_values: The generic and specific processing values of the transaction
         :return: The dict of provider-specific processing values.
@@ -131,7 +131,7 @@ class PaymentTransaction(models.Model):
     def _send_payment_request(self):
         """Override of `payment` to send a payment request to Mercado Pago.
 
-        Note: `self.ensure_one()` from :meth:`_charge_with_token`
+        Note: `self.check_singleton()` from :meth:`_charge_with_token`
 
         :rtype: None
         """

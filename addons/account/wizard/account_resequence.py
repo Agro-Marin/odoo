@@ -250,7 +250,7 @@ class AccountResequenceWizard(models.TransientModel):
             record.new_values = json.dumps(new_values)
 
     def resequence(self):
-        self.ensure_one()
+        self.check_singleton()
         new_values = json.loads(self.new_values)
         if (
             self.move_ids.journal_id

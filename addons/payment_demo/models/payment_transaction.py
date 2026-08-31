@@ -17,11 +17,11 @@ class PaymentTransaction(models.Model):
     def action_demo_set_done(self):
         """ Set the state of the demo transaction to 'done'.
 
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :return: None
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.provider_code != 'demo':
             return
 
@@ -31,11 +31,11 @@ class PaymentTransaction(models.Model):
     def action_demo_set_canceled(self):
         """ Set the state of the demo transaction to 'cancel'.
 
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :return: None
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.provider_code != 'demo':
             return
 
@@ -45,11 +45,11 @@ class PaymentTransaction(models.Model):
     def action_demo_set_error(self):
         """ Set the state of the demo transaction to 'error'.
 
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :return: None
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.provider_code != 'demo':
             return
 

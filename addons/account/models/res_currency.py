@@ -60,7 +60,7 @@ class ResCurrency(models.Model):
         return self.new({"rounding": rounding}).decimal_places
 
     def _has_accounting_entries(self):
-        self.ensure_one()
+        self.check_singleton()
         return bool(
             self.env["account.move.line"]
             .sudo()

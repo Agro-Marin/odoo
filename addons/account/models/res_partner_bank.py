@@ -145,7 +145,7 @@ class ResPartnerBank(models.Model):
             bank.money_transfer_service = bank._get_money_transfer_service() or False
 
     def _get_money_transfer_service(self):
-        self.ensure_one()
+        self.check_singleton()
         sanitized = self.sanitized_acc_number
         if not sanitized or sanitized[:2] != "BE":
             return None
@@ -178,7 +178,7 @@ class ResPartnerBank(models.Model):
         if not self:
             return None
 
-        self.ensure_one()
+        self.check_singleton()
         if not currency:
             raise UserError(
                 self.env._(

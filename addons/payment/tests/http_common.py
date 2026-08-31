@@ -221,7 +221,7 @@ class PaymentHttpCommon(PaymentCommon, HttpCase):
         :return: The response to the json request
         """
         url = self._build_url(tx_route)
-        return self.make_jsonrpc_request(url, route_kwargs)
+        return self.call_jsonrpc(url, route_kwargs)
 
     def _get_processing_values(self, **route_kwargs):
         return self._portal_transaction(**route_kwargs)

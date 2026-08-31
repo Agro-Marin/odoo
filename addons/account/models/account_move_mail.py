@@ -227,7 +227,7 @@ class AccountMove(models.Model):
             return super()._creation_subtype()
 
     def _track_subtype(self, init_values):
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.is_invoice(include_receipts=True):
             if self.origin_payment_id and "state" in init_values:

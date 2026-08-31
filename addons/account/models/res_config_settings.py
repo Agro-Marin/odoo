@@ -390,7 +390,7 @@ class ResConfigSettings(models.TransientModel):
             )
 
     def action_update_terms(self):
-        self.ensure_one()
+        self.check_singleton()
         if hasattr(self, "website_id") and self.env.user.has_group(
             "website.group_website_designer"
         ):

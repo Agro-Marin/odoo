@@ -123,7 +123,7 @@ class ResCompany(models.Model):
         that has an active peppol connection.
         :return: res.company record: containing single company if found, empty if not.
         """
-        self.ensure_one()
+        self.check_singleton()
 
         for parent_company in self.sudo().parent_ids[::-1][1:]:  # loop through parent companies starting from the closest parent
             if parent_company.sudo().peppol_can_send:
@@ -136,7 +136,7 @@ class ResCompany(models.Model):
         Returns True if the company is using the active peppol connection of the parent company
         but the user does not have access to that parent company.
         """
-        self.ensure_one()
+        self.check_singleton()
         parent_company = self.peppol_parent_company_id
         return parent_company and parent_company not in self.env.user.company_ids
 
@@ -169,7 +169,7 @@ class ResCompany(models.Model):
             raise ValidationError(_("Please install the phonenumbers library."))
 
     def _sanitize_peppol_phone_number(self, phone_number=None):
-        self.ensure_one()
+        self.check_singleton()
 
         error_message = _(
             "Please enter the mobile number in the correct international format.\n"
@@ -195,7 +195,7 @@ class ResCompany(models.Model):
             raise ValidationError(error_message)
 
     def _check_peppol_endpoint_number(self, warning=False):
-        self.ensure_one()
+        self.check_singleton()
         peppol_dict = PEPPOL_ENDPOINT_WARNINGS if warning else PEPPOL_ENDPOINT_RULES
 
         return True if (endpoint_rule := peppol_dict.get(self.peppol_eas)) is None else endpoint_rule(self.peppol_endpoint)
@@ -390,7 +390,7 @@ class ResCompany(models.Model):
         }
 
     def _get_peppol_edi_mode(self, temporary_eas=False):
-        self.ensure_one()
+        self.check_singleton()
         config_param = self.env['ir.config_parameter'].sudo().get_param('account_peppol.edi.mode')
         # by design, we can only have zero or one proxy user per company with type Peppol
         peppol_user = self.sudo().account_edi_proxy_client_ids.filtered(lambda u: u.proxy_type == 'peppol')
@@ -398,7 +398,7 @@ class ResCompany(models.Model):
         return demo_if_demo_identifier or peppol_user.edi_mode or config_param or 'prod'
 
     def _get_peppol_webhook_endpoint(self):
-        self.ensure_one()
+        self.check_singleton()
         return urljoin(self.get_base_url(), '/peppol/webhook')
 
     def _get_company_info_on_peppol(self, edi_identification):
@@ -420,7 +420,7 @@ class ResCompany(models.Model):
                     provider_name = access_point_info.findtext('.//{*}ServiceDescription')
             return provider_name
 
-        self.ensure_one()
+        self.check_singleton()
         is_company_on_peppol = False
         external_provider = None
         error_msg = ''
@@ -441,7 +441,7 @@ class ResCompany(models.Model):
         }
 
     def _account_peppol_send_welcome_email(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.account_peppol_proxy_state not in ('sender', 'receiver'):
             return
 

@@ -52,7 +52,7 @@ class PaymentProvider(models.Model):
 
     def _get_default_payment_method_codes(self):
         """ Override of `payment` to return the default payment method codes. """
-        self.ensure_one()
+        self.check_singleton()
         if self.code != 'xendit':
             return super()._get_default_payment_method_codes()
         return const.DEFAULT_PAYMENT_METHOD_CODES
@@ -67,13 +67,13 @@ class PaymentProvider(models.Model):
         method returns `None` for Xendit's validation operations (Card is and will always be the
         sole tokenizable payment method for Xendit).
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :param bool is_validation: Whether the operation is a validation.
         :return: The view of the redirect form template or None.
         :rtype: ir.ui.view | None
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if self.code == 'xendit' and is_validation:
             return None

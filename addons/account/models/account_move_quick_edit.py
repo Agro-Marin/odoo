@@ -58,7 +58,7 @@ class AccountMove(models.Model):
         return rows[0] if rows else (0, False, False)
 
     def _get_quick_edit_suggestions(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.quick_edit_mode or not self.quick_edit_total_amount:
             return False
         count, account_id, tax_ids = self._get_frequent_account_and_taxes(

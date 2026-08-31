@@ -18,7 +18,7 @@ class PaymentToken(models.Model):
     def _prepare_display_name(self, *args, should_pad=True, **kwargs):
         """ Override of `payment` to build the display name without padding.
 
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :param list args: The arguments passed by QWeb when calling this method.
         :param bool should_pad: Whether the token should be padded or not.

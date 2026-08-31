@@ -133,7 +133,7 @@ class AccountAccount(models.Model):
         comodel_name="account.code.mapping",
         inverse_name="account_id",
     )
-    # Write after company_ids so _ensure_code_is_unique does not fire before
+    # Write after company_ids so _check_code_is_unique does not fire before
     # both fields are set together.
     code_mapping_ids.write_sequence = 19
     tag_ids = fields.Many2many(
@@ -762,7 +762,7 @@ class AccountAccount(models.Model):
         records = self.env["account.account"].union(*records_list)
         records.flush_recordset()
         records.invalidate_recordset(fnames=["code", "code_store"])
-        records._ensure_code_is_unique()
+        records._check_code_is_unique()
         return records
 
     def write(self, vals):
@@ -782,11 +782,11 @@ class AccountAccount(models.Model):
         ):
             if "company_ids" in vals:
                 self.invalidate_recordset(fnames=["company_ids"])
-            self._ensure_code_is_unique()
+            self._check_code_is_unique()
 
         return res
 
-    def _ensure_code_is_unique(self):
+    def _check_code_is_unique(self):
         for account in self.sudo():
             for company in account.company_ids.root_id:
                 acc_co = account.with_company(company)

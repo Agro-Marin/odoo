@@ -228,7 +228,7 @@ class PeppolRegistration(models.TransientModel):
     # -------------------------------------------------------------------------
 
     def _branch_with_same_address(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             not self.use_parent_connection
             and self.company_id != self.parent_company_id
@@ -236,7 +236,7 @@ class PeppolRegistration(models.TransientModel):
             and self.peppol_endpoint == self.parent_company_id.peppol_endpoint
         )
 
-    def _ensure_mandatory_fields(self):
+    def _check_mandatory_fields(self):
         if not self.selected_company_id.account_fiscal_country_id.code:
             raise ValidationError(_("Please select a country for your company."))
         if not self.contact_email or not self.phone_number:
@@ -291,7 +291,7 @@ class PeppolRegistration(models.TransientModel):
         }
 
     @api.model
-    def _ensure_can_connect(self, can_connect_vals, selected_auth=None):
+    def _check_can_connect(self, can_connect_vals, selected_auth=None):
         """Checks the answer from the /can_connect endpoint and raises an error if it's invalid."""
         if not can_connect_vals:
             raise UserError(_("Could not connect to Proxy Server."))
@@ -322,7 +322,7 @@ class PeppolRegistration(models.TransientModel):
 
     @api.model
     def _decode_connect_token(self, token: str):
-        if not (payload := tools.verify_hash_signed(self.sudo().env, 'account_peppol_connect', token)):
+        if not (payload := tools.resolve_hash_signed(self.sudo().env, 'account_peppol_connect', token)):
             return None
         peppol_identifier = payload.get('peppol_identifier')
         company = self.env['res.company'].browse(payload.get('company_id')).exists()
@@ -337,7 +337,7 @@ class PeppolRegistration(models.TransientModel):
 
     @handle_demo
     def _can_connect(self):
-        self.ensure_one()
+        self.check_singleton()
         db_uuid = self.env['ir.config_parameter'].sudo().get_param('database.uuid')
         peppol_identifier = f'{self.peppol_eas}:{self.peppol_endpoint}'.lower()
         connect_token = self._generate_connect_token(peppol_identifier, self.company_id)
@@ -405,12 +405,12 @@ class PeppolRegistration(models.TransientModel):
         }
 
     def button_register_with_itsme(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.button_register_peppol_participant(selected_auth='itsme')
 
     def button_register_peppol_participant(self, selected_auth=None):
-        self.ensure_one()
-        self._ensure_mandatory_fields()
+        self.check_singleton()
+        self._check_mandatory_fields()
 
         # Make sure we archive possible existing proxy user when (re-)registering
         old_proxy_users = self.env['account_edi_proxy_client.user'].search([
@@ -428,7 +428,7 @@ class PeppolRegistration(models.TransientModel):
                 'account_peppol_contact_email': self.contact_email,
                 'account_peppol_phone_number': self.phone_number,
             })
-        self._ensure_can_connect(self.peppol_can_connect_data, selected_auth=selected_auth)
+        self._check_can_connect(self.peppol_can_connect_data, selected_auth=selected_auth)
         if self.peppol_can_connect_data.get('auth_required'):
             return {
                 'type': 'ir.actions.act_url',

@@ -296,7 +296,7 @@ class AdyenTest(AdyenCommon, PaymentHttpCommon):
                 return_value=dict(),
             ) as mock_make_request,
         ):
-            self.make_jsonrpc_request('/payment/adyen/payments', params={
+            self.call_jsonrpc('/payment/adyen/payments', params={
                 'provider_id': tx.provider_id.id,
                 'reference': tx.reference,
                 'converted_amount': 1,

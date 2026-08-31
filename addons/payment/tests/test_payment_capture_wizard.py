@@ -32,7 +32,7 @@ class TestPaymentCaptureWizard(PaymentCommon):
             }
         ).action_capture()
 
-        child_tx_2 = (source_tx.child_transaction_ids - child_tx_1).ensure_one()
+        child_tx_2 = (source_tx.child_transaction_ids - child_tx_1).check_singleton()
         child_tx_2._set_done()
         self.assertAlmostEqual(
             sum(source_tx.child_transaction_ids.mapped("amount")),

@@ -81,13 +81,13 @@ class PaymentLinkWizard(models.TransientModel):
     def _prepare_query_params(self, related_document):
         """Prepare the query string params to append to the payment link URL.
 
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :param recordset related_document: The record for which the payment link is generated.
         :return: The query params of the payment link.
         :rtype: dict
         """
-        self.ensure_one()
+        self.check_singleton()
         return {
             "amount": self.amount,
             "access_token": self._prepare_access_token(),
@@ -97,7 +97,7 @@ class PaymentLinkWizard(models.TransientModel):
         }
 
     def _prepare_access_token(self):
-        self.ensure_one()
+        self.check_singleton()
         return payment_utils.generate_access_token(
             self.partner_id.id,
             self.amount,
@@ -108,10 +108,10 @@ class PaymentLinkWizard(models.TransientModel):
     def _prepare_anchor(self):
         """Prepare the anchor to append to the payment link.
 
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :return: The anchor of the payment link.
         :rtype: str
         """
-        self.ensure_one()
+        self.check_singleton()
         return ""

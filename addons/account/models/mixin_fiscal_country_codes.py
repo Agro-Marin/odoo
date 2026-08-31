@@ -13,7 +13,7 @@ class MixinFiscalCountryCodes(models.AbstractModel):
         A record carrying its own `company_id` answers for that company alone;
         anything shared answers for whichever companies are active.
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.env.companies
 
     @api.depends_context("allowed_company_ids")

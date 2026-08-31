@@ -50,7 +50,7 @@ class AccountMove(models.Model):
         return product_catalog
 
     def _get_product_price_and_data(self, product):
-        self.ensure_one()
+        self.check_singleton()
         product_infos = {
             "price": product.list_price
             if self.is_sale_document()
@@ -137,7 +137,7 @@ class AccountMove(models.Model):
         return move_line.price_unit
 
     def _is_readonly(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.state != "draft"
 
     def _get_parent_field_on_child_model(self):

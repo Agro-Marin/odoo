@@ -82,12 +82,12 @@ class PaymentProvider(models.Model):
         """ Return whether the provider is linked to a connected Stripe account.
 
         Note: This method serves as a hook for modules that would fully implement Stripe Connect.
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :return: Whether the provider is linked to a connected Stripe account
         :rtype: bool
         """
-        self.ensure_one()
+        self.check_singleton()
         return False
 
     @api.constrains('state')
@@ -113,19 +113,19 @@ class PaymentProvider(models.Model):
         """ Return whether the provider is linked to an ongoing onboarding to Stripe Connect.
 
         Note: This method serves as a hook for modules that would fully implement Stripe Connect.
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :return: Whether the provider is linked to an ongoing onboarding to Stripe Connect
         :rtype: bool
         """
-        self.ensure_one()
+        self.check_singleton()
         return False
 
     # === CRUD METHODS === #
 
     def _get_default_payment_method_codes(self):
         """ Override of `payment` to return the default payment method codes. """
-        self.ensure_one()
+        self.check_singleton()
         if self.code != 'stripe':
             return super()._get_default_payment_method_codes()
         return const.DEFAULT_PAYMENT_METHOD_CODES
@@ -142,14 +142,14 @@ class PaymentProvider(models.Model):
         generation failed, redirect the user to the provider form.
 
         Note: This method serves as a hook for modules that would fully implement Stripe Connect.
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :param int menu_id: The menu from which the onboarding is started, as an `ir.ui.menu` id.
         :return: The next step action
         :rtype: dict
         :raise RedirectWarning: If the company's country is not supported.
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if self.code != 'stripe':
             return super().action_start_onboarding(menu_id=menu_id)
@@ -201,7 +201,7 @@ class PaymentProvider(models.Model):
         :return: The feedback notification
         :rtype: dict
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if self.stripe_webhook_secret:
             message = _("Your Stripe Webhook is already set up.")
@@ -244,7 +244,7 @@ class PaymentProvider(models.Model):
         :rtype: dict
         :raise UserError: If test keys are used to send the request.
         """
-        self.ensure_one()
+        self.check_singleton()
 
         web_domain = url_parse(self.get_base_url()).netloc
         response_content = self._send_api_request('POST', 'apple_pay/domains', data={
@@ -275,12 +275,12 @@ class PaymentProvider(models.Model):
         This getter allows fetching the publishable key from a QWeb template and through Stripe's
         utils.
 
-        Note: `self.ensure_one()
+        Note: `self.check_singleton()
 
         :return: The publishable key.
         :rtype: str
         """
-        self.ensure_one()
+        self.check_singleton()
         return stripe_utils.get_publishable_key(self.sudo())
 
     def _stripe_get_inline_form_values(
@@ -288,7 +288,7 @@ class PaymentProvider(models.Model):
     ):
         """Return a serialized JSON of the required values to render the inline form.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :param float amount: The amount in major units, to convert in minor units.
         :param res.currency currency: The currency of the transaction.
@@ -299,7 +299,7 @@ class PaymentProvider(models.Model):
         :return: The JSON serial of the required values to render the inline form.
         :rtype: str
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if not is_validation:
             currency_name = currency and currency.name.lower()
@@ -370,12 +370,12 @@ class PaymentProvider(models.Model):
         """ Prepare the payload for the creation of a connected account in Stripe format.
 
         Note: This method serves as a hook for modules that would fully implement Stripe Connect.
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :return: The Stripe-formatted payload for the creation request
         :rtype: dict
         """
-        self.ensure_one()
+        self.check_singleton()
 
         return {
             'type': 'standard',
@@ -398,7 +398,7 @@ class PaymentProvider(models.Model):
         An account link url is the beginning URL of Stripe Onboarding.
         This URL is only valid once, and can only be used once.
 
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :param str connected_account_id: The id of the connected account.
         :param int menu_id: The menu from which the user started the onboarding step, as an
@@ -406,7 +406,7 @@ class PaymentProvider(models.Model):
         :return: The account link URL
         :rtype: str
         """
-        self.ensure_one()
+        self.check_singleton()
 
         base_url = self.company_id.get_base_url()
         return_url = OnboardingController._onboarding_return_url
@@ -441,13 +441,13 @@ class PaymentProvider(models.Model):
         """ Prepare the contextual data passed to the proxy when making a request.
 
         Note: This method serves as a hook for modules that would fully implement Stripe Connect.
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :param dict stripe_payload: The part of the request payload to be forwarded to Stripe.
         :return: The proxy data.
         :rtype: dict
         """
-        self.ensure_one()
+        self.check_singleton()
 
         return {}
 

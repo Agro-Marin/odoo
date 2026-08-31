@@ -60,7 +60,7 @@ class AccountMove(models.Model):
 
     def _get_invoice_legal_documents(self, filetype, allow_fallback=False):
         # EXTENDS account
-        self.ensure_one()
+        self.check_singleton()
         if filetype == 'ubl':
             if ubl_attachment := self.ubl_cii_xml_id:
                 return {
@@ -211,7 +211,7 @@ class AccountMove(models.Model):
         return super()._get_edi_decoder(file_data, new)
 
     def _need_ubl_cii_xml(self, ubl_cii_format):
-        self.ensure_one()
+        self.check_singleton()
         return not self.ubl_cii_xml_id \
             and (self.is_sale_document() or self._is_exportable_as_self_invoice()) \
             and ubl_cii_format in self.env['res.partner']._get_ubl_cii_formats()

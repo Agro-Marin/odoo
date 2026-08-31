@@ -5,7 +5,7 @@ from unittest.mock import patch
 from odoo.fields import Domain
 from odoo.modules.loading import force_demo
 from odoo.tests import standalone
-from odoo.tools import SQL, make_index_name
+from odoo.tools import SQL, get_index_name
 from odoo.tools.translate import TranslationImporter
 
 from odoo.addons.account.models.chart_template import AccountChartTemplate
@@ -94,7 +94,7 @@ def test_all_l10n(env):
             ):
                 continue
 
-            idxname = make_index_name(model._table, field.name)
+            idxname = get_index_name(model._table, field.name)
             env.cr.execute(
                 SQL(
                     "CREATE INDEX IF NOT EXISTS %s ON %s (%s)%s",

@@ -95,7 +95,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
             record.company_id = orders[:1].company_id if orders else self.env.company
 
     def _get_selected_records(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.res_model or not self.res_ids:
             return None
         return self.env[self.res_model].browse(self.res_ids)
@@ -404,7 +404,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
         return values
 
     def _get_move_vals(self):
-        self.ensure_one()
+        self.check_singleton()
         orders, lines, is_purchase = self._get_accrual_orders_and_lines()
         move_lines = []
         orders_with_entries = orders.browse()
@@ -471,7 +471,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
         return move_vals, orders_with_entries
 
     def _get_accrual_message_body(self, move, reverse_move):
-        self.ensure_one()
+        self.check_singleton()
         return _(
             "Accrual entry created on %(date)s: %(accrual_entry)s.\
                 And its reverse entry: %(reverse_entry)s.",
@@ -481,7 +481,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
         )
 
     def create_entries(self):
-        self.ensure_one()
+        self.check_singleton()
 
         if self.reversal_date <= self.date:
             raise UserError(_("Reversal date must be posterior to date."))

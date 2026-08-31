@@ -17,5 +17,5 @@ class TestProcessingFlows(PaymentDemoCommon, PaymentHttpCommon):
         with patch(
             'odoo.addons.payment.models.payment_transaction.PaymentTransaction._process'
         ) as process_mock:
-            self.make_jsonrpc_request(url, params=self.payment_data)
+            self.call_jsonrpc(url, params=self.payment_data)
         self.assertEqual(process_mock.call_count, 1)

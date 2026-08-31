@@ -12,7 +12,7 @@ class PaymentTransaction(models.Model):
     def _get_specific_rendering_values(self, processing_values):
         """ Override of payment to return custom-specific rendering values.
 
-        Note: self.ensure_one() from `_get_processing_values`
+        Note: self.check_singleton() from `_get_processing_values`
 
         :param dict processing_values: The generic and specific processing values of the transaction
         :return: The dict of provider-specific processing values
@@ -31,12 +31,12 @@ class PaymentTransaction(models.Model):
 
         This communication might change according to the settings and the accounting localization.
 
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :return: The selected communication.
         :rtype: str
         """
-        self.ensure_one()
+        self.check_singleton()
         communication = ""
         if hasattr(self, 'invoice_ids') and self.invoice_ids:
             communication = self.invoice_ids[0].payment_reference

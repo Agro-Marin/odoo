@@ -74,7 +74,7 @@ class AccountJournal(models.Model):
     )
 
     def _dashboard_currency(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.currency_id or self.env["res.currency"].browse(
             self.company_id.sudo().currency_id.id
         )
@@ -1080,7 +1080,7 @@ class AccountJournal(models.Model):
         }
 
     def _select_action_to_open(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.env.context.get("action_name"):
             return self.env.context.get("action_name")
         elif self.type == "bank":
@@ -1097,7 +1097,7 @@ class AccountJournal(models.Model):
             return "action_move_journal_line"
 
     def open_action(self):
-        self.ensure_one()
+        self.check_singleton()
         action_name = self._select_action_to_open()
 
         if not action_name.startswith("account."):
@@ -1211,7 +1211,7 @@ class AccountJournal(models.Model):
         return action
 
     def open_bank_difference_action(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "account.action_account_moves_all_a"
         )
@@ -1231,7 +1231,7 @@ class AccountJournal(models.Model):
         return action
 
     def open_invalid_statements_action(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "account.action_bank_statement_tree"
         )
@@ -1271,7 +1271,7 @@ class AccountJournal(models.Model):
         return action
 
     def show_unhashed_entries(self):
-        self.ensure_one()
+        self.check_singleton()
         chains_to_hash = self._get_moves_to_hash(
             include_pre_last_hash=True, early_stop=False
         )

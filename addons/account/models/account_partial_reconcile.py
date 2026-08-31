@@ -266,7 +266,7 @@ class AccountPartialReconcile(models.Model):
         sides hold different figures as soon as they differ, and a partial whose
         sides both differ from the payment says nothing about it: ``None``.
         """
-        self.ensure_one()
+        self.check_singleton()
         if payment.currency_id == self.debit_currency_id:
             amount = self.debit_amount_currency
         elif payment.currency_id == self.credit_currency_id:

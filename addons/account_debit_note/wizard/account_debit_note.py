@@ -70,7 +70,7 @@ class AccountDebitNote(models.TransientModel):
         return default_values
 
     def create_debit(self):
-        self.ensure_one()
+        self.check_singleton()
         new_moves = self.env['account.move']
         for move in self.move_ids.with_context(include_business_fields=True): #copy sale/purchase links
             default_values = self._prepare_default_values(move)

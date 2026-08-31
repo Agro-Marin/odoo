@@ -112,7 +112,7 @@ class TestFlows(AccountPaymentCommon, PaymentHttpCommon):
             "partner_id": self.partner.id,  # This should be rejected.
         }
         with self.assertRaises(JsonRpcException, msg="odoo.exceptions.ValidationError"):
-            self.make_jsonrpc_request(url, route_kwargs)
+            self.call_jsonrpc(url, route_kwargs)
 
     def test_public_user_new_company(self):
         """Test that the payment of an invoice is correctly processed when
@@ -143,7 +143,7 @@ class TestFlows(AccountPaymentCommon, PaymentHttpCommon):
         tx_sudo._set_done()
 
         url = self._build_url("/payment/status/poll")
-        resp = self.make_jsonrpc_request(url, {})
+        resp = self.call_jsonrpc(url, {})
         self.assertTrue(tx_sudo.is_post_processed)
 
         self.assertEqual(resp["state"], "done")
@@ -199,7 +199,7 @@ class TestFlows(AccountPaymentCommon, PaymentHttpCommon):
         self.assertEqual(tx_sudo.amount, invoice.amount_total)
 
         url = self._build_url("/payment/status/poll")
-        resp = self.make_jsonrpc_request(url, {})
+        resp = self.call_jsonrpc(url, {})
         self.assertTrue(tx_sudo.is_post_processed)
 
         self.assertEqual(resp["state"], "done")

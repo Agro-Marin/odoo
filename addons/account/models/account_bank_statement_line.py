@@ -581,7 +581,7 @@ class AccountBankStatementLine(models.Model):
             )
 
     def _get_or_create_bank_account(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.partner_id:
             return self.env["res.partner.bank"]
         if str2bool(
@@ -604,7 +604,7 @@ class AccountBankStatementLine(models.Model):
         )
 
     def _get_domain_default_amls_matching(self):
-        self.ensure_one()
+        self.check_singleton()
         all_reconcilable_account_ids = (
             self.env["account.account"]
             .sudo()
@@ -643,7 +643,7 @@ class AccountBankStatementLine(models.Model):
         ]
 
     def _get_accounting_amounts_and_currencies(self):
-        self.ensure_one()
+        self.check_singleton()
         liquidity_line, suspense_line, other_lines = self._seek_for_lines()
         if suspense_line and not other_lines:
             transaction_amount = -suspense_line.amount_currency
@@ -667,7 +667,7 @@ class AccountBankStatementLine(models.Model):
     def _prepare_counterpart_amounts_using_st_line_rate(
         self, currency, balance, amount_currency
     ):
-        self.ensure_one()
+        self.check_singleton()
 
         (
             transaction_amount,
@@ -718,7 +718,7 @@ class AccountBankStatementLine(models.Model):
         return currency.round(amount / rate) if rate else 0.0
 
     def _prepare_move_line_default_vals(self, counterpart_account_id=None):
-        self.ensure_one()
+        self.check_singleton()
 
         if not counterpart_account_id:
             counterpart_account_id = self.journal_id.suspense_account_id.id
@@ -771,7 +771,7 @@ class AccountBankStatementLine(models.Model):
         return [liquidity_line_vals, counterpart_line_vals]
 
     def _prepare_move_line_common_vals(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": self.payment_ref,
             "move_id": self.move_id.id,
@@ -779,7 +779,7 @@ class AccountBankStatementLine(models.Model):
         }
 
     def _seek_for_lines(self):
-        self.ensure_one()
+        self.check_singleton()
         liquidity_lines = self.env["account.move.line"]
         suspense_lines = self.env["account.move.line"]
         other_lines = self.env["account.move.line"]
@@ -815,7 +815,7 @@ class AccountBankStatementLine(models.Model):
             st_line.write(move._cleanup_write_orm_values(st_line, st_line_vals))
 
     def _prepare_synchronized_vals_from_move(self):
-        self.ensure_one()
+        self.check_singleton()
         liquidity_lines, suspense_lines, other_lines = self._seek_for_lines()
         company_currency = self.journal_id.company_id.currency_id
         journal_currency = (
@@ -881,7 +881,7 @@ class AccountBankStatementLine(models.Model):
             )
 
     def _prepare_synchronized_move_vals(self, rebuild):
-        self.ensure_one()
+        self.check_singleton()
         liquidity_lines, suspense_lines, other_lines = self._seek_for_lines()
 
         move_vals = {}

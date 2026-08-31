@@ -848,7 +848,7 @@ class AccountJournal(models.Model):
         # A journal designates these itself, so a whitelist that omits them would
         # make the journal unusable rather than controlled: measured on the shipped
         # AgroMarin chart, 31 of 72 whitelists omit at least one.
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.default_account_id
             | self.suspense_account_id
@@ -860,7 +860,7 @@ class AccountJournal(models.Model):
         )
 
     def _is_account_allowed(self, account):
-        self.ensure_one()
+        self.check_singleton()
         return (
             not self.allowed_account_ids
             or account in self.allowed_account_ids
@@ -1510,7 +1510,7 @@ class AccountJournal(models.Model):
         return journals
 
     def _link_bank_account(self, acc_number=None, bank_id=None):
-        self.ensure_one()
+        self.check_singleton()
         if self.type != "bank":
             return
         if acc_number and not self.bank_account_id:
@@ -1519,7 +1519,7 @@ class AccountJournal(models.Model):
             self.bank_account_id.allow_out_payment = True
 
     def set_bank_account(self, acc_number, bank_id=None):
-        self.ensure_one()
+        self.check_singleton()
         self.bank_account_id = self.env["res.partner.bank"]._get_or_create_bank_account(
             account_number=acc_number,
             partner=self.company_id.partner_id,
@@ -1638,7 +1638,7 @@ class AccountJournal(models.Model):
         return action_vals
 
     def _get_journal_bank_account_balance(self, domain=None):
-        self.ensure_one()
+        self.check_singleton()
         nb_lines, balance, amount_currency = self.env["account.move.line"]._read_group(
             domain=(
                 [
@@ -1664,23 +1664,23 @@ class AccountJournal(models.Model):
         return amount_currency if journal_currency else balance, nb_lines
 
     def _get_journal_inbound_outstanding_payment_accounts(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.inbound_payment_channel_ids.payment_account_id
 
     def _get_journal_outbound_outstanding_payment_accounts(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.outbound_payment_channel_ids.payment_account_id
 
     def _get_available_payment_channels(self, payment_type):
         if not self:
             return self.env["account.payment.channel"]
-        self.ensure_one()
+        self.check_singleton()
         if payment_type not in ("inbound", "outbound"):
             raise ValueError(f"Unknown payment type {payment_type!r}")
         return self[f"{payment_type}_payment_channel_ids"]
 
     def _is_payment_method_available(self, payment_method_code, complete_domain=True):
-        self.ensure_one()
+        self.check_singleton()
         method_domain = self.env["account.payment.method"]._get_payment_method_domain(
             code=payment_method_code,
             with_country=complete_domain,
@@ -1689,14 +1689,14 @@ class AccountJournal(models.Model):
         return self.filtered_domain(method_domain)
 
     def _process_reference_for_sale_order(self, order_reference):
-        self.ensure_one()
+        self.check_singleton()
         return order_reference
 
     def _get_journal_notification_unsubscribe_scope(self):
         return "account_journal_notification_unsubscribe"
 
     def _unsubscribe_invoice_notification_email(self, email_to_remove):
-        self.ensure_one()
+        self.check_singleton()
         normalized_to_remove = email_normalize(email_to_remove, strict=False)
         subscribed_emails = set(
             email_normalize_all(self.incoming_einvoice_notification_email or "")
@@ -1708,7 +1708,7 @@ class AccountJournal(models.Model):
         return True
 
     def _notify_einvoices_received(self, moves):
-        self.ensure_one()
+        self.check_singleton()
         new_mail_template = self.env.ref(
             "account.mail_template_invoice_subscriber", raise_if_not_found=False
         )
@@ -1731,8 +1731,8 @@ class AccountJournal(models.Model):
         mail_template.with_context(einvoices=moves).send_mail(self.id, force_send=True)
 
     def _notify_invoice_subscribers(self, invoice, mail_params=None):
-        self.ensure_one()
-        invoice.ensure_one()
+        self.check_singleton()
+        invoice.check_singleton()
 
         recipients = set(
             email_normalize_all(self.incoming_einvoice_notification_email or "")

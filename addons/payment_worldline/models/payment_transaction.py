@@ -47,7 +47,7 @@ class PaymentTransaction(models.Model):
         If the financial institution insists on user authentication,
         this override will reset the transaction, and switch the flow to redirect.
 
-        Note: self.ensure_one() from `_get_processing_values`.
+        Note: self.check_singleton() from `_get_processing_values`.
 
         :param dict processing_values: The generic processing values of the transaction.
         :return: The dict of provider-specific processing values.
@@ -71,7 +71,7 @@ class PaymentTransaction(models.Model):
     def _get_specific_rendering_values(self, processing_values):
         """ Override of `payment` to return Worldline-specific processing values.
 
-        Note: self.ensure_one() from `_get_processing_values`.
+        Note: self.check_singleton() from `_get_processing_values`.
 
         :param dict processing_values: The generic processing values of the transaction.
         :return: The dict of provider-specific processing values.
@@ -89,7 +89,7 @@ class PaymentTransaction(models.Model):
         :return: The hosted checkout session data.
         :rtype: dict
         """
-        self.ensure_one()
+        self.check_singleton()
 
         base_url = self.provider_id.get_base_url()
         return_route = WorldlineController._return_url
@@ -231,7 +231,7 @@ class PaymentTransaction(models.Model):
     def _apply_updates(self, payment_data):
         """ Override of `payment' to process the transaction based on Worldline data.
 
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :param dict payment_data: The payment data sent by the provider.
         :return: None
@@ -309,7 +309,7 @@ class PaymentTransaction(models.Model):
     def _extract_token_values(self, payment_data):
         """Override of `payment` to return token data based on Worldline data.
 
-        Note: self.ensure_one() from :meth: `_tokenize`
+        Note: self.check_singleton() from :meth: `_tokenize`
 
         :param dict payment_data: The payment data sent by the provider.
         :return: Data to create a token.

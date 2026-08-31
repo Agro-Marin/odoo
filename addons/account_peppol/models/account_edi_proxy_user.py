@@ -37,7 +37,7 @@ class Account_Edi_Proxy_ClientUser(models.Model):
 
     @handle_demo
     def _call_peppol_proxy(self, endpoint, params=None):
-        self.ensure_one()
+        self.check_singleton()
         if self.proxy_type != 'peppol':
             raise UserError(_('EDI user should be of type Peppol'))
 
@@ -84,7 +84,7 @@ class Account_Edi_Proxy_ClientUser(models.Model):
         return response
 
     def _mark_connection_out_of_sync(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.is_token_out_of_sync:
             return
         self.sudo().write({
@@ -106,7 +106,7 @@ class Account_Edi_Proxy_ClientUser(models.Model):
             raise
 
     def _peppol_out_of_sync_reconnect_this_database(self):
-        self.ensure_one()
+        self.check_singleton()
         assert self.is_token_out_of_sync
         self.token_sync_version += 1
         response = self._prepare_request(
@@ -134,7 +134,7 @@ class Account_Edi_Proxy_ClientUser(models.Model):
         self.env.ref('account_peppol.ir_cron_peppol_get_participant_status')._trigger()
 
     def _peppol_out_of_sync_disconnect_this_database(self):
-        self.ensure_one()
+        self.check_singleton()
         assert self.is_token_out_of_sync
         # delete this record and company's proxy state
         self.company_id._reset_peppol_configuration(soft=True)
@@ -189,7 +189,7 @@ class Account_Edi_Proxy_ClientUser(models.Model):
         :param journal: journal to use for the new move (otherwise the company's peppol journal will be used)
         :return: the created move (if any)
         """
-        self.ensure_one()
+        self.check_singleton()
 
         file_data = self.env['account.move']._to_files_data(attachment)[0]
 
@@ -413,15 +413,15 @@ class Account_Edi_Proxy_ClientUser(models.Model):
 
     def _get_company_details(self):
         # DEPRECATED - to remove in master
-        self.ensure_one()
+        self.check_singleton()
         return self.env['peppol.registration']._get_company_details(self.company_id)
 
     def _peppol_register_sender(self, peppol_external_provider=None):
         # DEPRECATED - to remove in master
-        self.ensure_one()
+        self.check_singleton()
 
     def _peppol_register_sender_as_receiver(self):
-        self.ensure_one()
+        self.check_singleton()
         company = self.company_id
 
         if company.account_peppol_proxy_state != 'sender':
@@ -454,7 +454,7 @@ class Account_Edi_Proxy_ClientUser(models.Model):
 
     @handle_demo
     def _peppol_deregister_participant(self):
-        self.ensure_one()
+        self.check_singleton()
 
         proxy_state = None
         try:
@@ -480,7 +480,7 @@ class Account_Edi_Proxy_ClientUser(models.Model):
         self.unlink()
 
     def _peppol_deregister_participant_to_sender(self):
-        self.ensure_one()
+        self.check_singleton()
 
         if self.company_id.account_peppol_proxy_state == 'receiver':
             # fetch all documents and message statuses before unlinking the edi user
@@ -505,7 +505,7 @@ class Account_Edi_Proxy_ClientUser(models.Model):
 
     def _peppol_get_services(self):
         """Get information from the IAP regarding the Peppol services."""
-        self.ensure_one()
+        self.check_singleton()
         return self._call_peppol_proxy("/api/peppol/2/get_services")
 
     @api.model
@@ -518,7 +518,7 @@ class Account_Edi_Proxy_ClientUser(models.Model):
     @api.model
     def _get_user_from_token(self, token: str, url: str):
         try:
-            if not (payload := tools.verify_hash_signed(self.sudo().env, 'account_peppol_webhook', token)):
+            if not (payload := tools.resolve_hash_signed(self.sudo().env, 'account_peppol_webhook', token)):
                 return None
         except ValueError:
             return None

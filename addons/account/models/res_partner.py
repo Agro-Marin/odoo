@@ -574,8 +574,8 @@ class ResPartner(models.Model):
         self.show_credit_limit = self.env.company.account_use_credit_limit
 
     @api.depends_context("uid")
-    def _compute_application_statistics_hook(self):
-        data_list = super()._compute_application_statistics_hook()
+    def _get_application_statistics(self):
+        data_list = super()._get_application_statistics()
         if not self.env.user.has_group("account.group_account_invoice"):
             return data_list
         for partner in self:
@@ -596,7 +596,7 @@ class ResPartner(models.Model):
         return self.account_move_count + self.supplier_invoice_count
 
     def _get_suggested_invoice_edi_format(self):
-        self.ensure_one()
+        self.check_singleton()
         return False
 
     @api.model
@@ -611,7 +611,7 @@ class ResPartner(models.Model):
         ]
 
     def action_view_partner_invoices(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "account.action_move_out_invoice_type"
         )
@@ -631,7 +631,7 @@ class ResPartner(models.Model):
         return action
 
     def action_view_partner_bills(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "account.res_partner_action_supplier_bills"
         )
@@ -649,7 +649,7 @@ class ResPartner(models.Model):
         return action
 
     def _has_invoice(self, partner_domain):
-        self.ensure_one()
+        self.check_singleton()
         return bool(
             self.env["account.move"]
             .sudo()
@@ -842,7 +842,7 @@ class ResPartner(models.Model):
         return vat, (country and country.code) or ""
 
     def _get_vat_required_valid(self, company=None):
-        self.ensure_one()
+        self.check_singleton()
         return bool(self.vat)
 
     @api.model
@@ -1111,7 +1111,7 @@ class ResPartner(models.Model):
         return super()._merge_method(destination, source)
 
     def _deduce_country_code(self):
-        self.ensure_one()
+        self.check_singleton()
         _vat, country_code = self._run_vat_checks(
             self.country_id, self.vat, validation=False
         )

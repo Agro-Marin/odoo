@@ -214,7 +214,7 @@ class MixinAccountDocumentImport(models.AbstractModel):
             else:
                 return self.env._("'%(filename)s' (type=%(type)s)", **params)
 
-        self.ensure_one()
+        self.check_singleton()
 
         if not files_data:
             return None
@@ -286,7 +286,7 @@ class MixinAccountDocumentImport(models.AbstractModel):
         return []
 
     def _fix_attachments_on_record(self, attachments):
-        self.ensure_one()
+        self.check_singleton()
         attachments_to_attach = attachments.filtered(self._should_attach_to_record)
         if attachments_to_attach:
             attachments_to_write = attachments_to_attach.filtered(
@@ -314,7 +314,7 @@ class MixinAccountDocumentImport(models.AbstractModel):
     def _fix_attachments_on_record_from_files_data(
         self, valid_files_data, extra_files_data
     ):
-        self.ensure_one()
+        self.check_singleton()
         valid_attachments = self._from_files_data(valid_files_data).filtered(
             lambda a: a.res_model != self._name or a.res_id != self.id
         )

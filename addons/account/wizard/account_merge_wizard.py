@@ -42,7 +42,7 @@ class AccountMergeWizard(models.TransientModel):
         return res
 
     def _get_grouping_key(self, account):
-        self.ensure_one()
+        self.check_singleton()
         grouping_fields = [
             "account_type",
             "non_trade",
@@ -106,7 +106,7 @@ class AccountMergeWizard(models.TransientModel):
             )
 
     def _get_window_action(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "name": _("Merge Accounts"),
@@ -328,7 +328,7 @@ class AccountMergeWizardLine(models.TransientModel):
             wizard_line_group._apply_hashed_moves_constraint()
 
     def _get_group_name(self):
-        self.ensure_one()
+        self.check_singleton()
 
         account_type_label = dict(
             self.pool["account.account"].account_type._description_selection(self.env)

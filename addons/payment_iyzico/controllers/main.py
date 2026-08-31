@@ -56,7 +56,7 @@ class IyzicoController(http.Controller):
         else:
             _logger.warning("Received webhook data with missing token.")
 
-        return request.make_json_response('')  # Acknowledge the notification.
+        return request.prepare_json_response('')  # Acknowledge the notification.
 
     @staticmethod
     def _verify_and_process(tx_ref, token):

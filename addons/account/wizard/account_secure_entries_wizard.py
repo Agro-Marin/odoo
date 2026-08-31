@@ -83,7 +83,7 @@ class AccountSecureEntriesWizard(models.TransientModel):
                 wizard.max_hash_date = False
 
     def _get_chains_to_hash(self, company_id, hash_date):
-        self.ensure_one()
+        self.check_singleton()
         res = []
         for *__, chain_moves in (
             self.env["account.move"]
@@ -210,7 +210,7 @@ class AccountSecureEntriesWizard(models.TransientModel):
         }
 
     def _get_warnings(self):
-        self.ensure_one()
+        self.check_singleton()
         warnings = {}
         if not self.hash_date:
             return warnings
@@ -285,13 +285,13 @@ class AccountSecureEntriesWizard(models.TransientModel):
         )
 
     def _get_draft_moves_in_hashed_period_domain(self):
-        self.ensure_one()
+        self.check_singleton()
         return self._get_unhashed_moves_in_hashed_period_domain(
             self.company_id, self.hash_date, [("state", "=", "draft")]
         )
 
     def action_show_moves(self, moves):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "view_mode": "list",
             "name": _("Journal Entries"),
@@ -309,7 +309,7 @@ class AccountSecureEntriesWizard(models.TransientModel):
         }
 
     def action_show_draft_moves_in_hashed_period(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "view_mode": "list",
             "name": _("Draft Entries"),
@@ -327,7 +327,7 @@ class AccountSecureEntriesWizard(models.TransientModel):
         }
 
     def action_secure_entries(self):
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.hash_date:
             raise UserError(

@@ -481,7 +481,7 @@ class AccountReport(models.Model):
         self.line_ids.unlink()
 
     def _get_copied_name(self):
-        self.ensure_one()
+        self.check_singleton()
         base_name = f"{self.name} {_('(copy)')}"
         taken = set(
             self.with_context(active_test=False)
@@ -939,7 +939,7 @@ class AccountReportExpression(models.Model):
                 )
 
     def _parse_carryover_target(self):
-        self.ensure_one()
+        self.check_singleton()
         parts = self.carryover_target.split(".")
         if len(parts) != 2 or not all(parts):
             raise ValidationError(
@@ -1208,7 +1208,7 @@ class AccountReportExpression(models.Model):
         return result
 
     def _get_cross_report_id(self):
-        self.ensure_one()
+        self.check_singleton()
         error_context = {
             "report_name": self.report_line_id.report_id.display_name,
             "line_name": self.report_line_name,
@@ -1320,7 +1320,7 @@ class AccountReportExpression(models.Model):
         ]
 
     def _get_carryover_target_expression(self, options):
-        self.ensure_one()
+        self.check_singleton()
 
         if self.carryover_target:
             line_code, expr_label = self._parse_carryover_target()

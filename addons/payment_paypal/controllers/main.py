@@ -63,7 +63,7 @@ class PaypalController(http.Controller):
             if tx_sudo:
                 self._verify_notification_origin(data, tx_sudo)
                 tx_sudo._process('paypal', normalized_data)
-        return request.make_json_response('')
+        return request.prepare_json_response('')
 
     def _normalize_paypal_data(self, data, from_webhook=False):
         """ Normalize the payment data received from PayPal.

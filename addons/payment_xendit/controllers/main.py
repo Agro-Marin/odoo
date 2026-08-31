@@ -45,7 +45,7 @@ class XenditController(http.Controller):
             self._verify_notification_token(received_token, tx_sudo)
             tx_sudo._process('xendit', data)
 
-        return request.make_json_response(['accepted'], status=200)
+        return request.prepare_json_response(['accepted'], status=200)
 
     @http.route(_return_url, type='http', methods=['GET'], auth='public')
     def xendit_return(self, tx_ref=None, success=False, access_token=None, **data):

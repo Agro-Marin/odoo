@@ -239,7 +239,7 @@ class AccountPayment(models.Model):
         return res
 
     def action_refund_wizard(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Refund"),
             "type": "ir.actions.act_window",
@@ -249,7 +249,7 @@ class AccountPayment(models.Model):
         }
 
     def action_view_refunds(self):
-        self.ensure_one()
+        self.check_singleton()
         action = {
             "name": _("Refund"),
             "res_model": "account.payment",
@@ -295,7 +295,7 @@ class AccountPayment(models.Model):
         return transactions
 
     def _prepare_payment_transaction_vals(self, **extra_create_values):
-        self.ensure_one()
+        self.check_singleton()
         if self.env.context.get("active_model", "") == "account.move":
             invoice_ids = self.env.context.get("active_ids", [])
         elif self.env.context.get("active_model", "") == "account.move.line":
@@ -321,7 +321,7 @@ class AccountPayment(models.Model):
         }
 
     def _get_payment_refund_wizard_values(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "transaction_id": self.transaction_id.id,
             "payment_amount": self.amount,

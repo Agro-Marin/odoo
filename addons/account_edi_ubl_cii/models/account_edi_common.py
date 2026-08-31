@@ -7,7 +7,7 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.libs.numbers import float_round
 from odoo.tools import float_is_zero, float_repr
 from odoo.tools.misc import clean_context, formatLang, html_escape
-from odoo.tools.xml_utils import find_xml_value
+from odoo.tools.xml_utils import get_xml_value
 
 from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
 from odoo.addons.base.models.res_bank import sanitize_account_number
@@ -297,7 +297,7 @@ class AccountEdiCommon(models.AbstractModel):
         for xpath in xpaths:
             # functions from ElementTree like "findtext" do not fully implement xpath, use "xpath" (from lxml) instead
             # (e.g. "//node[string-length(text()) > 5]" raises an invalidPredicate exception with "findtext")
-            val = find_xml_value(xpath, tree, nsmap)
+            val = get_xml_value(xpath, tree, nsmap)
             if val:
                 return val
 
@@ -466,7 +466,7 @@ class AccountEdiCommon(models.AbstractModel):
     # -------------------------------------------------------------------------
 
     def _import_invoice_ubl_cii(self, invoice, file_data, new=False):
-        invoice.ensure_one()
+        invoice.check_singleton()
         if invoice.invoice_line_ids:
             return invoice._reason_cannot_decode_has_invoice_lines()
 
@@ -512,14 +512,14 @@ class AccountEdiCommon(models.AbstractModel):
         self._log_import_invoice_ubl_cii(invoice, invoice_logs=fill_invoice_logs, attachments=attachments)
 
     def _add_logs_import_invoice_ubl_cii(self, invoice, invoice_logs=None):
-        invoice.ensure_one()
+        invoice.check_singleton()
         if invoice_logs is None:
             invoice_logs = []
         format_log = self.env._("Format: %s", self.env['ir.model']._get(self._name).name)
         return [format_log] + invoice_logs
 
     def _log_import_invoice_ubl_cii(self, invoice, title_logs=None, invoice_logs=None, attachments=None):
-        invoice.ensure_one()
+        invoice.check_singleton()
         body = Markup("<strong>%s</strong>") % (title_logs or self.env._("Invoice imported"))
         if invoice_logs := self._add_logs_import_invoice_ubl_cii(invoice, invoice_logs=invoice_logs):
             body += Markup("<ul>%s</ul>") % \

@@ -255,12 +255,12 @@ class PaymentProvider(models.Model):
         provider to filter out specific currencies, it must override this method and return the
         subset of supported currencies.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :return: The supported currencies.
         :rtype: res.currency
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.env["res.currency"].with_context(active_test=False).search([])
 
     @api.depends("state", "module_state")
@@ -510,12 +510,12 @@ class PaymentProvider(models.Model):
     def _get_default_payment_method_codes(self):
         """Return the default payment methods for this provider.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :return: The default payment method codes.
         :rtype: set
         """
-        self.ensure_one()
+        self.check_singleton()
         return set()
 
     @api.ondelete(at_uninstall=False)
@@ -538,7 +538,7 @@ class PaymentProvider(models.Model):
     def button_immediate_install(self):
         """Install the module and reload the page.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :return: The action to reload the page.
         :rtype: dict
@@ -566,12 +566,12 @@ class PaymentProvider(models.Model):
     def action_reset_credentials(self):
         """Reset the credentials of the provider, disable it, and unpublish it.
 
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :return: The result of the write operation.
         :rtype: bool
         """
-        self.ensure_one()
+        self.check_singleton()
 
         return self.write(
             {
@@ -586,7 +586,7 @@ class PaymentProvider(models.Model):
 
         Providers can override this to supply their own credential fields to reset.
 
-        Note: self.ensure_one() from :meth: `action_reset_credentials`
+        Note: self.check_singleton() from :meth: `action_reset_credentials`
 
         :return: The values to reset the credentials of the provider.
         :rtype: dict
@@ -604,7 +604,7 @@ class PaymentProvider(models.Model):
         self.is_published = not self.is_published
 
     def action_view_payment_methods(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "name": _("Payment Methods"),
@@ -783,12 +783,12 @@ class PaymentProvider(models.Model):
         For a provider to support tokenization, it must override this method and return the
         validation amount. If it is `0`, it is not necessary to create the override.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :return: The validation amount.
         :rtype: float
         """
-        self.ensure_one()
+        self.check_singleton()
         return 0.0
 
     def _get_validation_currency(self):
@@ -801,12 +801,12 @@ class PaymentProvider(models.Model):
         For a provider to support tokenization and specify a different validation currency, it must
         override this method and return the appropriate validation currency.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :return: The validation currency.
         :rtype: recordset of `res.currency`
         """
-        self.ensure_one()
+        self.check_singleton()
 
         # Find the validation currency at the intersection of the provider's and payment method's
         # supported currencies. An empty recordset means that all currencies are supported.
@@ -834,13 +834,13 @@ class PaymentProvider(models.Model):
         For a provider to return a different view depending on whether the operation is a
         validation, it must override this method and return the appropriate view.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :param bool is_validation: Whether the operation is a validation.
         :return: The view of the redirect form template.
         :rtype: record of `ir.ui.view`
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.redirect_form_view_id
 
     # === REQUEST HELPERS === #
@@ -863,7 +863,7 @@ class PaymentProvider(models.Model):
         the `ValidationError` that is raised when the request fails from bubbling up. Exceptions to
         this rule include calls from a controller that must return the error message to the client.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :param str method: The HTTP method of the request.
         :param str endpoint: The endpoint of the API to reach with the request.
@@ -877,7 +877,7 @@ class PaymentProvider(models.Model):
         :rtype: dict|str
         :raise ValidationError: If an HTTP error occurs.
         """
-        self.ensure_one()
+        self.check_singleton()
 
         # Build the request.
         url = self._prepare_request_url(endpoint, **kwargs)
@@ -1147,12 +1147,12 @@ class PaymentProvider(models.Model):
     def _get_code(self):
         """Return the code of the provider.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :return: The code of the provider.
         :rtype: str
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.code
 
     def _get_status_message(self, status):

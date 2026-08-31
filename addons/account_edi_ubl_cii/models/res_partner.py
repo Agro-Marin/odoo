@@ -185,7 +185,7 @@ class ResPartner(models.Model):
         }
 
     def _get_suggested_ubl_cii_edi_format(self):
-        self.ensure_one()
+        self.check_singleton()
         format_mapping = self._get_ubl_cii_formats_by_country()
         country_code = self.commercial_partner_id._deduce_country_code()
         if country_code in format_mapping:
@@ -199,12 +199,12 @@ class ResPartner(models.Model):
         return False
 
     def _get_suggested_peppol_edi_format(self):
-        self.ensure_one()
+        self.check_singleton()
         suggested_format = self.commercial_partner_id._get_suggested_ubl_cii_edi_format()
         return suggested_format if suggested_format in self.env['res.partner']._get_peppol_formats() else 'ubl_bis3'
 
     def _get_peppol_edi_format(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.invoice_edi_format or self._get_suggested_peppol_edi_format()
 
     @api.model
@@ -230,7 +230,7 @@ class ResPartner(models.Model):
             partner.is_peppol_edi_format = partner.invoice_edi_format in self._get_peppol_formats()
 
     def _get_peppol_endpoint_value(self, country_code, field, eas):
-        self.ensure_one()
+        self.check_singleton()
         value = field in self._fields and self[field]
 
         if (

@@ -266,7 +266,7 @@ class AccountLock_Exception(models.Model):
         )
 
     def _get_domain_audit_trail_during_exception(self):
-        self.ensure_one()
+        self.check_singleton()
 
         common_message_domain = [
             ("date", ">=", self.create_date),
@@ -320,7 +320,7 @@ class AccountLock_Exception(models.Model):
         ]
 
     def action_show_audit_trail_during_exception(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Journal Items"),
             "type": "ir.actions.act_window",

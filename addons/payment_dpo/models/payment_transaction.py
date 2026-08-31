@@ -17,7 +17,7 @@ class PaymentTransaction(models.Model):
     def _get_specific_rendering_values(self, processing_values):
         """ Override of `payment` to return DPO-specific processing values.
 
-        Note: self.ensure_one() from `_get_processing_values`.
+        Note: self.check_singleton() from `_get_processing_values`.
 
         :param dict processing_values: The generic processing values of the transaction.
         :return: The dict of provider-specific processing values.
@@ -39,7 +39,7 @@ class PaymentTransaction(models.Model):
         :return: The transaction token data.
         :rtype: dict
         """
-        self.ensure_one()
+        self.check_singleton()
 
         return_url = urls.urljoin(self.provider_id.get_base_url(), DPOController._return_url)
         first_name, last_name = payment_utils.split_partner_name(self.partner_name)

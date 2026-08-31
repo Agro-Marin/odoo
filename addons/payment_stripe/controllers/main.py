@@ -85,7 +85,7 @@ class StripeController(http.Controller):
                 )
 
                 if not tx_sudo:
-                    return request.make_json_response('')
+                    return request.prepare_json_response('')
 
                 self._verify_signature(tx_sudo)
 
@@ -129,7 +129,7 @@ class StripeController(http.Controller):
                         self._include_refund_in_payment_data(refund, data)
                         refund_tx_sudo._process('stripe', data)
                     # Don't process the payment data for the source transaction.
-                    return request.make_json_response('')
+                    return request.prepare_json_response('')
                 elif event['type'] == 'charge.refund.updated':  # Refund operation (with update).
                     # A refund was updated by Stripe after it was already processed (possibly to
                     # cancel it). This can happen when the customer's payment method can no longer
@@ -141,7 +141,7 @@ class StripeController(http.Controller):
                 tx_sudo._process('stripe', data)
         except ValidationError:  # Acknowledge the notification to avoid getting spammed
             _logger.exception("Unable to process the payment data; skipping to acknowledge")
-        return request.make_json_response('')
+        return request.prepare_json_response('')
 
     @staticmethod
     def _include_payment_intent_in_payment_data(payment_intent, payment_data):

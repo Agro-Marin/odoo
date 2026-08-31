@@ -18,8 +18,8 @@ class PaymentProvider(models.Model):
 
     # === COMPUTE METHODS ===#
 
-    def _ensure_payment_channel(self, allow_create=True):
-        self.ensure_one()
+    def _get_or_create_payment_channel(self, allow_create=True):
+        self.check_singleton()
         if not self.id:
             return
 
@@ -124,11 +124,11 @@ class PaymentProvider(models.Model):
                     limit=1,
                 )
                 if provider.id:
-                    provider._ensure_payment_channel()
+                    provider._get_or_create_payment_channel()
 
     def _inverse_journal_id(self):
         for provider in self:
-            provider._ensure_payment_channel()
+            provider._get_or_create_payment_channel()
 
     @api.model
     def _get_provider_payment_method(self, code):

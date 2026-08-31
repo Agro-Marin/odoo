@@ -195,7 +195,7 @@ class TestAccountEdi(AccountEdiTestCommon, CronMixinCase):
             self.capture_triggers("account_edi.ir_cron_edi_network") as capt,
         ):
             invoice.action_post()
-            capt.records.ensure_one()
+            capt.records.check_singleton()
 
     def test_cron_self_trigger(self):
         # Process single job by CRON call (and thus, disable the auto-commit).
@@ -224,7 +224,7 @@ class TestAccountEdi(AccountEdiTestCommon, CronMixinCase):
             # count only the re-trigger.
             with self.capture_triggers("account_edi.ir_cron_edi_network") as capt_post:
                 (invoice1 + invoice2).action_post()
-            capt_post.records.ensure_one()
+            capt_post.records.check_singleton()
 
             with self.capture_triggers("account_edi.ir_cron_edi_network") as capt_cron:
                 self.env.ref("account_edi.ir_cron_edi_network").method_direct_trigger()

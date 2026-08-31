@@ -145,7 +145,7 @@ class PaymentCaptureWizard(models.TransientModel):
     # === ACTION METHODS === #
 
     def action_capture(self):
-        self.ensure_one()
+        self.check_singleton()
 
         remaining_amount_to_capture = self.amount_to_capture
         processed_txs_sudo = self.env["payment.transaction"].sudo()

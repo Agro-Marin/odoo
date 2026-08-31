@@ -285,7 +285,7 @@ class TestPaymentTransaction(PaymentCommon):
             "._extract_amount_data",
             return_value={"amount": None, "currency_code": None},
         ):
-            tx._validate_amount({})
+            tx._check_amount({})
         self.assertNotEqual(tx.state, "error")
 
     def test_view_refunds_opens_the_refund_not_another_child(self):
@@ -317,11 +317,11 @@ class TestPaymentTransaction(PaymentCommon):
         extracted.
 
         Providers that opt out of the amount check return `None`, and the base implementation used
-        when no provider claims the payment data returns `None` too. `_validate_amount` must treat
+        when no provider claims the payment data returns `None` too. `_check_amount` must treat
         both as "skip" rather than raising a `KeyError` while indexing the missing data.
         """
         tx = self._create_transaction("direct")  # Uses the base `_extract_amount_data`.
-        tx._validate_amount({})
+        tx._check_amount({})
         self.assertNotEqual(
             tx.state,
             "error",
@@ -333,7 +333,7 @@ class TestPaymentTransaction(PaymentCommon):
         with (
             patch(
                 "odoo.addons.payment.models.payment_transaction.PaymentTransaction"
-                "._validate_amount"
+                "._check_amount"
             ),
             patch(
                 "odoo.addons.payment.models.payment_transaction.PaymentTransaction"
@@ -371,7 +371,7 @@ class TestPaymentTransaction(PaymentCommon):
             with (
                 patch(
                     "odoo.addons.payment.models.payment_transaction.PaymentTransaction"
-                    "._validate_amount",
+                    "._check_amount",
                     return_value=None,
                 ),
                 patch(
@@ -389,7 +389,7 @@ class TestPaymentTransaction(PaymentCommon):
         with (
             patch(
                 "odoo.addons.payment.models.payment_transaction.PaymentTransaction"
-                "._validate_amount",
+                "._check_amount",
                 return_value=None,
             ),
             patch(
@@ -436,5 +436,5 @@ class TestPaymentTransaction(PaymentCommon):
             "._extract_amount_data",
             return_value={"amount": 123.45, "currency_code": self.currency_euro.name},
         ):
-            tx._validate_amount({})
+            tx._check_amount({})
         self.assertNotEqual(tx.state, "error")

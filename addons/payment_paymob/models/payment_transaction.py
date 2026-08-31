@@ -40,7 +40,7 @@ class PaymentTransaction(models.Model):
     def _get_specific_rendering_values(self, processing_values):
         """ Override of `payment` to return Paymob-specific rendering values.
 
-        Note: self.ensure_one() from `_get_processing_values`
+        Note: self.check_singleton() from `_get_processing_values`
 
         :param dict processing_values: The generic and specific processing values of the
                                        transaction.

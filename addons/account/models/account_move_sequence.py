@@ -95,7 +95,7 @@ class AccountMove(models.Model):
 
     def _get_last_sequence_domain(self, relaxed=False):
         # pylint: disable=sql-injection
-        self.ensure_one()
+        self.check_singleton()
         if not self.date or not self.journal_id:
             return "WHERE FALSE", {}
         where_string = "WHERE journal_id = %(journal_id)s AND name != '/'"
@@ -130,7 +130,7 @@ class AccountMove(models.Model):
         return where_string, param
 
     def _get_starting_sequence(self):
-        self.ensure_one()
+        self.check_singleton()
         move_date = self.date or self.invoice_date or fields.Date.context_today(self)
         year_part = "%04d" % move_date.year
         last_day = int(self.company_id.fiscalyear_last_day)
@@ -222,7 +222,7 @@ class AccountMove(models.Model):
 
 
     def _get_invoice_reference_euro_invoice(self):
-        self.ensure_one()
+        self.check_singleton()
         journal_identifier = (
             self.journal_id.code
             if self.journal_id.code.isascii() and self.journal_id.code.isalnum()
@@ -233,7 +233,7 @@ class AccountMove(models.Model):
         )
 
     def _get_invoice_reference_euro_partner(self):
-        self.ensure_one()
+        self.check_singleton()
         journal_identifier = (
             self.journal_id.code
             if self.journal_id.code.isascii() and self.journal_id.code.isalnum()
@@ -255,7 +255,7 @@ class AccountMove(models.Model):
         return "".join(char for char in ref if char.isdigit())
 
     def _get_invoice_reference_odoo_invoice(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.name
 
     def _get_invoice_reference_odoo_partner(self):
@@ -264,7 +264,7 @@ class AccountMove(models.Model):
         return "%s/%s" % (prefix, ref)
 
     def _get_invoice_computed_reference(self):
-        self.ensure_one()
+        self.check_singleton()
         ref_function = getattr(
             self,
             f"_get_invoice_reference_{self.journal_id.invoice_reference_model}_{self.journal_id.invoice_reference_type}",

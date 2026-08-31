@@ -105,7 +105,7 @@ class PaymentProvider(models.Model):
 
     def _get_default_payment_method_codes(self):
         """ Override of `payment` to return the default payment method codes. """
-        self.ensure_one()
+        self.check_singleton()
         if self.code != 'razorpay':
             return super()._get_default_payment_method_codes()
         return const.DEFAULT_PAYMENT_METHOD_CODES
@@ -115,14 +115,14 @@ class PaymentProvider(models.Model):
     def action_start_onboarding(self, menu_id=None):
         """ Override of `payment` to redirect to the Razorpay OAuth URL.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :param int menu_id: The menu from which the onboarding is started, as an `ir.ui.menu` id.
         :return: An URL action to redirect to the Razorpay OAuth URL.
         :rtype: dict
         :raise RedirectWarning: If the company's currency is not supported.
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if self.code != 'razorpay':
             return super().action_start_onboarding(menu_id=menu_id)
@@ -165,12 +165,12 @@ class PaymentProvider(models.Model):
     def action_razorpay_create_webhook(self):
         """ Create a webhook and display a toast notification.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :return: The feedback notification.
         :rtype: dict
         """
-        self.ensure_one()
+        self.check_singleton()
 
         webhook_secret = uuid.uuid4().hex  # Generate a random webhook secret.
         payload = {
@@ -240,11 +240,11 @@ class PaymentProvider(models.Model):
     def _razorpay_refresh_access_token(self):
         """ Refresh the access token.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :return: dict
         """
-        self.ensure_one()
+        self.check_singleton()
         proxy_payload = self._prepare_json_rpc_payload(
             {'refresh_token': self.razorpay_refresh_token}
         )

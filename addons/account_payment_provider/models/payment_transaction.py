@@ -59,7 +59,7 @@ class PaymentTransaction(models.Model):
         :return: The action
         :rtype: dict
         """
-        self.ensure_one()
+        self.check_singleton()
 
         action = {
             "name": _("Invoices"),
@@ -153,7 +153,7 @@ class PaymentTransaction(models.Model):
         :return: The payment create values
         :rtype: dict
         """
-        self.ensure_one()
+        self.check_singleton()
 
         reference = f"{self.reference} - {self.provider_reference or ''}"
         payment_channel = (
@@ -209,7 +209,7 @@ class PaymentTransaction(models.Model):
         :return: The write-off line create values
         :rtype: list
         """
-        self.ensure_one()
+        self.check_singleton()
 
         for invoice in self.invoice_ids:
             if invoice.state != "posted":
@@ -253,7 +253,7 @@ class PaymentTransaction(models.Model):
         :param recordset payment: The posted `account.payment`
         :return: None
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if self.operation == self.source_transaction_id.operation:
             invoices = self.source_transaction_id.invoice_ids
@@ -280,7 +280,7 @@ class PaymentTransaction(models.Model):
         :return: The created payment
         :rtype: recordset of `account.payment`
         """
-        self.ensure_one()
+        self.check_singleton()
 
         payment = self.env["account.payment"].create(
             self._prepare_payment_vals(**extra_create_values)
@@ -302,7 +302,7 @@ class PaymentTransaction(models.Model):
         """
         # Modules linking other documents to a transaction must override this method, call super,
         # then log the message on their own documents.
-        self.ensure_one()
+        self.check_singleton()
         if self.env.uid == SUPERUSER_ID or self.env.context.get(
             "payment_backend_action"
         ):

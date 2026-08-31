@@ -461,7 +461,7 @@ class AccountAccount(models.Model):
             )
 
     def _set_opening_debit_credit(self, amount, field):
-        self.ensure_one()
+        self.check_singleton()
         if "import_account_opening_balance" not in self.env.cr.precommit.data:
             data = self.env.cr.precommit.data["import_account_opening_balance"] = {}
             self.env.cr.precommit.add(

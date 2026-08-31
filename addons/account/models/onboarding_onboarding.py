@@ -9,7 +9,7 @@ class OnboardingOnboarding(models.Model):
         self.action_close_panel("account.onboarding_onboarding_account_invoice")
 
     def _prepare_rendering_values(self):
-        self.ensure_one()
+        self.check_singleton()
         if self == self.env.ref(
             "account.onboarding_onboarding_account_invoice", raise_if_not_found=False
         ):

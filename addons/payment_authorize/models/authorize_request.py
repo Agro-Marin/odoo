@@ -248,7 +248,7 @@ class AuthorizeAPI:
         """
         assert (token or opaque_data) and not (token and opaque_data), "Exactly one of token or opaque_data must be specified"
         if token:
-            token.ensure_one()
+            token.check_singleton()
             return {
                 'profile': {
                     'customerProfileId': token.authorize_profile,

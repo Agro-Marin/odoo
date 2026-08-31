@@ -306,7 +306,7 @@ class AccountMoveSendWizard(models.TransientModel):
         self.render_model = "account.move"
 
     def open_template_creation_wizard(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "view_mode": "form",
@@ -321,7 +321,7 @@ class AccountMoveSendWizard(models.TransientModel):
         }
 
     def create_mail_template(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.model or self.model not in self.env:
             raise UserError(
                 _("Template creation from composer requires a valid model.")
@@ -346,7 +346,7 @@ class AccountMoveSendWizard(models.TransientModel):
         )
 
     def cancel_save_template(self):
-        self.ensure_one()
+        self.check_singleton()
         return _reopen(
             self,
             self.id,
@@ -378,7 +378,7 @@ class AccountMoveSendWizard(models.TransientModel):
 
 
     def _get_sending_settings(self):
-        self.ensure_one()
+        self.check_singleton()
         send_settings = {
             "sending_methods": self.sending_methods or [],
             "invoice_edi_format": self.invoice_edi_format,
@@ -402,7 +402,7 @@ class AccountMoveSendWizard(models.TransientModel):
         return send_settings
 
     def _update_preferred_settings(self):
-        self.ensure_one()
+        self.check_singleton()
         if (
             not self.move_id.partner_id.invoice_template_pdf_report_id
             and self.pdf_report_id != self._get_default_pdf_report_id(self.move_id)
@@ -421,7 +421,7 @@ class AccountMoveSendWizard(models.TransientModel):
         }
 
     def action_send_and_print(self, allow_fallback_pdf=False):
-        self.ensure_one()
+        self.check_singleton()
         if self.alerts:
             self._raise_danger_alerts(self.alerts)
         self._update_preferred_settings()

@@ -37,7 +37,7 @@ class RazorpayController(Controller):
             raise ValidationError(_("Could not find Razorpay provider with id %s", provider_sudo))
 
         # Verify the CSRF token.
-        if not request.validate_csrf(csrf_token):
+        if not request.is_valid_csrf(csrf_token):
             _logger.warning("CSRF token verification failed.")
             raise Forbidden()
 

@@ -427,7 +427,7 @@ class AccountTax(models.Model):
         return value
 
     def _prepare_repartition_lines_log_body(self, old_values_str, new_values_str):
-        self.ensure_one()
+        self.check_singleton()
         old_line_values_dict = ast.literal_eval(old_values_str or "{}")
         new_line_values_dict = ast.literal_eval(new_values_str)
 
@@ -820,7 +820,7 @@ class AccountTax(models.Model):
         }
 
     def _get_repartition_lines_by_kind(self, is_refund, cache=None):
-        self.ensure_one()
+        self.check_singleton()
         key = (self, is_refund)
         if cache is not None and key in cache:
             return cache[key]
@@ -1279,7 +1279,7 @@ class AccountTaxRepartitionLine(models.Model):
             self.account_id = None
 
     def _get_aml_target_tax_account(self, force_caba_exigibility=False):
-        self.ensure_one()
+        self.check_singleton()
         if (
             not force_caba_exigibility
             and self.tax_id.tax_exigibility == "on_payment"

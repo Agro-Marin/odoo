@@ -305,12 +305,12 @@ class PaymentTransaction(models.Model):
     def action_view_refunds(self):
         """Return the windows action to browse the refund transactions linked to the transaction.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :return: The window action to browse the refund transactions.
         :rtype: dict
         """
-        self.ensure_one()
+        self.check_singleton()
 
         action = {
             "name": _("Refund"),
@@ -608,12 +608,12 @@ class PaymentTransaction(models.Model):
         - `should_tokenize`: Whether this transaction should be tokenized.
         - Additional provider-specific entries.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :return: The processing values.
         :rtype: dict
         """
-        self.ensure_one()
+        self.check_singleton()
 
         processing_values = {
             "provider_id": self.provider_id.id,
@@ -688,23 +688,23 @@ class PaymentTransaction(models.Model):
         For a module to add its own mandate values, it must overwrite this method and return a dict
         of module-specific values.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :return: The dict of module-specific mandate values.
         :rtype: dict
         """
-        self.ensure_one()
+        self.check_singleton()
         return {}
 
     def _charge_with_token(self):
         """Pay the transaction with the given token.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :return: None
         """
-        self.ensure_one()
-        self._ensure_provider_is_not_disabled()
+        self.check_singleton()
+        self._check_provider_is_not_disabled()
         self._log_sent_message()
         try:
             self._send_payment_request()
@@ -720,7 +720,7 @@ class PaymentTransaction(models.Model):
         For a provider to support tokenization, it must override this method and send an API request
         to make a payment.
 
-        Note: `self.ensure_one()` from :meth:`_charge_with_token`
+        Note: `self.check_singleton()` from :meth:`_charge_with_token`
 
         :return: None
         """
@@ -729,14 +729,14 @@ class PaymentTransaction(models.Model):
     def _capture(self, amount_to_capture=None):
         """Capture the authorized amount.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :param float amount_to_capture: The amount to capture.
         :return: The capture transaction created to process the capture request.
         :rtype: payment.transaction
         """
-        self.ensure_one()
-        self._ensure_provider_is_not_disabled()
+        self.check_singleton()
+        self._check_provider_is_not_disabled()
 
         capture_tx = self._create_child_transaction(amount_to_capture or self.amount)
         capture_tx._log_sent_message()
@@ -752,7 +752,7 @@ class PaymentTransaction(models.Model):
         For a provider to support authorization, it must override this method and send an API
         request to capture the payment.
 
-        Note: `self.ensure_one()` from :meth:`_capture`
+        Note: `self.check_singleton()` from :meth:`_capture`
 
         :return: None
         """
@@ -761,14 +761,14 @@ class PaymentTransaction(models.Model):
     def _void(self, amount_to_void=None):
         """Void the authorized amount.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :param float amount_to_void: The amount to be voided.
         :return: The void transaction created to process the void request.
         :rtype: payment.transaction
         """
-        self.ensure_one()
-        self._ensure_provider_is_not_disabled()
+        self.check_singleton()
+        self._check_provider_is_not_disabled()
 
         void_tx = self._create_child_transaction(amount_to_void or self.amount)
         void_tx._log_sent_message()
@@ -784,7 +784,7 @@ class PaymentTransaction(models.Model):
         For a provider to support authorization, it must override this method and send an API
         request to void the payment.
 
-        Note: `self.ensure_one()` from :meth:`_void`
+        Note: `self.check_singleton()` from :meth:`_void`
 
         :return: None
         """
@@ -793,14 +793,14 @@ class PaymentTransaction(models.Model):
     def _refund(self, amount_to_refund=None):
         """Refund the transaction.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :param float amount_to_refund: The amount to be refunded.
         :return: The refund transaction created to process the refund request.
         :rtype: payment.transaction
         """
-        self.ensure_one()
-        self._ensure_provider_is_not_disabled()
+        self.check_singleton()
+        self._check_provider_is_not_disabled()
 
         refund_tx = self._create_child_transaction(
             amount_to_refund or self.amount, is_refund=True
@@ -818,13 +818,13 @@ class PaymentTransaction(models.Model):
         For a provider to support refunds, it must override this method and send an API request to
         make a refund.
 
-        Note: `self.ensure_one()` from :meth:`_refund`
+        Note: `self.check_singleton()` from :meth:`_refund`
 
         :return: None
         """
         return
 
-    def _ensure_provider_is_not_disabled(self):
+    def _check_provider_is_not_disabled(self):
         """Ensure that the provider's state is not `disabled` before sending a request to its
         provider.
 
@@ -846,7 +846,7 @@ class PaymentTransaction(models.Model):
         This happens only in case of a refund or a partial capture (where the initial transaction is
         split between smaller transactions, either captured or voided).
 
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :param float amount: The strictly positive amount of the child transaction, in the same
                              currency as the source transaction.
@@ -854,7 +854,7 @@ class PaymentTransaction(models.Model):
         :return: The created child transaction.
         :rtype: payment.transaction
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if is_refund:
             reference_prefix = f"R-{self.reference}"
@@ -893,9 +893,9 @@ class PaymentTransaction(models.Model):
         """
         tx = self or self._search_by_reference(provider_code, payment_data)
         if tx:
-            tx.ensure_one()
+            tx.check_singleton()
             previous_state = tx.state
-            tx._validate_amount(payment_data)
+            tx._check_amount(payment_data)
             if tx.state == "error" and tx.state != previous_state:
                 return tx
             tx._apply_updates(payment_data)
@@ -941,7 +941,7 @@ class PaymentTransaction(models.Model):
         """
         return payment_data.get("reference")
 
-    def _validate_amount(self, payment_data):
+    def _check_amount(self, payment_data):
         """Ensure that the transaction's amount and currency match the ones from the payment data.
 
         Validation transactions and transactions for which providers opt out of the amount check are
@@ -950,7 +950,7 @@ class PaymentTransaction(models.Model):
         :param dict payment_data: The payment data sent by the provider.
         :return: None
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if self.operation == "validation":
             return  # Skip validation for $0-auth transactions.
@@ -1020,7 +1020,7 @@ class PaymentTransaction(models.Model):
         This method must be overridden by providers to update the transaction based on the payment
         data.
 
-        Note: `self.ensure_one()` from :meth:`_process`
+        Note: `self.check_singleton()` from :meth:`_process`
 
         :param dict payment_data: The payment data sent by the provider.
         :return: None
@@ -1033,7 +1033,7 @@ class PaymentTransaction(models.Model):
         :param dict payment_data: The payment data sent by the provider.
         :return: None
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if not (token_values := self._extract_token_values(payment_data)):
             return
@@ -1066,7 +1066,7 @@ class PaymentTransaction(models.Model):
 
         Providers can override this to supply their own token data based on the payment data.
 
-        Note: self.ensure_one() from :meth: `_tokenize`
+        Note: self.check_singleton() from :meth: `_tokenize`
 
         :param dict payment_data: Data sent by the provider.
         :return: Data to create a payment token.
@@ -1314,7 +1314,7 @@ class PaymentTransaction(models.Model):
         2. Set the transaction's state to `error` if the request fails, with the exception's message
            as the `state_message`.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :param str method: The HTTP method of the request.
         :param str endpoint: The endpoint of the API to reach with the request.
@@ -1326,7 +1326,7 @@ class PaymentTransaction(models.Model):
         :rtype: dict|str
         :raise ValidationError: If an HTTP error occurs.
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.provider_id._send_api_request(
             method,
             endpoint,
@@ -1363,24 +1363,24 @@ class PaymentTransaction(models.Model):
         For a module to implement payments and link documents to a transaction, it must override
         this method and call it, then log the message on documents linked to the transaction.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :param str message: The message to log.
         :return: None
         """
-        self.ensure_one()
+        self.check_singleton()
 
     # === GETTERS === #
 
     def _get_sent_message(self):
         """Return the message to log to state that the transaction has been created.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :return: The message to log.
         :rtype: str|None
         """
-        self.ensure_one()
+        self.check_singleton()
 
         # Choose the message based on the payment flow.
         if self.operation in {
@@ -1409,12 +1409,12 @@ class PaymentTransaction(models.Model):
     def _get_received_message(self):
         """Return the message to log to state that the transaction has been processed.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :return: The message to log.
         :rtype: str|None
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if self.operation == "validation":
             return None  # Don't log anything as the token is not yet created.

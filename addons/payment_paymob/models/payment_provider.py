@@ -79,7 +79,7 @@ class PaymentProvider(models.Model):
 
     def _get_default_payment_method_codes(self):
         """ Override of `payment` to return the default payment method codes. """
-        self.ensure_one()
+        self.check_singleton()
         if self.code != 'paymob':
             return super()._get_default_payment_method_codes()
         return const.DEFAULT_PAYMENT_METHOD_CODES
@@ -212,12 +212,12 @@ class PaymentProvider(models.Model):
     def _paymob_get_api_url(self):
         """ Get the API URL according to the provider country.
 
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :return: The API URL.
         :rtype: str
         """
-        self.ensure_one()
+        self.check_singleton()
         api_prefix = const.API_MAPPING[self.paymob_account_country_id.code]
         url = f'https://{api_prefix}.paymob.com'
         return url

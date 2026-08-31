@@ -73,7 +73,7 @@ class ProductTemplate(models.Model):
     )
 
     def _get_product_accounts(self, fiscal_pos=None):
-        self.ensure_one()
+        self.check_singleton()
         # Every tier resolves against `env.company`: the caller posts the result
         # into that company's journal, and `check_company` already forbids using
         # a company-bound product anywhere else.
@@ -242,7 +242,7 @@ class ProductTemplate(models.Model):
         return result
 
     def _get_list_price(self, price):
-        self.ensure_one()
+        self.check_singleton()
         # `taxes_id` holds every company's default sale tax on purpose (see
         # `_force_default_tax`), so the active company's subset is the only one
         # that may be stripped from a price quoted in that company.
@@ -281,8 +281,8 @@ class ProductProduct(models.Model):
         product_taxes=None,
         fiscal_position=None,
     ):
-        self.ensure_one()
-        company.ensure_one()
+        self.check_singleton()
+        company.check_singleton()
 
         if not document_type:
             raise ValueError("document_type is required")

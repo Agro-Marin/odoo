@@ -68,7 +68,7 @@ class AccountEdiDocument(models.Model):
             doc.edi_content = res
 
     def action_export_xml(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_url",
             "url": "/web/content/account.edi.document/%s/edi_content" % self.id,
@@ -218,8 +218,8 @@ class AccountEdiDocument(models.Model):
             def method_to_call(moves):
                 return {move: {"success": True} for move in moves}
 
-        documents.edi_format_id.ensure_one()  # All account.edi.document of a job should have the same edi_format_id
-        documents.move_id.company_id.ensure_one()  # All account.edi.document of a job should be from the same company
+        documents.edi_format_id.check_singleton()  # All account.edi.document of a job should have the same edi_format_id
+        documents.move_id.company_id.check_singleton()  # All account.edi.document of a job should be from the same company
         if len({doc.state for doc in documents}) != 1:
             raise ValueError(
                 "All account.edi.document of a job should have the same state"
@@ -318,7 +318,7 @@ class AccountEdiDocument(models.Model):
             'attachment_ids': list containing the id of the attachment
         }
         """
-        self.ensure_one()
+        self.check_singleton()
         attachment_sudo = self.sudo().attachment_id
         if not attachment_sudo:
             return {}

@@ -256,7 +256,7 @@ class AccountAutomaticEntryWizard(models.TransientModel):
         return res
 
     def _get_cut_off_label_format(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             _("Cut-off {label}")
             if self.percentage == 100

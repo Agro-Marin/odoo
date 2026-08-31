@@ -167,7 +167,7 @@ class PaymentToken(models.Model):
         For a module to customize the display name of a token, it must override this method and
         return the customized display name.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :param list args: The arguments passed by QWeb when calling this method.
         :param int max_length: The desired maximum length of the token name. The default is `34` to
@@ -177,7 +177,7 @@ class PaymentToken(models.Model):
         :return: The padded token name.
         :rtype: str
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.create_date:
             return ""
@@ -208,10 +208,10 @@ class PaymentToken(models.Model):
         - `name`: The name of the record.
         - `url`: The url to access the record.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :return: The list of information about the linked document records.
         :rtype: list
         """
-        self.ensure_one()
+        self.check_singleton()
         return []

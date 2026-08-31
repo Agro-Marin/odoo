@@ -402,7 +402,7 @@ class AccountTax(models.Model):
                 )
 
     def _check_repartition_lines(self, lines):
-        self.ensure_one()
+        self.check_singleton()
         base_line = lines.filtered(lambda x: x.repartition_type == "base")
         if len(base_line) != 1:
             raise ValidationError(
@@ -921,7 +921,7 @@ class AccountTax(models.Model):
         return None
 
     def _eval_tax_amount_price_included(self, batch, raw_base, evaluation_context):
-        self.ensure_one()
+        self.check_singleton()
         if self.amount_type == "percent":
             total_percentage = sum(tax.amount for tax in batch) / 100.0
             to_price_excluded_factor = (
@@ -936,7 +936,7 @@ class AccountTax(models.Model):
         return None
 
     def _eval_tax_amount_price_excluded(self, batch, raw_base, evaluation_context):
-        self.ensure_one()
+        self.check_singleton()
         if self.amount_type == "percent":
             return raw_base * self.amount / 100.0
 
@@ -2422,7 +2422,7 @@ class AccountTax(models.Model):
         return tax_totals
 
     def _can_be_discounted(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.amount_type not in ("fixed", "code")
 
     @api.model
@@ -4190,7 +4190,7 @@ class AccountTax(models.Model):
         return self._fix_tax_included_price(price, prod_taxes, line_taxes)
 
     def _get_description_plaintext(self):
-        self.ensure_one()
+        self.check_singleton()
         if is_html_empty(self.description):
             return ""
         return html2plaintext(self.description)

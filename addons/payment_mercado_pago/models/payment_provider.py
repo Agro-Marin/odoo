@@ -114,7 +114,7 @@ class PaymentProvider(models.Model):
 
     def _get_default_payment_method_codes(self):
         """ Override of `payment` to return the default payment method codes. """
-        self.ensure_one()
+        self.check_singleton()
         if self.code != 'mercado_pago':
             return super()._get_default_payment_method_codes()
         return const.DEFAULT_PAYMENT_METHOD_CODES
@@ -124,14 +124,14 @@ class PaymentProvider(models.Model):
     def action_start_onboarding(self, menu_id=None):
         """Override of `payment` to redirect to the Mercado Pago OAuth URL.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :param int menu_id: The menu from which the onboarding is started, as an `ir.ui.menu` id.
         :return: An URL action to redirect to the Mercado Pago OAuth URL.
         :rtype: dict
         :raise RedirectWarning: If the company's currency is not supported.
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if self.code != 'mercado_pago':
             return super().action_start_onboarding(menu_id=menu_id)
@@ -205,13 +205,13 @@ class PaymentProvider(models.Model):
     def _mercado_pago_get_inline_form_values(self, partner_id):
         """Return a serialized JSON of the values required to render the inline form.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :param int partner_id: The partner of the transaction, as a `res.partner` id.
         :return: The JSON serial of the inline form values.
         :rtype: str
         """
-        self.ensure_one()
+        self.check_singleton()
 
         partner = self.env['res.partner'].browse(partner_id).exists()
         inline_form_values = {
@@ -264,13 +264,13 @@ class PaymentProvider(models.Model):
     def _mercado_pago_fetch_access_token(self):
         """Generate a new access token if it's expired, otherwise return the existing access token.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :return: A valid access token.
         :rtype: str
         :raise ValidationError: If the access token can not be fetched.
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if (
             self.mercado_pago_access_token

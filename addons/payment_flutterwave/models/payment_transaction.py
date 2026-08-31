@@ -49,7 +49,7 @@ class PaymentTransaction(models.Model):
         If the financial institution insists on 3-D Secure authentication, this
         override will redirect the user to the provided authorization page.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
         """
         if not self._flutterwave_is_authorization_pending():
             return super()._get_specific_processing_values(processing_values)
@@ -62,7 +62,7 @@ class PaymentTransaction(models.Model):
     def _get_specific_rendering_values(self, processing_values):
         """ Override of payment to return Flutterwave-specific rendering values.
 
-        Note: self.ensure_one() from `_get_processing_values`
+        Note: self.check_singleton() from `_get_processing_values`
 
         :param dict processing_values: The generic and specific processing values of the transaction
         :return: The dict of provider-specific processing values.

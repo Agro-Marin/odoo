@@ -78,7 +78,7 @@ class RazorpayController(http.Controller):
                 )
                 tx_sudo._process('razorpay', entity_data)
 
-        return request.make_json_response('')
+        return request.prepare_json_response('')
 
     @staticmethod
     def _verify_signature(

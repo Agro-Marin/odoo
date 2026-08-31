@@ -64,7 +64,7 @@ class AccountMove(models.Model):
     _inherit = "account.move"
 
     def _get_cash_rounding_difference(self, total_amount_currency):
-        self.ensure_one()
+        self.check_singleton()
         difference = self.invoice_cash_rounding_id.compute_difference(
             self.currency_id, total_amount_currency
         )
@@ -76,14 +76,14 @@ class AccountMove(models.Model):
         return self.company_id.currency_id.round(difference / rate), difference
 
     def _get_cash_rounding_profit_loss_account(self, diff_balance):
-        self.ensure_one()
+        self.check_singleton()
         cash_rounding = self.invoice_cash_rounding_id
         if diff_balance > 0.0 and cash_rounding.loss_account_id:
             return cash_rounding.loss_account_id
         return cash_rounding.profit_account_id
 
     def _get_biggest_tax_line(self):
-        self.ensure_one()
+        self.check_singleton()
         candidates = self.line_ids.filtered(
             lambda line: line.tax_repartition_line_id and line.display_type == "tax"
         )
@@ -106,7 +106,7 @@ class AccountMove(models.Model):
         return lines[:1]
 
     def _get_cash_rounding_line_vals(self, diff_balance, diff_amount_currency):
-        self.ensure_one()
+        self.check_singleton()
         vals = {
             "balance": diff_balance,
             "amount_currency": diff_amount_currency,
@@ -150,7 +150,7 @@ class AccountMove(models.Model):
         return vals
 
     def _recompute_cash_rounding_lines(self):
-        self.ensure_one()
+        self.check_singleton()
         existing_cash_rounding_line = self._get_single_dynamic_line(
             self.line_ids.filtered(lambda line: line.display_type == "rounding")
         )
@@ -220,7 +220,7 @@ class AccountMove(models.Model):
             self.env["account.move.line"].create(vals)
 
     def _get_automatic_balancing_account(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.journal_id.default_account_id
             or self.company_id.account_journal_suspense_account_id
@@ -371,7 +371,7 @@ class AccountMove(models.Model):
         return res
 
     def _get_tax_base_amls(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.line_ids.filtered(
             lambda line: (
                 line.display_type in TAX_BASE_DISPLAY_TYPES
@@ -382,11 +382,11 @@ class AccountMove(models.Model):
         )
 
     def _get_tax_amls(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.line_ids.filtered("tax_repartition_line_id")
 
     def _get_base_line_tracked_fields(self, grouping_key_fields):
-        self.ensure_one()
+        self.check_singleton()
         extra_fields = (
             INVOICE_BASE_LINE_TRACKED_FIELDS
             if self.is_invoice(include_receipts=True)

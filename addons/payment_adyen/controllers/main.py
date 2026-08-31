@@ -278,7 +278,7 @@ class AdyenController(http.Controller):
                 else:
                     continue  # Don't handle unsupported event codes and failed events
                 tx_sudo._process('adyen', payment_data)
-        return request.make_json_response('[accepted]')  # Acknowledge the notification
+        return request.prepare_json_response('[accepted]')  # Acknowledge the notification
 
     @staticmethod
     def _verify_signature(payment_data, tx_sudo):

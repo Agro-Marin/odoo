@@ -41,7 +41,7 @@ class AccountDocumentDownloadController(http.Controller):
             headers = _get_headers(
                 attachments.name, attachments.mimetype, attachments.raw
             )
-            return request.make_response(attachments.raw, headers)
+            return request.prepare_response(attachments.raw, headers)
         else:
             inv_ids = attachments.mapped("res_id")
             if len(set(inv_ids)) == 1:
@@ -51,7 +51,7 @@ class AccountDocumentDownloadController(http.Controller):
                 filename = _("invoices") + ".zip"
             content = attachments._prepare_zip_from_attachments()
             headers = _get_headers(filename, "application/zip", content)
-            return request.make_response(content, headers)
+            return request.prepare_response(content, headers)
 
     @http.route(
         '/account/download_invoice_documents/<models("account.move"):invoices>/<string:filetype>',
@@ -84,13 +84,13 @@ class AccountDocumentDownloadController(http.Controller):
             headers = _get_headers(
                 doc_data["filename"], doc_data["filetype"], doc_data["content"]
             )
-            return request.make_response(doc_data["content"], headers)
+            return request.prepare_response(doc_data["content"], headers)
         if len(docs_data) > 1:
             zip_content = _build_zip_from_data(docs_data)
             headers = _get_headers(
                 _("invoices") + ".zip", "application/zip", zip_content
             )
-            return request.make_response(zip_content, headers)
+            return request.prepare_response(zip_content, headers)
         return None
 
     @http.route(
@@ -123,5 +123,5 @@ class AccountDocumentDownloadController(http.Controller):
             headers = _get_headers(
                 request.env._("Invoices") + ".zip", "application/zip", zip_content
             )
-            return request.make_response(zip_content, headers)
+            return request.prepare_response(zip_content, headers)
         return None

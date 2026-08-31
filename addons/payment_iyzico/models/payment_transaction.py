@@ -20,7 +20,7 @@ class PaymentTransaction(models.Model):
     def _get_specific_rendering_values(self, *args):
         """Override of `payment` to return Iyzico specific rendering values.
 
-         Note: `self.ensure_one()` from :meth:`_get_processing_values`
+         Note: `self.check_singleton()` from :meth:`_get_processing_values`
 
         :return: The provider-specific processing values.
         :rtype: dict

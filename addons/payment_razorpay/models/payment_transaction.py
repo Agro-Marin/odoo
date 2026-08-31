@@ -24,7 +24,7 @@ class PaymentTransaction(models.Model):
     def _get_specific_processing_values(self, processing_values):
         """ Override of `payment` to return razorpay-specific processing values.
 
-        Note: self.ensure_one() from `_get_processing_values`
+        Note: self.check_singleton() from `_get_processing_values`
 
         :param dict processing_values: The generic and specific processing values of the
                                        transaction.
@@ -63,7 +63,7 @@ class PaymentTransaction(models.Model):
         payload = {
             'name': self.partner_name,
             'email': self.partner_email or '',
-            'contact': self.partner_phone and self._validate_phone_number(self.partner_phone) or '',
+            'contact': self.partner_phone and self._format_phone_number(self.partner_phone) or '',
             'fail_existing': '0',  # Don't throw an error if the customer already exists.
         }
         customer_data = {}
@@ -75,7 +75,7 @@ class PaymentTransaction(models.Model):
         return customer_data
 
     @api.model
-    def _validate_phone_number(self, phone):
+    def _format_phone_number(self, phone):
         """ Validate and format the phone number.
 
         :param str phone: The phone number to validate.
@@ -214,7 +214,7 @@ class PaymentTransaction(models.Model):
 
         try:
             order_data = self._razorpay_create_order()
-            phone = self._validate_phone_number(self.partner_phone)
+            phone = self._format_phone_number(self.partner_phone)
             customer_id, token_id = self.token_id.provider_ref.split(',')
             payload = {
                 'email': self.partner_email,
@@ -440,7 +440,7 @@ class PaymentTransaction(models.Model):
     def _extract_token_values(self, payment_data):
         """Override of `payment` to return token data based on Razorpay data.
 
-        Note: self.ensure_one() from :meth: `_tokenize`
+        Note: self.check_singleton() from :meth: `_tokenize`
 
         :param dict payment_data: The payment data sent by the provider.
         :return: Data to create a token.

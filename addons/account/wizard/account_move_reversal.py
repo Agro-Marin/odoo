@@ -206,7 +206,7 @@ class AccountMoveReversal(models.TransientModel):
         return action
 
     def reverse_moves(self, is_modify=False):
-        self.ensure_one()
+        self.check_singleton()
         moves = self.move_ids
 
         default_values_list = [

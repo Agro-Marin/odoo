@@ -102,7 +102,7 @@ class StripeTest(StripeCommon, PaymentHttpCommon):
                 return_value={'id': 'cus_1234567890ABCDE'},
             ):
                 data['payment_intent'] = tx._stripe_prepare_payment_intent_payload()
-            tx._validate_amount(data)
+            tx._check_amount(data)
             self.assertNotEqual(tx.state, 'error')
 
     def test_extract_token_values_maps_fields_correctly(self):

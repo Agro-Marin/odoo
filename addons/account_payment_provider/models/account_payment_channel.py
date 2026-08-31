@@ -94,7 +94,7 @@ class AccountPaymentChannel(models.Model):
             )
 
     def action_view_provider_form(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "name": _("Provider"),

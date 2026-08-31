@@ -22,11 +22,11 @@ class PaymentToken(models.Model):
         associated to a customer and save its id on the token.
         This migration happens once per token created with the old implementation.
 
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :return: None
         """
-        self.ensure_one()
+        self.check_singleton()
 
         # Fetch the available payment method of type 'card' for the given customer
         response_content = self.provider_id._send_api_request(

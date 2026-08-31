@@ -145,7 +145,7 @@ def to_major_currency_units(minor_amount, currency, arbitrary_decimal_number=Non
     :rtype: float
     """
     if arbitrary_decimal_number is None:
-        currency.ensure_one()
+        currency.check_singleton()
         decimal_number = CURRENCY_MINOR_UNITS.get(
             currency.name, currency.decimal_places
         )
@@ -169,7 +169,7 @@ def to_minor_currency_units(major_amount, currency, arbitrary_decimal_number=Non
     :rtype: int
     """
     if arbitrary_decimal_number is None:
-        currency.ensure_one()
+        currency.check_singleton()
         decimal_number = CURRENCY_MINOR_UNITS.get(
             currency.name, currency.decimal_places
         )

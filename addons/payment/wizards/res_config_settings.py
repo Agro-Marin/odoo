@@ -81,7 +81,7 @@ class ResConfigSettings(models.TransientModel):
     # === ACTION METHODS === #
 
     def action_view_active_provider(self):
-        provider = self.active_provider_id.ensure_one()
+        provider = self.active_provider_id.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "view_mode": "form",
@@ -97,7 +97,7 @@ class ResConfigSettings(models.TransientModel):
         :return: The action returned by `action_start_onboarding`.
         :rtype: dict|bool
         """
-        self.ensure_one()
+        self.check_singleton()
         if not self.onboarding_payment_module:
             return False
 

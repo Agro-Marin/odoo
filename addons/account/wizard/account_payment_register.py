@@ -752,7 +752,7 @@ class AccountPaymentRegister(models.TransientModel):
             wizard.actionable_errors = actionable_errors
 
     def _convert_to_wizard_currency(self, installments):
-        self.ensure_one()
+        self.check_singleton()
         total_per_currency = defaultdict(
             lambda: {
                 "amount_residual": 0.0,
@@ -790,7 +790,7 @@ class AccountPaymentRegister(models.TransientModel):
         return total_amount
 
     def _get_total_amounts_to_pay(self, batch_results):
-        self.ensure_one()
+        self.check_singleton()
         next_payment_date = self._get_next_payment_date_in_context()
         amount_per_line_common = []
         amount_per_line_by_default = []
@@ -1593,7 +1593,7 @@ class AccountPaymentRegister(models.TransientModel):
         return filtered_batches, to_process
 
     def _create_payments(self):
-        self.ensure_one()
+        self.check_singleton()
         batches = self._get_payable_batches()
 
         first_batch_result = batches[0]
@@ -1675,7 +1675,7 @@ class AccountPaymentRegister(models.TransientModel):
             return available_partner_banks[:1]
 
     def action_view_untrusted_bank_accounts(self):
-        self.ensure_one()
+        self.check_singleton()
         if len(self.untrusted_bank_ids) == 1:
             action = {
                 "view_mode": "form",
@@ -1710,7 +1710,7 @@ class AccountPaymentRegister(models.TransientModel):
         return action
 
     def action_view_missing_account_partners(self):
-        self.ensure_one()
+        self.check_singleton()
         vals = {}
         if len(self.missing_account_partners) > 1:
             listview_id = self.env.ref("account.partner_missing_account_list_view").id

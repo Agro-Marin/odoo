@@ -39,7 +39,7 @@ class TestAccountTaxMergeWizard(AccountTestInvoicingCommon):
         # widening one is the whole fixture.
         cls.shared_account = cls.company_data["default_account_revenue"].sudo()
         # `code` is company_dependent, so a new member company needs one of its
-        # own or `_ensure_code_is_unique` refuses the write -- and it cannot
+        # own or `_check_code_is_unique` refuses the write -- and it cannot
         # simply reuse company A's, because company B's own chart already has
         # that code. account.account orders code_mapping_ids ahead of
         # company_ids for exactly this, which is why both go in one write.

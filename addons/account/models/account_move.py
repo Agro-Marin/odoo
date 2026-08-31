@@ -1151,7 +1151,7 @@ class AccountMove(models.Model):
         self._inverse_payment_reference()
 
     def _get_accounting_date_source(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.invoice_date or self.date
 
     @api.depends("invoice_date", "company_id", "move_type", "taxable_supply_date")
@@ -1506,13 +1506,13 @@ class AccountMove(models.Model):
             invoice.currency_id = currency
 
     def _get_invoice_currency_rate_date(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.is_invoice(include_receipts=True):
             return self.invoice_date or fields.Date.context_today(self)
         return self.date or fields.Date.context_today(self)
 
     def _get_expected_currency_rate_at(self, date):
-        self.ensure_one()
+        self.check_singleton()
         return self.env["res.currency"]._get_conversion_rate(
             from_currency=self.company_currency_id,
             to_currency=self.currency_id,
@@ -2099,7 +2099,7 @@ class AccountMove(models.Model):
         )
 
     def _prepare_product_base_line_for_taxes_computation(self, product_line):
-        self.ensure_one()
+        self.check_singleton()
         is_invoice = self.is_invoice(include_receipts=True)
         sign = self.direction_sign if is_invoice else 1
 
@@ -2129,7 +2129,7 @@ class AccountMove(models.Model):
         return self.move_type in ("out_refund", "in_refund")
 
     def _prepare_special_base_line_for_taxes_computation(self, line, special_type):
-        self.ensure_one()
+        self.check_singleton()
         sign = self.direction_sign
         return self.env["account.tax"]._prepare_base_line_for_taxes_computation(
             line,
@@ -2150,7 +2150,7 @@ class AccountMove(models.Model):
     def _prepare_epd_base_lines_for_taxes_computation_from_product_lines(
         self, product_amls
     ):
-        self.ensure_one()
+        self.check_singleton()
         aggregated_results = self._sync_dynamic_line_needed_values(
             product_amls.mapped("epd_needed")
         )
@@ -2188,7 +2188,7 @@ class AccountMove(models.Model):
         )
 
     def _prepare_tax_line_for_taxes_computation(self, tax_line):
-        self.ensure_one()
+        self.check_singleton()
         return self.env["account.tax"]._prepare_tax_line_for_taxes_computation(
             tax_line,
             sign=self.direction_sign,
@@ -2204,7 +2204,7 @@ class AccountMove(models.Model):
     def _prepare_non_deductible_base_lines_for_taxes_computation_from_product_lines(
         self, product_amls
     ):
-        self.ensure_one()
+        self.check_singleton()
         non_deductible_product_lines = product_amls.filtered(
             lambda line: (
                 line.display_type == "product"
@@ -2261,7 +2261,7 @@ class AccountMove(models.Model):
     def _get_rounded_base_and_tax_lines(
         self, round_from_tax_lines=True, reapply_currency_rate=False
     ):
-        self.ensure_one()
+        self.check_singleton()
         AccountTax = self.env["account.tax"]
         is_invoice = self.is_invoice(include_receipts=True)
 
@@ -2409,7 +2409,7 @@ class AccountMove(models.Model):
                 invoice.show_payment_term_details = False
 
     def _need_cancel_request(self):
-        self.ensure_one()
+        self.check_singleton()
         return False
 
     @api.depends("country_code")
@@ -2573,7 +2573,7 @@ class AccountMove(models.Model):
             move.narration = narration or False
 
     def _get_partner_credit_warning_exclude_amount(self):
-        self.ensure_one()
+        self.check_singleton()
         return 0
 
     @api.depends(
@@ -3180,7 +3180,7 @@ class AccountMove(models.Model):
                 move._get_receivable_payable_lines().no_followup = move.no_followup
 
     def _get_alerts(self):
-        self.ensure_one()
+        self.check_singleton()
         alerts = {}
         has_account_group = self.env.user.has_groups(
             "account.group_account_readonly,account.group_account_invoice"
@@ -3706,7 +3706,7 @@ class AccountMove(models.Model):
                 )
 
     def _prepare_epd_needed_per_line(self):
-        self.ensure_one()
+        self.check_singleton()
         AccountTax = self.env["account.tax"]
         company = self.company_id or self.env.company
         currency = self.currency_id or company.currency_id
@@ -3875,7 +3875,7 @@ class AccountMove(models.Model):
                 raise ValidationError(_("The currency rate must be strictly positive."))
 
     def _is_eligible_for_early_payment_discount(self, currency, reference_date):
-        self.ensure_one()
+        self.check_singleton()
         payment_terms = self.line_ids.filtered(
             lambda line: line.display_type == "payment_term"
         )
@@ -3901,7 +3901,7 @@ class AccountMove(models.Model):
         return ("out_invoice", "out_receipt", "in_invoice", "in_receipt")
 
     def _get_early_payment_discount_details(self):
-        self.ensure_one()
+        self.check_singleton()
         # what the customer must pay is what reconciliation will settle, so read
         # the posted line rather than pricing the discount a second time
         line = self.line_ids.filtered(lambda line: line.display_type == "payment_term")[
@@ -4373,7 +4373,7 @@ class AccountMove(models.Model):
         return super().onchange(values, field_names, fields_spec)
 
     def _collect_tax_cash_basis_values(self):
-        self.ensure_one()
+        self.check_singleton()
 
         values = {
             "move": self,
@@ -4439,7 +4439,7 @@ class AccountMove(models.Model):
         round_from_tax_lines=None,
         postfix_function=None,
     ):
-        self.ensure_one()
+        self.check_singleton()
         AccountTax = self.env["account.tax"]
         base_amls = self.line_ids.filtered(
             lambda x: (
@@ -4519,7 +4519,7 @@ class AccountMove(models.Model):
         round_from_tax_lines=None,
         postfix_function=None,
     ):
-        self.ensure_one()
+        self.check_singleton()
         if round_from_tax_lines is None:
             round_from_tax_lines = bool(
                 filter_tax_values_to_apply or filter_invl_to_apply
@@ -4571,7 +4571,7 @@ class AccountMove(models.Model):
         return results
 
     def _get_early_payment_discount_tax_deltas(self, base_lines, tax_amounts):
-        self.ensure_one()
+        self.check_singleton()
         tax_results = self.env["account.tax"]._prepare_tax_lines(
             base_lines, self.company_id
         )
@@ -4667,7 +4667,7 @@ class AccountMove(models.Model):
         term_amount_currency,
         term_balance,
     ):
-        self.ensure_one()
+        self.check_singleton()
         bases_details = self._get_early_payment_discount_bases_details(
             base_lines, cash_discount_account, epd_analytic_distribution
         )
@@ -4780,7 +4780,7 @@ class AccountMove(models.Model):
     def _get_invoice_counterpart_amls_for_early_payment_discount_per_payment_term_line(
         self,
     ):
-        self.ensure_one()
+        self.check_singleton()
 
         payment_term_line = self.line_ids.filtered(
             lambda x: x.display_type == "payment_term"
@@ -4798,7 +4798,7 @@ class AccountMove(models.Model):
         if not (payment_term.early_discount and payment_term.discount_percentage):
             return res
 
-        payment_term_line.ensure_one()
+        payment_term_line.check_singleton()
 
         tax_amounts = defaultdict(lambda: {"amount_currency": 0.0, "balance": 0.0})
         for line in tax_lines:
@@ -4935,7 +4935,7 @@ class AccountMove(models.Model):
         )
 
     def _get_move_display_name(self, show_ref=False):
-        self.ensure_one()
+        self.check_singleton()
         if self.env.context.get("name_as_amount_total"):
             currency_amount = self.currency_id.format(self.amount_total)
             if self.is_sale_document(include_receipts=True) and self.state == "posted":
@@ -5030,7 +5030,7 @@ class AccountMove(models.Model):
             )
 
     def _get_all_reconciled_invoice_partials(self):
-        self.ensure_one()
+        self.check_singleton()
         reconciled_lines = self._get_receivable_payable_lines()
         if not reconciled_lines.ids:
             return []
@@ -5081,7 +5081,7 @@ class AccountMove(models.Model):
         return partial_values_list
 
     def _get_reconciled_invoices_partials(self):
-        self.ensure_one()
+        self.check_singleton()
         pay_term_lines = self._get_receivable_payable_lines()
         invoice_partials = []
         exchange_diff_moves = []
@@ -5170,7 +5170,7 @@ class AccountMove(models.Model):
         return reverse_moves
 
     def _can_be_unlinked(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.inalterable_hash:
             return False
         if self.state != "posted":
@@ -5806,7 +5806,7 @@ class AccountMove(models.Model):
     def _find_and_set_purchase_orders(
         self, po_references, partner_id, amount_total, from_ocr=False, timeout=10
     ):
-        self.ensure_one()
+        self.check_singleton()
 
     def _link_bill_origin_to_purchase_orders(self, timeout=10):
         for move in self.filtered(lambda m: m.move_type in self.get_purchase_types()):
@@ -5817,7 +5817,7 @@ class AccountMove(models.Model):
         return self
 
     def _autopost_bill(self):
-        self.ensure_one()
+        self.check_singleton()
         if (
             self.company_id.autopost_bills
             and self.partner_id
@@ -5889,7 +5889,7 @@ class AccountMove(models.Model):
         return self.line_ids.open_reconcile_view()
 
     def action_view_business_doc(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.origin_payment_id:
             name = _("Payment")
             res_model = "account.payment"
@@ -5948,7 +5948,7 @@ class AccountMove(models.Model):
             self.env.add_to_compute(self.line_ids._fields["account_id"], self.line_ids)
 
     def open_created_caba_entries(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "name": _("Cash Basis Entries"),
@@ -5962,13 +5962,13 @@ class AccountMove(models.Model):
         }
 
     def open_adjusting_entries(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.adjusting_entries_move_ids._get_records_action(
             name="Adjusting Entries"
         )
 
     def open_adjusting_entry_origin_moves(self):
-        self.ensure_one()
+        self.check_singleton()
         label = (
             self.adjusting_entry_origin_label
             if len(self.adjusting_entries_move_ids) == 1
@@ -6059,7 +6059,7 @@ class AccountMove(models.Model):
         return self.line_ids.action_register_payment()
 
     def action_duplicate(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "account.action_move_journal_line"
         )
@@ -6086,7 +6086,7 @@ class AccountMove(models.Model):
         }
 
     def action_invoice_sent(self):
-        self.ensure_one()
+        self.check_singleton()
         report_action = self.action_send_and_print()
         report_action["context"].update({"allow_partners_without_mail": True})
         return self._get_action_with_base_document_layout_configurator(report_action)
@@ -6106,7 +6106,7 @@ class AccountMove(models.Model):
         }
 
     def action_print_pdf(self):
-        self.ensure_one()
+        self.check_singleton()
         invoice_template = self.env[
             "mixin.account.move.send"
         ]._get_default_pdf_report_id(self)
@@ -6114,7 +6114,7 @@ class AccountMove(models.Model):
         return self._get_action_with_base_document_layout_configurator(report_action)
 
     def preview_invoice(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_url",
             "target": "self",
@@ -6192,7 +6192,7 @@ class AccountMove(models.Model):
         )
 
     def js_assign_outstanding_line(self, line_id):
-        self.ensure_one()
+        self.check_singleton()
         counterpart_line = self.env["account.move.line"].browse(line_id).exists()
         if (
             not counterpart_line
@@ -6212,7 +6212,7 @@ class AccountMove(models.Model):
         return lines.reconcile()
 
     def js_remove_outstanding_partial(self, partial_id):
-        self.ensure_one()
+        self.check_singleton()
         partial = self.env["account.partial.reconcile"].browse(partial_id).exists()
         if not (partial.debit_move_id + partial.credit_move_id) & self.line_ids:
             raise UserError(
@@ -6315,7 +6315,7 @@ class AccountMove(models.Model):
         self._hash_moves(force_hash=True)
 
     def button_request_cancel(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.need_cancel_request:
             raise UserError(
                 _(
@@ -6336,7 +6336,7 @@ class AccountMove(models.Model):
         self.write({"auto_post": "no", "state": "cancel"})
 
     def action_toggle_block_payment(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.payment_state == "blocked":
             self.payment_state = "not_paid"
             self.env.add_to_compute(self._fields["payment_state"], self)
@@ -6375,7 +6375,7 @@ class AccountMove(models.Model):
         groups = super()._notify_get_recipients_groups(
             message, model_description, msg_vals=msg_vals
         )
-        self.ensure_one()
+        self.check_singleton()
 
         if self.move_type != "entry":
             local_msg_vals = dict(msg_vals or {})
@@ -6501,7 +6501,7 @@ class AccountMove(models.Model):
     def _is_action_report_available(self, action_report, is_invoice_report=True):
         assert len(action_report) == 1
 
-        self.ensure_one()
+        self.check_singleton()
 
         if available_report := action_report.filtered(
             lambda available_report: (
@@ -6605,7 +6605,7 @@ class AccountMove(models.Model):
         return report_action
 
     def _get_installments_data(self):
-        self.ensure_one()
+        self.check_singleton()
         term_lines = self.line_ids.filtered(lambda l: l.display_type == "payment_term")
         return term_lines._get_installments_data()
 
@@ -6685,7 +6685,7 @@ class AccountMove(models.Model):
         )
 
     def _get_invoice_next_payment_values(self, custom_amount=None):
-        self.ensure_one()
+        self.check_singleton()
         term_lines = self.line_ids.filtered(
             lambda line: line.display_type == "payment_term"
         )
@@ -6734,7 +6734,7 @@ class AccountMove(models.Model):
         }
 
     def _get_invoice_portal_extra_values(self, custom_amount=None):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "invoice": self,
             "currency": self.currency_id,
@@ -6742,7 +6742,7 @@ class AccountMove(models.Model):
         }
 
     def _get_accounting_date(self, invoice_date, has_tax, lock_dates=None):
-        self.ensure_one()
+        self.check_singleton()
         lock_dates = lock_dates or self._get_violated_lock_dates(invoice_date, has_tax)
         today = fields.Date.context_today(self)
         highest_name = self.highest_name or self._get_last_sequence(relaxed=True)
@@ -6768,7 +6768,7 @@ class AccountMove(models.Model):
         return invoice_date
 
     def _get_violated_lock_dates(self, invoice_date, has_tax):
-        self.ensure_one()
+        self.check_singleton()
         return self.company_id._get_violated_lock_dates(
             invoice_date, has_tax, self.journal_id
         )
@@ -6822,7 +6822,7 @@ class AccountMove(models.Model):
         return preview_vals
 
     def _get_qr_code_method(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.qr_code_method:
             error_msg = self.partner_bank_id._get_error_messages_for_qr(
                 self.qr_code_method, self.partner_id, self.currency_id
@@ -6840,13 +6840,13 @@ class AccountMove(models.Model):
         return False
 
     def _update_qr_code_method(self, qr_code_method):
-        self.ensure_one()
+        self.check_singleton()
         if qr_code_method == self.qr_code_method or not self.has_access("write"):
             return
         self.qr_code_method = qr_code_method
 
     def _generate_qr_code(self, silent_errors=False):
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.display_qr_code:
             return None
@@ -6871,10 +6871,10 @@ class AccountMove(models.Model):
         return rslt
 
     def _generate_portal_payment_qr(self):
-        self.ensure_one()
+        self.check_singleton()
 
     def _get_portal_payment_link(self):
-        self.ensure_one()
+        self.check_singleton()
 
     def _generate_and_send(
         self, force_synchronous=True, allow_fallback_pdf=True, **custom_settings
@@ -6904,7 +6904,7 @@ class AccountMove(models.Model):
         return wizard
 
     def _get_invoice_pdf_proforma(self):
-        self.ensure_one()
+        self.check_singleton()
         filename = self._get_invoice_proforma_pdf_report_filename()
         content, report_type = self.env["ir.actions.report"]._pre_render_qweb_pdf(
             "account.account_invoices", self.ids, data={"proforma": True}
@@ -6919,7 +6919,7 @@ class AccountMove(models.Model):
         }
 
     def _get_invoice_legal_documents(self, filetype, allow_fallback=False):
-        self.ensure_one()
+        self.check_singleton()
         if filetype == "pdf":
             if invoice_pdf := self.invoice_pdf_report_id:
                 return {
@@ -6932,7 +6932,7 @@ class AccountMove(models.Model):
         return None
 
     def _get_invoice_legal_documents_all(self, allow_fallback=False):
-        self.ensure_one()
+        self.check_singleton()
         if self.invoice_pdf_report_id:
             attachments = self.env[
                 "mixin.account.move.send"
@@ -6950,12 +6950,12 @@ class AccountMove(models.Model):
         return None
 
     def _get_report_filename(self, file_name, extension):
-        self.ensure_one()
+        self.check_singleton()
         stem = file_name or self._get_move_display_name()
         return f"{stem.replace('/', '_')}.{extension}"
 
     def _get_invoice_report_filename(self, extension="pdf", report=None):
-        self.ensure_one()
+        self.check_singleton()
         if not report:
             report = self.partner_id.invoice_template_pdf_report_id or self.env.ref(
                 "account.account_invoices"
@@ -6969,14 +6969,14 @@ class AccountMove(models.Model):
     def _get_invoice_mail_template_dynamic_report_filename(
         self, report, extension="pdf"
     ):
-        self.ensure_one()
+        self.check_singleton()
         if not report.print_report_name:
             return False
         file_name = safe_eval(report.print_report_name, {"object": self})
         return self._get_report_filename(file_name, extension)
 
     def _get_invoice_proforma_pdf_report_filename(self):
-        self.ensure_one()
+        self.check_singleton()
         stem = self._get_move_display_name().replace(" ", "_")
         return self._get_report_filename(f"{stem}_proforma", "pdf")
 
@@ -7075,11 +7075,11 @@ class AccountMove(models.Model):
         pass
 
     def _is_ready_to_be_sent(self):
-        self.ensure_one()
+        self.check_singleton()
         return True
 
     def _can_force_cancel(self):
-        self.ensure_one()
+        self.check_singleton()
         return False
 
     @contextmanager
@@ -7119,7 +7119,7 @@ class AccountMove(models.Model):
         return self._get_invoice_in_payment_state() == "in_payment"
 
     def _get_name_invoice_report(self):
-        self.ensure_one()
+        self.check_singleton()
         return "account.report_invoice_document"
 
     def _is_downpayment(self):
@@ -7164,7 +7164,7 @@ class AccountMove(models.Model):
         return []
 
     def _has_move_zip_export_docs(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.state != "posted":
             return False
         if self.is_purchase_document(include_receipts=True):
@@ -7172,7 +7172,7 @@ class AccountMove(models.Model):
         return bool(self.invoice_pdf_report_id)
 
     def _get_move_zip_export_docs(self):
-        self.ensure_one()
+        self.check_singleton()
 
         if self.state != "posted":
             return []

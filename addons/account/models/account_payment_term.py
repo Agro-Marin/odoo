@@ -116,7 +116,7 @@ class AccountPaymentTerm(models.Model):
             )
 
     def _get_amount_due_after_discount(self, total_amount, untaxed_amount, currency):
-        self.ensure_one()
+        self.check_singleton()
         if not self.early_discount:
             return currency.round(total_amount)
         percentage = self.discount_percentage / 100.0
@@ -307,7 +307,7 @@ class AccountPaymentTerm(models.Model):
         sign,
         cash_rounding=None,
     ):
-        self.ensure_one()
+        self.check_singleton()
         company_currency = company.currency_id
         total_amount = tax_amount + untaxed_amount
         total_amount_currency = tax_amount_currency + untaxed_amount_currency
@@ -386,7 +386,7 @@ class AccountPaymentTerm(models.Model):
             )
 
     def _get_last_discount_date(self, date_ref):
-        self.ensure_one()
+        self.check_singleton()
         if not (self.early_discount and date_ref):
             return False
         return date_ref + relativedelta(days=self.discount_days)
@@ -462,7 +462,7 @@ class AccountPaymentTermLine(models.Model):
         total_amount,
         total_amount_currency,
     ):
-        self.ensure_one()
+        self.check_singleton()
         if self.value == "fixed":
             # with nothing to allocate there is no rate, and a fixed amount would
             # otherwise be booked against a total that does not exist
@@ -478,7 +478,7 @@ class AccountPaymentTermLine(models.Model):
         )
 
     def _get_due_date(self, date_ref):
-        self.ensure_one()
+        self.check_singleton()
         due_date = fields.Date.from_string(date_ref) or fields.Date.today()
         if self.delay_type == "days_after_end_of_month":
             return date_utils.end_of(due_date, "month") + relativedelta(

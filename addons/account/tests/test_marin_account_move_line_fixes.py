@@ -75,7 +75,7 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
         term_line = invoice.line_ids.filtered(
             lambda l: l.display_type == "payment_term"
         )
-        term_line.ensure_one()
+        term_line.check_singleton()
 
         before = term_line.term_key
         term_line.discount_date = "2099-01-01"

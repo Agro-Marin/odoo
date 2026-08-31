@@ -119,7 +119,7 @@ class ResConfigSettings(models.TransientModel):
         }
 
     def button_peppol_disconnect_branch_from_parent(self):
-        self.ensure_one()
+        self.check_singleton()
         previous_parent_company_name = self.company_id.peppol_parent_company_id.name
         self.account_peppol_edi_user._peppol_deregister_participant()
         return {
@@ -136,12 +136,12 @@ class ResConfigSettings(models.TransientModel):
     # Dreprecated
     def button_peppol_register_sender_as_receiver(self):
         """Register the existing user as a receiver."""
-        self.ensure_one()
+        self.check_singleton()
         return self.env['peppol.config.wizard'].new().button_peppol_register_sender_as_receiver()
 
     def button_reconnect_this_database(self):
         """Re-establish an out-of-sync connection"""
-        self.ensure_one()
+        self.check_singleton()
         self.account_peppol_edi_user._peppol_out_of_sync_reconnect_this_database()
 
     def button_disconnect_this_database(self):
@@ -149,12 +149,12 @@ class ResConfigSettings(models.TransientModel):
         This does not delete or affect the IAP connection, which will remain intact.
         So don't use this to deregister the participant/connection.
         """
-        self.ensure_one()
+        self.check_singleton()
         self.account_peppol_edi_user._peppol_out_of_sync_disconnect_this_database()
 
     def button_peppol_deregister(self):
         """Unregister the user from Peppol network."""
-        self.ensure_one()
+        self.check_singleton()
 
         if self.account_peppol_edi_user:
             self.account_peppol_edi_user._peppol_deregister_participant()

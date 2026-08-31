@@ -153,7 +153,7 @@ class AccountPayment(models.Model):
 
     def _get_aml_default_display_name_list(self):
         # Extends 'account'
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.check_number:
             return super()._get_aml_default_display_name_list()
@@ -317,7 +317,7 @@ class AccountPayment(models.Model):
         """The stub is the summary of paid invoices. It may spill on several pages, in which case only the check on
         first page is valid. This function returns a list of stub lines per page.
         """
-        self.ensure_one()
+        self.check_singleton()
 
         def prepare_vals(invoice, partials=None, current_amount=0):
             invoice_name = invoice.name or "/"

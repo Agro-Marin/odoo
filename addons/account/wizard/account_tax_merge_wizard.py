@@ -147,7 +147,7 @@ class AccountTaxMergeWizard(models.TransientModel):
             },
         }
 
-    def _get_excluded_merge_tables(self, model):
+    def _get_merge_tables_excluded(self, model):
         # The generic repoint moves EVERY foreign key naming account.tax onto
         # the survivor, and account_tax_repartition_line.tax_id is one of them.
         # Left in, the survivor ends up holding both taxes' distribution lines --
@@ -155,7 +155,7 @@ class AccountTaxMergeWizard(models.TransientModel):
         # constraint objects at the time. The removed taxes keep their own lines
         # and take them along when they are deleted; the journal items that
         # referenced them were already moved by _repoint_repartition_lines.
-        return super()._get_excluded_merge_tables(model) | {
+        return super()._get_merge_tables_excluded(model) | {
             self.env["account.tax.repartition.line"]._table
         }
 

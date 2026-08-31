@@ -30,7 +30,7 @@ class FleetVehicleLogServices(models.Model):
             log_service.amount = log_service.account_move_line_id.debit
 
     def action_view_account_move(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             'type': 'ir.actions.act_window',
             'view_mode': 'form',

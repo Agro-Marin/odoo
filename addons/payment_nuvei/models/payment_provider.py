@@ -50,7 +50,7 @@ class PaymentProvider(models.Model):
 
     def _get_default_payment_method_codes(self):
         """ Override of `payment` to return the default payment method codes. """
-        self.ensure_one()
+        self.check_singleton()
         if self.code != 'nuvei':
             return super()._get_default_payment_method_codes()
         return const.DEFAULT_PAYMENT_METHOD_CODES
@@ -72,7 +72,7 @@ class PaymentProvider(models.Model):
         :return: The calculated signature.
         :rtype: str
         """
-        self.ensure_one()
+        self.check_singleton()
         signature_keys = const.SIGNATURE_KEYS if incoming else data.keys()
         sign_data = ''.join([str(data.get(k, '')) for k in signature_keys])
         key = self.nuvei_secret_key

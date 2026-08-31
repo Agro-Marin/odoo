@@ -41,13 +41,13 @@ def include_shipping_address(tx_sudo):
     """ Include the shipping address of the related sales order or invoice to the payload of the API
     request. If no related sales order or invoice exists, the addres is not included.
 
-    Note: `self.ensure_one()`
+    Note: `self.check_singleton()`
 
     :param payment.transaction tx_sudo: The sudoed transaction of the payment.
     :return: The subset of the API payload that includes the billing and delivery addresses.
     :rtype: dict
     """
-    tx_sudo.ensure_one()
+    tx_sudo.check_singleton()
 
     if 'sale_order_ids' in tx_sudo._fields and tx_sudo.sale_order_ids:
         order = tx_sudo.sale_order_ids[:1]

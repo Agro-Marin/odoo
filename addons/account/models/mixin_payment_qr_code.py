@@ -6,7 +6,7 @@ class MixinPaymentQrCode(models.AbstractModel):
     _description = "Payment QR Code Rendering"
 
     def _can_render_payment_qr_code(self):
-        self.ensure_one()
+        self.check_singleton()
         return bool(
             self.partner_bank_id
             and self.partner_bank_id.allow_out_payment
@@ -17,7 +17,7 @@ class MixinPaymentQrCode(models.AbstractModel):
         )
 
     def _render_payment_qr_code(self, amount, communication):
-        self.ensure_one()
+        self.check_singleton()
         if not self._can_render_payment_qr_code():
             return False
         qr_code = self.partner_bank_id.build_qr_code_base64(

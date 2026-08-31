@@ -86,7 +86,7 @@ class AccountMove(models.Model):
         pass
 
     def _prepare_edi_vals_to_export(self):
-        self.ensure_one()
+        self.check_singleton()
 
         res = {
             "record": self,

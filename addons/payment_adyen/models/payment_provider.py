@@ -64,7 +64,7 @@ class PaymentProvider(models.Model):
 
     def _get_default_payment_method_codes(self):
         """Override of `payment` to return the default payment method codes."""
-        self.ensure_one()
+        self.check_singleton()
         if self.code != 'adyen':
             return super()._get_default_payment_method_codes()
         return const.DEFAULT_PAYMENT_METHOD_CODES
@@ -97,7 +97,7 @@ class PaymentProvider(models.Model):
     def _adyen_get_inline_form_values(self, pm_code, amount=None, currency=None):
         """ Return a serialized JSON of the required values to render the inline form.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :param str pm_code: The code of the payment method whose inline form to render.
         :param float amount: The transaction amount.
@@ -105,7 +105,7 @@ class PaymentProvider(models.Model):
         :return: The JSON serial of the required values to render the inline form.
         :rtype: str
         """
-        self.ensure_one()
+        self.check_singleton()
 
         inline_form_values = {
             'client_key': self.adyen_client_key,

@@ -182,7 +182,7 @@ class CertificateKey(models.Model):
         return ["!", *loaded]
 
     def _sign(self, message, hashing_algorithm="sha256", formatting="encodebytes"):
-        self.ensure_one()
+        self.check_singleton()
 
         if self.public:
             raise UserError(_("Make sure to use a private key to sign documents."))
@@ -200,7 +200,7 @@ class CertificateKey(models.Model):
         )
 
     def _verify(self, signed_message, signature, hashing_algorithm="sha256"):
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.public:
             raise UserError(
@@ -219,7 +219,7 @@ class CertificateKey(models.Model):
         )
 
     def _get_public_key_numbers_bytes(self, formatting="encodebytes"):
-        self.ensure_one()
+        self.check_singleton()
 
         return self._numbers_public_key_bytes_with_key(
             self._get_public_key_bytes(encoding="PEM"),
@@ -227,7 +227,7 @@ class CertificateKey(models.Model):
         )
 
     def _get_public_key_bytes(self, encoding="der", formatting="encodebytes"):
-        self.ensure_one()
+        self.check_singleton()
 
         if self.public:
             public_key = serialization.load_pem_public_key(
@@ -256,7 +256,7 @@ class CertificateKey(models.Model):
         )
 
     def _get_unencrypted_pem_key(self, formatting="base64"):
-        self.ensure_one()
+        self.check_singleton()
 
         if self.public:
             raise UserError(_("A private key is required."))
@@ -338,7 +338,7 @@ class CertificateKey(models.Model):
         return pem_key, public, ""
 
     def _decrypt(self, message, hashing_algorithm="sha256"):
-        self.ensure_one()
+        self.check_singleton()
 
         if not isinstance(message, bytes):
             message = message.encode("utf-8")

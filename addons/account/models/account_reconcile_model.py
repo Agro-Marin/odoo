@@ -272,7 +272,7 @@ class AccountReconcileModel(models.Model):
         self.trigger = "auto_reconcile"
 
     def action_reconcile_stat(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "account.action_move_journal_line"
         )

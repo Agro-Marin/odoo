@@ -17,7 +17,7 @@ class PaymentTransaction(models.Model):
     def _get_specific_processing_values(self, processing_values):
         """ Override of payment to return an access token as provider-specific processing values.
 
-        Note: self.ensure_one() from `_get_processing_values`
+        Note: self.check_singleton() from `_get_processing_values`
 
         :param dict processing_values: The generic processing values of the transaction
         :return: The dict of provider-specific processing values
@@ -35,12 +35,12 @@ class PaymentTransaction(models.Model):
     def _authorize_create_transaction_request(self, opaque_data):
         """ Create an Authorize.Net payment transaction request.
 
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :param dict opaque_data: The payment details obfuscated by Authorize.Net
         :return:
         """
-        self.ensure_one()
+        self.check_singleton()
 
         authorize_API = AuthorizeAPI(self.provider_id)
         if self.provider_id.capture_manually or self.operation == 'validation':

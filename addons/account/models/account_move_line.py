@@ -1181,7 +1181,7 @@ class AccountMoveLine(models.Model):
                 line.tax_ids = line._get_computed_taxes()
 
     def _get_computed_taxes(self):
-        self.ensure_one()
+        self.check_singleton()
 
         company_domain = self.env["account.tax"]._check_company_domain(
             self.move_id.company_id
@@ -1846,7 +1846,7 @@ class AccountMoveLine(models.Model):
                     )
 
     def _affect_tax_report(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.tax_ids
             or self.tax_line_id
@@ -1975,7 +1975,7 @@ class AccountMoveLine(models.Model):
         # is the convention the constraint below already enforces; comparing the
         # raw float instead admits a window just under 100 where the sync builds a
         # "private part" line the vals builder then declines to populate.
-        self.ensure_one()
+        self.check_singleton()
         return float_compare(self.deductible_amount, 100, precision_digits=2) < 0
 
     @api.constrains("deductible_amount")
@@ -2527,7 +2527,7 @@ class AccountMoveLine(models.Model):
         for line in lines_to_validate:
             line.has_invalid_analytics = False
             try:
-                line.with_context(validate_analytic=True)._validate_distribution(
+                line.with_context(validate_analytic=True)._check_distribution(
                     company_id=line.company_id.id,
                     product=line.product_id.id,
                     account=line.account_id.id,
@@ -2619,7 +2619,7 @@ class AccountMoveLine(models.Model):
 
 
     def _get_reconciliation_aml_field_value(self, field, shadowed_aml_values):
-        self.ensure_one()
+        self.check_singleton()
         if shadowed_aml_values and field in shadowed_aml_values.get(self, {}):
             return shadowed_aml_values[self][field]
         else:
@@ -3554,7 +3554,7 @@ class AccountMoveLine(models.Model):
         amount_residual_to_fix,
         analytic_distribution=None,
     ):
-        self.ensure_one()
+        self.check_singleton()
         counterpart_account = self._get_exchange_account(
             company, amount_residual_to_fix
         )
@@ -3691,7 +3691,7 @@ class AccountMoveLine(models.Model):
 
 
     def _get_analytic_business_domain(self):
-        self.ensure_one()
+        self.check_singleton()
         move = self.move_id
         if move.is_sale_document(include_receipts=True):
             return "invoice"
@@ -3703,7 +3703,7 @@ class AccountMoveLine(models.Model):
         lines_with_missing_analytic_distribution = self.env["account.move.line"]
         for line in self.filtered(lambda line: line.display_type == "product"):
             try:
-                line._validate_distribution(
+                line._check_distribution(
                     company_id=line.company_id.id,
                     product=line.product_id.id,
                     account=line.account_id.id,
@@ -3746,7 +3746,7 @@ class AccountMoveLine(models.Model):
         )
 
     def _prepare_analytic_lines(self):
-        self.ensure_one()
+        self.check_singleton()
         analytic_line_vals = []
         if self.analytic_distribution:
             distribution_on_each_plan = {}
@@ -3763,7 +3763,7 @@ class AccountMoveLine(models.Model):
     def _prepare_analytic_distribution_line(
         self, distribution, account_ids, distribution_on_each_plan
     ):
-        self.ensure_one()
+        self.check_singleton()
         account_field_values = {}
         decimal_precision = self.env["decimal.precision"].get_precision(
             "Percentage Analytic"
@@ -3867,7 +3867,7 @@ class AccountMoveLine(models.Model):
         self, payment_currency=None, payment_date=None, next_payment_date=None
     ):
         move = self.move_id
-        move.ensure_one()
+        move.check_singleton()
 
         payment_date = payment_date or fields.Date.context_today(self)
 
@@ -4082,7 +4082,7 @@ class AccountMoveLine(models.Model):
         ]
 
     def _prepare_edi_vals_to_export(self):
-        self.ensure_one()
+        self.check_singleton()
 
 
         if float_compare(self.discount, 100.0, precision_digits=2) == 0:
@@ -4132,7 +4132,7 @@ class AccountMoveLine(models.Model):
         return self.product_id.type != "combo"
 
     def _get_aml_values(self, **kwargs):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": self.name,
             "account_id": self.account_id.id,
@@ -4150,11 +4150,11 @@ class AccountMoveLine(models.Model):
         }
 
     def _filter_aml_lot_valuation(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.move_id.state == "posted"
 
     def _get_child_lines(self):
-        self.ensure_one()
+        self.check_singleton()
 
         section_lines = self.move_id.invoice_line_ids.filtered(
             lambda l: self in (l.parent_id, l.parent_id.parent_id)
@@ -4241,11 +4241,11 @@ class AccountMoveLine(models.Model):
         return self.parent_id
 
     def _get_section_lines(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.move_id.invoice_line_ids.filtered(self._is_line_in_section)
 
     def _is_line_in_section(self, line):
-        self.ensure_one()
+        self.check_singleton()
         is_direct_child = line.parent_id == self
         is_indirect_child = (
             self.display_type == "line_section"
@@ -4291,7 +4291,7 @@ class AccountMoveLine(models.Model):
 
     def _get_product_catalog_lines_data(self, **kwargs):
         if self:
-            self.product_id.ensure_one()
+            self.product_id.check_singleton()
             return {
                 **self[0].move_id._get_product_price_and_data(self[0].product_id),
                 "quantity": sum(
@@ -4321,7 +4321,7 @@ class AccountMoveLine(models.Model):
 
 
     def _copy_data_extend_business_fields(self, values):
-        self.ensure_one()
+        self.check_singleton()
 
     def _get_downpayment_lines(self):
         return self.env["account.move.line"]
@@ -4330,7 +4330,7 @@ class AccountMoveLine(models.Model):
         return self.filtered(lambda line: line.display_type == "discount")
 
     def _is_empty_line(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.display_type == "product"
             and not self.product_id

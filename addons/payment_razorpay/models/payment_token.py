@@ -15,7 +15,7 @@ class PaymentToken(models.Model):
         :return: A warning message when the maximum payment amount is exceeded.
         :rtype: str
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if not amount or self.provider_code != 'razorpay':
             return ""

@@ -334,7 +334,7 @@ class AccountPayment(models.Model):
         return ["asset_receivable", "liability_payable"]
 
     def _seek_for_lines(self):
-        self.ensure_one()
+        self.check_singleton()
 
         empty = self.env["account.move.line"]
         buckets = ([], [], [])
@@ -361,7 +361,7 @@ class AccountPayment(models.Model):
         return lines
 
     def _get_valid_liquidity_accounts(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.journal_id.default_account_id
             | self.payment_channel_id.payment_account_id
@@ -378,7 +378,7 @@ class AccountPayment(models.Model):
         return ["in_process", "paid"]
 
     def _get_aml_default_display_name_list(self):
-        self.ensure_one()
+        self.check_singleton()
         label = (
             self.payment_channel_id.name
             if self.payment_channel_id
@@ -396,11 +396,11 @@ class AccountPayment(models.Model):
         ]
 
     def _prepare_move_withholding_lines(self, default_values):
-        self.ensure_one()
+        self.check_singleton()
         return []
 
     def _prepare_move_liquidity_lines(self, default_values):
-        self.ensure_one()
+        self.check_singleton()
         return [
             {
                 "name": default_values["name"],
@@ -414,7 +414,7 @@ class AccountPayment(models.Model):
         ]
 
     def _prepare_move_counterpart_lines(self, default_values):
-        self.ensure_one()
+        self.check_singleton()
         return [
             {
                 "name": default_values["name"],
@@ -430,7 +430,7 @@ class AccountPayment(models.Model):
     def _prepare_move_lines_per_type(
         self, write_off_line_vals=None, force_balance=None
     ):
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.outstanding_account_id:
             raise UserError(
@@ -504,7 +504,7 @@ class AccountPayment(models.Model):
     def _prepare_move_line_default_vals(
         self, write_off_line_vals=None, force_balance=None
     ):
-        self.ensure_one()
+        self.check_singleton()
 
         line_vals_per_type = self._prepare_move_lines_per_type(
             write_off_line_vals=write_off_line_vals, force_balance=force_balance
@@ -803,7 +803,7 @@ class AccountPayment(models.Model):
             )
 
     def _get_payment_method_codes_to_exclude(self):
-        self.ensure_one()
+        self.check_singleton()
         return []
 
     @api.depends("journal_id.currency_id", "company_id.currency_id")
@@ -1016,7 +1016,7 @@ class AccountPayment(models.Model):
 
         payment_table_and_alias = SQL("account_payment AS payment")
         if not self.ids:
-            self.ensure_one()
+            self.check_singleton()
             values = {
                 field_name: self._fields[field_name].convert_to_write(
                     self[field_name], self
@@ -1335,7 +1335,7 @@ class AccountPayment(models.Model):
     def _generate_move_vals(
         self, write_off_line_vals=None, force_balance=None, line_ids=None
     ):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "move_type": "entry",
             "ref": self.memo,
@@ -1356,7 +1356,7 @@ class AccountPayment(models.Model):
         }
 
     def _get_payment_receipt_report_values(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "display_invoices": True,
             "display_payment_method": True,
@@ -1410,7 +1410,7 @@ class AccountPayment(models.Model):
         self.move_id.action_draft()
 
     def button_open_invoices(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.reconciled_invoice_ids.with_context(
             create=False
         )._get_records_action(
@@ -1418,7 +1418,7 @@ class AccountPayment(models.Model):
         )
 
     def button_open_bills(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.reconciled_bill_ids.with_context(
             create=False
         )._get_records_action(
@@ -1426,7 +1426,7 @@ class AccountPayment(models.Model):
         )
 
     def button_open_statement_lines(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.reconciled_statement_line_ids.with_context(
             create=False
         )._get_records_action(
@@ -1434,7 +1434,7 @@ class AccountPayment(models.Model):
         )
 
     def button_open_journal_entry(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Journal Entry"),
             "type": "ir.actions.act_window",

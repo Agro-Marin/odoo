@@ -305,7 +305,7 @@ class AccountFiscalPosition(models.Model):
     def map_tax(self, taxes):
         if not self:
             return taxes
-        self.ensure_one()
+        self.check_singleton()
         if not self.tax_ids:
             return taxes.filtered(lambda tax: not tax.fiscal_position_ids)
         return self.env["account.tax"].browse(
@@ -319,7 +319,7 @@ class AccountFiscalPosition(models.Model):
     def map_account(self, account):
         if not self:
             return account
-        self.ensure_one()
+        self.check_singleton()
         return self.env["account.account"].browse(
             (self.account_map or {}).get(account.id, account.id)
         )
@@ -428,7 +428,7 @@ class AccountFiscalPosition(models.Model):
         }
 
     def action_create_foreign_taxes(self):
-        self.ensure_one()
+        self.check_singleton()
         template = self._get_foreign_tax_chart_template(self.country_id)
         if not template["installed"]:
             localization_module = self.env["ir.module.module"].search(

@@ -58,7 +58,7 @@ class AccountMove(models.Model):
                  pending on a real provider, and whether the online-payment feature is enabled.
         :rtype: tuple(recordset, recordset, bool)
         """
-        self.ensure_one()
+        self.check_singleton()
         transactions = self.transaction_ids.filtered(
             lambda tx: tx.state in ("pending", "authorized", "done")
         )
@@ -112,12 +112,12 @@ class AccountMove(models.Model):
 
     @api.private
     def get_portal_last_transaction(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.with_context(active_test=False).sudo().transaction_ids._get_last()
 
     def payment_action_capture(self):
         """Capture all transactions linked to this invoice."""
-        self.ensure_one()
+        self.check_singleton()
         payment_utils.check_rights_on_recordset(self)
 
         # In sudo mode to bypass the checks on the rights on the transactions.
@@ -125,7 +125,7 @@ class AccountMove(models.Model):
 
     def payment_action_void(self):
         """Void all transactions linked to this invoice."""
-        self.ensure_one()
+        self.check_singleton()
         payment_utils.check_rights_on_recordset(self)
 
         # In sudo mode to bypass the checks on the rights on the transactions.
@@ -184,7 +184,7 @@ class AccountMove(models.Model):
         }
 
     def _generate_portal_payment_qr(self):
-        self.ensure_one()
+        self.check_singleton()
         portal_url = self._get_portal_payment_link()
         barcode = self.env["ir.actions.report"].prepare_barcode(
             barcode_type="QR", value=portal_url, width=128, height=128, quiet=False
@@ -192,7 +192,7 @@ class AccountMove(models.Model):
         return image_data_uri(base64.b64encode(barcode))
 
     def _get_portal_payment_link(self):
-        self.ensure_one()
+        self.check_singleton()
         payment_link_wizard = (
             self.env["payment.link.wizard"]
             .with_context(active_id=self.id, active_model=self._name)

@@ -19,7 +19,7 @@ class AccountMove(models.Model):
             inv.debit_note_count = data_map.get(inv.id, 0.0)
 
     def action_view_debit_notes(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             'type': 'ir.actions.act_window',
             'name': _('Debit Notes'),

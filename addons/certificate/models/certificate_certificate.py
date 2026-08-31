@@ -404,13 +404,13 @@ class CertificateCertificate(models.Model):
         )[:1]
 
     def _load_certificate(self):
-        self.ensure_one()
+        self.check_singleton()
         return _parse_x509_certificate(
             base64.b64decode(self.with_context(bin_size=False).pem_certificate)
         )
 
     def _get_der_certificate_bytes(self, formatting="encodebytes"):
-        self.ensure_one()
+        self.check_singleton()
         cert = self._load_certificate()
         return _get_formatted_value(
             cert.public_bytes(serialization.Encoding.DER), formatting=formatting
@@ -419,7 +419,7 @@ class CertificateCertificate(models.Model):
     def _get_fingerprint_bytes(
         self, hashing_algorithm="sha256", formatting="encodebytes"
     ):
-        self.ensure_one()
+        self.check_singleton()
         cert = self._load_certificate()
         if hashing_algorithm not in STR_TO_HASH:
             raise UserError(  # pylint: disable=missing-gettext
@@ -430,12 +430,12 @@ class CertificateCertificate(models.Model):
         )
 
     def _get_signature_bytes(self, formatting="encodebytes"):
-        self.ensure_one()
+        self.check_singleton()
         cert = self._load_certificate()
         return _get_formatted_value(cert.signature, formatting=formatting)
 
     def _get_public_key_numbers_bytes(self, formatting="encodebytes"):
-        self.ensure_one()
+        self.check_singleton()
         if self.public_key_id or self.private_key_id:
             return (
                 self.public_key_id or self.private_key_id
@@ -447,7 +447,7 @@ class CertificateCertificate(models.Model):
         )
 
     def _get_public_key_bytes(self, encoding="der", formatting="encodebytes"):
-        self.ensure_one()
+        self.check_singleton()
         if self.public_key_id or self.private_key_id:
             return (self.public_key_id or self.private_key_id)._get_public_key_bytes(
                 encoding=encoding, formatting=formatting
@@ -474,7 +474,7 @@ class CertificateCertificate(models.Model):
         )
 
     def _sign(self, message, hashing_algorithm="sha256", formatting="encodebytes"):
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.is_valid:
             raise UserError(

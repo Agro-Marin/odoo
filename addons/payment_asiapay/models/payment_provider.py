@@ -66,7 +66,7 @@ class PaymentProvider(models.Model):
 
     def _get_default_payment_method_codes(self):
         """ Override of `payment` to return the default payment method codes. """
-        self.ensure_one()
+        self.check_singleton()
         if self.code != 'asiapay':
             return super()._get_default_payment_method_codes()
         return const.DEFAULT_PAYMENT_METHOD_CODES
@@ -79,7 +79,7 @@ class PaymentProvider(models.Model):
         :return: The API URL.
         :rtype: str
         """
-        self.ensure_one()
+        self.check_singleton()
 
         environment = 'production' if self.state == 'enabled' else 'test'
         api_urls = const.API_URLS[environment]

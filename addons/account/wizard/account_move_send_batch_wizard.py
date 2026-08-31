@@ -81,7 +81,7 @@ class AccountMoveSendBatchWizard(models.TransientModel):
 
 
     def action_send_and_print(self, force_synchronous=False, allow_fallback_pdf=False):
-        self.ensure_one()
+        self.check_singleton()
         if self.alerts:
             self._raise_danger_alerts(self.alerts)
         if force_synchronous:

@@ -104,7 +104,7 @@ class MixinCompanySplit(models.AbstractModel):
         )
 
     def _action_unmerge(self):
-        self.ensure_one()
+        self.check_singleton()
 
         self._check_action_unmerge_possible()
 

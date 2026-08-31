@@ -116,7 +116,7 @@ class MixinSequence(models.AbstractModel):
         return year % (10**length)
 
     def _sequence_matches_date(self):
-        self.ensure_one()
+        self.check_singleton()
         record_date = fields.Date.to_date(self[self._sequence_date_field])
         sequence = self[self._sequence_field]
 
@@ -245,18 +245,18 @@ class MixinSequence(models.AbstractModel):
         return re.sub(r"\?P<\w+>", "?:", regex)
 
     def _get_last_sequence_domain(self, relaxed=False):
-        self.ensure_one()
+        self.check_singleton()
         raise NotImplementedError(
             "Models inheriting 'mixin.sequence' must override "
             "'_get_last_sequence_domain' and return a 'WHERE ...' clause."
         )
 
     def _get_starting_sequence(self):
-        self.ensure_one()
+        self.check_singleton()
         return "00000000"
 
     def _get_last_sequence(self, relaxed=False, with_prefix=None):
-        self.ensure_one()
+        self.check_singleton()
         if (
             self._sequence_field not in self._fields
             or not self._fields[self._sequence_field].store
@@ -361,7 +361,7 @@ class MixinSequence(models.AbstractModel):
                     sp.rollback()
 
     def _set_next_sequence(self):
-        self.ensure_one()
+        self.check_singleton()
         format_string, format_values = self._get_next_sequence_format()
 
         sequence = self._locked_increment(format_string, format_values)

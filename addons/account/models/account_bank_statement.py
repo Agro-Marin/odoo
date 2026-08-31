@@ -138,7 +138,7 @@ class AccountBankStatement(models.Model):
             stmt.date = posted[-1:].date
 
     def _get_indexed_lines(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.line_ids.filtered("internal_index").sorted("internal_index")
 
     def _get_balance_start(self, stmt):
@@ -250,7 +250,7 @@ class AccountBankStatement(models.Model):
         return [("id", "not in", invalid_ids)]
 
     def _get_statement_validity(self):
-        self.ensure_one()
+        self.check_singleton()
         previous = self.env["account.bank.statement"].search(
             [
                 ("first_line_index", "<", self.first_line_index),

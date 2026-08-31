@@ -49,7 +49,7 @@ class AccountMoveSendWizard(models.TransientModel):
 
     def action_send_and_print(self, allow_fallback_pdf=False):
         # EXTENDS 'account'
-        self.ensure_one()
+        self.check_singleton()
         if self.sending_methods and 'peppol' in self.sending_methods:
             if self.move_id.partner_id.commercial_partner_id.peppol_verification_state != 'valid':
                 raise UserError(_("Partner doesn't have a valid Peppol configuration."))

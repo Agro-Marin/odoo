@@ -64,14 +64,14 @@ class AccountEdiFormat(models.Model):
         * cancel_batching:  function returning the batching key for the cancel flow
         * edi_content:      function called when computing the edi_content for an edi.document
         """
-        self.ensure_one()
+        self.check_singleton()
 
     def _needs_web_services(self):
         """Indicate if the EDI must be generated asynchronously through to some web services.
 
         :return: True if such a web service is available, False otherwise.
         """
-        self.ensure_one()
+        self.check_singleton()
         return False
 
     def _is_compatible_with_journal(self, journal):
@@ -82,7 +82,7 @@ class AccountEdiFormat(models.Model):
         :returns:       True if this format can appear on the journal, False otherwise.
         """
         # TO OVERRIDE
-        self.ensure_one()
+        self.check_singleton()
         return journal.type == "sale"
 
     def _is_enabled_by_default_on_journal(self, journal):
@@ -114,7 +114,7 @@ class AccountEdiFormat(models.Model):
         :param edi_document: The edi document to be added to the pdf file.
         """
         # TO OVERRIDE
-        self.ensure_one()
+        self.check_singleton()
 
     ####################################################
     # Other helpers

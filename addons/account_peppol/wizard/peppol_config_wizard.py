@@ -142,7 +142,7 @@ class PeppolConfigWizard(models.TransientModel):
         Note: The service configuration is DEPRECATED / hidden in the view.
         Disabling services can lead to complicance issues and is not necessary
         since all existing services should just work."""
-        self.ensure_one()
+        self.check_singleton()
 
         # Update company details
         if self.account_peppol_contact_email != self.company_id.account_peppol_contact_email:
@@ -161,7 +161,7 @@ class PeppolConfigWizard(models.TransientModel):
 
     def button_peppol_unregister(self):
         """Unregister the user from Peppol network."""
-        self.ensure_one()
+        self.check_singleton()
 
         if self.account_peppol_edi_user:
             self.account_peppol_edi_user._peppol_deregister_participant()
@@ -171,14 +171,14 @@ class PeppolConfigWizard(models.TransientModel):
 
     def button_peppol_reset_to_sender(self):
         """Reset the participant back to sender and unregister it from the SMP"""
-        self.ensure_one()
+        self.check_singleton()
         if self.account_peppol_edi_user:
             self.account_peppol_edi_user._peppol_deregister_participant_to_sender()
         return True
 
     def button_peppol_register_sender_as_receiver(self):
         """Reset the participant back to sender and unregister it from the SMP"""
-        self.ensure_one()
+        self.check_singleton()
         if self.account_peppol_edi_user:
             self.account_peppol_edi_user._peppol_register_sender_as_receiver()
             self.account_peppol_edi_user._peppol_get_participant_status()

@@ -20,7 +20,7 @@ class PaymentTransaction(models.Model):
     def _get_specific_processing_values(self, processing_values):
         """ Override of payment to return Stripe-specific processing values.
 
-        Note: self.ensure_one() from `_get_processing_values`
+        Note: self.check_singleton() from `_get_processing_values`
 
         :param dict processing_values: The generic processing values of the transaction
         :return: The dict of provider-specific processing values
@@ -389,7 +389,7 @@ class PaymentTransaction(models.Model):
     def _extract_token_values(self, payment_data):
         """Override of `payment` to return token data based on Stripe data.
 
-        Note: self.ensure_one() from :meth: `_tokenize`
+        Note: self.check_singleton() from :meth: `_tokenize`
 
         :param dict payment_data: The payment data sent by the provider.
         :return: Data to create a token.

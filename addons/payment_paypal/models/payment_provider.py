@@ -66,7 +66,7 @@ class PaymentProvider(models.Model):
 
     def _get_default_payment_method_codes(self):
         """ Override of `payment` to return the default payment method codes. """
-        self.ensure_one()
+        self.check_singleton()
         if self.code != 'paypal':
             return super()._get_default_payment_method_codes()
         return const.DEFAULT_PAYMENT_METHOD_CODES
@@ -98,7 +98,7 @@ class PaymentProvider(models.Model):
     def _paypal_get_inline_form_values(self, currency=None):
         """Return a serialized JSON of the required values to render the inline form.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :param res.currency currency: The transaction currency.
         :return: The JSON serial of the required values to render the inline form.
@@ -122,12 +122,12 @@ class PaymentProvider(models.Model):
     def _paypal_get_api_url(self):
         """ Return the API URL according to the provider state.
 
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :return: The API URL
         :rtype: str
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if self.state == 'enabled':
             return 'https://api-m.paypal.com'

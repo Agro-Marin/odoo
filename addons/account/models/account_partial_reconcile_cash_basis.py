@@ -10,7 +10,7 @@ class AccountPartialReconcile(models.Model):
     _inherit = "account.partial.reconcile"
 
     def _get_cash_basis_line_pairs(self):
-        self.ensure_one()
+        self.check_singleton()
         for source_line, counterpart_line in (
             (self.debit_move_id, self.credit_move_id),
             (self.credit_move_id, self.debit_move_id),
@@ -19,7 +19,7 @@ class AccountPartialReconcile(models.Model):
                 yield source_line, counterpart_line
 
     def _get_cash_basis_journal(self):
-        self.ensure_one()
+        self.check_singleton()
         journal = self.company_id.tax_cash_basis_journal_id
         if not journal:
             raise UserError(
@@ -58,7 +58,7 @@ class AccountPartialReconcile(models.Model):
     def _get_cash_basis_payment_rate(
         self, source_line, counterpart_line, amounts, payment_date
     ):
-        self.ensure_one()
+        self.check_singleton()
         if source_line.currency_id != counterpart_line.currency_id:
             if "forced_rate_from_register_payment" in self.env.context:
                 return self.env.context["forced_rate_from_register_payment"]
@@ -73,7 +73,7 @@ class AccountPartialReconcile(models.Model):
         return amounts["rate_amount_currency"] / amounts["rate_amount"]
 
     def _get_cash_basis_amounts(self, source_line, counterpart_line):
-        self.ensure_one()
+        self.check_singleton()
         is_debit_source = source_line == self.debit_move_id
         sign = -1 if is_debit_source else 1
         return {
@@ -90,7 +90,7 @@ class AccountPartialReconcile(models.Model):
     def _prepare_cash_basis_partial_vals(
         self, source_line, counterpart_line, move_values
     ):
-        self.ensure_one()
+        self.check_singleton()
         move, counterpart_move = source_line.move_id, counterpart_line.move_id
         amounts = self._get_cash_basis_amounts(source_line, counterpart_line)
         if all(
@@ -440,7 +440,7 @@ class AccountPartialReconcile(models.Model):
         return moves
 
     def _get_draft_caba_move_vals(self, collected_per_move=None):
-        self.ensure_one()
+        self.check_singleton()
         if collected_per_move is None:
             collected_per_move = {}
 
@@ -471,7 +471,7 @@ class AccountPartialReconcile(models.Model):
         }
 
     def _has_outdated_draft_caba_move_vals(self, collected_per_move=None):
-        self.ensure_one()
+        self.check_singleton()
         stored = self.draft_caba_move_vals
         # Rows written before this field held a JSON object carry the serialized
         # string; decoding them keeps the comparison structural instead of textual.
