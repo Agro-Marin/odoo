@@ -34,22 +34,29 @@ class HrJob(models.Model):
                 )
             )
 
+    def _get_domain_for_current_job_skills(self, skill_domain):
+        domain = Domain.AND(
+            [
+                Domain.OR(
+                    [
+                        Domain("valid_to", "=", False),
+                        Domain("valid_to", ">=", fields.Date.today()),
+                    ]
+                ),
+                skill_domain,
+            ]
+        )
+        job_skill_ids = self.env["hr.job.skill"]._search(domain)
+        return Domain("job_skill_ids", "in", job_skill_ids)
+
     def _search_current_job_skill_ids(self, operator, value):
         if operator not in ("in", "not in", "any"):
             raise NotImplementedError
-        domain = Domain.OR(
-            [
-                Domain("valid_to", "=", False),
-                Domain("valid_to", ">=", fields.Date.today()),
-            ]
-        )
         if operator == "any" and isinstance(value, Domain):
-            domain = Domain.AND([domain, value])
+            skill_domain = value
         else:
-            domain = Domain.AND([domain, Domain("id", "in", value)])
-
-        job_skill_ids = self.env["hr.job.skill"]._search(domain)
-        result = Domain("job_skill_ids", "in", job_skill_ids)
+            skill_domain = Domain("id", "in", value)
+        result = self._get_domain_for_current_job_skills(skill_domain)
         return ~result if operator == "not in" else result
 
     @api.depends("job_skill_ids.skill_id", "job_skill_ids.valid_to")
@@ -60,8 +67,8 @@ class HrJob(models.Model):
     def _search_skill_ids(self, operator, value):
         if operator not in ("in", "not in"):
             raise NotImplementedError
-        result = self._search_current_job_skill_ids(
-            "any", Domain("skill_id", "in", value)
+        result = self._get_domain_for_current_job_skills(
+            Domain("skill_id", "in", value)
         )
         return ~result if operator == "not in" else result
 
