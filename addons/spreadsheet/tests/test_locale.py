@@ -70,7 +70,7 @@ class TestLocale(TransactionCase):
             strftime_format_to_spreadsheet_date_format("%m-%d/%Y"), "mm-dd-yyyy"
         )
         self.assertEqual(
-            strftime_format_to_spreadsheet_date_format("%m.%d.%Y"), "mm/dd/yyyy"
+            strftime_format_to_spreadsheet_date_format("%m.%d.%Y"), "mm.dd.yyyy"
         )
 
         # Escaped characters are ignored

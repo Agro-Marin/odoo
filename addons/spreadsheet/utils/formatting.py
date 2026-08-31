@@ -50,7 +50,7 @@ def strftime_format_to_spreadsheet_date_format(strf_format):
         if spreadsheet_symbol:
             parts.append(spreadsheet_symbol)
 
-    separator = re.search(r"(/|-| )", strf_format)
+    separator = re.search(r"(/|-|\.| )", strf_format)
     separator = separator.group(1) if separator else "/"
 
     return separator.join(parts)
