@@ -141,7 +141,7 @@
                                                     <i class="fa-regular fa-clock fa-2x" role="img" aria-label="Activities"></i>
                                                     <span class="activity_badge position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger text-light">
                                                         <field name="activity_count"/>
-                                                    </span> 
+                                                    </span>
                                                 </button>
                                             </div>
                                         </div>
@@ -314,7 +314,8 @@
                 <label for="address_id"/>
                 <div class="o_row">
                     <span invisible="address_id" class="oe_read_only">Remote</span>
-                    <field name="address_id" context="{'show_address': 1}" placeholder="Remote"/>
+                    <field name="company_partner_id" invisible="1"/>
+                    <field name="address_id" context="{'show_address': 1, 'default_parent_id': company_partner_id, 'default_type': 'other'}" placeholder="Remote"/>
                 </div>
             </group>
 

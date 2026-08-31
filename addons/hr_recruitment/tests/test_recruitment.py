@@ -505,3 +505,83 @@ class TestRecruitment(TransactionCase):
             "987654321",
             "Phone should have been updated on the partner.",
         )
+
+    def test_applicant_notification_is_headed_by_the_word_application(self):
+        """
+        Test the header of the email a candidate receives.
+
+        The mail layout prints "Your <model description>", and without an
+        override that resolves to the model's own name, so an applicant used to
+        be told about "Your Applicant".
+        """
+        recipient = self.env["res.partner"].create(
+            {
+                "name": "Candidate",
+                "email": "candidate@example.com",
+                "lang": "en_US",
+            }
+        )
+        applicant = (
+            self.env["hr.applicant"]
+            .with_context(lang="en_US")
+            .create(
+                {
+                    "partner_name": "Candidate",
+                    "email_from": "candidate@example.com",
+                }
+            )
+        )
+
+        applicant.message_post(
+            body="Thank you for applying.",
+            partner_ids=recipient.ids,
+            email_layout_xmlid="hr_recruitment.mail_notification_light_without_background",
+        )
+
+        mail = self.env["mail.mail"].search(
+            [("model", "=", "hr.applicant"), ("res_id", "=", applicant.id)]
+        )
+        self.assertEqual(len(mail), 1, "The notification must have produced one mail.")
+        self.assertIn(
+            "Your Application",
+            mail.body_html,
+            "The candidate must be told about their application.",
+        )
+        self.assertNotIn("Your Applicant", mail.body_html)
+
+    def test_a_new_job_location_is_linked_to_the_company(self):
+        """
+        Test that an address created from the job form stays reachable.
+
+        ``address_id``'s domain is built once, when the view loads, so it froze
+        a list of partner ids and nothing created afterwards could satisfy it.
+        The address also has to be created as a child of the company, or it ends
+        up a loose contact that never shows up in the field again.
+        """
+        Job = self.env["hr.job"]
+        company_partner = self.env.company.partner_id
+
+        job = Job.create({"name": "Located Job"})
+        self.assertEqual(
+            job.company_partner_id,
+            company_partner,
+            "The form needs the company's contact to seed the new address.",
+        )
+
+        address = self.env["res.partner"].create(
+            {
+                "name": "Planta Norte",
+                "parent_id": job.company_partner_id.id,
+                "type": "other",
+            }
+        )
+        self.assertTrue(
+            address.filtered_domain(Job._domain_address_id()),
+            "An address of the company must be selectable as a job location.",
+        )
+
+        orphan = self.env["res.partner"].create({"name": "Planta Sur"})
+        self.assertFalse(
+            orphan.filtered_domain(Job._domain_address_id()),
+            "A loose contact is still not a job location.",
+        )

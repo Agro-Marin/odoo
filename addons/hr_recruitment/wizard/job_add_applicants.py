@@ -11,9 +11,16 @@ class JobAddApplicants(models.TransientModel):
     job_ids = fields.Many2many("hr.job", string="Job Positions", required=True)
 
     def _add_applicants_to_job(self):
-        applicant_data = self.with_context(
-            no_copy_in_partner_name=True
-        ).applicant_ids.copy_data()
+        applicants = self.with_context(no_copy_in_partner_name=True).applicant_ids
+        # The latest document only -- attachment_ids is ordered id desc, so that
+        # is the CV in practice. Carrying every document of a pooled talent onto
+        # every job it applies to would multiply the filestore.
+        applicant_data = [
+            applicant.copy_data(
+                {"attachment_ids": applicant._copy_attachments_commands(limit=1)}
+            )[0]
+            for applicant in applicants
+        ]
         new_applicants_vals = []
         stage_per_job = dict(
             self.env["hr.recruitment.stage"]._read_group(

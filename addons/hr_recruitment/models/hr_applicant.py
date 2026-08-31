@@ -4,7 +4,7 @@ from datetime import datetime
 
 from markupsafe import Markup
 
-from odoo import api, fields, models, tools
+from odoo import Command, api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.tools import SQL, clean_context
@@ -276,7 +276,13 @@ class HrApplicant(models.Model):
         help="Applications with the same email or phone or mobile",
     )
     applicant_properties = fields.Properties(
-        "Properties", definition="job_id.applicant_properties_definition", copy=True
+        "Properties",
+        # From the company, not the job: a talent has no job and a spontaneous
+        # application may never get one, and both must still carry properties.
+        # This is the shape hr.employee already uses.
+        definition="company_id.applicant_properties_definition",
+        precompute=False,
+        copy=True,
     )
     applicant_notes = fields.Html()
     refuse_date = fields.Datetime("Refuse Date")
@@ -724,6 +730,24 @@ class HrApplicant(models.Model):
 
         return Domain.OR(domains)
 
+    def _copy_attachments_commands(self, limit=None):
+        """Duplicate this application's attachments and return link commands.
+
+        ``attachment_ids`` is a One2many keyed on ``res_id``, so it is left out
+        of ``copy_data`` and the copies have to be made by hand. They are created
+        against this record and relinked by the caller's ``copy``, which repoints
+        ``res_id`` at the new one.
+
+        :param int limit: keep only the newest N attachments, all of them if None
+        :return: ``Command.link`` commands for the freshly created copies
+        """
+        self.ensure_one()
+        attachments = self.attachment_ids[:limit] if limit else self.attachment_ids
+        copies = self.env["ir.attachment"]
+        for attachment in attachments:
+            copies |= attachment.copy({"res_id": self.id})
+        return [Command.link(copy.id) for copy in copies]
+
     def _compute_attachment_number(self):
         read_group_res = self.env["ir.attachment"]._read_group(
             [("res_model", "=", "hr.applicant"), ("res_id", "in", self.ids)],
@@ -1111,6 +1135,15 @@ class HrApplicant(models.Model):
                 or self.env.context.get("default_applicant_ids"),
             },
         }
+
+    @api.model
+    def _get_model_description(self, model_name):
+        # The notification layout prints "Your <model description>", and the
+        # default resolves to this model's own name. A candidate reads about
+        # their application, not about an applicant.
+        if model_name == "hr.applicant":
+            return self.env._("Application")
+        return super()._get_model_description(model_name)
 
     def _track_template(self, changes):
         res = super()._track_template(changes)
