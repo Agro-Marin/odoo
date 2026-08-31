@@ -170,7 +170,7 @@ class CrmTeam(models.Model):
                     "crm.team.member"
                 ]._get_membership_warning(user_names, other_teams)
 
-    @api.depends("company_id", "name")
+    @api.depends("company_id")
     def _compute_member_company_ids(self):
         all_companies = self.env["res.company"].search([])
         for team in self:
