@@ -2,9 +2,12 @@
     <t t-name="html_editor.ImageToolbarDropdown">
         <Dropdown menuClass="`${props.name}_selector`" menuRef="menuRef">
             <button t-att-title="props.title" class="btn btn-light">
-                <t t-if="props.icon" t-call="{{props.icon}}"/>
-                <t t-elif="state &amp;&amp; state.displayName" t-esc="state.displayName"/>
-                <t t-else="" t-esc="props.title"/>
+                <t t-if="props.icon">
+                    <i t-if="props.icon.startsWith('fa-')" t-attf-class="fa-solid fa-fw {{ props.icon }}"/>
+                    <t t-else="" t-call="{{ props.icon }}"/>
+                </t>
+                <t t-if="state &amp;&amp; state.displayName" t-esc="state.displayName"/>
+                <t t-elif="!props.icon" t-esc="props.title"/>
             </button>
             <t t-set-slot="content">
                 <t t-foreach="items" t-as="item" t-key="item_index">

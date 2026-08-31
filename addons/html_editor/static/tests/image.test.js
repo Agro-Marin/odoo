@@ -800,3 +800,20 @@ test("change image's alignment to 'Wrap text' then 'Break text' then 'Inline'", 
     expect("img").not.toHaveClass("float-start");
     expect("img").not.toHaveClass("d-block");
 });
+
+test("the size dropdown shows the image's actual width when set to Default", async () => {
+    await setupEditor(`
+        <img src="${base64Img}" style="width: 50%;">
+    `);
+    await click("img");
+    await waitFor(".o-we-toolbar");
+    expect(queryOne(".o-we-toolbar .dropdown-toggle[title='Resize image']")).toHaveText("50%");
+
+    await click(".o-we-toolbar .dropdown-toggle[title='Resize image']");
+    await animationFrame();
+    await click(".image_size_selector .dropdown-item:contains('Default')");
+    await animationFrame();
+    expect(queryOne(".o-we-toolbar .dropdown-toggle[title='Resize image']")).toHaveText(
+        queryOne("img").getBoundingClientRect().width + "px",
+    );
+});

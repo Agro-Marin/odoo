@@ -200,6 +200,7 @@ export class ImagePlugin extends Plugin {
                 Component: ImageToolbarDropdown,
                 props: {
                     name: "image_size",
+                    icon: "fa-expand",
                     getDisplay: () => this.imageSize,
                     items: IMAGE_SIZE,
                     onSelected: (item) => {
@@ -280,7 +281,9 @@ export class ImagePlugin extends Plugin {
         if (!targetedImg) {
             return "Default";
         }
-        return targetedImg.style.width || "Default";
+        // With no width of its own the image renders at its natural size, and
+        // "Default" says nothing about what that is. Report the real width.
+        return targetedImg.style.width || `${targetedImg.width}px`;
     }
 
     setImagePadding({ size } = {}) {
