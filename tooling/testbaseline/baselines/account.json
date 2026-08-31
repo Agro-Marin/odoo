@@ -1,0 +1,8 @@
+{
+  "expected": {},
+  "note": "Green since 2d6e1b84b13 (the sudo'd product fixture) and 38bceef91bf. Was 75 names for an unknown period: no lane in integration_tests.yml runs /account, and with no entry here two sessions each spent a full run in one afternoon re-establishing the same set. Any failure now is new.",
+  "run_spec": "odoo-bin -i account --test-enable --test-tags /account --stop-after-init --no-http",
+  "suite": "/account",
+  "tests_total": 1317,
+  "verified_at": "38bceef91bf"
+}
