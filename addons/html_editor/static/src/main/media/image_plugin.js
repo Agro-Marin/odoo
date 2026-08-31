@@ -12,6 +12,7 @@ import { _t } from "@web/core/translation";
 
 import { Plugin } from "../../plugin.js";
 import { ImageDescription, ImageDescriptionPopover } from "./image_description.js";
+import { ImageAlignSelector } from "./image_align_selector.js";
 import { ImageToolbarDropdown } from "./image_toolbar_dropdown.js";
 import { ImageTransformButton } from "./image_transform_button.js";
 
@@ -27,6 +28,12 @@ const IMAGE_PADDING = [
     { name: _t("Medium"), value: 2 },
     { name: _t("Large"), value: 3 },
     { name: _t("XL"), value: 5 },
+];
+
+const IMAGE_ALIGNMENT = [
+    { icon: "oi-text-inline", value: "", title: _t("Inline") },
+    { icon: "oi-text-wrap", value: "float-start", title: _t("Wrap text") },
+    { icon: "oi-text-break", value: "d-block", title: _t("Break text") },
 ];
 
 const IMAGE_SIZE = [
@@ -205,6 +212,21 @@ export class ImagePlugin extends Plugin {
                     (this.config.allowImageResize ?? true),
             },
             {
+                id: "image_alignment",
+                description: _t("Set image alignment"),
+                groupId: "image_modifiers",
+                Component: ImageAlignSelector,
+                props: {
+                    items: IMAGE_ALIGNMENT,
+                    getDisplay: () => this.imageAlignment,
+                    focusEditable: () => this.dependencies.selection.focusEditable(),
+                    onSelected: (item) => {
+                        this.setImageAlignment(item);
+                    },
+                },
+                isAvailable: isHtmlContentSupported,
+            },
+            {
                 id: "image_transform",
                 groupId: "image_modifiers",
                 description: _t(
@@ -232,6 +254,7 @@ export class ImagePlugin extends Plugin {
 
     setup() {
         this.imageSize = reactive({ displayName: "Default" });
+        this.imageAlignment = reactive({ displayIcon: "oi-text-inline" });
         this.addDomListener(this.editable, "pointerdown", (e) => {
             const selection = this.dependencies.selection.getEditableSelection();
             if (selection.isCollapsed && e.target.tagName === "IMG") {
@@ -420,6 +443,37 @@ export class ImagePlugin extends Plugin {
 
     updateImageParams() {
         this.imageSize.displayName = this.imageSizeName;
+        this.imageAlignment.displayIcon = this.imageAlignmentIcon;
+    }
+
+    /**
+     * @returns {string} the icon class of the targeted image's alignment
+     */
+    get imageAlignmentIcon() {
+        const targetedImg = this.getTargetedImage();
+        if (targetedImg) {
+            for (const { value, icon } of IMAGE_ALIGNMENT) {
+                if (value && targetedImg.classList.contains(value)) {
+                    return icon;
+                }
+            }
+        }
+        return "oi-text-inline";
+    }
+
+    setImageAlignment(alignment) {
+        const targetedImg = this.getTargetedImage();
+        if (!targetedImg) {
+            return;
+        }
+        targetedImg.classList.remove(
+            ...IMAGE_ALIGNMENT.map(({ value }) => value).filter(Boolean),
+        );
+        if (alignment.value) {
+            targetedImg.classList.add(alignment.value);
+        }
+        this.imageAlignment.displayIcon = alignment.icon;
+        this.dependencies.history.addStep();
     }
 
     openImageDescriptionPopover() {
