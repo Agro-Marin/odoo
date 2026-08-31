@@ -170,7 +170,7 @@ export class QWebPlugin extends Plugin {
             }
         }
         const targetNode = ev.target;
-        if (targetNode.closest("[data-oe-t-group]")) {
+        if (targetNode.closest("[data-oe-t-group], [t-out], [t-field]")) {
             this.selectNode(targetNode);
         }
     }
@@ -182,11 +182,15 @@ export class QWebPlugin extends Plugin {
             return;
         }
         this.selectedNode = node;
+        const directive = ["t-out", "t-field"].find((attr) => node.hasAttribute(attr));
         this.picker.open({
             target: node,
             props: {
                 groups: this.getNodeGroups(node),
                 select: this.select.bind(this),
+                ...(directive && {
+                    expression: `${directive}: ${node.getAttribute(directive)}`,
+                }),
             },
         });
     }

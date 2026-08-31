@@ -1,6 +1,6 @@
 <templates xml:space="preserve">
     <t t-name="html_editor.QWebPicker">
-        <div class="o-we-qweb-picker bg-white my-1">
+        <div class="o-we-qweb-picker rounded bg-white my-1">
             <t t-foreach="state.groups" t-as="group" t-key="group_index">
                 <select class="form-select" t-on-change="onChange">
                     <t t-foreach="group" t-as="element" t-key="element_index">
@@ -10,6 +10,10 @@
                     </t>
                 </select>
             </t>
+            <div t-if="props.expression and !state.groups.length"
+                class="px-2 py-1 shadow-sm border rounded">
+                <t t-out="props.expression"/>
+            </div>
         </div>
     </t>
 </templates>
