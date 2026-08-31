@@ -771,7 +771,7 @@ class StockMove(models.Model):
                 move.reference = move.picking_id.name
 
     def _inventory_reference(self):
-        self.ensure_one()
+        self.check_singleton()
         label = (
             INVENTORY_REFERENCE_CONFIRMED
             if self.product_uom_id.is_zero(self.quantity)
@@ -917,7 +917,7 @@ class StockMove(models.Model):
         return warehouse_id, max(self.date or now, now)
 
     def _forecast_virtual_key(self, now):
-        self.ensure_one()
+        self.check_singleton()
         if self.state == "assigned":
             return None
         if self._is_consuming():
@@ -999,7 +999,7 @@ class StockMove(models.Model):
                 move.date_reservation = move.date_reservation
 
     def _reservation_date(self, common_days=None, priority_days=None):
-        self.ensure_one()
+        self.check_singleton()
         picking_type = self.picking_type_id
         if common_days is None:
             common_days = picking_type.reservation_days_before
@@ -1343,7 +1343,7 @@ class StockMove(models.Model):
         }
 
     def action_show_details(self):
-        self.ensure_one()
+        self.check_singleton()
         view = self.env.ref("stock.view_stock_move_form_operations")
 
         return {
@@ -1362,7 +1362,7 @@ class StockMove(models.Model):
         }
 
     def action_product_forecast_report(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.product_id.action_product_forecast_report()
         action["context"] = {
             "active_id": self.product_id.id,
@@ -1720,7 +1720,7 @@ class StockMove(models.Model):
         )
 
     def action_view_reference(self):
-        self.ensure_one()
+        self.check_singleton()
         if (
             not self.is_inventory
             and self.location_dest_usage == "inventory"
@@ -1856,7 +1856,7 @@ class StockMove(models.Model):
         )
 
     def _get_missing_reserved_quantity(self, force_qty, reserved_uom_qty):
-        self.ensure_one()
+        self.check_singleton()
         if force_qty:
             missing_uom_quantity = force_qty
         else:
@@ -2124,13 +2124,13 @@ class StockMove(models.Model):
         return max(int(self.product_id.uom_id.round(quantity)), 0)
 
     def _prefill_serial_count(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.next_serial_count:
             return 0
         return self._serial_line_count(self.product_qty)
 
     def _apply_lot_ids_to_move_lines(self):
-        self.ensure_one()
+        self.check_singleton()
         product = self.product_id
         (
             move_lines_commands,
@@ -2216,7 +2216,7 @@ class StockMove(models.Model):
         assigned_moves_ids,
         partially_available_moves_ids,
     ):
-        self.ensure_one()
+        self.check_singleton()
         if self.move_orig_ids:
             missing_reserved_quantity = self._add_bypassed_origin_lines(
                 missing_reserved_quantity,
@@ -2278,7 +2278,7 @@ class StockMove(models.Model):
         assigned_moves_ids,
         partially_available_moves_ids,
     ):
-        self.ensure_one()
+        self.check_singleton()
         available_move_lines = self._get_available_move_lines(
             assigned_moves_ids,
             partially_available_moves_ids,
@@ -2313,7 +2313,7 @@ class StockMove(models.Model):
         assigned_moves_ids,
         partially_available_moves_ids,
     ):
-        self.ensure_one()
+        self.check_singleton()
         if self.product_uom_id.is_zero(self.product_uom_qty) and not force_qty:
             return _ReservationOutcome(state="assigned")
         if not self.move_orig_ids:
@@ -2326,7 +2326,7 @@ class StockMove(models.Model):
         )
 
     def _update_reserved_from_quants(self, need):
-        self.ensure_one()
+        self.check_singleton()
         uom = self.product_id.uom_id
         if self.procure_method == "make_to_order":
             return _ReservationOutcome(reserved=False)
@@ -2352,7 +2352,7 @@ class StockMove(models.Model):
         assigned_moves_ids,
         partially_available_moves_ids,
     ):
-        self.ensure_one()
+        self.check_singleton()
         uom = self.product_id.uom_id
         available_move_lines = self._get_available_move_lines(
             assigned_moves_ids,
@@ -2405,7 +2405,7 @@ class StockMove(models.Model):
         )
 
     def _deduct_own_lines(self, available_move_lines):
-        self.ensure_one()
+        self.check_singleton()
         for move_line in self.move_line_ids.filtered(
             lambda ml: ml.quantity_product_uom,
         ):
@@ -2454,7 +2454,7 @@ class StockMove(models.Model):
         self._recompute_state()
 
     def _classify_move_lines_for_lots(self):
-        self.ensure_one()
+        self.check_singleton()
         product = self.product_id
         commands = []
         lot_id_by_name = {lot.name: lot.id for lot in self.lot_ids}
@@ -2591,7 +2591,7 @@ class StockMove(models.Model):
         next_serial_count=False,
         location_id=False,
     ):
-        self.ensure_one()
+        self.check_singleton()
         count = next_serial_count or self.next_serial_count
         if not count:
             raise ValidationError(
@@ -2620,7 +2620,7 @@ class StockMove(models.Model):
         location_dest_id=False,
         origin_move_line=None,
     ):
-        self.ensure_one()
+        self.check_singleton()
         origin_move_line = origin_move_line or self.env["stock.move.line"]
         loc_dest = origin_move_line.location_dest_id or location_dest_id
         move_line_vals = {
@@ -2671,7 +2671,7 @@ class StockMove(models.Model):
         return product._get_description(self.picking_type_id)
 
     def _get_partner_id(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.location_id == self.company_id.internal_transit_location_id:
             return self.location_dest_id.warehouse_id.partner_id.id
         return self.partner_id.id
@@ -2737,7 +2737,7 @@ class StockMove(models.Model):
         return self.date
 
     def _get_picked_quantity(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.picked and any(not ml.picked for ml in self.move_line_ids):
             picked_qty = 0
             for ml in self.move_line_ids:
@@ -2760,7 +2760,7 @@ class StockMove(models.Model):
         strict=False,
         allow_negative=False,
     ):
-        self.ensure_one()
+        self.check_singleton()
         if location_id.should_bypass_reservation():
             return self.product_qty
         return self.env["stock.quant"]._get_available_quantity(
@@ -2858,7 +2858,7 @@ class StockMove(models.Model):
         )
 
     def _get_source_document(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.picking_id or False
 
     def _get_upstream_documents_and_responsibles(self, visited):
@@ -2886,7 +2886,7 @@ class StockMove(models.Model):
         return set()
 
     def _get_report_description_picking(self):
-        self.ensure_one()
+        self.check_singleton()
         description = self.description_picking or ""
         if description.startswith(self.product_id.display_name):
             description = description.removeprefix(self.product_id.display_name).strip()
@@ -2930,7 +2930,7 @@ class StockMove(models.Model):
             return {
                 "quantity": 0,
             }
-        self.product_id.ensure_one()
+        self.product_id.check_singleton()
         return {
             **parent_record._get_product_price_and_data(self.product_id),
             "quantity": (
@@ -2944,7 +2944,7 @@ class StockMove(models.Model):
         }
 
     def _key_assign_picking(self):
-        self.ensure_one()
+        self.check_singleton()
         keys = (
             self.reference_ids,
             self.location_id,
@@ -2960,7 +2960,7 @@ class StockMove(models.Model):
         return
 
     def _prepare_lot_move_line_vals(self, lot, quantity, reserved_quant=None):
-        self.ensure_one()
+        self.check_singleton()
         vals = self._prepare_move_line_vals(
             quantity=quantity,
             reserved_quant=reserved_quant,
@@ -2971,7 +2971,7 @@ class StockMove(models.Model):
         return vals
 
     def _prepare_lot_commands_bypass(self, lot, available_move_lines, extra_uom_qty):
-        self.ensure_one()
+        self.check_singleton()
         product = self.product_id
         uom = product.uom_id if product.tracking == "serial" else self.product_uom_id
         if available_move_lines:
@@ -3005,7 +3005,7 @@ class StockMove(models.Model):
         return commands, available_move_lines, extra_uom_qty
 
     def _prepare_lot_commands_reserve(self, lot, quants, extra_uom_qty):
-        self.ensure_one()
+        self.check_singleton()
         product = self.product_id
         commands = []
         reserved = False
@@ -3043,7 +3043,7 @@ class StockMove(models.Model):
     def _prepare_lot_commands_rebalance_unlotted(
         self, available_move_lines, extra_uom_qty
     ):
-        self.ensure_one()
+        self.check_singleton()
         product = self.product_id
         commands = [Command.delete(ml.id) for ml in available_move_lines]
         for move_line in available_move_lines:
@@ -3374,7 +3374,7 @@ class StockMove(models.Model):
         pass
 
     def _prepare_procurement_origin(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             (self.reference_ids and self.reference_ids[0].name)
             or self.origin
@@ -3438,7 +3438,7 @@ class StockMove(models.Model):
         return quantities
 
     def _prepare_procurement_vals(self):
-        self.ensure_one()
+        self.check_singleton()
 
         product_id = self.product_id.with_context(lang=self._get_lang())
         dates_info = {"date_planned": self._get_mto_procurement_date()}
@@ -3494,7 +3494,7 @@ class StockMove(models.Model):
         }
 
     def _uom_quantity_if_faithful(self, quantity, to_uom):
-        self.ensure_one()
+        self.check_singleton()
         product_uom = self.product_id.uom_id
         uom_quantity = product_uom.round(
             product_uom._compute_quantity(
@@ -3513,7 +3513,7 @@ class StockMove(models.Model):
         return None
 
     def _prepare_move_line_vals(self, quantity=None, reserved_quant=None):
-        self.ensure_one()
+        self.check_singleton()
         vals = {
             "move_id": self.id,
             "product_id": self.product_id.id,
@@ -3596,7 +3596,7 @@ class StockMove(models.Model):
         return vals
 
     def _get_push_rule_cached(self, StockRule, values):
-        self.ensure_one()
+        self.check_singleton()
         cache = self.env.context.get("_push_rule_cache")
         if cache is None:
             return StockRule._get_push_rule(
@@ -3655,7 +3655,7 @@ class StockMove(models.Model):
         return new_moves.sudo()._action_confirm()
 
     def _plan_push(self):
-        self.ensure_one()
+        self.check_singleton()
         move = self
         warehouse_id = move.warehouse_id or move.picking_id.picking_type_id.warehouse_id
         StockRule = self.env["stock.rule"]
@@ -3699,7 +3699,7 @@ class StockMove(models.Model):
         return move, StockRule.browse(), foreign
 
     def _rewire_dests_after_push(self, new_move):
-        self.ensure_one()
+        self.check_singleton()
         move_to_propagate_ids = set()
         move_to_mts_ids = set()
         for m in self.move_dest_ids - new_move:
@@ -3722,7 +3722,7 @@ class StockMove(models.Model):
             ]
 
     def _get_move_line_quantity(self):
-        self.ensure_one()
+        self.check_singleton()
         quantity = 0
         for move_line in self.move_line_ids:
             quantity += move_line.product_uom_id._compute_quantity(
@@ -3827,7 +3827,7 @@ class StockMove(models.Model):
         ]
 
     def _search_picking_for_assignation(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.reference_ids:
             return self.env["stock.picking"]
         domain = self._search_picking_for_assignation_domain()
@@ -3887,7 +3887,7 @@ class StockMove(models.Model):
         return move_lines_vals
 
     def _split(self, qty, restrict_partner_id=False):
-        self.ensure_one()
+        self.check_singleton()
         if self.state in ("done", "cancel"):
             raise UserError(
                 _(
@@ -3981,7 +3981,7 @@ class StockMove(models.Model):
         return planned
 
     def _convert_to_move_uom(self, product_uom_qty):
-        self.ensure_one()
+        self.check_singleton()
         return self.product_id.uom_id._compute_quantity(
             product_uom_qty,
             self.product_uom_id,
@@ -3989,7 +3989,7 @@ class StockMove(models.Model):
         )
 
     def _prepare_quantity_done_vals(self, qty):
-        self.ensure_one()
+        self.check_singleton()
         res = []
         consumed_quant = set()
         total_qty = self.product_uom_id._compute_quantity(
@@ -4003,13 +4003,13 @@ class StockMove(models.Model):
         return res
 
     def _spend_on_existing_lines(self, qty, res, consumed_quant):
-        self.ensure_one()
+        self.check_singleton()
         for ml in self.move_line_ids:
             qty = self._spend_on_line(ml, qty, res, consumed_quant)
         return qty
 
     def _spend_on_line(self, ml, qty, res, consumed_quant):
-        self.ensure_one()
+        self.check_singleton()
         if ml.product_uom_id.compare(ml.quantity, 0) < 0:
             return qty
         ml_qty = ml.quantity
@@ -4057,7 +4057,7 @@ class StockMove(models.Model):
         res,
         consumed_quant,
     ):
-        self.ensure_one()
+        self.check_singleton()
         ml_quants = self.env["stock.quant"]._get_reserve_quantity(
             self.product_id,
             ml.location_id,
@@ -4083,7 +4083,7 @@ class StockMove(models.Model):
         return qty
 
     def _spend_on_free_quants(self, qty, total_qty, res, consumed_quant):
-        self.ensure_one()
+        self.check_singleton()
         if self.product_uom_id.compare(self._convert_to_move_uom(qty), 0.0) <= 0:
             return qty
         quants = self.env["stock.quant"]._get_reserve_quantity(
@@ -4109,7 +4109,7 @@ class StockMove(models.Model):
         return qty
 
     def _add_unreserved_lines(self, qty, res):
-        self.ensure_one()
+        self.check_singleton()
         if self.product_uom_id.compare(self._convert_to_move_uom(qty), 0.0) <= 0:
             return
         if self.product_id.tracking != "serial":
@@ -4299,7 +4299,7 @@ class StockMove(models.Model):
         owner_id=None,
         strict=True,
     ):
-        self.ensure_one()
+        self.check_singleton()
         move_line_vals, taken_quantity = self._update_reserved_quantity_vals(
             need,
             location_id,
@@ -4324,7 +4324,7 @@ class StockMove(models.Model):
         owner_id=None,
         strict=True,
     ):
-        self.ensure_one()
+        self.check_singleton()
         if not lot_id:
             lot_id = self.env["stock.lot"]
         if not package_id:
@@ -4360,7 +4360,7 @@ class StockMove(models.Model):
         return move_line_vals, taken_quantity
 
     def _candidate_lines_by_place(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             (line.location_id, line.lot_id, line.package_id, line.owner_id): line
             for line in self.move_line_ids
@@ -4376,7 +4376,7 @@ class StockMove(models.Model):
         return grouped_quants.values()
 
     def _place_reserved_quant(self, reserved_quant, quantity, candidate_lines):
-        self.ensure_one()
+        self.check_singleton()
         to_update = candidate_lines.get(
             (
                 reserved_quant.location_id,
@@ -4420,7 +4420,7 @@ class StockMove(models.Model):
             ledger.take(quant, quantity)
 
     def _get_visible_quantity(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.quantity
 
     def _can_create_lot(self, picking_type=None):
@@ -4468,7 +4468,7 @@ class StockMove(models.Model):
         return vals
 
     def _is_consuming(self):
-        self.ensure_one()
+        self.check_singleton()
         from_wh = self.location_id.warehouse_id
         to_wh = self.location_dest_id.warehouse_id
         return self.picking_type_id.code in ("internal", "outgoing") or (
@@ -4476,24 +4476,24 @@ class StockMove(models.Model):
         )
 
     def _is_incoming(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.location_id.usage in ("customer", "supplier") or (
             self.location_id.usage == "transit" and not self.location_id.company_id
         )
 
     def _is_outgoing(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.location_dest_id.usage in ("customer", "supplier") or (
             self.location_dest_id.usage == "transit"
             and not self.location_dest_id.company_id
         )
 
     def _should_be_assigned(self):
-        self.ensure_one()
+        self.check_singleton()
         return bool(not self.picking_id and self.picking_type_id)
 
     def _should_bypass_reservation(self, forced_location=False):
-        self.ensure_one()
+        self.check_singleton()
         location = forced_location or self.location_id
         return location.should_bypass_reservation() or not self.product_id.is_storable
 

@@ -52,7 +52,7 @@ class SaleLoyaltyRewardWizard(models.TransientModel):
                 wizard.selected_product_id = wizard.reward_product_ids[:1]
 
     def action_apply(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.selected_reward_id:
             raise ValidationError(_("No reward selected."))
         claimable_rewards = self.order_id._get_claimable_rewards()
@@ -76,7 +76,7 @@ class SaleLoyaltyRewardWizard(models.TransientModel):
         return True
 
     def action_cancel(self):
-        self.ensure_one()
+        self.check_singleton()
         self._unlink_unused_coupon_ids()
 
     def _unlink_unused_coupon_ids(self):

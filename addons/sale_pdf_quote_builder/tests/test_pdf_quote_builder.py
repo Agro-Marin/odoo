@@ -357,7 +357,7 @@ class TestPDFQuoteBuilder(SaleManagementCommon):
             ),
             patch.object(
                 request,
-                "make_json_response",
+                "prepare_json_response",
                 lambda data, status=200, headers=None: Response(
                     json.dumps(data),
                     status=status,
@@ -406,7 +406,7 @@ class TestPDFQuoteBuilder(SaleManagementCommon):
             ),
             patch.object(
                 request,
-                "make_json_response",
+                "prepare_json_response",
                 lambda data, status=200, headers=None: Response(
                     json.dumps(data),
                     status=status,

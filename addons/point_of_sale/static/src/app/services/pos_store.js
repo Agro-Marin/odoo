@@ -2286,7 +2286,7 @@ export class PosStore extends WithLazyGetterTrap {
         if (this.session.state === "opening_control") {
             const data = await this.data.call(
                 "pos.session",
-                "delete_opening_control_session",
+                "remove_opening_control_session",
                 [this.session.id],
             );
 

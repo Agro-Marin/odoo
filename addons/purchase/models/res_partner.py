@@ -62,8 +62,8 @@ class ResPartner(models.Model):
             domain=self._get_purchase_order_domain_count(),
         )
 
-    def _compute_application_statistics_hook(self):
-        data_list = super()._compute_application_statistics_hook()
+    def _get_application_statistics(self):
+        data_list = super()._get_application_statistics()
         return self._add_order_statistics(
             data_list,
             "purchase_order_count",

@@ -7,7 +7,7 @@ class PosOrder(models.Model):
     use_self_order_online_payment = fields.Boolean(compute='_compute_use_self_order_online_payment', store=True, readonly=True)
 
     def get_order_to_print(self):
-        self.ensure_one()
+        self.check_singleton()
 
         # Lock the line
         self.env.cr.execute("SELECT id FROM pos_order WHERE id = %s FOR UPDATE NOWAIT", (self.id,))

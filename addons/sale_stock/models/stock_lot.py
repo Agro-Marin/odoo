@@ -41,7 +41,7 @@ class StockLot(models.Model):
             lot.sale_order_count = len(so_ids)
 
     def action_view_so(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "sale.action_sale_order",
         )

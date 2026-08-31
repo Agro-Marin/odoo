@@ -590,7 +590,7 @@ class StockMoveLine(models.Model):
         return res
 
     def _serial_name(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.lot_id.name or self.lot_name
 
     @api.onchange("quantity", "product_uom_id")
@@ -751,7 +751,7 @@ class StockMoveLine(models.Model):
             ml_ids_to_ignore.add(ml.id)
 
     def action_view_reference(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.move_id:
             action = self.move_id.action_view_reference()
             if action.get("res_model") != "stock.move":
@@ -900,7 +900,7 @@ class StockMoveLine(models.Model):
     def _apply_quant_move(
         self, *, quantity=None, reverse=False, in_date=False, release_reserved=False
     ):
-        self.ensure_one()
+        self.check_singleton()
         qty = self.quantity_product_uom if quantity is None else quantity
         if reverse:
             from_loc, to_loc, from_package = (
@@ -1016,7 +1016,7 @@ class StockMoveLine(models.Model):
         release_reserved=False,
         ml_ids_to_ignore=None,
     ):
-        self.ensure_one()
+        self.check_singleton()
         available_qty, _in_date = self._apply_quant_move(
             quantity=quantity, in_date=in_date, release_reserved=release_reserved
         )
@@ -1026,7 +1026,7 @@ class StockMoveLine(models.Model):
             )
 
     def _reservation_key(self):
-        self.ensure_one()
+        self.check_singleton()
         return tuple(self[name] for name in RESERVATION_KEY_FIELDS)
 
     @api.model
@@ -1120,7 +1120,7 @@ class StockMoveLine(models.Model):
         return {name: quant[name].id for name in RESERVATION_KEY_FIELDS}
 
     def _has_lot_context(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.move_id.picking_type_id
             or self.is_inventory
@@ -1129,7 +1129,7 @@ class StockMoveLine(models.Model):
         )
 
     def _free_reservation(self, quantity, ml_ids_to_ignore=None):
-        self.ensure_one()
+        self.check_singleton()
         product, location = self.product_id, self.location_id
         ml_ids_to_ignore = OrderedSet(ml_ids_to_ignore or ()) | OrderedSet(self.ids)
 
@@ -1169,7 +1169,7 @@ class StockMoveLine(models.Model):
         move_to_reassign[::-1]._action_assign()
 
     def _get_outdated_candidates(self, ml_ids_to_ignore):
-        self.ensure_one()
+        self.check_singleton()
 
         def current_picking_first(candidate):
             date = candidate.picking_id.date_planned or candidate.move_id.date
@@ -1401,7 +1401,7 @@ class StockMoveLine(models.Model):
         return {"quants": quants, "move_lines": lines}
 
     def _get_similar_move_lines(self):
-        self.ensure_one()
+        self.check_singleton()
         picking = self.move_id.picking_id or self.picking_id
         return picking.move_line_ids.filtered(
             lambda ml: ml.product_id == self.product_id and (ml.lot_id or ml.lot_name)
@@ -1460,7 +1460,7 @@ class StockMoveLine(models.Model):
         return self.env["stock.move.line"].browse(ids_to_update)
 
     def _prepare_revert_inventory_move_vals(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "inventory_name": INVENTORY_REFERENCE_REVERTED % self.reference,
             "product_id": self.product_id.id,
@@ -1501,7 +1501,7 @@ class StockMoveLine(models.Model):
         )
 
     def _get_linkable_moves(self):
-        self.ensure_one()
+        self.check_singleton()
         moves = self.picking_id.move_ids.filtered(
             lambda x: x.product_id == self.product_id
         )
@@ -1523,7 +1523,7 @@ class StockMoveLine(models.Model):
         return updates
 
     def _get_changed_write_fields(self, vals, updates):
-        self.ensure_one()
+        self.check_singleton()
         changed = {name for name, value in updates.items() if self[name] != value}
         if "quantity" in vals and self.product_uom_id.compare(
             vals["quantity"], self.quantity
@@ -1532,7 +1532,7 @@ class StockMoveLine(models.Model):
         return changed
 
     def _get_new_quantity_product_uom(self, vals, updates):
-        self.ensure_one()
+        self.check_singleton()
         return updates.get("product_uom_id", self.product_uom_id)._compute_quantity(
             vals.get("quantity", self.quantity),
             self.product_id.uom_id,
@@ -1652,7 +1652,7 @@ class StockMoveLine(models.Model):
         return prepared
 
     def _prepare_new_lot_vals(self):
-        self.ensure_one()
+        self.check_singleton()
         vals = {
             "name": self.lot_name,
             "product_id": self.product_id.id,
@@ -1689,7 +1689,7 @@ class StockMoveLine(models.Model):
         ]
 
     def _prepare_stock_move_vals(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "product_id": self.product_id.id,
             "product_uom_qty": (
@@ -1965,7 +1965,7 @@ class StockMoveLine(models.Model):
             )
 
     def _should_bypass_reservation(self, location):
-        self.ensure_one()
+        self.check_singleton()
         if self.move_id:
             return self.move_id._should_bypass_reservation(location)
         return not self.product_id.is_storable or location.should_bypass_reservation()
@@ -1992,5 +1992,5 @@ class StockMoveLine(models.Model):
         existed -- a guard that also swallowed any genuine AttributeError raised
         inside a sibling's implementation.
         """
-        self.ensure_one()
+        self.check_singleton()
         return False

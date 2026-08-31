@@ -26,7 +26,7 @@ class PosPaymentMethod(models.Model):
                 ))
 
     def mollie_create_payment(self, amount: float, payment_uuid: str, pos_session_id: int):
-        self.ensure_one()
+        self.check_singleton()
 
         user_lang = self.env.context.get("lang")
         currency = self.journal_id.currency_id or self.company_id.currency_id
@@ -51,7 +51,7 @@ class PosPaymentMethod(models.Model):
         return self.mollie_payment_provider_id._send_api_request("POST", "/payments", json=payment_request)
 
     def mollie_create_refund(self, original_payment_id: str, amount: float, payment_uuid: str, pos_session_id: int):
-        self.ensure_one()
+        self.check_singleton()
 
         currency = self.journal_id.currency_id or self.company_id.currency_id
         payment_request = {
@@ -64,9 +64,9 @@ class PosPaymentMethod(models.Model):
         return self.mollie_payment_provider_id._send_api_request("POST", f"/payments/{original_payment_id}/refunds", json=payment_request)
 
     def mollie_cancel_payment(self, payment_id: str):
-        self.ensure_one()
+        self.check_singleton()
         return self.mollie_payment_provider_id._send_api_request("DELETE", f"/payments/{payment_id}")
 
     def _mollie_get_payment(self, payment_id: str):
-        self.ensure_one()
+        self.check_singleton()
         return self.mollie_payment_provider_id._send_api_request("GET", f"/payments/{payment_id}")

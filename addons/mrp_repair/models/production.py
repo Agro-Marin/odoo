@@ -16,7 +16,7 @@ class MrpProduction(models.Model):
             production.repair_count = len(production.move_dest_ids.repair_id)
 
     def action_view_repair_orders(self):
-        self.ensure_one()
+        self.check_singleton()
         repair_ids = self.move_dest_ids.repair_id
         action = {
             "type": "ir.actions.act_window",

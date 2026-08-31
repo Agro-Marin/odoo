@@ -83,7 +83,7 @@ class SaleOrder(models.Model):
             order.pos_order_count = len(linked_orders)
 
     def action_view_pos_order(self):
-        self.ensure_one()
+        self.check_singleton()
         linked_orders = self.pos_order_line_ids.mapped("order_id")
         return {
             "type": "ir.actions.act_window",

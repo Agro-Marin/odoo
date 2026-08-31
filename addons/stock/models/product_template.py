@@ -661,7 +661,7 @@ class ProductTemplate(models.Model):
         ).action_view_quants()
 
     def action_view_related_putaway_rules(self):
-        self.ensure_one()
+        self.check_singleton()
         domain = [
             "|",
             ("product_id.product_tmpl_id", "=", self.id),
@@ -670,14 +670,14 @@ class ProductTemplate(models.Model):
         return self._get_action_view_related_putaway_rules(domain)
 
     def action_view_storage_category_capacity(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.product_variant_ids.action_view_storage_category_capacity()
 
     def action_view_orderpoints(self):
         return self.product_variant_ids.action_view_orderpoints()
 
     def action_view_stock_move_lines(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "stock.stock_move_line_action",
         )
@@ -685,7 +685,7 @@ class ProductTemplate(models.Model):
         return action
 
     def action_view_product_lot(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "stock.action_stock_lot_form_2",
         )
@@ -753,7 +753,7 @@ class ProductTemplate(models.Model):
         return action
 
     def action_product_tmpl_forecast_report(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.env.user._get_default_warehouse_id():
             self.env["stock.warehouse"]._warehouse_redirect_warning()
         return self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
@@ -833,5 +833,5 @@ class ProductTemplate(models.Model):
         )
 
     def _should_open_product_quants(self):
-        self.ensure_one()
+        self.check_singleton()
         return self._has_advanced_stock_option() or self.tracking != "none"

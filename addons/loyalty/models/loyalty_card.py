@@ -77,7 +77,7 @@ class LoyaltyCard(models.Model):
             card.points_display = card._format_points(card.points)
 
     def _format_points(self, points):
-        self.ensure_one()
+        self.check_singleton()
         if self.program_id.currency_id and self.point_name == self.program_id.currency_id.symbol:
             return format_amount(self.env, points, self.program_id.currency_id)
         if points == int(points):
@@ -93,25 +93,25 @@ class LoyaltyCard(models.Model):
         self.use_count = 0
 
     def _get_default_template(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.program_id.communication_plan_ids.filtered(lambda m: m.trigger == 'create').mail_template_id[:1]
 
     def _get_mail_author(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             (self.env.user._is_internal() and self.env.user) or self.company_id or self.env.company
         ).partner_id
 
     def _get_signature(self):
         """To be overridden."""
-        self.ensure_one()
+        self.check_singleton()
 
     def _has_source_order(self):
         return False
 
     def action_coupon_send(self):
         """Open the email composer preloaded with `_get_default_template`."""
-        self.ensure_one()
+        self.check_singleton()
         default_template = self._get_default_template()
         compose_form = self.env.ref('mail.email_compose_message_wizard_form', False)
         ctx = {
@@ -159,7 +159,7 @@ class LoyaltyCard(models.Model):
         plans_per_program = self._plans_per_program('create')
         if not any(plans_per_program.values()):
             return
-        # `_mail_get_customer` is `ensure_one`; the batch behind it is not.
+        # `_mail_get_customer` is `check_singleton`; the batch behind it is not.
         customers = self._mail_get_partners()
         coupons_per_sender = defaultdict(list)
         for coupon in self:

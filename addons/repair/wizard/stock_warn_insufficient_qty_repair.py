@@ -14,6 +14,6 @@ class StockWarnInsufficientQtyRepair(models.TransientModel):
         return self.repair_id.company_id
 
     def action_done(self):
-        self.ensure_one()
+        self.check_singleton()
         self = self.with_context(clean_context(self.env.context))
         return self.repair_id._action_repair_confirm()

@@ -223,7 +223,7 @@ class StockPicking(models.Model):
         return action
 
     def action_view_mrp_production(self):
-        self.ensure_one()
+        self.check_singleton()
         action = {
             "name": _("Manufacturing Orders"),
             "res_model": "mrp.production",

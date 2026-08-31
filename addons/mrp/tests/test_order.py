@@ -817,7 +817,7 @@ class TestMrpOrder(TestMrpCommon):
         details_operation_form.save()
 
         remaining_lot = (lot_p1_1 | lot_p1_2) - consumed_lots
-        remaining_lot.ensure_one()
+        remaining_lot.check_singleton()
         action = mo.button_mark_done()
         backorder = Form(
             self.env["mrp.production.backorder"].with_context(**action["context"])

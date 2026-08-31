@@ -26,7 +26,7 @@ class MaintenanceEquipment(models.Model):
             equipment.match_serial = matched_serial_count.get(equipment.serial_no, 0)
 
     def action_view_matched_serial(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env.ref("stock.action_stock_lot_form", raise_if_not_found=False)
         if not action:
             return True

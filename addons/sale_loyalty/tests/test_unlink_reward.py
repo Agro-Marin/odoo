@@ -34,7 +34,7 @@ class TestUnlinkReward(TestSaleCouponCommon):
                 "reward_ids": [Command.create({"reward_type": "discount"})],
             }
         )
-        cls.reward = cls.promotion_program.reward_ids.ensure_one()
+        cls.reward = cls.promotion_program.reward_ids.check_singleton()
 
     def test_sale_unlink_reward(self):
         order = self.empty_order

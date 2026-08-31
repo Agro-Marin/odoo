@@ -8,7 +8,7 @@ class ConfirmStockSms(models.TransientModel):
     pick_ids = fields.Many2many("stock.picking", "stock_picking_sms_rel")
 
     def send_sms(self):
-        self.ensure_one()
+        self.check_singleton()
         for company in self.pick_ids.company_id:
             if not company.has_received_warning_stock_sms:
                 company.sudo().write({"has_received_warning_stock_sms": True})
@@ -18,7 +18,7 @@ class ConfirmStockSms(models.TransientModel):
         return pickings_to_validate.button_validate()
 
     def dont_send_sms(self):
-        self.ensure_one()
+        self.check_singleton()
         for company in self.pick_ids.company_id:
             if not company.has_received_warning_stock_sms:
                 company.sudo().write(

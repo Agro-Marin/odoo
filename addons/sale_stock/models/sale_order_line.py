@@ -460,7 +460,7 @@ class SaleOrderLine(models.Model):
         return res
 
     def _create_procurements(self, product_qty, procurement_uom, values):
-        self.ensure_one()
+        self.check_singleton()
         return [
             self.env["stock.rule"].Procurement(
                 self.product_id,
@@ -475,14 +475,14 @@ class SaleOrderLine(models.Model):
         ]
 
     def _get_location_final(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.order_id.partner_shipping_id.property_stock_customer
 
     def _get_procurement_moves(self):
         return self._get_stock_moves_outgoing_incoming()
 
     def _get_procurement_qty(self, previous_product_qty=False):
-        self.ensure_one()
+        self.check_singleton()
         moves = self._get_transferable_moves()
         delivered, returned = self._get_stock_moves_outgoing_incoming()
         return (
@@ -492,7 +492,7 @@ class SaleOrderLine(models.Model):
         )
 
     def _get_pipeline_qty(self, moves):
-        self.ensure_one()
+        self.check_singleton()
         balance = defaultdict(float)
         for move in moves:
             quantity = move.product_uom_id._compute_quantity(
@@ -514,7 +514,7 @@ class SaleOrderLine(models.Model):
         )
 
     def _get_transferred_qty_from_moves(self):
-        self.ensure_one()
+        self.check_singleton()
         outgoing_moves, incoming_moves = self._get_stock_moves_outgoing_incoming()
 
         def total(moves):
@@ -562,7 +562,7 @@ class SaleOrderLine(models.Model):
 
     def _prepare_procurement_vals(self):
         values = super()._prepare_procurement_vals()
-        self.ensure_one()
+        self.check_singleton()
         date_deadline = self.order_id.date_commitment or self._get_date_planned()
         date_planned = date_deadline - timedelta(
             days=self.order_id.company_id.security_lead,

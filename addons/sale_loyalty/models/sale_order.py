@@ -103,7 +103,7 @@ class SaleOrder(models.Model):
             order.gift_card_count = gift_card_data.get(order, 0)
 
     def _add_loyalty_history_lines(self):
-        self.ensure_one()
+        self.check_singleton()
         points_per_coupon = defaultdict(partial(defaultdict, int))
         for coupon_point in self.coupon_point_ids:
             points_per_coupon[coupon_point.coupon_id]["issued"] = coupon_point.points
@@ -134,7 +134,7 @@ class SaleOrder(models.Model):
 
     def _get_no_effect_on_threshold_lines(self):
         """Return the lines that have no effect on the minimum amount to reach."""
-        self.ensure_one()
+        self.check_singleton()
         return self.env["sale.order.line"]
 
     def copy(self, default=None):
@@ -239,7 +239,7 @@ class SaleOrder(models.Model):
         return res
 
     def action_view_reward_wizard(self):
-        self.ensure_one()
+        self.check_singleton()
         self._update_programs_and_rewards()
         claimable_rewards = self._get_claimable_rewards()
         if len(claimable_rewards) == 1:
@@ -255,7 +255,7 @@ class SaleOrder(models.Model):
         )
 
     def action_view_gift_cards(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Gift Cards"),
             "type": "ir.actions.act_window",
@@ -276,7 +276,7 @@ class SaleOrder(models.Model):
         """
         Returns the first line of the currently applied global discount or False
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.line_ids.filtered(lambda l: l.reward_id.is_global_discount)
 
     def _get_applied_global_discount(self):
@@ -289,7 +289,7 @@ class SaleOrder(models.Model):
         """
         Returns an array of dict containing the values required for the reward lines
         """
-        self.ensure_one()
+        self.check_singleton()
         assert reward.reward_type == "product"
 
         reward_products = reward.reward_product_ids
@@ -343,7 +343,7 @@ class SaleOrder(models.Model):
         :return: The discountable amount
         :rtype: float
         """
-        self.ensure_one()
+        self.check_singleton()
 
         discountable = 0
 
@@ -381,8 +381,8 @@ class SaleOrder(models.Model):
             total untaxed amount of the eligible order lines.
         :rtype: tuple(float, dict(account.tax: float))
         """
-        self.ensure_one()
-        reward.ensure_one()
+        self.check_singleton()
+        reward.check_singleton()
         assert reward.discount_applicability == "order"
 
         lines = self.line_ids.filtered(lambda line: not line.display_type)
@@ -444,7 +444,7 @@ class SaleOrder(models.Model):
         return discountable, discountable_per_tax
 
     def _cheapest_line(self, reward):
-        self.ensure_one()
+        self.check_singleton()
         cheapest_line = False
         cheapest_line_price_unit = False
         domain = reward._get_discount_product_domain()
@@ -467,7 +467,7 @@ class SaleOrder(models.Model):
         """
         Returns the discountable and discountable_per_tax for a discount that applies to the cheapest line
         """
-        self.ensure_one()
+        self.check_singleton()
         assert reward.discount_applicability == "cheapest"
 
         cheapest_line = self._cheapest_line(reward)
@@ -489,7 +489,7 @@ class SaleOrder(models.Model):
         """
         Returns all lines to which `reward` can apply
         """
-        self.ensure_one()
+        self.check_singleton()
         assert reward.discount_applicability == "specific"
 
         discountable_lines = self.env["sale.order.line"]
@@ -511,7 +511,7 @@ class SaleOrder(models.Model):
 
         Returns the discountable and discountable_per_tax for a discount that only applies to specific products.
         """
-        self.ensure_one()
+        self.check_singleton()
         assert reward.discount_applicability == "specific"
 
         lines_to_discount = self._get_specific_discountable_lines(reward).filtered(
@@ -606,7 +606,7 @@ class SaleOrder(models.Model):
         return discountable, discountable_per_tax
 
     def _get_reward_values_discount(self, reward, coupon, **kwargs):
-        self.ensure_one()
+        self.check_singleton()
         assert reward.reward_type == "discount"
 
         reward_applies_on = reward.discount_applicability
@@ -781,7 +781,7 @@ class SaleOrder(models.Model):
         """
         Returns the base domain that all programs have to comply to.
         """
-        self.ensure_one()
+        self.check_singleton()
         today = self._get_confirmed_tx_create_date()
         return [
             ("active", "=", True),
@@ -804,7 +804,7 @@ class SaleOrder(models.Model):
         """
         Returns the base domain that all triggers have to comply to.
         """
-        self.ensure_one()
+        self.check_singleton()
         today = self._get_confirmed_tx_create_date()
         return [
             ("active", "=", True),
@@ -825,7 +825,7 @@ class SaleOrder(models.Model):
 
     def _get_program_timezone(self):
         """Get the timezone to be used for loyalty date checking on the current order."""
-        self.ensure_one()
+        self.check_singleton()
         return self.company_id.partner_id.tz or self.env[
             "ir.config_parameter"
         ].sudo().get_param("loyalty.timezone", "UTC")
@@ -835,7 +835,7 @@ class SaleOrder(models.Model):
         programs are applicable. If no transactions are confirmed, return the current day, using
         the company's time zone.
         """
-        self.ensure_one()
+        self.check_singleton()
         order_tz = self._get_program_timezone()
         confirmed_txs_dates = (
             self.sudo()
@@ -854,7 +854,7 @@ class SaleOrder(models.Model):
         """
         Returns a dict with the points per program for each (automatic) program that is applicable
         """
-        self.ensure_one()
+        self.check_singleton()
         if not domain:
             domain = [("trigger", "=", "auto")]
         # Make sure domain always complies with the order's domain rules
@@ -872,21 +872,21 @@ class SaleOrder(models.Model):
         """
         Returns all programs that give points on the current order.
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.coupon_point_ids.filtered("points").coupon_id.program_id
 
     def _get_reward_programs(self):
         """
         Returns all programs that are being used for rewards.
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.line_ids.reward_id.program_id
 
     def _get_reward_coupons(self):
         """
         Returns all coupons that are a reward.
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.coupon_point_ids.filtered("points").coupon_id.filtered(
             lambda c: c.program_id.applies_on == "future",
         )
@@ -897,7 +897,7 @@ class SaleOrder(models.Model):
 
         Applied programs is the combination of both new points for your order and the programs linked to rewards.
         """
-        self.ensure_one()
+        self.check_singleton()
         return self._get_points_programs() | self._get_reward_programs()
 
     def _recompute_prices(self):
@@ -928,7 +928,7 @@ class SaleOrder(models.Model):
 
         This is calculated by taking the points on the coupon, the points the order will give to the coupon (if applicable) and removing the points taken by already applied rewards.
         """
-        self.ensure_one()
+        self.check_singleton()
         points = coupon.points
         if self.state != "done":
             if coupon.program_id.applies_on != "future":
@@ -948,7 +948,7 @@ class SaleOrder(models.Model):
         """
         Updates (or creates) an entry in coupon_point_ids for the given coupons.
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.state == "done":
             for coupon, points in coupon_points.items():
                 coupon.sudo().points += points
@@ -973,7 +973,7 @@ class SaleOrder(models.Model):
             )
 
     def _update_loyalty_history(self, coupon_id, points):
-        self.ensure_one()
+        self.check_singleton()
         order_coupon_history = self.env["loyalty.history"].search(
             [
                 ("card_id", "=", coupon_id.id),
@@ -994,7 +994,7 @@ class SaleOrder(models.Model):
         ).sudo().unlink()
 
     def _get_reward_line_values(self, reward, coupon, **kwargs):
-        self.ensure_one()
+        self.check_singleton()
         self = self.with_context(lang=self._get_lang())
         reward = reward.with_context(lang=self._get_lang())
         if reward.reward_type == "discount":
@@ -1009,7 +1009,7 @@ class SaleOrder(models.Model):
 
         Returns the untouched old lines.
         """
-        self.ensure_one()
+        self.check_singleton()
         command_list = []
         for vals, line in zip(reward_vals, old_lines, strict=False):
             if vals["product_id"] == line.product_id.id:
@@ -1049,9 +1049,9 @@ class SaleOrder(models.Model):
         :return: True if current_reward is considered better than new_reward.
         :rtype: bool
         """
-        self.ensure_one()
-        current_reward.ensure_one()
-        new_reward.ensure_one()
+        self.check_singleton()
+        current_reward.check_singleton()
+        new_reward.check_singleton()
 
         if current_reward == new_reward:
             return True
@@ -1127,7 +1127,7 @@ class SaleOrder(models.Model):
         Returns a dict containing the error message or empty if everything went correctly.
         NOTE: A call to `_update_programs_and_rewards` is expected to reorder the discounts.
         """
-        self.ensure_one()
+        self.check_singleton()
         # Use the old lines before creating new ones. These should already be in a 'reset' state.
         old_reward_lines = kwargs.get("old_lines", self.env["sale.order.line"])
         if reward.is_global_discount:
@@ -1169,7 +1169,7 @@ class SaleOrder(models.Model):
         Returns a dict containing the all the claimable rewards grouped by coupon.
         Coupons that can not claim any reward are not contained in the result.
         """
-        self.ensure_one()
+        self.check_singleton()
         result = defaultdict(lambda: self.env["loyalty.reward"])
 
         check_date = self._get_confirmed_tx_create_date()
@@ -1239,7 +1239,7 @@ class SaleOrder(models.Model):
         """
         Whether or not this order may use nominative programs.
         """
-        self.ensure_one()
+        self.check_singleton()
         return True
 
     def _update_programs_and_rewards(self):
@@ -1248,7 +1248,7 @@ class SaleOrder(models.Model):
         Checks automatic programs for applicability.
         Updates applied rewards using the new points and the current state of the order (for example with % discounts).
         """
-        self.ensure_one()
+        self.check_singleton()
 
         # +===================================================+
         # |       STEP 1: Retrieve all applicable programs    |
@@ -1521,7 +1521,7 @@ class SaleOrder(models.Model):
 
         Returns a dict containing the error message or the points that will be given with the keys 'points'.
         """
-        self.ensure_one()
+        self.check_singleton()
 
         # Prepare quantities
         order_lines = self._get_not_rewarded_order_lines().filtered(
@@ -1701,7 +1701,7 @@ class SaleOrder(models.Model):
         return result
 
     def __try_apply_program(self, program, coupon, status):
-        self.ensure_one()
+        self.check_singleton()
         all_points = status["points"]
         points = all_points[0]
         coupons = coupon or self.env["loyalty.card"]
@@ -1767,7 +1767,7 @@ class SaleOrder(models.Model):
 
         Returns a dict containing the error message or containing the associated coupon(s).
         """
-        self.ensure_one()
+        self.check_singleton()
         # Basic checks
         if not program.filtered_domain(self._get_program_domain()):
             return {"error": _("The program is not available for this order.")}
@@ -1821,7 +1821,7 @@ class SaleOrder(models.Model):
          - 'error': Any error message that could occur.
          OR The result of `_get_claimable_rewards` with the found or newly created coupon, it will be empty if the coupon was consumed completely.
         """
-        self.ensure_one()
+        self.check_singleton()
 
         base_domain = self._get_trigger_domain()
         domain = Domain.AND(

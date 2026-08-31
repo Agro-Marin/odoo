@@ -141,7 +141,7 @@ class StockMoveLine(models.Model):
         return move_vals
 
     def _get_linkable_moves(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.product_id and self.product_id.is_kit:
             moves = self.picking_id.move_ids.filtered(
                 lambda move: (

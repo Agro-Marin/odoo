@@ -292,7 +292,7 @@ class StockPickingBatch(models.Model):
                 picking = self.picking_ids and self.picking_ids[0]
                 batch_without_picking_type.picking_type_id = picking.picking_type_id.id
         if "user_id" in vals:
-            self.picking_ids.assign_batch_user(vals["user_id"])
+            self.picking_ids.update_batch_user(vals["user_id"])
         return res
 
     @api.ondelete(at_uninstall=False)
@@ -305,7 +305,7 @@ class StockPickingBatch(models.Model):
     # -------------------------------------------------------------------------
     def action_confirm(self):
         """Sanity checks, confirm the pickings and mark the batch as confirmed."""
-        self.ensure_one()
+        self.check_singleton()
         if not self.picking_ids:
             raise UserError(_("You have to set some pickings to batch."))
         self.picking_ids.action_confirm()
@@ -319,7 +319,7 @@ class StockPickingBatch(models.Model):
         return True
 
     def action_print(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.env.ref(
             "stock_picking_batch.action_report_picking_batch"
         ).report_action(self)
@@ -339,7 +339,7 @@ class StockPickingBatch(models.Model):
                 if m.state not in ("done", "cancel")
             )
 
-        self.ensure_one()
+        self.check_singleton()
         self._check_company()
         # Empty 'assigned' or 'waiting for another operation' pickings will be removed from the batch when it is validated.
         pickings = self.mapped("picking_ids").filtered(
@@ -393,7 +393,7 @@ class StockPickingBatch(models.Model):
         return pickings.with_context(**context).button_validate()
 
     def action_assign(self):
-        self.ensure_one()
+        self.check_singleton()
         self.picking_ids.action_assign()
 
     def action_put_in_pack(
@@ -402,7 +402,7 @@ class StockPickingBatch(models.Model):
         """Action to put move lines with 'Done' quantities into a new pack
         This method follows same logic to stock.picking.
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.state not in ("done", "cancel"):
             return self.move_line_ids.action_put_in_pack(
                 package_id=package_id,
@@ -504,7 +504,7 @@ class StockPickingBatch(models.Model):
         }
 
     def action_batch_detailed_operations(self):
-        self.ensure_one()
+        self.check_singleton()
         view_id = self.env.ref("stock_picking_batch.view_stock_move_line_list").id
         return {
             "name": _("Detailed Operations"),
@@ -525,7 +525,7 @@ class StockPickingBatch(models.Model):
         }
 
     def action_view_packages(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.state == "done":
             return {
                 "name": self.env._("Packages"),
@@ -607,7 +607,7 @@ class StockPickingBatch(models.Model):
         self, num_of_moves=False, num_of_pickings=False, weight=False
     ):
         """Verifies if a line can be safely inserted into the wave without violating auto_batch_constrains."""
-        self.ensure_one()
+        self.check_singleton()
         res = True
         if num_of_moves:
             res = res and self._are_moves_auto_mergeable(num_of_moves)
@@ -616,7 +616,7 @@ class StockPickingBatch(models.Model):
         return res
 
     def _are_moves_auto_mergeable(self, num_of_moves):
-        self.ensure_one()
+        self.check_singleton()
         res = True
         if self.picking_type_id.batch_max_lines:
             res = res and (
@@ -626,7 +626,7 @@ class StockPickingBatch(models.Model):
         return res
 
     def _are_pickings_auto_mergeable(self, num_of_pickings):
-        self.ensure_one()
+        self.check_singleton()
         res = True
         if self.picking_type_id.batch_max_pickings:
             res = res and (
@@ -636,7 +636,7 @@ class StockPickingBatch(models.Model):
         return res
 
     def _get_merged_batch_vals(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "user_id": self.user_id.id,
             "description": self.description,

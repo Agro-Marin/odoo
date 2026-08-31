@@ -57,7 +57,7 @@ class StockPackageHistory(models.Model):
     )
 
     def action_view_package(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "view_mode": "form",
@@ -66,7 +66,7 @@ class StockPackageHistory(models.Model):
         }
 
     def _get_complete_dest_name_except_outermost(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.parent_dest_id:
             return ""
         return " > ".join(self.package_name.split(" > ")[1:])

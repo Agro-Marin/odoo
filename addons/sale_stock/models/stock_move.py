@@ -141,7 +141,7 @@ class StockMove(models.Model):
         return rslt
 
     def _get_sale_order_lines(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self + self.browse(self._rollup_move_origs() | self._rollup_move_dests())
         ).sale_line_id

@@ -75,7 +75,7 @@ class ProductLabelLayout(models.TransientModel):
         return xml_id, data
 
     def process(self):
-        self.ensure_one()
+        self.check_singleton()
         xml_id, data = self._prepare_report_data()
         if not xml_id:
             raise UserError(

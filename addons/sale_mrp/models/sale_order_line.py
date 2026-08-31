@@ -64,11 +64,11 @@ class SaleOrderLine(models.Model):
         return result
 
     def _get_relevant_phantom_bom(self, retry=False):
-        self.ensure_one()
+        self.check_singleton()
         return self._get_phantom_bom_per_line(retry=retry)[self]
 
     def _is_own_phantom_bom(self, bom):
-        self.ensure_one()
+        self.check_singleton()
         return bom.type == "phantom" and (
             bom.product_id == self.product_id
             or (
@@ -90,7 +90,7 @@ class SaleOrderLine(models.Model):
         }
 
     def _get_kit_transferred_qty(self, boms, kit_bom):
-        self.ensure_one()
+        self.check_singleton()
         if any(move._is_dropshipped() for move in self.move_ids):
             return self._get_dropshipped_kit_qty()
 
@@ -118,7 +118,7 @@ class SaleOrderLine(models.Model):
         )
 
     def _get_dropshipped_kit_qty(self):
-        self.ensure_one()
+        self.check_singleton()
         moves = self._get_kit_moves()
         if not moves:
             return 0.0
@@ -147,7 +147,7 @@ class SaleOrderLine(models.Model):
         return self.product_qty
 
     def _get_kit_moves(self, include_cancelled=False):
-        self.ensure_one()
+        self.check_singleton()
         moves = self.move_ids
         if not include_cancelled:
             moves = moves.filtered(lambda move: move.state != "cancel")
@@ -220,7 +220,7 @@ class SaleOrderLine(models.Model):
         }
 
     def _get_procurement_qty(self, previous_product_qty=False):
-        self.ensure_one()
+        self.check_singleton()
         bom = (
             self.env["mrp.bom"]
             .sudo()

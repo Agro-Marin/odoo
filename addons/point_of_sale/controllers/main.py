@@ -17,7 +17,7 @@ _logger = logging.getLogger(__name__)
 class PosController(PortalAccount):
     @http.route("/pos/service-worker.js", type="http", auth="user")
     def pos_web_service_worker(self):
-        return request.make_response(
+        return request.prepare_response(
             self._get_pos_service_worker(),
             [
                 ("Content-Type", "text/javascript"),
@@ -140,7 +140,7 @@ class PosController(PortalAccount):
             ("Content-Type", "application/pdf"),
             ("Content-Length", len(pdf)),
         ]
-        return request.make_response(pdf, headers=pdfhttpheaders)
+        return request.prepare_response(pdf, headers=pdfhttpheaders)
 
     @staticmethod
     def _parse_ticket_date(value):

@@ -818,7 +818,7 @@ class ProductTemplate(models.Model):
         )
 
     def _create_product_variant(self, combination, log_warning=False):
-        self.ensure_one()
+        self.check_singleton()
 
         Product = self.env["product.product"]
 
@@ -986,7 +986,7 @@ class ProductTemplate(models.Model):
     def _filter_combinations_impossible_by_config(
         self, combination_tuples, ignore_no_variant=False
     ):
-        self.ensure_one()
+        self.check_singleton()
         attribute_lines = self.valid_product_template_attribute_line_ids
         attribute_lines_active_values = (
             attribute_lines.product_template_value_ids._only_active()
@@ -1027,7 +1027,7 @@ class ProductTemplate(models.Model):
     def _get_attribute_exclusions(
         self, parent_combination=None, parent_name=None, combination_ids=None
     ):
-        self.ensure_one()
+        self.check_singleton()
         parent_combination = (
             parent_combination or self.env["product.template.attribute.value"]
         )
@@ -1066,12 +1066,12 @@ class ProductTemplate(models.Model):
         }
 
     def _get_attributes_extra_price(self):
-        self.ensure_one()
+        self.check_singleton()
 
         return sum(self.env.context.get("current_attributes_price_extra", []))
 
     def _get_product_price_context(self, combination):
-        self.ensure_one()
+        self.check_singleton()
         res = {}
 
         current_attributes_price_extra = [
@@ -1088,13 +1088,13 @@ class ProductTemplate(models.Model):
         return res
 
     def _get_possible_variants(self, parent_combination=None):
-        self.ensure_one()
+        self.check_singleton()
         return self.product_variant_ids.filtered(
             lambda p: p._is_variant_possible(parent_combination)
         )
 
     def _get_own_attribute_exclusions(self, combination_ids=None):
-        self.ensure_one()
+        self.check_singleton()
         combination_ids = frozenset(combination_ids or ())
         own_values = (
             self.valid_product_template_attribute_line_ids.product_template_value_ids
@@ -1110,7 +1110,7 @@ class ProductTemplate(models.Model):
         return result
 
     def _get_parent_attribute_exclusions(self, parent_combination):
-        self.ensure_one()
+        self.check_singleton()
         if not parent_combination:
             return {}
 
@@ -1131,7 +1131,7 @@ class ProductTemplate(models.Model):
         return result
 
     def _get_mapped_attribute_names(self, parent_combination=None):
-        self.ensure_one()
+        self.check_singleton()
         all_product_attribute_values = (
             self.valid_product_template_attribute_line_ids.product_template_value_ids
         )
@@ -1144,7 +1144,7 @@ class ProductTemplate(models.Model):
         }
 
     def _get_variant_for_combination(self, combination):
-        self.ensure_one()
+        self.check_singleton()
         filtered_combination = combination._without_no_variant_attributes()
         return self.env["product.product"].browse(
             self._get_variant_id_for_combination(filtered_combination)
@@ -1154,7 +1154,7 @@ class ProductTemplate(models.Model):
         "self.id", "frozenset(filtered_combination.ids)", cache="product_variants"
     )
     def _get_variant_id_for_combination(self, filtered_combination):
-        self.ensure_one()
+        self.check_singleton()
         domain = Domain("product_tmpl_id", "=", self.id)
         combination_indices_ids = filtered_combination._ids2str()
 
@@ -1173,7 +1173,7 @@ class ProductTemplate(models.Model):
 
     @tools.ormcache("self.id", cache="product_variants")
     def _get_first_possible_variant_id(self):
-        self.ensure_one()
+        self.check_singleton()
         return self._create_first_product_variant().id
 
     def _get_first_possible_combination(
@@ -1187,7 +1187,7 @@ class ProductTemplate(models.Model):
     def _get_possible_combinations(
         self, parent_combination=None, necessary_values=None
     ):
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.active:
             return
@@ -1248,7 +1248,7 @@ class ProductTemplate(models.Model):
         return "product/static/img/placeholder_thumbnail.png"
 
     def get_single_product_variant(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.product_variant_count == 1 and not self.has_configurable_attributes:
             return {
                 "product_id": self.product_variant_id.id,
@@ -1276,7 +1276,7 @@ class ProductTemplate(models.Model):
         return self._get_contextual_price(product=product)
 
     def _get_contextual_price(self, product=None):
-        self.ensure_one()
+        self.check_singleton()
         pricelist = self._get_contextual_pricelist()
         quantity = self.env.context.get("quantity", 1.0)
         uom = self.env["uom.uom"].browse(self.env.context.get("uom"))
@@ -1289,11 +1289,11 @@ class ProductTemplate(models.Model):
         return self.env["product.pricelist"].browse(self.env.context.get("pricelist"))
 
     def _get_list_price(self, price):
-        self.ensure_one()
+        self.check_singleton()
         return price
 
     def _get_available_uoms(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.uom_id | self.uom_ids
 
     @api.model
@@ -1446,7 +1446,7 @@ class ProductTemplate(models.Model):
                 message["record"] = restate(message["record"])
 
     def _prepare_tooltip(self):
-        self.ensure_one()
+        self.check_singleton()
         tooltip = ""
         if self.type == "combo":
             tooltip = _(
@@ -1455,7 +1455,7 @@ class ProductTemplate(models.Model):
         return tooltip
 
     def _prepare_variant_values(self, combination):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "product_tmpl_id": self.id,
             "product_template_attribute_value_ids": [Command.set(combination.ids)],
@@ -1477,7 +1477,7 @@ class ProductTemplate(models.Model):
         return self._base_domain_item_ids()
 
     def has_dynamic_attributes(self):
-        self.ensure_one()
+        self.check_singleton()
         return any(
             a.create_variant == "dynamic"
             for a in self.valid_product_template_attribute_line_ids.attribute_id
@@ -1492,7 +1492,7 @@ class ProductTemplate(models.Model):
         )
 
     def _is_combination_possible_by_config(self, combination, ignore_no_variant=False):
-        self.ensure_one()
+        self.check_singleton()
         return (
             next(
                 self._filter_combinations_impossible_by_config(
@@ -1506,7 +1506,7 @@ class ProductTemplate(models.Model):
     def _is_combination_possible(
         self, combination, parent_combination=None, ignore_no_variant=False
     ):
-        self.ensure_one()
+        self.check_singleton()
 
         if not self._is_combination_possible_by_config(combination, ignore_no_variant):
             return False

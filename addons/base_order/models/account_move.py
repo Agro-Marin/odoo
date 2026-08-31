@@ -7,7 +7,7 @@ class AccountMove(models.Model):
     def _add_order_lines(self, order_lines):
         if not order_lines:
             return
-        self.ensure_one()
+        self.check_singleton()
         order_lines._assert_invoiced_uom_convertible()
         new_line_ids = self.env["account.move.line"]
 

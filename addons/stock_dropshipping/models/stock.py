@@ -65,7 +65,7 @@ class StockPicking(models.Model):
             )
 
     def _is_to_external_location(self):
-        self.ensure_one()
+        self.check_singleton()
         return super()._is_to_external_location() or self.is_dropship
 
 

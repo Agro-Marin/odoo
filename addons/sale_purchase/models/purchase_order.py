@@ -25,7 +25,7 @@ class PurchaseOrder(models.Model):
             purchase.has_sale_order = bool(purchase.sale_order_count)
 
     def action_view_sale_orders(self):
-        self.ensure_one()
+        self.check_singleton()
         sale_orders = self._get_sale_orders()
         title = (
             {"name": _("Sources Sale Orders %s", self.name)}

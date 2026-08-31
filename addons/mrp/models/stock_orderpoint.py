@@ -34,7 +34,7 @@ class StockWarehouseOrderpoint(models.Model):
         super()._inverse_route_id()
 
     def _get_replenishment_order_notification(self):
-        self.ensure_one()
+        self.check_singleton()
         production = self.env["mrp.production"].search(
             self._get_replenishment_source_domain(),
             limit=1,
@@ -204,7 +204,7 @@ class StockWarehouseOrderpoint(models.Model):
         return routes
 
     def _get_default_bom(self):
-        self.ensure_one()
+        self.check_singleton()
         return self._get_default_boms()[self]
 
     def _get_default_boms(self):

@@ -204,7 +204,7 @@ class ProductTemplateAttributeValue(models.Model):
         )
 
     def _is_from_single_value_line(self, only_active=True):
-        self.ensure_one()
+        self.check_singleton()
         all_values = self.attribute_line_id.product_template_value_ids
         if only_active:
             all_values = all_values._only_active()

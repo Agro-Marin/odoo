@@ -63,7 +63,7 @@ class AccountJournal(models.Model):
         return self.env["account.account"].browse(account_ids)
 
     @api.model
-    def _ensure_company_account_journal(self):
+    def _get_or_create_company_account_journal(self):
         journal = self.search(
             [
                 ("code", "=", "POSS"),

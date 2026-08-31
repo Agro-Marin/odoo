@@ -149,7 +149,7 @@ class AccountAnalyticLine(models.Model):
         return super()._is_readonly() or not self._is_not_billed()
 
     def _is_not_billed(self):
-        self.ensure_one()
+        self.check_singleton()
         return not self.timesheet_invoice_id or (
             self.timesheet_invoice_id.state == "cancel"
             and self.timesheet_invoice_id.payment_state != "invoicing_legacy"
@@ -194,7 +194,7 @@ class AccountAnalyticLine(models.Model):
         2/ timesheet on employee rate task: find the SO line in the map of the project (even for subtask), or fallback on the SO line of the task, or fallback
             on the one on the project
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.task_id:
             if self.project_id.pricing_type == "employee_rate":
@@ -282,7 +282,7 @@ class AccountAnalyticLine(models.Model):
             )
 
     def _get_employee_mapping_entry(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.env["project.sale.line.employee.map"].search(
             [
                 ("project_id", "=", self.project_id.id),
@@ -302,7 +302,7 @@ class AccountAnalyticLine(models.Model):
         return super()._hourly_cost()
 
     def action_sale_order_from_timesheet(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "name": _("Sales Order"),
@@ -313,7 +313,7 @@ class AccountAnalyticLine(models.Model):
         }
 
     def action_invoice_from_timesheet(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "name": _("Invoice"),

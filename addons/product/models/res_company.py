@@ -74,7 +74,7 @@ class ResCompany(models.Model):
             )
 
     def _get_default_pricelist_vals(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Default"),
             "currency_id": self.currency_id.id,

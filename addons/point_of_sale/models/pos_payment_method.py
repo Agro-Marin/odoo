@@ -373,7 +373,7 @@ class PosPaymentMethod(models.Model):
         currency,
         debtor_partner,
     ):
-        self.ensure_one()
+        self.check_singleton()
         if self not in self.open_session_ids.config_id.payment_method_ids:
             raise UserError(
                 _(
@@ -396,7 +396,7 @@ class PosPaymentMethod(models.Model):
         currency,
         debtor_partner,
     ):
-        self.ensure_one()
+        self.check_singleton()
         if self.payment_method_type != "qr_code" or not self.qr_code_method:
             raise UserError(
                 _("This payment method is not configured to generate QR codes.")

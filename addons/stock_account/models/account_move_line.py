@@ -34,7 +34,7 @@ class AccountMoveLine(models.Model):
         )._inverse_product_id()
 
     def _eligible_for_stock_account(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.product_id.is_storable:
             return False
         moves = self._get_stock_moves()
@@ -56,7 +56,7 @@ class AccountMoveLine(models.Model):
 
     def _get_cogs_value(self):
         """Get the COGS price unit in the product's default unit of measure."""
-        self.ensure_one()
+        self.check_singleton()
 
         # Use original invoice price_unit if there is one and product is not fifo
         if self.product_id.cost_method in ["standard", "average"]:
@@ -88,13 +88,13 @@ class AccountMoveLine(models.Model):
         return self.env["stock.move"]
 
     def _get_cogs_qty(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.product_uom_id._compute_quantity(
             self.quantity, self.product_id.uom_id
         ) * (-1 if self.move_id.move_type == "out_refund" else 1)
 
     def _get_posted_cogs_value(self):
-        self.ensure_one()
+        self.check_singleton()
         return 0
 
     def _get_lines_from_original_invoice(self):

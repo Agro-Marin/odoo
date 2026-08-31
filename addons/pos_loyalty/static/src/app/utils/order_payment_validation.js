@@ -33,7 +33,7 @@ patch(OrderPaymentValidation.prototype, {
             try {
                 const { successful, payload } = await this.pos.data.call(
                     "pos.order",
-                    "validate_coupon_programs",
+                    "check_coupon_programs",
                     [[], pointChanges, newCodes],
                 );
                 // Payload may contain the points of the concerned coupons to be updated in case of error. (So that rewards can be corrected)

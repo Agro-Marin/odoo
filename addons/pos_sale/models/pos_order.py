@@ -201,7 +201,7 @@ class PosOrder(models.Model):
         return data
 
     def action_view_sale_order(self):
-        self.ensure_one()
+        self.check_singleton()
         linked_orders = self.lines.mapped("sale_order_origin_id")
         return {
             "type": "ir.actions.act_window",

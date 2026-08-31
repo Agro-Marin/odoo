@@ -72,14 +72,14 @@ class SaleOrder(models.Model):
         for order in self.filtered(
             lambda o: any(o.line_ids.product_id.mapped("gelato_product_uid"))
         ):
-            if message := order._ensure_partner_address_is_complete():
+            if message := order._get_incomplete_address_error():
                 raise ValidationError(message)
             order._create_order_on_gelato()
         return res
 
     # === BUSINESS METHODS === #
 
-    def _ensure_partner_address_is_complete(self):
+    def _get_incomplete_address_error(self):
         """Ensure that all order's partner address fields required by Gelato are set.
 
         :return: An error message if the address is incomplete, None otherwise.
@@ -134,7 +134,7 @@ class SaleOrder(models.Model):
                 partial(self._confirm_order_on_gelato, data["id"])
             )
             self.env.cr.postrollback.add(
-                partial(self._delete_order_on_gelato, data["id"])
+                partial(self._remove_order_on_gelato, data["id"])
             )
         except UserError as e:
             raise UserError(
@@ -184,7 +184,7 @@ class SaleOrder(models.Model):
 
         :return: None
         """
-        self.ensure_one()
+        self.check_singleton()
 
         _logger.info(
             "Confirmation of Gelato order %s for sales order %s",
@@ -220,14 +220,14 @@ class SaleOrder(models.Model):
             )
 
     @post_commit
-    def _delete_order_on_gelato(self, gelato_order_id):
+    def _remove_order_on_gelato(self, gelato_order_id):
         """Send the order deletion request to Gelato.
 
         This is performed in a separate transaction to allow running as post-commit hook.
 
         :return: None
         """
-        self.ensure_one()
+        self.check_singleton()
 
         _logger.info(
             "Deletion of Gelato order %s for sales order %s",

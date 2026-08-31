@@ -16,7 +16,7 @@ class MixinPosBus(models.AbstractModel):
     )
 
     def _get_access_token(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.access_token:
             return self.access_token
         token = _new_access_token()
@@ -24,7 +24,7 @@ class MixinPosBus(models.AbstractModel):
         return token
 
     def _notify(self, *notifications, private=True) -> None:
-        self.ensure_one()
+        self.check_singleton()
         token = self._get_access_token()
         if isinstance(notifications[0], str):
             if len(notifications) != 2:

@@ -30,7 +30,7 @@ class LoyaltyGenerateWizard(models.TransientModel):
 
     def _get_partners(self):
         """Return the customers this wizard issues a coupon to, one each."""
-        self.ensure_one()
+        self.check_singleton()
         if self.mode != 'selected':
             return self.env['res.partner']
         domains = []
@@ -71,7 +71,7 @@ class LoyaltyGenerateWizard(models.TransientModel):
 
     def _get_coupon_values(self, partner):
         """Return the creation values of one coupon, held by `partner` if nominative."""
-        self.ensure_one()
+        self.check_singleton()
         return {
             'program_id': self.program_id.id,
             'points': self.points_granted,

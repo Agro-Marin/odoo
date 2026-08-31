@@ -156,7 +156,7 @@ class MixinOrderLineMatch(models.AbstractModel):
                 line.order_line_id.price_unit = previous_price_unit
 
     def action_view_line(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "res_model": (

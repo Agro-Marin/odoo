@@ -196,7 +196,7 @@ class PurchaseRequisition(models.Model):
         self.state = "cancel"
 
     def action_confirm(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.line_ids:
             raise UserError(
                 _(
@@ -222,7 +222,7 @@ class PurchaseRequisition(models.Model):
         self.state = "confirmed"
 
     def action_draft(self):
-        self.ensure_one()
+        self.check_singleton()
         self.state = "draft"
 
     def action_done(self):
@@ -405,7 +405,7 @@ class PurchaseRequisitionLine(models.Model):
         return super().unlink()
 
     def _create_supplier_info(self):
-        self.ensure_one()
+        self.check_singleton()
         purchase_requisition = self.requisition_id
         if (
             purchase_requisition.requisition_type == "blanket_order"
@@ -427,7 +427,7 @@ class PurchaseRequisitionLine(models.Model):
     def _prepare_purchase_order_line(
         self, name, product_qty=0.0, price_unit=0.0, taxes_ids=False
     ):
-        self.ensure_one()
+        self.check_singleton()
         if self.product_description_variants:
             name += "\n" + self.product_description_variants
         date_commitment = fields.Datetime.now()

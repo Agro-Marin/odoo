@@ -43,7 +43,7 @@ class MixinMrpProduct(models.AbstractModel):
             record.used_in_bom_count = counts.get(record.id, 0)
 
     def action_used_in_bom(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mrp.mrp_bom_form_action"
         )

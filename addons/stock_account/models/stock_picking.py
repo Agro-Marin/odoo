@@ -34,7 +34,7 @@ class StockPicking(models.Model):
                 picking.is_date_editable = not picking._is_date_in_lock_period()
 
     def _is_date_in_lock_period(self):
-        self.ensure_one()
+        self.check_singleton()
         lock = []
         if self.state == "done":
             lock += self.company_id._get_lock_date_violations(

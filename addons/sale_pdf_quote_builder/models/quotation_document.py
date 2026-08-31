@@ -80,7 +80,7 @@ class QuotationDocument(models.Model):
     # === ACTION METHODS ===#
 
     def action_view_pdf_form_fields(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Form Fields"),
             "type": "ir.actions.act_window",

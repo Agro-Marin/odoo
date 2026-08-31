@@ -41,7 +41,7 @@ class AccountMove(models.Model):
 
     def _is_downpayment(self):
         # EXTENDS sale
-        self.ensure_one()
+        self.check_singleton()
         if self.line_ids.sale_line_ids:
             return super()._is_downpayment()
 

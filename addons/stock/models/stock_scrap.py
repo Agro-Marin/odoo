@@ -229,7 +229,7 @@ class StockScrap(models.Model):
             raise UserError(_("You cannot delete a scrap which is done."))
 
     def _prepare_move_values(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "origin": self.origin or self.picking_id.name or self.name,
             "company_id": self.company_id.id,
@@ -282,7 +282,7 @@ class StockScrap(models.Model):
         return True
 
     def _check_shortfall_is_not_an_unnamed_lot(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.product_id.tracking == "none" or self.lot_id:
             return
         under_lots = self.env["stock.quant"].search(
@@ -326,11 +326,11 @@ class StockScrap(models.Model):
             scrap.name = name
 
     def _create_scrap_move(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.env["stock.move"].create(self._prepare_move_values())
 
     def do_replenish(self, values=False):
-        self.ensure_one()
+        self.check_singleton()
         values = values or {}
         self.with_context(clean_context(self.env.context)).env["stock.rule"].run(
             [
@@ -365,7 +365,7 @@ class StockScrap(models.Model):
         return self.product_id.is_storable
 
     def check_available_qty(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self._should_check_available_qty():
             return True
 
@@ -383,7 +383,7 @@ class StockScrap(models.Model):
         return float_compare(available_qty, scrap_qty, precision_digits=precision) >= 0
 
     def action_validate(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.product_uom_id.is_zero(self.scrap_qty):
             raise UserError(_("You can only enter positive quantities."))
         if self.check_available_qty():

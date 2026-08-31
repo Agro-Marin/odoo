@@ -25,7 +25,7 @@ class PosPaymentMethod(models.Model):
         super(PosPaymentMethod, self - opm)._compute_type()
 
     def _get_online_payment_providers(self, pos_config_id=False, error_if_invalid=True):
-        self.ensure_one()
+        self.check_singleton()
         providers_sudo = self.sudo().online_payment_provider_ids
         if not providers_sudo: # Empty = all published providers
             providers_sudo = self.sudo().env['payment.provider'].search([('is_published', '=', True), ('state', 'in', ['enabled', 'test'])])

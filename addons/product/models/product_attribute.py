@@ -150,7 +150,7 @@ class ProductAttribute(models.Model):
 
     @api.readonly
     def action_view_product_template_attribute_lines(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "name": _("Products"),

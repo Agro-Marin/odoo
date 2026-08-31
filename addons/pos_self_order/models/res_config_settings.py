@@ -27,7 +27,7 @@ class ResConfigSettings(models.TransientModel):
 
     @api.onchange("pos_self_ordering_default_user_id")
     def _onchange_default_user(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.pos_self_ordering_default_user_id and self.pos_self_ordering_mode == 'mobile':
             user = self.pos_self_ordering_default_user_id
             if not (user.has_group("point_of_sale.group_pos_user")
@@ -74,7 +74,7 @@ class ResConfigSettings(models.TransientModel):
             self.pos_self_ordering_pay_after = "each"
 
     def custom_link_action(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "res_model": "pos_self_order.custom_link",
@@ -92,7 +92,7 @@ class ResConfigSettings(models.TransientModel):
 
     def get_pos_qr_stands(self):
         """Redirect to the get the free stands with the data of QR codes for the current POS config"""
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.client",
             "tag": "pos_qr_stands",
@@ -211,11 +211,11 @@ class ResConfigSettings(models.TransientModel):
         return super().pos_close_ui()
 
     def preview_self_order_app(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.pos_config_id.preview_self_order_app()
 
     def update_access_tokens(self):
-        self.ensure_one()
+        self.check_singleton()
         self.pos_config_id._update_access_token()
 
     @api.depends('pos_self_ordering_mode')

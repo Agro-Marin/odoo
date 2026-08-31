@@ -189,7 +189,7 @@ class LoyaltyReward(models.Model):
         methods look like duplicates and are not: unifying them on `child_of` makes
         every PoS discount apply to the whole catalogue.
         """
-        self.ensure_one()
+        self.check_singleton()
         constrains = []
         if self.discount_product_ids:
             constrains.append([("id", "in", self.discount_product_ids.ids)])

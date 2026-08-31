@@ -5,7 +5,7 @@ class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
 
     def _get_cogs_qty(self):
-        self.ensure_one()
+        self.check_singleton()
         valuation_account = self.product_id.product_tmpl_id._get_product_accounts(
             fiscal_pos=self.move_id.fiscal_position_id
         )["stock_valuation"]
@@ -32,7 +32,7 @@ class AccountMoveLine(models.Model):
         return posted_cogs_qty_prod_uom + super()._get_cogs_qty()
 
     def _get_posted_cogs_value(self):
-        self.ensure_one()
+        self.check_singleton()
         valuation_account = self.product_id.product_tmpl_id._get_product_accounts(
             fiscal_pos=self.move_id.fiscal_position_id
         )["stock_valuation"]
@@ -77,7 +77,7 @@ class AccountMoveLine(models.Model):
         return original_lines
 
     def _sale_can_be_reinvoice(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.move_type != "entry"
             and self.display_type != "cogs"

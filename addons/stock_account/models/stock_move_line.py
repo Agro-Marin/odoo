@@ -68,7 +68,7 @@ class StockMoveLine(models.Model):
         :return: True if the move line's owner is different from the company's partner (indicating
                 it should be excluded from valuation), False otherwise.
         """
-        self.ensure_one()
+        self.check_singleton()
         return bool(self.owner_id and self.owner_id != self.company_id.partner_id)
 
     def _update_stock_move_value(self, old_qty_by_ml=None):

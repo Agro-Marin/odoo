@@ -76,7 +76,7 @@ class MrpBomLine(models.Model):
                 )
 
     def _get_cost_share(self, product=None):
-        self.ensure_one()
+        self.check_singleton()
         if product is None:
             product = self.env["product.product"]
         cache = self.env.context.get("bom_cost_share_cache", {})
@@ -123,7 +123,7 @@ class MrpBomLine(models.Model):
     def _get_line_cost_share(self, product, boms_done):
         if not self:
             return 100.0
-        self.ensure_one()
+        self.check_singleton()
         parent_cost_share = next(
             (
                 vals.get("bom_cost_share", 100.0)

@@ -15,7 +15,7 @@ class ResConfigSettings(models.TransientModel):
     )
 
     def _clamp_validity_days(self, field_name, label):
-        self.ensure_one()
+        self.check_singleton()
         if self[field_name] >= 0:
             return None
         self[field_name] = self.env["res.company"].default_get([field_name])[field_name]
@@ -30,7 +30,7 @@ class ResConfigSettings(models.TransientModel):
         }
 
     def _sync_order_lock(self, checkbox_field, lock_field):
-        self.ensure_one()
+        self.check_singleton()
         lock = "lock" if self[checkbox_field] else "edit"
         if self[lock_field] != lock:
             self[lock_field] = lock

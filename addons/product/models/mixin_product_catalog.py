@@ -9,7 +9,7 @@ class MixinProductCatalog(models.AbstractModel):
 
     @api.readonly
     def action_add_from_catalog(self):
-        self.ensure_one()
+        self.check_singleton()
         kanban_view_id = self.env.ref("product.view_product_product_kanban_catalog").id
         search_view_id = self.env.ref("product.view_product_product_search_catalog").id
         additional_context = self._get_action_add_from_catalog_extra_context()

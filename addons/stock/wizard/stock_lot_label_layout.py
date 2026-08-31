@@ -23,7 +23,7 @@ class LotLabelLayout(models.TransientModel):
     )
 
     def process(self):
-        self.ensure_one()
+        self.check_singleton()
         xml_id = "stock.action_report_lot_label"
         if self.print_format == "zpl":
             xml_id = "stock.label_lot_template"

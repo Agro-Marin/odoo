@@ -91,7 +91,7 @@ class MixinBomComponent(models.AbstractModel):
     def _get_product_catalog_lines_data(self, **kwargs):
         if not self:
             return {"quantity": 0}
-        self.product_id.ensure_one()
+        self.product_id.check_singleton()
         return {
             **self[0].bom_id._get_product_price_and_data(self[0].product_id),
             # Converted to the product's own unit, not to each line's: summing

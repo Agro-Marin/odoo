@@ -14,8 +14,8 @@ class TestProject(TestCommonSaleTimesheet):
             }
         )
 
-    def test_fetch_sale_order_items(self):
-        """Test _fetch_sale_order_items and _get_sale_order_items methods
+    def test_get_sale_order_items(self):
+        """Test the _get_sale_order_items and _get_sale_orders methods
         This test will check we have the SOLs linked to the project and its tasks.
         Test Case:
         =========
@@ -28,7 +28,6 @@ class TestProject(TestCommonSaleTimesheet):
             for instance, only the SOLs linked to the folded tasks.
         7) Set allàw_billable=False and check no SOL is found since the project is not billable.
         """
-        self.assertFalse(self.project_non_billable._fetch_sale_order_items())
         self.assertFalse(self.project_non_billable._get_sale_order_items())
         self.assertFalse(self.project_non_billable._get_sale_orders())
 
@@ -36,9 +35,6 @@ class TestProject(TestCommonSaleTimesheet):
         self.env.invalidate_all()
         expected_task_sale_order_items = self.project_global.task_ids.sale_line_id
         expected_sale_order_items = sale_item | expected_task_sale_order_items
-        self.assertEqual(
-            self.project_global._fetch_sale_order_items(), expected_sale_order_items
-        )
         self.assertEqual(
             self.project_global._get_sale_order_items(), expected_sale_order_items
         )
@@ -126,13 +122,13 @@ class TestProject(TestCommonSaleTimesheet):
         )
         self.env.flush_all()
         self.assertEqual(
-            self.project_global._fetch_sale_order_items(
+            self.project_global._get_sale_order_items(
                 {"project.task": [("step_id.fold", "=", False)]}
             ),
             employee_mapping.sale_line_id,
         )
         self.assertEqual(
-            self.project_global._fetch_sale_order_items(
+            self.project_global._get_sale_order_items(
                 {"project.task": [("step_id.fold", "=", True)]}
             ),
             task.sale_line_id | employee_mapping.sale_line_id,
@@ -148,13 +144,13 @@ class TestProject(TestCommonSaleTimesheet):
         )
 
         self.assertEqual(
-            self.project_global._fetch_sale_order_items(
+            self.project_global._get_sale_order_items(
                 {"project.task": [("step_id.fold", "=", False)]}
             ),
             task2.sale_line_id | employee_mapping.sale_line_id,
         )
         self.assertEqual(
-            self.project_global._fetch_sale_order_items(
+            self.project_global._get_sale_order_items(
                 {"project.task": [("step_id.fold", "=", True)]}
             ),
             task.sale_line_id | employee_mapping.sale_line_id,

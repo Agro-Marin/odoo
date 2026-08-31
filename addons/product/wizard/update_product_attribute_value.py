@@ -36,7 +36,7 @@ class UpdateProductAttributeValue(models.TransientModel):
                 )
 
     def _get_product_count_key(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.mode == "add":
             return ("add", self.attribute_value_id.attribute_id.id)
         if self.mode == "update_extra_price":
@@ -63,7 +63,7 @@ class UpdateProductAttributeValue(models.TransientModel):
             wizard.product_count = counts.get(keys_by_wizard[wizard], 0)
 
     def action_confirm(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.mode == "add":
             self._add_value_to_existing_attribute_lines()
         elif self.mode == "update_extra_price":

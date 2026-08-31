@@ -6,7 +6,7 @@ class StockMove(models.Model):
 
     def _get_value_from_production(self, quantity, at_date=None):
         # TODO: Maybe move _cal_price here
-        self.ensure_one()
+        self.check_singleton()
         if not self.production_id:
             return super()._get_value_from_production(quantity, at_date)
         value = quantity * self.price_unit

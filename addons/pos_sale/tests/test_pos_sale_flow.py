@@ -2008,7 +2008,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
         self.assertEqual(sale_order.line_ids[0].name, original_name)
 
     def test_get_special_products_and_ensure_downpayment_product(self):
-        # Regression test: _get_special_products and _ensure_downpayment_product
+        # Regression test: _get_special_products and _update_downpayment_product
         # had no test coverage anywhere in the module.
         self.main_pos_config.down_payment_product_id = self.desk_pad.product_variant_id
         special_products = self.env["pos.config"]._get_special_products()
@@ -2019,7 +2019,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
             " payment product",
         )
 
-        # _ensure_downpayment_product only acts on the pos.config registered
+        # _update_downpayment_product only acts on the pos.config registered
         # under the point_of_sale.pos_config_main xmlid.
         self.main_pos_config.down_payment_product_id = False
         self.env["ir.model.data"]._update_xmlids(
@@ -2031,7 +2031,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                 }
             ]
         )
-        self.env["pos.config"]._ensure_downpayment_product()
+        self.env["pos.config"]._update_downpayment_product()
         self.assertEqual(
             self.main_pos_config.down_payment_product_id,
             self.env.ref("pos_sale.default_downpayment_product"),

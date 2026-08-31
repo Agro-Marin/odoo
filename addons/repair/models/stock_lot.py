@@ -52,7 +52,7 @@ class StockLot(models.Model):
         return action
 
     def action_view_ro(self):
-        self.ensure_one()
+        self.check_singleton()
 
         action = {
             'res_model': 'repair.order',

@@ -513,7 +513,7 @@ class StockWarehouseOrderpoint(models.Model):
         return moves_by_product
 
     def _get_deadline_from_timeline(self, timeline, horizon_date):
-        self.ensure_one()
+        self.check_singleton()
         location_path = self.location_id.parent_path or ""
         qty_by_date = defaultdict(float)
         for move_path, move_date, move_qty in timeline:
@@ -977,7 +977,7 @@ class StockWarehouseOrderpoint(models.Model):
         )
 
     def action_product_forecast_report(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.product_id.action_product_forecast_report()
         action["context"] = {
             "active_id": self.product_id.id,
@@ -995,7 +995,7 @@ class StockWarehouseOrderpoint(models.Model):
         return self._get_orderpoint_action()
 
     def action_stock_replenishment_info(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "stock.action_stock_replenishment_info",
         )
@@ -1063,7 +1063,7 @@ class StockWarehouseOrderpoint(models.Model):
         self.write({"qty_to_order_manual": 0, "qty_to_order_manual_set": False})
 
     def _get_default_rule(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.env["stock.rule"]._get_rule(
             self.product_id,
             self.location_id,
@@ -1074,7 +1074,7 @@ class StockWarehouseOrderpoint(models.Model):
         )
 
     def _get_default_route(self):
-        self.ensure_one()
+        self.check_singleton()
         return self._get_default_route_map().get(self.id, self.env["stock.route"])
 
     def _get_default_route_map(self):
@@ -1113,7 +1113,7 @@ class StockWarehouseOrderpoint(models.Model):
         return result
 
     def _get_replenishment_multiple_alternative(self, qty_to_order):
-        self.ensure_one()
+        self.check_singleton()
         return self._get_replenishment_multiple_alternative_map(
             {self.id: qty_to_order},
         ).get(self.id, False)
@@ -1147,11 +1147,11 @@ class StockWarehouseOrderpoint(models.Model):
         return result
 
     def _get_qty_to_order(self):
-        self.ensure_one()
+        self.check_singleton()
         return self._get_qty_to_order_map()[self.id]
 
     def _get_lead_days_values(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "days_to_order": self.days_to_order,
         }
@@ -1162,7 +1162,7 @@ class StockWarehouseOrderpoint(models.Model):
         }
 
     def _get_product_context(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "location": self.location_id.id,
             "to_date": datetime.combine(self.lead_horizon_date, time.max),
@@ -1242,7 +1242,7 @@ class StockWarehouseOrderpoint(models.Model):
         }
 
     def _get_replenishment_order_notification(self):
-        self.ensure_one()
+        self.check_singleton()
         move = self.env["stock.move"].search(
             self._get_replenishment_source_domain(),
             limit=1,
@@ -1263,7 +1263,7 @@ class StockWarehouseOrderpoint(models.Model):
         return False
 
     def _get_orderpoint_procurement_date(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             datetime.combine(self.lead_horizon_date, time(12))
             .replace(tzinfo=timezone(self.company_id.partner_id.tz or "UTC"))

@@ -160,7 +160,7 @@ class StockMoveLine(models.Model):
         return self._get_add_to_wave_action(wave, notification_title)
 
     def _is_auto_waveable(self):
-        self.ensure_one()
+        self.check_singleton()
         if (  # noqa: SIM103
             not self.picking_id
             or (
@@ -337,7 +337,7 @@ class StockMoveLine(models.Model):
         :param dict nearest_parent_locations: line -> location
         :rtype: bool
         """
-        self.ensure_one()
+        self.check_singleton()
         return not (
             self.company_id != wave.company_id
             or (
@@ -394,7 +394,7 @@ class StockMoveLine(models.Model):
         :param dict nearest_parent_locations: line -> location
         :return: The wave the line joins, or False
         """
-        self.ensure_one()
+        self.check_singleton()
         for wave in potential_waves:
             if not self._is_wave_grouping_compatible(
                 wave,
@@ -550,7 +550,7 @@ class StockMoveLine(models.Model):
         :param dict nearest_parent_locations: line -> location
         :rtype: bool
         """
-        self.ensure_one()
+        self.check_singleton()
         return not (
             self.id == potential_line.id
             or self.company_id != potential_line.company_id
@@ -602,7 +602,7 @@ class StockMoveLine(models.Model):
         :param dict nearest_parent_locations: line -> location
         :return: None
         """
-        self.ensure_one()
+        self.check_singleton()
         potential_lines = potential_lines.sorted(
             key=lambda l: (l.picking_id.id, l.move_id.id)
         )
@@ -701,7 +701,7 @@ class StockMoveLine(models.Model):
                 line._add_to_wave(wave)
 
     def _get_auto_wave_description(self, nearest_parent_location=False):
-        self.ensure_one()
+        self.check_singleton()
         description = self.picking_id._get_auto_batch_description()
         description_items = []
         if description:

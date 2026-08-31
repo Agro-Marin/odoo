@@ -45,7 +45,7 @@ class PosPaymentMethod(models.Model):
         return super()._is_write_forbidden(fields - {'qfpay_latest_response'})
 
     def qfpay_sign_request(self, payload):
-        self.ensure_one()
+        self.check_singleton()
         if not self.env.su and not self.env.user.has_group('point_of_sale.group_pos_user'):
             raise AccessDenied()
 

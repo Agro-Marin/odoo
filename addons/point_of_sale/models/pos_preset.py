@@ -113,7 +113,7 @@ class PosPreset(models.Model):
             record.has_image = bool(record.image_512)
 
     def get_available_slots(self):
-        self.ensure_one()
+        self.check_singleton()
         usage = self._compute_slots_usage()
         return {
             "usage_utc": usage,
@@ -137,7 +137,7 @@ class PosPreset(models.Model):
         return usage
 
     def action_view_linked_orders(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Linked Orders"),
             "view_mode": "list",
@@ -147,7 +147,7 @@ class PosPreset(models.Model):
         }
 
     def action_view_linked_config(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Linked POS Configurations"),
             "view_mode": "list",

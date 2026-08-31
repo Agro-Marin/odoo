@@ -172,7 +172,7 @@ class StockPicking(models.Model):
     nbr_repairs = fields.Count("repair_ids", 'Number of repairs linked to this picking')
 
     def action_repair_return(self):
-        self.ensure_one()
+        self.check_singleton()
         ctx = clean_context(self.env.context.copy())
         warehouse = self.picking_type_id.warehouse_id or self.env.user._get_default_warehouse_id()
         ctx.update({

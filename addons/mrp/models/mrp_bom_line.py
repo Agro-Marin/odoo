@@ -241,11 +241,11 @@ class MrpBomLine(models.Model):
         )["string"]
 
     def _get_chatter_values(self, field_names):
-        self.ensure_one()
+        self.check_singleton()
         return {name: self._get_chatter_value(name) for name in field_names}
 
     def _get_chatter_value(self, field_name):
-        self.ensure_one()
+        self.check_singleton()
         field = self._fields[field_name]
         value = self[field_name]
         if field.relational:
@@ -257,7 +257,7 @@ class MrpBomLine(models.Model):
         return str(value)
 
     def action_see_attachments(self):
-        self.ensure_one()
+        self.check_singleton()
         domain = [
             "&",
             ("attached_on_mrp", "=", "bom"),
@@ -366,7 +366,7 @@ class MrpBomLine(models.Model):
         explosion reaches it at run time, where the constraint that should have
         refused it cannot.
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.product_id.id in ancestors:
             raise ValidationError(
                 _(

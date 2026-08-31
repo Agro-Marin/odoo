@@ -5,7 +5,7 @@ class PosOrderLine(models.Model):
     _inherit = "pos.order.line"
 
     def _get_stock_moves_to_consider(self, stock_moves, product):
-        self.ensure_one()
+        self.check_singleton()
         bom = product.env['mrp.bom']._bom_find(product, company_id=stock_moves.company_id.id, bom_type='phantom').get(product)
         if not bom:
             return super()._get_stock_moves_to_consider(stock_moves, product)

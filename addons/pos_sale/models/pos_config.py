@@ -16,7 +16,7 @@ class PosConfig(models.Model):
         return res | self.env['pos.config'].search([]).mapped('down_payment_product_id')
 
     @api.model
-    def _ensure_downpayment_product(self):
+    def _update_downpayment_product(self):
         pos_config = self.env.ref('point_of_sale.pos_config_main', raise_if_not_found=False)
         downpayment_product = self.env.ref('pos_sale.default_downpayment_product', raise_if_not_found=False)
         if pos_config and downpayment_product:
@@ -25,5 +25,5 @@ class PosConfig(models.Model):
     @api.model
     def load_onboarding_furniture_scenario(self, with_demo_data=True):
         res = super().load_onboarding_furniture_scenario(with_demo_data)
-        self._ensure_downpayment_product()
+        self._update_downpayment_product()
         return res

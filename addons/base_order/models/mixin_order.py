@@ -330,7 +330,7 @@ class MixinOrder(models.AbstractModel):
             )
 
     def action_price_comparison(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             self._price_history_action,
         )
@@ -581,14 +581,14 @@ class MixinOrder(models.AbstractModel):
         return _("%(type)s Order", type=order_type.title())
 
     def _get_validity_days(self):
-        self.ensure_one()
+        self.check_singleton()
         return 0
 
     def _get_partner_payment_term_field(self):
         return self._partner_payment_term_field
 
     def _get_default_user_from_partner(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.env.user
             if self.env.user.has_group("base.group_user")
@@ -617,18 +617,18 @@ class MixinOrder(models.AbstractModel):
         return self._lock_setting_field
 
     def _get_lock_setting_user(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.env.user
 
     def _should_be_locked(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.company_id[self._get_lock_setting_field()] == "lock":
             return True
         group = self._auto_lock_group
         return bool(group) and self._get_lock_setting_user().has_group(group)
 
     def _is_readonly(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.state == "cancel"
 
     def _run_check_registry(self, method_names, *args):
@@ -676,7 +676,7 @@ class MixinOrder(models.AbstractModel):
         )
 
     def _requires_lines_to_confirm(self):
-        self.ensure_one()
+        self.check_singleton()
         return True
 
     def _can_confirm_has_lines(self):
@@ -811,7 +811,7 @@ class MixinOrder(models.AbstractModel):
             order.write(vals)
 
     def action_view_business_doc(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Order"),
             "type": "ir.actions.act_window",
@@ -880,7 +880,7 @@ class MixinOrder(models.AbstractModel):
                 )
 
     def _is_locked_field_changed(self, field_name, value):
-        self.ensure_one()
+        self.check_singleton()
         field = self._fields[field_name]
         if field.type in ("many2many", "one2many"):
             return set(self[field_name].ids) != set(
@@ -1117,7 +1117,7 @@ class MixinOrder(models.AbstractModel):
         return ctx
 
     def _get_mail_composer_single_context(self):
-        self.ensure_one()
+        self.check_singleton()
         ctx = {"force_email": True}
         if self.env.context.get("hide_default_template"):
             self._portal_ensure_token()
@@ -1179,7 +1179,7 @@ class MixinOrder(models.AbstractModel):
         )
         if not self:
             return groups
-        self.ensure_one()
+        self.check_singleton()
         self._tweak_notify_recipient_groups(groups)
         return groups
 
@@ -1187,7 +1187,7 @@ class MixinOrder(models.AbstractModel):
         return
 
     def _track_subtype(self, init_values):
-        self.ensure_one()
+        self.check_singleton()
         xmlid = self._get_state_track_subtype_xmlid(init_values)
         if xmlid:
             return self.env.ref(xmlid)
@@ -1206,7 +1206,7 @@ class MixinOrder(models.AbstractModel):
             order.access_url = f"/my/{prefix}/{order.id}"
 
     def _get_report_base_filename(self):
-        self.ensure_one()
+        self.check_singleton()
         return f"{self.type_name} {self.name}"
 
     def _get_parent_field_on_child_model(self):
@@ -1282,7 +1282,7 @@ class MixinOrder(models.AbstractModel):
         child_field="line_ids",
         **kwargs,
     ):
-        self.ensure_one()
+        self.check_singleton()
         self._prepare_catalog_update()
         line = self.line_ids.filtered(
             lambda l: (
@@ -1340,7 +1340,7 @@ class MixinOrder(models.AbstractModel):
         return []
 
     def _get_edi_filename(self, builder):
-        self.ensure_one()
+        self.check_singleton()
         return builder._export_invoice_filename(self)
 
     def create_document_from_attachment(self, attachment_ids):

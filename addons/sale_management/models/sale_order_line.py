@@ -47,7 +47,7 @@ class SaleOrderLine(models.Model):
         This is typically useful for 'configured' products, such as event_ticket or event_booth, where we need to have
         specific configuration information inside description instead of the default values.
         """
-        self.ensure_one()
+        self.check_singleton()
         return True
 
     # === TOOLING ===#
@@ -58,7 +58,7 @@ class SaleOrderLine(models.Model):
         A line is optional if it is directly under an optional (sub)section, or under a subsection
         which is itself under an optional section.
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.parent_id.is_optional or (
             self.parent_id.display_type == "line_subsection"
             and self.parent_id.parent_id.is_optional

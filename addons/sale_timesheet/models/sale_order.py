@@ -147,7 +147,7 @@ class SaleOrder(models.Model):
             - type="service",
             - service_policy="ordered_prepaid",
         """
-        self.ensure_one()
+        self.check_singleton()
         precision = self.env["decimal.precision"].get_precision("Product Unit")
         return self.line_ids.filtered(
             lambda sol: (
@@ -165,7 +165,7 @@ class SaleOrder(models.Model):
         )
 
     def action_view_timesheet(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.line_ids:
             return {"type": "ir.actions.act_window_close"}
 

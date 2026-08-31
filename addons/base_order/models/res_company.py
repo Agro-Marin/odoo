@@ -40,7 +40,7 @@ class ResCompany(models.Model):
                 )
 
     def _get_order_cycle_cutoff_date(self):
-        self.ensure_one()
+        self.check_singleton()
         return fields.Date.today() - relativedelta(
             **{self.order_cycle_interval_type: self.order_cycle_interval_number},
         )

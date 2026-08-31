@@ -180,11 +180,11 @@ class PurchaseOrder(models.Model):
             )
 
     def _get_validity_days(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.company_id.po_quotation_validity_days
 
     def _get_default_user_from_partner(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.partner_id.user_purchase_id
             or self.commercial_partner_id.user_purchase_id
@@ -322,7 +322,7 @@ class PurchaseOrder(models.Model):
         self.line_ids._compute_tax_ids()
 
     def action_bill_matching(self):
-        self.ensure_one()
+        self.check_singleton()
         product_ids = self.line_ids.product_id.ids
         return {
             "name": _("Bill Matching"),
@@ -395,7 +395,7 @@ class PurchaseOrder(models.Model):
         return "purchase.report_purchase_quotation"
 
     def action_send_rfq(self):
-        self.ensure_one()
+        self.check_singleton()
         return self._action_send_by_email()
 
     def _get_mail_composer_action_name(self):
@@ -593,7 +593,7 @@ class PurchaseOrder(models.Model):
         return self._create_down_payment_lines(line_vals)
 
     def _get_invoiceable_lines(self, final=False):
-        self.ensure_one()
+        self.check_singleton()
         return self.line_ids
 
     def _prepare_invoice_line_commands(self, invoiceable_lines, sequence=10):
@@ -712,7 +712,7 @@ class PurchaseOrder(models.Model):
         return {"product_qty": 0}
 
     def get_localized_date_commitment(self, date_commitment=False):
-        self.ensure_one()
+        self.check_singleton()
         date_commitment = date_commitment or self.date_commitment
         if not date_commitment:
             return False
@@ -723,7 +723,7 @@ class PurchaseOrder(models.Model):
         return date_commitment.astimezone(tz)
 
     def _get_mail_template(self):
-        self.ensure_one()
+        self.check_singleton()
         xmlid = (
             "purchase.email_template_edi_purchase"
             if self.env.context.get("send_rfq", False)
@@ -750,7 +750,7 @@ class PurchaseOrder(models.Model):
         )
 
     def _get_product_price_and_data(self, product):
-        self.ensure_one()
+        self.check_singleton()
         product_infos = {
             "price": product.standard_price,
             "uomDisplayName": product.uom_id.display_name,
@@ -785,11 +785,11 @@ class PurchaseOrder(models.Model):
         return product_infos
 
     def _get_report_base_filename(self):
-        self.ensure_one()
+        self.check_singleton()
         return f"Purchase Order-{self.name}"
 
     def get_timezone(self):
-        self.ensure_one()
+        self.check_singleton()
         return timezone(self.user_id.tz or self.company_id.partner_id.tz or "UTC")
 
     def get_update_url(self):
@@ -970,7 +970,7 @@ class PurchaseOrder(models.Model):
         return None
 
     def _send_reminder_open_composer(self, template_id):
-        self.ensure_one()
+        self.check_singleton()
         ctx = dict(self.env.context or {})
         ctx.update(
             {
@@ -998,7 +998,7 @@ class PurchaseOrder(models.Model):
         }
 
     def send_reminder_preview(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.env.user.has_group("purchase.group_send_reminder"):
             return {
                 "toast_message": _("You are not allowed to send reminder emails."),
@@ -1042,11 +1042,11 @@ class PurchaseOrder(models.Model):
         # -- proposing an arrival date is part of negotiating one -- but a
         # cancelled order has no arrival left to promise, and a locked one is
         # locked.
-        self.ensure_one()
+        self.check_singleton()
         return self.state != "cancel" and not self.locked
 
     def _update_order_lines_date_commitment(self, updated_dates):
-        self.ensure_one()
+        self.check_singleton()
         if not self._is_date_commitment_updatable():
             raise UserError(
                 _(
@@ -1084,7 +1084,7 @@ class PurchaseOrder(models.Model):
                 if line.display_type:
                     continue
                 try:
-                    line._validate_distribution(
+                    line._check_distribution(
                         product=line.product_id.id,
                         business_domain="purchase_order",
                         company_id=line.company_id.id,

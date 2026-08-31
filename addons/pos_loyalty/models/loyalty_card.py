@@ -23,7 +23,7 @@ class LoyaltyCard(models.Model):
         return super()._has_source_order() or bool(self.source_pos_order_id)
 
     def _get_default_template(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.source_pos_order_id:
             return self.env.ref('pos_loyalty.mail_coupon_template', False)
         return super()._get_default_template()

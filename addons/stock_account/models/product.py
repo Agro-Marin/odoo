@@ -511,7 +511,7 @@ class ProductProduct(models.Model):
 
     def _get_standard_price_at_date(self, date=None):
         """Get Last Price History"""
-        self.ensure_one()
+        self.check_singleton()
         if not date or date == fields.Date.today():
             return self.standard_price
         if self.cost_method != "standard":
@@ -634,7 +634,7 @@ class ProductProduct(models.Model):
         Read straight from quants to bypass the owner-insensitive ``qty_available``
         cache; only meaningful at the current date, hence skipped when ``at_date`` is
         set (a historical short position is valued normally)."""
-        self.ensure_one()
+        self.check_singleton()
         if at_date:
             return False
         # Same location/warehouse scope as qty_available, but without the owner filter.
@@ -950,7 +950,7 @@ class ProductProduct(models.Model):
 
     def _run_fifo(self, quantity, lot=None, at_date=None):
         """Returns the value for the next outgoing product base on the qty give as argument."""
-        self.ensure_one()
+        self.check_singleton()
         if self.uom_id.compare(quantity, 0) <= 0:
             std_price = lot.standard_price if lot else self.standard_price
             if at_date:

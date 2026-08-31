@@ -249,7 +249,7 @@ class SaleOrder(models.Model):
         ]
 
     def action_create_project(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.show_create_project_button:
             return {
                 "type": "ir.actions.client",
@@ -297,7 +297,7 @@ class SaleOrder(models.Model):
         }
 
     def action_view_project_ids(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.line_ids:
             return {"type": "ir.actions.act_window_close"}
 
@@ -347,7 +347,7 @@ class SaleOrder(models.Model):
             return action
 
     def action_view_milestone(self):
-        self.ensure_one()
+        self.check_singleton()
         default_project = self.project_ids and self.project_ids[0]
         sorted_line = self.line_ids.sorted("sequence")
         default_sale_line = next(

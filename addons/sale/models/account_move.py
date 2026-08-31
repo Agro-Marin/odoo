@@ -168,7 +168,7 @@ class AccountMove(models.Model):
         self.sale_id = False
 
     def action_sale_matching(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "name": _("Sale Matching"),
@@ -266,7 +266,7 @@ class AccountMove(models.Model):
         return res
 
     def action_view_source_sale_orders(self):
-        self.ensure_one()
+        self.check_singleton()
         source_orders = self.line_ids.sale_line_ids.order_id
         result = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "sale.action_sale_order"
@@ -281,7 +281,7 @@ class AccountMove(models.Model):
         return result
 
     def create_sale_order(self):
-        self.ensure_one()
+        self.check_singleton()
         if any(not line.product_id for line in self.invoice_line_ids):
             raise UserError(
                 self.env._(
@@ -397,7 +397,7 @@ class AccountMove(models.Model):
         return exclude_amount
 
     def _is_downpayment(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.line_ids.sale_line_ids
             and all(
@@ -406,7 +406,7 @@ class AccountMove(models.Model):
         ) or False
 
     def _prepare_sale_order_vals(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "company_id": self.company_id.id,
             "currency_id": self.currency_id.id,
@@ -424,7 +424,7 @@ class AccountMove(models.Model):
         }
 
     def _prepare_sale_line_vals(self, sale) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         sale_line_vals = {}
         fpos = sale.fiscal_position_id
         # `account.tax` serves several companies, so membership -- and through a

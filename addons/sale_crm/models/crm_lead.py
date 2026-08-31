@@ -63,7 +63,7 @@ class CrmLead(models.Model):
         return action
 
     def action_view_sale_quotation(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "sale.action_quotations_with_onboarding"
         )
@@ -84,7 +84,7 @@ class CrmLead(models.Model):
         return action
 
     def action_view_sale_order(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "sale.action_sale_order"
         )
@@ -112,7 +112,7 @@ class CrmLead(models.Model):
         return [("state", "not in", ("draft", "sent", "cancel"))]
 
     def _prepare_opportunity_quotation_context(self):
-        self.ensure_one()
+        self.check_singleton()
         quotation_context = {
             "default_opportunity_id": self.id,
             "default_partner_id": self.partner_id.id,

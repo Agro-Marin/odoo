@@ -88,7 +88,7 @@ class ProjectMilestone(models.Model):
         ]
 
     def action_view_sale_order(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "name": _("Sales Order"),

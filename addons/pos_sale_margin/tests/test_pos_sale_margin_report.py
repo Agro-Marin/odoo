@@ -16,7 +16,7 @@ class TestPoSSaleMarginReport(TestPoSCommon):
 
         A plain ``sale.report.search()`` can't be used here: ``pos_sale``'s
         ``_get_fields_pos_select()`` feeds its *whole* field registry
-        through ``_fill_pos_fields()``, whose base implementation NULLs any
+        through ``_get_pos_field_expressions()``, whose base implementation NULLs any
         key it does not explicitly whitelist -- so almost every POS column,
         including ``id``, reads back as NULL (task 28563, in ``pos_sale``,
         out of this module's scope; not fixed here). With ``id`` NULL on
@@ -137,7 +137,7 @@ class TestPoSSaleMarginReport(TestPoSCommon):
         currency (or any multi-company deployment with more than one
         currency) got systematically wrong figures.
         """
-        expression = self.env["sale.report"]._fill_pos_fields({})["margin"]
+        expression = self.env["sale.report"]._get_pos_field_expressions({})["margin"]
         self.assertIn("l.margin", expression)
         self.assertIn("account_currency_table.rate", expression)
         self.assertIn("pos.currency_rate", expression)

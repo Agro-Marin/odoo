@@ -66,7 +66,7 @@ class ProductPricelistExportController(Controller):
                 ),
             ),
         ]
-        return request.make_response(content, headers)
+        return request.prepare_response(content, headers)
 
     def _generate_xlsx(self, pricelist_name, quantities, products, headers):
         document = Document.of(
@@ -75,7 +75,7 @@ class ProductPricelistExportController(Controller):
             columns_headers=headers,
             env=request.env,
         )
-        return request.make_response(
+        return request.prepare_response(
             document.data,
             [
                 ("Content-Type", XLSX_MIMETYPE),

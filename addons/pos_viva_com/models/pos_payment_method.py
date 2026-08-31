@@ -64,7 +64,7 @@ class PosPaymentMethod(models.Model):
         return super()._get_payment_terminal_selection() + [('viva_com', 'Viva.com')]
 
     def _bearer_token(self, session):
-        self.ensure_one()
+        self.check_singleton()
 
         data = {'grant_type': 'client_credentials'}
         auth = requests.auth.HTTPBasicAuth(self.viva_com_client_id, self.viva_com_client_secret)
@@ -102,7 +102,7 @@ class PosPaymentMethod(models.Model):
         else:
             return {'error': _("There are some issues between us and Viva.com, try again later. %s", resp.json().get('detail'))}
 
-    def _retrieve_session_id(self, data_webhook):
+    def _notify_session_status(self, data_webhook):
         # Send a request to confirm the status of the sesions_id
         # Need wait to the status of sesions_id is updated setted in session headers; code 202
 

@@ -21,7 +21,7 @@ class UomUom(models.Model):
         return Domain.OR(domain) if domain else Domain.TRUE
 
     def action_view_packaging_barcodes(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "name": _("Packaging Barcodes"),

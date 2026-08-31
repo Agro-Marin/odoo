@@ -80,7 +80,7 @@ class IrActionsReport(models.Model):
                         self_with_order_context._update_mapping_and_add_pages_to_writer(
                             writer, footer, form_fields_values_mapping, prefix, order
                         )
-                pdf.fill_form_fields_pdf(writer, form_fields=form_fields_values_mapping)
+                pdf.update_form_fields_pdf(writer, form_fields=form_fields_values_mapping)
                 with io.BytesIO() as _buffer:
                     writer.write(_buffer)
                     stream = io.BytesIO(_buffer.getvalue())
@@ -100,7 +100,7 @@ class IrActionsReport(models.Model):
     ):
         """Update the mapping with the field-value of the document, and add the doc to the writer.
 
-        Note: document.ensure_one(), order.ensure_one(), order_line and order_line.ensure_one()
+        Note: document.check_singleton(), order.check_singleton(), order_line and order_line.check_singleton()
 
         :param BrandedFileWriter writer: the writer to which pages needs to be added
         :param recordset document: the document that needs to be added to the writer and get its
@@ -116,9 +116,9 @@ class IrActionsReport(models.Model):
         :param recordset order_line: the sale order line from where to take the values (optional)
         :return: None
         """
-        document.ensure_one()
-        order.ensure_one()
-        order_line and order_line.ensure_one()
+        document.check_singleton()
+        order.check_singleton()
+        order_line and order_line.check_singleton()
 
         for form_field in document.form_field_ids:
             if form_field.path:  # Dynamic field

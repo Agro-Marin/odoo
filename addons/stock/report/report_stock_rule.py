@@ -21,7 +21,7 @@ class ReportStockReport_Stock_Rule(models.AbstractModel):
     def _get_report_values(self, docids, data=None):
         data = data or {}
         product = self.env["product.product"].browse(data.get("product_id", docids))
-        product.ensure_one()
+        product.check_singleton()
         warehouses = self.env["stock.warehouse"].browse(data.get("warehouse_ids") or [])
         data = {**data, "product_id": product.id, "warehouse_ids": warehouses.ids}
 
@@ -112,7 +112,7 @@ class ReportStockReport_Stock_Rule(models.AbstractModel):
 
     @api.model
     def _get_rule_loc(self, rule, product):
-        rule.ensure_one()
+        rule.check_singleton()
         destination = (
             rule.location_dest_id
             if rule.action != "pull"

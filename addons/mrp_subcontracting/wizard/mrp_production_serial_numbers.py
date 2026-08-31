@@ -5,7 +5,7 @@ class MrpProductionSerials(models.TransientModel):
     _inherit = "mrp.production.serials"
 
     def action_apply(self):
-        self.ensure_one()
+        self.check_singleton()
         sbc_move = self.production_id._get_subcontract_move()
         if not sbc_move or not self.serial_numbers:
             return super().action_apply()

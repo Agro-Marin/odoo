@@ -247,7 +247,7 @@ class MrpWorkcenter(models.Model):
     SAMPLE_WEEK_LOAD_SHAPE = (0.35, 0.8, 1.25, 0.6, 1.0)
 
     def _get_sample_week_load(self, week_index):
-        self.ensure_one()
+        self.check_singleton()
         shape = self.SAMPLE_WEEK_LOAD_SHAPE
         capacity = self.resource_calendar_id.hours_per_week or 40.0
         return round(capacity * shape[(week_index + (self.id or 0)) % len(shape)], 1)
@@ -408,7 +408,7 @@ class MrpWorkcenter(models.Model):
             workcenter.has_routing_lines = bool(workcenter.routing_line_ids)
 
     def unblock(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.working_state != "blocked":
             raise UserError(_("It has already been unblocked."))
         blocking = self.env["mrp.workcenter.productivity"].search(
@@ -435,7 +435,7 @@ class MrpWorkcenter(models.Model):
         return super().create(vals_list)
 
     def action_show_operations(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mrp.mrp_routing_action"
         )
@@ -446,7 +446,7 @@ class MrpWorkcenter(models.Model):
         return action
 
     def action_work_order(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mrp.action_work_orders"
         )
@@ -463,7 +463,7 @@ class MrpWorkcenter(models.Model):
         return action
 
     def _get_working_minutes_batch(self, spans):
-        self.ensure_one()
+        self.check_singleton()
         if not spans:
             return []
         resource = self.resource_id
@@ -522,7 +522,7 @@ class MrpWorkcenter(models.Model):
         reservations_to_ignore=False,
         extra_leaves_slots=None,
     ):
-        self.ensure_one()
+        self.check_singleton()
         iterations, step = self._planning_horizon()
         revert = to_timezone(start_datetime.tzinfo)
         start_datetime = localized(start_datetime)
@@ -735,7 +735,7 @@ class MrpWorkcenter(models.Model):
         return None
 
     def action_view_schedule(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "name": _("Schedule: %s", self.display_name),
@@ -767,7 +767,7 @@ class MrpWorkcenter(models.Model):
         return res
 
     def _get_capacity(self, product, unit, default_capacity=1):
-        self.ensure_one()
+        self.check_singleton()
         ranked = [
             (product, product.uom_id),
             (self.env["product.product"], unit),
@@ -845,7 +845,7 @@ class MrpWorkcenterProductivityLoss(models.Model):
     WALL_CLOCK_LOSS_TYPES = ("productive", "performance")
 
     def _is_measured_on_working_time(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.loss_type not in self.WALL_CLOCK_LOSS_TYPES
 
     @api.model
@@ -886,7 +886,7 @@ class MrpWorkcenterProductivityLoss(models.Model):
         return loss
 
     def _convert_to_duration(self, date_start, date_stop, workcenter=False):
-        self.ensure_one()
+        self.check_singleton()
         return self._convert_to_duration_batch(
             [(self, workcenter, date_start, date_stop)]
         )[0]
@@ -1040,7 +1040,7 @@ class MrpWorkcenterProductivity(models.Model):
             )
 
     def button_block(self):
-        self.ensure_one()
+        self.check_singleton()
         self.workcenter_id.order_ids.end_all()
 
     def _close(self):

@@ -98,7 +98,7 @@ class GelatoController(Controller):
                 order_sudo.message_post(
                     body=log_message, author_id=request.env.ref("base.partner_root").id
                 )
-        return request.make_json_response("")
+        return request.prepare_json_response("")
 
     @staticmethod
     def _verify_notification_signature(received_signature, order_sudo):

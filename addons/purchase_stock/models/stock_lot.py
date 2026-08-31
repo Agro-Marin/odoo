@@ -31,7 +31,7 @@ class StockLot(models.Model):
             lot.purchase_order_ids = purchase_orders[lot.id]
 
     def action_view_po(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "purchase.action_purchase_order_2",
         )

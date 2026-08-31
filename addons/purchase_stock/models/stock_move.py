@@ -118,17 +118,17 @@ class StockMove(models.Model):
         self.write({"created_purchase_line_ids": [Command.clear()]})
 
     def _get_value_from_bill(self, aml):
-        self.ensure_one()
+        self.check_singleton()
         return aml.company_id.currency_id.round(aml.price_subtotal / aml.currency_rate)
 
     def _get_quantity_from_bill(self, aml, quantity):
-        self.ensure_one()
+        self.check_singleton()
         return aml.product_uom_id._compute_quantity(
             aml.quantity, self.product_id.uom_id
         )
 
     def _get_cost_ratio(self, quantity):
-        self.ensure_one()
+        self.check_singleton()
         return quantity
 
     def _get_description(self):
@@ -301,7 +301,7 @@ class StockMove(models.Model):
         }
 
     def _is_purchase_return(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.location_dest_id.usage == "supplier":
             return True
         if not self.origin_returned_move_id:

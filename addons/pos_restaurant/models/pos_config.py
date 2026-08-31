@@ -93,7 +93,7 @@ class PosConfig(models.Model):
         return {'config_id': config.id}
 
     def _load_bar_demo_data(self, with_demo_data=True):
-        self.ensure_one()
+        self.check_singleton()
         convert.convert_file(self._env_with_clean_context(), 'pos_restaurant', 'data/scenarios/bar_category_data.xml', idref=None, mode='init', noupdate=True)
         if with_demo_data:
             convert.convert_file(self._env_with_clean_context(), 'pos_restaurant', 'data/scenarios/bar_demo_data.xml', idref=None, mode='init', noupdate=True)
@@ -151,7 +151,7 @@ class PosConfig(models.Model):
        super()._compute_last_data_change()
 
     def _load_restaurant_demo_data(self, with_demo_data=True):
-        self.ensure_one()
+        self.check_singleton()
         convert.convert_file(self._env_with_clean_context(), 'pos_restaurant', 'data/scenarios/restaurant_category_data.xml', idref=None, mode='init', noupdate=True)
         if with_demo_data:
             convert.convert_file(self._env_with_clean_context(), 'pos_restaurant', 'data/scenarios/restaurant_demo_data.xml', idref=None, mode='init', noupdate=True)

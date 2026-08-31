@@ -149,7 +149,7 @@ class SaleOrderTemplateLine(models.Model):
         :return: `sale.order.line` create values
         :rtype: dict
         """
-        self.ensure_one()
+        self.check_singleton()
         vals = {
             "display_type": self.display_type,
             "product_id": self.product_id.id,

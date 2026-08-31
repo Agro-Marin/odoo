@@ -8,7 +8,7 @@ class AccountMoveLine(models.Model):
         """determine if the generated analytic line should be reinvoiced or not.
         For Expense flow, if the product has a 'reinvoice policy' and a Sales Order is set on the expense, then we will reinvoice the AAL
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.expense_id:  # expense flow is different from vendor bill reinvoice flow
             return (
                 self.expense_id.product_id.expense_policy in {"sales_price", "cost"}

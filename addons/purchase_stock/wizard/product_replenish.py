@@ -61,7 +61,7 @@ class ProductReplenish(models.TransientModel):
             self.supplier_id = False
 
     def action_stock_replenishment_info(self):
-        self.ensure_one()
+        self.check_singleton()
         orderpoint = self.env["stock.warehouse.orderpoint"].search(
             [
                 ("product_id", "=", self.product_id.id),

@@ -326,7 +326,7 @@ class TestPacking(TestPackingCommon):
         delivery_2 = delivery_1.copy({"carrier_id": test_carrier.id})
         ml_1.copy({"picking_id": delivery_2.id, "quantity": 1})
         # recreate the `action_put_in_pack`` steps so we don't have to add test to new module for batch pickings
-        # to use batch version of method (which bypass the ensure_one() check in the stock_picking action)
+        # to use batch version of method (which bypass the check_singleton() check in the stock_picking action)
         move_lines_to_pack, __ = (
             delivery_1 | delivery_2
         ).move_line_ids._get_lines_and_packages_to_pack()

@@ -91,7 +91,7 @@ class HrExpense(models.Model):
         return super().action_post()
 
     def action_view_sale_order(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "res_model": "sale.order",

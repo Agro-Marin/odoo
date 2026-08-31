@@ -308,8 +308,8 @@ class PosSession(models.Model):
             response[model] = list(non_existent_ids | inactive_ids)
         return response
 
-    def delete_opening_control_session(self):
-        self.ensure_one()
+    def remove_opening_control_session(self):
+        self.check_singleton()
         if not self.exists():
             return {
                 "status": "success",
@@ -452,7 +452,7 @@ class PosSession(models.Model):
             session.failed_pickings = bool(failed_map.get(session.id))
 
     def action_stock_picking(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "stock.action_picking_tree_ready"
         )
@@ -635,7 +635,7 @@ class PosSession(models.Model):
         amount_to_balance=0,
         bank_payment_method_diffs=None,
     ):
-        self.ensure_one()
+        self.check_singleton()
         bank_payment_method_diffs = bank_payment_method_diffs or {}
         if any(order.state == "draft" for order in self.get_session_orders()):
             raise UserError(
@@ -694,18 +694,18 @@ class PosSession(models.Model):
         bank_payment_method_diffs=None,
     ):
         bank_payment_method_diffs = bank_payment_method_diffs or {}
-        return self._validate_session(
+        return self._close_session(
             balancing_account, amount_to_balance, bank_payment_method_diffs
         )
 
-    def _validate_session(
+    def _close_session(
         self,
         balancing_account=False,
         amount_to_balance=0,
         bank_payment_method_diffs=None,
     ):
         bank_payment_method_diffs = bank_payment_method_diffs or {}
-        record = self.ensure_one()
+        record = self.check_singleton()
         try:
             self.env.cr.execute(
                 "SELECT id FROM pos_session WHERE id = %s FOR UPDATE NOWAIT",
@@ -866,7 +866,7 @@ class PosSession(models.Model):
 
     def close_session_from_ui(self, bank_payment_method_diff_pairs=None):
         bank_payment_method_diffs = dict(bank_payment_method_diff_pairs or [])
-        self.ensure_one()
+        self.check_singleton()
         open_order_ids = (
             self.get_session_orders().filtered(lambda o: o.state == "draft").ids
         )
@@ -921,7 +921,7 @@ class PosSession(models.Model):
         )
 
     def post_closing_cash_details(self, counted_cash):
-        self.ensure_one()
+        self.check_singleton()
         check_closing_session = self._cannot_close_session()
         if check_closing_session:
             open_order_ids = (
@@ -940,7 +940,7 @@ class PosSession(models.Model):
     def _create_diff_account_move_for_split_payment_method(
         self, payment_method, diff_amount
     ):
-        self.ensure_one()
+        self.check_singleton()
 
         get_diff_vals_result = self._get_diff_vals(payment_method.id, diff_amount)
         if not get_diff_vals_result:
@@ -1078,7 +1078,7 @@ class PosSession(models.Model):
                     "You don't have the access rights to get the point of sale closing control data."
                 )
             )
-        self.ensure_one()
+        self.check_singleton()
         orders = self._get_closed_orders()
         payments = orders.payment_ids.filtered(
             lambda p: p.payment_method_id.type != "pay_later"
@@ -1150,7 +1150,7 @@ class PosSession(models.Model):
         }
 
     def _create_picking_at_end_of_session(self):
-        self.ensure_one()
+        self.check_singleton()
         lines_grouped_by_dest_location = {}
         picking_type = self.config_id.picking_type_id
 
@@ -1670,7 +1670,7 @@ class PosSession(models.Model):
         data["pay_later_move_lines"] = MoveLine.create(vals)
         return data
 
-    def _ensure_payment_outstanding_account(self, payment, payment_amount):
+    def _update_payment_outstanding_account(self, payment, payment_amount):
         if (
             not payment.outstanding_account_id
             and self.env["account.move"]._get_invoice_in_payment_state() == "in_payment"
@@ -1718,7 +1718,7 @@ class PosSession(models.Model):
             )
         )
 
-        self._ensure_payment_outstanding_account(account_payment, amounts["amount"])
+        self._update_payment_outstanding_account(account_payment, amounts["amount"])
         account_payment.action_post()
 
         diff_amount_compare_to_zero = self.currency_id.compare_amounts(diff_amount, 0)
@@ -1797,7 +1797,7 @@ class PosSession(models.Model):
             }
         )
 
-        self._ensure_payment_outstanding_account(account_payment, amounts["amount"])
+        self._update_payment_outstanding_account(account_payment, amounts["amount"])
         account_payment.action_post()
         return account_payment.move_id.line_ids.filtered(
             lambda line: (
@@ -2275,7 +2275,7 @@ class PosSession(models.Model):
         }
 
     def show_journal_items(self):
-        self.ensure_one()
+        self.check_singleton()
         all_related_moves = self._get_related_account_moves()
         return {
             "name": _("Journal Items"),
@@ -2512,7 +2512,7 @@ class PosSession(models.Model):
             no_retrieve_partner=True
         ).create(vals_list)
 
-    def delete_cash_in_out(self, absl_id, partner_id):
+    def remove_cash_in_out(self, absl_id, partner_id):
         if not self.env.user.has_group("account.group_account_basic"):
             raise AccessError(
                 _("You don't have the access rights to delete a cash in/out.")

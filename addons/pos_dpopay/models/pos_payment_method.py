@@ -41,13 +41,13 @@ class PosPaymentMethod(models.Model):
         return 'pushPaymentSale'
 
     def send_dpopay_request(self, data, endpoint):
-        self.ensure_one()
+        self.check_singleton()
         if endpoint == 'start-transaction':
             data['transactionType'] = self._get_transaction_type()
         return self._execute_dpopay_api_request(data, endpoint)
 
     def _get_dpopay_base_url(self, is_token=False):
-        self.ensure_one()
+        self.check_singleton()
         host = (self.dpopay_test_mode and 'api-dev.network.global') or 'api.network.global'
 
         if is_token:
@@ -55,7 +55,7 @@ class PosPaymentMethod(models.Model):
         return f'https://{host}/ngenius-webapi/payments/push/v1/tid:{self.dpopay_tid}/mid:{self.dpopay_mid}'
 
     def _dpopay_headers(self, token_expired=False):
-        self.ensure_one()
+        self.check_singleton()
         token = self._generate_dpopay_token() if token_expired else self.dpopay_bearer_token
         return {
             'Authorization': f'Bearer {token}',
@@ -63,7 +63,7 @@ class PosPaymentMethod(models.Model):
         }
 
     def _generate_dpopay_token(self):
-        self.ensure_one()
+        self.check_singleton()
         auth = requests.auth.HTTPBasicAuth(self.dpopay_client_id, self.dpopay_client_secret)
         url = f'{self._get_dpopay_base_url(is_token=True)}/tokenkc/generate'
 
@@ -82,7 +82,7 @@ class PosPaymentMethod(models.Model):
         return access_token
 
     def _execute_dpopay_api_request(self, payload, endpoint):
-        self.ensure_one()
+        self.check_singleton()
         if endpoint not in ('start-transaction', 'get-result', 'get-status', 'cancel-transaction'):
             raise UserError(_('Invalid endpoint'))
 

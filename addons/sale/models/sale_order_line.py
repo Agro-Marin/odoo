@@ -837,7 +837,7 @@ class SaleOrderLine(models.Model):
         )
 
     def _convert_to_sol_currency(self, amount, currency):
-        self.ensure_one()
+        self.check_singleton()
         to_currency = self.currency_id or self.order_id.currency_id
         if currency and to_currency and currency != to_currency:
             conversion_date = self.order_id.date_order or fields.Date.context_today(
@@ -854,18 +854,18 @@ class SaleOrderLine(models.Model):
         return amount
 
     def _get_combo_totals(self, totals_field):
-        self.ensure_one()
+        self.check_singleton()
         combo_item_lines = self.order_id.line_ids.filtered(
             lambda line: line.linked_line_id == self and line.combo_item_id,
         )
         return sum(combo_item_lines.mapped(totals_field))
 
     def _get_date_order(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.order_id.date_order
 
     def _get_date_planned(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.state == "done" and self.order_id.date_order:
             order_date = self.order_id.date_order
         else:
@@ -873,7 +873,7 @@ class SaleOrderLine(models.Model):
         return order_date + timedelta(days=self.customer_lead or 0.0)
 
     def _get_downpayment_description(self):
-        self.ensure_one()
+        self.check_singleton()
 
         if self.display_type:
             return _("Down Payments")
@@ -910,7 +910,7 @@ class SaleOrderLine(models.Model):
         )
 
     def _get_downpayment_state(self):
-        self.ensure_one()
+        self.check_singleton()
 
         if self.display_type:
             return ""
@@ -924,7 +924,7 @@ class SaleOrderLine(models.Model):
         return ""
 
     def _get_grouped_section_summary(self, display_taxes=True):
-        self.ensure_one()
+        self.check_singleton()
 
         section_lines = self.order_id.line_ids.filtered(
             lambda line: line.product_type != "combo" and self._is_line_in_section(line)
@@ -959,7 +959,7 @@ class SaleOrderLine(models.Model):
         return new or old
 
     def _get_line_linked(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.linked_line_id
             or (
@@ -972,7 +972,7 @@ class SaleOrderLine(models.Model):
         )
 
     def _get_line_multiline_description_sale(self):
-        self.ensure_one()
+        self.check_singleton()
         description = (
             self.product_id.get_product_multiline_description_sale()
             + self._get_line_multiline_description_variants()
@@ -1024,7 +1024,7 @@ class SaleOrderLine(models.Model):
         return name
 
     def _get_lines_linked(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             (
                 self._origin
@@ -1054,7 +1054,7 @@ class SaleOrderLine(models.Model):
         return self
 
     def _get_partner_display(self):
-        self.ensure_one()
+        self.check_singleton()
         commercial_partner = self.sudo().partner_id.commercial_partner_id
         return f"({commercial_partner.ref or commercial_partner.name})"
 
@@ -1067,7 +1067,7 @@ class SaleOrderLine(models.Model):
           itself off the line it is linked to.
         :param base_price: likewise for the pre-discount price.
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if self.product_type == "combo":
             return 0
@@ -1078,7 +1078,7 @@ class SaleOrderLine(models.Model):
         )
 
     def _get_price_display_combo_item(self):
-        self.ensure_one()
+        self.check_singleton()
 
         combo_line = self._get_line_linked()
         if not combo_line:
@@ -1123,7 +1123,7 @@ class SaleOrderLine(models.Model):
         return combo_prices[self.combo_item_id.combo_id] + extra_price
 
     def _get_price_display_regular_item(self, pricelist_price=None, base_price=None):
-        self.ensure_one()
+        self.check_singleton()
 
         if pricelist_price is None:
             pricelist_price = self._get_pricelist_price()
@@ -1145,16 +1145,16 @@ class SaleOrderLine(models.Model):
         }
 
     def _get_pricelist_price(self):
-        self.ensure_one()
-        self.product_id.ensure_one()
+        self.check_singleton()
+        self.product_id.check_singleton()
         return self.pricelist_item_id._compute_price(
             product=self.product_id.with_context(**self._get_product_price_context()),
             **self._get_pricelist_kwargs(),
         )
 
     def _get_pricelist_price_before_discount(self):
-        self.ensure_one()
-        self.product_id.ensure_one()
+        self.check_singleton()
+        self.product_id.check_singleton()
 
         return self.pricelist_item_id._compute_price_before_discount(
             product=self.product_id.with_context(**self._get_product_price_context()),
@@ -1162,7 +1162,7 @@ class SaleOrderLine(models.Model):
         )
 
     def _get_pricelist_price_context(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "pricelist": self.order_id.pricelist_id.id,
             "uom": self.product_uom_id.id,
@@ -1171,7 +1171,7 @@ class SaleOrderLine(models.Model):
         }
 
     def get_pricelist_price_current(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.product_id or not self.product_uom_id:
             return False
 
@@ -1179,7 +1179,7 @@ class SaleOrderLine(models.Model):
         return line._get_price_display()
 
     def _get_product_price_context(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.product_id._get_product_price_context(
             self.product_no_variant_attribute_value_ids,
         )
@@ -1214,11 +1214,11 @@ class SaleOrderLine(models.Model):
         return result
 
     def _get_section_lines(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.order_id.line_ids.filtered(self._is_line_in_section)
 
     def _get_section_totals(self, totals_field):
-        self.ensure_one()
+        self.check_singleton()
         section_lines = self._get_section_lines()
         return sum(section_lines.mapped(totals_field))
 
@@ -1226,13 +1226,13 @@ class SaleOrderLine(models.Model):
         return self.product_id.invoice_policy == "transferred"
 
     def _is_upsell_opportunity(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self._invoiced_on_transferred() and self.qty_transferred > self.product_qty
         )
 
     def _prepare_aml_vals(self, **optional_values):
-        self.ensure_one()
+        self.check_singleton()
         move = optional_values.pop("move", None)
 
         if self.product_id.type == "combo":
@@ -1295,7 +1295,7 @@ class SaleOrderLine(models.Model):
         return res
 
     def _get_base_line_special_type(self):
-        self.ensure_one()
+        self.check_singleton()
         if self._is_global_discount():
             return "global_discount"
         return super()._get_base_line_special_type()
@@ -1321,7 +1321,7 @@ class SaleOrderLine(models.Model):
         return invoiced_qties
 
     def _reset_price_unit(self):
-        self.ensure_one()
+        self.check_singleton()
 
         price_unit = self.get_pricelist_price_current()
 
@@ -1407,12 +1407,12 @@ class SaleOrderLine(models.Model):
             order.message_post(body=msg)
 
     def _update_price_unit(self):
-        self.ensure_one()
+        self.check_singleton()
         self = self.with_context(sale_write_from_compute=True)
         self._reset_price_unit()
 
     def _can_be_edited_on_portal(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.order_id._can_be_edited_on_portal()
             and not self.combo_item_id
@@ -1420,11 +1420,11 @@ class SaleOrderLine(models.Model):
         )
 
     def _can_be_invoiced_alone(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.product_id.id != self.company_id.sale_discount_product_id.id
 
     def _has_taxes(self):
-        self.ensure_one()
+        self.check_singleton()
         return bool(
             self.tax_ids
             or (
@@ -1437,22 +1437,22 @@ class SaleOrderLine(models.Model):
         return None
 
     def _is_delivery(self):
-        self.ensure_one()
+        self.check_singleton()
         return False
 
     def _is_discount_line(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.product_id in self.company_id.sale_discount_product_id
 
     def _is_global_discount(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.extra_tax_data and self.extra_tax_data.get(
             "computation_key",
             "",
         ).startswith("global_discount,")
 
     def _is_line_in_section(self, line):
-        self.ensure_one()
+        self.check_singleton()
         is_direct_child = line.parent_id == self and not line.display_type
         is_indirect_child = (
             self.display_type == "line_section"

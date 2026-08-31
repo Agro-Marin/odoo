@@ -140,7 +140,7 @@ class MixinOrderLineStockMatch(models.AbstractModel):
                 line.order_line_id.product_qty = line.product_uom_qty
 
     def action_view_line(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.picking_id:
             record = self.picking_id
         elif self.move_id:

@@ -21,7 +21,7 @@ class MrpProduction(models.Model):
             production.purchase_order_count = len(production._get_purchase_orders())
 
     def action_view_purchase_orders(self):
-        self.ensure_one()
+        self.check_singleton()
         purchase_order_ids = self._get_purchase_orders().ids
         action = {
             "res_model": "purchase.order",
@@ -51,7 +51,7 @@ class MrpProduction(models.Model):
         return iterate_key
 
     def _get_purchase_orders(self):
-        self.ensure_one()
+        self.check_singleton()
         moves = self.move_raw_ids | self.move_raw_ids.move_orig_ids
         purchase_lines = moves.mapped("created_purchase_line_ids") | moves.mapped(
             "purchase_line_id"

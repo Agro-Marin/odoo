@@ -19,7 +19,7 @@ class OnlinePaymentCommon(PaymentHttpCommon):
     def _fake_request_pos_order_pay_transaction_page(self, pos_order_id, route_values):
         uri = f'/pos/pay/transaction/{pos_order_id}'
         url = self._build_url(uri)
-        return self.make_jsonrpc_request(url, route_values)
+        return self.call_jsonrpc(url, route_values)
 
     def _fake_open_pos_order_pay_confirmation_page(self, pos_order_id, access_token, tx_id, exit_route=None):
         self._fake_http_get_request(PaymentPortal._get_landing_route(pos_order_id, access_token, tx_id=tx_id, exit_route=exit_route))

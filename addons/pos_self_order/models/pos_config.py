@@ -107,7 +107,7 @@ class PosConfig(models.Model):
     def create(self, vals_list):
         self._prepare_self_order_splash_screen(vals_list, is_new=True)
         pos_config_ids = super().create(vals_list)
-        pos_config_ids._ensure_public_attachments()
+        pos_config_ids._update_public_attachments()
         pos_config_ids._prepare_self_order_custom_btn()
         return pos_config_ids
 
@@ -171,11 +171,11 @@ class PosConfig(models.Model):
                 vals['self_ordering_service_mode'] = 'table'
 
         res = super().write(vals)
-        self._ensure_public_attachments()
+        self._update_public_attachments()
         self._prepare_self_order_custom_btn()
         return res
 
-    def _ensure_public_attachments(self):
+    def _update_public_attachments(self):
         self.self_ordering_image_background_ids.write({"public": True})
         self.self_ordering_image_home_ids.write({"public": True})
 
@@ -210,7 +210,7 @@ class PosConfig(models.Model):
             raise ValidationError(_("You cannot add cash payment methods in kiosk mode."))
 
     def _get_qr_code_data(self):
-        self.ensure_one()
+        self.check_singleton()
 
         table_qr_code = []
         if self.self_ordering_mode == 'mobile' and self.module_pos_restaurant and self.self_ordering_service_mode == 'table':
@@ -244,7 +244,7 @@ class PosConfig(models.Model):
         return table_qr_code
 
     def _get_self_order_route(self, table_id: Optional[int] = None) -> str:
-        self.ensure_one()
+        self.check_singleton()
         base_route = f"/pos-self/{self.id}"
         table_route = ""
 
@@ -262,7 +262,7 @@ class PosConfig(models.Model):
         return f"{base_route}?access_token={self.access_token}{table_route}"
 
     def _get_self_order_url(self, table_id: Optional[int] = None) -> str:
-        self.ensure_one()
+        self.check_singleton()
         long_url = self.get_base_url() + self._get_self_order_route(table_id)
         return self.env['link.tracker'].search_or_create([{
             'url': long_url,
@@ -270,7 +270,7 @@ class PosConfig(models.Model):
         }]).short_url
 
     def preview_self_order_app(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_url",
             "url": self._get_self_order_route(),
@@ -348,7 +348,7 @@ class PosConfig(models.Model):
         :param floors: the list of floors
         :param cols: the number of qr codes per row
         """
-        self.ensure_one()
+        self.check_singleton()
         return [
             {
                 "name": floor.get("name"),
@@ -378,7 +378,7 @@ class PosConfig(models.Model):
             record.status = 'active' if record.has_active_session else 'inactive'
 
     def action_view_wizard(self):
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.current_session_id:
             res = self._check_before_creating_new_session()
@@ -403,7 +403,7 @@ class PosConfig(models.Model):
 
     def has_valid_self_payment_method(self):
         """ Checks if the POS config has a valid payment method (terminal or online). """
-        self.ensure_one()
+        self.check_singleton()
         if self.self_ordering_mode == 'mobile':
             return False
         return any(pm.use_payment_terminal in self._supported_kiosk_payment_terminal() for pm in self.payment_method_ids)

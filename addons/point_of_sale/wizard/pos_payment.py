@@ -54,7 +54,7 @@ class PosMakePayment(models.TransientModel):
     )
 
     def check(self):
-        self.ensure_one()
+        self.check_singleton()
 
         order = self.env["pos.order"].browse(self.env.context.get("active_id", False))
         if self.payment_method_id.split_transactions and not order.partner_id:

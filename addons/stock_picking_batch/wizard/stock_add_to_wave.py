@@ -44,7 +44,7 @@ class StockAddToWave(models.TransientModel):
     user_id = fields.Many2one("res.users", string="Responsible")
 
     def attach_pickings(self):
-        self.ensure_one()
+        self.check_singleton()
 
         self = self.with_context(active_owner_id=self.user_id.id)
         if self.line_ids:

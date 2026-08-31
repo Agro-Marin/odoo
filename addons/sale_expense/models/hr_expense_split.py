@@ -17,7 +17,7 @@ class HrExpenseSplit(models.TransientModel):
     )
 
     def _get_values(self):
-        self.ensure_one()
+        self.check_singleton()
         vals = super()._get_values()
         vals["sale_order_id"] = self.sale_order_id.id
         return vals

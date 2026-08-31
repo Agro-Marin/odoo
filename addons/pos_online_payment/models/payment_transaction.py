@@ -68,7 +68,7 @@ class PaymentTransaction(models.Model):
     def action_view_pos_order(self):
         """ Return the action for the view of the pos order linked to the transaction.
         """
-        self.ensure_one()
+        self.check_singleton()
 
         return {
             'name': _("POS Order"),

@@ -69,7 +69,7 @@ class ResCompany(models.Model):
     @api.constrains(
         "fiscalyear_lock_date", "tax_lock_date", "sale_lock_date", "hard_lock_date"
     )
-    def validate_lock_dates(self):
+    def check_lock_dates(self):
         pos_session_model = self.env["pos.session"].sudo()
         for record in self:
             record = record.with_context(ignore_exceptions=True)

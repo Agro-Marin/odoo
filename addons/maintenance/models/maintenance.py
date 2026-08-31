@@ -73,7 +73,7 @@ class MaintenanceEquipment(models.Model):
     _check_company_auto = True
 
     def _track_subtype(self, init_values):
-        self.ensure_one()
+        self.check_singleton()
         if 'owner_user_id' in init_values and self.owner_user_id:
             return self.env.ref('maintenance.mt_mat_assign')
         return super(MaintenanceEquipment, self)._track_subtype(init_values)
@@ -132,7 +132,7 @@ class MaintenanceEquipment(models.Model):
             the kanban view, even if they are empty.
         """
         # bypass ir.model.access checks, but search with ir.rules
-        search_domain = self.env['ir.rule']._compute_domain(categories._name)
+        search_domain = self.env['ir.rule']._get_domain_accessible_records(categories._name)
         category_ids = categories.sudo()._search(search_domain, order=categories._order)
         return categories.browse(category_ids)
 
@@ -151,7 +151,7 @@ class MaintenanceRequest(models.Model):
         return self.env.ref('maintenance.mt_req_created')
 
     def _track_subtype(self, init_values):
-        self.ensure_one()
+        self.check_singleton()
         if 'stage_id' in init_values:
             return self.env.ref('maintenance.mt_req_status')
         return super(MaintenanceRequest, self)._track_subtype(init_values)
@@ -309,7 +309,7 @@ class MaintenanceRequest(models.Model):
         return vals.get('equipment_id')
 
     def _get_activity_note(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.equipment_id:
             return _('Request planned for %s', self.equipment_id._get_html_link())
         return False

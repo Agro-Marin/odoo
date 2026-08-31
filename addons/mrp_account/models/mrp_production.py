@@ -34,7 +34,7 @@ class MrpProduction(models.Model):
         return res
 
     def action_view_move_wip(self):
-        self.ensure_one()
+        self.check_singleton()
         action = {
             "res_model": "account.move",
             "type": "ir.actions.act_window",
@@ -115,7 +115,7 @@ class MrpProduction(models.Model):
         if self.product_id.cost_method not in ("fifo", "average"):
             finished_move.price_unit = self.product_id.standard_price
             return True
-        finished_move.ensure_one()
+        finished_move.check_singleton()
         # Derived by subtraction, not from its own share: rounding each unit
         # price on its own left a cent in the production account per order.
         finished_move.price_unit = shared_value / quantity
@@ -134,7 +134,7 @@ class MrpProduction(models.Model):
         capitalises into the finished move. Rounding each account on its own
         leaves a residual that never clears out of the production account.
         """
-        self.ensure_one()
+        self.check_singleton()
         currency = self.company_id.currency_id
         raw_amounts = defaultdict(float)
         workorders = defaultdict(self.env["mrp.workorder"].browse)

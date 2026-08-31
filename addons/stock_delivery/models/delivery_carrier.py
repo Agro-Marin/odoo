@@ -48,13 +48,13 @@ class DeliveryCarrier(models.Model):
         # TODO missing labels per package
         # TODO missing currency
         # TODO missing success, error, warnings
-        self.ensure_one()
+        self.check_singleton()
         if hasattr(self, "%s_send_shipping" % self.delivery_type):
             return getattr(self, "%s_send_shipping" % self.delivery_type)(pickings)
         return None
 
     def get_return_label(self, pickings, tracking_number=None, origin_date=None):
-        self.ensure_one()
+        self.check_singleton()
         if self.can_generate_return:
             res = getattr(self, "%s_get_return_label" % self.delivery_type)(
                 pickings, tracking_number, origin_date
@@ -80,7 +80,7 @@ class DeliveryCarrier(models.Model):
         :returns: an URL containing the tracking link or None
         :rtype: str | None
         """
-        self.ensure_one()
+        self.check_singleton()
         if hasattr(self, "%s_get_tracking_link" % self.delivery_type):
             return getattr(self, "%s_get_tracking_link" % self.delivery_type)(picking)
         return None
@@ -90,7 +90,7 @@ class DeliveryCarrier(models.Model):
 
         :param pickings: A recordset of pickings
         """
-        self.ensure_one()
+        self.check_singleton()
         if hasattr(self, "%s_cancel_shipment" % self.delivery_type):
             return getattr(self, "%s_cancel_shipment" % self.delivery_type)(pickings)
         return None
@@ -99,7 +99,7 @@ class DeliveryCarrier(models.Model):
         """Some delivery carriers require a prefix to be sent in order to use custom
         packages (ie not official ones). This optional method will return it as a string.
         """
-        self.ensure_one()
+        self.check_singleton()
         if hasattr(self, "_%s_get_default_custom_package_code" % self.delivery_type):
             return getattr(
                 self, "_%s_get_default_custom_package_code" % self.delivery_type

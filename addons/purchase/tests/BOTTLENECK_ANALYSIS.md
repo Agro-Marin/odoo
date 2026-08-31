@@ -143,7 +143,7 @@ def _compute_date_planned(self):
 ### Code Analysis
 ```python
 def _get_filtered_sellers(self, partner_id, quantity, date, uom_id, params):
-    self.ensure_one()
+    self.check_singleton()
     precision = self.env["decimal.precision"].precision_get("Product Unit")
 
     sellers_filtered = self._prepare_sellers(params)

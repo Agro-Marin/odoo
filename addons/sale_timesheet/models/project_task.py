@@ -132,7 +132,7 @@ class ProjectTask(models.Model):
 
     def _get_last_sol_of_customer_domain(self):
         # Get the domain of the last SOL made for the customer in the current task where we need to compute
-        self.ensure_one()
+        self.check_singleton()
         if not self.partner_id.commercial_partner_id or not self.allow_billable:
             return []
         SaleOrderLine = self.env["sale.order.line"]

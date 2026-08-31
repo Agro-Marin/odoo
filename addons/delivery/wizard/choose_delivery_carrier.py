@@ -56,7 +56,7 @@ class ChooseDeliveryCarrier(models.TransientModel):
 
     @api.depends('carrier_id')
     def _compute_invoicing_message(self):
-        self.ensure_one()
+        self.check_singleton()
         self.invoicing_message = ""
 
     @api.depends('partner_id')

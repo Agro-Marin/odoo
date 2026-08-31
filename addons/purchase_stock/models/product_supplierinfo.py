@@ -65,7 +65,7 @@ class ProductSupplierinfo(models.Model):
                 supplier.display_name = f"{supplier.partner_id.display_name} ({supplier.min_qty} {supplier.product_uom_id.name} - {price_str})"
 
     def action_set_supplier(self):
-        self.ensure_one()
+        self.check_singleton()
         orderpoint_id = self.env.context.get("orderpoint_id")
         if not orderpoint_id:
             return None

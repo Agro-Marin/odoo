@@ -19,12 +19,12 @@ class ChooseDeliveryCarrier(models.TransientModel):
 
     @api.depends('carrier_id')
     def _compute_is_mondialrelay(self):
-        self.ensure_one()
+        self.check_singleton()
         self.is_mondialrelay = self.carrier_id.product_id.default_code == "MR"
 
     @api.depends('carrier_id', 'order_id.partner_shipping_id')
     def _compute_mr_last_selected_id(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.order_id.partner_shipping_id.is_mondialrelay:
             self.mondialrelay_last_selected_id = '%s-%s' % (
                 self.shipping_country_code,
@@ -35,7 +35,7 @@ class ChooseDeliveryCarrier(models.TransientModel):
 
     @api.depends('carrier_id')
     def _compute_mr_allowed_countries(self):
-        self.ensure_one()
+        self.check_singleton()
         self.mondialrelay_allowed_countries = ','.join(self.carrier_id.country_ids.mapped('code')).upper() or ''
 
     def button_confirm(self):

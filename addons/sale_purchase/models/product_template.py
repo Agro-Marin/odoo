@@ -23,7 +23,7 @@ class ProductTemplate(models.Model):
                 template._check_service_to_purchase_in_company(company)
 
     def _check_service_to_purchase_in_company(self, company):
-        self.ensure_one()
+        self.check_singleton()
         if self.type != "service":
             raise ValidationError(
                 _(

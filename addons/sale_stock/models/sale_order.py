@@ -380,7 +380,7 @@ class SaleOrder(models.Model):
         return self._get_action_view_picking(self.picking_ids)
 
     def _add_reference(self, reference):
-        self.ensure_one()
+        self.check_singleton()
         self.stock_reference_ids = [
             Command.link(stock_reference.id) for stock_reference in reference
         ]
@@ -438,7 +438,7 @@ class SaleOrder(models.Model):
         return invoice_vals
 
     def _remove_reference(self, reference):
-        self.ensure_one()
+        self.check_singleton()
         self.stock_reference_ids = [
             Command.unlink(stock_reference.id) for stock_reference in reference
         ]
@@ -447,7 +447,7 @@ class SaleOrder(models.Model):
         return True
 
     def action_delivery_matching(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Delivery Matching"),
             "type": "ir.actions.act_window",

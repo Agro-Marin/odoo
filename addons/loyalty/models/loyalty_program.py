@@ -771,7 +771,7 @@ class LoyaltyProgram(models.Model):
 
     def action_view_loyalty_cards(self):
         """Open this program's cards, named after what the program issues."""
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "loyalty.loyalty_card_action"
         )

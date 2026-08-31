@@ -301,7 +301,7 @@ class SaleOrderLine(models.Model):
         """Generate project for the given so line, and link it.
         :return: record of the created project
         """
-        self.ensure_one()
+        self.check_singleton()
         values = self._timesheet_create_project_prepare_values()
         project_template = self.product_id.project_template_id
         if project_template:
@@ -381,7 +381,7 @@ class SaleOrderLine(models.Model):
         }
 
     def _timesheet_create_task_prepare_values(self, project):
-        self.ensure_one()
+        self.check_singleton()
         allocated_hours = 0.0
         if self.product_id.service_type != "milestones":
             allocated_hours = self._convert_qty_company_hours(self.company_id)
@@ -642,7 +642,7 @@ class SaleOrderLine(models.Model):
                     )
 
     def _handle_milestones(self, project):
-        self.ensure_one()
+        self.check_singleton()
         if self.product_id.service_policy != "delivered_milestones":
             return
         if not self.project_id.allow_milestones:

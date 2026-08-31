@@ -165,7 +165,7 @@ class StockWarehouseOrderpoint(models.Model):
             "purchase.action_purchase_order"
         )
 
-        self.ensure_one()
+        self.check_singleton()
         result["context"] = {}
         purchase_ids = (
             self.env["purchase.order.line"]
@@ -187,7 +187,7 @@ class StockWarehouseOrderpoint(models.Model):
         return routes
 
     def _get_default_supplier(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.show_supplier and self.product_id:
             return self.env["stock.rule"]._get_matching_supplier(
                 self.product_id,
@@ -205,7 +205,7 @@ class StockWarehouseOrderpoint(models.Model):
         return values
 
     def _get_replenishment_order_notification(self):
-        self.ensure_one()
+        self.check_singleton()
         order = (
             self.env["purchase.order.line"]
             .search(self._get_replenishment_source_domain(), limit=1)

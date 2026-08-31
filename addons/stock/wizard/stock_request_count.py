@@ -54,7 +54,7 @@ class StockRequestCount(models.TransientModel):
             quants_to_count.with_context(inventory_mode=True).write(values)
 
     def _get_quants_to_count(self):
-        self.ensure_one()
+        self.check_singleton()
         quants_to_count = self.quant_ids
         tracked_quants = self.quant_ids.filtered(
             lambda q: q.product_id.tracking != "none"

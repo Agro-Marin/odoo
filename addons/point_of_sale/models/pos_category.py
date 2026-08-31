@@ -80,7 +80,7 @@ class PosCategory(models.Model):
         ]
 
     def _get_hierarchy(self) -> list[str]:
-        self.ensure_one()
+        self.check_singleton()
         return (self.parent_id._get_hierarchy() if self.parent_id else []) + [
             (self.name or "")
         ]

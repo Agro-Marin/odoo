@@ -297,7 +297,7 @@ class ProjectProject(models.Model):
                 ).sudo().so_line = sale_line_id
 
     def action_view_timesheet(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "name": _("Timesheets of %s", self.name),
@@ -322,7 +322,7 @@ class ProjectProject(models.Model):
         }
 
     def action_billable_time_button(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "sale_timesheet.timesheet_action_from_sales_order_item"
         )
@@ -338,7 +338,7 @@ class ProjectProject(models.Model):
         return action
 
     def action_profitability_items(self, section_name, domain=None, res_id=False):
-        self.ensure_one()
+        self.check_singleton()
         if section_name in [
             "billable_fixed",
             "billable_time",
@@ -521,7 +521,7 @@ class ProjectProject(models.Model):
         domain = [
             "|",
             ("project_id", "in", self.ids),
-            ("so_line", "in", self._fetch_sale_order_item_ids()),
+            ("so_line", "in", self._get_sale_order_item_ids()),
         ]
         return Domain.AND(
             [

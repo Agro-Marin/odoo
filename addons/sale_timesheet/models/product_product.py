@@ -7,7 +7,7 @@ class ProductProduct(models.Model):
 
     def _is_delivered_timesheet(self):
         """Check if the product is a delivered timesheet"""
-        self.ensure_one()
+        self.check_singleton()
         return self.type == "service" and self.service_policy == "delivered_timesheet"
 
     @api.onchange("type", "service_type", "service_policy")

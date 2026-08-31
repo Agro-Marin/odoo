@@ -922,7 +922,7 @@ class ProductProduct(models.Model):
         return action
 
     def view_product_template(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "res_model": "product.template",
@@ -938,11 +938,11 @@ class ProductProduct(models.Model):
         return self._get_contextual_price()
 
     def _get_contextual_price(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.product_tmpl_id._get_contextual_price(self)
 
     def _get_contextual_discount(self):
-        self.ensure_one()
+        self.check_singleton()
 
         pricelist = self.product_tmpl_id._get_contextual_pricelist()
         if not pricelist:
@@ -991,7 +991,7 @@ class ProductProduct(models.Model):
         uom_id=False,
         params=False,
     ):
-        self.ensure_one()
+        self.check_singleton()
         if not date:
             date = fields.Date.context_today(self)
         precision = self.env["decimal.precision"].get_precision("Product Unit")
@@ -1038,7 +1038,7 @@ class ProductProduct(models.Model):
         return self.env["product.supplierinfo"].browse(matching_ids)
 
     def _get_product_price_context(self, combination):
-        self.ensure_one()
+        self.check_singleton()
         res = {}
 
         no_variant_attributes_price_extra = self._get_no_variant_attributes_price_extra(
@@ -1063,7 +1063,7 @@ class ProductProduct(models.Model):
         )
 
     def _get_attributes_extra_price(self):
-        self.ensure_one()
+        self.check_singleton()
 
         return self.price_extra + self.env.context.get(
             "no_variant_attributes_price_extra",
@@ -1509,7 +1509,7 @@ class ProductProduct(models.Model):
         undeletable.filtered("active").write({"active": False})
 
     def _is_variant_possible(self, parent_combination=None):
-        self.ensure_one()
+        self.check_singleton()
         return self.product_tmpl_id._is_combination_possible(
             self.product_template_attribute_value_ids,
             parent_combination=parent_combination,

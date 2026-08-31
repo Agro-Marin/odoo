@@ -131,7 +131,7 @@ class BarcodeNomenclature(models.Model):
 
         Return a ordered list of dict
         """
-        self.ensure_one()
+        self.check_singleton()
         separator_group = FNC1_CHAR + "?"
         if self.gs1_separator_fnc1:
             separator_group = "(?:%s)?" % self.gs1_separator_fnc1

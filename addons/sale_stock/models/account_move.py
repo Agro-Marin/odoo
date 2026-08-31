@@ -43,7 +43,7 @@ class AccountMove(models.Model):
         return dict(ctx, move_is_downpayment=move_is_downpayment)
 
     def _get_invoiced_lot_values(self):
-        self.ensure_one()
+        self.check_singleton()
 
         res = super()._get_invoiced_lot_values()
 

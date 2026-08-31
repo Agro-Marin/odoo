@@ -244,8 +244,8 @@ class DeliveryCarrier(models.Model):
         }
 
     def _is_available_for_order(self, order):
-        self.ensure_one()
-        order.ensure_one()
+        self.check_singleton()
+        order.check_singleton()
         if not self._match(order.partner_shipping_id, order):
             return False
 
@@ -258,7 +258,7 @@ class DeliveryCarrier(models.Model):
         return self.filtered(lambda c: c._match(partner, source))
 
     def _match(self, partner, source):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self._match_address(partner)
             and self._match_must_have_tags(source)
@@ -268,7 +268,7 @@ class DeliveryCarrier(models.Model):
         )
 
     def _match_address(self, partner):
-        self.ensure_one()
+        self.check_singleton()
         if self.country_ids and partner.country_id not in self.country_ids:
             return False
         if self.state_ids and partner.state_id not in self.state_ids:
@@ -287,7 +287,7 @@ class DeliveryCarrier(models.Model):
         return True
 
     def _match_must_have_tags(self, source):
-        self.ensure_one()
+        self.check_singleton()
         if source._name == "sale.order":
             products = source.line_ids.product_id
         elif source._name == "stock.picking":
@@ -299,7 +299,7 @@ class DeliveryCarrier(models.Model):
         )
 
     def _match_excluded_tags(self, source):
-        self.ensure_one()
+        self.check_singleton()
         if source._name == "sale.order":
             products = source.line_ids.product_id
         elif source._name == "stock.picking":
@@ -311,7 +311,7 @@ class DeliveryCarrier(models.Model):
         )
 
     def _match_weight(self, source):
-        self.ensure_one()
+        self.check_singleton()
         if source._name == "sale.order":
             total_weight = sum(
                 line.product_id.weight * line.product_uom_qty
@@ -327,7 +327,7 @@ class DeliveryCarrier(models.Model):
         return not self.max_weight or total_weight <= self.max_weight
 
     def _match_volume(self, source):
-        self.ensure_one()
+        self.check_singleton()
         if source._name == "sale.order":
             total_volume = sum(
                 line.product_id.volume * line.product_uom_qty
@@ -387,11 +387,11 @@ class DeliveryCarrier(models.Model):
         This method needs to be overridden by a delivery carrier module if the delivery type is not
         stored on the field `delivery_type`.
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.delivery_type
 
     def _apply_margins(self, price, order=False):
-        self.ensure_one()
+        self.check_singleton()
         if self.delivery_type == "fixed":
             return float(price)
         fixed_margin_in_sale_currency = (
@@ -420,7 +420,7 @@ class DeliveryCarrier(models.Model):
         :rtype: dict
         """
         # TODO maybe the currency code?
-        self.ensure_one()
+        self.check_singleton()
         if hasattr(self, "%s_rate_shipment" % self.delivery_type):
             res = getattr(self, "%s_rate_shipment" % self.delivery_type)(order)
             # apply fiscal position
@@ -464,7 +464,7 @@ class DeliveryCarrier(models.Model):
             }
 
     def log_xml(self, xml_string, func):
-        self.ensure_one()
+        self.check_singleton()
 
         if self.debug_logging:
             self.env.flush_all()
@@ -591,7 +591,7 @@ class DeliveryCarrier(models.Model):
         )
 
     def _get_price_available(self, order):
-        self.ensure_one()
+        self.check_singleton()
         self = self.sudo()
         order = order.sudo()
         total = weight = volume = quantity = wv = 0

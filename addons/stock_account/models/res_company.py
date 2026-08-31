@@ -58,7 +58,7 @@ class ResCompany(models.Model):
     )
 
     def action_close_stock_valuation(self, at_date=None, auto_post=False):
-        self.ensure_one()
+        self.check_singleton()
         account_move = self._close_stock_valuation(at_date=at_date, auto_post=auto_post)
         if not account_move:
             raise UserError(_("Everything is correctly closed"))
@@ -82,7 +82,7 @@ class ResCompany(models.Model):
         `UserError` out of the loop: every later company was skipped and the
         transaction rolled back, discarding the closings already computed.
         """
-        self.ensure_one()
+        self.check_singleton()
         # One closing at a time per company. The draft-closing logic below is the
         # guard against booking a period twice, and it only works against entries
         # it can SEE: two callers running together each read a snapshot with no
@@ -199,7 +199,7 @@ class ResCompany(models.Model):
     # renaming a method any customisation may already call.
     @api.private
     def stock_value(self, accounts_by_product=None, at_date=None):
-        self.ensure_one()
+        self.check_singleton()
         value_by_account: dict = defaultdict(float)
         if not accounts_by_product:
             accounts_by_product = self.with_context(
@@ -213,7 +213,7 @@ class ResCompany(models.Model):
 
     @api.private
     def stock_accounting_value(self, accounts_by_product=None, at_date=None):
-        self.ensure_one()
+        self.check_singleton()
         if not accounts_by_product:
             accounts_by_product = self._get_accounts_by_product()
         account_data = defaultdict(float)
@@ -553,7 +553,7 @@ class ResCompany(models.Model):
         entry carries its own company, and a deleted entry takes its cursor with
         it -- which is the correct behaviour, not a silent reset to "never closed".
         """
-        self.ensure_one()
+        self.check_singleton()
         # Any surviving closing entry is a cursor, draft ones included. Requiring
         # `posted` reopened the very hole the storage change closed: a closing
         # reset to draft stopped being a cursor, the next close re-aggregated the

@@ -56,7 +56,7 @@ class MrpProductionSerials(models.TransientModel):
         and the wizard died with `ValueError: zip() argument 2 is shorter than
         argument 1`, a traceback rather than a message.
         """
-        self.ensure_one()
+        self.check_singleton()
         return list(
             dict.fromkeys(
                 name for name in (self.serial_numbers or "").split("\n") if name.strip()
@@ -68,7 +68,7 @@ class MrpProductionSerials(models.TransientModel):
         self.serial_numbers = "\n".join(self._serial_names())
 
     def action_generate_serial_numbers(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.lot_name and self.lot_quantity:
             lots = self.env["stock.lot"].generate_lot_names(
                 self.lot_name, self.lot_quantity
@@ -82,7 +82,7 @@ class MrpProductionSerials(models.TransientModel):
         return action
 
     def action_split_and_assign_serials(self):
-        self.ensure_one()
+        self.check_singleton()
         lots = self._parse_serial_numbers()
 
         split_amounts = {self.production_id: [1] * len(lots)}
@@ -99,7 +99,7 @@ class MrpProductionSerials(models.TransientModel):
         return self._closing_action(mos)
 
     def action_apply(self):
-        self.ensure_one()
+        self.check_singleton()
         lots = self._parse_serial_numbers()
         self.production_id.lot_producing_ids = lots
         if self.production_id.qty_producing != len(
@@ -124,7 +124,7 @@ class MrpProductionSerials(models.TransientModel):
         return {"type": "ir.actions.act_window_close"}
 
     def _parse_serial_numbers(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.serial_numbers:
             raise UserError(self.env._("There is no serial numbers to apply."))
         lots = self._serial_names()

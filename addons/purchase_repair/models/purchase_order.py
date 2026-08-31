@@ -16,7 +16,7 @@ class PurchaseOrder(models.Model):
             purchase.repair_count = len(purchase.line_ids.move_dest_ids.repair_id)
 
     def action_view_repair_orders(self):
-        self.ensure_one()
+        self.check_singleton()
         repair_ids = self.line_ids.move_dest_ids.repair_id
         action = {
             "type": "ir.actions.act_window",

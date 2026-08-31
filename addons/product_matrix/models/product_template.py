@@ -8,7 +8,7 @@ class ProductTemplate(models.Model):
     _inherit = 'product.template'
 
     def _get_template_matrix(self, **kwargs):
-        self.ensure_one()
+        self.check_singleton()
         company_id = kwargs.get('company_id', None) or self.company_id or self.env.company
         currency_id = kwargs.get('currency_id', None) or self.currency_id
         display_extra = kwargs.get('display_extra_price', False)

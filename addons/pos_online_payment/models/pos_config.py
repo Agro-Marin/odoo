@@ -19,5 +19,5 @@ class PosConfig(models.Model):
                         raise ValidationError(_("To use an online payment method in a POS config, it must have at least one published payment provider supporting the currency of that POS config."))
 
     def _get_cashier_online_payment_method(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.payment_method_ids.filtered('is_online_payment')[:1]

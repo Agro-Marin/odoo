@@ -42,7 +42,7 @@ class StockReportController(http.Controller):
             .search(domain, limit=1)
         )
         try:
-            return request.make_response(
+            return request.prepare_response(
                 stock_traceability.with_context(
                     active_id=active_id, active_model=active_model
                 ).get_pdf(line_data),
@@ -61,5 +61,5 @@ class StockReportController(http.Controller):
                 "message": "Odoo Server Error",
                 "data": se,
             }
-            res = request.make_response(html_escape(json.dumps(error)))
+            res = request.prepare_response(html_escape(json.dumps(error)))
             raise InternalServerError(response=res) from e

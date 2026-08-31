@@ -217,7 +217,7 @@ class ProjectTask(models.Model):
                         )
                     )
 
-    def _ensure_sale_order_linked(self, sol_ids):
+    def _confirm_linked_sale_orders(self, sol_ids):
         """Orders created from project/task are supposed to be confirmed to match the typical flow from sales, but since
         we allow SO creation from the project/task itself we want to confirm newly created SOs immediately after creation.
         However this would leads to SOs being confirmed without a single product, so we'd rather do it on record save.
@@ -240,13 +240,13 @@ class ProjectTask(models.Model):
             vals["sale_line_id"] for vals in vals_list if vals.get("sale_line_id")
         }
         if sol_ids:
-            tasks._ensure_sale_order_linked(list(sol_ids))
+            tasks._confirm_linked_sale_orders(list(sol_ids))
         return tasks
 
     def write(self, vals):
         task = super().write(vals)
         if sol_id := vals.get("sale_line_id"):
-            self._ensure_sale_order_linked([sol_id])
+            self._confirm_linked_sale_orders([sol_id])
         return task
 
     # ---------------------------------------------------
@@ -273,7 +273,7 @@ class ProjectTask(models.Model):
         return action_window
 
     def action_project_sharing_view_so(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.display_sale_order_button:
             return {}
         return {

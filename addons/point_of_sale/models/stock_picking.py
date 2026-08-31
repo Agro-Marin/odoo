@@ -109,7 +109,7 @@ class StockPicking(models.Model):
         }
 
     def _create_move_from_pos_order_lines(self, lines):
-        self.ensure_one()
+        self.check_singleton()
 
         def get_grouping_key(line):
             return (line.product_id.id, tuple(sorted(line.attribute_value_ids.ids)))

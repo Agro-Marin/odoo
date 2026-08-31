@@ -8,7 +8,7 @@ from odoo.tools import float_compare
 class PosOrder(models.Model):
     _inherit = 'pos.order'
 
-    def validate_coupon_programs(self, point_changes, new_codes):
+    def check_coupon_programs(self, point_changes, new_codes):
         """
         This is called upon validating the order in the pos.
 

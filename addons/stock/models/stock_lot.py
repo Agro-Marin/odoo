@@ -322,14 +322,14 @@ class StockLot(models.Model):
         )
 
     def _get_lot_name_values(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         now = fields.Datetime.context_timestamp(self, fields.Datetime.now())
         values = self.env["ir.sequence"]._get_interpolation_mapping(now)
         values["ref"] = self.ref or self._get_next_sequence_value(self.product_id)
         return values
 
     def _prepare_name(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         lot_format = self.product_id.lot_name_format
         try:
             return lot_format % self._get_lot_name_values()
@@ -345,7 +345,7 @@ class StockLot(models.Model):
             ) from None
 
     def _parse_name(self, name=None):
-        self.ensure_one()
+        self.check_singleton()
         lot_format = self.product_id.lot_name_format
         name = self.name if name is None else name
         if not lot_format or not name:
@@ -479,14 +479,14 @@ class StockLot(models.Model):
         return [("id", "in", move_lines.lot_id.ids)]
 
     def action_lot_open_quants(self):
-        self.ensure_one()
+        self.check_singleton()
         quants = self.with_context(search_default_lot_id=self.id, create=False)
         if self.env.user.has_group("stock.group_stock_manager"):
             quants = quants.with_context(inventory_mode=True)
         return quants.env["stock.quant"].action_view_quants()
 
     def action_lot_open_transfers(self):
-        self.ensure_one()
+        self.check_singleton()
 
         action = {"res_model": "stock.picking", "type": "ir.actions.act_window"}
         if len(self.delivery_ids) == 1:

@@ -66,7 +66,7 @@ class StockRulesReport(models.TransientModel):
         }
 
     def print_report(self):
-        self.ensure_one()
+        self.check_singleton()
         data = self._prepare_report_data()
         return self.env.ref("stock.action_report_stock_rule").report_action(
             None, data=data

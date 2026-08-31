@@ -1042,8 +1042,8 @@ class TestProductAuditFixes(ProductCommon):
         )
 
     def _warm_caches(self, template):
-        self.env["ir.rule"]._compute_domain("product.template", "read")
-        self.env["ir.rule"]._compute_domain("res.partner", "read")
+        self.env["ir.rule"]._get_domain_accessible_records("product.template", "read")
+        self.env["ir.rule"]._get_domain_accessible_records("res.partner", "read")
         self.env["ir.model.access"].check("product.template", "read", False)
         template._get_first_possible_variant_id()
 

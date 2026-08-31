@@ -68,7 +68,7 @@ class ProductTemplate(models.Model):
                 product.color = product.color or 0
 
     def set_pos_favorite(self, is_favorite):
-        self.ensure_one()
+        self.check_singleton()
         if not self.env.user.has_group("point_of_sale.group_pos_user"):
             raise AccessError(
                 _("Only Point of Sale users can change a POS favorite.")
@@ -85,7 +85,7 @@ class ProductTemplate(models.Model):
         return self.is_favorite
 
     def create_product_variant_from_pos(self, attribute_value_ids, config_id):
-        self.ensure_one()
+        self.check_singleton()
         pos_config = self.env["pos.config"].browse(config_id)
         product_template_attribute_value_ids = self.env[
             "product.template.attribute.value"
@@ -411,7 +411,7 @@ class ProductTemplate(models.Model):
     def _unlink_except_special_product(self):
         self._check_is_special_product()
 
-    def _ensure_unused_in_pos(self):
+    def _check_unused_in_pos(self):
         if any(self.mapped("available_in_pos")) and self.env[
             "pos.session"
         ].sudo().search_count([("state", "!=", "closed")], limit=1):
@@ -435,7 +435,7 @@ class ProductTemplate(models.Model):
                 )
 
     def action_archive(self):
-        self._ensure_unused_in_pos()
+        self._check_unused_in_pos()
         self._check_is_special_product()
         return super().action_archive()
 
@@ -472,7 +472,7 @@ class ProductTemplate(models.Model):
     def get_product_info_pos(
         self, price, quantity, pos_config_id, product_variant_id=False
     ):
-        self.ensure_one()
+        self.check_singleton()
         config = self.env["pos.config"].browse(pos_config_id)
         product_variant = (
             self.env["product.product"].browse(product_variant_id)

@@ -246,7 +246,7 @@ class ProductTemplateAttributeLine(models.Model):
         )
 
     def _is_configurable(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             len(self.value_ids) >= 2
             or self.attribute_id.display_type == "multi"

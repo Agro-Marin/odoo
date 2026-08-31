@@ -560,17 +560,17 @@ class StockLocation(models.Model):
         ).ids
 
     def _child_of(self, other_location):
-        self.ensure_one()
+        self.check_singleton()
         if not self.parent_path or not other_location.parent_path:
             return False
         return self.parent_path.startswith(other_location.parent_path)
 
     def _prefixed_by_parent(self):
-        self.ensure_one()
+        self.check_singleton()
         return bool(self.location_id) and self.usage != "view"
 
     def _is_outgoing(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.usage == "customer":
             return True
         inter_company_location = (
@@ -580,7 +580,7 @@ class StockLocation(models.Model):
         return self._child_of(inter_company_location)
 
     def should_bypass_reservation(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.usage in ("supplier", "customer", "inventory", "production")
 
     def _propagate_active(self, active):
@@ -647,7 +647,7 @@ class StockLocation(models.Model):
     def _get_putaway_strategy(
         self, product, quantity=0, package=None, packaging=None, additional_qty=None
     ):
-        self.ensure_one()
+        self.check_singleton()
         self = self._filter_putaway_access()
         products = self.env.context.get("products", self.env["product.product"])
         products |= product
@@ -708,7 +708,7 @@ class StockLocation(models.Model):
     def _get_putaway_strategy_batch(
         self, product, quantities, package=None, packaging=None, additional_qty=None
     ):
-        self.ensure_one()
+        self.check_singleton()
         qty_by_location = defaultdict(float, additional_qty or {})
         locations = []
         for quantity in quantities:
@@ -908,7 +908,7 @@ class StockLocation(models.Model):
         location_qty=0,
         capacity=None,
     ):
-        self.ensure_one()
+        self.check_singleton()
         if not self.storage_category_id:
             return True
         if capacity is None:
@@ -925,7 +925,7 @@ class StockLocation(models.Model):
         return self._can_store_product(product, quantity, location_qty, forecast_weight)
 
     def _can_store_new_product(self, product, package, foreign_inbound_ids=None):
-        self.ensure_one()
+        self.check_singleton()
         policy = self.storage_category_id.allow_new_product
         if policy not in ("empty", "same"):
             return True
@@ -958,7 +958,7 @@ class StockLocation(models.Model):
         }
 
     def _has_weight_capacity(self, added_weight, forecast_weight):
-        self.ensure_one()
+        self.check_singleton()
         max_weight = self.storage_category_id.max_weight
         if not max_weight:
             return True
@@ -975,7 +975,7 @@ class StockLocation(models.Model):
     def _can_store_package(
         self, package, location_qty, forecast_weight, package_weight=None
     ):
-        self.ensure_one()
+        self.check_singleton()
         storage_category = self.storage_category_id
         if package_weight is None:
             package_weight = self._get_package_weight(package)
@@ -997,7 +997,7 @@ class StockLocation(models.Model):
         )
 
     def _can_store_product(self, product, quantity, location_qty, forecast_weight):
-        self.ensure_one()
+        self.check_singleton()
         storage_category = self.storage_category_id
         if not self._has_weight_capacity(product.weight * quantity, forecast_weight):
             return False
@@ -1014,7 +1014,7 @@ class StockLocation(models.Model):
         )
 
     def _get_next_inventory_date(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.usage not in STOCKED_USAGES:
             return False
         cyclic_date = self.next_inventory_date
@@ -1024,7 +1024,7 @@ class StockLocation(models.Model):
         return cyclic_date or annual_date
 
     def _get_company_annual_inventory_date(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.company_id.annual_inventory_month:
             return False
         today = fields.Date.today()

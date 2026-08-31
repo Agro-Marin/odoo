@@ -62,5 +62,5 @@ class StockLocation(models.Model):
         """This method returns a boolean reflecting whether the products stored in `self` should
         be considered when valuating the stock of a company.
         """
-        self.ensure_one()
+        self.check_singleton()
         return bool(self.company_id) and self.usage in ["internal", "transit"]

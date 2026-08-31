@@ -43,7 +43,7 @@ class SaleOrder(models.Model):
             )
 
     def _compute_amount_total_without_delivery(self):
-        self.ensure_one()
+        self.check_singleton()
         delivery_cost = sum(l.price_total for l in self.line_ids if l.is_delivery)
         return self.amount_total - delivery_cost
 
@@ -103,12 +103,12 @@ class SaleOrder(models.Model):
     def _set_pickup_location(self, pickup_location_data):
         """Set the pickup location on the current order.
 
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :param str pickup_location_data: The JSON-formatted pickup location address.
         :return: None
         """
-        self.ensure_one()
+        self.check_singleton()
         use_locations_fname = f"{self.carrier_id.delivery_type}_use_locations"
         if hasattr(self.carrier_id, use_locations_fname):
             use_location = getattr(self.carrier_id, use_locations_fname)
@@ -145,14 +145,14 @@ class SaleOrder(models.Model):
         Use provided `zip_code` and `country` or the order's delivery address to determine the zip
         code and the country to use.
 
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :param str zip_code: The zip code to look up to, optional.
         :param res.country country: The country to look up to, required if `zip_code` is provided.
         :return: The close pickup locations data.
         :rtype: dict
         """
-        self.ensure_one()
+        self.check_singleton()
         if zip_code:
             assert country  # country is required if zip_code is provided.
             partner_address = self.env["res.partner"].new(
@@ -324,7 +324,7 @@ class SaleOrder(models.Model):
             order.shipping_weight = order._get_estimated_weight()
 
     def _get_estimated_weight(self):
-        self.ensure_one()
+        self.check_singleton()
         weight = 0.0
         for order_line in self.line_ids.filtered(
             lambda l: (

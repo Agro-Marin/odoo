@@ -14,7 +14,7 @@ class StockMove(models.Model):
         return dict(landed_cost_group)
 
     def _get_value_from_extra(self, quantity, at_date=None):
-        self.ensure_one()
+        self.check_singleton()
         accounting_data = super()._get_value_from_extra(quantity, at_date=at_date)
         # Add landed costs value
         lcs = self._get_landed_cost(at_date=at_date)

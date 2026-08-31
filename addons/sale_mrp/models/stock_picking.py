@@ -13,5 +13,5 @@ class StockPicking(models.Model):
         return super()._compute_sale_id()
 
     def _is_on_manufacturing_route(self):
-        self.ensure_one()
+        self.check_singleton()
         return bool(self.reference_ids.production_ids)

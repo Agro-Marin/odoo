@@ -15,7 +15,7 @@ class SaleLoyaltyCouponWizard(models.TransientModel):
     coupon_code = fields.Char(required=True)
 
     def action_apply(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.order_id:
             raise ValidationError(_("Invalid sales order."))
         status = self.order_id._try_apply_code(self.coupon_code)

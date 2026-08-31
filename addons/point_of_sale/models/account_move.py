@@ -61,7 +61,7 @@ class AccountMove(models.Model):
         return stock_moves
 
     def _get_invoiced_lot_values(self):
-        self.ensure_one()
+        self.check_singleton()
 
         lot_values = super()._get_invoiced_lot_values()
 
@@ -118,7 +118,7 @@ class AccountMove(models.Model):
             )
 
     def action_view_source_pos_orders(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "point_of_sale.action_pos_pos_form"
         )
@@ -161,7 +161,7 @@ class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
 
     def _get_cogs_value(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.product_id:
             return self.price_unit
         price_unit = super()._get_cogs_value()

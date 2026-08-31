@@ -99,7 +99,7 @@ class StockQuantRelocate(models.TransientModel):
                 wizard.dest_package_id = False
 
     def action_relocate_quants(self):
-        self.ensure_one()
+        self.check_singleton()
         lot_ids = self.quant_ids.lot_id
         product_ids = self.quant_ids.product_id
 

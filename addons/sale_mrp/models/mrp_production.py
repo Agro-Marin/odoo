@@ -17,7 +17,7 @@ class MrpProduction(models.Model):
             production.sale_order_count = len(production._get_sale_orders())
 
     def action_view_sale_orders(self):
-        self.ensure_one()
+        self.check_singleton()
         sale_order_ids = self._get_sale_orders().ids
         action = {
             "res_model": "sale.order",

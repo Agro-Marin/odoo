@@ -814,7 +814,7 @@ class StockPackage(models.Model):
         return False
 
     def _post_put_in_pack_hook(self):
-        self.ensure_one()
+        self.check_singleton()
         return self
 
     def _check_move_lines_map_quant(self, move_lines):
@@ -847,5 +847,5 @@ class StockPackage(models.Model):
         )
 
     def _has_issues(self):
-        self.ensure_one()
+        self.check_singleton()
         return len(self.move_line_ids.location_dest_id) > 1

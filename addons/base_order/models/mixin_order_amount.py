@@ -52,7 +52,7 @@ class MixinOrderAmount(models.AbstractModel):
     )
 
     def _prepare_tax_totals_data(self):
-        self.ensure_one()
+        self.check_singleton()
         AccountTax = self.env["account.tax"]
         order_lines = self.line_ids.filtered(lambda line: not line.display_type)
         base_lines = [

@@ -561,7 +561,7 @@ class StockWarehouse(models.Model):
             )
 
     def _collect_owned_records(self):
-        self.ensure_one()
+        self.check_singleton()
         locations = (
             self.env["stock.location"]
             .with_context(active_test=False)
@@ -688,7 +688,7 @@ class StockWarehouse(models.Model):
         )
 
     def _toggle_active(self, active, reactivate_depends):
-        self.ensure_one()
+        self.check_singleton()
         PickingType = self.env["stock.picking.type"]
         picking_types = PickingType.with_context(active_test=False).search(
             [("warehouse_id", "=", self.id)]
@@ -720,7 +720,7 @@ class StockWarehouse(models.Model):
             self._align_resupply_rule_activity()
 
     def _update_resupply_route_activity(self, active):
-        self.ensure_one()
+        self.check_singleton()
         routes = (
             self.env["stock.route"]
             .with_context(active_test=False)
@@ -1070,7 +1070,7 @@ class StockWarehouse(models.Model):
         return location
 
     def _create_or_update_picking_types(self):
-        self.ensure_one()
+        self.check_singleton()
         PickingType = self.env["stock.picking.type"]
 
         warehouse_data = {}
@@ -1119,7 +1119,7 @@ class StockWarehouse(models.Model):
         return warehouse_data
 
     def _get_picking_type_color(self):
-        self.ensure_one()
+        self.check_singleton()
         used = {
             row["color"]
             for row in self.env["stock.picking.type"].search_read(
@@ -1174,7 +1174,7 @@ class StockWarehouse(models.Model):
         return dict(codes if codes is not None else self._get_picking_type_codes())
 
     def _update_picking_type_barcodes(self, update_data, suffixes):
-        self.ensure_one()
+        self.check_singleton()
         code = self._normalized_code()
         for field, suffix in suffixes.items():
             update_data[field]["barcode"] = code + suffix
@@ -1305,7 +1305,7 @@ class StockWarehouse(models.Model):
         return frozenset({"mto_pull_id"})
 
     def _create_or_update_route(self):
-        self.ensure_one()
+        self.check_singleton()
         routes = []
         field_vals = {}
         rules_dict = self._get_rules_dict()
@@ -1757,7 +1757,7 @@ class StockWarehouse(models.Model):
         return self.env._(ROUTE_NAMES[route_type])  # pylint: disable=gettext-variable
 
     def _sync_resupply_routes(self, previous_resupply_whs):
-        self.ensure_one()
+        self.check_singleton()
         Route = self.env["stock.route"]
         new_resupply_whs = self.resupply_wh_ids
         to_add = new_resupply_whs - previous_resupply_whs
@@ -1785,7 +1785,7 @@ class StockWarehouse(models.Model):
             to_disable_route_ids.action_archive()
 
     def _create_resupply_routes(self, supplier_warehouses):
-        self.ensure_one()
+        self.check_singleton()
         Route = self.env["stock.route"]
         Rule = self.env["stock.rule"]
 
@@ -1844,7 +1844,7 @@ class StockWarehouse(models.Model):
             Rule.create(pull_rules_list)
 
     def _create_resupply_mto_rules(self, routings):
-        self.ensure_one()
+        self.check_singleton()
         if not routings:
             return
         mto_vals = self._prepare_routable_global_route_rule_vals().get("mto_pull_id")
@@ -1884,11 +1884,11 @@ class StockWarehouse(models.Model):
             warehouse._update_delivery_resupply(output_loc, change_to_multiple)
 
     def _get_resupply_routes(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.env["stock.route"].search([("supplier_wh_id", "=", self.id)])
 
     def _get_domain_resupply_pick_leg(self, routes):
-        self.ensure_one()
+        self.check_singleton()
         return [
             ("route_id", "in", routes.ids),
             ("action", "!=", "push"),
@@ -1897,7 +1897,7 @@ class StockWarehouse(models.Model):
         ]
 
     def _get_resupply_mto_leg_domain(self):
-        self.ensure_one()
+        self.check_singleton()
         mto_route = self._get_or_create_global_route(
             "stock.route_warehouse0_mto",
             _("Replenish on Order (MTO)"),
@@ -1914,7 +1914,7 @@ class StockWarehouse(models.Model):
         ]
 
     def _update_delivery_resupply(self, new_location, change_to_multiple):
-        self.ensure_one()
+        self.check_singleton()
         Rule = self.env["stock.rule"]
         routes = self._get_resupply_routes()
         if not routes:
@@ -1959,7 +1959,7 @@ class StockWarehouse(models.Model):
         self._align_resupply_rule_activity(multi_step=change_to_multiple)
 
     def _align_resupply_rule_activity(self, multi_step=None):
-        self.ensure_one()
+        self.check_singleton()
         Rule = self.env["stock.rule"].with_context(active_test=False)
         routes = self._get_resupply_routes()
         if not routes:
@@ -2029,7 +2029,7 @@ class StockWarehouse(models.Model):
         return (code or "").replace(" ", "").upper()
 
     def _normalized_code(self):
-        self.ensure_one()
+        self.check_singleton()
         return self._normalize_code(self.code)
 
     def _update_name_and_code(self, new_name=False, new_code=False):

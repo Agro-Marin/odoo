@@ -36,7 +36,7 @@ class PaymentTransaction(models.Model):
         return super()._compute_reference_prefix(separator, **values)
 
     def _compute_sale_order_reference(self, order):
-        self.ensure_one()
+        self.check_singleton()
         if self.provider_id.so_reference_type == "so_name":
             order_reference = order.name
         elif self.provider_id.so_reference_type == "partner":

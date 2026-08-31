@@ -22,7 +22,7 @@ class AccountAnalyticAccount(models.Model):
             account.workorder_count = len(account._get_workorders())
 
     def _action_view_linked(self, records, name, **action):
-        self.ensure_one()
+        self.check_singleton()
         action = {
             "type": "ir.actions.act_window",
             "res_model": records._name,
@@ -51,7 +51,7 @@ class AccountAnalyticAccount(models.Model):
         )
 
     def action_view_workorder(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "res_model": "mrp.workorder",

@@ -111,7 +111,7 @@ class ProductPricelist(models.Model):
 
     @api.readonly
     def action_view_pricelist_report(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Pricelist Report Preview"),
             "type": "ir.actions.client",
@@ -139,10 +139,10 @@ class ProductPricelist(models.Model):
         compute_price=True,
         **kwargs,
     ):
-        self and self.ensure_one()
+        self and self.check_singleton()
 
         currency = currency or self.currency_id or self.env.company.currency_id
-        currency.ensure_one()
+        currency.check_singleton()
 
         if not products:
             return {}
@@ -320,7 +320,7 @@ class ProductPricelist(models.Model):
         return base_price_by_pid
 
     def _get_applicable_rules(self, products, date, **kwargs):
-        self and self.ensure_one()
+        self and self.check_singleton()
         if not self:
             return self.env["product.pricelist.item"]
 
@@ -329,7 +329,7 @@ class ProductPricelist(models.Model):
         )
 
     def _get_applicable_rules_domain(self, products, date, **kwargs):
-        self and self.ensure_one()
+        self and self.check_singleton()
         if products._name == "product.template":
             templates_domain = ("product_tmpl_id", "in", products.ids)
             products_domain = ("product_id.product_tmpl_id", "in", products.ids)
@@ -455,7 +455,7 @@ class ProductPricelist(models.Model):
         return self.filtered("active")
 
     def _get_products_price(self, products, *args, **kwargs):
-        self and self.ensure_one()
+        self and self.check_singleton()
         return {
             product_id: res_tuple[0]
             for product_id, res_tuple in self._compute_price_rule(
@@ -464,15 +464,15 @@ class ProductPricelist(models.Model):
         }
 
     def _get_product_price(self, product, *args, **kwargs):
-        self and self.ensure_one()
+        self and self.check_singleton()
         return self._compute_price_rule(product, *args, **kwargs)[product.id][0]
 
     def _get_product_price_rule(self, product, *args, **kwargs):
-        self and self.ensure_one()
+        self and self.check_singleton()
         return self._compute_price_rule(product, *args, **kwargs)[product.id]
 
     def _get_product_rule(self, product, *args, **kwargs):
-        self and self.ensure_one()
+        self and self.check_singleton()
         return self._compute_price_rule(product, *args, compute_price=False, **kwargs)[
             product.id
         ][1]

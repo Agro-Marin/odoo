@@ -172,14 +172,14 @@ class SaleOrderLine(models.Model):
         return self.purchase_line_ids.filtered(lambda pol: pol.state != "cancel")
 
     def _purchase_service_get_last_line(self):
-        self.ensure_one()
+        self.check_singleton()
         # Ordered by id, not create_date: two lines created in the same transaction
         # share a create_date, and the tie would pick an arbitrary one.
         return self._get_open_purchase_lines().sorted("id", reverse=True)[:1]
 
     def _purchase_service_get_ordered_qty(self, purchase_lines):
         """Sum of `purchase_lines` expressed in the UoM of this sale line."""
-        self.ensure_one()
+        self.check_singleton()
         return sum(
             purchase_line.product_uom_id._compute_quantity(
                 purchase_line.product_qty, self.product_uom_id
@@ -202,7 +202,7 @@ class SaleOrderLine(models.Model):
         :param supplierinfo: record of product.supplierinfo
         :rtype: dict
         """
-        self.ensure_one()
+        self.check_singleton()
         company = self._purchase_service_get_company()
         partner_supplier = supplierinfo.partner_id.with_company(company)
         fpos = (
@@ -234,7 +234,7 @@ class SaleOrderLine(models.Model):
             from; resolved here when the caller has none
         :rtype: dict
         """
-        self.ensure_one()
+        self.check_singleton()
         if supplierinfo is None:
             supplierinfo = self._purchase_service_match_supplier(
                 partner=purchase_order.partner_id, warning=False
@@ -332,7 +332,7 @@ class SaleOrderLine(models.Model):
 
     def _get_purchase_partner(self):
         """In case we want to explicitly name a partner from whom we want to buy or receive products"""
-        self.ensure_one()
+        self.check_singleton()
         return False
 
     def _purchase_service_add_origin(self, purchase_order):

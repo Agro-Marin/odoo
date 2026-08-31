@@ -101,7 +101,7 @@ class StockReplenishmentInfo(models.TransientModel):
         self.env["stock.replenishment.option"].create(option_vals)
 
     def _get_lead_days_and_description(self):
-        self.ensure_one()
+        self.check_singleton()
         orderpoint = self.orderpoint_id
         orderpoints_values = orderpoint._get_lead_days_values()
         return orderpoint.rule_ids.with_context(
@@ -166,7 +166,7 @@ class StockReplenishmentInfo(models.TransientModel):
             )
 
     def _get_period_of_time(self):
-        self.ensure_one()
+        self.check_singleton()
         today = fields.Datetime.now()
         start_date = limit_date = today
         if self.based_on == "one_week":

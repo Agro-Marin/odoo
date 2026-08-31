@@ -18,7 +18,7 @@ class EventEvent(models.Model):
                 'is_multi_slots', 'event_slot_ids']
 
     def get_slot_tickets_availability_pos(self, slot_ticket_ids):
-        self.ensure_one()
+        self.check_singleton()
         slot_tickets = [
             (
                 self.event_slot_ids.filtered(lambda slot, slot_id=slot_id: slot.id == slot_id) if slot_id else self.env['event.slot'],

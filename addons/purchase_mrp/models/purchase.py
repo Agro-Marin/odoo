@@ -27,7 +27,7 @@ class PurchaseOrder(models.Model):
         ).raw_material_production_id
 
     def action_view_mrp_productions(self):
-        self.ensure_one()
+        self.check_singleton()
         mrp_production_ids = self._get_mrp_productions().ids
         action = {
             "res_model": "mrp.production",
@@ -73,7 +73,7 @@ class PurchaseOrderLine(models.Model):
         }
 
     def _get_kit_transferred_qty(self, kit_bom):
-        self.ensure_one()
+        self.check_singleton()
         moves = self._get_kit_moves().filtered(
             lambda m: m.state == "done" and m.location_dest_usage != "inventory"
         )
@@ -102,7 +102,7 @@ class PurchaseOrderLine(models.Model):
         asked for. ``purchase_stock`` gets the same cut for free through
         ``_get_stock_moves_outgoing_incoming()``.
         """
-        self.ensure_one()
+        self.check_singleton()
         accrual_date = self.env.context.get("accrual_entry_date")
         if not accrual_date:
             return self.move_ids
@@ -169,7 +169,7 @@ class PurchaseOrderLine(models.Model):
         return [(self.order_id, self.order_id.user_id, visited)]
 
     def _get_procurement_qty(self, previous_product_qty=False):
-        self.ensure_one()
+        self.check_singleton()
         if (
             "previous_product_qty" in self.env.context
             and (

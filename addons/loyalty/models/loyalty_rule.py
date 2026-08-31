@@ -156,7 +156,7 @@ class LoyaltyRule(models.Model):
         self.user_has_debug = self.env.user.has_group('base.group_no_one')
 
     def _get_valid_product_domain(self):
-        self.ensure_one()
+        self.check_singleton()
         constrains = []
         if self.product_ids:
             constrains.append([('id', 'in', self.product_ids.ids)])
@@ -170,11 +170,11 @@ class LoyaltyRule(models.Model):
         return domain
 
     def _get_valid_products(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.env['product.product'].search(self._get_valid_product_domain())
 
     def _compute_amount(self, currency_to):
-        self.ensure_one()
+        self.check_singleton()
         return self.currency_id._convert(
             self.minimum_amount,
             currency_to,

@@ -43,7 +43,7 @@ class ProductProduct(models.Model):
     _inherit = "product.product"
 
     def button_bom_cost(self):
-        self.ensure_one()
+        self.check_singleton()
         self.with_context(action_button_product=self)._set_price_from_bom()
 
     def action_bom_cost(self):
@@ -62,7 +62,7 @@ class ProductProduct(models.Model):
             )
 
     def _set_price_from_bom(self, boms_to_recompute=False):
-        self.ensure_one()
+        self.check_singleton()
         bom = self.env["mrp.bom"]._bom_find(self)[self]
         if bom:
             self.standard_price = self._compute_bom_price(
@@ -82,7 +82,7 @@ class ProductProduct(models.Model):
                     self.standard_price = price
 
     def _compute_bom_price(self, bom, boms_to_recompute=False, byproduct_bom=False):
-        self.ensure_one()
+        self.check_singleton()
         if not bom:
             return 0
         if not boms_to_recompute:

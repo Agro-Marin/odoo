@@ -17,7 +17,7 @@ class PaymentTransaction(models.Model):
         return tx
 
     def _is_self_order_payment_confirmed(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.pos_order_id
             and self.state in ('authorized', 'done')

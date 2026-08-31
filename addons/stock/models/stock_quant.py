@@ -871,7 +871,7 @@ class StockQuant(models.Model):
             )
 
     def action_view_stock_moves(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "stock.stock_move_line_action"
         )
@@ -990,7 +990,7 @@ class StockQuant(models.Model):
         }
 
     def action_inventory_history(self):
-        self.ensure_one()
+        self.check_singleton()
         action = {
             "name": _("History"),
             "view_mode": "list,form",
@@ -1093,7 +1093,7 @@ class StockQuant(models.Model):
         )
 
     def _is_outdated(self):
-        self.ensure_one()
+        self.check_singleton()
         return bool(
             self.inventory_quantity_set
             and self.product_id
@@ -1222,7 +1222,7 @@ class StockQuant(models.Model):
         package_id=False,
         package_dest_id=False,
     ):
-        self.ensure_one()
+        self.check_singleton()
 
         res = {
             "product_id": self.product_id.id,
@@ -1271,7 +1271,7 @@ class StockQuant(models.Model):
         ]
 
     def _move_line_match_key(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.location_id.id,
             self.package_id.id,
@@ -1607,7 +1607,7 @@ class StockQuant(models.Model):
         return res
 
     def _reservation_key(self):
-        self.ensure_one()
+        self.check_singleton()
         return (self.location_id, self.lot_id, self.package_id, self.owner_id)
 
     def _lock_one_for_reservation(self, reserved_quantity):
@@ -2223,7 +2223,7 @@ class StockQuant(models.Model):
         return aggregate_barcodes
 
     def _get_gs1_barcode(self, gs1_quantity_rules_ai_by_uom=False):
-        self.ensure_one()
+        self.check_singleton()
         gs1_quantity_rules_ai_by_uom = gs1_quantity_rules_ai_by_uom or {}
         barcode = ""
 

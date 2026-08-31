@@ -163,7 +163,7 @@ class PurchaseOrderLine(models.Model):
                     line.forecasted_issue = True
 
     def action_product_forecast_report(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.product_id.action_product_forecast_report()
         action["context"] = {
             "active_id": self.product_id.id,
@@ -181,7 +181,7 @@ class PurchaseOrderLine(models.Model):
         return action
 
     def _get_transferred_qty_from_moves(self):
-        self.ensure_one()
+        self.check_singleton()
         qty = 0.0
         for move in self._get_stock_moves():
             signed = self._get_move_transferred_sign(move)
@@ -278,7 +278,7 @@ class PurchaseOrderLine(models.Model):
         ]
 
     def _get_price_unit(self):
-        self.ensure_one()
+        self.check_singleton()
         order = self.order_id
         price_unit = self.price_unit_discounted_taxexc
         price_unit_prec = self.env["decimal.precision"].get_precision("Product Price")
@@ -350,7 +350,7 @@ class PurchaseOrderLine(models.Model):
         return outgoing_moves, incoming_moves
 
     def _get_stock_moves(self):
-        self.ensure_one()
+        self.check_singleton()
         moves = self.move_ids.filtered(
             lambda m: m.state == "done" and m.product_id == self.product_id,
         )
@@ -473,7 +473,7 @@ class PurchaseOrderLine(models.Model):
         return received_qties
 
     def _prepare_stock_move_vals_list(self, picking):
-        self.ensure_one()
+        self.check_singleton()
         res = []
 
         if self.product_id.type != "consu":
@@ -538,7 +538,7 @@ class PurchaseOrderLine(models.Model):
         product_uom_qty,
         product_uom_id,
     ):
-        self.ensure_one()
+        self.check_singleton()
         self._check_orderpoint_picking_type()
         location_dest = self.order_id._get_location_destination_record()
         location_final = (

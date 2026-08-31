@@ -75,7 +75,7 @@ class ProviderGelato(models.Model):
         :return: The shipment rate request results.
         :rtype: dict
         """
-        if error_message := order._ensure_partner_address_is_complete():
+        if error_message := order._get_incomplete_address_error():
             return {
                 "success": False,
                 "price": 0,

@@ -329,7 +329,7 @@ class StockMove(models.Model):
 
         :param cache: caller-owned dict reused across a batch; omit for a one-off.
         """
-        self.ensure_one()
+        self.check_singleton()
         template = self.product_id.product_tmpl_id
         key = (template.id, self.company_id.id)
         if cache is not None and key in cache:
@@ -348,7 +348,7 @@ class StockMove(models.Model):
         entries (`mrp_account`, the only other reader of the key) and was silently
         dropped for every ordinary stock move.
         """
-        self.ensure_one()
+        self.check_singleton()
         if accounts is None:
             accounts = self._get_valuation_accounts()
         return accounts["stock_journal"] or self.company_id.account_stock_journal_id
@@ -421,7 +421,7 @@ class StockMove(models.Model):
         return account_moves
 
     def _get_partner_id_for_valuation_lines(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.picking_id.partner_id.commercial_partner_id.id or False
 
     def _create_analytic_move(self):
@@ -481,7 +481,7 @@ class StockMove(models.Model):
         ]
 
     def _get_aml_value(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.value
 
     def _get_analytic_distribution(self):
@@ -670,7 +670,7 @@ class StockMove(models.Model):
         of a move in the past with the standard price at that time.
         """
         # TODO: Make multi
-        self.ensure_one()
+        self.check_singleton()
 
         valued_qty = remaining_qty = self._get_valued_qty()
         value = 0
@@ -740,7 +740,7 @@ class StockMove(models.Model):
 
     def _get_out_value_justification(self):
         """How an outgoing move's value was arrived at, mirroring `_set_value`."""
-        self.ensure_one()
+        self.check_singleton()
         quantity = self._get_valued_qty()
         manual_data = self.sudo()._get_manual_value(quantity)
         if manual_data["quantity"]:
@@ -759,7 +759,7 @@ class StockMove(models.Model):
         )
 
     def _get_valued_qty(self, lot=None):
-        self.ensure_one()
+        self.check_singleton()
         if self._is_in():
             return sum(self._get_in_move_lines(lot).mapped("quantity_product_uom"))
         if self._is_out():
@@ -911,7 +911,7 @@ class StockMove(models.Model):
         :returns: True if the move is entering the company else False
         :rtype: bool
         """
-        self.ensure_one()
+        self.check_singleton()
         return self._get_in_move_lines() and not self._is_dropshipped_returned()
 
     def _get_out_move_lines(self, lot=None):
@@ -928,7 +928,7 @@ class StockMove(models.Model):
         :returns: True if the move is leaving the company else False
         :rtype: bool
         """
-        self.ensure_one()
+        self.check_singleton()
         return self._get_out_move_lines() and not self._is_dropshipped()
 
     def _is_dropshipped(self):
@@ -938,7 +938,7 @@ class StockMove(models.Model):
         :returns: True if the move is a dropshipping one else False
         :rtype: bool
         """
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.location_id.usage == "supplier"
             or (self.location_id.usage == "transit" and not self.location_id.company_id)
@@ -957,7 +957,7 @@ class StockMove(models.Model):
         :returns: True if the move is a returned dropshipping one else False
         :rtype: bool
         """
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.location_id.usage == "customer"
             or (self.location_id.usage == "transit" and not self.location_id.company_id)
@@ -976,7 +976,7 @@ class StockMove(models.Model):
         return super()._is_outgoing() and not self._is_dropshipped_returned()
 
     def _prepare_analytic_lines(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self._get_analytic_distribution() and not self.analytic_account_line_ids:
             return False
 
@@ -1014,7 +1014,7 @@ class StockMove(models.Model):
         )
 
     def _prepare_analytic_line_values(self, account_field_values, amount, unit_amount):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": self.reference,
             "amount": amount,
@@ -1031,7 +1031,7 @@ class StockMove(models.Model):
         """Determines if an account move should be created for this move.
         :return: True if an account move should be created, False otherwise.
         """
-        self.ensure_one()
+        self.check_singleton()
         return bool(
             self.product_id.is_storable
             and self.is_valued
@@ -1050,7 +1050,7 @@ class StockMove(models.Model):
         :return: True if the move's restrict_partner_id is different from the company's partner (indicating
                 it should be excluded from valuation), False otherwise.
         """
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.restrict_partner_id
             and self.restrict_partner_id != self.company_id.partner_id

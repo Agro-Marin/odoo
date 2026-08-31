@@ -13,11 +13,11 @@ class PosOrder(models.Model):
             order.online_payment_method_id = order.config_id._get_cashier_online_payment_method()
 
     def get_amount_unpaid(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.currency_id.round(self._get_rounded_amount(self.amount_total) - self.amount_paid)
 
     def _clean_payment_lines(self):
-        self.ensure_one()
+        self.check_singleton()
         order_payments = self.env['pos.payment'].search(['&', ('pos_order_id', '=', self.id), ('online_account_payment_id', '=', False)])
         order_payments.unlink()
 
@@ -32,7 +32,7 @@ class PosOrder(models.Model):
             pos.config has no trusted config, then the order is deleted from the
             database, because it was probably added for the online payment flow.
         """
-        self.ensure_one()
+        self.check_singleton()
         is_paid = self.state in ('paid', 'done')
         if is_paid:
             return {
@@ -56,11 +56,11 @@ class PosOrder(models.Model):
         return return_data
 
     def _check_next_online_payment_amount(self, amount):
-        self.ensure_one()
+        self.check_singleton()
         return tools.float_compare(amount, 0.0, precision_rounding=self.currency_id.rounding) >= 0 and tools.float_compare(amount, self.get_amount_unpaid(), precision_rounding=self.currency_id.rounding) <= 0
 
     def _get_checked_next_online_payment_amount(self):
-        self.ensure_one()
+        self.check_singleton()
         amount = self.next_online_payment_amount
         return amount if self._check_next_online_payment_amount(amount) else False
 

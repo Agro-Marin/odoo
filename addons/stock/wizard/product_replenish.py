@@ -133,7 +133,7 @@ class ProductReplenish(models.TransientModel):
         return fields.Datetime.add(now, days=delay)
 
     def launch_replenishment(self):
-        self.ensure_one()
+        self.check_singleton()
         now = self.env.cr.now()
         self.env["stock.rule"].with_context(clean_context(self.env.context)).run(
             [

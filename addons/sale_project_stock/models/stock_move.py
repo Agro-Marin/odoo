@@ -9,7 +9,7 @@ class StockMove(models.Model):
         """Based on the current stock move, compute the price to reinvoice the analytic line that is going to be created (so the
         price of the sale line).
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if self.product_id.expense_policy == "sales_price":
             return order.pricelist_id._get_product_price(
@@ -47,7 +47,7 @@ class StockMove(models.Model):
 
     def _sale_prepare_sale_line_values(self, order, price, last_sequence):
         """Generate the sale.line creation value from the current stock move"""
-        self.ensure_one()
+        self.check_singleton()
 
         order = order.sudo()
         fpos = (

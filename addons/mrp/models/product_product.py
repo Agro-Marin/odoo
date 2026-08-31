@@ -173,7 +173,7 @@ class ProductProduct(models.Model):
         return result
 
     def _get_components(self):
-        self.ensure_one()
+        self.check_singleton()
         bom_kit = self.env["mrp.bom"]._bom_find(
             self, bom_type="phantom", company_id=self.env.company.id
         )[self]
@@ -286,7 +286,7 @@ class ProductProduct(models.Model):
         kits; the round is what keeps float noise (2.9999999996) from flooring
         to 2.
         """
-        self.ensure_one()
+        self.check_singleton()
         lines_by_component = collections.defaultdict(list)
         for bom_line, bom_line_data in bom_sub_lines:
             lines_by_component[bom_line.product_id].append((bom_line, bom_line_data))
@@ -363,7 +363,7 @@ class ProductProduct(models.Model):
         return res
 
     def _match_all_variant_values(self, product_template_attribute_value_ids):
-        self.ensure_one()
+        self.check_singleton()
         return len(
             self.product_template_attribute_value_ids
             & product_template_attribute_value_ids

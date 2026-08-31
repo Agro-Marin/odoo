@@ -87,13 +87,13 @@ class TestPartnerPurchaseStats(TransactionCase):
         self._order(self.child)
         parent = self.parent.with_user(self.buyer)
         parent.invalidate_recordset(["purchase_order_count"])
-        stats = parent._compute_application_statistics_hook()
+        stats = parent._get_application_statistics()
         labels = {entry["label"]: entry["value"] for entry in stats[parent.id]}
         self.assertEqual(labels.get("Purchases"), 1)
 
     def test_statistics_badge_absent_without_orders(self):
         parent = self.parent.with_user(self.buyer)
         parent.invalidate_recordset(["purchase_order_count"])
-        stats = parent._compute_application_statistics_hook()
+        stats = parent._get_application_statistics()
         labels = [entry["label"] for entry in stats[parent.id]]
         self.assertNotIn("Purchases", labels)

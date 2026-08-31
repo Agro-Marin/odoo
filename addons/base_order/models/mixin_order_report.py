@@ -37,7 +37,7 @@ class MixinOrderReport(models.AbstractModel):
 
     @api.readonly
     def action_view_order(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "res_model": self.order_reference._name,

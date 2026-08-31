@@ -62,7 +62,7 @@ class TestBuyGiftCard(TestSaleCouponCommon):
             Command.create({"trigger": "create", "mail_template_id": mail_template.id}),
         ]
         order = self.empty_order
-        salesman = order.user_id.partner_id.ensure_one()
+        salesman = order.user_id.partner_id.check_singleton()
         salesman.email = "sales@company.co"
         company = order.company_id.partner_id
         company.email = "noreply@company.co"
@@ -87,7 +87,7 @@ class TestBuyGiftCard(TestSaleCouponCommon):
 
         mails = self.env["mail.mail"].search([])
         self.assertEqual(len(mails), 2)
-        salesman_mail = mails.filtered(lambda m: m.author_id == salesman).ensure_one()
-        company_mail = mails.filtered(lambda m: m.author_id == company).ensure_one()
+        salesman_mail = mails.filtered(lambda m: m.author_id == salesman).check_singleton()
+        company_mail = mails.filtered(lambda m: m.author_id == company).check_singleton()
         self.assertEqual(salesman_mail.email_from, salesman.email_formatted)
         self.assertEqual(company_mail.email_from, company.email_formatted)

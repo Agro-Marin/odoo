@@ -6,7 +6,7 @@ class StockMove(models.Model):
     _inherit = "stock.move"
 
     def _get_cost_ratio(self, quantity):
-        self.ensure_one()
+        self.check_singleton()
         if self.bom_line_id.bom_id.type == "phantom":
             product_uom = self.product_id.uom_id
             uom_quantity = self.product_uom_id._compute_quantity_stored(
@@ -46,7 +46,7 @@ class StockMove(models.Model):
         return value
 
     def _get_quantity_from_bill(self, aml, quantity):
-        self.ensure_one()
+        self.check_singleton()
         if self.bom_line_id.bom_id.type == "phantom":
             return aml.product_uom_id._compute_quantity(
                 quantity, self.product_id.uom_id

@@ -22,6 +22,6 @@ class PosDailySalesReportsWizard(models.TransientModel):
 
     @api.onchange('pos_session_id')
     def _onchange_pos_session_id(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.pos_session_id and not self.employee_ids:
             self.add_report_per_employee = False

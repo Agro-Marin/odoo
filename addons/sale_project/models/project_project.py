@@ -186,7 +186,7 @@ class ProjectProject(models.Model):
 
     @api.depends("sale_order_id", "task_ids.sale_order_id")
     def _compute_sale_order_count(self):
-        sale_order_items_per_project_id = self._fetch_sale_order_items_per_project_id(
+        sale_order_items_per_project_id = self._get_sale_order_items_per_project_id(
             {"project.task": [("is_closed", "=", False)]}
         )
         for project in self:
@@ -221,7 +221,7 @@ class ProjectProject(models.Model):
             )
 
     def action_customer_preview(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_url",
             "target": "self",
@@ -242,7 +242,7 @@ class ProjectProject(models.Model):
         if not self.reinvoiced_sale_order_id and self.sale_line_id:
             self.reinvoiced_sale_order_id = self.sale_line_id.order_id
 
-    def _ensure_sale_order_linked(self, sol_ids):
+    def _confirm_linked_sale_orders(self, sol_ids):
         """Orders created from project/task are supposed to be confirmed to match the typical flow from sales, but since
         we allow SO creation from the project/task itself we want to confirm newly created SOs immediately after creation.
         However this would leads to SOs being confirmed without a single product, so we'd rather do it on record save.
@@ -274,13 +274,13 @@ class ProjectProject(models.Model):
             ):
                 project.sudo().reinvoiced_sale_order_id.project_id = project.id
         if sol_ids:
-            projects._ensure_sale_order_linked(list(sol_ids))
+            projects._confirm_linked_sale_orders(list(sol_ids))
         return projects
 
     def write(self, vals):
         project = super().write(vals)
         if sol_id := vals.get("sale_line_id"):
-            self._ensure_sale_order_linked([sol_id])
+            self._confirm_linked_sale_orders([sol_id])
         return project
 
     def _get_sale_orders_domain(self, all_sale_orders):
@@ -292,8 +292,8 @@ class ProjectProject(models.Model):
         )
 
     def action_view_sols(self):
-        self.ensure_one()
-        all_sale_order_lines = self._fetch_sale_order_items(
+        self.check_singleton()
+        all_sale_order_lines = self._get_sale_order_items(
             {"project.task": [("is_closed", "=", False)]}
         )
         action_window = {
@@ -341,9 +341,9 @@ class ProjectProject(models.Model):
         return action_window
 
     def action_view_sos(self):
-        self.ensure_one()
+        self.check_singleton()
         all_sale_orders = (
-            self._fetch_sale_order_items({"project.task": [("is_closed", "=", False)]})
+            self._get_sale_order_items({"project.task": [("is_closed", "=", False)]})
             .sudo()
             .order_id
         )
@@ -502,11 +502,11 @@ class ProjectProject(models.Model):
     #  Project Updates
     # ----------------------------
 
-    def _fetch_sale_order_items_per_project_id(self, domain_per_model=None):
+    def _get_sale_order_items_per_project_id(self, domain_per_model=None):
         if not self:
             return {}
         if len(self) == 1:
-            return {self.id: self._fetch_sale_order_items(domain_per_model)}
+            return {self.id: self._get_sale_order_items(domain_per_model)}
         sql = self._get_sale_order_items_query(domain_per_model).select(
             "id", "ARRAY_AGG(DISTINCT sale_line_id) AS sale_line_ids"
         )
@@ -516,12 +516,12 @@ class ProjectProject(models.Model):
             for id_, sale_line_ids in self.env.execute_query(sql)
         }
 
-    def _fetch_sale_order_items(self, domain_per_model=None, limit=None, offset=None):
+    def _get_sale_order_items(self, domain_per_model=None, limit=None, offset=None):
         return self.env["sale.order.line"].browse(
-            self._fetch_sale_order_item_ids(domain_per_model, limit, offset)
+            self._get_sale_order_item_ids(domain_per_model, limit, offset)
         )
 
-    def _fetch_sale_order_item_ids(
+    def _get_sale_order_item_ids(
         self, domain_per_model=None, limit=None, offset=None
     ):
         if not self or not self.filtered("allow_billable"):
@@ -536,9 +536,6 @@ class ProjectProject(models.Model):
 
     def _get_sale_orders(self):
         return self._get_sale_order_items().order_id
-
-    def _get_sale_order_items(self):
-        return self._fetch_sale_order_items()
 
     def _get_sale_order_items_query(self, domain_per_model=None):
         if domain_per_model is None:
@@ -736,7 +733,7 @@ class ProjectProject(models.Model):
         )
 
     def _show_profitability(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.allow_billable and super()._show_profitability()
 
     def _show_profitability_helper(self):
@@ -1288,8 +1285,8 @@ class ProjectProject(models.Model):
             action_window["res_id"] = vendor_bill_ids[0]
         return action_window
 
-    def _fetch_products_linked_to_template(self, limit=None):
-        self.ensure_one()
+    def _get_products_linked_to_template(self, limit=None):
+        self.check_singleton()
         return self.env["product.template"].search(
             [("project_template_id", "=", self.id)], limit=limit
         )
@@ -1297,18 +1294,18 @@ class ProjectProject(models.Model):
     def template_to_project_confirmation_callback(self, callbacks):
         super().template_to_project_confirmation_callback(callbacks)
         if callbacks.get("unlink_template_products"):
-            self._fetch_products_linked_to_template().project_template_id = False
+            self._get_products_linked_to_template().project_template_id = False
 
     def _get_template_to_project_confirmation_callbacks(self):
         callbacks = super()._get_template_to_project_confirmation_callbacks()
-        if self._fetch_products_linked_to_template(limit=1):
+        if self._get_products_linked_to_template(limit=1):
             callbacks["unlink_template_products"] = True
         return callbacks
 
     def _get_template_to_project_warnings(self):
-        self.ensure_one()
+        self.check_singleton()
         res = super()._get_template_to_project_warnings()
-        if self.is_template and self._fetch_products_linked_to_template(limit=1):
+        if self.is_template and self._get_products_linked_to_template(limit=1):
             res.append(
                 self.env._(
                     "Converting this template to a regular project will unlink it from its associated products."

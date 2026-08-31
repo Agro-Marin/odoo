@@ -19,7 +19,7 @@ class PurchaseOrder(models.Model):
                 order.dest_address_id = shipping_addresses
 
     def _should_set_dest_address(self):
-        self.ensure_one()
+        self.check_singleton()
         return bool(self.dest_address_id)
 
     def _get_sale_orders(self):

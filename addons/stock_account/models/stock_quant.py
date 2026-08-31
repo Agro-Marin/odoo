@@ -43,7 +43,7 @@ class StockQuant(models.Model):
         Determines if a quant should be excluded from valuation based on its ownership.
         :return: True if the quant should be excluded from valuation, False otherwise.
         """
-        self.ensure_one()
+        self.check_singleton()
         return bool(self.owner_id and self.owner_id != self.company_id.partner_id)
 
     @api.depends("company_id", "location_id", "owner_id", "product_id", "quantity")

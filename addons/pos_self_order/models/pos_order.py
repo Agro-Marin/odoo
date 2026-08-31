@@ -88,7 +88,7 @@ class PosOrder(models.Model):
                 _logger.warning("Error while sending email: %s", e.args[0])
 
     def action_send_self_order_receipt(self, email, mail_template_id, ticket_image, basic_image):
-        self.ensure_one()
+        self.check_singleton()
         self.email = email
         mail_template = self.env['mail.template'].browse(mail_template_id)
         if not mail_template:
@@ -99,7 +99,7 @@ class PosOrder(models.Model):
         mail_template.send_mail(self.id, force_send=True, email_values=email_values)
 
     def _send_payment_result(self, payment_result):
-        self.ensure_one()
+        self.check_singleton()
         self.config_id._notify('PAYMENT_STATUS', {
             'payment_result': payment_result,
             'data': {

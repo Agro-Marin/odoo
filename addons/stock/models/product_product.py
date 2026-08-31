@@ -674,7 +674,7 @@ class ProductProduct(models.Model):
         return action
 
     def action_view_stock_move_lines(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "stock.stock_move_line_action"
         )
@@ -682,7 +682,7 @@ class ProductProduct(models.Model):
         return action
 
     def action_view_related_putaway_rules(self):
-        self.ensure_one()
+        self.check_singleton()
         domain = [
             "|",
             ("product_id", "=", self.id),
@@ -709,12 +709,12 @@ class ProductProduct(models.Model):
         return action
 
     def preview_next_lot(self):
-        self.ensure_one()
+        self.check_singleton()
         sequence = self.lot_sequence_id
         return sequence.preview_next() if sequence else False
 
     def action_view_product_lot(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "stock.action_stock_lot_form_2"
         )
@@ -755,7 +755,7 @@ class ProductProduct(models.Model):
         return action
 
     def action_product_forecast_report(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "stock.stock_forecasted_product_product_action"
         )
@@ -1096,11 +1096,11 @@ class ProductProduct(models.Model):
         return self.env["product.product"].browse(product_ids)
 
     def _get_components(self):
-        self.ensure_one()
+        self.check_singleton()
         return self
 
     def _get_description(self, picking_type_id):
-        self.ensure_one()
+        self.check_singleton()
         if picking_type_id.code == "outgoing":
             return self.display_name
         return (
@@ -1110,7 +1110,7 @@ class ProductProduct(models.Model):
         )
 
     def _get_picking_description(self, picking_type_id):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "incoming": self.description_pickingin,
             "outgoing": self.description_pickingout,

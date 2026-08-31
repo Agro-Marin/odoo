@@ -209,7 +209,7 @@ class MrpProduction(models.Model):
         ]
 
     def action_split_subcontracting(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.lot_producing_ids:
             raise UserError(
                 _(

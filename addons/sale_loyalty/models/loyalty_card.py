@@ -36,7 +36,7 @@ class LoyaltyCard(models.Model):
             or self.order_id.sudo().company_id not in self.env.companies
         ):
             return super()._get_mail_author()
-        self.ensure_one()
+        self.check_singleton()
         return (self.order_id.user_id or self.order_id.company_id).partner_id
 
     def _get_signature(self):

@@ -72,7 +72,7 @@ class StockRule(models.Model):
             if not bypass_delay_description:
                 delay_description.append((_("No Vendor Found"), _("+ %s day(s)", 365)))
             return delays, delay_description
-        buy_rule.ensure_one()
+        buy_rule.check_singleton()
         if not self.env.context.get("ignore_vendor_lead_time"):
             supplier_delay = seller[:1].delay
             delays["total_delay"] += supplier_delay

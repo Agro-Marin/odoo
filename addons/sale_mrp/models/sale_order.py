@@ -31,7 +31,7 @@ class SaleOrder(models.Model):
             )
 
     def action_view_mrp_production(self):
-        self.ensure_one()
+        self.check_singleton()
         action = {
             "res_model": "mrp.production",
             "type": "ir.actions.act_window",

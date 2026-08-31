@@ -122,7 +122,7 @@ class StockPicking(models.Model):
     # Subcontract helpers
     # -------------------------------------------------------------------------
     def _is_subcontract(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.picking_type_id.code == "incoming" and any(
             m.is_subcontract for m in self.move_ids
         )
@@ -138,7 +138,7 @@ class StockPicking(models.Model):
         )
 
     def _prepare_subcontract_mo_vals(self, subcontract_move, bom):
-        subcontract_move.ensure_one()
+        subcontract_move.check_singleton()
         if not self.reference_ids:
             # References are system-managed plumbing: created regardless of
             # the validating user's stock.reference rights.
@@ -188,7 +188,7 @@ class StockPicking(models.Model):
         return {}  # To override in mrp_subcontracting_purchase
 
     def _subcontracted_produce(self, subcontract_details):
-        self.ensure_one()
+        self.check_singleton()
         group_by_company = defaultdict(lambda: ([], []))
         for move, bom in subcontract_details:
             if move.move_orig_ids.production_id:

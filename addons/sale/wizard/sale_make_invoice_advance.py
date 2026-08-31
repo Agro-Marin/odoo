@@ -143,13 +143,13 @@ class SaleAdvancePaymentInv(models.TransientModel):
         }
 
     def _create_invoices(self, sale_orders):
-        self.ensure_one()
+        self.check_singleton()
         if self.advance_payment_method == "delivered":
             return sale_orders._create_invoices(
                 final=self.deduct_down_payments, grouped=not self.consolidated_billing
             )
         else:
-            self.sale_order_ids.ensure_one()
+            self.sale_order_ids.check_singleton()
             self = self.with_company(self.company_id)
             order = self.sale_order_ids
 
@@ -209,7 +209,7 @@ class SaleAdvancePaymentInv(models.TransientModel):
             return invoice
 
     def _prepare_down_payment_invoice_values(self, order, so_lines):
-        self.ensure_one()
+        self.check_singleton()
         accounts = self.env.context.get("accounts")
         return {
             **order._prepare_invoice_vals(),
@@ -226,7 +226,7 @@ class SaleAdvancePaymentInv(models.TransientModel):
         }
 
     def _prepare_down_payment_invoice_line_values(self, order, so_line, account):
-        self.ensure_one()
+        self.check_singleton()
         self = self.with_context(lang=order._get_lang())
 
         if self.advance_payment_method == "percentage":

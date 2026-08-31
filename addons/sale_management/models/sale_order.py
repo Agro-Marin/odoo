@@ -151,7 +151,7 @@ class SaleOrder(models.Model):
     # === ACTION METHODS ===#
 
     def _get_confirmation_template(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.sale_order_template_id.mail_template_id
             or super()._get_confirmation_template()

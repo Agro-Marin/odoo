@@ -450,7 +450,7 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
             "partner_id": self.partner.id,
         }
         with self.assertRaises(JsonRpcException, msg="odoo.exceptions.ValidationError"):
-            self.make_jsonrpc_request(url, route_kwargs)
+            self.call_jsonrpc(url, route_kwargs)
 
     def test_partial_payment_confirm_order(self):
         self.amount = self.sale_order.amount_total / 2

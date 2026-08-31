@@ -247,7 +247,7 @@ class TestSaleExpectedDate(ValuationReconciliationTestCommon):
         )
         with freeze_time(effective_date + timedelta(days=3)):
             custom_delivery_date = fields.Date.today()
-            picking_2 = (order.picking_ids - picking_1).ensure_one()
+            picking_2 = (order.picking_ids - picking_1).check_singleton()
             picking_2.move_ids.write({"quantity": 25.0, "picked": True})
             picking_2._action_done()
             self.assertEqual(

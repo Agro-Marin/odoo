@@ -29,8 +29,8 @@ class ResPartner(models.Model):
         for partner in self:
             partner.pos_contact_address = partner._display_address(without_company=True)
 
-    def _compute_application_statistics_hook(self):
-        data_list = super()._compute_application_statistics_hook()
+    def _get_application_statistics(self):
+        data_list = super()._get_application_statistics()
         if not self.env.user.has_group("point_of_sale.group_pos_user"):
             return data_list
         for partner in self.filtered("pos_order_count"):

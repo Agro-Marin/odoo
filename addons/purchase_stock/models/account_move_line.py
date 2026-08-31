@@ -5,7 +5,7 @@ class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
 
     def _get_price_unit_val_dif_and_relevant_qty(self):
-        self.ensure_one()
+        self.check_singleton()
         valuation_price_unit = self.product_id.uom_id._compute_price(
             self.product_id.standard_price,
             self.product_uom_id,
@@ -32,7 +32,7 @@ class AccountMoveLine(models.Model):
         return super()._get_stock_moves() | self.purchase_line_ids.move_ids
 
     def _prepare_price_difference_vals(self, quantity, amount_currency, account):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": self.name[:64],
             "move_id": self.move_id.id,

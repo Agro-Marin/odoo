@@ -68,7 +68,7 @@ class PosPaymentMethod(models.Model):
         return super(PosPaymentMethod, self)._is_write_forbidden(fields - {'adyen_latest_response'})
 
     def get_latest_adyen_status(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.env.su and not self.env.user.has_group('point_of_sale.group_pos_user'):
             raise AccessDenied()
 
@@ -78,7 +78,7 @@ class PosPaymentMethod(models.Model):
 
     def proxy_adyen_request(self, data, operation=False):
         ''' Necessary because Adyen's endpoints don't have CORS enabled '''
-        self.ensure_one()
+        self.check_singleton()
         if not self.env.su and not self.env.user.has_group('point_of_sale.group_pos_user'):
             raise AccessDenied()
         if not data:
@@ -229,7 +229,7 @@ class PosPaymentMethod(models.Model):
         )
 
     def _proxy_adyen_request_direct(self, data, operation):
-        self.ensure_one()
+        self.check_singleton()
         TIMEOUT = 10
 
         _logger.info('Request to Adyen by user #%d:\n%s', self.env.uid, pprint.pformat(data))

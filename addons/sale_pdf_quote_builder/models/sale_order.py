@@ -98,7 +98,7 @@ class SaleOrder(models.Model):
                 "files": {},
                 "footers": {},
             }
-        self.ensure_one()
+        self.check_singleton()
         existing_mapping = (
             self.customizable_pdf_form_fields
             and json.loads(self.customizable_pdf_form_fields)

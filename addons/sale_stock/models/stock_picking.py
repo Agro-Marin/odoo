@@ -65,7 +65,7 @@ class StockPicking(models.Model):
         return self.sale_id.date_order or super()._get_source_order_date()
 
     def _is_on_manufacturing_route(self):
-        self.ensure_one()
+        self.check_singleton()
         return False
 
     def _inverse_sale_id(self):
@@ -132,7 +132,7 @@ class StockPicking(models.Model):
         return super()._log_less_quantities_than_expected(moves)
 
     def action_sale_matching(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "name": _("Sales Matching"),

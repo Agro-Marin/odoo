@@ -184,7 +184,7 @@ class MixinOrderLinePriceHistory(models.AbstractModel):
         ]
 
     def _get_price_stats(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         vals = {
             "avg_price_unit": 0.0,
             "avg_price_unit_exact": 0.0,
@@ -325,7 +325,7 @@ class MixinOrderLinePriceHistory(models.AbstractModel):
         return [("state", "=", "done")]
 
     def action_view_history(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             self._price_history_action,
         )
@@ -397,6 +397,6 @@ class MixinOrderLinePriceHistoryLine(models.AbstractModel):
         }
 
     def action_set_price(self):
-        self.ensure_one()
+        self.check_singleton()
         self.wizard_id.line_id.write(self._get_price_vals())
         return {"type": "ir.actions.act_window_close"}

@@ -320,7 +320,7 @@ class MixinOrderLineFields(models.AbstractModel):
             line.name = line._get_line_description()
 
     def _get_line_description(self):
-        self.ensure_one()
+        self.check_singleton()
         if self._is_down_payment_section():
             return _("Down Payments")
         return self._get_default_line_description()
@@ -640,7 +640,7 @@ class MixinOrderLineFields(models.AbstractModel):
     def _check_analytic_distribution(self):
         business_domain = self._analytic_business_domain
         for line in self._lines_to_check_analytic_distribution():
-            line._validate_distribution(
+            line._check_distribution(
                 product=line.product_id.id,
                 business_domain=business_domain,
                 company_id=line.company_id.id,
@@ -685,7 +685,7 @@ class MixinOrderLineFields(models.AbstractModel):
         if len(self) == 1:
             return self._get_catalog_single_line_data(**kwargs)
         elif self:
-            self.product_id.ensure_one()
+            self.product_id.check_singleton()
             data = self[0]._get_catalog_multi_line_data(**kwargs)
             data["quantity"] = sum(
                 self.mapped(
@@ -716,7 +716,7 @@ class MixinOrderLineFields(models.AbstractModel):
         return order.with_context(child_field="line_ids").action_add_from_catalog()
 
     def action_view_order(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "res_model": self._fields["order_id"].comodel_name,

@@ -58,7 +58,9 @@ class MrpWorkorder(models.Model):
     def _read_group_workcenter_id(self, workcenters, domain):
         workcenter_ids = self.env.context.get("default_workcenter_id")
         if not workcenter_ids:
-            search_domain = self.env["ir.rule"]._compute_domain(workcenters._name)
+            search_domain = self.env["ir.rule"]._get_domain_accessible_records(
+                workcenters._name
+            )
             workcenter_ids = workcenters.sudo()._search(
                 search_domain, order=workcenters._order
             )
@@ -314,7 +316,7 @@ class MrpWorkorder(models.Model):
         Reading the same inputs from both computes breaks the loop without
         losing either meaning.
         """
-        self.ensure_one()
+        self.check_singleton()
         blockers = self.blocked_by_workorder_ids.filtered(
             lambda wo: wo.state != "cancel"
         )
@@ -555,7 +557,7 @@ class MrpWorkorder(models.Model):
         return ("date_start", "date_end")
 
     def _get_reservation_vals_list(self):
-        self.ensure_one()
+        self.check_singleton()
         resource = self.workcenter_id.resource_id
         if not self.date_start or not self.date_end or not resource:
             return []
@@ -970,7 +972,7 @@ class MrpWorkorder(models.Model):
         return derived_vals
 
     def _get_derived_date_vals(self, values, date_start, date_end, new_workcenter):
-        self.ensure_one()
+        self.check_singleton()
         if "duration_expected" in values or self.env.context.get(
             "bypass_duration_calculation"
         ):
@@ -1007,7 +1009,7 @@ class MrpWorkorder(models.Model):
         return {}
 
     def _update_production_dates(self, values, derived):
-        self.ensure_one()
+        self.check_singleton()
         workorders = self.production_id.workorder_ids
         if self == workorders[:1] and values.get("date_start"):
             self.production_id.with_context(force_date=True).write(
@@ -1139,7 +1141,7 @@ class MrpWorkorder(models.Model):
             below), so a diamond dependency walked its shared node forward
             several times for one press of Replan.
         """
-        self.ensure_one()
+        self.check_singleton()
         if planned is None:
             planned = set()
         elif self.id in planned:
@@ -1195,7 +1197,7 @@ class MrpWorkorder(models.Model):
         lets a finished one keep the rate it actually ran at (`button_finish`
         stamps it).  Spelled out in four places before this.
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.costs_hour or self.workcenter_id.costs_hour
 
     def _get_cost(self, date=False):
@@ -1384,7 +1386,7 @@ class MrpWorkorder(models.Model):
         return True
 
     def button_scrap(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Scrap Products"),
             "view_mode": "form",
@@ -1410,7 +1412,7 @@ class MrpWorkorder(models.Model):
         }
 
     def action_view_move_scrap(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "stock.action_stock_scrap"
         )
@@ -1418,7 +1420,7 @@ class MrpWorkorder(models.Model):
         return action
 
     def action_view_wizard(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mrp.mrp_workorder_mrp_production_form"
         )
@@ -1465,7 +1467,7 @@ class MrpWorkorder(models.Model):
             *away* from, when the caller is reacting to a work centre change.
             Its efficiency is what the stored duration was expressed in.
         """
-        self.ensure_one()
+        self.check_singleton()
         if not self.workcenter_id:
             return self.duration_expected
         capacity, setup, cleanup = self.workcenter_id._get_capacity(
@@ -1572,7 +1574,7 @@ class MrpWorkorder(models.Model):
         return res
 
     def _get_operation_values(self):
-        self.ensure_one()
+        self.check_singleton()
         ratio = 1 / self.qty_production
         if self.operation_id.bom_id:
             ratio = self.production_id._get_ratio_between_mo_and_bom_quantities(
@@ -1609,7 +1611,7 @@ class MrpWorkorder(models.Model):
         return True
 
     def _should_estimate_cost(self):
-        self.ensure_one()
+        self.check_singleton()
         return bool(
             self.state in ("progress", "done")
             and self.duration_expected
@@ -1617,7 +1619,7 @@ class MrpWorkorder(models.Model):
         )
 
     def _update_qty_producing(self, quantity):
-        self.ensure_one()
+        self.check_singleton()
         if self.qty_producing:
             self.qty_producing = quantity
 
@@ -1635,7 +1637,7 @@ class MrpWorkorder(models.Model):
         )
 
     def get_duration(self):
-        self.ensure_one()
+        self.check_singleton()
         now = self.env.cr.now()
         loss_type_times = defaultdict(lambda: self.env["mrp.workcenter.productivity"])
         for time in self.time_ids:
@@ -1659,7 +1661,7 @@ class MrpWorkorder(models.Model):
                 wo.duration_percent = 100
 
     def _get_machine_cost(self, minutes):
-        self.ensure_one()
+        self.check_singleton()
         return (minutes / 60.0) * self._get_costs_hour()
 
     def _get_expected_operation_cost(self, without_employee_cost=False):

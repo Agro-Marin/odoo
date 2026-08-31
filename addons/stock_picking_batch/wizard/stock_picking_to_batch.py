@@ -22,7 +22,7 @@ class StockPickingToBatch(models.TransientModel):
     description = fields.Char("Description")
 
     def attach_pickings(self):
-        self.ensure_one()
+        self.check_singleton()
         pickings = self.env["stock.picking"].browse(self.env.context.get("active_ids"))
         if self.mode == "new":
             company = pickings.company_id

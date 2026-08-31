@@ -30,7 +30,7 @@ class AccountMove(models.Model):
         return records
 
     def action_view_wip_production(self):
-        self.ensure_one()
+        self.check_singleton()
         action = {
             "res_model": "mrp.production",
             "type": "ir.actions.act_window",

@@ -21,7 +21,7 @@ class PosSelfAdyenController(PosAdyenController):
         order_sudo = request.env['pos.order'].sudo().search([('id', '=', self_order_id)], limit=1)
         if not order_sudo:
             _logger.warning('Received an Adyen event notification for the self order #%d that does not exist (anymore)', self_order_id)
-            return request.make_json_response('[accepted]') # https://docs.adyen.com/point-of-sale/design-your-integration/choose-your-architecture/cloud/#guarantee
+            return request.prepare_json_response('[accepted]') # https://docs.adyen.com/point-of-sale/design-your-integration/choose-your-architecture/cloud/#guarantee
 
         order = order_sudo.sudo(False).with_user(order_sudo.session_id.config_id.self_ordering_default_user_id).with_company(order_sudo.session_id.config_id.company_id)
 
@@ -46,4 +46,4 @@ class PosSelfAdyenController(PosAdyenController):
 
         if order.config_id.self_ordering_mode == 'kiosk':
             order._send_payment_result(payment_result)
-        return request.make_json_response('[accepted]') # https://docs.adyen.com/point-of-sale/design-your-integration/choose-your-architecture/cloud/#guarantee
+        return request.prepare_json_response('[accepted]') # https://docs.adyen.com/point-of-sale/design-your-integration/choose-your-architecture/cloud/#guarantee

@@ -60,7 +60,7 @@ class RepairOrder(models.Model):
             self.env["stock.move"].create(line_vals_list)
 
     def action_view_mrp_productions(self):
-        self.ensure_one()
+        self.check_singleton()
         production_order_ids = self.reference_ids.production_ids
         action = {
             "type": "ir.actions.act_window",
@@ -93,7 +93,7 @@ class StockMove(models.Model):
     _inherit = "stock.move"
 
     def _prepare_phantom_line_vals(self, bom_line, qty):
-        self.ensure_one()
+        self.check_singleton()
         product = bom_line.product_id
         return {
             "repair_id": self.repair_id.id,

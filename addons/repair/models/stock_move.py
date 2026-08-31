@@ -188,7 +188,7 @@ class StockMove(models.Model):
         location_map = MAP_REPAIR_LINE_TYPE_TO_MOVE_LOCATIONS_FROM_REPAIR.get(repair_line_type)
         if location_map:
             if not repair_id:
-                self.repair_id.ensure_one()
+                self.repair_id.check_singleton()
                 repair_id = self.repair_id
             location_id, location_dest_id = [repair_id[field] for field in location_map.values()]
         else:

@@ -180,7 +180,7 @@ class MrpBom(models.Model):
             bom.possible_product_template_attribute_value_ids = bom.product_tmpl_id.valid_product_template_attribute_line_ids.product_template_value_ids._only_active()
 
     def _reset_variant_data(self):
-        self.ensure_one()
+        self.check_singleton()
         had_variant_data = (
             self.bom_line_ids.bom_product_template_attribute_value_ids
             or self.operation_ids.bom_product_template_attribute_value_ids
@@ -336,7 +336,7 @@ class MrpBom(models.Model):
         One pair, unless the lines are restricted to variants: then each distinct
         component set is walked once, against the variants it applies to.
         """
-        self.ensure_one()
+        self.check_singleton()
         finished_products = self.product_id or self.product_tmpl_id.product_variant_ids
         if not self.bom_line_ids.bom_product_template_attribute_value_ids:
             return [(self.bom_line_ids.product_id, finished_products)]
@@ -899,7 +899,7 @@ class MrpBom(models.Model):
         inflates each component by an amount that varies with the quantity
         asked about. Callers scale the result themselves.
         """
-        self.ensure_one()
+        self.check_singleton()
         kit_qty = self.product_uom_id._compute_quantity(
             self.product_qty, product.uom_id, round=False
         )
@@ -1059,7 +1059,7 @@ class MrpBom(models.Model):
         return product_catalog
 
     def _get_product_price_and_data(self, product):
-        self.ensure_one()
+        self.check_singleton()
         return {"price": product.standard_price}
 
     def _update_catalog_line_quantity(self, line, quantity, **kwargs):
@@ -1171,7 +1171,7 @@ class MrpBom(models.Model):
             ).show_set_bom_button = False
 
     def action_set_bom_on_orderpoint(self):
-        self.ensure_one()
+        self.check_singleton()
         orderpoint_id = self.env.context.get("orderpoint_id")
         if not orderpoint_id:
             return None
@@ -1191,7 +1191,7 @@ class MrpBom(models.Model):
         return orderpoint.action_stock_replenishment_info()
 
     def action_view_operation_form(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "view_mode": "form",
@@ -1204,7 +1204,7 @@ class MrpBom(models.Model):
         }
 
     def action_copy_existing_operations(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.env["mrp.routing.workcenter"]
             .with_context(bom_id=self.id)

@@ -39,7 +39,7 @@ export class CashMoveListPopup extends Component {
         try {
             await this.pos.data.call(
                 "pos.session",
-                "delete_cash_in_out",
+                "remove_cash_in_out",
                 [[this.pos.session.id], cm.id, this.props.partnerId],
                 {},
                 true,

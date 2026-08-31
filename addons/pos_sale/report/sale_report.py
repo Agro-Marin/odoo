@@ -209,13 +209,13 @@ class SaleReport(models.Model):
         # not just extension fields (sale_stock's warehouse_id is added by
         # overriding _get_fields_select() itself, not _select_additional_
         # fields()), so only the keys genuinely absent from the POS `fields`
-        # dict built above are passed through _fill_pos_fields(); otherwise
+        # dict built above are passed through _get_pos_field_expressions(); otherwise
         # every real POS column already built above would be overwritten
         # with the literal SQL "NULL" for any key _available_additional_
         # pos_fields() doesn't recognize.
         additional_fields = self._get_fields_select()
         new_field_names = additional_fields.keys() - fields.keys()
-        additional_fields_info = self._fill_pos_fields(
+        additional_fields_info = self._get_pos_field_expressions(
             {fname: additional_fields[fname] for fname in new_field_names}
         )
         fields.update(additional_fields_info)
@@ -318,7 +318,7 @@ class SaleReport(models.Model):
             "warehouse_id": "picking.warehouse_id",
         }
 
-    def _fill_pos_fields(self, additional_fields):
+    def _get_pos_field_expressions(self, additional_fields):
         """Map additional sale.report fields to their POS equivalent or NULL.
 
         :param additional_fields: sale.report field names to resolve for POS

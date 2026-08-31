@@ -358,7 +358,7 @@ class StockRule(models.Model):
         manufacture_rule = self.filtered(lambda r: r.action == "manufacture")
         if not manufacture_rule:
             return delays, delay_description
-        manufacture_rule.ensure_one()
+        manufacture_rule.check_singleton()
         if "bom" in values:
             bom = values["bom"]
         else:

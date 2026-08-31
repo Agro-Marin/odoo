@@ -6,7 +6,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
 
     @api.model
     def _get_product_expense_and_stock_var_accounts(self, product):
-        self.ensure_one()
+        self.check_singleton()
         res = super()._get_product_expense_and_stock_var_accounts(product)
         if product.is_storable and product.valuation == "real_time":
             product_accounts = product._get_product_accounts()

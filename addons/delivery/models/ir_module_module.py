@@ -6,7 +6,7 @@ class IrModuleModule(models.Model):
     _inherit = ['ir.module.module']
 
     def action_view_delivery_methods(self):
-        self.ensure_one()
+        self.check_singleton()
 
         module_name = self.name  # e.g., delivery_dhl
         if not module_name.startswith('delivery_'):

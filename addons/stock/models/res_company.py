@@ -288,7 +288,7 @@ class ResCompany(models.Model):
         return template.id if template else False
 
     def _get_text_validation(self, confirmation_type):
-        self.ensure_one()
+        self.check_singleton()
         return bool(
             self.stock_text_confirmation
             and self.stock_confirmation_type == confirmation_type

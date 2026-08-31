@@ -93,14 +93,14 @@ class StockPickingType(models.Model):
 
     @api.model
     def _is_auto_batch_grouped(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.auto_batch and any(
             self[key] for key in self._get_batch_group_by_keys()
         )
 
     @api.model
     def _is_auto_wave_grouped(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.auto_batch and any(
             self[key] for key in self._get_wave_group_by_keys()
         )
@@ -127,7 +127,7 @@ class StockPickingType(models.Model):
         return self._get_batch_group_by_keys() + self._get_wave_group_by_keys()
 
     @api.constrains(lambda self: self._get_batch_group_by_keys() + ["auto_batch"])
-    def _validate_auto_batch_group_by(self):
+    def _check_auto_batch_group_by(self):
         group_by_keys = self._get_batch_and_wave_group_by_keys()
         for picking_type in self:
             if not picking_type.auto_batch:
@@ -171,7 +171,7 @@ class StockPicking(models.Model):
             if not self.batch_id.picking_type_id:
                 self.batch_id.picking_type_id = self.picking_type_id[0]
             self.batch_id._sanity_check()
-            self.batch_id.picking_ids.assign_batch_user(self.batch_id.user_id.id)
+            self.batch_id.picking_ids.update_batch_user(self.batch_id.user_id.id)
         return res
 
     def action_add_operations(self):
@@ -274,7 +274,7 @@ class StockPicking(models.Model):
         return super()._should_show_transfers()
 
     def _find_auto_batch(self):
-        self.ensure_one()
+        self.check_singleton()
         # Check if auto_batch is enabled for this picking.
         if (
             not self.picking_type_id.auto_batch
@@ -342,7 +342,7 @@ class StockPicking(models.Model):
         return res
 
     def _get_possible_pickings_domain(self):
-        self.ensure_one()
+        self.check_singleton()
         domain = [
             ("id", "!=", self.id),
             ("company_id", "=", self.company_id.id if self.company_id else False),
@@ -362,7 +362,7 @@ class StockPicking(models.Model):
         return Domain(domain)
 
     def _get_possible_batches_domain(self):
-        self.ensure_one()
+        self.check_singleton()
         domain = [
             (
                 "state",
@@ -398,7 +398,7 @@ class StockPicking(models.Model):
 
     def _get_auto_batch_description(self):
         """Get the description of the automatically created batch based on the grouped pickings and grouping criteria"""
-        self.ensure_one()
+        self.check_singleton()
         description_items = []
         if self.picking_type_id.batch_group_by_partner and self.partner_id:
             description_items.append(self.partner_id.name or "")
@@ -420,7 +420,7 @@ class StockPicking(models.Model):
         # Hook meant to be overriden
         pass
 
-    def assign_batch_user(self, user_id):
+    def update_batch_user(self, user_id):
         pickings = self.filtered(lambda p: p.user_id.id != user_id)
         pickings.write({"user_id": user_id})
         for pick in pickings:
@@ -435,7 +435,7 @@ class StockPicking(models.Model):
             pick.message_post(body=log_message)
 
     def action_view_batch(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "res_model": "stock.picking.batch",

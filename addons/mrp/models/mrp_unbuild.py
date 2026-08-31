@@ -235,7 +235,7 @@ class MrpUnbuild(models.Model):
         }
 
     def action_unbuild(self):
-        self.ensure_one()
+        self.check_singleton()
         self._check_company()
         self = self.with_env(self.env(context=clean_context(self.env.context)))
         if self.product_id.tracking != "none" and not self.lot_id.id:
@@ -401,7 +401,7 @@ class MrpUnbuild(models.Model):
         return self.write({"state": "done"})
 
     def _get_unbuild_factor(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.mo_id:
             return self.product_qty / self.mo_id.product_uom_id._compute_quantity(
                 self.mo_id.qty_produced, self.product_uom_id
@@ -522,7 +522,7 @@ class MrpUnbuild(models.Model):
         )
 
     def action_validate(self):
-        self.ensure_one()
+        self.check_singleton()
         precision = self.env["decimal.precision"].get_precision("Product Unit")
         available_qty = self.env["stock.quant"]._get_available_quantity(
             self.product_id, self.location_id, self.lot_id, strict=True

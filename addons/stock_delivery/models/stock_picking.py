@@ -124,7 +124,7 @@ class StockPicking(models.Model):
                 picking.return_label_ids = False
 
     def get_multiple_carrier_tracking(self):
-        self.ensure_one()
+        self.check_singleton()
         try:
             return json.loads(self.carrier_tracking_url)
         except ValueError, TypeError:
@@ -161,7 +161,7 @@ class StockPicking(models.Model):
         return res
 
     def _carrier_exception_note(self, exception):
-        self.ensure_one()
+        self.check_singleton()
         line_1 = _("Exception occurred with respect to carrier on the transfer")
         line_2 = _("Manual actions might be needed.")
         line_3 = _("Exception:")
@@ -216,7 +216,7 @@ class StockPicking(models.Model):
         return super()._send_confirmation_email()
 
     def send_to_shipper(self):
-        self.ensure_one()
+        self.check_singleton()
         res = self.carrier_id.send_shipping(self)[0]
         if self.carrier_id.free_over and self.sale_id:
             amount_without_delivery = (
@@ -277,7 +277,7 @@ class StockPicking(models.Model):
         return
 
     def print_return_label(self):
-        self.ensure_one()
+        self.check_singleton()
         self.carrier_id.get_return_label(self)
 
     def _get_matching_delivery_lines(self):
@@ -297,7 +297,7 @@ class StockPicking(models.Model):
         }
 
     def _add_delivery_cost_to_so(self):
-        self.ensure_one()
+        self.check_singleton()
         sale_order = self.sale_id
         if (
             sale_order
@@ -313,7 +313,7 @@ class StockPicking(models.Model):
             delivery_lines[0].with_context(allow_delivery_cost_update=True).write(vals)
 
     def open_website_url(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.carrier_tracking_url:
             raise UserError(
                 _(
@@ -350,14 +350,14 @@ class StockPicking(models.Model):
             picking.carrier_tracking_ref = False
 
     def _get_estimated_weight(self):
-        self.ensure_one()
+        self.check_singleton()
         weight = 0.0
         for move in self.move_ids:
             weight += move.product_qty * move.product_id.weight
         return weight
 
     def _should_generate_commercial_invoice(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.picking_type_id.warehouse_id.partner_id.country_id
             != self.partner_id.country_id

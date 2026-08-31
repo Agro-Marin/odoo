@@ -31,7 +31,7 @@ class SaleOrder(models.Model):
         return result
 
     def action_view_purchase_orders(self):
-        self.ensure_one()
+        self.check_singleton()
         purchase_orders = self._get_purchase_orders()
         title = (
             {"name": _("Purchase Order generated from %s", self.name)}

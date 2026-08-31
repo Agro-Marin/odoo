@@ -50,16 +50,16 @@ class QuotationDocumentController(Controller):
                 ).flush_recordset()
             except UserError as e:
                 request.env.cr.rollback()
-                return request.make_json_response(
+                return request.prepare_json_response(
                     {"error": e},
                     status=e.http_status,
                 )
             except Exception as e:
                 request.env.cr.rollback()
                 logger.exception("Failed to upload document %s", uploaded_file.filename)
-                return request.make_json_response(
+                return request.prepare_json_response(
                     {"error": traceback.format_exception(e, limit=0)[0].rstrip()},
                     status=HTTPStatus.INTERNAL_SERVER_ERROR,
                 )
 
-        return request.make_json_response(result)
+        return request.prepare_json_response(result)

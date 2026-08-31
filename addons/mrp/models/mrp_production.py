@@ -1716,7 +1716,7 @@ class MrpProduction(models.Model):
         return None
 
     def _can_produce_serial_numbers(self, sns=None):
-        self.ensure_one()
+        self.check_singleton()
         sns = sns or self.lot_producing_ids
         if self.product_id.tracking == "serial" and sns:
             messages = []
@@ -1940,7 +1940,7 @@ class MrpProduction(models.Model):
             production._post_write_one(vals)
 
     def _post_write_one(self, vals):
-        self.ensure_one()
+        self.check_singleton()
         if self.state == "done" and "qty_producing" in vals:
             self.move_finished_ids.filtered(
                 lambda move: move.product_id == self.product_id and move.state == "done"
@@ -2077,7 +2077,7 @@ class MrpProduction(models.Model):
         return vals_list
 
     def action_generate_bom(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "mrp.mrp_bom_form_action"
         )
@@ -2100,7 +2100,7 @@ class MrpProduction(models.Model):
         return action
 
     def action_view_mo_delivery(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "stock.action_picking_tree_all"
         )
@@ -2119,12 +2119,12 @@ class MrpProduction(models.Model):
         return action
 
     def action_toggle_is_locked(self):
-        self.ensure_one()
+        self.check_singleton()
         self.is_locked = not self.is_locked
         return True
 
     def action_product_forecast_report(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.product_id.action_product_forecast_report()
         action["context"] = {
             "active_id": self.product_id.id,
@@ -2145,7 +2145,7 @@ class MrpProduction(models.Model):
         self.is_outdated_bom = False
 
     def _get_bom_values(self, ratio=1):
-        self.ensure_one()
+        self.check_singleton()
 
         def get_uom_and_quantity(move):
             target_uom = (
@@ -2241,7 +2241,7 @@ class MrpProduction(models.Model):
         the orders it shares a reference and a parent group with -- a backorder
         inherits the destinations of the order it was split from.
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.move_dest_ids:
             return self.move_dest_ids
         group_orders = (
@@ -2472,11 +2472,11 @@ class MrpProduction(models.Model):
                 move.picked = True
 
     def _should_postpone_date_end(self, date_end):
-        self.ensure_one()
+        self.check_singleton()
         return date_end == self.date_start
 
     def _update_raw_moves(self, factor):
-        self.ensure_one()
+        self.check_singleton()
         update_info = []
         for move in self.move_raw_ids.filtered(
             lambda m: m.state not in ("done", "cancel")
@@ -2502,7 +2502,7 @@ class MrpProduction(models.Model):
             )
 
     def _get_ready_to_produce_state(self):
-        self.ensure_one()
+        self.check_singleton()
         operations = self.workorder_ids.operation_id
         if len(operations) == 1:
             moves_in_first_operation = self.move_raw_ids
@@ -2548,19 +2548,19 @@ class MrpProduction(models.Model):
         )._action_confirm()
 
     def _get_children(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.production_group_id.child_ids.production_ids
 
     def _get_sources(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.production_group_id.parent_ids.production_ids
 
     def set_qty_producing(self):
-        self.ensure_one()
+        self.check_singleton()
         self._inverse_qty_producing(False)
 
     def action_view_mrp_production_childs(self):
-        self.ensure_one()
+        self.check_singleton()
         mrp_production_ids = self._get_children().ids
         action = {
             "res_model": "mrp.production",
@@ -2584,7 +2584,7 @@ class MrpProduction(models.Model):
         return action
 
     def action_view_mrp_production_sources(self):
-        self.ensure_one()
+        self.check_singleton()
         mrp_production_ids = self._get_sources().ids
         action = {
             "res_model": "mrp.production",
@@ -2618,13 +2618,13 @@ class MrpProduction(models.Model):
         }
 
     def _prepare_stock_lot_values(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.env["stock.lot"]._prepare_next_lot_vals(
             self.company_id, self.product_id
         )
 
     def action_generate_serial(self, workorder=False):
-        self.ensure_one()
+        self.check_singleton()
         if self.product_tracking == "lot":
             if self.lot_producing_ids:
                 raise UserError(_("You cannot set more than 1 lot per product"))
@@ -2718,7 +2718,7 @@ class MrpProduction(models.Model):
         return True
 
     def _link_workorders_and_moves(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.workorder_ids:
             return
         workorder_per_operation = {
@@ -2772,7 +2772,7 @@ class MrpProduction(models.Model):
         return True
 
     def _plan_workorders(self, replan=False):
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.workorder_ids:
             self.is_planned = True
@@ -3027,7 +3027,7 @@ class MrpProduction(models.Model):
         `consumed_moves` against `self`. Nothing in this base module reads
         the return value at all.
         """
-        self.ensure_one()
+        self.check_singleton()
         return True
 
     def _post_inventory(self, cancel_backorder=False):
@@ -3122,7 +3122,7 @@ class MrpProduction(models.Model):
         return name + seq_back
 
     def _get_backorder_mo_vals(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "reference_ids": self.reference_ids.ids,
             "production_group_id": self.production_group_id.id,
@@ -3161,7 +3161,7 @@ class MrpProduction(models.Model):
         return self.env["mrp.production"].browse(production_ids)
 
     def _get_default_split_amounts(self):
-        self.ensure_one()
+        self.check_singleton()
         return [self.qty_producing, self._get_quantity_to_backorder()]
 
     def _get_split_amounts(self, amounts, cancel_remaining_qty):
@@ -3705,7 +3705,7 @@ class MrpProduction(models.Model):
             order._check_sn_uniqueness()
 
     def _auto_production_checks(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             all(
                 p.tracking == "none"
@@ -3728,7 +3728,7 @@ class MrpProduction(models.Model):
         )._do_unreserve()
 
     def button_scrap(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Scrap Products"),
             "view_mode": "form",
@@ -3751,7 +3751,7 @@ class MrpProduction(models.Model):
         }
 
     def action_view_move_scrap(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "stock.action_stock_scrap"
         )
@@ -3769,7 +3769,7 @@ class MrpProduction(models.Model):
         return action
 
     def action_view_mrp_production_unbuilds(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mrp.mrp_unbuild"
         )
@@ -3841,7 +3841,7 @@ class MrpProduction(models.Model):
         )
 
     def button_unbuild(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Unbuild: %s", self.product_id.display_name),
             "view_mode": "form",
@@ -3997,7 +3997,7 @@ class MrpProduction(models.Model):
         return self.workorder_ids
 
     def _link_bom(self, bom):
-        self.ensure_one()
+        self.check_singleton()
         product_qty = self.product_qty
         uom = self.product_uom_id
         moves_to_unlink = self.env["stock.move"]
@@ -4038,7 +4038,7 @@ class MrpProduction(models.Model):
         self.bom_id = bom
 
     def _is_bom_record_applicable(self, record, product=None):
-        self.ensure_one()
+        self.check_singleton()
         if product is None:
             product = self.product_id
         product_attribute_ids = product.product_template_attribute_value_ids.ids
@@ -4048,7 +4048,7 @@ class MrpProduction(models.Model):
         )
 
     def _get_bom_lines_to_link(self, bom):
-        self.ensure_one()
+        self.check_singleton()
         _dummy, bom_lines = bom._explode(self.product_id, bom.product_qty)
         bom_lines_by_id = defaultdict(lambda: [None, 0])
         for line, exploded_values in bom_lines:
@@ -4062,7 +4062,7 @@ class MrpProduction(models.Model):
         return bom_lines_by_id
 
     def _link_bom_operations(self, operations_by_id):
-        self.ensure_one()
+        self.check_singleton()
 
         def operation_key_values(record):
             return tuple(record[key] for key in ("company_id", "name", "workcenter_id"))
@@ -4112,7 +4112,7 @@ class MrpProduction(models.Model):
         return workorders_to_unlink
 
     def _link_bom_lines(self, bom, bom_lines_by_id, ratio):
-        self.ensure_one()
+        self.check_singleton()
         moves_to_unlink = self.env["stock.move"]
         for move_raw in self.move_raw_ids:
             bom_line, bom_qty = bom_lines_by_id.pop(
@@ -4167,7 +4167,7 @@ class MrpProduction(models.Model):
         return moves_to_unlink
 
     def _link_bom_byproducts(self, bom_byproducts_by_id, ratio):
-        self.ensure_one()
+        self.check_singleton()
         moves_to_unlink = self.env["stock.move"]
         for move_byproduct in self.move_byproduct_ids:
             bom_byproduct = bom_byproducts_by_id.pop(
@@ -4210,17 +4210,17 @@ class MrpProduction(models.Model):
         return moves_to_unlink
 
     def _get_quantity_to_backorder(self):
-        self.ensure_one()
+        self.check_singleton()
         return max(self.product_qty - self.qty_producing, 0)
 
     def _get_ratio_between_mo_and_bom_quantities(self, bom):
-        self.ensure_one()
+        self.check_singleton()
         bom_product_uom = (bom.product_id or bom.product_tmpl_id).uom_id
         bom_qty = bom.product_uom_id._compute_quantity(bom.product_qty, bom_product_uom)
         return bom_qty / self.product_uom_qty
 
     def _check_sn_uniqueness(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.product_tracking == "serial" and self.lot_producing_ids:
             lots_to_check = self.lot_producing_ids.filtered(
                 lambda l: l.id not in self.move_raw_ids.lot_ids.ids
@@ -4272,7 +4272,7 @@ class MrpProduction(models.Model):
         a production location and nothing gave it back -- an unbuild, or a
         cancel that returned it -- which is the two grouped reads below.
         """
-        self.ensure_one()
+        self.check_singleton()
         consumed_sn_ids = []
         sn_error_msg = {}
         for move in self.move_raw_ids:
@@ -4489,7 +4489,7 @@ class MrpProduction(models.Model):
         return origs
 
     def _set_quantities(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.product_tracking in ("lot", "serial") and not self.lot_producing_ids:
             self.action_generate_serial()
 
@@ -4610,7 +4610,7 @@ class MrpProduction(models.Model):
         return report_actions
 
     def _autoprint_generated_lot(self, lot_id):
-        self.ensure_one()
+        self.check_singleton()
         report_xmlid = self._LOT_LABEL_REPORTS.get(
             self.picking_type_id.generated_mrp_lot_label_to_print
         )
@@ -4630,7 +4630,7 @@ class MrpProduction(models.Model):
         return actions
 
     def _prepare_finished_extra_vals(self):
-        self.ensure_one()
+        self.check_singleton()
         return {}
 
     def action_view_label_layout(self):
@@ -4666,7 +4666,7 @@ class MrpProduction(models.Model):
         return self.action_view_label_layout()
 
     def action_start(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.state == "confirmed":
             self.state = "progress"
 
@@ -4688,7 +4688,7 @@ class MrpProduction(models.Model):
         self._inverse_qty_producing(False)
 
     def _track_subtype(self, init_values):
-        self.ensure_one()
+        self.check_singleton()
         if "state" in init_values and self.state == "confirmed":
             return self.env.ref("mrp.mrp_mo_in_confirmed")
         elif "state" in init_values and self.state == "progress":
@@ -4764,7 +4764,7 @@ class MrpProduction(models.Model):
         return True
 
     def _resequence_workorders(self):
-        self.ensure_one()
+        self.check_singleton()
         phantom_workorders = self.workorder_ids.filtered(
             lambda wo: wo.operation_id.bom_id.type == "phantom"
         )
@@ -4783,13 +4783,13 @@ class MrpProduction(models.Model):
         return res
 
     def _add_reference(self, reference):
-        self.ensure_one()
+        self.check_singleton()
         self.reference_ids = [
             Command.link(stock_reference.id) for stock_reference in reference
         ]
 
     def _remove_reference(self, reference):
-        self.ensure_one()
+        self.check_singleton()
         self.reference_ids = [
             Command.unlink(stock_reference.id) for stock_reference in reference
         ]

@@ -437,7 +437,7 @@ class TestUom(UomCommon):
             self.uom_gram._has_common_reference(several)
 
     def test_compute_price_accepts_an_unset_unit(self):
-        """`_compute_price` `ensure_one()`d before its degenerate-input guard,
+        """`_compute_price` `check_singleton()`d before its degenerate-input guard,
         so an unset source unit raised where `_compute_quantity` returned
         quietly. The two are now symmetric."""
         no_uom = self.env["uom.uom"]

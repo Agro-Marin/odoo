@@ -408,7 +408,7 @@ class RepairOrder(models.Model):
         repairs_to_cancel.action_repair_cancel()
 
     def action_generate_serial(self):
-        self.ensure_one()
+        self.check_singleton()
         Lot = self.env['stock.lot']
         self.lot_id = Lot.create(Lot._prepare_next_lot_vals(self.company_id, self.product_id))
 
@@ -569,7 +569,7 @@ class RepairOrder(models.Model):
         return self.move_ids.filtered(lambda m: m.state in ('assigned', 'partially_available'))._do_unreserve()
 
     def action_validate(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.filtered(lambda repair: any(m.product_uom_qty < 0 for m in repair.move_ids)):
             raise UserError(_("You can not enter negative quantities."))
         if not self.product_id or not self.product_id.is_storable:
@@ -700,7 +700,7 @@ class RepairOrder(models.Model):
         return product_catalog
 
     def _get_product_price_and_data(self, product):
-        self.ensure_one()
+        self.check_singleton()
         return {'price': product.list_price}
 
     def _get_product_catalog_record_lines(self, product_ids, **kwargs):

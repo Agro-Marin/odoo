@@ -3,7 +3,7 @@ import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 
 patch(PosOrder.prototype, {
-    validate_coupon_programs(self, point_changes) {
+    check_coupon_programs(self, point_changes) {
         const couponIdsFromPos = new Set(Object.keys(point_changes).map((id) => parseInt(id)));
 
         const coupons = this.env["loyalty.card"]

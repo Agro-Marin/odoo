@@ -19,7 +19,7 @@ class PosConfig(models.Model):
         ]).filtered(lambda p: not p.limit_usage or p.sudo().total_order_count < p.max_usage)
 
     def _check_before_creating_new_session(self):
-        self.ensure_one()
+        self.check_singleton()
         # Check validity of programs before opening a new session
         invalid_reward_products_msg = ''
         for reward in self._get_program_ids().reward_ids:
@@ -68,7 +68,7 @@ class PosConfig(models.Model):
         return super()._check_before_creating_new_session()
 
     def use_coupon_code(self, code, creation_date, partner_id, pricelist_id):
-        self.ensure_one()
+        self.check_singleton()
         # Points desc so that in coupon mode one could use a coupon multiple times
         coupon = self.env['loyalty.card'].search(
             [('program_id', 'in', self._get_program_ids().ids),

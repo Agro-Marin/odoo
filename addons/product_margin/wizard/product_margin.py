@@ -21,7 +21,7 @@ class ProductMargin(models.TransientModel):
     )
 
     def action_view_window(self):
-        self.ensure_one()
+        self.check_singleton()
         context = dict(self.env.context, create=False, edit=False)
 
         def ref(xml_id):

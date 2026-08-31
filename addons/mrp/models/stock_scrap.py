@@ -109,7 +109,7 @@ class StockScrap(models.Model):
         return move
 
     def do_replenish(self, values=False):
-        self.ensure_one()
+        self.check_singleton()
         values = values or {}
         if self.production_id and self.production_id.production_group_id:
             values.update(

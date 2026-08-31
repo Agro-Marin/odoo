@@ -170,7 +170,7 @@ class MixinOrderLineAmount(models.AbstractModel):
         )
 
     def _get_price_unit_gross(self):
-        self.ensure_one()
+        self.check_singleton()
         price_unit = self.price_unit
         if self.discount:
             price_unit *= 1 - self.discount / 100
@@ -221,7 +221,7 @@ class MixinOrderLineAmount(models.AbstractModel):
     def _should_update_price(
         self, new_auto_price, old_auto_price, force_recompute=False
     ):
-        self.ensure_one()
+        self.check_singleton()
         precision = self._get_price_precision()
 
         if self._price_update_blocked():
@@ -258,7 +258,7 @@ class MixinOrderLineAmount(models.AbstractModel):
     def _should_update_discount(
         self, new_auto_discount, old_auto_discount, force_recompute=False
     ):
-        self.ensure_one()
+        self.check_singleton()
         if force_recompute:
             return True
         precision = self.env["decimal.precision"].get_precision("Discount")
@@ -289,11 +289,11 @@ class MixinOrderLineAmount(models.AbstractModel):
         return False
 
     def _get_base_line_special_type(self):
-        self.ensure_one()
+        self.check_singleton()
         return "down_payment" if self.is_downpayment else False
 
     def _prepare_base_line_for_taxes_computation(self, **kwargs):
-        self.ensure_one()
+        self.check_singleton()
         company = self.order_id.company_id or self.env.company
         base_values = {
             "tax_ids": self.tax_ids,
@@ -345,7 +345,7 @@ class MixinOrderLineAmount(models.AbstractModel):
     )
 
     def _get_price_discounted(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.price_unit * (1 - (self.discount or 0.0) / 100.0)
 
     @api.depends("price_unit", "discount")
@@ -463,7 +463,7 @@ class MixinOrderLineAmount(models.AbstractModel):
         return self.env["decimal.precision"].get_precision("Product Price")
 
     def is_manual_price(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.price_unit_auto:
             return False
         precision = self._get_price_precision()

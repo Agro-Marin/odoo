@@ -18,7 +18,7 @@ class RepairOrder(models.Model):
             )
 
     def action_view_purchase_orders(self):
-        self.ensure_one()
+        self.check_singleton()
         purchase_ids = self.move_ids.created_purchase_line_ids.order_id
         action = {
             "type": "ir.actions.act_window",

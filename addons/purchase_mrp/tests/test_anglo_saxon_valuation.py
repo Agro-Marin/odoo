@@ -278,7 +278,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
         bill.invoice_date = Date.today()
         bill.action_post()
 
-        valued_move = po.line_ids.move_ids.filtered("is_valued").ensure_one()
+        valued_move = po.line_ids.move_ids.filtered("is_valued").check_singleton()
         self.assertEqual(valued_move.value, 50)
 
         valuation_aml = self.env["account.move.line"].search(

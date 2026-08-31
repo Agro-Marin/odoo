@@ -38,7 +38,7 @@ class AccountAnalyticAccount(models.Model):
             )
 
     def action_view_purchase_orders(self):
-        self.ensure_one()
+        self.check_singleton()
         result = {
             "name": _("Purchase Orders"),
             "type": "ir.actions.act_window",

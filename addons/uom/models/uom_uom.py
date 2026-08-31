@@ -246,7 +246,7 @@ class UomUom(models.Model):
 
         `compare` and `is_zero` round at the 'Product Unit' decimal precision and
         never read `self`, so their answer cannot depend on *which* unit is held --
-        yet `ensure_one()` made them raise on an **empty** one. Callers legitimately
+        yet `check_singleton()` made them raise on an **empty** one. Callers legitimately
         compare quantities on records whose unit is not resolved yet: a brand-new
         `stock.warehouse.orderpoint` built from a list view's defaults has no product,
         hence no `product_uom_id`, while every quantity on it is still 0.0. Demanding
@@ -256,7 +256,7 @@ class UomUom(models.Model):
         More than one unit stays a caller error -- that really is ambiguous.
         """
         if len(self) > 1:
-            self.ensure_one()
+            self.check_singleton()
 
     def compare(self, value1: float, value2: float) -> Literal[-1, 0, 1]:
         """Compare two measures after rounding them with the 'Product Unit' precision
@@ -329,7 +329,7 @@ class UomUom(models.Model):
             # a half-filled record) and `None`, both of which were handed back
             # unchanged.
             return qty or 0.0
-        self.ensure_one()
+        self.check_singleton()
 
         if self == to_unit:
             amount = qty
@@ -429,7 +429,7 @@ class UomUom(models.Model):
         """Convert for a value stored or consumed as the authoritative quantity."""
         if not self or not qty or not to_unit or self == to_unit:
             return self._compute_quantity(qty, to_unit, rounding_method=rounding_method)
-        self.ensure_one()
+        self.check_singleton()
         amount = self._compute_quantity(qty, to_unit, round=False)
         return float_round(
             amount,
@@ -439,7 +439,7 @@ class UomUom(models.Model):
 
     def _aggregate_rounding(self) -> float:
         """The step of this dimension's reference unit, expressed in this unit."""
-        self.ensure_one()
+        self.check_singleton()
         return self.rounding / max(1.0, self.factor)
 
     def _is_zero_aggregate(self, qty: float) -> bool:
@@ -479,7 +479,7 @@ class UomUom(models.Model):
         production call site (`stock.quant._get_available_quantity`, the
         "reserve whole packages only" branch).
         """
-        self.ensure_one()
+        self.check_singleton()
         if self == uom:
             return product_qty
         # One package expressed in `uom`, unrounded: rounding it first would
@@ -522,13 +522,13 @@ class UomUom(models.Model):
 
         Degenerate recordsets are handled exactly as in `_compute_quantity`: an
         unset unit on either side returns the price untouched instead of
-        raising. The two were asymmetric -- `_compute_price` `ensure_one()`d
+        raising. The two were asymmetric -- `_compute_price` `check_singleton()`d
         first, so a price read off a record whose unit is not resolved yet blew
         up with `ValueError` where the quantity path returned quietly.
         """
         if not self or not price or not to_unit or self == to_unit:
             return price
-        self.ensure_one()
+        self.check_singleton()
         if not self._has_common_reference(to_unit):
             if raise_if_failure:
                 raise UserError(
@@ -627,7 +627,7 @@ class UomUom(models.Model):
 
     def _get_reference_uom(self) -> Self:
         """Return the root unit `self` is (transitively) defined against."""
-        self.ensure_one()
+        self.check_singleton()
         # One indexed column read, at any depth. This walked
         # `relative_uom_id` once per level (6 queries for a Mile), then read it
         # off `parent_path`; `reference_uom_id` now stores it outright.

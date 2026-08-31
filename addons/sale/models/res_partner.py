@@ -27,8 +27,8 @@ class ResPartner(models.Model):
             domain=self._get_sale_order_domain_count(),
         )
 
-    def _compute_application_statistics_hook(self):
-        data_list = super()._compute_application_statistics_hook()
+    def _get_application_statistics(self):
+        data_list = super()._get_application_statistics()
         return self._add_order_statistics(
             data_list,
             "sale_order_count",
@@ -88,7 +88,7 @@ class ResPartner(models.Model):
 
 
     def _has_order(self, partner_domain):
-        self.ensure_one()
+        self.check_singleton()
         sale_order = (
             self.env["sale.order"]
             .sudo()

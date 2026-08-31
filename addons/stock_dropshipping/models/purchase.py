@@ -35,7 +35,7 @@ class PurchaseOrder(models.Model):
         return res
 
     def _is_dropshipped(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.picking_type_id and self.picking_type_id.code == "dropship"
 
     def _should_set_dest_address(self):

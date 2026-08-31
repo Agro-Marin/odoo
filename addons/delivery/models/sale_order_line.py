@@ -21,7 +21,7 @@ class SaleOrderLine(models.Model):
         return res
 
     def _is_delivery(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.is_delivery
 
     def _get_invalid_delivery_weight_lines(self):

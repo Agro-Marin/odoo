@@ -706,7 +706,7 @@ class StockPickingType(models.Model):
         )
         domains = [action["domain"] or []]
         if self:
-            self.ensure_one()
+            self.check_singleton()
             domains.append([("picking_type_id", "=", self.id)])
         action["domain"] = Domain.AND(domains)
         return action
@@ -789,7 +789,7 @@ class StockPickingType(models.Model):
             undecidable._raise_undecidable_default_locations()
 
     def _prepare_sequence_vals(self, warehouse_name=None, warehouse_code=None):
-        self.ensure_one()
+        self.check_singleton()
         warehouse = self.warehouse_id
         if not warehouse:
             return {
@@ -854,13 +854,13 @@ class StockPickingType(models.Model):
         (sequences - still_referenced).sudo().unlink()
 
     def _sequence_scope_domain(self):
-        self.ensure_one()
+        self.check_singleton()
         return Domain("company_id", "=", self.company_id.id) & Domain(
             "warehouse_id", "=", self.warehouse_id.id or False
         )
 
     def _get_clashing_picking_type(self):
-        self.ensure_one()
+        self.check_singleton()
         domain = self._sequence_scope_domain() & Domain(
             "sequence_code", "=", self.sequence_code
         )
@@ -873,7 +873,7 @@ class StockPickingType(models.Model):
         )
 
     def _get_unique_sequence_code(self):
-        self.ensure_one()
+        self.check_singleton()
         pattern = (
             self.sequence_code.replace("\\", "\\\\")
             .replace("_", "\\_")
@@ -942,7 +942,7 @@ class StockPickingType(models.Model):
         return action
 
     def _get_code_report_name(self):
-        self.ensure_one()
+        self.check_singleton()
         code_names = {
             "outgoing": _("Delivery Note"),
             "incoming": _("Goods Receipt Note"),

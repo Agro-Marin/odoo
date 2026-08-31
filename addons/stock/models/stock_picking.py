@@ -714,7 +714,7 @@ class StockPicking(models.Model):
             picking.date_planned = picking._get_date_planned_from_moves()
 
     def _get_date_planned_from_moves(self):
-        self.ensure_one()
+        self.check_singleton()
         moves_dates = self.move_ids.filtered(
             lambda move: move.state not in DONE_CANCEL_STATES,
         ).mapped("date")
@@ -901,7 +901,7 @@ class StockPicking(models.Model):
         return lines_by_picking
 
     def _has_allocatable_demand(self, lines, excluded_ids, candidates_by_product):
-        self.ensure_one()
+        self.check_singleton()
         line_ids = set(lines.ids)
         return any(
             move.picking_id.id not in excluded_ids
@@ -983,7 +983,7 @@ class StockPicking(models.Model):
                 picking.location_dest_id = picking._get_type_default_location_dest_id()
 
     def _get_type_default_location_id(self):
-        self.ensure_one()
+        self.check_singleton()
         picking = self.with_company(self.company_id)
         location = picking.picking_type_id.default_location_src_id
         if location.usage == "supplier" and picking.partner_id:
@@ -991,7 +991,7 @@ class StockPicking(models.Model):
         return location.id
 
     def _get_type_default_location_dest_id(self):
-        self.ensure_one()
+        self.check_singleton()
         picking = self.with_company(self.company_id)
         location = picking.picking_type_id.default_location_dest_id
         if location.usage == "customer" and picking.partner_id:
@@ -1340,7 +1340,7 @@ class StockPicking(models.Model):
         return action
 
     def action_split_transfer(self):
-        self.ensure_one()
+        self.check_singleton()
         if all(m.product_uom_id.is_zero(m.quantity) for m in self.move_ids):
             raise UserError(
                 _(
@@ -1425,7 +1425,7 @@ class StockPicking(models.Model):
         }
 
     def action_toggle_is_locked(self):
-        self.ensure_one()
+        self.check_singleton()
         self.is_locked = not self.is_locked
         return True
 
@@ -1436,7 +1436,7 @@ class StockPicking(models.Model):
         package_type_id=False,
         package_name=False,
     ):
-        self.ensure_one()
+        self.check_singleton()
         if self.env.context.get("sml_specific_default"):
             self = self.with_context(clean_context(self.env.context))
         if self.state in DONE_CANCEL_STATES:
@@ -1448,7 +1448,7 @@ class StockPicking(models.Model):
         )
 
     def button_scrap(self):
-        self.ensure_one()
+        self.check_singleton()
         view = self.env.ref("stock.view_stock_scrap_form2")
         products = self.env["product.product"]
         for move in self.move_ids:
@@ -1473,7 +1473,7 @@ class StockPicking(models.Model):
         }
 
     def action_add_entire_packs(self, package_ids):
-        self.ensure_one()
+        self.check_singleton()
         if self.state not in DONE_CANCEL_STATES:
             all_packages = self.env["stock.package"].search(
                 [("id", "child_of", package_ids)],
@@ -1492,7 +1492,7 @@ class StockPicking(models.Model):
         return False
 
     def action_view_move_scrap(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "stock.action_stock_scrap"
         )
@@ -1521,7 +1521,7 @@ class StockPicking(models.Model):
         }
 
     def action_view_package_histories(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": self.env._("Packages"),
             "res_model": "stock.package.history",
@@ -1582,7 +1582,7 @@ class StockPicking(models.Model):
         return self.action_view_label_layout()
 
     def action_view_returns(self):
-        self.ensure_one()
+        self.check_singleton()
         return self._get_pickings_action(self.return_ids, _("Returns"))
 
     @api.model
@@ -1603,13 +1603,13 @@ class StockPicking(models.Model):
         }
 
     def _add_reference(self, reference):
-        self.ensure_one()
+        self.check_singleton()
         self.move_ids.reference_ids = [
             Command.link(stock_reference.id) for stock_reference in reference
         ]
 
     def _attach_sign(self):
-        self.ensure_one()
+        self.check_singleton()
         report = self.env["ir.actions.report"]._render_qweb_pdf(
             "stock.action_report_delivery",
             self.id,
@@ -1765,7 +1765,7 @@ class StockPicking(models.Model):
         return [action] if action else []
 
     def _prepare_backorder_picking_vals(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.copy_data(
             {
                 "name": "/",
@@ -1931,7 +1931,7 @@ class StockPicking(models.Model):
         return impacted_pickings
 
     def _get_moves_to_backorder(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.move_ids.filtered(lambda x: x.state not in DONE_CANCEL_STATES)
 
     def _get_packages_for_print(self):
@@ -1946,7 +1946,7 @@ class StockPicking(models.Model):
         return self.env["stock.package"].browse(package_ids)
 
     def _get_report_lang(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             (self.move_ids and self.move_ids[0].partner_id.lang)
             or self.partner_id.lang
@@ -1996,7 +1996,7 @@ class StockPicking(models.Model):
         self._log_activity(_render_note_exception_quantity, documents)
 
     def _prepare_entire_pack_move_line_vals(self, packages):
-        self.ensure_one()
+        self.check_singleton()
         return [
             {
                 "product_id": package_quant.product_id.id,
@@ -2016,7 +2016,7 @@ class StockPicking(models.Model):
         ]
 
     def _remove_reference(self, reference):
-        self.ensure_one()
+        self.check_singleton()
         self.move_ids.reference_ids = [
             Command.unlink(stock_reference.id) for stock_reference in reference
         ]
@@ -2033,7 +2033,7 @@ class StockPicking(models.Model):
         )
 
     def _can_return(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.state == "done"
 
     def _check_backorder(self):
@@ -2096,7 +2096,7 @@ class StockPicking(models.Model):
         return len(self) == 1
 
     def _is_to_external_location(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.picking_type_code == "outgoing"
 
     def _sanity_check(self):
@@ -2179,7 +2179,7 @@ class StockPicking(models.Model):
         return bool(self.return_id)
 
     def should_print_delivery_address(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.move_ids
             and (self.move_ids[0].partner_id or self.partner_id)

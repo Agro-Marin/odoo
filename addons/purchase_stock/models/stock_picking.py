@@ -57,7 +57,7 @@ class StockPicking(models.Model):
         return super()._action_done()
 
     def action_purchase_matching(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "name": _("Purchase Matching"),

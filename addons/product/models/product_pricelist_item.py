@@ -378,7 +378,7 @@ class ProductPricelistItem(models.Model):
         return result
 
     def _targeting_after_write(self, vals):
-        self.ensure_one()
+        self.check_singleton()
         product = (
             self.env["product.product"].browse(vals["product_id"])
             if "product_id" in vals
@@ -576,7 +576,7 @@ class ProductPricelistItem(models.Model):
             )
 
     def _get_displayed_discount(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.base == "standard_price":
             return _("markup"), self._int_if_whole(self.price_markup)
         return _("discount"), self._int_if_whole(self.price_discount)
@@ -585,7 +585,7 @@ class ProductPricelistItem(models.Model):
         return int(percentage) if percentage == int(percentage) else percentage
 
     def _get_price_label_base_str(self):
-        self.ensure_one()
+        self.check_singleton()
         base_str = ""
         if self.base == "pricelist" and self.base_pricelist_id:
             base_str = self.base_pricelist_id.display_name
@@ -702,8 +702,8 @@ class ProductPricelistItem(models.Model):
         self._check_date_range()
 
     def _is_applicable_for(self, product, qty_in_product_uom):
-        self.ensure_one()
-        product.ensure_one()
+        self.check_singleton()
+        product.check_singleton()
 
         if self.min_quantity and qty_in_product_uom < self.min_quantity:
             return False
@@ -735,12 +735,12 @@ class ProductPricelistItem(models.Model):
     def _compute_price(
         self, product, quantity, uom, date, currency=None, *, base_price=None, **kwargs
     ):
-        self and self.ensure_one()
-        product.ensure_one()
-        uom.ensure_one()
+        self and self.check_singleton()
+        product.check_singleton()
+        uom.check_singleton()
 
         currency = currency or self.currency_id or self.env.company.currency_id
-        currency.ensure_one()
+        currency.check_singleton()
 
         product_uom_id = product.uom_id
         rule_currency = self.currency_id or currency
@@ -782,7 +782,7 @@ class ProductPricelistItem(models.Model):
         return base_price
 
     def _compute_base_price(self, product, quantity, uom, date, currency, **kwargs):
-        currency.ensure_one()
+        currency.check_singleton()
 
         rule_base = self.base or "list_price"
         if rule_base == "pricelist" and self.base_pricelist_id:

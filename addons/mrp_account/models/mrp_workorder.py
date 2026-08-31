@@ -41,7 +41,7 @@ class MrpWorkorder(models.Model):
         return super().action_cancel()
 
     def _prepare_analytic_line_values(self, account_field_values, amount, unit_amount):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("[WC] %s", self.display_name),
             "amount": amount,
@@ -76,7 +76,7 @@ class MrpWorkorder(models.Model):
             wo._create_or_update_analytic_entry_for_record(value, hours)
 
     def _create_or_update_analytic_entry_for_record(self, value, hours):
-        self.ensure_one()
+        self.check_singleton()
         if self.workcenter_id.analytic_distribution or self._get_analytic_lines():
             wc_analytic_line_vals = self.env[
                 "account.analytic.account"

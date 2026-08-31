@@ -42,7 +42,7 @@ class PosConfig(models.Model):
         )
 
     def _default_journal_id(self):
-        return self.env["account.journal"]._ensure_company_account_journal()
+        return self.env["account.journal"]._get_or_create_company_account_journal()
 
     def _default_invoice_journal_id(self):
         return self.env["account.journal"].search(
@@ -438,7 +438,7 @@ class PosConfig(models.Model):
     def notify_synchronisation(self, session_id, device_identifier, records=None):
         if records is None:
             records = {}
-        self.ensure_one()
+        self.check_singleton()
         static_records = {}
 
         for model, ids in records.items():
@@ -627,7 +627,7 @@ class PosConfig(models.Model):
             )
 
     def get_statistics_for_session(self, session):
-        self.ensure_one()
+        self.check_singleton()
         currency = self.currency_id
         tz = timezone(self.env.context.get("tz") or self.env.user.tz or "UTC")
         statistics = {
@@ -842,7 +842,7 @@ class PosConfig(models.Model):
                 )
 
     def _check_payment_method_ids(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.payment_method_ids:
             raise ValidationError(
                 _(
@@ -878,7 +878,7 @@ class PosConfig(models.Model):
                 )
 
     def _check_company_has_template(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.company_has_template:
             raise ValidationError(
                 _(
@@ -935,7 +935,7 @@ class PosConfig(models.Model):
             )
 
     def _check_company_has_fiscal_country(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.company_id.account_fiscal_country_id:
             raise ValidationError(_("The company must have a fiscal country set."))
 
@@ -1007,7 +1007,7 @@ class PosConfig(models.Model):
                 )
 
     def _get_next_session_name(self):
-        self.ensure_one()
+        self.check_singleton()
         sequence = (
             self.env["ir.sequence"]
             .sudo()
@@ -1027,7 +1027,7 @@ class PosConfig(models.Model):
         return f"{prefix}{sequence.next_by_code('pos.session')}"
 
     def register_new_device_identifier(self):
-        self.ensure_one()
+        self.check_singleton()
         identifier = self.sudo().device_seq_id._next()
         return {
             "device_identifier": identifier,
@@ -1139,7 +1139,7 @@ class PosConfig(models.Model):
         if not from_settings_view:
             return
 
-        self.ensure_one()
+        self.check_singleton()
 
         for x2many_field in list(vals):
             field = self._fields.get(x2many_field)
@@ -1274,7 +1274,7 @@ class PosConfig(models.Model):
         self._check_payment_method_ids()
 
     def open_ui(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.env.uid == SUPERUSER_ID and not tools.config["test_enable"]:
             raise UserError(
                 _(
@@ -1286,7 +1286,7 @@ class PosConfig(models.Model):
             res = self._check_before_creating_new_session()
             if res:
                 return res
-        self._validate_fields(self._fields)
+        self._check_fields(self._fields)
 
         self._check_company_has_fiscal_country()
         return self._action_to_open_ui()
@@ -1295,7 +1295,7 @@ class PosConfig(models.Model):
         return self.open_ui()
 
     def open_existing_session_cb(self):
-        self.ensure_one()
+        self.check_singleton()
         return self._open_session(self.current_session_id.id)
 
     def _open_session(self, session_id):
@@ -1462,15 +1462,15 @@ class PosConfig(models.Model):
         )
 
     def update_customer_display(self, order, device_uuid):
-        self.ensure_one()
+        self.check_singleton()
         self._notify(f"UPDATE_CUSTOMER_DISPLAY-{device_uuid}", order)
 
     def _get_display_device_ip(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.proxy_ip
 
     def _get_customer_display_data(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "config_id": self.id,
             "access_token": self.access_token,
@@ -1519,7 +1519,7 @@ class PosConfig(models.Model):
         self, cash_ref=None, cash_journal_vals=None
     ):
 
-        journal = self.env["account.journal"]._ensure_company_account_journal()
+        journal = self.env["account.journal"]._get_or_create_company_account_journal()
         payment_methods = self.env["pos.payment.method"]
 
         cash_pm_from_ref = cash_ref and self.env.ref(cash_ref, raise_if_not_found=False)
@@ -1672,7 +1672,7 @@ class PosConfig(models.Model):
         return {"config_id": config.id}
 
     def _load_onboarding_clothes_demo_data(self, with_demo_data=True):
-        self.ensure_one()
+        self.check_singleton()
         convert.convert_file(
             self._env_with_clean_context(),
             "point_of_sale",
@@ -1741,7 +1741,7 @@ class PosConfig(models.Model):
         return {"config_id": config.id}
 
     def _load_onboarding_bakery_demo_data(self, with_demo_data=True):
-        self.ensure_one()
+        self.check_singleton()
         convert.convert_file(
             self._env_with_clean_context(),
             "point_of_sale",
@@ -1820,7 +1820,7 @@ class PosConfig(models.Model):
         return {"config_id": config.id}
 
     def _load_onboarding_furniture_demo_data(self, with_demo_data=False):
-        self.ensure_one()
+        self.check_singleton()
         convert.convert_file(
             self._env_with_clean_context(),
             "point_of_sale",
@@ -1948,7 +1948,7 @@ class PosConfig(models.Model):
         return {"installed_with_demo": pos_restaurant_module.demo}
 
     def _get_available_pricelists(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.available_pricelist_ids + self.pricelist_id
             if self.use_pricelist

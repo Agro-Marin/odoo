@@ -210,7 +210,7 @@ class PurchaseOrder(models.Model):
         super()._action_confirm()
 
     def action_purchase_order_suggest(self):
-        self.ensure_one()
+        self.check_singleton()
         ctx = self.env.context
         domain = Domain("type", "=", "consu")
 
@@ -374,7 +374,7 @@ class PurchaseOrder(models.Model):
         activity.note += Markup("<p>{}</p>").format(message)
 
     def _add_reference(self, reference):
-        self.ensure_one()
+        self.check_singleton()
         self.reference_ids |= reference
 
     def _create_picking(self):
@@ -418,7 +418,7 @@ class PurchaseOrder(models.Model):
         )
 
     def _get_action_view_picking_context(self, pickings):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "default_partner_id": self.partner_id.id,
             "default_origin": self.name,
@@ -426,13 +426,13 @@ class PurchaseOrder(models.Model):
         }
 
     def _get_location_destination_record(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.dest_address_id and self.picking_type_id.code == "dropship":
             return self.dest_address_id.property_stock_customer
         return self.picking_type_id.default_location_dest_id
 
     def _get_location_final_record(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.picking_type_id.code == "dropship":
             if self.dest_address_id:
                 return self.dest_address_id.property_stock_customer
@@ -600,13 +600,13 @@ class PurchaseOrder(models.Model):
         }
 
     def _prepare_reference_vals(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": self.name,
         }
 
     def _remove_reference(self, reference):
-        self.ensure_one()
+        self.check_singleton()
         self.reference_ids -= reference
 
     def _merge_metadata(self, target, sources):
@@ -617,7 +617,7 @@ class PurchaseOrder(models.Model):
         return True
 
     def action_receipt_matching(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Receipt Matching"),
             "type": "ir.actions.act_window",

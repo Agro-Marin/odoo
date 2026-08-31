@@ -85,7 +85,7 @@ class StockMove(models.Model):
         """Open the produce wizard in order to register tracked components for
         subcontracted product. Otherwise use standard behavior.
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.is_subcontract:
             action = super(
                 StockMove, self.with_context(force_lot_m2o=True)
@@ -231,7 +231,7 @@ class StockMove(models.Model):
         return res
 
     def _get_subcontract_bom(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.env["mrp.bom"]
             .sudo()
@@ -284,7 +284,7 @@ class StockMove(models.Model):
                 )
 
     def _is_subcontract_return(self):
-        self.ensure_one()
+        self.check_singleton()
         subcontracting_location = self.picking_id.partner_id.with_company(
             self.company_id
         ).property_stock_subcontractor

@@ -1805,7 +1805,7 @@ class TestLoyalty(TestSaleCouponCommon):
         )
         sale_order._update_programs_and_rewards()
         self._claim_reward(sale_order, loyalty_program)
-        # In real use case, so.plan_id is set to False in _verify_cart_after_update in
+        # In real use case, so.plan_id is set to False in _sync_cart_after_update in
         # sale_subscription module. Since discount depends on so.plan_id, this triggers
         # a recomputation of the discount.
         # Here we manually call the compute method to simulate the behavior

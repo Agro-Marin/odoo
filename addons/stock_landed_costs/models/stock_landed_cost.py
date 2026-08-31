@@ -175,7 +175,7 @@ class StockLandedCost(models.Model):
         return True
 
     def get_valuation_lines(self):
-        self.ensure_one()
+        self.check_singleton()
         lines = []
 
         for move in self._get_targeted_move_ids():

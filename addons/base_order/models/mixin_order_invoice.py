@@ -134,7 +134,7 @@ class MixinOrderInvoice(models.AbstractModel):
             )
 
     def _resolve_invoice_state(self, states, nothing_is_pending):
-        self.ensure_one()
+        self.check_singleton()
         if "over done" in states:
             return "over done"
         if "partial" in states:
@@ -150,7 +150,7 @@ class MixinOrderInvoice(models.AbstractModel):
         return "no"
 
     def _resolve_invoice_state_to_do(self, states):
-        self.ensure_one()
+        self.check_singleton()
         return "to do"
 
     def action_force_invoice_state(self):
@@ -190,7 +190,7 @@ class MixinOrderInvoice(models.AbstractModel):
         return action
 
     def _get_invoice_action_context(self):
-        self.ensure_one()
+        self.check_singleton()
         pt_field = self._get_partner_payment_term_field()
         return {
             "default_partner_id": self.partner_id.id,
@@ -207,11 +207,11 @@ class MixinOrderInvoice(models.AbstractModel):
         return ["company_id", "partner_id", "currency_id", "fiscal_position_id"]
 
     def _get_invoice_partner(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.partner_id
 
     def _prepare_invoice_vals(self):
-        self.ensure_one()
+        self.check_singleton()
         direction = self._invoice_move_direction
         move_type = self.env.context.get("default_move_type", f"{direction}_invoice")
         invoice_partner = self._get_invoice_partner()
@@ -274,7 +274,7 @@ class MixinOrderInvoice(models.AbstractModel):
         return moves
 
     def _get_invoicing_order(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.with_company(self.company_id)
 
     def _get_invoice_line_sequence_start(self):
@@ -309,13 +309,13 @@ class MixinOrderInvoice(models.AbstractModel):
             moves_to_switch.action_switch_move_type()
 
     def _get_invoiceable_lines(self, final=False):
-        self.ensure_one()
+        self.check_singleton()
         return self.line_ids.filtered(
             lambda line: not line.display_type and line.qty_to_invoice,
         )
 
     def _prepare_down_payment_line_section_values(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "order_id": self.id,
             "display_type": "line_section",
@@ -324,11 +324,11 @@ class MixinOrderInvoice(models.AbstractModel):
         }
 
     def _get_next_line_sequence(self):
-        self.ensure_one()
+        self.check_singleton()
         return max(self.line_ids.mapped("sequence"), default=9) + 1
 
     def _get_down_payment_section_line(self):
-        self.ensure_one()
+        self.check_singleton()
         section = self.line_ids.filtered(
             lambda line: line.display_type and line.is_downpayment,
         )[:1]
@@ -337,7 +337,7 @@ class MixinOrderInvoice(models.AbstractModel):
         )
 
     def _create_down_payment_lines(self, vals_list):
-        self.ensure_one()
+        self.check_singleton()
         section = self._get_down_payment_section_line()
         return self._create_order_lines(
             [
@@ -347,7 +347,7 @@ class MixinOrderInvoice(models.AbstractModel):
         )
 
     def _create_order_lines(self, vals_list):
-        self.ensure_one()
+        self.check_singleton()
         lines = (
             self.env[self._get_line_model()]
             .with_context(no_log_for_new_lines=True)

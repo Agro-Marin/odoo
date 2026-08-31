@@ -33,7 +33,7 @@ class SaleStockPortal(CustomerPortal):
             .sudo()
             ._render_qweb_pdf(report_xmlid, [picking_sudo.id])[0]
         )
-        return request.make_response(
+        return request.prepare_response(
             pdf,
             headers=[
                 ("Content-Type", "application/pdf"),

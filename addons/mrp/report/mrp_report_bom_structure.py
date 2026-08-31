@@ -1286,7 +1286,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
     def _simulate_bom_planning(
         self, bom, product, start_date, quantity, simulated_leaves_per_workcenter=False
     ):
-        bom.ensure_one()
+        bom.check_singleton()
         if not bom.operation_ids:
             return {}
         if not product:
@@ -1333,7 +1333,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         planning_per_operation=False,
         simulated_leaves_per_workcenter=False,
     ):
-        operation.ensure_one()
+        operation.check_singleton()
         if planning_per_operation is False:
             planning_per_operation = {}
         if simulated_leaves_per_workcenter is False:

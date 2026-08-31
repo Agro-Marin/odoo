@@ -243,7 +243,7 @@ class AccountMove(models.Model):
         return res
 
     def action_purchase_matching(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "name": _("Purchase Matching"),
@@ -264,7 +264,7 @@ class AccountMove(models.Model):
         }
 
     def action_view_source_purchase_orders(self):
-        self.ensure_one()
+        self.check_singleton()
         source_orders = self.line_ids.purchase_line_ids.order_id
         result = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "purchase.action_purchase_order_2",
@@ -281,7 +281,7 @@ class AccountMove(models.Model):
         return result
 
     def create_purchase_order(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         if any(not line.product_id for line in self.invoice_line_ids):
             raise UserError(
                 self.env._(
@@ -331,7 +331,7 @@ class AccountMove(models.Model):
         from_ocr=False,
         timeout=10,
     ):
-        self.ensure_one()
+        self.check_singleton()
 
         method, matched_po_lines, matched_inv_lines = self._match_purchase_orders(
             po_references,
@@ -615,7 +615,7 @@ class AccountMove(models.Model):
                     invoice._onchange_purchase_auto_complete()
 
     def _prepare_purchase_order_vals(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "company_id": self.company_id.id,
             "currency_id": self.currency_id.id,
@@ -634,7 +634,7 @@ class AccountMove(models.Model):
         }
 
     def _prepare_purchase_line_vals(self, purchase) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         purchase_line_vals = {}
         fpos = purchase.fiscal_position_id
         # See sale's counterpart: `account.tax` serves several companies, and the

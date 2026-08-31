@@ -1,6 +1,6 @@
 from odoo import http
 from odoo.http import request
-from odoo.tools import verify_hash_signed
+from odoo.tools import resolve_hash_signed
 import logging
 
 _logger = logging.getLogger(__name__)
@@ -12,7 +12,7 @@ class PosMollie(http.Controller):
         _logger.info("Received webhook from Mollie for payment '%s'", id)
 
         payment_method_sudo = request.env["pos.payment.method"].sudo()
-        decoded_payload = verify_hash_signed(payment_method_sudo.env, "pos_mollie", payload)
+        decoded_payload = resolve_hash_signed(payment_method_sudo.env, "pos_mollie", payload)
         if not decoded_payload:
             _logger.warning("Invalid payload received in Mollie webhook, ignoring")
             return "OK"

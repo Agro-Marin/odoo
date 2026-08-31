@@ -34,7 +34,7 @@ class PosVivaComController(http.Controller):
                     payment_method_sudo = request.env['pos.payment.method'].sudo().search(
                         [('viva_com_terminal_id', '=', terminal_id)], limit=1
                     )
-                    payment_method_sudo._retrieve_session_id(data_webhook)
+                    payment_method_sudo._notify_session_status(data_webhook)
                 else:
                     _logger.error(_('received a message for a terminal not registered in Odoo: %s', terminal_id))
             return json.dumps({'Key': payment_method_sudo.viva_com_webhook_verification_key})

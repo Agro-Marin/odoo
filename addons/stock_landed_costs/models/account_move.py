@@ -23,7 +23,7 @@ class AccountMove(models.Model):
         """Create a `stock.landed.cost` record associated to the account move of `self`, each
         `stock.landed.costs` lines mirroring the current `account.move.line` of self.
         """
-        self.ensure_one()
+        self.check_singleton()
         landed_costs_lines = self.line_ids.filtered(
             lambda line: line.is_landed_costs_line
         )
@@ -69,7 +69,7 @@ class AccountMove(models.Model):
         )
 
     def action_view_landed_costs(self):
-        self.ensure_one()
+        self.check_singleton()
 
         views = (
             [(False, "form")]

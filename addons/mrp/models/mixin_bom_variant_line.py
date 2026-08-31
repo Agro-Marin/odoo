@@ -28,7 +28,7 @@ class MixinBomVariantLine(models.AbstractModel):
         never skips anything; that is what makes a BoM report readable at
         template level.
         """
-        self.ensure_one()
+        self.check_singleton()
         if not product or product._name == "product.template":
             return False
         return self.env["mrp.bom"]._skip_for_no_variant(

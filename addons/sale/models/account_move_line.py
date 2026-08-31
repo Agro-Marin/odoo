@@ -167,7 +167,7 @@ class AccountMoveLine(models.Model):
         return sequence
 
     def _sale_reinvoice_is_mergeable(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.product_id.expense_policy == "sales_price"
             and self.product_id.invoice_policy == "transferred"
@@ -203,7 +203,7 @@ class AccountMoveLine(models.Model):
         return {}
 
     def _sale_prepare_sale_line_values(self, order, price, sequence=None):
-        self.ensure_one()
+        self.check_singleton()
         if sequence is None:
             sequence = self._sale_next_expense_sequence(order)
         fpos = order.fiscal_position_id or self.env[
@@ -234,7 +234,7 @@ class AccountMoveLine(models.Model):
         return last_line.sequence + 1 if last_line else 100
 
     def _sale_get_invoice_price(self, order):
-        self.ensure_one()
+        self.check_singleton()
 
         unit_amount = self.quantity
         amount = (self.credit or 0.0) - (self.debit or 0.0)
@@ -272,7 +272,7 @@ class AccountMoveLine(models.Model):
         return price_unit
 
     def _sale_can_be_reinvoice(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.sale_line_ids:
             return False
         return float_compare(

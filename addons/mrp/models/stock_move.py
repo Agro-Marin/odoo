@@ -145,7 +145,7 @@ class StockMove(models.Model):
         is why this can pick either and why thirteen call sites were free to
         spell the choice in whichever order they happened to.
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.raw_material_production_id or self.production_id
 
     @api.depends("product_id.bom_ids", "product_id.bom_ids.product_uom_id")
@@ -332,7 +332,7 @@ class StockMove(models.Model):
         rounding, in three places. One copy means `unit_factor`'s dependencies only
         have to be right here.
         """
-        self.ensure_one()
+        self.check_singleton()
         production = self._get_production()
         if not production or not self.product_uom_id:
             return 0.0
@@ -659,7 +659,7 @@ class StockMove(models.Model):
         them itself. And an order's own output is what that order produces; it is
         never a kit to take apart here.
         """
-        self.ensure_one()
+        self.check_singleton()
         if not self.picking_type_id and not (
             self.env.context.get("is_scrap")
             or self.env.context.get("skip_picking_assignation")
@@ -740,7 +740,7 @@ class StockMove(models.Model):
         return self.env["stock.move"].browse(moves_ids_to_return)
 
     def action_show_details(self):
-        self.ensure_one()
+        self.check_singleton()
         action = super().action_show_details()
         if self.raw_material_production_id:
             action["name"] = _("Components")
@@ -834,7 +834,7 @@ class StockMove(models.Model):
         return defaults
 
     def _prepare_procurement_origin(self):
-        self.ensure_one()
+        self.check_singleton()
         if (
             self.raw_material_production_id
             and self.raw_material_production_id.orderpoint_id
@@ -843,7 +843,7 @@ class StockMove(models.Model):
         return super()._prepare_procurement_origin()
 
     def _prepare_phantom_move_vals(self, bom_line, product_qty, quantity_done):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "picking_id": self.picking_id.id if self.picking_id else False,
             "product_id": bom_line.product_id.id,
@@ -863,7 +863,7 @@ class StockMove(models.Model):
         `copy_data` guarantees is one element long, so its caller looped over it to
         set a single key.
         """
-        self.ensure_one()
+        self.check_singleton()
         record_what_was_done = self.product_uom_id.is_zero(
             self.product_uom_qty
         ) or self.env.context.get("is_scrap")
@@ -891,7 +891,7 @@ class StockMove(models.Model):
         return super()._is_consuming() or self.picking_type_id.code == "mrp_operation"
 
     def _get_backorder_move_vals(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "state": "draft" if self.state == "draft" else "confirmed",
             "date_reservation": self.date_reservation,
@@ -1051,7 +1051,7 @@ class StockMove(models.Model):
         return res
 
     def _is_manual_consumption(self):
-        self.ensure_one()
+        self.check_singleton()
         return self._determine_is_manual_consumption(self.bom_line_id)
 
     @api.model
@@ -1060,7 +1060,7 @@ class StockMove(models.Model):
 
     def _is_consumption_covered(self):
         """Is enough of this component on hand for what the order is producing?"""
-        self.ensure_one()
+        self.check_singleton()
         uom = self.product_uom_id
         if (
             self.should_consume_qty

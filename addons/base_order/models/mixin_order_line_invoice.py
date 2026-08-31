@@ -82,7 +82,7 @@ class MixinOrderLineInvoice(models.AbstractModel):
         return self._invoice_policy_field
 
     def _get_invoice_lines(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.env.context.get("accrual_entry_date"):
             accrual_date = fields.Date.from_string(
                 self.env.context["accrual_entry_date"],
@@ -95,7 +95,7 @@ class MixinOrderLineInvoice(models.AbstractModel):
         return self.invoice_line_ids
 
     def _get_posted_invoice_lines(self):
-        self.ensure_one()
+        self.check_singleton()
         return self._get_invoice_lines().filtered(
             lambda l: (
                 l.parent_state == "posted"
@@ -236,7 +236,7 @@ class MixinOrderLineInvoice(models.AbstractModel):
         return [self._prepare_aml_vals(**optional_values)]
 
     def _prepare_aml_vals(self, **optional_values):
-        self.ensure_one()
+        self.check_singleton()
         optional_values.pop("move", None)
         res = {
             "display_type": self.display_type or "product",

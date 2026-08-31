@@ -18,7 +18,7 @@ class PosMakeInvoice(models.TransientModel):
             wizard.order_count = len(self.env.context.get("active_ids", []))
 
     def action_create_invoices(self):
-        self.ensure_one()
+        self.check_singleton()
         selected_orders = (
             self.env["pos.order"]
             .browse(self.env.context.get("active_ids"))

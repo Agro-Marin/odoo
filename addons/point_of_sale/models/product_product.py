@@ -89,6 +89,6 @@ class ProductProduct(models.Model):
         return super()._can_return_content(field_name, access_token)
 
     def action_archive(self):
-        self.product_tmpl_id._ensure_unused_in_pos()
+        self.product_tmpl_id._check_unused_in_pos()
         self.product_tmpl_id._check_is_special_product()
         return super().action_archive()

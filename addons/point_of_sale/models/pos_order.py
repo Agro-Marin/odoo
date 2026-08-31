@@ -175,7 +175,7 @@ class PosOrder(models.Model):
         return pos_order._process_saved_order(draft)
 
     def _process_saved_order(self, draft):
-        self.ensure_one()
+        self.check_singleton()
         if not draft and self.state != "cancel":
             self.action_pos_order_paid()
             self._create_order_picking()
@@ -194,7 +194,7 @@ class PosOrder(models.Model):
         return self.id
 
     def _clean_payment_lines(self):
-        self.ensure_one()
+        self.check_singleton()
         self.payment_ids.unlink()
 
     def _get_amount_paid(self):
@@ -555,13 +555,13 @@ class PosOrder(models.Model):
     )
 
     def get_preparation_change(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "last_order_preparation_change": self.last_order_preparation_change,
         }
 
     def _keep_newest_preparation_change(self, vals):
-        self.ensure_one()
+        self.check_singleton()
         if not self.last_order_preparation_change:
             return
         change = json.loads(self.last_order_preparation_change)
@@ -1002,7 +1002,7 @@ class PosOrder(models.Model):
         return self.pos_reference.split("-")[-1]
 
     def action_stock_picking(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "stock.action_picking_tree_ready"
         )
@@ -1080,7 +1080,7 @@ class PosOrder(models.Model):
         )
 
     def _is_refund_order(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.is_refund or self.amount_total < 0.0
 
     def _get_rounded_amount(self, amount, force_round=False):
@@ -1208,7 +1208,7 @@ class PosOrder(models.Model):
         return invoice
 
     def action_pos_order_paid(self):
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.config_id.cash_rounding or (
             self.config_id.only_round_cash_method
@@ -1548,7 +1548,7 @@ class PosOrder(models.Model):
                 )
 
     def _create_misc_reversal_move(self, payment_moves):
-        self.ensure_one()
+        self.check_singleton()
         aml_values_list_per_nature = self._prepare_aml_values_list_per_nature()
         move_lines = []
         for aml_values_list in aml_values_list_per_nature.values():
@@ -1610,7 +1610,7 @@ class PosOrder(models.Model):
             lines.reconcile()
 
     def action_pos_order_invoice(self):
-        self.ensure_one()
+        self.check_singleton()
         if not (move := self.account_move):
             is_picking_created = self._should_create_picking_real_time()
             self.write({"to_invoice": True})
@@ -1873,7 +1873,7 @@ class PosOrder(models.Model):
         return self.company_id.anglo_saxon_accounting and self.to_invoice
 
     def _create_order_picking(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.picking_ids:
             return
         if self.shipping_date:
@@ -1905,12 +1905,12 @@ class PosOrder(models.Model):
             )
 
     def add_payment(self, data):
-        self.ensure_one()
+        self.check_singleton()
         self.env["pos.payment"].create(data)
         self.amount_paid = self._get_amount_paid()
 
     def _prepare_refund_values(self, current_session):
-        self.ensure_one()
+        self.check_singleton()
         pos_reference, tracking_number = (
             current_session.config_id._get_next_order_refs()
         )
@@ -2006,7 +2006,7 @@ class PosOrder(models.Model):
         }
 
     def action_send_receipt(self, email, ticket_image, basic_image):
-        self.ensure_one()
+        self.check_singleton()
         self.email = email
         mail_template_id = "point_of_sale.email_template_pos_receipt"
         mail_template = self.env.ref(mail_template_id, raise_if_not_found=False)
@@ -2291,7 +2291,7 @@ class PosOrderLine(models.Model):
             orderline.refunded_qty = -sum(refund_order_line.mapped("qty"))
 
     def _prepare_refund_data(self, refund_order, PosPackOperationLot):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("%(name)s REFUND", name=self.name),
             "qty": -(self.qty - self.refunded_qty),
@@ -2403,7 +2403,7 @@ class PosOrderLine(models.Model):
             line.update(res)
 
     def _compute_amount_line_all(self):
-        self.ensure_one()
+        self.check_singleton()
         sign = -1 if self.order_id.is_refund else 1
         fpos = self.order_id.fiscal_position_id
         tax_ids_after_fiscal_position = fpos.map_tax(self.tax_ids)
@@ -2467,7 +2467,7 @@ class PosOrderLine(models.Model):
         }
 
     def _prepare_procurement_vals(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.order_id.shipping_date:
             from_zone = self.env.tz
             shipping_date = fields.Datetime.to_datetime(self.order_id.shipping_date)
@@ -2546,14 +2546,14 @@ class PosOrderLine(models.Model):
         return True
 
     def _is_product_storable_fifo_avco(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.product_id.is_storable and self.product_id.cost_method in [
             "fifo",
             "average",
         ]
 
     def _get_product_cost_with_moves(self, moves):
-        self.ensure_one()
+        self.check_singleton()
         return moves._get_price_unit()
 
     def _compute_total_cost(self, stock_moves):
@@ -2586,7 +2586,7 @@ class PosOrderLine(models.Model):
             line.is_total_cost_computed = True
 
     def _get_stock_moves_to_consider(self, stock_moves, product):
-        self.ensure_one()
+        self.check_singleton()
         return stock_moves.filtered(lambda ml: ml.product_id.id == product.id)
 
     @api.depends("price_subtotal", "total_cost")
@@ -2607,7 +2607,7 @@ class PosOrderLine(models.Model):
                 ) or 0
 
     def _prepare_base_line_for_taxes_computation(self):
-        self.ensure_one()
+        self.check_singleton()
         commercial_partner = self.order_id.partner_id.commercial_partner_id
         fiscal_position = self.order_id.fiscal_position_id
         line = self.with_company(self.order_id.company_id)
@@ -2679,7 +2679,7 @@ class PosOrderLine(models.Model):
         return super().unlink()
 
     def _get_discount_amount(self):
-        self.ensure_one()
+        self.check_singleton()
         original_price = self.tax_ids_after_fiscal_position.compute_all(
             self.price_unit,
             self.currency_id,

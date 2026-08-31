@@ -111,8 +111,8 @@ class ProductMergeWizard(models.TransientModel):
         string="Journal Items associated to the product"
     )
 
-    def _get_excluded_merge_tables(self, model: str) -> set[str]:
-        tables = super()._get_excluded_merge_tables(model)
+    def _get_merge_tables_excluded(self, model: str) -> set[str]:
+        tables = super()._get_merge_tables_excluded(model)
         if model == "product.template":
             return tables | self._get_excluded_template_tables()
         if model == "product.product":
@@ -455,7 +455,7 @@ class ProductMergeWizard(models.TransientModel):
         )
 
     def _process_query(self, query: SQL) -> None:
-        self.ensure_one()
+        self.check_singleton()
         model_mapping = self._get_exclusion_models()
 
         self.env.flush_all()
@@ -534,7 +534,7 @@ class ProductMergeWizard(models.TransientModel):
         return self._action_next_screen()
 
     def action_merge(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         if not self.product_tmpl_ids:
             self.write({"state": "finished"})
             return self._action_reopen()
@@ -552,14 +552,14 @@ class ProductMergeWizard(models.TransientModel):
         return self._action_next_screen()
 
     def action_start_manual_process(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         groups = self._get_selected_groupby()
         query = self._generate_query(groups, self.maximum_group)
         self._process_query(query)
         return self._action_next_screen()
 
     def action_start_automatic_process(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         self.action_start_manual_process()
         self.env.invalidate_all()
 

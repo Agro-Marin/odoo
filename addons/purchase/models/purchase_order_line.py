@@ -425,7 +425,7 @@ class PurchaseOrderLine(models.Model):
         :return: the description for the purchase order line
         :rtype: string
         """
-        self.ensure_one()
+        self.check_singleton()
         name = product_lang.display_name
         if product_lang.description_purchase:
             name += "\n" + product_lang.description_purchase
@@ -450,7 +450,7 @@ class PurchaseOrderLine(models.Model):
         question for a caller that holds only the line, and until now inherited the
         mixin's `NotImplementedError`.
         """
-        self.ensure_one()
+        self.check_singleton()
         return self._get_line_description_from_product(
             self.product_id.with_context(
                 seller_id=self.selected_seller_id.id or None,
@@ -459,7 +459,7 @@ class PurchaseOrderLine(models.Model):
         )
 
     def _get_price_precision(self):
-        self.ensure_one()
+        self.check_singleton()
         return max(
             self.currency_id.decimal_places,
             self.env["decimal.precision"].get_precision("Product Price"),
@@ -480,7 +480,7 @@ class PurchaseOrderLine(models.Model):
         return self.order_id._get_product_price_and_data(self.product_id)
 
     def _get_price_from_seller(self):
-        self.ensure_one()
+        self.check_singleton()
         seller = self.selected_seller_id
 
         price_unit = self.env["account.tax"]._fix_tax_included_price_company(
@@ -503,7 +503,7 @@ class PurchaseOrderLine(models.Model):
         )
 
     def _get_price_from_product_cost(self):
-        self.ensure_one()
+        self.check_singleton()
 
         po_line_uom = self.product_uom_id or self.product_id.uom_id
 
@@ -531,14 +531,14 @@ class PurchaseOrderLine(models.Model):
         return self.product_qty
 
     def _get_select_sellers_params(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "order_id": self.order_id,
             "force_uom": True,
         }
 
     def _get_sellers_for_partner(self, date=None):
-        self.ensure_one()
+        self.check_singleton()
         if not self.product_id or not self.partner_id:
             return self.env["product.supplierinfo"]
 
@@ -559,7 +559,7 @@ class PurchaseOrderLine(models.Model):
         return sellers
 
     def _get_seller_valid_dates(self):
-        self.ensure_one()
+        self.check_singleton()
         valid_dates = set()
 
         for seller in self.product_id.seller_ids:
@@ -578,7 +578,7 @@ class PurchaseOrderLine(models.Model):
         return self.product_id.bill_policy == "transferred"
 
     def _prepare_aml_vals(self, **optional_values):
-        self.ensure_one()
+        self.check_singleton()
         move = optional_values.pop("move", None)
         res = super()._prepare_aml_vals(**optional_values)
         aml_currency = (move and move.currency_id) or self.currency_id
@@ -746,7 +746,7 @@ class PurchaseOrderLine(models.Model):
         self.qty_to_invoice = 0.0
 
     def _set_product_description(self):
-        self.ensure_one()
+        self.check_singleton()
 
         lang = get_lang(self.env, self.partner_id.lang).code
 

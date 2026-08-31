@@ -62,7 +62,7 @@ class MixinOrderLineStock(models.AbstractModel):
         )
 
     def _get_procurement_qty(self, previous_product_qty=False):
-        self.ensure_one()
+        self.check_singleton()
         procured_moves, returned_moves = self._get_procurement_moves()
         return self._sum_moves_qty(procured_moves) - self._sum_moves_qty(returned_moves)
 
@@ -72,7 +72,7 @@ class MixinOrderLineStock(models.AbstractModel):
         )
 
     def _get_transferable_moves(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.move_ids.filtered(
             lambda m: (
                 m.state != "cancel"

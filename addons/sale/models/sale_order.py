@@ -771,7 +771,7 @@ class SaleOrder(models.Model):
         return self.env.context.get("default_team_id", False) or self.team_id.id
 
     def action_invoice_matching(self):
-        self.ensure_one()
+        self.check_singleton()
         product_ids = self.line_ids.product_id.ids
         return {
             "name": _("Invoice Matching"),
@@ -819,7 +819,7 @@ class SaleOrder(models.Model):
 
     @api.readonly
     def action_preview_sale_order(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_url",
             "target": "self",
@@ -851,7 +851,7 @@ class SaleOrder(models.Model):
         return action
 
     def action_update_prices(self):
-        self.ensure_one()
+        self.check_singleton()
         self._recompute_prices()
         if self.pricelist_id:
             message = _(
@@ -863,7 +863,7 @@ class SaleOrder(models.Model):
         self.message_post(body=message)
 
     def action_update_taxes(self):
-        self.ensure_one()
+        self.check_singleton()
         self._recompute_taxes()
         if self.partner_id:
             self.message_post(
@@ -879,7 +879,7 @@ class SaleOrder(models.Model):
 
     @api.readonly
     def action_view_discount_wizard(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Discount"),
             "type": "ir.actions.act_window",
@@ -927,7 +927,7 @@ class SaleOrder(models.Model):
             )
 
     def _discard_tracking(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.state == "draft"
             and request
@@ -967,7 +967,7 @@ class SaleOrder(models.Model):
         return super().get_empty_list_help(help_message)
 
     def _get_validity_days(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.company_id.quotation_validity_days
 
     def _get_confirmed_type_name(self):
@@ -979,7 +979,7 @@ class SaleOrder(models.Model):
         return f" - {self.partner_id.name}" if self.partner_id.name else ""
 
     def _get_default_user_from_partner(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.partner_id.user_id
             or self.partner_id.commercial_partner_id.user_id
@@ -1006,7 +1006,7 @@ class SaleOrder(models.Model):
         return self._add_base_lines_for_early_payment_discount()
 
     def _resolve_invoice_state_to_do(self, states):
-        self.ensure_one()
+        self.check_singleton()
         if "no" in states:
             invoiceable_lines = self.line_ids.filtered_domain(
                 self._get_rollup_lines_domain() + [("invoice_state", "=", "to do")],
@@ -1289,7 +1289,7 @@ class SaleOrder(models.Model):
         )
 
     def _get_invoice_partner(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.partner_invoice_id
 
     def _prepare_invoice_vals(self):
@@ -1323,7 +1323,7 @@ class SaleOrder(models.Model):
                 line.qty_to_invoice = line.product_qty - line.qty_invoiced
 
     def _get_default_payment_link_values(self):
-        self.ensure_one()
+        self.check_singleton()
 
         prepayment_amount = self._get_prepayment_required_amount()
         remaining_balance = self.amount_total - self.amount_paid
@@ -1362,11 +1362,11 @@ class SaleOrder(models.Model):
         return self.line_ids.filtered(show_line)
 
     def get_portal_last_transaction(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.sudo().transaction_ids._get_last()
 
     def payment_action_capture(self):
-        self.ensure_one()
+        self.check_singleton()
         payment_utils.check_rights_on_recordset(self)
 
         return self.sudo().transaction_ids.action_capture()
@@ -1377,7 +1377,7 @@ class SaleOrder(models.Model):
         self.sudo().authorized_transaction_ids.action_void()
 
     def _has_to_be_paid(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.state == "draft"
             and not self.is_expired
@@ -1387,7 +1387,7 @@ class SaleOrder(models.Model):
         )
 
     def _has_to_be_signed(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.state == "draft"
             and not self.is_expired
@@ -1396,14 +1396,14 @@ class SaleOrder(models.Model):
         )
 
     def _get_name_portal_content_view(self):
-        self.ensure_one()
+        self.check_singleton()
         return "sale.sale_order_portal_content"
 
     def _get_name_tax_totals_view(self):
         return "sale.document_tax_totals"
 
     def _get_portal_return_action(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.env.ref("sale.action_quotations_with_onboarding")
 
     def _get_catalog_product_data(self, products, **kwargs):
@@ -1449,7 +1449,7 @@ class SaleOrder(models.Model):
     def _get_lang(self):
         if not self:
             return self.env.lang
-        self.ensure_one()
+        self.check_singleton()
 
         if self.partner_id.lang and not self.partner_id.is_public:
             return self.partner_id.lang
@@ -1463,7 +1463,7 @@ class SaleOrder(models.Model):
         return "/sale/static/xls/quotations_import_template.xlsx"
 
     def _get_product_documents(self):
-        self.ensure_one()
+        self.check_singleton()
 
         documents = (
             self.line_ids.product_id.product_document_ids
@@ -1472,7 +1472,7 @@ class SaleOrder(models.Model):
         return self._filter_product_documents(documents).sorted()
 
     def _add_base_lines_for_early_payment_discount(self):
-        self.ensure_one()
+        self.check_singleton()
         epd_lines = []
         if (
             self.payment_term_id.early_discount
@@ -1511,7 +1511,7 @@ class SaleOrder(models.Model):
         return epd_lines
 
     def _create_down_payment_lines_from_base_lines(self, down_payment_base_lines):
-        self.ensure_one()
+        self.check_singleton()
         return self._create_down_payment_lines(
             [
                 self._prepare_down_payment_line_values_from_base_line(base_line)
@@ -1520,7 +1520,7 @@ class SaleOrder(models.Model):
         )
 
     def _create_down_payment_section_line_if_needed(self):
-        self.ensure_one()
+        self.check_singleton()
         return self._get_down_payment_section_line()
 
     @api.model
@@ -1557,7 +1557,7 @@ class SaleOrder(models.Model):
         return generated_invoices
 
     def _get_confirmation_template(self):
-        self.ensure_one()
+        self.check_singleton()
         default_confirmation_template_id = (
             self.env["ir.config_parameter"]
             .sudo()
@@ -1578,7 +1578,7 @@ class SaleOrder(models.Model):
             )
 
     def _get_date_planned(self, date_planneds):
-        self.ensure_one()
+        self.check_singleton()
         return min(date_planneds)
 
     def _get_duplicate_ref_field(self):
@@ -1591,7 +1591,7 @@ class SaleOrder(models.Model):
         }
 
     def _get_mail_template(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.env.context.get("proforma"):
             return self.env.ref(
                 "sale.email_template_proforma",
@@ -1610,7 +1610,7 @@ class SaleOrder(models.Model):
         return self.env.company.get_base_url()
 
     def _get_prepayment_required_amount(self):
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.require_payment:
             return 0
@@ -1624,7 +1624,7 @@ class SaleOrder(models.Model):
         return "sale.action_report_saleorder"
 
     def _prepare_analytic_account_data(self, prefix=None):
-        self.ensure_one()
+        self.check_singleton()
         name = self.name
         if prefix:
             name = prefix + ": " + self.name
@@ -1645,7 +1645,7 @@ class SaleOrder(models.Model):
         }
 
     def _prepare_down_payment_section_line(self, **optional_values):
-        self.ensure_one()
+        self.check_singleton()
         lang = self._get_lang()
         self_lang = self.with_context(lang=lang) if lang != self.env.lang else self
         return {
@@ -1661,7 +1661,7 @@ class SaleOrder(models.Model):
         }
 
     def _prepare_down_payment_line_values_from_base_line(self, base_line):
-        self.ensure_one()
+        self.check_singleton()
         extra_tax_data = self.env["account.tax"]._export_base_line_extra_tax_data(
             base_line,
         )
@@ -1695,7 +1695,7 @@ class SaleOrder(models.Model):
             order._send_mail_order_notification(mail_template)
 
     def _send_mail_order_notification(self, mail_template, allow_deferred_sending=True):
-        self.ensure_one()
+        self.check_singleton()
 
         if not mail_template:
             return
@@ -1727,7 +1727,7 @@ class SaleOrder(models.Model):
             order._send_mail_order_notification(mail_template)
 
     def _is_confirmation_amount_reached(self):
-        self.ensure_one()
+        self.check_singleton()
         amount_comparison = self.currency_id.compare_amounts(
             self._get_prepayment_required_amount(),
             self.amount_paid,
@@ -1735,21 +1735,21 @@ class SaleOrder(models.Model):
         return amount_comparison <= 0
 
     def _is_readonly(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.state == "cancel" or self.locked
 
     def _is_paid(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.currency_id.compare_amounts(self.amount_paid, self.amount_total) >= 0
         )
 
     def _can_be_edited_on_portal(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.state == "draft"
 
     def _get_lock_setting_user(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.create_uid
 
     def _can_confirm_proper_state(self):

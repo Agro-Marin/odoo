@@ -1,5 +1,5 @@
 from odoo.tests.common import TransactionCase, tagged
-from odoo.tools.assets.esm_registry import esm_registry, validate_esm_config
+from odoo.tools.assets.esm_registry import esm_registry, check_esm_config
 
 
 @tagged("post_install", "-at_install")
@@ -23,7 +23,7 @@ class TestEsmRegistration(TransactionCase):
     def test_unregistered_child_is_rejected(self):
         reg = esm_registry()
         with self.assertRaises(ValueError):
-            validate_esm_config(
+            check_esm_config(
                 reg.bundles,
                 reg.dynamic_children,
                 reg.import_map_includes,

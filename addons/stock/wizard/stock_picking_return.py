@@ -56,7 +56,7 @@ class StockReturnPickingLine(models.TransientModel):
         return vals
 
     def _process_line(self, new_picking):
-        self.ensure_one()
+        self.check_singleton()
         if not self.uom_id.is_zero(self.quantity):
             vals = self._prepare_move_default_values(new_picking)
 
@@ -232,7 +232,7 @@ class StockReturnPicking(models.TransientModel):
         return exchange_picking
 
     def action_create_returns(self):
-        self.ensure_one()
+        self.check_singleton()
         new_picking = self._create_return()
         return {
             "name": _("Returned Picking"),
@@ -244,7 +244,7 @@ class StockReturnPicking(models.TransientModel):
         }
 
     def action_create_returns_all(self):
-        self.ensure_one()
+        self.check_singleton()
         for return_move in self.product_return_moves:
             stock_move = return_move.move_id
             if (
@@ -295,7 +295,7 @@ class StockReturnPicking(models.TransientModel):
         return action
 
     def _get_proc_values(self, line):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "reference_ids": self.picking_id.reference_ids,
             "date_planned": line.move_id.date or fields.Datetime.now(),

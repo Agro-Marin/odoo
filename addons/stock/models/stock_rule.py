@@ -307,7 +307,7 @@ class StockRule(models.Model):
         return fields.Datetime.to_string(move.date + relativedelta(days=self.delay))
 
     def _run_push(self, moves):
-        self.ensure_one()
+        self.check_singleton()
         if self.auto == "transparent":
             return {move.id: self._run_push_in_place(move) for move in moves}
         return self._run_push_copy(moves)

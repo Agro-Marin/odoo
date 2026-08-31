@@ -8,7 +8,7 @@ class MixinProductPrice(models.AbstractModel):
     _description = "Product Pricing Mixin"
 
     def _check_price_uom(self, uom):
-        self.ensure_one()
+        self.check_singleton()
         if uom and self.uom_id and not self.uom_id._has_common_reference(uom):
             raise UserError(
                 self.env._(
@@ -64,15 +64,15 @@ class MixinProductPrice(models.AbstractModel):
         return prices
 
     def _get_price_base(self, price_type):
-        self.ensure_one()
+        self.check_singleton()
         return self[price_type] or 0.0
 
     def _get_price_currency(self, price_type):
-        self.ensure_one()
+        self.check_singleton()
         if price_type == "standard_price":
             return self.cost_currency_id
         return self.currency_id
 
     def _get_attributes_extra_price(self):
-        self.ensure_one()
+        self.check_singleton()
         return 0.0

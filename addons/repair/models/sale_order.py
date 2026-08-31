@@ -26,7 +26,7 @@ class SaleOrder(models.Model):
         return res
 
     def action_show_repair(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.repair_count == 1:
             return {
                 "type": "ir.actions.act_window",

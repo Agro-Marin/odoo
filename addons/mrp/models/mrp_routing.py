@@ -408,7 +408,7 @@ class MrpRoutingWorkcenter(models.Model):
     def _skip_bom_line(self, product, never_attribute_values=False):
         # An operation that is not active applies to nothing, which is the one
         # clause an operation adds to the shared variant rule.
-        self.ensure_one()
+        self.check_singleton()
         if not self.active:
             return True
         return super()._skip_bom_line(product, never_attribute_values)

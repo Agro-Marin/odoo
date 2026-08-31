@@ -92,7 +92,7 @@ class ProductProduct(models.Model):
         [('create_variant', '=', 'no_variant')]
         This method filters out the attributes that are not applicable to the product in self
         """
-        self.ensure_one()
+        self.check_singleton()
         return [
             attributes_by_ptal_id[id]
             for id in self.attribute_line_ids.ids

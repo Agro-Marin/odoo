@@ -18,7 +18,7 @@ class StockPicking(models.Model):
             )
 
     def _get_source_order_date(self):
-        self.ensure_one()
+        self.check_singleton()
         return False
 
     @api.model

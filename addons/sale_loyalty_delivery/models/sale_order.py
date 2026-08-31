@@ -62,7 +62,7 @@ class SaleOrder(models.Model):
         ]
 
     def _get_reward_line_values(self, reward, coupon, **kwargs):
-        self.ensure_one()
+        self.check_singleton()
         if reward.reward_type == "shipping":
             self = self.with_context(lang=self._get_lang())
             reward = reward.with_context(lang=self._get_lang())

@@ -52,7 +52,7 @@ class SaleOrderDiscount(models.TransientModel):
                     )
 
     def _prepare_discount_product_values(self):
-        self.ensure_one()
+        self.check_singleton()
         values = {
             "name": _("Discount"),
             "type": "service",
@@ -69,7 +69,7 @@ class SaleOrderDiscount(models.TransientModel):
         return values
 
     def _prepare_global_discount_so_lines(self, base_lines):
-        self.ensure_one()
+        self.check_singleton()
         AccountTax = self.env["account.tax"]
         discount_dp = self.env["decimal.precision"].get_precision("Discount")
         has_multiple_tax_combinations = (
@@ -124,7 +124,7 @@ class SaleOrderDiscount(models.TransientModel):
         return so_line_values_list
 
     def _get_discount_product(self):
-        self.ensure_one()
+        self.check_singleton()
         company = self.company_id
         discount_product = company.sale_discount_product_id
         if not discount_product:
@@ -150,7 +150,7 @@ class SaleOrderDiscount(models.TransientModel):
         return discount_product
 
     def _create_discount_lines(self):
-        self.ensure_one()
+        self.check_singleton()
         self = self.with_context(lang=self.sale_order_id._get_lang())
 
         discount_product = self._get_discount_product()
@@ -190,7 +190,7 @@ class SaleOrderDiscount(models.TransientModel):
         ]
 
     def action_apply_discount(self):
-        self.ensure_one()
+        self.check_singleton()
         self = self.with_company(self.company_id)
         if self.discount_type == "sol_discount":
             self.sale_order_id.line_ids.write(

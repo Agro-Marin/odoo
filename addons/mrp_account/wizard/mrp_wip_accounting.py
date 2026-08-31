@@ -191,7 +191,7 @@ class MrpAccountWipAccounting(models.TransientModel):
                 )
 
     def confirm(self):
-        self.ensure_one()
+        self.check_singleton()
         # One entry, one journal, one set of company-dependent WIP accounts --
         # all of them `env.company`'s. A selection spanning companies would post
         # the whole figure into whichever one the session happens to be on.
