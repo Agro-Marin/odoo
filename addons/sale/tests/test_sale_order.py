@@ -7,6 +7,7 @@ from odoo import fields
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Command
 from odoo.tests import Form, HttpCase, tagged
+from odoo.tools.safe_eval import safe_eval
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 from odoo.addons.mail.tests.common import MailCommon
@@ -1515,6 +1516,38 @@ class TestResPartnerViewGroups(SaleCommon):
         self.assertIsNotNone(button)
         groups = set((button.get("groups") or "").split(","))
         self.assertIn("sales_team.group_sale_salesman", groups)
+
+
+@tagged("post_install", "-at_install")
+class TestAccountMoveSaleCustomerInvoiceDomain(SaleCommon):
+    """The sale_customer_invoice_id domain must combine BOTH the partner
+    filter and the move_id/move_type filter when partner_id is set, not
+    silently drop the latter to an operator-precedence bug (F01)."""
+
+    def _get_field_node_domain(self, xmlid, field_name):
+        view = self.env.ref(xmlid)
+        arch = view._get_combined_arch()
+        node = arch.find(f".//field[@name='{field_name}']")
+        self.assertIsNotNone(node)
+        return node.get("domain")
+
+    def test_domain_combines_partner_and_move_filters(self):
+        domain_str = self._get_field_node_domain(
+            "account.view_move_form", "sale_customer_invoice_id"
+        )
+        evaluated = safe_eval(
+            domain_str,
+            {
+                "partner_id": 42,
+                "commercial_partner_id": 42,
+                "move_id": False,
+                "move_type": "out_invoice",
+            },
+        )
+        self.assertIn(("partner_id.commercial_partner_id", "=", 42), evaluated)
+        self.assertIn("|", evaluated)
+        self.assertIn(("move_id", "=", False), evaluated)
+        self.assertIn(("move_id.move_type", "=", "out_invoice"), evaluated)
 
 
 @tagged("post_install", "-at_install")
