@@ -47,7 +47,7 @@ class MixinOauth2MailProvider(models.AbstractModel):
 
     def _oauth2_stored_tokens(self):
         """This record's tokens, or empty strings when it holds no credential."""
-        self.ensure_one()
+        self.check_singleton()
         credential = self.oauth2_credential_id.sudo()
         return (
             credential.oauth_access_token or False,
@@ -63,7 +63,7 @@ class MixinOauth2MailProvider(models.AbstractModel):
         refresh token every time it was used -- the one token that cannot be
         re-obtained without the user authorising again.
         """
-        self.ensure_one()
+        self.check_singleton()
         values = {}
         if access_token is not _UNSET:
             values['oauth_access_token'] = access_token or False

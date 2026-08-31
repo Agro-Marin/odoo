@@ -545,7 +545,7 @@ class HrLeaveAllocation(models.Model):
         return (current_level, current_level_idx)
 
     def _accrual_leave_hours(self, start, end, eligible_for_accrual_rate):
-        self.ensure_one()
+        self.check_singleton()
         start_dt = datetime.combine(start, datetime.min.time())
         end_dt = datetime.combine(end, datetime.min.time())
         return self.employee_id.sudo()._get_leave_days_data_batch(
@@ -559,7 +559,7 @@ class HrLeaveAllocation(models.Model):
         )[self.employee_id.id]["hours"]
 
     def _accrual_worked_hours(self, start, end):
-        self.ensure_one()
+        self.check_singleton()
         start_dt = datetime.combine(start, datetime.min.time())
         end_dt = datetime.combine(end, datetime.min.time())
         return self.employee_id._get_work_days_data_batch(

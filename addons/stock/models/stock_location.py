@@ -564,7 +564,7 @@ class StockLocation(models.Model):
         # effective_block_type is then still the pre-write value, the
         # descendant stores it, and nothing marks the descendant again.
         # block_type is a plain stored column and is never pending.
-        self.ensure_one()
+        self.check_singleton()
         block_types = []
         location = self
         seen = set()
@@ -1372,7 +1372,7 @@ class StockLocation(models.Model):
         )
 
     def _block_usage_label(self):
-        self.ensure_one()
+        self.check_singleton()
         return dict(
             self._fields["usage"]._description_selection(self.env),
         )[self.usage]
@@ -1383,7 +1383,7 @@ class StockLocation(models.Model):
         )[block_type or "none"]
 
     def _block_decision(self, direction):
-        self.ensure_one()
+        self.check_singleton()
         if direction not in ("in", "out"):
             raise ValueError(f"direction must be 'in' or 'out', got {direction!r}")
 
@@ -1417,7 +1417,7 @@ class StockLocation(models.Model):
         return self._block_decision(direction)[0]
 
     def _check_operation_allowed(self, direction):
-        self.ensure_one()
+        self.check_singleton()
         if self._is_operation_allowed(direction):
             return
         block_label = self._block_type_label(self.effective_block_type)
@@ -1574,7 +1574,7 @@ class StockLocation(models.Model):
             )
 
     def _block_message_body(self, reserved_by_uom):
-        self.ensure_one()
+        self.check_singleton()
         body = Markup("<p><b>%s</b> %s</p>") % (
             self.env._("Location Blocked:"),
             self._block_type_label(self.block_type),
@@ -1632,7 +1632,7 @@ class StockLocation(models.Model):
             location.sudo().message_post(body=body)
 
     def action_unreserve_stock(self):
-        self.ensure_one()
+        self.check_singleton()
 
         if self.effective_block_type != "hard":
             return {
@@ -1673,7 +1673,7 @@ class StockLocation(models.Model):
         }
 
     def _unreserve_all_stock(self):
-        self.ensure_one()
+        self.check_singleton()
 
         move_lines = self.env["stock.move.line"].search(
             [

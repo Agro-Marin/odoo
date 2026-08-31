@@ -273,7 +273,7 @@ class HrEmployee(models.Model):
     _PIN_MAX_RETRY_DELAY = 60
 
     def _attendance_pin_retry_delay(self):
-        self.ensure_one()
+        self.check_singleton()
         over = self.attendance_pin_failure_count - self._PIN_FAILURES_BEFORE_THROTTLE
         if over < 1:
             return 0
@@ -287,7 +287,7 @@ class HrEmployee(models.Model):
         The keypad's own back-off runs in the caller's browser and is not
         reached by a request that never loads it.
         """
-        self.ensure_one()
+        self.check_singleton()
         employee = self.sudo()
         now = fields.Datetime.now()
         # Attempts made while throttled still count. Returning early without

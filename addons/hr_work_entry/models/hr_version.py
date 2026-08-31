@@ -215,7 +215,7 @@ class HrVersion(models.Model):
     def _get_work_entry_vals(
         self, name, interval_start, interval_stop, work_entry_type
     ):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": name,
             "date_start": interval_start.astimezone(UTC).replace(tzinfo=None),
@@ -229,7 +229,7 @@ class HrVersion(models.Model):
     def _get_version_leave_intervals(
         self, leaves_by_resource, attendances, start_dt, end_dt, tz_dates
     ):
-        self.ensure_one()
+        self.check_singleton()
         calendar = self.resource_calendar_id
         resource = self.employee_id.resource_id
         tz = (
@@ -283,7 +283,7 @@ class HrVersion(models.Model):
         end_dt,
         tz,
     ):
-        self.ensure_one()
+        self.check_singleton()
         calendar = self.resource_calendar_id
         resource = self.employee_id.resource_id
         if not calendar:
@@ -321,7 +321,7 @@ class HrVersion(models.Model):
     def _get_worked_leave_work_entry_vals(
         self, intervals, worked_leaves, bypassing_codes
     ):
-        self.ensure_one()
+        self.check_singleton()
         vals = []
         for interval in intervals:
             work_entry_type = self._get_interval_leave_work_entry_type(
@@ -342,7 +342,7 @@ class HrVersion(models.Model):
         return vals
 
     def _get_leave_work_entry_vals(self, real_leaves, leaves, bypassing_codes):
-        self.ensure_one()
+        self.check_singleton()
         vals = []
         leaves_over_attendances = Intervals(leaves, keep_distinct=True) & real_leaves
         for interval in real_leaves:
@@ -526,7 +526,7 @@ class HrVersion(models.Model):
         return new_work_entries
 
     def _get_version_utc_bounds(self, tz, date_stop):
-        self.ensure_one()
+        self.check_singleton()
         version_start = (
             fields.Datetime.to_datetime(self.date_start)
             .replace(tzinfo=tz)
@@ -545,7 +545,7 @@ class HrVersion(models.Model):
         return version_start, version_stop
 
     def _get_expired_work_entries_domain(self, tz, version_stop, date_stop):
-        self.ensure_one()
+        self.check_singleton()
         if version_stop >= date_stop or (
             self.date_generated_from == self.date_generated_to
         ):
@@ -560,7 +560,7 @@ class HrVersion(models.Model):
         )
 
     def _get_forced_work_entries_domain(self, tz, date_from, date_to, record_ids):
-        self.ensure_one()
+        self.check_singleton()
         domain = Domain(
             [
                 ("version_id", "=", self.id),

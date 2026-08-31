@@ -769,12 +769,12 @@ class DeliveryCarrier(models.Model):
         and on (name) alone for system-wide ones -- while two delivery carriers
         may legitimately share a name. The carrier id is what separates them.
         """
-        self.ensure_one()
+        self.check_singleton()
         return f"{self.name or _('Carrier')} [#{self.id}]"
 
     def _carrier_secret(self, field_name):
         """One secret out of this carrier's credential, or False."""
-        self.ensure_one()
+        self.check_singleton()
         credential = self.carrier_credential_id.sudo()
         if not credential:
             return False
@@ -796,7 +796,7 @@ class DeliveryCarrier(models.Model):
         inverse fires per field, and a store that rewrote the whole credential
         would clear the siblings that were not part of this write.
         """
-        self.ensure_one()
+        self.check_singleton()
         credential = self.carrier_credential_id.sudo()
         native = field_name in NATIVE_CREDENTIAL_FIELDS
 

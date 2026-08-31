@@ -151,7 +151,7 @@ class HrWorkEntryRegenerationWizard(models.TransientModel):
         return ["active"]
 
     def _check_regeneration_range(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.search_criteria_completed:
             raise ValidationError(
                 self.env._(
@@ -181,7 +181,7 @@ class HrWorkEntryRegenerationWizard(models.TransientModel):
             )
 
     def _regenerate_wizard_range(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.env.context.get("work_entry_skip_validation"):
             self._check_regeneration_range()
         date_from = (
