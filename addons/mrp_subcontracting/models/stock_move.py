@@ -267,12 +267,10 @@ class StockMove(models.Model):
             return True
         return should_bypass_reservation
 
-    def _get_available_move_lines(
-        self, assigned_moves_ids, partially_available_moves_ids
-    ):
+    def _get_available_move_lines(self, reserved_by_this_run):
         return super(
             StockMove, self.filtered(lambda m: not m.is_subcontract)
-        )._get_available_move_lines(assigned_moves_ids, partially_available_moves_ids)
+        )._get_available_move_lines(reserved_by_this_run)
 
     def _check_access_if_subcontractor(self, vals):
         if self.env.user._is_portal() and not self.env.su:
@@ -294,8 +292,8 @@ class StockMove(models.Model):
             and self.location_dest_id.id == subcontracting_location.id
         )
 
-    def _can_create_lot(self, picking_type=None):
-        return super()._can_create_lot(picking_type) or self.env.context.get(
+    def _should_materialize_lots(self, picking_type=None):
+        return super()._should_materialize_lots(picking_type) or self.env.context.get(
             "force_lot_m2o"
         )
 

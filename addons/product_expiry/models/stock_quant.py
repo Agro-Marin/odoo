@@ -4,13 +4,45 @@ from odoo import api, fields, models
 from odoo.fields import Domain
 from odoo.tools import SQL
 
+from odoo.addons.stock.tools.reservation import RemovalStrategy
+
+
+def _fefo_sort_key(quant):
+    """Python mirror of `removal_date, in_date, id` for the quants-cache path.
+
+    `removal_date` may be unset; Postgres orders NULLs last in ASC, so unset
+    dates sort after real ones. The leading `is False` flag reproduces that, so
+    the sentinel beside it is only ever compared inside the unset group, never
+    against a real date. Odoo datetimes are naive-UTC, hence naive `datetime.min`.
+    """
+    return (
+        quant.removal_date is False,
+        quant.removal_date or datetime.min,  # noqa: DTZ901
+        quant.in_date,
+        quant.id,
+    )
+
+
+FEFO_REMOVAL_STRATEGY = RemovalStrategy(
+    order="removal_date, in_date, id",
+    sort_key=_fefo_sort_key,
+)
+
 
 class StockQuant(models.Model):
     _inherit = "stock.quant"
 
-    expiration_date = fields.Datetime(related="lot_id.expiration_date", store=True)
-    removal_date = fields.Datetime(related="lot_id.removal_date", store=True)
-    use_expiration_date = fields.Boolean(related="product_id.use_expiration_date")
+    expiration_date = fields.Datetime(
+        related="lot_id.expiration_date",
+        store=True,
+    )
+    removal_date = fields.Datetime(
+        related="lot_id.removal_date",
+        store=True,
+    )
+    use_expiration_date = fields.Boolean(
+        related="product_id.use_expiration_date",
+    )
     available_quantity = fields.Float(
         help="On hand quantity which hasn't been reserved on a transfer and is still fresh, in the default unit of measure of the product"
     )
@@ -40,30 +72,10 @@ class StockQuant(models.Model):
         return barcode
 
     @api.model
-    def _get_removal_strategy_order(self, removal_strategy):
-        if removal_strategy == "fefo":
-            return "removal_date, in_date, id"
-        return super()._get_removal_strategy_order(removal_strategy)
-
-    @api.model
-    def _get_removal_strategy_sort_key(self, removal_strategy):
-        if removal_strategy == "fefo":
-            # Python mirror of `removal_date, in_date, id` for the `_gather`
-            # quants-cache fast path. `removal_date` may be unset; Postgres
-            # orders NULLs last in ASC, so unset dates sort after real ones.
-            # The `is False` flag decides that ordering, so the sentinel below
-            # is only ever compared within the unset group (never to a real
-            # date). Odoo datetimes are naive-UTC, hence naive `datetime.min`.
-            def key(quant):
-                return (
-                    quant.removal_date is False,
-                    quant.removal_date or datetime.min,  # noqa: DTZ901
-                    quant.in_date,
-                    quant.id,
-                )
-
-            return key, False
-        return super()._get_removal_strategy_sort_key(removal_strategy)
+    def _get_removal_strategies(self):
+        strategies = super()._get_removal_strategies()
+        strategies["fefo"] = FEFO_REMOVAL_STRATEGY
+        return strategies
 
     @api.depends("removal_date")
     def _compute_available_quantity(self):

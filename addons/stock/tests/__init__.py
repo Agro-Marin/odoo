@@ -73,3 +73,5 @@ from . import test_proc_rule_audit
 from . import test_location_audit_2026_08
 from . import test_product_product_audit_2026_08
 from . import test_product_template_audit_2026_08
+from . import test_quant_audit_hardening
+from . import test_stock_move_audit_2026_08_31

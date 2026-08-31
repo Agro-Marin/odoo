@@ -77,3 +77,31 @@ environments.
 
 def is_internal_flag(context, key):
     return context.get(key) is INTERNAL_CONTEXT_FLAG
+
+
+def internal_payload(value):
+    """Wrap a value so a context key can carry data AND prove it is internal.
+
+    ``is_internal_flag`` only answers yes/no, so a key that must also carry a
+    payload cannot use it -- and hand-rolling the identity check per call site
+    is how one of the five blocking keys ended up on a private protocol the
+    shared helper silently reports as forged. Pair this with
+    ``read_internal_payload``.
+    """
+    return (INTERNAL_CONTEXT_FLAG, value)
+
+
+def read_internal_payload(context, key, default=None):
+    """Return the payload stored by ``internal_payload``, or ``default``.
+
+    ``default`` is what an untrusted or absent value collapses to, so it must
+    stay distinguishable from a legitimately empty payload.
+    """
+    stored = context.get(key)
+    if (
+        isinstance(stored, tuple)
+        and len(stored) == 2
+        and stored[0] is INTERNAL_CONTEXT_FLAG
+    ):
+        return stored[1]
+    return default

@@ -13,8 +13,9 @@ from odoo.tools import SQL
 
 from ..const import (
     CONTEXT_BLOCK_EXCLUDED_TYPES,
-    INTERNAL_CONTEXT_FLAG,
     INVENTORY_REFERENCE_RELOCATED,
+    internal_payload,
+    read_internal_payload,
 )
 from ..tools.reservation import (
     QuantsCache,
@@ -25,6 +26,28 @@ from ..tools.reservation import (
 )
 
 _logger = logging.getLogger(__name__)
+
+CORE_REMOVAL_STRATEGIES = {
+    "fifo": RemovalStrategy(
+        order="in_date ASC, id",
+        sort_key=lambda quant: (quant.in_date, quant.id),
+    ),
+    "lifo": RemovalStrategy(
+        order="in_date DESC, id DESC",
+        sort_key=lambda quant: (quant.in_date, quant.id),
+        reverse=True,
+    ),
+    "closest": RemovalStrategy(
+        order=False,
+        sort_key=lambda quant: quant.id,
+        sorts_by_location=True,
+    ),
+    "least_packages": RemovalStrategy(
+        order="in_date ASC, id",
+        sort_key=lambda quant: (quant.in_date, quant.id),
+        narrows_to_packages=True,
+    ),
+}
 
 
 class StockQuant(models.Model):
@@ -489,15 +512,19 @@ class StockQuant(models.Model):
         return quant, created
 
     def write(self, vals):
-        forbidden_fields = self._get_forbidden_fields_write()
-        if self._is_inventory_mode() and any(
-            field in vals for field in forbidden_fields
-        ):
+        forbidden_fields = set(self._get_forbidden_fields_write())
+        if self._is_inventory_mode() and forbidden_fields.intersection(vals):
             if self.filtered(lambda quant: quant.location_id.usage != "inventory"):
                 raise UserError(
                     _("Quant's editing is restricted, you can't do this operation.")
                 )
-            return True
+            vals = {
+                name: value
+                for name, value in vals.items()
+                if name not in forbidden_fields
+            }
+            if not vals:
+                return True
         return super().write(vals)
 
     def copy(self, default=None):
@@ -596,7 +623,9 @@ class StockQuant(models.Model):
             date_last_movement = date_by_quant.get(quant._move_line_match_key())
             quant.date_last_movement = date_last_movement
             dates = [d for d in (date_last_movement, quant.in_date) if d]
-            quant.days_since_last_movement = (now - max(dates)).days if dates else 0
+            quant.days_since_last_movement = (
+                max(0, (now - max(dates)).days) if dates else 0
+            )
 
     @api.depends("inventory_quantity", "inventory_quantity_set")
     def _compute_inventory_diff_quantity(self):
@@ -642,9 +671,13 @@ class StockQuant(models.Model):
         self.filtered(lambda q: q.lot_id.id in duplicated_sn_ids).sn_duplicated = True
 
     @api.depends("location_id", "lot_id", "package_id", "owner_id")
+    @api.depends_context("formatted_display_name")
     def _compute_display_name(self):
+        formatted = self.env.context.get("formatted_display_name")
         for record in self:
-            if record.env.context.get("formatted_display_name"):
+            if not record.id:
+                record.display_name = ""
+            elif formatted:
                 name = f"{record.location_id.name}"
                 if record.package_id:
                     name += f"\t--{record.package_id.display_name}--"
@@ -654,9 +687,6 @@ class StockQuant(models.Model):
                     ) + f"--{record.lot_id.name}--"
                 record.display_name = name
             else:
-                if not record.ids:
-                    record.display_name = ""
-                    continue
                 name = [record.location_id.display_name]
                 if record.lot_id:
                     name.append(record.lot_id.name)
@@ -679,7 +709,14 @@ class StockQuant(models.Model):
     def _search_days_since_last_movement(self, operator, value):
         if operator not in ("<", "<=", ">", ">="):
             return NotImplemented
-        days = int(value) + 1 if operator in ("<=", ">") else int(value)
+        try:
+            value = float(value)
+        except TypeError, ValueError:
+            return NotImplemented
+        if operator in ("<=", ">"):
+            days = math.floor(value) + 1
+        else:
+            days = math.ceil(value)
         threshold = fields.Datetime.subtract(fields.Datetime.now(), days=days)
         self.env["stock.quant"].flush_model(
             [
@@ -899,6 +936,7 @@ class StockQuant(models.Model):
         return action
 
     def action_view_orderpoints(self):
+        self.check_singleton()
         action = self.env["product.product"].action_view_orderpoints()
         action["domain"] = [("product_id", "=", self.product_id.id)]
         return action
@@ -1208,7 +1246,6 @@ class StockQuant(models.Model):
             "inventory_date",
             "user_id",
             "inventory_quantity_set",
-            "is_outdated",
             "lot_id",
             "location_id",
             "package_id",
@@ -1355,27 +1392,19 @@ class StockQuant(models.Model):
 
     @api.model
     def _get_removal_strategies(self):
-        return {
-            "fifo": RemovalStrategy(
-                order="in_date ASC, id",
-                sort_key=lambda quant: (quant.in_date, quant.id),
-            ),
-            "lifo": RemovalStrategy(
-                order="in_date DESC, id DESC",
-                sort_key=lambda quant: (quant.in_date, quant.id),
-                reverse=True,
-            ),
-            "closest": RemovalStrategy(
-                order=False,
-                sort_key=lambda quant: quant.id,
-                sorts_by_location=True,
-            ),
-            "least_packages": RemovalStrategy(
-                order="in_date ASC, id",
-                sort_key=lambda quant: (quant.in_date, quant.id),
-                narrows_to_packages=True,
-            ),
-        }
+        return dict(CORE_REMOVAL_STRATEGIES)
+
+    @api.model
+    def _get_removal_strategy_record(self, removal_strategy):
+        strategy = self._get_removal_strategies().get(removal_strategy)
+        if strategy is not None:
+            return strategy
+        sorted_arguments = self._get_removal_strategy_sort_key(removal_strategy)
+        order = self._get_removal_strategy_order(removal_strategy)
+        if sorted_arguments is None:
+            return RemovalStrategy(order=order)
+        sort_key, reverse = sorted_arguments
+        return RemovalStrategy(order=order, sort_key=sort_key, reverse=reverse)
 
     @api.model
     def _get_removal_strategy_order(self, removal_strategy):
@@ -1452,29 +1481,29 @@ class StockQuant(models.Model):
 
     def _get_gather_domain(
         self,
-        product,
-        location,
-        lot=None,
-        package=None,
-        owner=None,
+        product_id,
+        location_id,
+        lot_id=None,
+        package_id=None,
+        owner_id=None,
         strict=False,
     ):
-        domains = [Domain("product_id", "=", product.id)]
+        domains = [Domain("product_id", "=", product_id.id)]
         if not strict:
-            if lot:
-                domains.append(Domain("lot_id", "in", [lot.id, False]))
-            if package:
-                domains.append(Domain("package_id", "=", package.id))
-            if owner:
-                domains.append(Domain("owner_id", "=", owner.id))
-            domains.append(Domain("location_id", "child_of", location.id))
+            if lot_id:
+                domains.append(Domain("lot_id", "in", [lot_id.id, False]))
+            if package_id:
+                domains.append(Domain("package_id", "=", package_id.id))
+            if owner_id:
+                domains.append(Domain("owner_id", "=", owner_id.id))
+            domains.append(Domain("location_id", "child_of", location_id.id))
         else:
             domains.extend(
                 (
-                    Domain("lot_id", "in", [False, lot.id] if lot else [False]),
-                    Domain("package_id", "=", package.id if package else False),
-                    Domain("owner_id", "=", owner.id if owner else False),
-                    Domain("location_id", "=", location.id),
+                    Domain("lot_id", "in", [False, lot_id.id] if lot_id else [False]),
+                    Domain("package_id", "=", package_id.id if package_id else False),
+                    Domain("owner_id", "=", owner_id.id if owner_id else False),
+                    Domain("location_id", "=", location_id.id),
                 ),
             )
         domains.append(self._get_expiration_domain())
@@ -1496,18 +1525,11 @@ class StockQuant(models.Model):
             reserving=reserving,
         )
         return self.with_context(
-            **{CONTEXT_BLOCK_EXCLUDED_TYPES: (INTERNAL_CONTEXT_FLAG, excluded)},
+            **{CONTEXT_BLOCK_EXCLUDED_TYPES: internal_payload(excluded)},
         )
 
     def _blocked_excluded_types(self):
-        cached = self.env.context.get(CONTEXT_BLOCK_EXCLUDED_TYPES)
-        if (
-            isinstance(cached, tuple)
-            and len(cached) == 2
-            and cached[0] is INTERNAL_CONTEXT_FLAG
-        ):
-            return cached[1]
-        return None
+        return read_internal_payload(self.env.context, CONTEXT_BLOCK_EXCLUDED_TYPES)
 
     def _get_expiration_domain(self):
         return Domain.TRUE
@@ -1537,19 +1559,18 @@ class StockQuant(models.Model):
             strict,
         )
 
-        strategy = self._get_removal_strategies().get(removal_strategy)
+        strategy = self._get_removal_strategy_record(removal_strategy)
 
-        if strategy is not None and strategy.narrows_to_packages and qty:
+        if strategy.narrows_to_packages and qty:
             domain = self._run_least_packages_removal_strategy_astar(domain, qty)
 
-        order = self._get_removal_strategy_order(removal_strategy)
         quants_cache = self.env.context.get("quants_cache")
-        cache_sort = self._get_removal_strategy_sort_key(removal_strategy)
+        cache_sort = strategy.as_sorted_arguments()
 
         if (
             quants_cache is not None
             and strict
-            and not (strategy is not None and strategy.narrows_to_packages)
+            and not strategy.narrows_to_packages
             and cache_sort is not None
             and quants_cache.covers(product_id, location_id, lot_id)
             and not self._is_gather_domain_extended(
@@ -1570,18 +1591,18 @@ class StockQuant(models.Model):
             sort_key, sort_reverse = cache_sort
             res = res.sorted(sort_key, reverse=sort_reverse)
         else:
-            res = self.search(domain, order=order)
+            res = self.search(domain, order=strategy.order)
 
-        if strategy is not None and strategy.sorts_by_location:
+        if strategy.sorts_by_location:
             res = res.sorted(lambda q: (q.location_id.complete_name, -q.id))
 
         return res._sorted_tracked_first()
 
     def _is_gather_domain_extended(
-        self, domain, product, location, lot, package, owner, strict
+        self, domain, product_id, location_id, lot_id, package_id, owner_id, strict
     ):
         return domain != StockQuant._get_gather_domain(
-            self, product, location, lot, package, owner, strict
+            self, product_id, location_id, lot_id, package_id, owner_id, strict
         )
 
     def _filtered_breaking_a_package(self):
@@ -1792,8 +1813,8 @@ class StockQuant(models.Model):
             qty=quantity,
         )
 
-        strategy = self._get_removal_strategies().get(removal_strategy)
-        if strategy is not None and strategy.narrows_to_packages:
+        strategy = self._get_removal_strategy_record(removal_strategy)
+        if strategy.narrows_to_packages:
             available_quantity = self._get_available_quantity(
                 product_id,
                 location_id,
@@ -1967,8 +1988,8 @@ class StockQuant(models.Model):
 
     def _should_bypass_product(
         self,
-        product=False,
-        location=False,
+        product_id=False,
+        location_id=False,
         reserved_quantity=0,
         lot_id=False,
         package_id=False,
@@ -2032,7 +2053,11 @@ class StockQuant(models.Model):
                 self.env.cr.execute(query, params)
                 self.env.invalidate_all()
         except Error as e:
-            _logger.warning("an error occurred while merging quants: %s", e)
+            _logger.warning(
+                "an error occurred while merging quants: %s (%s)",
+                e,
+                type(e).__name__,
+            )
 
     @api.model
     def _clean_reservations(self, products=None, locations=None):
@@ -2228,6 +2253,11 @@ class StockQuant(models.Model):
             rule_ai = rule.pattern[1:4] + decimal
             gs1_quantity_rules_ai_by_uom[rule.associated_uom_id.id] = rule_ai
 
+        # The caller owns the order: this emits a scan SEQUENCE, and the product
+        # barcode is written once per contiguous run of quants sharing a product.
+        # An interleaved recordset therefore repeats it -- still valid GS1, but
+        # longer, and it chunks differently against agg_barcode_max_length. Pass
+        # the quants grouped by product unless you mean the order you passed.
         previous_product = self.env["product.product"]
         for quant in self:
             if not quant.product_id.barcode:
