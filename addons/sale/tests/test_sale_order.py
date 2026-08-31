@@ -1518,6 +1518,23 @@ class TestResPartnerViewGroups(SaleCommon):
 
 
 @tagged("post_install", "-at_install")
+class TestAccountMoveComputeDepends(SaleCommon):
+    """Two computes read fields their @api.depends didn't list, so a write
+    to those fields alone left them stale (F12/F13)."""
+
+    def test_compute_team_id_depends_on_company(self):
+        AccountMove = self.env["account.move"]
+        depends = self.env.registry.field_depends[AccountMove._fields["team_id"]]
+        self.assertIn("company_id", depends)
+
+    def test_compute_is_storno_depends_on_downpayment_and_storno_flag(self):
+        AccountMoveLine = self.env["account.move.line"]
+        depends = self.env.registry.field_depends[AccountMoveLine._fields["is_storno"]]
+        self.assertIn("is_downpayment", depends)
+        self.assertIn("company_id.account_storno", depends)
+
+
+@tagged("post_install", "-at_install")
 class TestPortalRulePermFlags(SaleCommon):
     """The portal ir.rule perm_* flags must not silently grant write/create/
     unlink at the rule level, even though the ACL currently blocks them too

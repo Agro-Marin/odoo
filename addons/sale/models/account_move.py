@@ -77,7 +77,7 @@ class AccountMove(models.Model):
                         or self.env.user
                     )
 
-    @api.depends("invoice_user_id")
+    @api.depends("invoice_user_id", "company_id")
     def _compute_team_id(self):
         sale_moves = self.filtered(
             lambda move: move.is_sale_document(include_receipts=True),
