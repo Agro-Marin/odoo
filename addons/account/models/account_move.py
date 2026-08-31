@@ -65,7 +65,6 @@ EMPTY = object()
 BYPASS_LOCK_CHECK = object()
 
 
-
 _SQL_DUPLICATE_OUT_MOVES = """
 move.move_type in ('out_invoice', 'out_refund')
 AND (
@@ -118,7 +117,6 @@ SELECT move.id AS move_id,
  WHERE move.id IN %(moves)s
  GROUP BY move.id
 """
-
 
 
 _SQL_SEQUENCE_NEIGHBOURS = """
@@ -196,6 +194,41 @@ _SQL_PAYMENT_RECONCILIATION = """
                     LEFT JOIN account_payment pay ON pay.move_id = counterpart_move.id
                     WHERE source_line.move_id = ANY(%s) AND counterpart_line.move_id != source_line.move_id
                     GROUP BY source_line.id, source_line.move_id, account.account_type
+"""
+
+
+# The debit and credit sides are two UNION ALL branches rather than one join on an OR,
+# so each side is an equality the planner can index -- the same shape as
+# _SQL_RECONCILED_PARTIALS and _SQL_PAYMENT_RECONCILIATION below.
+_SQL_PAYMENTS_PER_INVOICE = """
+SELECT invoice_id,
+       ARRAY_AGG(DISTINCT payment_id) AS payment_ids
+  FROM (
+        SELECT counterpart_line.move_id AS invoice_id,
+               payment.id AS payment_id
+          FROM account_partial_reconcile part
+          JOIN account_move_line line ON line.id = part.debit_move_id
+          JOIN account_move_line counterpart_line ON counterpart_line.id = part.credit_move_id
+          JOIN account_payment payment ON payment.move_id = line.move_id
+          JOIN account_account account ON account.id = line.account_id
+         WHERE account.account_type IN ('asset_receivable', 'liability_payable')
+           AND counterpart_line.move_id = ANY(%(invoice_ids)s)
+           AND counterpart_line.id != line.id
+
+        UNION ALL
+
+        SELECT counterpart_line.move_id AS invoice_id,
+               payment.id AS payment_id
+          FROM account_partial_reconcile part
+          JOIN account_move_line line ON line.id = part.credit_move_id
+          JOIN account_move_line counterpart_line ON counterpart_line.id = part.debit_move_id
+          JOIN account_payment payment ON payment.move_id = line.move_id
+          JOIN account_account account ON account.id = line.account_id
+         WHERE account.account_type IN ('asset_receivable', 'liability_payable')
+           AND counterpart_line.move_id = ANY(%(invoice_ids)s)
+           AND counterpart_line.id != line.id
+       ) links
+ GROUP BY invoice_id
 """
 
 
@@ -1083,8 +1116,11 @@ class AccountMove(models.Model):
         "Another entry with the same name already exists.",
     )
     _journal_id_company_id_idx = models.Index("(journal_id, company_id, date)")
+    # Columns and order follow the only query that reads the flag -- the journal
+    # dashboard's hole count in account_journal_dashboard.py -- so that it can be served
+    # index-only. It filters journal_id/company_id/date and groups by sequence_prefix.
     _made_gaps = models.Index(
-        "(journal_id, state, payment_state, move_type, date) WHERE (made_sequence_gap IS TRUE)"
+        "(journal_id, company_id, date, sequence_prefix) WHERE (made_sequence_gap IS TRUE)"
     )
     _duplicate_bills_idx = models.Index(
         "(ref) WHERE (move_type IN ('in_invoice', 'in_refund'))"
@@ -1260,11 +1296,13 @@ class AccountMove(models.Model):
             is_refund = move.move_type in ("out_refund", "in_refund")
             move.is_storno = is_refund and move.company_id.account_storno
 
-    @api.depends("company_id", "invoice_filter_type_domain", "move_type")
+    @api.depends("company_id", "move_type")
     def _compute_suitable_journal_ids(self):
-        for m in self:
-            m.suitable_journal_ids = self._get_suitable_journal_ids(
-                m.move_type, m.company_id
+        for (move_type, company), moves in self.grouped(
+            lambda m: (m.move_type, m.company_id)
+        ).items():
+            moves.suitable_journal_ids = self._get_suitable_journal_ids(
+                move_type, company
             )
 
     @api.depends_context("uid")
@@ -1561,6 +1599,8 @@ class AccountMove(models.Model):
         "line_ids.amount_residual_currency",
         "line_ids.payment_id.state",
         "line_ids.full_reconcile_id",
+        "line_ids.display_type",
+        "line_ids.tax_repartition_line_id",
         "state",
     )
     def _compute_amounts(self):
@@ -1908,7 +1948,7 @@ class AccountMove(models.Model):
             [
                 ("account_id", "in", list(group_account_ids)),
                 ("parent_state", "=", "posted"),
-                *self.env["account.move"]._check_company_domain(company),
+                *self.env["account.move.line"]._check_company_domain(company),
                 ("partner_id", "=", partner_id),
                 ("reconciled", "=", False),
                 ("balance", "<" if is_inbound else ">", 0.0),
@@ -2334,6 +2374,25 @@ class AccountMove(models.Model):
         return base_lines, tax_lines
 
     @api.depends_context("lang")
+    # This list is knowingly narrower than what the body reads: once the move is
+    # stored, _get_rounded_base_and_tax_lines walks self.line_ids for the epd,
+    # rounding, non-deductible and tax lines that invoice_line_ids' domain excludes,
+    # and reads invoice_currency_rate. Widening it to line_ids.* was tried and
+    # reverted, 2026-08-31 -- it is a behaviour change, not a tightening.
+    #
+    # Three tests fail with it, each confirmed by running that test ALONE in its own
+    # process, with and without the wider list -- a whole-suite failure count decides
+    # nothing on /account (CLAUDE.md, the _update_xmlids ormcache defect):
+    #
+    #   quick_edit_total_amount               1 of 1 failed  vs  0 of 1
+    #   mixed_epd_with_draft_invoice   |      2 of 2 failed  vs  0 of 2
+    #   mixed_epd_with_tax_included    |
+    #
+    # The first fails 99.99 != 100: the extra triggers recompute tax_totals at a
+    # different point and the price_unit _get_quick_edit_suggestions derives from it
+    # moves by a cent. The 11 pre-existing ACL errors in that EPD class are unmoved
+    # by the change and are a separate population. Closing the gap needs that
+    # rounding made order-independent first.
     @api.depends(
         "invoice_line_ids.currency_rate",
         "invoice_line_ids.tax_base_amount",
@@ -2456,11 +2515,6 @@ class AccountMove(models.Model):
         "line_ids.tax_line_id",
         "line_ids.tax_ids",
         "line_ids.tax_tag_ids",
-        "invoice_line_ids.debit",
-        "invoice_line_ids.credit",
-        "invoice_line_ids.tax_line_id",
-        "invoice_line_ids.tax_ids",
-        "invoice_line_ids.tax_tag_ids",
     )
     def _compute_tax_lock_date_message(self):
         for move in self:
@@ -2494,13 +2548,11 @@ class AccountMove(models.Model):
         for fiscal_position_id, record_group in groupby(
             foreign_vat_records, key=lambda r: r.fiscal_position_id
         ):
-            self.env["account.move"].concat(
-                *record_group
-            ).tax_country_id = fiscal_position_id.country_id
+            self.concat(*record_group).tax_country_id = fiscal_position_id.country_id
         for company_id, record_group in groupby(
             (self - foreign_vat_records), key=lambda r: r.company_id
         ):
-            self.env["account.move"].concat(
+            self.concat(
                 *record_group
             ).tax_country_id = company_id.account_fiscal_country_id
 
@@ -2690,7 +2742,7 @@ class AccountMove(models.Model):
         for move in self:
             move.duplicated_ref_ids = move_to_duplicate_move.get(
                 move._origin,
-                move_to_duplicate_move.get(move, self.env["account.move"]),
+                move_to_duplicate_move.get(move, self.browse()),
             )
 
     def _get_duplicate_reference_move_table(self, moves, used_fields, synthetic_ids):
@@ -2719,9 +2771,7 @@ class AccountMove(models.Model):
         column_names = SQL(", ").join(
             SQL.identifier(field_name) for field_name in used_fields + ("id",)
         )
-        return SQL(
-            "(VALUES %s) AS move(%s)", SQL(", ").join(all_values), column_names
-        )
+        return SQL("(VALUES %s) AS move(%s)", SQL(", ").join(all_values), column_names)
 
     def _get_duplicate_reference_conditions(self, moves):
         to_query = []
@@ -2739,9 +2789,10 @@ class AccountMove(models.Model):
         self, moves, move_table_and_alias, matching_states, synthetic_ids
     ):
         result = []
-        for subset_moves, move_type_sql_condition in (
-            self._get_duplicate_reference_conditions(moves)
-        ):
+        for (
+            subset_moves,
+            move_type_sql_condition,
+        ) in self._get_duplicate_reference_conditions(moves):
             result.extend(
                 self.env.execute_query(
                     SQL(
@@ -2775,7 +2826,7 @@ class AccountMove(models.Model):
             "currency_id",
         )
 
-        self.env["account.move"].flush_model(used_fields)
+        self.flush_model(used_fields)
 
         synthetic_id_by_move = {
             move: move._origin.id or -(index + 1) for index, move in enumerate(moves)
@@ -2792,8 +2843,7 @@ class AccountMove(models.Model):
             synthetic_id: move for move, synthetic_id in synthetic_id_by_move.items()
         }
         readable_ids = set(
-            self.env["account.move"]
-            .browse(
+            self.browse(
                 {
                     duplicate_id
                     for _move_id, duplicate_ids in result
@@ -2805,10 +2855,8 @@ class AccountMove(models.Model):
         )
         return {
             (
-                self.env["account.move"].browse(move_id)
-                if move_id > 0
-                else move_by_synthetic_id[move_id]
-            ): self.env["account.move"].browse(
+                self.browse(move_id) if move_id > 0 else move_by_synthetic_id[move_id]
+            ): self.browse(
                 duplicate_id
                 for duplicate_id in duplicate_ids
                 if duplicate_id in readable_ids
@@ -3085,7 +3133,7 @@ class AccountMove(models.Model):
     )
     def _compute_reconciled_payment_ids(self):
         self.env["account.payment"].flush_model(fnames=["move_id"])
-        self.env["account.move"].flush_model(fnames=["move_type"])
+        self.flush_model(fnames=["move_type"])
         self.env["account.move.line"].flush_model(fnames=["move_id", "account_id"])
         self.env["account.partial.reconcile"].flush_model(
             fnames=["debit_move_id", "credit_move_id"]
@@ -3095,31 +3143,7 @@ class AccountMove(models.Model):
         invoice_payment_links = (
             dict(
                 self.env.execute_query(
-                    SQL(
-                        """
-            SELECT
-                invoice.id,
-                ARRAY_AGG(DISTINCT payment.id) AS payment_ids
-            FROM account_payment payment
-            JOIN account_move move ON move.id = payment.move_id
-            JOIN account_move_line line ON line.move_id = move.id
-            JOIN account_partial_reconcile part ON
-                part.debit_move_id = line.id
-                OR
-                part.credit_move_id = line.id
-            JOIN account_move_line counterpart_line ON
-                part.debit_move_id = counterpart_line.id
-                OR
-                part.credit_move_id = counterpart_line.id
-            JOIN account_move invoice ON invoice.id = counterpart_line.move_id
-            JOIN account_account account ON account.id = line.account_id
-            WHERE account.account_type IN ('asset_receivable', 'liability_payable')
-                AND invoice.id IN %(invoice_ids)s
-                AND line.id != counterpart_line.id
-            GROUP BY invoice.id
-            """,
-                        invoice_ids=tuple(self.ids),
-                    )
+                    SQL(_SQL_PAYMENTS_PER_INVOICE, invoice_ids=list(self.ids))
                 )
             )
             if self.ids
@@ -3368,7 +3392,13 @@ class AccountMove(models.Model):
     def _inverse_partner_id(self):
         for invoice in self:
             if invoice.is_invoice(True):
-                for line in invoice.line_ids + invoice.invoice_line_ids:
+                # Both relations, deliberately. invoice_line_ids is a subset of line_ids
+                # only once the record is stored; on the NewId this onchange actually runs
+                # against, line_ids can be empty while invoice_line_ids holds the lines the
+                # user is editing. Narrowing this to line_ids alone stops partner
+                # propagation in the form. The duplicate visits it causes on a stored
+                # record are free -- the guard below is false the second time.
+                for line in invoice.line_ids | invoice.invoice_line_ids:
                     if line.partner_id != invoice.commercial_partner_id:
                         line.partner_id = invoice.commercial_partner_id
                         line._inverse_partner_id()
@@ -3631,7 +3661,7 @@ class AccountMove(models.Model):
         self.env["account.move.line"].flush_model(
             ["debit", "credit", "balance", "currency_id", "move_id"]
         )
-        self.env["account.move"].flush_model(["company_id"])
+        self.flush_model(["company_id"])
         return self.env.execute_query(
             SQL(
                 """
@@ -3924,7 +3954,7 @@ class AccountMove(models.Model):
         default = dict(default or {})
         vals_list = super().copy_data(default)
         default_date = fields.Date.to_date(default.get("date"))
-        for move, vals in zip(self, vals_list, strict=False):
+        for move, vals in zip(self, vals_list, strict=True):
             if move.is_invoice(include_receipts=True):
                 vals["line_ids"] = [
                     (command, _id, line_vals)
@@ -3949,7 +3979,7 @@ class AccountMove(models.Model):
         default = dict(default or {})
         new_moves = super().copy(default)
         bodies = {}
-        for old_move, new_move in zip(self, new_moves, strict=False):
+        for old_move, new_move in zip(self, new_moves, strict=True):
             message_origin = (
                 ""
                 if not new_move.auto_post_origin_id
@@ -5129,7 +5159,7 @@ class AccountMove(models.Model):
             if lines:
                 lines.remove_move_reconcile()
 
-        reverse_moves = self.env["account.move"]
+        reverse_moves = self.browse()
         for move, default_values in zip(self, default_values_list, strict=True):
             default_values = {
                 **default_values,
@@ -5195,9 +5225,9 @@ class AccountMove(models.Model):
     def _unlink_or_reverse(self):
         if not self:
             return None
-        to_unlink = self.env["account.move"]
-        to_cancel = self.env["account.move"]
-        to_reverse = self.env["account.move"]
+        to_unlink = self.browse()
+        to_cancel = self.browse()
+        to_reverse = self.browse()
         for move in self:
             if not move._can_be_unlinked():
                 to_reverse += move
@@ -5482,8 +5512,10 @@ class AccountMove(models.Model):
         # them. They are NOT members of the posted set: they were never asked for,
         # they skipped validation, and folding them in made _post return records
         # its caller never passed and double-counted their partners' ranks.
-        side_moves = self.browse()
-        partials_to_unlink = self.env["account.partial.reconcile"]
+        # Ids rather than a recordset: `|=` in this triple loop rebuilds the whole
+        # recordset on every partial, which is quadratic in a move's reconciliations.
+        side_move_ids = set()
+        partial_ids_to_unlink = set()
         # Grows as side moves are collected, because a cash-basis move is not always
         # posted on creation (`post_after_create`): a later partial in this same loop
         # can have a still-draft one as its counterpart, and must recognise it.
@@ -5503,36 +5535,34 @@ class AccountMove(models.Model):
                         counterpart_move.state == "posted"
                         or counterpart_move.id in reachable_ids
                     ):
-                        side_moves |= partial.exchange_move_id
+                        side_move_ids.update(partial.exchange_move_id.ids)
                         reachable_ids.update(partial.exchange_move_id.ids)
 
                         if partial._has_outdated_draft_caba_move_vals(
                             collected_per_move
                         ):
-                            partials_to_unlink |= partial
-                        elif aml.move_id.tax_cash_basis_created_move_ids:
-                            caba_moves = (
-                                aml.move_id.tax_cash_basis_created_move_ids.filtered(
-                                    lambda m, partial=partial: (
-                                        m.tax_cash_basis_rec_id == partial
-                                    )
-                                )
-                            )
-                            side_moves |= caba_moves
-                            reachable_ids.update(caba_moves.ids)
-                        elif counterpart_move.tax_cash_basis_created_move_ids:
-                            caba_moves = counterpart_move.tax_cash_basis_created_move_ids.filtered(
+                            partial_ids_to_unlink.add(partial.id)
+                            continue
+
+                        caba_source = (
+                            aml.move_id
+                            if aml.move_id.tax_cash_basis_created_move_ids
+                            else counterpart_move
+                        )
+                        caba_moves = (
+                            caba_source.tax_cash_basis_created_move_ids.filtered(
                                 lambda m, partial=partial: (
                                     m.tax_cash_basis_rec_id == partial
                                 )
                             )
-                            side_moves |= caba_moves
-                            reachable_ids.update(caba_moves.ids)
+                        )
+                        side_move_ids.update(caba_moves.ids)
+                        reachable_ids.update(caba_moves.ids)
 
-        if partials_to_unlink:
-            partials_to_unlink.unlink()
+        if partial_ids_to_unlink:
+            self.env["account.partial.reconcile"].browse(partial_ids_to_unlink).unlink()
 
-        return side_moves - self
+        return self.browse(side_move_ids) - self
 
     def _post_update_partner_ranks(self):
         customer_count, supplier_count = defaultdict(int), defaultdict(int)
@@ -5718,19 +5748,20 @@ class AccountMove(models.Model):
         except ValidationError:
             return False
         format_values.pop("seq")
+        # `move`, never `self`: the cache is keyed per sequence index by
+        # mixin_sequence._locked_increment, which is singleton-only. Reading the index
+        # off the whole batch yields the union of its journals, which matches no stored
+        # key, so every answer here would be False and the suppression below would never
+        # fire for a batch spanning two journals.
         cache_key = (
             format_string.format(**format_values, seq=0),
-            self._sequence_index and self[self._sequence_index],
+            self._sequence_index and move[self._sequence_index],
         )
         return sequence_mixin_cache.get(cache_key) is not None
 
     def _get_sequence_gap_neighbours(self):
-        self.env["account.move"].flush_model(
-            ["name", "sequence_prefix", "sequence_number", "journal_id"]
-        )
-        made_gap_data = self.env.execute_query(
-            SQL(_SQL_SEQUENCE_NEIGHBOURS, self.ids)
-        )
+        self.flush_model(["name", "sequence_prefix", "sequence_number", "journal_id"])
+        made_gap_data = self.env.execute_query(SQL(_SQL_SEQUENCE_NEIGHBOURS, self.ids))
         all_ids = tuple(
             {
                 id_
@@ -6224,9 +6255,7 @@ class AccountMove(models.Model):
         self.set_moves_checked()
 
     def check_selected_moves(self):
-        self.env["account.move"].browse(
-            self.env.context.get("active_ids", [])
-        ).set_moves_checked()
+        self.browse(self.env.context.get("active_ids", [])).set_moves_checked()
 
     def set_moves_checked(self, is_checked=True):
         self.filtered(lambda m: m.state == "posted").checked = is_checked
@@ -6424,6 +6453,12 @@ class AccountMove(models.Model):
             moves._post()
             self.env["ir.cron"]._commit_progress(len(moves))
             return
+        except PG_RETRY_EXCEPTIONS:
+            # Same policy as the per-move loop below: a lock or serialization failure
+            # is the cron's to retry, not ours to absorb. Falling through would take
+            # the whole batch through the one-at-a-time path under the contention that
+            # just failed it, and raise from there anyway -- after the retry.
+            raise
         except Exception:
             self.env.cr.rollback()
 
@@ -6649,40 +6684,49 @@ class AccountMove(models.Model):
         show_installments = len(installments) > 1
 
         if show_installments and overdue:
-            return (
-                "overdue",
-                self.amount_residual,
-                sum(x["amount_residual_currency_unsigned"] for x in overdue),
-                f"{self.name}-{overdue[0]['number']}",
-                overdue[0]["date_maturity"],
-                {},
-            )
+            return {
+                "installment_state": "overdue",
+                "amount_due": self.amount_residual,
+                "next_amount_to_pay": sum(
+                    x["amount_residual_currency_unsigned"] for x in overdue
+                ),
+                "next_payment_reference": f"{self.name}-{overdue[0]['number']}",
+                "next_due_date": overdue[0]["date_maturity"],
+                "additional_info": {},
+            }
         if show_installments and not_reconciled:
-            return (
-                "next",
-                self.amount_residual,
-                not_reconciled[0]["amount_residual_currency_unsigned"],
-                f"{self.name}-{not_reconciled[0]['number']}",
-                not_reconciled[0]["date_maturity"],
-                {},
-            )
+            return {
+                "installment_state": "next",
+                "amount_due": self.amount_residual,
+                "next_amount_to_pay": not_reconciled[0][
+                    "amount_residual_currency_unsigned"
+                ],
+                "next_payment_reference": f"{self.name}-{not_reconciled[0]['number']}",
+                "next_due_date": not_reconciled[0]["date_maturity"],
+                "additional_info": {},
+            }
         if epd_installment:
-            return (
-                "epd",
-                epd_installment["amount_residual_currency_unsigned"],
-                self.amount_residual,
-                self.name,
-                epd_installment["date_maturity"],
-                self._get_early_payment_discount_installment_values(epd_installment),
-            )
-        return (
-            None,
-            self.amount_residual,
-            self.amount_residual,
-            self.name,
-            self.invoice_date_due,
-            {},
-        )
+            # Under an early payment discount the discounted figure IS what is due, so
+            # these two are the other way round from every other branch. Naming them is
+            # the point: as a positional tuple the inversion was invisible at both ends.
+            return {
+                "installment_state": "epd",
+                "amount_due": epd_installment["amount_residual_currency_unsigned"],
+                "next_amount_to_pay": self.amount_residual,
+                "next_payment_reference": self.name,
+                "next_due_date": epd_installment["date_maturity"],
+                "additional_info": self._get_early_payment_discount_installment_values(
+                    epd_installment
+                ),
+            }
+        return {
+            "installment_state": None,
+            "amount_due": self.amount_residual,
+            "next_amount_to_pay": self.amount_residual,
+            "next_payment_reference": self.name,
+            "next_due_date": self.invoice_date_due,
+            "additional_info": {},
+        }
 
     def _get_invoice_next_payment_values(self, custom_amount=None):
         self.check_singleton()
@@ -6693,40 +6737,33 @@ class AccountMove(models.Model):
             return {}
         installments = term_lines._get_installments_data()
         not_reconciled_installments = [x for x in installments if not x["reconciled"]]
-        (
-            installment_state,
-            amount_due,
-            next_amount_to_pay,
-            next_payment_reference,
-            next_due_date,
-            additional_info,
-        ) = self._get_next_installment_values(installments)
+        next_values = self._get_next_installment_values(installments)
 
         if custom_amount is not None:
             is_custom_amount_same_as_next_amount = self.currency_id.is_zero(
-                custom_amount - next_amount_to_pay
+                custom_amount - next_values["next_amount_to_pay"]
             )
-            is_custom_amount_same_as_epd_discounted_amount = (
-                installment_state == "epd"
-                and self.currency_id.is_zero(custom_amount - amount_due)
+            is_custom_amount_same_as_epd_discounted_amount = next_values[
+                "installment_state"
+            ] == "epd" and self.currency_id.is_zero(
+                custom_amount - next_values["amount_due"]
             )
             if (
                 not is_custom_amount_same_as_next_amount
                 and not is_custom_amount_same_as_epd_discounted_amount
             ):
-                installment_state = "next"
-                next_amount_to_pay = custom_amount
-                next_payment_reference = self.name
-                next_due_date = installments[0]["date_maturity"]
+                next_values |= {
+                    "installment_state": "next",
+                    "next_amount_to_pay": custom_amount,
+                    "next_payment_reference": self.name,
+                    "next_due_date": installments[0]["date_maturity"],
+                }
 
+        additional_info = next_values.pop("additional_info")
         return {
             "payment_state": self.payment_state,
-            "installment_state": installment_state,
-            "next_amount_to_pay": next_amount_to_pay,
-            "next_payment_reference": next_payment_reference,
+            **next_values,
             "amount_paid": self.amount_total - self.amount_residual,
-            "amount_due": amount_due,
-            "next_due_date": next_due_date,
             "due_date": self.invoice_date_due,
             "not_reconciled_installments": not_reconciled_installments,
             "is_last_installment": len(not_reconciled_installments) == 1,
@@ -7195,19 +7232,10 @@ class AccountMove(models.Model):
 
     def _get_move_lines_to_report(self):
         def show_line(line):
-            return line.display_type == "line_section" or (
-                not any(
-                    [
-                        line.parent_id.collapse_composition,
-                        line.parent_id.parent_id.collapse_composition,
-                    ]
-                )
-                and not any(
-                    [
-                        line.parent_id.collapse_prices,
-                        line.parent_id.parent_id.collapse_prices,
-                    ]
-                )
+            ancestors = line.parent_id | line.parent_id.parent_id
+            return line.display_type == "line_section" or not (
+                any(ancestors.mapped("collapse_composition"))
+                or any(ancestors.mapped("collapse_prices"))
             )
 
         return self.invoice_line_ids.filtered(show_line).sorted("sequence")
@@ -7216,44 +7244,36 @@ class AccountMove(models.Model):
     def _can_commit():
         return not modules.module.current_test
 
+    # The label is a callable so that _() runs per request, in the caller's language,
+    # rather than once at import time.
+    _IMPORT_TEMPLATES = {
+        "entry": (
+            lambda: _("Import Template for Misc. Operations"),
+            "misc_operations_import_template",
+        ),
+        "out_invoice": (
+            lambda: _("Import Template for Invoices"),
+            "customer_invoices_credit_notes_import_template",
+        ),
+        "out_refund": (
+            lambda: _("Import Template for Credit Notes"),
+            "customer_invoices_credit_notes_import_template",
+        ),
+        "in_invoice": (
+            lambda: _("Import Template for Bills"),
+            "vendor_bills_refunds_import_template",
+        ),
+        "in_refund": (
+            lambda: _("Import Template for Refunds"),
+            "vendor_bills_refunds_import_template",
+        ),
+    }
+
     @api.model
     def get_import_templates(self):
-        move_type = self.env.context.get("default_move_type")
-        match move_type:
-            case "entry":
-                return [
-                    {
-                        "label": _("Import Template for Misc. Operations"),
-                        "template": "/account/static/xls/misc_operations_import_template.xlsx",
-                    }
-                ]
-            case "out_invoice":
-                return [
-                    {
-                        "label": _("Import Template for Invoices"),
-                        "template": "/account/static/xls/customer_invoices_credit_notes_import_template.xlsx",
-                    }
-                ]
-            case "out_refund":
-                return [
-                    {
-                        "label": _("Import Template for Credit Notes"),
-                        "template": "/account/static/xls/customer_invoices_credit_notes_import_template.xlsx",
-                    }
-                ]
-            case "in_invoice":
-                return [
-                    {
-                        "label": _("Import Template for Bills"),
-                        "template": "/account/static/xls/vendor_bills_refunds_import_template.xlsx",
-                    }
-                ]
-            case "in_refund":
-                return [
-                    {
-                        "label": _("Import Template for Refunds"),
-                        "template": "/account/static/xls/vendor_bills_refunds_import_template.xlsx",
-                    }
-                ]
-            case _:
-                return []
+        label, stem = self._IMPORT_TEMPLATES.get(
+            self.env.context.get("default_move_type"), (None, None)
+        )
+        if not stem:
+            return []
+        return [{"label": label(), "template": f"/account/static/xls/{stem}.xlsx"}]
