@@ -136,7 +136,7 @@ class HrEmployee(models.Model):
         return_val = self.env["mail.activity"]
 
         jobs_with_certification = self.env["hr.job"].search(
-            [("job_skill_ids.is_certification", "=", True)]
+            [("current_job_skill_ids", "any", [("is_certification", "=", True)])]
         )
         if not jobs_with_certification:
             return return_val
@@ -144,7 +144,7 @@ class HrEmployee(models.Model):
         job_skill_level_mapping = defaultdict(dict)
 
         for job in jobs_with_certification:
-            for cert in job.job_skill_ids.filtered(lambda s: s.is_certification):
+            for cert in job.current_job_skill_ids.filtered("is_certification"):
                 key = (cert.skill_id, cert.skill_level_id)
                 summary = f"{cert.skill_id.name}: {cert.skill_level_id.name}"
                 job_skill_level_mapping[job][key] = summary
@@ -210,6 +210,12 @@ class HrEmployee(models.Model):
             (act.res_id, act.summary) for act in existing_activities
         }
 
+        # activity_schedule already creates one activity per record of the
+        # recordset it is called on, in a single create(). Calling it per
+        # employee paid the whole scheduling path -- activity type lookup, model
+        # lookup, the mail create hooks -- once per activity instead of once per
+        # group of employees that share a summary, a deadline and a responsible.
+        to_schedule = defaultdict(lambda: self.env["hr.employee"])
         for employee in employees:
             job_id = employee.job_id
             responsible = (
@@ -230,14 +236,17 @@ class HrEmployee(models.Model):
                 ):
                     continue
 
-                activity = employee.activity_schedule(
-                    act_type_xmlid="hr_skills.mail_activity_data_upload_certification",
-                    summary=summary,
-                    note=self.env._("Certification missing or expiring soon"),
-                    date_deadline=valid_to_date or today,
-                    user_id=responsible.id,
-                )
-                return_val += activity
+                to_schedule[(summary, valid_to_date or today, responsible)] |= employee
+
+        note = self.env._("Certification missing or expiring soon")
+        for (summary, deadline, responsible), group in to_schedule.items():
+            return_val += group.activity_schedule(
+                act_type_xmlid="hr_skills.mail_activity_data_upload_certification",
+                summary=summary,
+                note=note,
+                date_deadline=deadline,
+                user_id=responsible.id,
+            )
 
         return return_val
 

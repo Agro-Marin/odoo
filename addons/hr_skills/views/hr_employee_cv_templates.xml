@@ -92,7 +92,7 @@
         </t>
 
         <div class="oe_structure"></div>
-        <t t-set="has_languages" t-value="skill_type_language and any(skill_line.skill_type_id == skill_type_language for skill_line in o.employee_skill_ids)"/>
+        <t t-set="has_languages" t-value="skill_type_language and any(skill_line.skill_type_id == skill_type_language for skill_line in o.current_employee_skill_ids)"/>
         <div class="o_main_panel mt-4" t-if="has_languages">
             <div class="o_main_panel_section" t-if="skill_type_language">
                 <h2 class="o_main_panel_title" t-attf-style="color: #{color_secondary};">
@@ -101,7 +101,7 @@
                     </span>
                     Languages
                 </h2>
-                <t t-foreach="o.employee_skill_ids" t-as="skill_line">
+                <t t-foreach="o.current_employee_skill_ids" t-as="skill_line">
                     <t t-if="skill_line.skill_type_id == skill_type_language">
                         <div class="o_main_panel_resume_title ps-5 pb-2">
                             <div class="o_main_panel_resume_title_job">
@@ -114,7 +114,7 @@
         </div>
 
         <div class="oe_structure"></div>
-        <t t-set="has_skills" t-value="show_skills and any(skill_line.skill_type_id != skill_type_language for skill_line in o.employee_skill_ids)"/>
+        <t t-set="has_skills" t-value="show_skills and any(skill_line.skill_type_id != skill_type_language for skill_line in o.current_employee_skill_ids)"/>
         <div class="o_main_panel mt-4" t-if="has_skills">
             <div class="o_main_panel_section">
                 <h2 class="o_main_panel_title" t-attf-style="color: #{color_secondary};">
@@ -123,7 +123,7 @@
                     </span>
                     Skills
                 </h2>
-                <t t-set="valid_skills" t-value="[skill for skill in o.employee_skill_ids if skill.skill_type_id != skill_type_language]"/>
+                <t t-set="valid_skills" t-value="[skill for skill in o.current_employee_skill_ids if skill.skill_type_id != skill_type_language]"/>
                 <t t-foreach="[valid_skills[n:n+2] for n in range(0, len(valid_skills), 2)]" t-as="skills_pair">
                     <div class="o_main_panel_skills row ps-5">
                         <t t-foreach="skills_pair" t-as="skill_line">
