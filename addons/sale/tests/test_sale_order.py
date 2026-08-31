@@ -1446,3 +1446,49 @@ class TestSaleMailComposerUI(MailCommon, HttpCase):
                 "mail_attachment_removal_tour",
                 login="admin",
             )
+
+
+@tagged("post_install", "-at_install")
+class TestResPartnerViewGroups(SaleCommon):
+    """sale's inherits of account/payment partner views must ADD their own
+    group instead of replacing the base view's groups= wholesale (F03/F04)."""
+
+    def _combined_groups(self, xmlid, node_xpath):
+        view = self.env.ref(xmlid)
+        arch = view._get_combined_arch()
+        node = arch.find(node_xpath)
+        self.assertIsNotNone(
+            node, f"{node_xpath!r} not found in {xmlid}'s combined arch"
+        )
+        return set((node.get("groups") or "").split(","))
+
+    def test_fiscal_information_keeps_base_groups(self):
+        groups = self._combined_groups(
+            "account.view_partner_property_form", ".//group[@name='fiscal_information']"
+        )
+        self.assertIn("account.group_account_invoice", groups)
+        self.assertIn("account.group_account_readonly", groups)
+        self.assertIn("sales_team.group_sale_salesman", groups)
+
+    def test_payment_term_fields_keep_base_groups(self):
+        for field_name in (
+            "property_payment_term_id",
+            "property_supplier_payment_term_id",
+        ):
+            with self.subTest(field=field_name):
+                groups = self._combined_groups(
+                    "account.view_partner_property_form",
+                    f".//field[@name='{field_name}']",
+                )
+                self.assertIn("account.group_account_invoice", groups)
+                self.assertIn("account.group_account_readonly", groups)
+                self.assertIn("sales_team.group_sale_salesman", groups)
+
+    def test_saved_payment_methods_button_adds_group(self):
+        view = self.env.ref("payment.view_partners_form_payment_defaultcreditcard")
+        arch = view._get_combined_arch()
+        action_id = self.env.ref("payment.action_payment_token").id
+        button = arch.find(f".//button[@name='{action_id}']")
+        self.assertIsNotNone(button)
+        groups = set((button.get("groups") or "").split(","))
+        self.assertIn("sales_team.group_sale_salesman", groups)
