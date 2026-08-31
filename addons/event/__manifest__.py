@@ -18,6 +18,7 @@ Key Features
 """,
     "depends": [
         "barcodes",
+        "digest",
         # 'mail',  # via phone_validation
         "phone_validation",
         "portal",
@@ -26,6 +27,7 @@ Key Features
     "data": [
         "security/event_security.xml",
         "security/ir.model.access.csv",
+        "views/digest_views.xml",
         "views/event_menu_views.xml",
         "views/event_ticket_views.xml",
         "views/event_mail_views.xml",
@@ -37,6 +39,7 @@ Key Features
         "report/event_event_templates.xml",
         "report/event_event_reports.xml",
         "report/event_registration_report.xml",
+        "data/digest_data.xml",
         "data/ir_cron_data.xml",
         "data/mail_template_data.xml",
         "data/event_data.xml",

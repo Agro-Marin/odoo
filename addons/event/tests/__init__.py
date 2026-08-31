@@ -1,3 +1,5 @@
+from . import test_digest
+from . import test_event_indexes
 from . import test_event_internals
 from . import test_event_mail_schedule
 from . import test_event_slot

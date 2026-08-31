@@ -12,6 +12,7 @@ class EventRegistrationAnswer(models.Model):
         "event.question",
         ondelete="restrict",
         required=True,
+        index=True,
         domain="[('event_ids', 'in', event_id)]",
     )
     registration_id = fields.Many2one(

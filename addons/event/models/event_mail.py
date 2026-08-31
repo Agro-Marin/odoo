@@ -278,6 +278,10 @@ class EventMail(models.Model):
                     [("scheduler_id", "in", self.ids)]
                 ),
             ),
+            # an attendance on a multi-entry ticket is a sub registration of a
+            # real attendee, who was already scheduled their mails as the main
+            # one -- scheduling them again would mail the same person per scan
+            ("main_registration_id", "=", False),
         ]
         if context_registrations:
             new_attendee_domain += [

@@ -47,7 +47,7 @@ export class EventRegistrationSummaryDialog extends Component {
     async onRegistrationConfirm() {
         if (this.registrationStatus.value !== "confirmed_registration") {
             this.button.enabled = false
-            await this.orm.call("event.registration", "action_set_done", [this.registration.id]).catch(() => this.button.enabled = true);
+            await this.orm.call("event.registration", "action_attend_event", [this.registration.id]).catch(() => this.button.enabled = true);
             this.registrationStatus.value = "confirmed_registration";
         }
         this.props.close();
@@ -61,7 +61,11 @@ export class EventRegistrationSummaryDialog extends Component {
 
     async undoRegistration() {
         if (["confirmed_registration", "already_registered"].includes(this.registrationStatus.value)) {
-            await this.orm.call("event.registration", "action_confirm", [this.registration.id]);
+            if (this.registration.remaining_entries > 0) {
+                await this.orm.call("event.registration", "action_cancel_last_sub_registration", [this.registration.id]);
+            } else {
+                await this.orm.call("event.registration", "action_confirm_and_reset", [this.registration.id]);
+            }
         } else if (this.registrationStatus.value == "unconfirmed_registration") {
             await this.orm.call("event.registration", "action_set_draft", [this.registration.id]);
         }

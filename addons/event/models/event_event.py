@@ -1077,6 +1077,10 @@ class EventEvent(models.Model):
         self.check_singleton()
         now = datetime.now().astimezone(timezone(self.env.user.tz or "UTC"))
         next_hour = now + timedelta(hours=1)
+        # `date` is required on event.slot but is not something the user picks
+        # when the form is what opened, so seed it with the day the calendar
+        # lands on: today while the event is running, else the nearest bound.
+        initial_date = min(max(datetime.now(), self.date_begin), self.date_end)
         return {
             "type": "ir.actions.act_window",
             "name": _("Slots"),
@@ -1099,10 +1103,13 @@ class EventEvent(models.Model):
                 "event_calendar_range_end_date": self.date_end.astimezone(
                     timezone(self.date_tz)
                 ).date(),
+                # Default date for the views that create a slot one at a time.
+                # The desktop calendar multi create picks its own range instead.
+                "default_date": initial_date.replace(tzinfo=UTC)
+                .astimezone(timezone(self.date_tz))
+                .date(),
                 # Calendar view initial date.
-                "initial_date": min(
-                    max(datetime.now(), self.date_begin), self.date_end
-                ),
+                "initial_date": initial_date,
             },
         }
 
