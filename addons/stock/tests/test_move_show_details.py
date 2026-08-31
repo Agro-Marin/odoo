@@ -42,7 +42,7 @@ class TestShowDetailsVisible(TestStockCommon):
             {"use_create_lots": False, "use_existing_lots": False},
         )
 
-    def _make_move(self, user):
+    def _create_move_for_user(self, user):
         loc = self.env.ref("stock.stock_location_stock")
         move = self.env["stock.move"].create(
             {
@@ -67,7 +67,7 @@ class TestShowDetailsVisible(TestStockCommon):
         self.assertFalse(self.plain_user.has_group("stock.group_tracking_owner"))
 
     def test_packages_group_reveals_details_on_non_lot_type(self):
-        move = self._make_move(self.pack_user)
+        move = self._create_move_for_user(self.pack_user)
         self.assertTrue(
             move.show_details_visible,
             "The Packages group must reveal the detailed operations button even "
@@ -75,7 +75,7 @@ class TestShowDetailsVisible(TestStockCommon):
         )
 
     def test_no_revealing_group_hides_details_on_non_lot_type(self):
-        move = self._make_move(self.plain_user)
+        move = self._create_move_for_user(self.plain_user)
         self.assertFalse(
             move.show_details_visible,
             "Without any of the packages/multi-location/owner groups, a non-lot "

@@ -349,7 +349,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
     def _get_quant_domain(self, location_ids, products):
         return self._get_domain_base_quant(location_ids, products)
 
-    def _compute_out_reserved(self, out, linked_moves, used_reserved_moves, ctx):
+    def _get_out_reserved(self, out, linked_moves, used_reserved_moves, ctx):
         reserved_out = 0
         reserved_move = self.env["stock.move"]
         for move in linked_moves:
@@ -378,7 +378,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
             "linked_moves": linked_moves,
         }
 
-    def _compute_out_taken_from_stock(self, out, reserved_data, ctx):
+    def _get_out_taken_from_stock(self, out, reserved_data, ctx):
         reserved_out = reserved_data["reserved"]
         demand_out = out.product_qty - reserved_out
         linked_moves = reserved_data["linked_moves"]
@@ -560,12 +560,12 @@ class StockForecasted_Product_Product(models.AbstractModel):
         for out_moves in outs_per_product.values():
             used_reserved_moves = defaultdict(float)
             for out in out_moves:
-                moves_data[out] = self._compute_out_reserved(
+                moves_data[out] = self._get_out_reserved(
                     out, linked_moves_per_out[out], used_reserved_moves, ctx
                 )
             for out in out_moves:
                 moves_data[out].update(
-                    self._compute_out_taken_from_stock(out, moves_data[out], ctx)
+                    self._get_out_taken_from_stock(out, moves_data[out], ctx)
                 )
         return moves_data
 

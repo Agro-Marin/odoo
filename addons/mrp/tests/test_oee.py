@@ -88,8 +88,12 @@ class TestOee(TestMrpCommon):
             self.env.ref("mrp.block_reason4"), start_time, end_time
         )
 
-        blocked_time = 1.33 + 3.0 + 1.52
-        productive_time = 13.0
+        # 3.0 is the "Reduced Speed" line, whose loss category is
+        # `performance`: an overrun of `duration_expected` is machine-occupied
+        # time, so `_compute_effectiveness_times` buckets it as productive
+        # rather than as a stoppage.  It is a wall-clock loss type, not a block.
+        blocked_time = 1.33 + 1.52
+        productive_time = 13.0 + 3.0
 
         self.assertEqual(
             self.workcenter_1.blocked_time,

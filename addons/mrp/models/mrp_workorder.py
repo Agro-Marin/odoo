@@ -1235,18 +1235,6 @@ class MrpWorkorder(models.Model):
                 _("Please unblock the work center to start the work order.")
             )
         for wo in self:
-            if wo.state == "blocked":
-                # Derived from the work orders it depends on not having
-                # produced enough yet -- the same reason `set_state` refuses
-                # to let it be written directly (see its docstring).
-                if skip_invalid_state:
-                    continue
-                raise UserError(
-                    _(
-                        "You cannot start a work order that is waiting on "
-                        "another one to produce enough first."
-                    )
-                )
             if any(
                 not time.date_end
                 for time in wo.time_ids.filtered(

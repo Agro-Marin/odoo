@@ -5,8 +5,8 @@ from odoo.fields import Domain
 class StockMove(models.Model):
     _inherit = "stock.move"
 
-    def _search_picking_for_assignation_domain(self):
-        domain = super()._search_picking_for_assignation_domain()
+    def _get_domain_picking_for_assignation(self):
+        domain = super()._get_domain_picking_for_assignation()
         return Domain.AND(
             [domain, ["|", ("batch_id", "=", False), ("batch_id.is_wave", "=", False)]]
         )

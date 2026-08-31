@@ -77,9 +77,9 @@ class StockMove(models.Model):
         return vals_list
 
     @api.ondelete(at_uninstall=False)
-    def _unlink_if_draft_or_cancel(self):
+    def _unlink_except_done_or_linked(self):
         self.filtered('repair_id')._action_cancel()
-        return super()._unlink_if_draft_or_cancel()
+        return super()._unlink_except_done_or_linked()
 
     def unlink(self):
         self._clean_repair_sale_order_line()

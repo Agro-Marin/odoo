@@ -22,7 +22,7 @@ from ..tools.reservation import (
     RemovalStrategy,
     ReservationCandidate,
     distribute_reservation,
-    least_packages_search,
+    get_least_packages,
 )
 
 _logger = logging.getLogger(__name__)
@@ -362,7 +362,7 @@ class StockQuant(models.Model):
                     recommended_location = self.env["stock.location"]
                     if ref_doc_location_id:
                         for location in sn_locations:
-                            if location._child_of(ref_doc_location_id):
+                            if location._is_child_of(ref_doc_location_id):
                                 recommended_location = location
                                 break
                     else:
@@ -1416,7 +1416,7 @@ class StockQuant(models.Model):
     @api.model
     def _get_removal_strategy_sort_key(self, removal_strategy):
         strategy = self._get_removal_strategies().get(removal_strategy)
-        return strategy.as_sorted_arguments() if strategy else None
+        return strategy.resolve_sorted_arguments() if strategy else None
 
     def _run_least_packages_removal_strategy_astar(self, domain, qty):
         domain = Domain(domain).optimize(self)
@@ -1446,7 +1446,7 @@ class StockQuant(models.Model):
             heavier = [pkg for pkg in real_packages if pkg[1] >= 1]
             lighter = [pkg for pkg in real_packages if pkg[1] < 1]
             qty_by_package = heavier + [(None, 1)] * singles_count + lighter
-            taken_packages = least_packages_search(qty_by_package, qty)
+            taken_packages = get_least_packages(qty_by_package, qty)
             return self._least_packages_domain(taken_packages, domain)
         except MemoryError:
             _logger.info(
@@ -1565,14 +1565,14 @@ class StockQuant(models.Model):
             domain = self._run_least_packages_removal_strategy_astar(domain, qty)
 
         quants_cache = self.env.context.get("quants_cache")
-        cache_sort = strategy.as_sorted_arguments()
+        cache_sort = strategy.resolve_sorted_arguments()
 
         if (
             quants_cache is not None
             and strict
             and not strategy.narrows_to_packages
             and cache_sort is not None
-            and quants_cache.covers(product_id, location_id, lot_id)
+            and quants_cache.is_covering(product_id, location_id, lot_id)
             and not self._is_gather_domain_extended(
                 domain, product_id, location_id, lot_id, package_id, owner_id, strict
             )
@@ -1723,7 +1723,7 @@ class StockQuant(models.Model):
                 quants.mapped("reserved_quantity")
             )
             if ledger is not None:
-                available_quantity -= sum(ledger.pending(quant) for quant in quants)
+                available_quantity -= sum(ledger.get_pending(quant) for quant in quants)
             if allow_negative:
                 return available_quantity
             return (
@@ -1739,7 +1739,7 @@ class StockQuant(models.Model):
             available_quantities[quant.lot_id or None] += (
                 quant.quantity
                 - quant.reserved_quantity
-                - (ledger.pending(quant) if ledger is not None else 0.0)
+                - (ledger.get_pending(quant) if ledger is not None else 0.0)
             )
         if allow_negative:
             return sum(available_quantities.values())
@@ -1782,7 +1782,7 @@ class StockQuant(models.Model):
                 quant,
                 quant.quantity,
                 quant.reserved_quantity
-                + (ledger.pending(quant) if ledger is not None else 0.0),
+                + (ledger.get_pending(quant) if ledger is not None else 0.0),
                 quant._reservation_key(),
             )
             for quant in quants

@@ -30,7 +30,7 @@ from ..const import (
     OUTGOING_BLOCK_TYPES,
     is_internal_flag,
 )
-from odoo.addons.stock.tools.quantity import resolve_context_record_ids
+from odoo.addons.stock.tools.quantity import get_context_record_ids
 
 _logger = logging.getLogger(__name__)
 
@@ -524,7 +524,7 @@ class StockLocation(models.Model):
                     for location in self
                     if (
                         children := descendants.filtered(
-                            lambda child, parent=location: child._child_of(parent),
+                            lambda child, parent=location: child._is_child_of(parent),
                         )
                     )
                 ),
@@ -582,7 +582,7 @@ class StockLocation(models.Model):
     def _compute_display_name(self):
         formatted = self.env.context.get("formatted_display_name")
         for location in self:
-            if formatted and location._prefixed_by_parent():
+            if formatted and location._is_prefixed_by_parent():
                 location.display_name = (
                     f"--{location.location_id.complete_name}/--{location.name}"
                 )
@@ -634,7 +634,7 @@ class StockLocation(models.Model):
     @api.depends("name", "location_id.complete_name", "usage")
     def _compute_complete_name(self):
         for location in self:
-            if location._prefixed_by_parent():
+            if location._is_prefixed_by_parent():
                 location.complete_name = (
                     f"{location.location_id.complete_name}/{location.name}"
                 )
@@ -774,13 +774,13 @@ class StockLocation(models.Model):
             ],
         ).ids
 
-    def _child_of(self, other_location):
+    def _is_child_of(self, other_location):
         self.check_singleton()
         if not self.parent_path or not other_location.parent_path:
             return False
         return self.parent_path.startswith(other_location.parent_path)
 
-    def _prefixed_by_parent(self):
+    def _is_prefixed_by_parent(self):
         self.check_singleton()
         return bool(self.location_id) and self.usage != "view"
 
@@ -792,7 +792,7 @@ class StockLocation(models.Model):
             self.env.ref("stock.stock_location_inter_company", raise_if_not_found=False)
             or self.browse()
         )
-        return self._child_of(inter_company_location)
+        return self._is_child_of(inter_company_location)
 
     def should_bypass_reservation(self):
         self.check_singleton()
@@ -918,7 +918,7 @@ class StockLocation(models.Model):
             locations = destination.child_internal_location_ids
         else:
             locations = locations.filtered(
-                lambda loc, parent=destination: loc._child_of(parent),
+                lambda loc, parent=destination: loc._is_child_of(parent),
             )
         if putaway_rules:
             qty_by_location = destination._get_putaway_qty_by_location(
@@ -1323,7 +1323,7 @@ class StockLocation(models.Model):
         return annual_date
 
     def _quantity_domains_from_context(self) -> tuple[Domain, Domain, Domain]:
-        location_ids = self._scope_ids_from_context()
+        location_ids = self._resolve_scope_ids_from_context()
         fell_back = location_ids is None
         if fell_back:
             location_ids = set(
@@ -1355,7 +1355,7 @@ class StockLocation(models.Model):
             )
         return self._quantity_domains(location_ids)
 
-    def _scope_ids_from_context(self) -> set[int] | None:
+    def _resolve_scope_ids_from_context(self) -> set[int] | None:
         context = self.env.context
         location = context.get("location") or context.get("search_location")
         if location and not isinstance(location, list):
@@ -1367,12 +1367,12 @@ class StockLocation(models.Model):
         if not warehouse:
             if not location:
                 return None
-            return resolve_context_record_ids(self.env, "stock.location", location)
+            return get_context_record_ids(self.env, "stock.location", location)
 
         view_location_ids = set(
             self.env["stock.warehouse"]
             .browse(
-                resolve_context_record_ids(self.env, "stock.warehouse", warehouse),
+                get_context_record_ids(self.env, "stock.warehouse", warehouse),
             )
             .mapped("view_location_id")
             .ids
@@ -1387,7 +1387,7 @@ class StockLocation(models.Model):
         return {
             candidate.id
             for candidate in self.browse(
-                resolve_context_record_ids(self.env, "stock.location", location),
+                get_context_record_ids(self.env, "stock.location", location),
             )
             if candidate.parent_path
             and any(candidate.parent_path.startswith(path) for path in parent_paths)

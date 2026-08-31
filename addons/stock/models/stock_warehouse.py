@@ -579,7 +579,7 @@ class StockWarehouse(models.Model):
                     "Warehouse %s has stock or transfer records on its locations, so "
                     "it cannot be deleted. Archive it instead — its history stays "
                     "readable.",
-                    self._name_one_of(record[field_name].warehouse_id),
+                    self._get_one_display_name(record[field_name].warehouse_id),
                 )
             )
 
@@ -795,7 +795,7 @@ class StockWarehouse(models.Model):
                 _(
                     "You still have ongoing operations for operation types %(operations)s in warehouse %(warehouse)s",
                     operations=blocking.mapped("name"),
-                    warehouse=self._name_one_of(blocking.warehouse_id),
+                    warehouse=self._get_one_display_name(blocking.warehouse_id),
                 )
             )
         locations = (
@@ -822,18 +822,18 @@ class StockWarehouse(models.Model):
             _(
                 "%(operations)s have default source or destination locations within warehouse %(warehouse)s, therefore you cannot delete it.",
                 operations=foreign.mapped("name"),
-                warehouse=self._name_one_of(owners),
+                warehouse=self._get_one_display_name(owners),
             )
             if deleting
             else _(
                 "%(operations)s have default source or destination locations within warehouse %(warehouse)s, therefore you cannot archive it.",
                 operations=foreign.mapped("name"),
-                warehouse=self._name_one_of(owners),
+                warehouse=self._get_one_display_name(owners),
             )
         )
         raise UserError(message)
 
-    def _name_one_of(self, candidates):
+    def _get_one_display_name(self, candidates):
         return ((candidates & self) or self)[:1].display_name
 
     def _update_multiwarehouse_group(self):

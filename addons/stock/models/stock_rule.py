@@ -347,7 +347,7 @@ class StockRule(models.Model):
 
     def _correct_pushed_moves(self, new_moves):
         moves_by_final_location = defaultdict(list)
-        for move in new_moves.filtered(lambda move: move._skip_push()):
+        for move in new_moves.filtered(lambda move: move._is_excluded_from_push()):
             moves_by_final_location[move.location_final_id.id].append(move.id)
         for location_id, move_ids in moves_by_final_location.items():
             new_moves.browse(move_ids).location_dest_id = location_id
@@ -364,13 +364,14 @@ class StockRule(models.Model):
         location_dest_id = self.location_dest_id.id
         if (
             move_to_copy.location_final_id
-            and not move_to_copy.location_dest_id._child_of(
+            and not move_to_copy.location_dest_id._is_child_of(
                 move_to_copy.location_final_id
             )
         ):
             final_location_id = move_to_copy.location_final_id.id
-        if move_to_copy.location_final_id and move_to_copy.location_final_id._child_of(
-            self.location_dest_id
+        if (
+            move_to_copy.location_final_id
+            and move_to_copy.location_final_id._is_child_of(self.location_dest_id)
         ):
             location_dest_id = move_to_copy.location_final_id.id
         if move_to_copy.product_uom_id.compare(move_to_copy.product_uom_qty, 0) < 0:

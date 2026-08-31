@@ -24,7 +24,7 @@ class TestStockMoveReviewFixes(TestStockCommon):
             },
         )
 
-    def _out_picking(self):
+    def _create_out_picking(self):
         return self.env["stock.picking"].create(
             {
                 "picking_type_id": self.picking_type_out.id,
@@ -38,7 +38,7 @@ class TestStockMoveReviewFixes(TestStockCommon):
             {"name": "REVIEW-NOSTOCK", "product_id": self.lot_product.id},
         )
 
-        picking_c = self._out_picking()
+        picking_c = self._create_out_picking()
         move_c = self.env["stock.move"].create(
             {
                 "product_id": self.lot_product.id,
@@ -52,7 +52,7 @@ class TestStockMoveReviewFixes(TestStockCommon):
             },
         )
 
-        picking_w = self._out_picking()
+        picking_w = self._create_out_picking()
         move_w = self.env["stock.move"].create(
             {
                 "product_id": self.lot_product.id,
@@ -82,7 +82,7 @@ class TestStockMoveReviewFixes(TestStockCommon):
         lot = self.env["stock.lot"].create(
             {"name": "REVIEW-EXPLICIT", "product_id": self.lot_product.id},
         )
-        picking = self._out_picking()
+        picking = self._create_out_picking()
         move = self.env["stock.move"].create(
             {
                 "product_id": self.lot_product.id,
@@ -139,7 +139,7 @@ class TestStockMoveReviewFixes(TestStockCommon):
 
     def test_merge_move_itemgetter_single_non_float_field(self):
         Move = self.env["stock.move"]
-        picking = self._out_picking()
+        picking = self._create_out_picking()
         move = Move.create(
             {
                 "product_id": self.lot_product.id,
@@ -354,7 +354,7 @@ class TestStockMoveReviewFixes(TestStockCommon):
         )
 
     def test_key_assign_picking_includes_company(self):
-        picking = self._out_picking()
+        picking = self._create_out_picking()
         move = self.MoveObj.create(
             {
                 "product_id": self.lot_product.id,
@@ -410,7 +410,7 @@ class TestStockMoveReviewFixes(TestStockCommon):
                 "is_storable": True,
             },
         )
-        picking = self._out_picking()
+        picking = self._create_out_picking()
         out_move = self.MoveObj.create(
             {
                 "product_id": product.id,

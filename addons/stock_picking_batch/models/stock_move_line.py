@@ -309,7 +309,7 @@ class StockMoveLine(models.Model):
         for wave in potential_waves:
             for wave_location in reversed(picking_type.wave_location_ids):
                 if all(
-                    loc._child_of(wave_location)
+                    loc._is_child_of(wave_location)
                     for loc in wave.move_line_ids.location_id
                 ):
                     waves_nearest_parent_locations[wave] = wave_location.id
@@ -530,7 +530,7 @@ class StockMoveLine(models.Model):
         if picking_type.wave_group_by_location:
             for line in potential_lines:
                 for location in reversed(picking_type.wave_location_ids):
-                    if line.location_id._child_of(location):
+                    if line.location_id._is_child_of(location):
                         lines_nearest_parent_locations[line] = location.id
                         break
         return potential_lines, lines_nearest_parent_locations

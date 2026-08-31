@@ -18,13 +18,13 @@ class LocationHardeningCase(TransactionCase):
         cls.group_hard_override = cls.env.ref("stock.group_override_hard_block")
 
     @classmethod
-    def _make_product(cls, name, weight=1.0, **vals):
+    def _create_product(cls, name, weight=1.0, **vals):
         return cls.env["product.product"].create(
             {"name": name, "is_storable": True, "weight": weight, **vals},
         )
 
     @classmethod
-    def _make_location(cls, name, parent=None, **vals):
+    def _create_location(cls, name, parent=None, **vals):
         return cls.Location.create(
             {
                 "name": name,
@@ -34,7 +34,7 @@ class LocationHardeningCase(TransactionCase):
             },
         )
 
-    def _make_user(self, login, *groups):
+    def _create_user(self, login, *groups):
         return self.env["res.users"].create(
             {
                 "name": login,
@@ -65,11 +65,11 @@ class TestPutawayBatchHonoursItsOwnPlacements(LocationHardeningCase):
     `forecast_weight` from a query that cannot see rows nobody has written.
     """
 
-    def _build(self, name, category_vals=None, capacity_qty=None):
+    def _create_putaway_scenario(self, name, category_vals=None, capacity_qty=None):
         category = self.env["stock.storage.category"].create(
             {"name": name, **(category_vals or {})},
         )
-        view = self._make_location(f"{name} View", usage="view")
+        view = self._create_location(f"{name} View", usage="view")
         shelves = self.Location.create(
             [
                 {
@@ -81,7 +81,7 @@ class TestPutawayBatchHonoursItsOwnPlacements(LocationHardeningCase):
                 for letter in "AB"
             ],
         )
-        product = self._make_product(f"{name} Product")
+        product = self._create_product(f"{name} Product")
         self.env["stock.putaway.rule"].create(
             {
                 "location_in_id": view.id,
@@ -109,7 +109,9 @@ class TestPutawayBatchHonoursItsOwnPlacements(LocationHardeningCase):
         return placed
 
     def test_a_batch_does_not_pile_past_the_weight_capacity(self):
-        view, __, product = self._build("Weight", {"max_weight": 10.0})
+        view, __, product = self._create_putaway_scenario(
+            "Weight", {"max_weight": 10.0}
+        )
         placed = self._placed(view, product, [4.0] * 4)
         self.assertTrue(
             all(quantity * product.weight <= 10.0 for quantity in placed.values()),
@@ -118,8 +120,12 @@ class TestPutawayBatchHonoursItsOwnPlacements(LocationHardeningCase):
         )
 
     def test_it_spills_to_the_second_shelf_exactly_as_the_quantity_cap_does(self):
-        weight_view, __, weight_product = self._build("W2", {"max_weight": 10.0})
-        qty_view, __, qty_product = self._build("Q2", capacity_qty=10.0)
+        weight_view, __, weight_product = self._create_putaway_scenario(
+            "W2", {"max_weight": 10.0}
+        )
+        qty_view, __, qty_product = self._create_putaway_scenario(
+            "Q2", capacity_qty=10.0
+        )
         by_weight = sorted(
             self._placed(weight_view, weight_product, [4.0] * 4).values()
         )
@@ -128,7 +134,9 @@ class TestPutawayBatchHonoursItsOwnPlacements(LocationHardeningCase):
         self.assertEqual(by_weight, [8.0, 8.0])
 
     def test_committed_stock_still_decides_a_single_placement(self):
-        view, shelves, product = self._build("W3", {"max_weight": 10.0})
+        view, shelves, product = self._create_putaway_scenario(
+            "W3", {"max_weight": 10.0}
+        )
         self.Quant._update_available_quantity(product, shelves[0], 8)
         self.env.flush_all()
         self.assertEqual(view._get_putaway_strategy(product, 4.0), shelves[1])
@@ -150,7 +158,7 @@ class TestPutawayBatchHonoursItsOwnPlacements(LocationHardeningCase):
             cursor_class.execute = original
 
     def test_the_batch_does_not_cost_more_the_longer_it_gets(self):
-        view, __, product = self._build("W4", {"max_weight": 1000.0})
+        view, __, product = self._create_putaway_scenario("W4", {"max_weight": 1000.0})
         # One throwaway placement first: the very first call of the transaction
         # pays for registry-level lookups that no later one repeats, and that
         # warm-up is not what this test is about.
@@ -178,7 +186,7 @@ class TestPutawayBatchHonoursItsOwnPlacements(LocationHardeningCase):
         `exclude_sml_ids` to take them back out, so their weight is already in
         `forecast_weight`. Only what the batch places itself is missing.
         """
-        product = self._make_product("Seeded", weight=2.0)
+        product = self._create_product("Seeded", weight=2.0)
         scan = PutawayScan(product, {7: 100.0})
         self.assertEqual(scan.placed[7], 100.0)
         self.assertEqual(scan.staged_weight(7), 0.0)
@@ -191,10 +199,10 @@ class TestPutawayBatchHonoursItsOwnPlacements(LocationHardeningCase):
 class TestArchivingCannotBeWaivedFromTheContext(LocationHardeningCase):
     def setUp(self):
         super().setUp()
-        self.product = self._make_product("Archive Product")
-        self.parent = self._make_location("Archive Parent")
-        self.child = self._make_location("Archive Child", parent=self.parent)
-        self.grandchild = self._make_location("Archive Grandchild", parent=self.child)
+        self.product = self._create_product("Archive Product")
+        self.parent = self._create_location("Archive Parent")
+        self.child = self._create_location("Archive Child", parent=self.parent)
+        self.grandchild = self._create_location("Archive Grandchild", parent=self.child)
 
     def test_a_forged_context_key_no_longer_waives_the_stock_check(self):
         self.Quant._update_available_quantity(self.product, self.parent, 6)
@@ -231,7 +239,7 @@ class TestArchivingCannotBeWaivedFromTheContext(LocationHardeningCase):
         transit location holding stock is one the interface calls occupied while
         it archived without complaint.
         """
-        transit = self._make_location("Transit Box", usage="transit")
+        transit = self._create_location("Transit Box", usage="transit")
         self.Quant._update_available_quantity(self.product, transit, 12)
         self.env.flush_all()
         self.env.invalidate_all()
@@ -240,7 +248,7 @@ class TestArchivingCannotBeWaivedFromTheContext(LocationHardeningCase):
             transit.write({"active": False})
 
     def test_the_refusal_names_each_location_once(self):
-        other = self._make_product("Second Archive Product")
+        other = self._create_product("Second Archive Product")
         self.Quant._update_available_quantity(self.product, self.child, 3)
         self.Quant._update_available_quantity(other, self.child, 4)
         self.env.flush_all()
@@ -253,11 +261,13 @@ class TestArchivingCannotBeWaivedFromTheContext(LocationHardeningCase):
 class TestDeletingIsGovernedLikeArchiving(LocationHardeningCase):
     def setUp(self):
         super().setUp()
-        self.blocked = self._make_location("Hard Blocked Leaf")
+        self.blocked = self._create_location("Hard Blocked Leaf")
         self.blocked.block_type = "hard"
         self.env.flush_all()
-        self.manager = self._make_user("hardening_manager")
-        self.unlocker = self._make_user("hardening_unlocker", self.group_hard_override)
+        self.manager = self._create_user("hardening_manager")
+        self.unlocker = self._create_user(
+            "hardening_unlocker", self.group_hard_override
+        )
 
     def test_a_manager_who_cannot_archive_it_cannot_delete_it_either(self):
         self.assertFalse(self.manager.has_group("stock.group_override_hard_block"))
@@ -272,8 +282,8 @@ class TestDeletingIsGovernedLikeArchiving(LocationHardeningCase):
         self.assertFalse(self.blocked.exists())
 
     def test_the_block_is_read_over_the_whole_subtree_not_just_the_receiver(self):
-        parent = self._make_location("Governed Parent")
-        child = self._make_location("Governed Child", parent=parent)
+        parent = self._create_location("Governed Parent")
+        child = self._create_location("Governed Child", parent=parent)
         child.block_type = "hard"
         self.env.flush_all()
         with self.assertRaises(UserError):
@@ -282,7 +292,7 @@ class TestDeletingIsGovernedLikeArchiving(LocationHardeningCase):
             ).unlink()
 
     def test_an_unblocked_location_still_deletes(self):
-        plain = self._make_location("Plain Leaf")
+        plain = self._create_location("Plain Leaf")
         plain.with_user(self.manager).unlink()
         self.assertFalse(plain.exists())
 
@@ -290,8 +300,8 @@ class TestDeletingIsGovernedLikeArchiving(LocationHardeningCase):
 @tagged("post_install", "-at_install")
 class TestIsEmptyTracksItsQuants(LocationHardeningCase):
     def test_adding_stock_makes_a_location_stop_reporting_empty(self):
-        product = self._make_product("Empty Product")
-        shelf = self._make_location("Empty Shelf")
+        product = self._create_product("Empty Product")
+        shelf = self._create_location("Empty Shelf")
         self.assertTrue(shelf.is_empty)
         self.Quant._update_available_quantity(product, shelf, 7)
         self.env.flush_all()
@@ -301,8 +311,8 @@ class TestIsEmptyTracksItsQuants(LocationHardeningCase):
         )
 
     def test_removing_the_stock_makes_it_report_empty_again(self):
-        product = self._make_product("Empty Product 2")
-        shelf = self._make_location("Empty Shelf 2")
+        product = self._create_product("Empty Product 2")
+        shelf = self._create_location("Empty Shelf 2")
         self.Quant._update_available_quantity(product, shelf, 7)
         self.env.flush_all()
         self.assertFalse(shelf.is_empty)
@@ -311,9 +321,9 @@ class TestIsEmptyTracksItsQuants(LocationHardeningCase):
         self.assertTrue(shelf.is_empty)
 
     def test_the_search_and_the_field_agree_in_both_directions(self):
-        product = self._make_product("Search Product")
-        full = self._make_location("Search Full")
-        empty = self._make_location("Search Empty")
+        product = self._create_product("Search Product")
+        full = self._create_location("Search Full")
+        empty = self._create_location("Search Empty")
         self.Quant._update_available_quantity(product, full, 2)
         self.env.flush_all()
         occupied = self.Location.search([("is_empty", "=", False)])
@@ -399,8 +409,8 @@ class TestTheReservedBreakdownIsKeyedByUnit(LocationHardeningCase):
 @tagged("post_install", "-at_install")
 class TestUsageConversionAsksOnce(LocationHardeningCase):
     def test_a_view_refuses_even_an_emptied_quant(self):
-        product = self._make_product("Convert Product")
-        shelf = self._make_location("Convert Shelf")
+        product = self._create_product("Convert Product")
+        shelf = self._create_location("Convert Shelf")
         self.Quant._update_available_quantity(product, shelf, 5)
         self.Quant._update_available_quantity(product, shelf, -5)
         self.env.flush_all()
@@ -412,8 +422,8 @@ class TestUsageConversionAsksOnce(LocationHardeningCase):
             shelf.write({"usage": "view"})
 
     def test_a_transit_conversion_accepts_the_same_emptied_quant(self):
-        product = self._make_product("Convert Product 2")
-        shelf = self._make_location("Convert Shelf 2")
+        product = self._create_product("Convert Product 2")
+        shelf = self._create_location("Convert Shelf 2")
         self.Quant._update_available_quantity(product, shelf, 5)
         self.Quant._update_available_quantity(product, shelf, -5)
         self.env.flush_all()
@@ -421,8 +431,8 @@ class TestUsageConversionAsksOnce(LocationHardeningCase):
         self.assertEqual(shelf.usage, "transit")
 
     def test_stock_still_refuses_any_conversion(self):
-        product = self._make_product("Convert Product 3")
-        shelf = self._make_location("Convert Shelf 3")
+        product = self._create_product("Convert Product 3")
+        shelf = self._create_location("Convert Shelf 3")
         self.Quant._update_available_quantity(product, shelf, 5)
         self.env.flush_all()
         with self.assertRaises(UserError):
@@ -450,9 +460,9 @@ class TestTheBlockSurvivesAQuantIdWrite(LocationHardeningCase):
         super().setUpClass()
         cls.warehouse = cls.env["stock.warehouse"].search([], limit=1)
         cls.customer_location = cls.env.ref("stock.stock_location_customers")
-        cls.blocked_product = cls._make_product("Quant Bypass Product")
-        cls.free_location = cls._make_location("Bypass Free")
-        cls.blocked_location = cls._make_location(
+        cls.blocked_product = cls._create_product("Quant Bypass Product")
+        cls.free_location = cls._create_location("Bypass Free")
+        cls.blocked_location = cls._create_location(
             "Bypass Blocked",
             block_type="soft_out",
         )
@@ -624,8 +634,8 @@ class TestTheProductGuardReadsTheStoredState(LocationHardeningCase):
                 ],
             },
         )
-        self.first = self._make_product("Guard Product One")
-        self.second = self._make_product("Guard Product Two")
+        self.first = self._create_product("Guard Product One")
+        self.second = self._create_product("Guard Product Two")
 
     def _moveless_line(self):
         line = (

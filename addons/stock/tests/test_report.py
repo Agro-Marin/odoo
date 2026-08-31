@@ -2182,7 +2182,7 @@ class TestReports(TestReportsCommon):
         self.assertEqual(
             reason,
             "This report cannot be used for done and not done %s at the same time"
-            % report._get_doc_types(),
+            % report._get_doc_types_label(),
             "empty report reason not shown",
         )
 
@@ -2855,7 +2855,7 @@ class TestReports(TestReportsCommon):
         supplier_loc = self.ref("stock.stock_location_suppliers")
         stock_loc = warehouse.lot_stock_id.id
 
-        def make_receipt(qty):
+        def create_receipt(qty):
             return self.env["stock.picking"].create(
                 {
                     "picking_type_id": self.ref("stock.picking_type_in"),
@@ -2891,9 +2891,9 @@ class TestReports(TestReportsCommon):
         )
         delivery.action_confirm()
 
-        receipt_confirmed = make_receipt(6.0)
+        receipt_confirmed = create_receipt(6.0)
         receipt_confirmed.action_confirm()
-        receipt_draft = make_receipt(10.0)
+        receipt_draft = create_receipt(10.0)
 
         report = self.env["report.stock.report_reception"]
         data = report.get_report_data(

@@ -7,7 +7,7 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 
 from odoo.addons.stock.const import PY_OPERATORS
-from odoo.addons.stock.tools.quantity import filter_quantity_in_python
+from odoo.addons.stock.tools.quantity import get_domain_quantity_in_python
 
 
 class StockLot(models.Model):
@@ -437,7 +437,7 @@ class StockLot(models.Model):
     def _search_product_qty(self, operator, value):
         op = PY_OPERATORS.get(operator)
         if not op:
-            return filter_quantity_in_python(self, "product_qty", operator, value)
+            return get_domain_quantity_in_python(self, "product_qty", operator, value)
         if isinstance(value, Iterable) and not isinstance(value, str):
             value = {float(v) for v in value}
         else:

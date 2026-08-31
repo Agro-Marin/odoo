@@ -9,7 +9,7 @@ from odoo.fields import Domain
 _logger = logging.getLogger(__name__)
 
 
-def filter_quantity_in_python(records, field_name, operator, value):
+def get_domain_quantity_in_python(records, field_name, operator, value):
     matches = records.with_context(prefetch_fields=False).search_fetch(
         [], [field_name], order="id"
     )
@@ -24,7 +24,7 @@ def filter_quantity_in_python(records, field_name, operator, value):
     return [("id", "in", matched.ids)]
 
 
-def resolve_context_record_ids(env, model, values) -> set[int]:
+def get_context_record_ids(env, model, values) -> set[int]:
     Model = env[model]
     given_ids = set()
     domains = []

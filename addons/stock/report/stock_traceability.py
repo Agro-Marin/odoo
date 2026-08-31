@@ -75,7 +75,7 @@ class StockTraceabilityReport(models.TransientModel):
         rec_id = kw.get("model_id") or context.get("active_id")
         level = kw.get("level") or 1
         move_lines = self.env["stock.move.line"]
-        if model and model not in self._get_line_allowed_models():
+        if model and model not in self._get_models_allowed_line():
             return []
         if rec_id and model == "stock.lot":
             move_lines = move_lines.search(
@@ -145,7 +145,7 @@ class StockTraceabilityReport(models.TransientModel):
         return "out"
 
     @api.model
-    def _get_partner_names(self, move_line):
+    def _get_names_source_destination(self, move_line):
         source_name = move_line.location_id.display_name
         destination_name = move_line.location_dest_id.display_name
         partner_name = move_line.picking_partner_id.name
@@ -160,7 +160,9 @@ class StockTraceabilityReport(models.TransientModel):
     def _prepare_dict_move(self, level, parent_id, move_line, unfoldable=False):
         res_model, res_id, ref = self._get_reference(move_line)
         is_used = self._get_linked_move_lines(move_line)[1]
-        location_source, location_destination = self._get_partner_names(move_line)
+        location_source, location_destination = self._get_names_source_destination(
+            move_line
+        )
         return {
             "level": level,
             "unfoldable": unfoldable,
@@ -236,7 +238,7 @@ class StockTraceabilityReport(models.TransientModel):
         final_vals = []
         lines = move_lines or self.env["stock.move.line"]
         if model and line_id:
-            if model not in self._get_line_allowed_models():
+            if model not in self._get_models_allowed_line():
                 return final_vals
             move_line = self.env[model].browse(model_id)
             linked_lines = self._get_linked_move_lines(move_line)[0]
@@ -261,16 +263,16 @@ class StockTraceabilityReport(models.TransientModel):
         return final_vals
 
     @api.model
-    def _get_line_allowed_models(self):
+    def _get_models_allowed_line(self):
         return {"stock.lot", "stock.move.line", "stock.picking"}
 
     @api.model
-    def _get_pdf_line_allowed_models(self):
+    def _get_models_allowed_pdf_line(self):
         return {"stock.move.line"}
 
     def get_pdf_lines(self, line_data=None):
         final_vals = []
-        allowed_models = self._get_pdf_line_allowed_models()
+        allowed_models = self._get_models_allowed_pdf_line()
         for line in line_data or []:
             try:
                 model_name = line["model_name"]

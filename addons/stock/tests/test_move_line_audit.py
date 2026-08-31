@@ -17,7 +17,7 @@ class TestMoveLineReservationSymmetry(TestStockCommon):
             limit=1,
         )
 
-    def _make_product(self, name):
+    def _create_product(self, name):
         product = self.env["product.product"].create(
             {"name": name, "is_storable": True, "type": "consu"}
         )
@@ -35,7 +35,7 @@ class TestMoveLineReservationSymmetry(TestStockCommon):
             ).mapped("reserved_quantity")
         )
 
-    def _make_line(self, product, move_source, line_source, qty=30.0):
+    def _create_line(self, product, move_source, line_source, qty=30.0):
         move = self.Move.create(
             {
                 "product_id": product.id,
@@ -61,7 +61,7 @@ class TestMoveLineReservationSymmetry(TestStockCommon):
         )
 
     def test_create_and_unlink_are_symmetric_when_locations_agree(self):
-        product = self._make_product("sym-control")
+        product = self._create_product("sym-control")
         victim = self.Move.create(
             {
                 "product_id": product.id,
@@ -76,13 +76,13 @@ class TestMoveLineReservationSymmetry(TestStockCommon):
         victim._action_assign()
         self.assertEqual(self._reserved(product, self.stock_location), 40.0)
 
-        line = self._make_line(product, self.stock_location, self.stock_location)
+        line = self._create_line(product, self.stock_location, self.stock_location)
         self.assertEqual(self._reserved(product, self.stock_location), 70.0)
         line.unlink()
         self.assertEqual(self._reserved(product, self.stock_location), 40.0)
 
     def test_line_source_outside_the_move_source_does_not_steal(self):
-        product = self._make_product("sym-steal")
+        product = self._create_product("sym-steal")
         victim = self.Move.create(
             {
                 "product_id": product.id,
@@ -96,7 +96,7 @@ class TestMoveLineReservationSymmetry(TestStockCommon):
         victim._action_confirm()
         victim._action_assign()
 
-        line = self._make_line(product, self.supplier_location, self.stock_location)
+        line = self._create_line(product, self.supplier_location, self.stock_location)
         self.assertEqual(
             self._reserved(product, self.stock_location),
             70.0,
@@ -117,8 +117,8 @@ class TestMoveLineReservationSymmetry(TestStockCommon):
         )
 
     def test_line_source_on_a_bypass_location_reserves_nothing(self):
-        product = self._make_product("sym-phantom")
-        line = self._make_line(product, self.stock_location, self.inventory_loc)
+        product = self._create_product("sym-phantom")
+        line = self._create_line(product, self.stock_location, self.inventory_loc)
         self.assertFalse(
             self.Quant.search(
                 [

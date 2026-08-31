@@ -41,7 +41,7 @@ class TestStockTraceabilityReport(TestStockCommon):
         line.date = date
         return line
 
-    def _build_chain(self):
+    def _create_move_line_chain(self):
         ml1 = self._done_move_line(
             self.supplier_location, self.stock_location, datetime(2026, 1, 1)
         )
@@ -54,18 +54,18 @@ class TestStockTraceabilityReport(TestStockCommon):
         return ml1, ml2, ml3
 
     def test_get_move_lines_depth_is_deterministic(self):
-        ml1, ml2, ml3 = self._build_chain()
+        ml1, ml2, ml3 = self._create_move_line_chain()
         self.assertEqual(self.report._get_move_lines(ml3).ids, (ml2 | ml1).ids)
         self.assertEqual(self.report._get_move_lines(ml3, line_id=999999).ids, ml2.ids)
         self.assertEqual(self.report._get_move_lines(ml3, line_id=ml2.id).ids, ml2.ids)
 
     def test_has_upstream_move_lines(self):
-        ml1, _ml2, ml3 = self._build_chain()
+        ml1, _ml2, ml3 = self._create_move_line_chain()
         self.assertTrue(self.report._has_upstream_move_lines(ml3))
         self.assertFalse(self.report._has_upstream_move_lines(ml1))
 
     def test_row_ids_are_deterministic(self):
-        self._build_chain()
+        self._create_move_line_chain()
         ctx = {"active_id": self.lot.id, "model": "stock.lot"}
         first = self.report.with_context(**ctx).get_lines()
         second = self.report.with_context(**ctx).get_lines()

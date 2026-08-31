@@ -20,8 +20,8 @@ class ReportStockReport_Reception(models.AbstractModel):
             return "mrp.production"
         return super()._get_doc_model()
 
-    def _get_doc_types(self):
-        return super()._get_doc_types() + " or manufacturing orders"
+    def _get_doc_types_label(self):
+        return super()._get_doc_types_label() + " or manufacturing orders"
 
     def _get_moves(self, docs):
         if self.env.context.get("default_production_ids"):

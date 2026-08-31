@@ -148,8 +148,8 @@ class TestReviewCompoundingFixes(TestStockCommon):
         partner = self.env.ref("base.partner_admin")
         res = report.get_lines(line_id=1, model_name="res.partner", model_id=partner.id)
         self.assertEqual(res, [])
-        self.assertIn("stock.move.line", report._get_line_allowed_models())
-        self.assertNotIn("res.partner", report._get_line_allowed_models())
+        self.assertIn("stock.move.line", report._get_models_allowed_line())
+        self.assertNotIn("res.partner", report._get_models_allowed_line())
 
     def test_qty_available_not_aliased_across_search_locations(self):
         Loc = self.env["stock.location"]
@@ -379,9 +379,9 @@ class TestReviewCompoundingFixes(TestStockCommon):
         cache = Quant._get_quants_by_products_locations(
             prod, self.stock_location, lot_scope=lot_a
         )
-        self.assertTrue(cache.covers(prod, self.stock_location, lot_a))
+        self.assertTrue(cache.is_covering(prod, self.stock_location, lot_a))
         self.assertFalse(
-            cache.covers(prod, self.stock_location, lot_b),
+            cache.is_covering(prod, self.stock_location, lot_b),
             "an unseeded lot must not be reported as covered",
         )
         res = Quant.with_context(quants_cache=cache)._gather(

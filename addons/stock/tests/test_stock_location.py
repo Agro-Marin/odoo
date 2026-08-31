@@ -34,7 +34,7 @@ class TestStockLocationPutawayContract(TestStockCommon):
             self.productA, 1
         )
         self.assertTrue(
-            chosen._child_of(view_location),
+            chosen._is_child_of(view_location),
             f"{chosen.complete_name} is outside the destination "
             f"{view_location.complete_name}",
         )
@@ -90,7 +90,7 @@ class TestStockLocationPutawayContract(TestStockCommon):
 
         for line in move_lines:
             self.assertTrue(
-                line.location_dest_id._child_of(line.move_id.location_dest_id),
+                line.location_dest_id._is_child_of(line.move_id.location_dest_id),
                 f"line for move to {line.move_id.location_dest_id.complete_name} "
                 f"was put away in {line.location_dest_id.complete_name}",
             )
@@ -98,7 +98,7 @@ class TestStockLocationPutawayContract(TestStockCommon):
 
 @tagged("post_install", "-at_install")
 class TestStockLocationEmptiness(TestStockCommon):
-    def _make_quant(self, location, quantity=0.0, reserved_quantity=0.0):
+    def _create_quant(self, location, quantity=0.0, reserved_quantity=0.0):
         return self.env["stock.quant"].create(
             {
                 "product_id": self.productA.id,
@@ -122,15 +122,15 @@ class TestStockLocationEmptiness(TestStockCommon):
             location.action_archive()
 
     def test_negative_stock_is_not_empty(self):
-        self._make_quant(self.shelf_1, quantity=-5)
+        self._create_quant(self.shelf_1, quantity=-5)
         self.assertOccupied(self.shelf_1, "the location holds a negative quant")
 
     def test_reserved_only_location_is_not_empty(self):
-        self._make_quant(self.shelf_1, quantity=0, reserved_quantity=3)
+        self._create_quant(self.shelf_1, quantity=0, reserved_quantity=3)
         self.assertOccupied(self.shelf_1, "the location holds a reservation")
 
     def test_opposite_quantities_do_not_cancel_out(self):
-        self._make_quant(self.shelf_1, quantity=5)
+        self._create_quant(self.shelf_1, quantity=5)
         self.env["stock.quant"].create(
             {
                 "product_id": self.productB.id,
@@ -148,7 +148,7 @@ class TestStockLocationEmptiness(TestStockCommon):
         self.assertFalse(self.shelf_1.active)
 
     def test_is_empty_search_partitions_the_set(self):
-        self._make_quant(self.shelf_1, quantity=5)
+        self._create_quant(self.shelf_1, quantity=5)
         Location = self.env["stock.location"]
         empty = Location.search([("is_empty", "=", True)])
         occupied = Location.search([("is_empty", "=", False)])
@@ -168,7 +168,7 @@ class TestStockLocationTree(TestStockCommon):
                 f"{location.complete_name} points at the wrong warehouse",
             )
 
-    def _make_branch(self, parent):
+    def _create_branch(self, parent):
         zone = self.StockLocationObj.create(
             {"name": "Zone", "location_id": parent.id, "usage": "view"},
         )
@@ -181,14 +181,14 @@ class TestStockLocationTree(TestStockCommon):
         warehouse_2 = self.env["stock.warehouse"].create(
             {"name": "Reparent WH", "code": "RPW"},
         )
-        branch = self._make_branch(self.stock_location)
+        branch = self._create_branch(self.stock_location)
         self._assert_warehouse(self.StockLocationObj.union(*branch), self.warehouse_1)
 
         branch[0].location_id = warehouse_2.lot_stock_id
         self._assert_warehouse(self.StockLocationObj.union(*branch), warehouse_2)
 
     def test_repointing_a_warehouse_view_repoints_the_whole_subtree(self):
-        zone, shelf, bin_ = self._make_branch(self.warehouse_1.view_location_id)
+        zone, shelf, bin_ = self._create_branch(self.warehouse_1.view_location_id)
         warehouse_2 = self.env["stock.warehouse"].create(
             {"name": "Adopting WH", "code": "ADW"},
         )

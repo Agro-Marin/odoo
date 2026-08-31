@@ -40,7 +40,7 @@ class StockWarehouseOrderpoint(models.Model):
             limit=1,
         )
         if production:
-            return self._build_replenishment_notification(
+            return self._get_replenishment_notification(
                 _("The following replenishment order has been generated"),
                 production.name,
                 f"/odoo/action-mrp.action_mrp_production_form/{production.id}",

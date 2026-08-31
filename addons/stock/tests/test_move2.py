@@ -1253,7 +1253,7 @@ class TestSinglePicking(TestStockCommon):
             product_valid, self.shelf_1, 10
         )
 
-        def make_move(product):
+        def create_move(product):
             move = self.MoveObj.create(
                 {
                     "product_id": product.id,
@@ -1267,9 +1267,9 @@ class TestSinglePicking(TestStockCommon):
             move._action_assign()
             return move
 
-        origin_move = make_move(product_valid)
-        move_stray = make_move(product_stray)
-        move_valid = make_move(product_valid)
+        origin_move = create_move(product_valid)
+        move_stray = create_move(product_stray)
+        move_valid = create_move(product_valid)
         move_valid.move_orig_ids = [(6, 0, origin_move.ids)]
 
         self.assertEqual(move_stray.move_line_ids.location_id, self.shelf_2)

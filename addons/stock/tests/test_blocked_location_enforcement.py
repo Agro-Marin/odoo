@@ -207,7 +207,7 @@ class TestOverrideGroups(BlockedLocationCase):
 
 class TestHierarchy(BlockedLocationCase):
     def test_child_inherits_parent_block(self):
-        child = self._make_location("Child", parent=self.soft_out_location)
+        child = self._create_location("Child", parent=self.soft_out_location)
         self.assertEqual(child.effective_block_type, "soft_out")
         self._add_stock(child, 100.0)
         with self.assertRaises(UserError) as caught:
@@ -217,20 +217,20 @@ class TestHierarchy(BlockedLocationCase):
         self.assertIn("soft block outgoing", str(caught.exception).lower())
 
     def test_directions_merge_into_soft_both(self):
-        parent = self._make_location("Parent In", block_type="soft_in")
-        child = self._make_location("Child Out", block_type="soft_out", parent=parent)
+        parent = self._create_location("Parent In", block_type="soft_in")
+        child = self._create_location("Child Out", block_type="soft_out", parent=parent)
         self.assertEqual(parent.effective_block_type, "soft_in")
         self.assertEqual(child.effective_block_type, "soft_both")
 
     def test_hard_wins_over_any_soft(self):
-        parent = self._make_location("Parent Soft", block_type="soft_in")
-        child = self._make_location("Child Hard", block_type="hard", parent=parent)
-        grandchild = self._make_location("Grandchild", parent=child)
+        parent = self._create_location("Parent Soft", block_type="soft_in")
+        child = self._create_location("Child Hard", block_type="hard", parent=parent)
+        grandchild = self._create_location("Grandchild", parent=child)
         self.assertEqual(child.effective_block_type, "hard")
         self.assertEqual(grandchild.effective_block_type, "hard")
 
     def test_effective_type_follows_a_parent_change(self):
-        child = self._make_location("Mobile Child")
+        child = self._create_location("Mobile Child")
         self.assertEqual(child.effective_block_type, "none")
         child.location_id = self.hard_block_location
         self.assertEqual(child.effective_block_type, "hard")
@@ -238,9 +238,9 @@ class TestHierarchy(BlockedLocationCase):
         self.assertEqual(child.effective_block_type, "none")
 
     def test_effective_type_follows_an_ancestor_block(self):
-        zone = self._make_location("Zone")
-        shelf = self._make_location("Shelf", parent=zone)
-        bin_ = self._make_location("Bin", parent=shelf)
+        zone = self._create_location("Zone")
+        shelf = self._create_location("Shelf", parent=zone)
+        bin_ = self._create_location("Bin", parent=shelf)
         self.assertEqual(bin_.effective_block_type, "none")
         zone.write({"block_type": "hard"})
         self.assertEqual(shelf.effective_block_type, "hard")
@@ -249,7 +249,9 @@ class TestHierarchy(BlockedLocationCase):
         self.assertEqual(bin_.effective_block_type, "none")
 
     def test_effective_type_is_searchable(self):
-        child = self._make_location("Searchable Child", parent=self.hard_block_location)
+        child = self._create_location(
+            "Searchable Child", parent=self.hard_block_location
+        )
         found = self.Location.search([("effective_block_type", "=", "hard")])
         self.assertIn(child, found)
         self.assertIn(self.hard_block_location, found)
@@ -281,7 +283,7 @@ class TestGathering(BlockedLocationCase):
         )
 
     def test_gather_excludes_children_of_a_blocked_ancestor(self):
-        child = self._make_location("Blocked Child", parent=self.soft_out_location)
+        child = self._create_location("Blocked Child", parent=self.soft_out_location)
         self._add_stock(child, 100.0)
         quants = self.Quant.with_user(self.normal_user)._gather(
             self.product, self.stock_location
@@ -328,17 +330,17 @@ class TestGathering(BlockedLocationCase):
 
     def test_new_reservation_from_soft_out_is_prevented(self):
         self._add_stock(self.soft_out_location, 100.0)
-        picking = self._make_delivery(self.normal_user, self.soft_out_location, 50.0)
+        picking = self._create_delivery(self.normal_user, self.soft_out_location, 50.0)
         picking.action_assign()
         self.assertNotEqual(picking.state, "assigned")
         self.assertFalse(picking.move_line_ids)
 
     def test_reservation_falls_back_to_unblocked_stock(self):
-        blocked_child = self._make_location("Blocked", parent=self.stock_location)
+        blocked_child = self._create_location("Blocked", parent=self.stock_location)
         blocked_child.write({"block_type": "soft_out"})
         self._add_stock(blocked_child, 100.0)
         self._add_stock(self.normal_location, 3.0)
-        picking = self._make_delivery(self.normal_user, self.stock_location, 10.0)
+        picking = self._create_delivery(self.normal_user, self.stock_location, 10.0)
         picking.action_assign()
         self.assertEqual(sum(picking.move_line_ids.mapped("quantity_product_uom")), 3.0)
         self.assertFalse(
@@ -450,7 +452,7 @@ class TestAutomatedReservation(BlockedLocationCase):
         self.assertFalse(self._lines_from(picking, self.soft_out_location))
 
     def test_the_scheduler_does_not_undo_an_unreserve(self):
-        location = self._make_location("Counted Zone")
+        location = self._create_location("Counted Zone")
         self._add_stock(location, 100.0)
         picking = self._pending_delivery(location, 50.0)
         picking.action_assign()

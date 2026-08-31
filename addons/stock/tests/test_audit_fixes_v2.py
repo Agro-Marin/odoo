@@ -17,7 +17,7 @@ class TestAuditFixesV2(TestStockCommon):
             ]
         )
 
-    def _out_picking(self, products, qty=5.0):
+    def _create_out_picking_with_moves(self, products, qty=5.0):
         picking = self.env["stock.picking"].create(
             {
                 "picking_type_id": self.picking_type_out.id,
@@ -44,7 +44,7 @@ class TestAuditFixesV2(TestStockCommon):
         self.env["stock.quant"]._update_available_quantity(
             self.p_avail, self.stock_location, 100
         )
-        picking = self._out_picking(self.p_avail | self.p_short)
+        picking = self._create_out_picking_with_moves(self.p_avail | self.p_short)
         picking.action_assign()
         move_short = picking.move_ids.filtered(lambda m: m.product_id == self.p_short)
         move_short._action_cancel()
@@ -67,7 +67,7 @@ class TestAuditFixesV2(TestStockCommon):
         self.env["stock.quant"]._update_available_quantity(
             self.p_short, self.stock_location, 100
         )
-        picking = self._out_picking(self.p_avail | self.p_short)
+        picking = self._create_out_picking_with_moves(self.p_avail | self.p_short)
         picking.action_assign()
         move_done = picking.move_ids.filtered(lambda m: m.product_id == self.p_short)
         move_done.picked = True
@@ -84,7 +84,7 @@ class TestAuditFixesV2(TestStockCommon):
         self.env["stock.quant"]._update_available_quantity(
             self.p_avail, self.stock_location, 100
         )
-        picking = self._out_picking(self.p_avail, qty=5.0)
+        picking = self._create_out_picking_with_moves(self.p_avail, qty=5.0)
         picking.action_assign()
         picking.move_ids.picked = True
         picking._action_done()
@@ -149,7 +149,7 @@ class TestAuditFixesV2(TestStockCommon):
             {"name": "SN Child", "usage": "internal", "location_id": parent.id}
         )
         other = Location.create({"name": "SN Other", "usage": "internal"})
-        self.assertTrue(child._child_of(parent))
-        self.assertTrue(parent._child_of(parent))
-        self.assertFalse(child._child_of(other))
-        self.assertFalse(parent._child_of(child))
+        self.assertTrue(child._is_child_of(parent))
+        self.assertTrue(parent._is_child_of(parent))
+        self.assertFalse(child._is_child_of(other))
+        self.assertFalse(parent._is_child_of(child))

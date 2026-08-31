@@ -14,7 +14,7 @@ class TestContextForgery(BlockedLocationCase):
 
     def test_completing_flag_cannot_be_forged_at_the_line_layer(self):
         self._add_stock(self.soft_out_location, 100.0)
-        picking = self._make_delivery(self.normal_user, self.soft_out_location, 10.0)
+        picking = self._create_delivery(self.normal_user, self.soft_out_location, 10.0)
         picking.do_unreserve()
         with self.assertRaises(UserError):
             picking.with_user(self.normal_user).with_context(

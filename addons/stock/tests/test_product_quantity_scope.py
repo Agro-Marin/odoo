@@ -10,7 +10,7 @@ from odoo.addons.stock.models.product_product import (
 )
 from odoo.addons.stock.tools.quantity import (
     QuantityFilters,
-    resolve_context_record_ids,
+    get_context_record_ids,
 )
 
 
@@ -87,15 +87,15 @@ class TestProductQuantityScope(TransactionCase):
         self.assertFalse(
             offenders,
             "the scope lives on stock.location as _quantity_domains / "
-            "_quantity_domains_from_context / _scope_ids_from_context, and "
-            "resolve_context_record_ids is a function in stock.tools.quantity; "
+            "_quantity_domains_from_context / _resolve_scope_ids_from_context, and "
+            "get_context_record_ids is a function in stock.tools.quantity; "
             "these are stale and are never called: " + ", ".join(offenders),
         )
         Location = type(self.env["stock.location"])
         for name in (
             "_quantity_domains",
             "_quantity_domains_from_context",
-            "_scope_ids_from_context",
+            "_resolve_scope_ids_from_context",
         ):
             self.assertTrue(hasattr(Location, name), f"stock.location lost {name}")
 
@@ -379,9 +379,9 @@ class TestProductQuantityScope(TransactionCase):
             "the location triple should be resolved once per quantity condition",
         )
 
-    def test_resolve_context_record_ids_accepts_ids_and_names(self):
+    def test_get_context_record_ids_accepts_ids_and_names(self):
         def resolve(model, values):
-            return resolve_context_record_ids(self.env, model, values)
+            return get_context_record_ids(self.env, model, values)
 
         self.assertEqual(
             resolve("stock.location", [self.stock_location.id]),
@@ -394,9 +394,9 @@ class TestProductQuantityScope(TransactionCase):
         self.assertEqual(resolve("stock.location", [999_999_999]), set())
         self.assertEqual(resolve("stock.location", ["No Such Location"]), set())
 
-    def test_resolve_context_record_ids_rejects_booleans(self):
+    def test_get_context_record_ids_rejects_booleans(self):
         def resolve(model, values):
-            return resolve_context_record_ids(self.env, model, values)
+            return get_context_record_ids(self.env, model, values)
 
         for value in (True, False):
             with self.subTest(value=value), self.assertRaises(ValueError):
@@ -945,13 +945,13 @@ class TestProductQuantityScope(TransactionCase):
         self._stock_up(self.product, 5)
         cls = type(self.env["product.product"])
         slow_path = []
-        original = cls._search_product_quantity
+        original = cls._get_domain_product_quantity
 
         def counting(records, operator, value, field):
             slow_path.append(field)
             return original(records, operator, value, field)
 
-        cls._search_product_quantity = counting
+        cls._get_domain_product_quantity = counting
         try:
             found = (
                 self.env["product.product"]
@@ -959,7 +959,7 @@ class TestProductQuantityScope(TransactionCase):
                 .search([("id", "=", self.product.id), ("qty_available", ">", 0)])
             )
         finally:
-            cls._search_product_quantity = original
+            cls._get_domain_product_quantity = original
         self.assertEqual(found, self.product)
         self.assertFalse(slow_path, "a falsy date must not abandon the quant-only path")
 
@@ -967,19 +967,19 @@ class TestProductQuantityScope(TransactionCase):
         self._stock_up(self.product, 5)
         cls = type(self.env["product.product"])
         slow_path = []
-        original = cls._search_product_quantity
+        original = cls._get_domain_product_quantity
 
         def counting(records, operator, value, field):
             slow_path.append(field)
             return original(records, operator, value, field)
 
-        cls._search_product_quantity = counting
+        cls._get_domain_product_quantity = counting
         try:
             self.env["product.product"].with_context(owners=[]).search(
                 [("id", "=", self.product.id), ("qty_available", ">", 0)]
             )
         finally:
-            cls._search_product_quantity = original
+            cls._get_domain_product_quantity = original
         self.assertTrue(slow_path, "an owner filter must still take the full pass")
 
     def test_fields_get_relabels_a_location_given_by_name_or_list(self):
@@ -1008,7 +1008,7 @@ class TestProductQuantityScope(TransactionCase):
 class TestTemplateQuantitySearch(TransactionCase):
     """`product.template`'s quantity searches, which raised for every operator.
 
-    `_search_variant_quantity` was defined twice in `ProductTemplate`. Python
+    `_get_domain_variant_quantity` was defined twice in `ProductTemplate`. Python
     keeps the last, so the surviving one called `Product._get_domain_locations()`
     -- removed when the scope moved to `stock.location` -- and passed five
     positional arguments to `_prepare_quantities_vals`, which takes two. Its

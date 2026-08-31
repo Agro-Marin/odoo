@@ -5,20 +5,20 @@ from .blocked_location_common import BlockedLocationCase
 
 class TestCompletion(BlockedLocationCase):
     def _unreserved_delivery(self, location, quantity=10.0):
-        picking = self._make_delivery(self.normal_user, location, quantity)
+        picking = self._create_delivery(self.normal_user, location, quantity)
         picking.do_unreserve()
         return picking
 
     def test_reserved_completion_passes_a_soft_block(self):
-        location = self._make_location("Blocked After Reserving")
+        location = self._create_location("Blocked After Reserving")
         self._add_stock(location, 100.0)
-        picking = self._make_delivery(self.normal_user, location, 50.0)
+        picking = self._create_delivery(self.normal_user, location, 50.0)
         picking.action_assign()
         self.assertEqual(picking.state, "assigned")
 
         location.write({"block_type": "soft_out"})
 
-        self._fill_and_validate(picking, self.normal_user)
+        self._update_quantities_and_validate(picking, self.normal_user)
         self.assertEqual(picking.state, "done")
         self.assertEqual(self._on_hand(location), 50.0)
 
@@ -38,7 +38,7 @@ class TestCompletion(BlockedLocationCase):
         self.assertEqual(self._on_hand(self.soft_both_location), 100.0)
 
     def test_unreserved_quantity_cannot_leave_a_blocked_child(self):
-        child = self._make_location("Blocked Child", parent=self.soft_out_location)
+        child = self._create_location("Blocked Child", parent=self.soft_out_location)
         self._add_stock(child, 100.0)
         picking = self._unreserved_delivery(child)
         with self.assertRaises(UserError):
@@ -55,7 +55,9 @@ class TestCompletion(BlockedLocationCase):
 
     def test_override_group_still_forces_an_unreserved_pick(self):
         self._add_stock(self.soft_out_location, 100.0)
-        picking = self._make_delivery(self.force_out_user, self.soft_out_location, 10.0)
+        picking = self._create_delivery(
+            self.force_out_user, self.soft_out_location, 10.0
+        )
         picking.do_unreserve()
         picking.with_user(self.force_out_user).move_ids.quantity = 10.0
         picking.move_ids.picked = True
@@ -72,9 +74,9 @@ class TestCompletion(BlockedLocationCase):
         self.assertEqual(self._on_hand(self.soft_out_location), 90.0)
 
     def test_hard_block_stops_even_a_reserved_completion(self):
-        location = self._make_location("Hard After Reserving")
+        location = self._create_location("Hard After Reserving")
         self._add_stock(location, 100.0)
-        picking = self._make_delivery(self.normal_user, location, 50.0)
+        picking = self._create_delivery(self.normal_user, location, 50.0)
         picking.action_assign()
 
         location.write({"block_type": "hard"})
@@ -88,9 +90,9 @@ class TestCompletion(BlockedLocationCase):
         self.assertEqual(self._on_hand(location), 100.0)
 
     def test_a_new_line_added_after_the_block_is_refused(self):
-        location = self._make_location("Extra Line")
+        location = self._create_location("Extra Line")
         self._add_stock(location, 100.0)
-        picking = self._make_delivery(self.normal_user, location, 10.0)
+        picking = self._create_delivery(self.normal_user, location, 10.0)
         picking.action_assign()
         self.assertEqual(picking.state, "assigned")
 
@@ -109,9 +111,9 @@ class TestCompletion(BlockedLocationCase):
             )
 
     def test_raising_the_quantity_on_an_existing_line_is_refused(self):
-        location = self._make_location("Grown Line")
+        location = self._create_location("Grown Line")
         self._add_stock(location, 100.0)
-        picking = self._make_delivery(self.normal_user, location, 10.0)
+        picking = self._create_delivery(self.normal_user, location, 10.0)
         picking.action_assign()
 
         location.write({"block_type": "soft_out"})
@@ -121,9 +123,9 @@ class TestCompletion(BlockedLocationCase):
             line.quantity = 50.0
 
     def test_lowering_the_quantity_on_an_existing_line_is_allowed(self):
-        location = self._make_location("Shrunk Line")
+        location = self._create_location("Shrunk Line")
         self._add_stock(location, 100.0)
-        picking = self._make_delivery(self.normal_user, location, 10.0)
+        picking = self._create_delivery(self.normal_user, location, 10.0)
         picking.action_assign()
 
         location.write({"block_type": "soft_out"})
@@ -135,7 +137,7 @@ class TestCompletion(BlockedLocationCase):
     def test_moving_a_line_onto_a_blocked_source_is_refused(self):
         self._add_stock(self.normal_location, 100.0)
         self._add_stock(self.soft_out_location, 100.0)
-        picking = self._make_delivery(self.normal_user, self.stock_location, 10.0)
+        picking = self._create_delivery(self.normal_user, self.stock_location, 10.0)
         picking.action_assign()
         line = picking.move_line_ids.with_user(self.normal_user)
         self.assertTrue(line)
@@ -180,7 +182,7 @@ class TestCompletion(BlockedLocationCase):
         self.assertEqual(self._on_hand(self.hard_block_location), 100.0)
 
     def test_inventory_loss_passes_a_soft_block(self):
-        location = self._make_location("Counted Down", block_type="soft_out")
+        location = self._create_location("Counted Down", block_type="soft_out")
         self._add_stock(location, 100.0)
         self.env.flush_all()
         counted = (
@@ -201,7 +203,7 @@ class TestCompletion(BlockedLocationCase):
         self.assertEqual(self._on_hand(location), 80.0)
 
     def test_inventory_loss_is_still_stopped_by_a_hard_block(self):
-        location = self._make_location("Frozen Count", block_type="hard")
+        location = self._create_location("Frozen Count", block_type="hard")
         self._add_stock(location, 100.0)
         self.env.flush_all()
         counted = (
@@ -266,5 +268,5 @@ class TestCompletion(BlockedLocationCase):
         picking.action_confirm()
         picking.action_assign()
         with self.assertRaises(UserError) as caught:
-            self._fill_and_validate(picking, self.normal_user)
+            self._update_quantities_and_validate(picking, self.normal_user)
         self.assertIn("soft block incoming", str(caught.exception).lower())

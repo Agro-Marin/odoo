@@ -438,7 +438,7 @@ class TestPickingTypeSequenceOwnership(TestStockCommon):
             [("company_id", "=", cls.env.company.id)], limit=1
         )
 
-    def _make(self, name, sequence_code, **vals):
+    def _create_picking_type(self, name, sequence_code, **vals):
         return self.env["stock.picking.type"].create(
             {
                 "name": name,
@@ -451,7 +451,7 @@ class TestPickingTypeSequenceOwnership(TestStockCommon):
         )
 
     def test_deleting_a_type_takes_its_sequence_with_it(self):
-        picking_type = self._make("Reaped", "RPD")
+        picking_type = self._create_picking_type("Reaped", "RPD")
         sequence = picking_type.sequence_id
         self.assertTrue(sequence, "create mints one")
         picking_type.unlink()
@@ -461,8 +461,8 @@ class TestPickingTypeSequenceOwnership(TestStockCommon):
         )
 
     def test_a_sequence_two_types_share_outlives_the_first_of_them(self):
-        first = self._make("ShareA", "SHA")
-        second = self._make("ShareB", "SHB")
+        first = self._create_picking_type("ShareA", "SHA")
+        second = self._create_picking_type("ShareB", "SHB")
         spare = second.sequence_id
         shared = first.sequence_id
         second.sequence_id = shared
@@ -474,8 +474,8 @@ class TestPickingTypeSequenceOwnership(TestStockCommon):
         self.assertEqual(second.sequence_id, shared)
 
     def test_an_archived_type_still_counts_as_a_reference(self):
-        keeper = self._make("Archived Keeper", "AKP")
-        other = self._make("Other", "OTH")
+        keeper = self._create_picking_type("Archived Keeper", "AKP")
+        other = self._create_picking_type("Other", "OTH")
         spare = other.sequence_id
         shared = keeper.sequence_id
         other.sequence_id = shared
@@ -506,7 +506,7 @@ class TestPickingTypeSequenceOwnership(TestStockCommon):
         self.assertTrue(original.exists() or True)
 
     def test_a_type_that_lost_its_sequence_gets_one_back_on_the_next_write(self):
-        picking_type = self._make("Lost", "LST")
+        picking_type = self._create_picking_type("Lost", "LST")
         picking_type.sequence_id.unlink()
         picking_type.invalidate_recordset()
         self.assertFalse(picking_type.sequence_id)
@@ -525,11 +525,11 @@ class TestPickingTypeSequenceOwnership(TestStockCommon):
                 self.assertRaises(Exception),
                 self.env.cr.savepoint(),
             ):
-                self._make("Blank", blank)
+                self._create_picking_type("Blank", blank)
                 self.env.flush_all()
 
     def test_a_second_transfer_is_not_refused_for_a_reference_collision(self):
-        picking_type = self._make("Named", "NMD")
+        picking_type = self._create_picking_type("Named", "NMD")
         self.assertTrue(picking_type.sequence_id)
         names = []
         for _index in range(2):

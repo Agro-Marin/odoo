@@ -545,7 +545,7 @@ class PurchaseOrderLine(models.Model):
             self.location_final_id or self.order_id._get_location_final_record()
         )
 
-        if location_final and location_final._child_of(location_dest):
+        if location_final and location_final._is_child_of(location_dest):
             location_dest = location_final
 
         date_commitment = self.date_commitment or self.order_id.date_commitment

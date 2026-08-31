@@ -20,7 +20,7 @@ from odoo.addons.stock.const import (
 )
 from odoo.addons.stock.tools.quantity import (
     QuantityFilters,
-    filter_quantity_in_python,
+    get_domain_quantity_in_python,
 )
 
 _logger = logging.getLogger(__name__)
@@ -254,7 +254,7 @@ class ProductProduct(models.Model):
         res = super().fields_get(allfields, attributes)
         Location = self.env["stock.location"]
         try:
-            location_ids = Location._scope_ids_from_context()
+            location_ids = Location._resolve_scope_ids_from_context()
         except ValueError:
             location_ids = None
         if location_ids:
@@ -491,7 +491,7 @@ class ProductProduct(models.Model):
 
     def _resolve_inventory_location(self):
         Location = self.env["stock.location"]
-        location_ids = Location._scope_ids_from_context()
+        location_ids = Location._resolve_scope_ids_from_context()
         if location_ids is None:
             return Location.browse()
         locations = Location.browse(location_ids)
@@ -530,26 +530,26 @@ class ProductProduct(models.Model):
             and not op(0.0, value)
             and not (filters.from_date or filters.to_date or filters.owners is not None)
         ):
-            product_ids = self._search_qty_available_from_quants(
-                operator, value, filters
-            )
+            product_ids = self._get_product_ids_from_quants(operator, value, filters)
             if product_ids is not NotImplemented:
                 return [("id", "in", product_ids)]
-        return self._search_product_quantity(operator, value, "qty_available")
+        return self._get_domain_product_quantity(operator, value, "qty_available")
 
     def _search_qty_available_virtual(self, operator, value):
-        return self._search_product_quantity(operator, value, "qty_available_virtual")
+        return self._get_domain_product_quantity(
+            operator, value, "qty_available_virtual"
+        )
 
     def _search_qty_incoming(self, operator, value):
-        return self._search_product_quantity(operator, value, "qty_incoming")
+        return self._get_domain_product_quantity(operator, value, "qty_incoming")
 
     def _search_qty_outgoing(self, operator, value):
-        return self._search_product_quantity(operator, value, "qty_outgoing")
+        return self._get_domain_product_quantity(operator, value, "qty_outgoing")
 
     def _search_qty_free(self, operator, value):
-        return self._search_product_quantity(operator, value, "qty_free")
+        return self._get_domain_product_quantity(operator, value, "qty_free")
 
-    def _search_quantity_totals(self, field, location_domains=None):
+    def _get_quantity_totals(self, field, location_domains=None):
         location_domains = (
             location_domains
             or self.env["stock.location"]._quantity_domains_from_context()
@@ -589,14 +589,14 @@ class ProductProduct(models.Model):
             return ["|", ("id", "in", matched), ("id", "not in", list(totals))]
         return [("id", "in", matched)]
 
-    def _search_product_quantity(self, operator, value, field):
+    def _get_domain_product_quantity(self, operator, value, field):
         op = PY_OPERATORS.get(operator)
         if op is None:
-            return filter_quantity_in_python(self, field, operator, value)
-        totals, __ = self._search_quantity_totals(field)
+            return get_domain_quantity_in_python(self, field, operator, value)
+        totals, __ = self._get_quantity_totals(field)
         return self._get_domain_quantity_search(totals, op, operator, value, field)
 
-    def _search_qty_available_from_quants(self, operator, value, filters=None):
+    def _get_product_ids_from_quants(self, operator, value, filters=None):
         op = PY_OPERATORS.get(operator)
         if not op:
             return NotImplemented
@@ -688,9 +688,7 @@ class ProductProduct(models.Model):
             ("product_id", "=", self.id),
             ("category_id", "=", self.product_tmpl_id.categ_id.id),
         ]
-        return self.env["product.template"]._get_action_view_related_putaway_rules(
-            domain
-        )
+        return self.env["product.template"]._get_action_view_putaway_rules(domain)
 
     def action_view_storage_category_capacity(self):
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(

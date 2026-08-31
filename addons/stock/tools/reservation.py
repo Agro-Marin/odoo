@@ -11,7 +11,7 @@ class LeastPackagesPriorityQueue:
         self.elements = []
         self._counter = 0
 
-    def empty(self) -> bool:
+    def is_empty(self) -> bool:
         return not self.elements
 
     def put(self, item, priority):
@@ -28,7 +28,7 @@ class LeastPackagesNode(typing.NamedTuple):
     next_index: int
 
 
-def least_packages_search(qty_by_package, qty):
+def get_least_packages(qty_by_package, qty):
     size = len(qty_by_package)
 
     def heuristic(node):
@@ -43,7 +43,7 @@ def least_packages_search(qty_by_package, qty):
     frontier.put(LeastPackagesNode(qty, (), 0), 0)
     best_leaf = LeastPackagesNode(qty, (), 0)
 
-    while not frontier.empty():
+    while not frontier.is_empty():
         current = frontier.get()
 
         if current.count_remaining <= 0:
@@ -91,7 +91,7 @@ class RemovalStrategy(typing.NamedTuple):
     narrows_to_packages: bool = False
     sorts_by_location: bool = False
 
-    def as_sorted_arguments(self):
+    def resolve_sorted_arguments(self):
         return None if self.sort_key is None else (self.sort_key, self.reverse)
 
 
@@ -102,13 +102,13 @@ class ReservationLedger:
         self._pending = defaultdict(float)
         self.move_line_vals = move_line_vals if move_line_vals is not None else []
 
-    def pending(self, quant):
+    def get_pending(self, quant):
         return self._pending.get(quant.id, 0.0)
 
     def take(self, quant, quantity):
         self._pending[quant.id] += quantity
 
-    def total_pending(self):
+    def get_total_pending(self):
         return sum(self._pending.values())
 
 
@@ -170,7 +170,7 @@ class QuantsCache:
     def __setitem__(self, key, value):
         self._data[key] = value
 
-    def covers(self, product_id, location_id, lot_id=None):
+    def is_covering(self, product_id, location_id, lot_id=None):
         if product_id.id not in self._product_ids:
             return False
         path = location_id.parent_path or ""

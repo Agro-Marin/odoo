@@ -239,12 +239,12 @@ class StockPackage(models.Model):
 
     @api.depends("child_package_ids", "child_package_ids.parent_path")
     def _compute_all_children_package_ids(self):
-        def fetch_all_children(parent_id, children_by_pack):
+        def get_all_children(parent_id, children_by_pack):
             children_ids = children_by_pack.get(parent_id, [])
             sub_children_ids = [
                 cid
                 for child_id in children_ids
-                for cid in fetch_all_children(child_id, children_by_pack)
+                for cid in get_all_children(child_id, children_by_pack)
             ]
             return children_ids + sub_children_ids
 
@@ -256,7 +256,7 @@ class StockPackage(models.Model):
         }
         for package in self:
             package.all_children_package_ids = [
-                Command.set(fetch_all_children(package.id, children_by_pack))
+                Command.set(get_all_children(package.id, children_by_pack))
             ]
 
     @api.depends(
@@ -294,7 +294,7 @@ class StockPackage(models.Model):
             else:
                 package.display_name = display_name
 
-    def _compute_path_name(self, parent_field, name_field):
+    def _update_path_name(self, parent_field, name_field):
         for package in self:
             parent = package[parent_field]
             package[name_field] = (
@@ -303,11 +303,11 @@ class StockPackage(models.Model):
 
     @api.depends("name", "parent_package_id.complete_name")
     def _compute_complete_name(self):
-        self._compute_path_name("parent_package_id", "complete_name")
+        self._update_path_name("parent_package_id", "complete_name")
 
     @api.depends("name", "package_dest_id.dest_complete_name")
     def _compute_dest_complete_name(self):
-        self._compute_path_name("package_dest_id", "dest_complete_name")
+        self._update_path_name("package_dest_id", "dest_complete_name")
 
     @api.depends("quant_ids", "all_children_package_ids.quant_ids")
     def _compute_contained_quant_ids(self):
@@ -744,9 +744,9 @@ class StockPackage(models.Model):
         return res
 
     def _get_all_children_package_dest_ids(self):
-        def fetch_next_children(packages):
+        def get_all_children_ids(packages):
             if packages.child_package_dest_ids:
-                return set(packages.ids) | fetch_next_children(
+                return set(packages.ids) | get_all_children_ids(
                     packages.child_package_dest_ids
                 )
             else:
@@ -775,7 +775,7 @@ class StockPackage(models.Model):
             frontier = frontier[link_field]
         return seen
 
-    def _clear_orphaned_package_dests(self):
+    def _update_orphaned_package_dests(self):
         self.filtered(
             lambda package: package.package_dest_id and not package.picking_ids
         ).package_dest_id = False

@@ -1430,7 +1430,7 @@ class StockPicking(models.Model):
     def _pre_action_done_hook(self):
         self._get_pickings_to_autopick().move_ids.picked = True
         if not self.env.context.get("skip_backorder"):
-            pickings_to_backorder = self._check_backorder()
+            pickings_to_backorder = self._get_pickings_to_backorder()
             if pickings_to_backorder:
                 return pickings_to_backorder._action_generate_backorder_wizard(
                     show_transfers=self._should_show_transfers(),
@@ -2054,7 +2054,7 @@ class StockPicking(models.Model):
         self.check_singleton()
         return self.state == "done"
 
-    def _check_backorder(self):
+    def _get_pickings_to_backorder(self):
         backorder_pickings = self.browse()
         for picking in self:
             if picking.picking_type_id.create_backorder != "ask":

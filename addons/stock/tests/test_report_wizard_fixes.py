@@ -79,7 +79,7 @@ class TestReportWizardFixes(TransactionCase):
             dest_ids_to_in_ids=defaultdict(OrderedSet),
         )
 
-        data = report._compute_out_reserved(out, picks, defaultdict(float), ctx)
+        data = report._get_out_reserved(out, picks, defaultdict(float), ctx)
 
         self.assertEqual(data["reserved"], 10.0)
         self.assertEqual(

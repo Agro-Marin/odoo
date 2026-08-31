@@ -30,4 +30,4 @@ class StockLocation(models.Model):
 
     def is_subcontract(self):
         subcontracting_location = self.company_id.subcontracting_location_id
-        return subcontracting_location and self._child_of(subcontracting_location)
+        return subcontracting_location and self._is_child_of(subcontracting_location)

@@ -535,7 +535,7 @@ class TestPickingRefactor(TestStockCommon):
             100,
         )
 
-        def make(picking_type):
+        def create_picking(picking_type):
             picking = self._new_picking(picking_type)
             self.MoveObj.create(
                 {
@@ -551,8 +551,8 @@ class TestPickingRefactor(TestStockCommon):
             picking.action_assign()
             return picking
 
-        incoming = make(self.picking_type_in)
-        outgoing = make(self.picking_type_out)
+        incoming = create_picking(self.picking_type_in)
+        outgoing = create_picking(self.picking_type_out)
         self.assertFalse(incoming.products_availability_state)
         self.assertEqual(outgoing.products_availability_state, "available")
 
@@ -642,7 +642,7 @@ class TestPickingRefactor(TestStockCommon):
     def test_show_allocation_excludes_sibling_pickings(self):
         product = self.ProductObj.create({"name": "SiblingDemand", "is_storable": True})
 
-        def make_internal(dest):
+        def create_internal_picking(dest):
             picking = self._new_picking(self.picking_type_int)
             self.MoveObj.create(
                 {
@@ -657,8 +657,8 @@ class TestPickingRefactor(TestStockCommon):
             picking.action_confirm()
             return picking
 
-        picking_a = make_internal(self.shelf_1)
-        picking_b = make_internal(self.shelf_2)
+        picking_a = create_internal_picking(self.shelf_1)
+        picking_b = create_internal_picking(self.shelf_2)
         pair = picking_a | picking_b
 
         self.assertTrue(pair._get_show_allocation_map()[picking_a])
@@ -675,7 +675,7 @@ class TestPickingRefactor(TestStockCommon):
     def test_sanity_check_multi_flags_zero_quantity_picking(self):
         product = self.ProductObj.create({"name": "MultiZero", "is_storable": True})
 
-        def make_delivery(confirm):
+        def create_delivery_picking(confirm):
             picking = self._new_picking(self.picking_type_out)
             self.MoveObj.create(
                 {
@@ -691,15 +691,15 @@ class TestPickingRefactor(TestStockCommon):
                 picking.action_confirm()
             return picking
 
-        zero_picking = make_delivery(confirm=True)
-        ok_picking = make_delivery(confirm=True)
+        zero_picking = create_delivery_picking(confirm=True)
+        ok_picking = create_delivery_picking(confirm=True)
         ok_picking.move_ids.quantity = 5
 
         with self.assertRaises(UserError) as error_catcher:
             (zero_picking | ok_picking)._sanity_check()
         self.assertIn(zero_picking.name, str(error_catcher.exception))
 
-        draft_picking = make_delivery(confirm=False)
+        draft_picking = create_delivery_picking(confirm=False)
         self.assertEqual(draft_picking.state, "draft")
         (draft_picking | ok_picking)._sanity_check()
 

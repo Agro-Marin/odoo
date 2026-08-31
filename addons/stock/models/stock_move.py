@@ -562,7 +562,7 @@ class StockMove(models.Model):
         return res
 
     def unlink(self):
-        self._unlink_if_draft_or_cancel()
+        self._unlink_except_done_or_linked()
         self.with_context(prefetch_fields=False).mapped("move_line_ids").unlink()
         orderpoints = self._get_orderpoints_to_update()
         res = super().unlink()
@@ -570,7 +570,7 @@ class StockMove(models.Model):
         return res
 
     @api.ondelete(at_uninstall=False)
-    def _unlink_if_draft_or_cancel(self):
+    def _unlink_except_done_or_linked(self):
         for move in self:
             if move.state == "done":
                 raise UserError(
@@ -657,14 +657,14 @@ class StockMove(models.Model):
             is_move_to_interco_transit = False
             if location_dest:
                 is_move_to_interco_transit = (
-                    location_dest._child_of(customer_loc)
+                    location_dest._is_child_of(customer_loc)
                     and move.location_final_id == inter_comp_location
                 )
             if (
                 location_dest
                 and move.location_final_id
                 and (
-                    move.location_final_id._child_of(location_dest)
+                    move.location_final_id._is_child_of(location_dest)
                     or is_move_to_interco_transit
                 )
             ):
@@ -1116,7 +1116,7 @@ class StockMove(models.Model):
 
     def _inverse_location_dest_id(self):
         for ml in self.move_line_ids:
-            if ml.location_dest_id._child_of(ml.move_id.location_dest_id):
+            if ml.location_dest_id._is_child_of(ml.move_id.location_dest_id):
                 continue
             loc_dest = ml.move_id.location_dest_id._get_putaway_strategy(
                 ml.product_id,
@@ -1911,7 +1911,7 @@ class StockMove(models.Model):
         _logger.debug(
             "_action_assign: flushing %s move line(s), %s unit(s) pending on quants",
             len(ledger.move_line_vals),
-            ledger.total_pending(),
+            ledger.get_total_pending(),
         )
         self.env["stock.move.line"].with_context(
             quants_cache=quants_cache,
@@ -2199,7 +2199,7 @@ class StockMove(models.Model):
                 )
 
     def _push_and_assign_downstream(self):
-        moves_to_push = self.filtered(lambda m: not m._skip_push())
+        moves_to_push = self.filtered(lambda m: not m._is_excluded_from_push())
         if moves_to_push:
             moves_to_push._push_apply()
         move_dests_per_company = defaultdict(lambda: self.env["stock.move"])
@@ -2316,7 +2316,7 @@ class StockMove(models.Model):
         for _group, moves in grouped_moves:
             moves = self.env["stock.move"].concat(*moves)
             new_picking = False
-            picking = moves[0]._search_picking_for_assignation()
+            picking = moves[0]._get_picking_for_assignation()
             if picking:
                 vals = moves._prepare_picking_vals(picking)
                 if vals:
@@ -2550,7 +2550,7 @@ class StockMove(models.Model):
         for move in self:
             new_source, new_dest = move.location_dest_id, move.location_id
             move.move_line_ids.filtered(
-                lambda ml, src=new_source: not ml.location_id._child_of(src),
+                lambda ml, src=new_source: not ml.location_id._is_child_of(src),
             ).unlink()
             orig_move_ids, dest_move_ids = [], []
             for m in move.move_orig_ids | move.move_dest_ids:
@@ -3484,7 +3484,7 @@ class StockMove(models.Model):
 
     def _on_source_location_change(self):
         mls_to_unlink = self.move_line_ids.filtered(
-            lambda ml: not ml.location_id._child_of(ml.move_id.location_id),
+            lambda ml: not ml.location_id._is_child_of(ml.move_id.location_id),
         )
         if not mls_to_unlink:
             return self.browse()
@@ -3833,7 +3833,7 @@ class StockMove(models.Model):
                 and m.location_id == self.location_final_id
             ):
                 move_to_propagate_ids.add(m.id)
-            elif not m.location_id._child_of(self.location_dest_id):
+            elif not m.location_id._is_child_of(self.location_dest_id):
                 move_to_mts_ids.add(m.id)
         if move_to_mts_ids:
             self.browse(move_to_mts_ids)._break_mto_link(self)
@@ -3929,7 +3929,7 @@ class StockMove(models.Model):
             if picking.reference_ids:
                 moves.reference_ids = picking.reference_ids
 
-    def _search_picking_for_assignation_domain(self):
+    def _get_domain_picking_for_assignation(self):
         return [
             ("reference_ids", "in", self.reference_ids.ids),
             ("location_id", "=", self.location_id.id),
@@ -3950,11 +3950,11 @@ class StockMove(models.Model):
             ),
         ]
 
-    def _search_picking_for_assignation(self):
+    def _get_picking_for_assignation(self):
         self.check_singleton()
         if not self.reference_ids:
             return self.env["stock.picking"]
-        domain = self._search_picking_for_assignation_domain()
+        domain = self._get_domain_picking_for_assignation()
         reference_set = set(self.reference_ids.ids)
         covered_picking = self.env["stock.picking"]
         for picking in self.env["stock.picking"].search(domain):
@@ -3965,12 +3965,12 @@ class StockMove(models.Model):
                 covered_picking = picking
         return covered_picking
 
-    def _skip_push(self):
+    def _is_excluded_from_push(self):
         return self.is_inventory or (
             self.move_dest_ids
             and any(
-                m.location_id._child_of(self.location_dest_id)
-                or self.location_dest_id._child_of(m.location_id)
+                m.location_id._is_child_of(self.location_dest_id)
+                or self.location_dest_id._is_child_of(m.location_id)
                 for m in self.move_dest_ids
             )
         )
@@ -4315,8 +4315,8 @@ class StockMove(models.Model):
                         move.product_id.id,
                         move.company_id.id,
                     ]
-                    if move.location_id._child_of(candidate.location_id)
-                    and not move.location_dest_id._child_of(candidate.location_id)
+                    if move.location_id._is_child_of(candidate.location_id)
+                    and not move.location_dest_id._is_child_of(candidate.location_id)
                 ),
                 self.env["stock.warehouse.orderpoint"],
             )

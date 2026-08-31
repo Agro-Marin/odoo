@@ -1030,8 +1030,8 @@ class StockMove(models.Model):
         res["bom_line_id"] = self.bom_line_id.id
         return res
 
-    def _search_picking_for_assignation_domain(self):
-        domain = super()._search_picking_for_assignation_domain()
+    def _get_domain_picking_for_assignation(self):
+        domain = super()._get_domain_picking_for_assignation()
         domain += self._get_production_assignation_domain()
         return domain
 

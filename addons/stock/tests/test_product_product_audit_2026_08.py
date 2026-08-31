@@ -126,13 +126,13 @@ class TestProductProductAudit(TransactionCase):
         self.env.invalidate_all()
         calls = []
         Product = type(self.env["product.product"])
-        original = Product._search_qty_available_from_quants
+        original = Product._get_product_ids_from_quants
 
         def counting(records, operator, value, filters=None):
             calls.append(filters)
             return original(records, operator, value, filters)
 
-        Product._search_qty_available_from_quants = counting
+        Product._get_product_ids_from_quants = counting
         try:
             self.assertIn(
                 self.product,
@@ -146,7 +146,7 @@ class TestProductProductAudit(TransactionCase):
                 len(calls), 1, "an owners scope must not reach the quant fast path"
             )
         finally:
-            Product._search_qty_available_from_quants = original
+            Product._get_product_ids_from_quants = original
 
     def test_a_filter_change_in_an_override_names_only_what_it_changes(self):
         filters = QuantityFilters(lot_id=False, owners=[3], from_date="2020-01-01")

@@ -275,7 +275,7 @@ class TestProductTemplateStorabilityOff(TransactionCase):
         move._action_assign()
         return move
 
-    def _quant(self, product):
+    def _get_quant(self, product):
         return self.env["stock.quant"].search(
             [
                 ("product_id", "=", product.id),
@@ -287,12 +287,12 @@ class TestProductTemplateStorabilityOff(TransactionCase):
         template = self._stocked_product("strand")
         product = template.product_variant_id
         move = self._reserved_delivery(product)
-        self.assertEqual(self._quant(product).reserved_quantity, 4.0)
+        self.assertEqual(self._get_quant(product).reserved_quantity, 4.0)
 
         template.write({"is_storable": False})
 
         self.assertEqual(
-            self._quant(product).reserved_quantity,
+            self._get_quant(product).reserved_quantity,
             0.0,
             "turning inventory tracking off must release what nothing else can",
         )
@@ -308,7 +308,7 @@ class TestProductTemplateStorabilityOff(TransactionCase):
         move.picked = True
         move._action_done()
 
-        quant = self._quant(product)
+        quant = self._get_quant(product)
         self.assertEqual(quant.reserved_quantity, 0.0)
         self.assertEqual(
             product.qty_free,
@@ -324,7 +324,7 @@ class TestProductTemplateStorabilityOff(TransactionCase):
         template.write({"is_storable": False})
         self.env.invalidate_all()
 
-        self.assertEqual(self._quant(product).reserved_quantity, 0.0)
+        self.assertEqual(self._get_quant(product).reserved_quantity, 0.0)
         self.assertEqual(product.qty_free, 10.0)
         self.assertEqual(move.state, "assigned")
         self.assertEqual(sum(move.move_line_ids.mapped("quantity")), 4.0)
@@ -332,7 +332,7 @@ class TestProductTemplateStorabilityOff(TransactionCase):
         move._do_unreserve()
         self.assertEqual(move.state, "confirmed")
         self.assertFalse(move.move_line_ids)
-        self.assertEqual(self._quant(product).reserved_quantity, 0.0)
+        self.assertEqual(self._get_quant(product).reserved_quantity, 0.0)
 
     def test_turning_storability_on_still_resets_the_inventory(self):
         template = self.Tmpl.create(

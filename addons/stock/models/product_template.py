@@ -9,7 +9,7 @@ from odoo.addons.stock.const import (
     PY_OPERATORS,
     TEMPLATE_QUANTITY_FIELDS,
 )
-from odoo.addons.stock.tools.quantity import filter_quantity_in_python
+from odoo.addons.stock.tools.quantity import get_domain_quantity_in_python
 
 
 class ProductTemplate(models.Model):
@@ -561,13 +561,13 @@ class ProductTemplate(models.Model):
                 template.product_variant_ids._origin.mapped("count_lot_ids"),
             )
 
-    def _search_variant_quantity(self, field_name, operator, value):
+    def _get_domain_variant_quantity(self, field_name, operator, value):
         Product = self.env["product.product"]
         operation = PY_OPERATORS.get(operator)
         if operation is None:
-            return filter_quantity_in_python(self, field_name, operator, value)
+            return get_domain_quantity_in_python(self, field_name, operator, value)
 
-        variant_totals, candidates = Product._search_quantity_totals(field_name)
+        variant_totals, candidates = Product._get_quantity_totals(field_name)
         totals = defaultdict(float)
         for variant in candidates.filtered("active"):
             totals[variant.product_tmpl_id.id] += variant_totals[variant.id]
@@ -576,16 +576,18 @@ class ProductTemplate(models.Model):
         )
 
     def _search_qty_available(self, operator, value):
-        return self._search_variant_quantity("qty_available", operator, value)
+        return self._get_domain_variant_quantity("qty_available", operator, value)
 
     def _search_qty_available_virtual(self, operator, value):
-        return self._search_variant_quantity("qty_available_virtual", operator, value)
+        return self._get_domain_variant_quantity(
+            "qty_available_virtual", operator, value
+        )
 
     def _search_qty_incoming(self, operator, value):
-        return self._search_variant_quantity("qty_incoming", operator, value)
+        return self._get_domain_variant_quantity("qty_incoming", operator, value)
 
     def _search_qty_outgoing(self, operator, value):
-        return self._search_variant_quantity("qty_outgoing", operator, value)
+        return self._get_domain_variant_quantity("qty_outgoing", operator, value)
 
     def _inverse_serial_prefix_format(self):
         default_sequence = self._default_lot_sequence_id()
@@ -667,7 +669,7 @@ class ProductTemplate(models.Model):
             ("product_id.product_tmpl_id", "=", self.id),
             ("category_id", "=", self.categ_id.id),
         ]
-        return self._get_action_view_related_putaway_rules(domain)
+        return self._get_action_view_putaway_rules(domain)
 
     def action_view_storage_category_capacity(self):
         self.check_singleton()
@@ -817,7 +819,7 @@ class ProductTemplate(models.Model):
         quants_to_reset._apply_inventory()
 
     @api.model
-    def _get_action_view_related_putaway_rules(self, domain):
+    def _get_action_view_putaway_rules(self, domain):
         return {
             "name": _("Putaway Rules"),
             "type": "ir.actions.act_window",

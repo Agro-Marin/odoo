@@ -18,7 +18,7 @@ class TestQuantDormancy(TestStockCommon):
             ]
         )
 
-    def _stock_quant(self, product):
+    def _get_quant(self, product):
         return self.env["stock.quant"].search(
             [
                 ("product_id", "=", product.id),
@@ -30,7 +30,7 @@ class TestQuantDormancy(TestStockCommon):
         self.env["stock.quant"]._update_available_quantity(
             product, self.stock_location, quantity
         )
-        quant = self._stock_quant(product)
+        quant = self._get_quant(product)
         quant.write(
             {"in_date": fields.Datetime.subtract(fields.Datetime.now(), days=days)}
         )

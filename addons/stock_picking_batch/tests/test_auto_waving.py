@@ -362,7 +362,7 @@ class TestAutoWaving(TransactionCase):
         self.assertEqual(len(wave_1.picking_ids.partner_id), 3)
         self.assertTrue(
             all(
-                l._child_of(self.child_location_1)
+                l._is_child_of(self.child_location_1)
                 for l in wave_1.move_line_ids.location_id
             )
         )
@@ -376,7 +376,7 @@ class TestAutoWaving(TransactionCase):
         self.assertEqual(len(wave_2.picking_ids.partner_id), 3)
         self.assertTrue(
             all(
-                l._child_of(self.stock_location)
+                l._is_child_of(self.stock_location)
                 for l in wave_1.move_line_ids.location_id
             )
         )

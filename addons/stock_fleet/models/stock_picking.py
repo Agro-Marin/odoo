@@ -50,7 +50,7 @@ class StockPicking(models.Model):
         for picking in self:
             moves = picking.move_ids.filtered(
                 lambda m, dest=picking.location_dest_id: (
-                    not m.location_dest_id._child_of(dest)
+                    not m.location_dest_id._is_child_of(dest)
                 )
             )
             moves.write({"location_dest_id": picking.location_dest_id.id})

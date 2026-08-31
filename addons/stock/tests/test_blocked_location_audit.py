@@ -7,7 +7,7 @@ from .blocked_location_common import BlockedLocationCase
 
 class TestBlockMetadata(BlockedLocationCase):
     def test_write_records_metadata(self):
-        location = self._make_location("Metadata Target")
+        location = self._create_location("Metadata Target")
         self._add_stock(location, 100.0)
         location.with_user(self.manager_user).write(
             {"block_type": "soft_out", "block_reason": "Test reason"},
@@ -48,7 +48,7 @@ class TestBlockMetadata(BlockedLocationCase):
         self.assertTrue(self._messages(self.soft_out_location, "Location Unblocked"))
 
     def test_reserved_quantity_is_recorded(self):
-        location = self._make_location("Reserved At Blocking")
+        location = self._create_location("Reserved At Blocking")
         self._add_stock(location, 100.0)
         self.Quant.sudo()._update_available_quantity(
             self.product, location, quantity=0, reserved_quantity=50.0
@@ -57,8 +57,8 @@ class TestBlockMetadata(BlockedLocationCase):
         self.assertEqual(location.reserved_qty_when_blocked, 50.0)
 
     def test_reserved_quantity_includes_children(self):
-        zone = self._make_location("Zone With Children")
-        shelf = self._make_location("Shelf", parent=zone)
+        zone = self._create_location("Zone With Children")
+        shelf = self._create_location("Shelf", parent=zone)
         self._add_stock(shelf, 100.0)
         self.Quant.sudo()._update_available_quantity(
             self.product, shelf, quantity=0, reserved_quantity=40.0
@@ -67,8 +67,8 @@ class TestBlockMetadata(BlockedLocationCase):
         self.assertEqual(zone.reserved_qty_when_blocked, 40.0)
 
     def test_batch_write_records_each_location_own_quantity(self):
-        loc_a = self._make_location("Batch A")
-        loc_b = self._make_location("Batch B")
+        loc_a = self._create_location("Batch A")
+        loc_b = self._create_location("Batch B")
         self._add_stock(loc_a, 100.0)
         self._add_stock(loc_b, 100.0)
         self.Quant.sudo()._update_available_quantity(
@@ -108,7 +108,7 @@ class TestBlockMetadata(BlockedLocationCase):
 
 class TestChatterRendering(BlockedLocationCase):
     def test_block_message_renders_as_html(self):
-        location = self._make_location("Chatter Target")
+        location = self._create_location("Chatter Target")
         location.write({"block_type": "soft_out", "block_reason": "Quality hold"})
         body = self._messages(location, "Location Blocked")[:1].body
         self.assertIn("<b>", body, "the audit body must reach the reader as HTML")
@@ -122,7 +122,7 @@ class TestChatterRendering(BlockedLocationCase):
         self.assertNotIn("&lt;b&gt;", body)
 
     def test_block_reason_is_escaped_not_injected(self):
-        location = self._make_location("Injection Target")
+        location = self._create_location("Injection Target")
         location.write(
             {
                 "block_type": "soft_out",
@@ -135,7 +135,7 @@ class TestChatterRendering(BlockedLocationCase):
         self.assertIn("&lt;script&gt;", body)
 
     def test_reason_falls_back_to_the_stored_one(self):
-        location = self._make_location("Escalated")
+        location = self._create_location("Escalated")
         location.write({"block_type": "soft_out", "block_reason": "Batch #1 hold"})
         location.write({"block_type": "hard"})
         latest = self._messages(location, "Location Blocked")[:1].body
@@ -143,7 +143,7 @@ class TestChatterRendering(BlockedLocationCase):
         self.assertIn("Batch #1 hold", latest)
 
     def test_hard_block_warns_about_reservations(self):
-        location = self._make_location("Warn On Hard")
+        location = self._create_location("Warn On Hard")
         self._add_stock(location, 100.0)
         self.Quant.sudo()._update_available_quantity(
             self.product, location, quantity=0, reserved_quantity=25.0
@@ -157,7 +157,9 @@ class TestChatterRendering(BlockedLocationCase):
 class TestForcedOperationAudit(BlockedLocationCase):
     def test_soft_override_is_logged(self):
         self._add_stock(self.soft_out_location, 100.0)
-        picking = self._make_delivery(self.force_out_user, self.soft_out_location, 50.0)
+        picking = self._create_delivery(
+            self.force_out_user, self.soft_out_location, 50.0
+        )
         picking.do_unreserve()
         picking.with_user(self.force_out_user).move_ids.quantity = 50.0
         picking.move_ids.picked = True
@@ -170,33 +172,33 @@ class TestForcedOperationAudit(BlockedLocationCase):
 
     def test_hard_override_is_logged(self):
         self._add_stock(self.hard_block_location, 100.0)
-        picking = self._make_delivery(
+        picking = self._create_delivery(
             self.hard_override_user, self.hard_block_location, 50.0
         )
         picking.action_assign()
-        self._fill_and_validate(picking, self.hard_override_user)
+        self._update_quantities_and_validate(picking, self.hard_override_user)
         logged = self._messages(picking, "Blocked location operation")
         self.assertTrue(logged)
         self.assertIn("Hard Block override", logged[0].body)
 
     def test_plain_completion_out_of_a_block_is_logged(self):
-        location = self._make_location("Logged Completion")
+        location = self._create_location("Logged Completion")
         self._add_stock(location, 100.0)
-        picking = self._make_delivery(self.normal_user, location, 50.0)
+        picking = self._create_delivery(self.normal_user, location, 50.0)
         picking.action_assign()
         location.write({"block_type": "soft_out"})
-        self._fill_and_validate(picking, self.normal_user)
+        self._update_quantities_and_validate(picking, self.normal_user)
         logged = self._messages(picking, "Blocked location operation")
         self.assertTrue(logged)
         self.assertIn("completing a prior reservation", logged[0].body)
 
     def test_a_group_holder_is_always_recorded_as_an_override(self):
-        location = self._make_location("Group Holder Completion")
+        location = self._create_location("Group Holder Completion")
         self._add_stock(location, 100.0)
-        picking = self._make_delivery(self.force_out_user, location, 50.0)
+        picking = self._create_delivery(self.force_out_user, location, 50.0)
         picking.action_assign()
         location.write({"block_type": "soft_out"})
-        self._fill_and_validate(picking, self.force_out_user)
+        self._update_quantities_and_validate(picking, self.force_out_user)
         logged = self._messages(picking, "Blocked location operation")
         self.assertTrue(logged)
         self.assertIn("Soft Block override", logged[0].body)
@@ -204,9 +206,9 @@ class TestForcedOperationAudit(BlockedLocationCase):
 
     def test_unblocked_operations_are_not_logged(self):
         self._add_stock(self.normal_location, 100.0)
-        picking = self._make_delivery(self.normal_user, self.normal_location, 50.0)
+        picking = self._create_delivery(self.normal_user, self.normal_location, 50.0)
         picking.action_assign()
-        self._fill_and_validate(picking, self.normal_user)
+        self._update_quantities_and_validate(picking, self.normal_user)
         self.assertFalse(self._messages(picking, "Blocked location operation"))
 
     def test_pickingless_move_is_logged_on_the_location(self):
@@ -258,7 +260,7 @@ class TestGovernance(BlockedLocationCase):
         self.assertEqual(self.hard_block_location.block_type, "none")
 
     def test_applying_a_hard_block_needs_no_special_group(self):
-        location = self._make_location("Freezable")
+        location = self._create_location("Freezable")
         location.with_user(self.manager_user).write({"block_type": "hard"})
         self.assertEqual(location.block_type, "hard")
 
@@ -304,9 +306,9 @@ class TestUnreserveAction(BlockedLocationCase):
         )
 
     def test_unreserve_clears_reservations_and_logs(self):
-        location = self._make_location("To Unreserve")
+        location = self._create_location("To Unreserve")
         self._add_stock(location, 100.0)
-        picking = self._make_delivery(self.normal_user, location, 50.0)
+        picking = self._create_delivery(self.normal_user, location, 50.0)
         picking.action_assign()
         self.assertTrue(self._reserved_lines(location))
 
@@ -317,10 +319,10 @@ class TestUnreserveAction(BlockedLocationCase):
         self.assertTrue(self._messages(location, "Hard Block Auto-Unreserve"))
 
     def test_unreserve_works_on_a_child_of_a_hard_blocked_parent(self):
-        zone = self._make_location("Count Zone")
-        shelf = self._make_location("Count Shelf", parent=zone)
+        zone = self._create_location("Count Zone")
+        shelf = self._create_location("Count Shelf", parent=zone)
         self._add_stock(shelf, 100.0)
-        picking = self._make_delivery(self.normal_user, shelf, 50.0)
+        picking = self._create_delivery(self.normal_user, shelf, 50.0)
         picking.action_assign()
         self.assertTrue(self._reserved_lines(shelf))
 
@@ -335,12 +337,12 @@ class TestUnreserveAction(BlockedLocationCase):
         self.assertEqual(result["params"]["type"], "warning")
 
     def test_unreserve_message_counts_lines_not_summed_quantities(self):
-        other = self._make_product("Other Unit Product")
-        location = self._make_location("Mixed Unreserve")
+        other = self._create_product("Other Unit Product")
+        location = self._create_location("Mixed Unreserve")
         self._add_stock(location, 100.0)
         self._add_stock(location, 100.0, product=other)
         for product in (self.product, other):
-            picking = self._make_delivery(
+            picking = self._create_delivery(
                 self.normal_user, location, 10.0, product=product
             )
             picking.action_assign()
@@ -354,8 +356,8 @@ class TestUnreserveAction(BlockedLocationCase):
 
 class TestHardBlockGovernance(BlockedLocationCase):
     def test_reparenting_out_of_a_hard_block_needs_the_override(self):
-        zone = self._make_location("Governed Zone")
-        shelf = self._make_location("Governed Shelf", parent=zone)
+        zone = self._create_location("Governed Zone")
+        shelf = self._create_location("Governed Shelf", parent=zone)
         zone.write({"block_type": "hard"})
         self.assertEqual(shelf.effective_block_type, "hard")
         with self.assertRaises(UserError) as caught:
@@ -366,8 +368,8 @@ class TestHardBlockGovernance(BlockedLocationCase):
         self.assertEqual(shelf.effective_block_type, "hard")
 
     def test_reparenting_out_of_a_hard_block_works_with_the_override(self):
-        zone = self._make_location("Freeable Zone")
-        shelf = self._make_location("Freeable Shelf", parent=zone)
+        zone = self._create_location("Freeable Zone")
+        shelf = self._create_location("Freeable Shelf", parent=zone)
         zone.write({"block_type": "hard"})
         shelf.with_user(self.hard_override_user).write(
             {"location_id": self.normal_location.id},
@@ -375,30 +377,30 @@ class TestHardBlockGovernance(BlockedLocationCase):
         self.assertEqual(shelf.effective_block_type, "none")
 
     def test_reparenting_between_hard_blocks_is_allowed(self):
-        zone = self._make_location("Origin Zone", block_type="hard")
-        shelf = self._make_location("Travelling Shelf", parent=zone)
+        zone = self._create_location("Origin Zone", block_type="hard")
+        shelf = self._create_location("Travelling Shelf", parent=zone)
         shelf.with_user(self.manager_user).write(
             {"location_id": self.hard_block_location.id},
         )
         self.assertEqual(shelf.effective_block_type, "hard")
 
     def test_reparenting_an_own_hard_block_is_allowed(self):
-        shelf = self._make_location("Self Blocked", block_type="hard")
+        shelf = self._create_location("Self Blocked", block_type="hard")
         shelf.with_user(self.manager_user).write(
             {"location_id": self.normal_location.id},
         )
         self.assertEqual(shelf.effective_block_type, "hard")
 
     def test_reparenting_a_soft_block_is_not_gated(self):
-        zone = self._make_location("Soft Zone", block_type="soft_out")
-        shelf = self._make_location("Soft Shelf", parent=zone)
+        zone = self._create_location("Soft Zone", block_type="soft_out")
+        shelf = self._create_location("Soft Shelf", parent=zone)
         shelf.with_user(self.manager_user).write(
             {"location_id": self.normal_location.id},
         )
         self.assertEqual(shelf.effective_block_type, "none")
 
     def test_archiving_a_hard_blocked_location_needs_the_override(self):
-        location = self._make_location("Archivable", block_type="hard")
+        location = self._create_location("Archivable", block_type="hard")
         with self.assertRaises(UserError):
             location.with_user(self.manager_user).write({"active": False})
         self.assertTrue(location.active)
@@ -416,14 +418,14 @@ class TestUnreservePermission(BlockedLocationCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.override_only_user = cls._make_user(
+        cls.override_only_user = cls._create_user(
             "Override Only", cls.group_stock_user, cls.group_hard_override
         )
 
     def _blocked_with_reservation(self, name):
-        location = self._make_location(name)
+        location = self._create_location(name)
         self._add_stock(location, 100.0)
-        picking = self._make_delivery(self.normal_user, location, 50.0)
+        picking = self._create_delivery(self.normal_user, location, 50.0)
         picking.action_assign()
         location.sudo().write({"block_type": "hard"})
         return location
@@ -450,12 +452,12 @@ class TestUnreservePermission(BlockedLocationCase):
         self.assertTrue(self._messages(location, "Hard Block Auto-Unreserve"))
 
     def test_blocking_posts_chatter_without_write_access_on_mail(self):
-        location = self._make_location("Chatter Block")
+        location = self._create_location("Chatter Block")
         location.sudo().write({"block_type": "soft_out"})
         self.assertTrue(self._messages(location, "Location Blocked"))
 
     def test_the_override_group_does_not_replace_stock_rights(self):
-        outsider = self._make_user(
+        outsider = self._create_user(
             "Override Outsider",
             self.env.ref("base.group_user"),
             self.group_hard_override,
@@ -486,7 +488,7 @@ class TestUnreservePermission(BlockedLocationCase):
 
 class TestAuditAccuracy(BlockedLocationCase):
     def test_a_cancelled_line_is_not_audited(self):
-        blocked = self._make_location("Never Shipped")
+        blocked = self._create_location("Never Shipped")
         self._add_stock(blocked, 100.0)
         self._add_stock(self.normal_location, 100.0)
         picking = self.Picking.with_user(self.normal_user).create(
@@ -538,18 +540,18 @@ class TestAuditAccuracy(BlockedLocationCase):
         )
 
     def test_a_completed_line_is_still_audited(self):
-        location = self._make_location("Really Shipped")
+        location = self._create_location("Really Shipped")
         self._add_stock(location, 100.0)
-        picking = self._make_delivery(self.normal_user, location, 50.0)
+        picking = self._create_delivery(self.normal_user, location, 50.0)
         picking.action_assign()
         location.write({"block_type": "soft_out"})
-        self._fill_and_validate(picking, self.normal_user)
+        self._update_quantities_and_validate(picking, self.normal_user)
         logged = self._messages(picking, "Blocked location operation")
         self.assertTrue(logged)
         self.assertIn("50 Units", logged[0].body)
 
     def test_a_mixed_batch_does_not_inherit_the_inventory_bypass(self):
-        location = self._make_location("Mixed Batch", block_type="soft_out")
+        location = self._create_location("Mixed Batch", block_type="soft_out")
         allowed = (
             location.with_user(self.normal_user)
             .with_context(stock_blocked_is_inventory=True)
@@ -573,7 +575,7 @@ class TestReservedQuantityReporting(BlockedLocationCase):
             )
             .product_variant_ids[:1]
         )
-        location = self._make_location("Mixed Units")
+        location = self._create_location("Mixed Units")
         self._add_stock(location, 100.0)
         self._add_stock(location, 100.0, product=heavy)
         self.Quant.sudo()._update_available_quantity(
@@ -591,7 +593,7 @@ class TestReservedQuantityReporting(BlockedLocationCase):
         self.assertNotIn("15.00 units are currently reserved", body)
 
     def test_a_single_unit_location_still_reports_one_figure(self):
-        location = self._make_location("One Unit")
+        location = self._create_location("One Unit")
         self._add_stock(location, 100.0)
         self.Quant.sudo()._update_available_quantity(
             self.product, location, quantity=0, reserved_quantity=25.0

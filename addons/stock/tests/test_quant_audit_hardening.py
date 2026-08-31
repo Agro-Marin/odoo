@@ -320,9 +320,11 @@ class TestQuantRemovalStrategySeam(TestStockCommon):
                 # addon may build its key inline, and then no two calls return
                 # the same object even though the ordering is identical.
                 through_accessor = self.Quant._get_removal_strategy_sort_key(method)
-                self.assertEqual(strategy.as_sorted_arguments()[1], through_accessor[1])
                 self.assertEqual(
-                    quants.sorted(*strategy.as_sorted_arguments()).ids,
+                    strategy.resolve_sorted_arguments()[1], through_accessor[1]
+                )
+                self.assertEqual(
+                    quants.sorted(*strategy.resolve_sorted_arguments()).ids,
                     quants.sorted(*through_accessor).ids,
                     "the table and the accessor must order the same quants the"
                     " same way",
@@ -592,8 +594,8 @@ class TestQuantsCacheScope(TransactionCase):
 
     def test_a_descendant_is_covered_and_the_location_itself_is(self):
         cache = self._cache(["1/2/"])
-        self.assertTrue(cache.covers(_Stub(7), _Stub(2, "1/2/")))
-        self.assertTrue(cache.covers(_Stub(7), _Stub(99, "1/2/99/")))
+        self.assertTrue(cache.is_covering(_Stub(7), _Stub(2, "1/2/")))
+        self.assertTrue(cache.is_covering(_Stub(7), _Stub(99, "1/2/99/")))
 
     def test_a_sibling_whose_id_is_a_decimal_prefix_is_not_covered(self):
         # `covers` compares parent_path with str.startswith, so location 20
@@ -602,12 +604,12 @@ class TestQuantsCacheScope(TransactionCase):
         # starts being served out of this cache.
         cache = self._cache(["1/2/"])
         self.assertFalse(
-            cache.covers(_Stub(7), _Stub(20, "1/20/")),
+            cache.is_covering(_Stub(7), _Stub(20, "1/20/")),
             "a sibling location must never be served from another's cache",
         )
         stripped = self._cache(["1/2"])
         self.assertTrue(
-            stripped.covers(_Stub(7), _Stub(20, "1/20/")),
+            stripped.is_covering(_Stub(7), _Stub(20, "1/20/")),
             "this asserts the FAILURE mode on purpose: without the trailing"
             " slash the sibling is covered, which is why the roots must always"
             " come from parent_path verbatim",
@@ -631,12 +633,12 @@ class TestQuantsCacheScope(TransactionCase):
 
     def test_an_unsaved_location_is_never_covered(self):
         cache = self._cache(["1/2/"])
-        self.assertFalse(cache.covers(_Stub(7), _Stub(0, False)))
+        self.assertFalse(cache.is_covering(_Stub(7), _Stub(0, False)))
 
     def test_a_cache_with_no_usable_root_covers_nothing(self):
         cache = self._cache([False, "", None])
         self.assertEqual(cache._location_paths, ())
-        self.assertFalse(cache.covers(_Stub(7), _Stub(2, "1/2/")))
+        self.assertFalse(cache.is_covering(_Stub(7), _Stub(2, "1/2/")))
 
 
 class _Stub:

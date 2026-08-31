@@ -247,7 +247,7 @@ class ProductProduct(models.Model):
         # `component.qty_available` instead -- which is what this did -- goes
         # back through `_compute_quantities`, which rebuilds both from the
         # context: the scope a caller passed as an argument was dropped, and
-        # `_search_quantity_totals` is a caller that passes one.
+        # `_get_quantity_totals` is a caller that passes one.
         components = self.browse(
             {
                 bom_line.product_id.id
@@ -387,13 +387,11 @@ class ProductProduct(models.Model):
             | self._get_phantom_bom_products()
         )
 
-    def _search_qty_available_from_quants(self, operator, value, filters=None):
+    def _get_product_ids_from_quants(self, operator, value, filters=None):
         op = PY_OPERATORS.get(operator)
         if not op:
             return NotImplemented
-        product_ids = super()._search_qty_available_from_quants(
-            operator, value, filters
-        )
+        product_ids = super()._get_product_ids_from_quants(operator, value, filters)
         if product_ids is NotImplemented:
             return NotImplemented
         kits = self._get_phantom_bom_products()

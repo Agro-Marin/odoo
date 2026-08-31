@@ -542,7 +542,7 @@ class TestVirtualAvailable(TestStockCommon):
         )
         category = self.env["stock.storage.category"].create({"name": "Ctx Cat"})
 
-        def make(name):
+        def create_template(name):
             return self.env["product.template"].create(
                 {
                     "name": name,
@@ -561,8 +561,8 @@ class TestVirtualAvailable(TestStockCommon):
                 }
             )
 
-        template_a = make("Ctx A")
-        template_b = make("Ctx B")
+        template_a = create_template("Ctx A")
+        template_b = create_template("Ctx B")
 
         def red_variant(template):
             return template.product_variant_ids.filtered(

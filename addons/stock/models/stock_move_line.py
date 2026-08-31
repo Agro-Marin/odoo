@@ -479,7 +479,7 @@ class StockMoveLine(models.Model):
         # situation, not an inconsistency.)
         survivors = self.exists()
 
-        plan.packages_to_check._clear_orphaned_package_dests()
+        plan.packages_to_check._update_orphaned_package_dests()
         if plan.reservation_touched:
             if mls_to_update := survivors._get_lines_not_entire_pack():
                 mls_to_update.write({"is_entire_pack": False})
@@ -520,7 +520,7 @@ class StockMoveLine(models.Model):
         res = super().unlink()
         if moves:
             moves.with_prefetch()._recompute_state()
-        packages._clear_orphaned_package_dests()
+        packages._update_orphaned_package_dests()
         return res
 
     @api.ondelete(at_uninstall=False)

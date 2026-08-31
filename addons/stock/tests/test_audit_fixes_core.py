@@ -32,7 +32,7 @@ class TestAuditFixesCore(TestStockCommon):
         self.addCleanup(setattr, klass, method, orig)
         return calls
 
-    def _out_picking_with_moves(self, products, qty=5.0):
+    def _create_out_picking_with_moves(self, products, qty=5.0):
         picking = self.env["stock.picking"].create(
             {
                 "picking_type_id": self.picking_type_out.id,
@@ -225,7 +225,7 @@ class TestAuditFixesCore(TestStockCommon):
         )
         for product in products:
             self.Quant._update_available_quantity(product, self.stock_location, 50.0)
-        picking = self._out_picking_with_moves(products)
+        picking = self._create_out_picking_with_moves(products)
         self.env.flush_all()
         calls, _ = self._gather_spy()
         picking.action_assign()
@@ -270,7 +270,7 @@ class TestAuditFixesCore(TestStockCommon):
         import odoo.addons.stock.models.stock_move_line as _sml
 
         self.Quant._update_available_quantity(self.productB, self.stock_location, 5.0)
-        picking = self._out_picking_with_moves(self.productB)
+        picking = self._create_out_picking_with_moves(self.productB)
         picking.action_assign()
         line = picking.move_line_ids
         self.assertEqual(line.quantity, 5.0)
@@ -417,7 +417,7 @@ class TestAuditFixesCore(TestStockCommon):
 
     def test_compute_picked_ignores_context(self):
         self.Quant._update_available_quantity(self.productB, self.stock_location, 5.0)
-        picking = self._out_picking_with_moves(self.productB, qty=2.0)
+        picking = self._create_out_picking_with_moves(self.productB, qty=2.0)
         self.assertFalse(picking.move_ids.picked)
         line = self.MoveLine.with_context(auto_pick_move_lines=True).create(
             {
@@ -435,7 +435,7 @@ class TestAuditFixesCore(TestStockCommon):
         )
 
     def test_action_show_details_sets_picked_default(self):
-        picking = self._out_picking_with_moves(self.productB, qty=1.0)
+        picking = self._create_out_picking_with_moves(self.productB, qty=1.0)
         move = picking.move_ids
         move.picked = True
         action = move.action_show_details()
@@ -569,7 +569,7 @@ class TestAuditFixesCore(TestStockCommon):
 
     def test_delivery_slip_aggregation_no_prefix_collision(self):
         self.Quant._update_available_quantity(self.productB, self.stock_location, 4.0)
-        picking = self._out_picking_with_moves(self.productB, qty=4.0)
+        picking = self._create_out_picking_with_moves(self.productB, qty=4.0)
         move1 = picking.move_ids
         move1.description_picking = "AUD-AGG"
         base_key = self.MoveLine._get_aggregated_properties(move=move1)["line_key"]

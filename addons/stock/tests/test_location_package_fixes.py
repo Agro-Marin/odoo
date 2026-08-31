@@ -15,7 +15,7 @@ class TestLocationPackageFixes(TestStockCommon):
         cls.Package = cls.env["stock.package"]
         cls.Quant = cls.env["stock.quant"]
 
-    def _make_full_package(self, name, product, location, qty=5.0):
+    def _create_full_package(self, name, product, location, qty=5.0):
         package = self.Package.create({"name": name})
         self.Quant._update_available_quantity(
             product, location, qty, package_id=package
@@ -23,7 +23,7 @@ class TestLocationPackageFixes(TestStockCommon):
         return package
 
     def test_package_write_location_guards_per_record(self):
-        pkg_full = self._make_full_package("PKG-FULL", self.productA, self.shelf_1)
+        pkg_full = self._create_full_package("PKG-FULL", self.productA, self.shelf_1)
         pkg_empty = self.Package.create({"name": "PKG-EMPTY"})
         batch = pkg_full | pkg_empty
 
@@ -141,7 +141,7 @@ class TestLocationPackageFixes(TestStockCommon):
             child.replenish_location = True
 
     def test_package_info_recomputes_on_in_place_quant_update(self):
-        package = self._make_full_package(
+        package = self._create_full_package(
             "PKG-INFO", self.productC, self.shelf_1, qty=5.0
         )
         self.assertEqual(package.location_id, self.shelf_1)

@@ -470,7 +470,7 @@ class StockWarehouseOrderpoint(models.Model):
                     horizon_date,
                 )
 
-    def _get_pending_move_domains(self, horizon_date):
+    def _get_domains_pending_moves(self, horizon_date):
         _dummy, domain_move_in, domain_move_out = self.env[
             "stock.location"
         ]._quantity_domains(self.location_id.ids)
@@ -490,7 +490,7 @@ class StockWarehouseOrderpoint(models.Model):
         return scope & domain_move_in, scope & domain_move_out
 
     def _read_pending_moves_by_product(self, horizon_date):
-        domain_move_in, domain_move_out = self._get_pending_move_domains(horizon_date)
+        domain_move_in, domain_move_out = self._get_domains_pending_moves(horizon_date)
         Move = self.env["stock.move"].with_context(active_test=False)
         moves_by_product = defaultdict(list)
         for product, location_dest, location_final, in_date, in_qty in Move._read_group(
@@ -1228,7 +1228,7 @@ class StockWarehouseOrderpoint(models.Model):
         return domain & Domain("write_date", ">=", written_after)
 
     @api.model
-    def _build_replenishment_notification(self, title, label, url):
+    def _get_replenishment_notification(self, title, label, url):
         return {
             "type": "ir.actions.client",
             "tag": "display_notification",
@@ -1254,7 +1254,7 @@ class StockWarehouseOrderpoint(models.Model):
             )
             or move.location_id.usage == "transit"
         ) and move.picking_id:
-            return self._build_replenishment_notification(
+            return self._get_replenishment_notification(
                 _("The inter-warehouse transfers have been generated"),
                 move.picking_id.name,
                 "/odoo/action-stock.stock_picking_action_picking_type/"

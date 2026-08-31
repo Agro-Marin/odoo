@@ -344,7 +344,7 @@ class TestAuditFixesProduct(TransactionCase):
 
     def test_traceability_allowed_models_no_mrp(self):
         report = self.env["stock.traceability.report"].create({})
-        self.assertNotIn("mrp.production", report._get_line_allowed_models())
+        self.assertNotIn("mrp.production", report._get_models_allowed_line())
         self.assertEqual(
             report.get_lines(model_name="mrp.production", model_id=1),
             [],

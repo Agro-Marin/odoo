@@ -44,7 +44,7 @@ class ReportStockReport_Reception(models.AbstractModel):
 
         qty_draft, qty_to_assign, total_assigned = self._classify_incoming_moves(moves)
 
-        outs = self._search_candidate_outs(docs, doc_states, qty_to_assign, qty_draft)
+        outs = self._get_candidate_outs(docs, doc_states, qty_to_assign, qty_draft)
 
         sources_to_lines = self._match_outs_to_incoming(
             outs, doc_states, qty_to_assign, qty_draft
@@ -68,7 +68,7 @@ class ReportStockReport_Reception(models.AbstractModel):
 
     def _get_validated_docs(self, docids):
         docs = self._get_docs(docids)
-        doc_types = self._get_doc_types()
+        doc_types = self._get_doc_types_label()
         if not docs:
             return docs, _("No %s selected or a delivery order selected", doc_types)
         doc_states = docs.mapped("state")
@@ -106,7 +106,7 @@ class ReportStockReport_Reception(models.AbstractModel):
                     qty_to_assign[product].append((remaining, move))
         return qty_draft, qty_to_assign, total_assigned
 
-    def _search_candidate_outs(self, docs, doc_states, qty_to_assign, qty_draft):
+    def _get_candidate_outs(self, docs, doc_states, qty_to_assign, qty_draft):
         warehouse = docs[0].picking_type_id.warehouse_id
         wh_location_ids = self.env["stock.location"]._get_allocation_source_ids(
             warehouse.view_location_id.ids,
@@ -262,7 +262,7 @@ class ReportStockReport_Reception(models.AbstractModel):
     def _get_doc_model(self):
         return "stock.picking"
 
-    def _get_doc_types(self):
+    def _get_doc_types_label(self):
         return "transfers"
 
     def _get_moves(self, docs):

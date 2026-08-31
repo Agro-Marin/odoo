@@ -10,7 +10,7 @@ from odoo.addons.stock.tools.reservation import (
     LeastPackagesPriorityQueue,
     ReservationCandidate,
     distribute_reservation,
-    least_packages_search,
+    get_least_packages,
 )
 
 
@@ -20,24 +20,24 @@ class TestLeastPackagesSearch(TransactionCase):
         return len(taken)
 
     def test_exact_single_package(self):
-        taken = least_packages_search([(10, 5), (11, 3)], 5)
+        taken = get_least_packages([(10, 5), (11, 3)], 5)
         self.assertEqual(taken, ((10, 5),))
 
     def test_prefers_fewer_packages_over_exactness(self):
-        taken = least_packages_search([(10, 8), (11, 5), (12, 3)], 8)
+        taken = get_least_packages([(10, 8), (11, 5), (12, 3)], 8)
         self.assertEqual(taken, ((10, 8),))
 
     def test_multi_single_exact_cover(self):
-        taken = least_packages_search([(10, 9), (None, 1), (None, 1)], 2)
+        taken = get_least_packages([(10, 9), (None, 1), (None, 1)], 2)
         self.assertEqual(taken, ((None, 1), (None, 1)))
 
     def test_overselect_fallback_when_no_exact(self):
-        taken = least_packages_search([(10, 5)], 4)
+        taken = get_least_packages([(10, 5)], 4)
         self.assertEqual(taken, ((10, 5),))
         self.assertEqual(self._num_packages(taken), 1)
 
     def test_insufficient_stock_returns_closest_leaf(self):
-        taken = least_packages_search([(10, 2)], 5)
+        taken = get_least_packages([(10, 2)], 5)
         self.assertEqual(taken, ((10, 2),))
 
     def test_priority_queue_never_compares_items_on_tie(self):
@@ -57,7 +57,7 @@ class TestLeastPackagesSearch(TransactionCase):
         self.assertIs(pq.get(), first)
         self.assertIs(pq.get(), second)
         self.assertIs(pq.get(), third)
-        self.assertTrue(pq.empty())
+        self.assertTrue(pq.is_empty())
 
 
 @tagged("post_install", "-at_install")
@@ -532,8 +532,8 @@ class TestStockQuantImprovements(TestStockCommon):
         self.env.cr.flush()
         cache = self.Quant._get_quants_by_products_locations(covered, self.loc)
         gather = self.Quant.with_context(quants_cache=cache)._gather
-        self.assertFalse(cache.covers(uncovered, self.loc))
-        self.assertTrue(cache.covers(covered, self.loc))
+        self.assertFalse(cache.is_covering(uncovered, self.loc))
+        self.assertTrue(cache.is_covering(covered, self.loc))
         self.assertEqual(gather(covered, self.loc, strict=True).quantity, 5.0)
         res = gather(uncovered, self.loc, strict=True)
         self.assertEqual(res.product_id, uncovered)
@@ -548,7 +548,7 @@ class TestStockQuantImprovements(TestStockCommon):
             covered,
             self.env["stock.location"].browse(),
         )
-        self.assertFalse(child_cache.covers(covered, other_loc))
+        self.assertFalse(child_cache.is_covering(covered, other_loc))
         res2 = self.Quant.with_context(quants_cache=child_cache)._gather(
             covered, other_loc, strict=True
         )
@@ -629,17 +629,17 @@ class TestStockQuantImprovements(TestStockCommon):
         from odoo.addons.stock.models import stock_quant as _sq
 
         seen = {}
-        original = _sq.least_packages_search
+        original = _sq.get_least_packages
 
         def capture(qty_by_package, qty):
             seen["input"] = list(qty_by_package)
             return original(qty_by_package, qty)
 
-        _sq.least_packages_search = capture
+        _sq.get_least_packages = capture
         try:
             self.Quant._gather(product, self.loc, qty=5.0)
         finally:
-            _sq.least_packages_search = original
+            _sq.get_least_packages = original
 
         entries = seen.get("input")
         self.assertTrue(entries, "the A* must have been reached")
@@ -719,17 +719,17 @@ class TestStockQuantImprovements(TestStockCommon):
             ("location_id", "=", self.loc.id),
         ]
         calls = {"n": 0}
-        original = _sq.least_packages_search
+        original = _sq.get_least_packages
 
         def spy(qty_by_package, qty):
             calls["n"] += 1
             return original(qty_by_package, qty)
 
-        _sq.least_packages_search = spy
+        _sq.get_least_packages = spy
         try:
             res = self.Quant._run_least_packages_removal_strategy_astar(base_domain, 3)
         finally:
-            _sq.least_packages_search = original
+            _sq.get_least_packages = original
 
         self.assertEqual(
             calls["n"], 0, "no real packages -> the A* solver must never run"
@@ -1337,7 +1337,7 @@ class TestStockQuantImprovements(TestStockCommon):
             ["qimp-neg-A", "qimp-neg-B"],
         )
 
-    def _assign_orderpoint_searches(self, count, code):
+    def _count_orderpoint_searches_on_assign(self, count, code):
         warehouse = self.env["stock.warehouse"].create(
             {
                 "name": f"Assign {code}",
@@ -1395,8 +1395,8 @@ class TestStockQuantImprovements(TestStockCommon):
         return len(calls), picking.move_ids.mapped("state")
 
     def test_action_assign_does_not_refresh_orderpoints_per_move(self):
-        few, few_states = self._assign_orderpoint_searches(2, "AQA")
-        many, many_states = self._assign_orderpoint_searches(20, "AQB")
+        few, few_states = self._count_orderpoint_searches_on_assign(2, "AQA")
+        many, many_states = self._count_orderpoint_searches_on_assign(20, "AQB")
 
         self.assertGreaterEqual(few, 1, "the spy must have seen the refresh at all")
         self.assertEqual(

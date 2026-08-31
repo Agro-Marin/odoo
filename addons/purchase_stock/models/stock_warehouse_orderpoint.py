@@ -212,7 +212,7 @@ class StockWarehouseOrderpoint(models.Model):
             .order_id
         )
         if order:
-            return self._build_replenishment_notification(
+            return self._get_replenishment_notification(
                 _("The following replenishment order has been generated"),
                 order.display_name,
                 f"/odoo/action-purchase.action_purchase_order_3/{order.id}",

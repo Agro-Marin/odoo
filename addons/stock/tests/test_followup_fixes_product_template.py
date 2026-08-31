@@ -156,7 +156,7 @@ class TestProductTemplateFollowupFixes(TransactionCase):
         self._set_on_hand(minus, -5)
         self.env.invalidate_all()
 
-        domain = self.Tmpl._search_variant_quantity("qty_available", "ilike", "5")
+        domain = self.Tmpl._get_domain_variant_quantity("qty_available", "ilike", "5")
         self.assertEqual(
             [leaf[0] for leaf in domain],
             ["id"],

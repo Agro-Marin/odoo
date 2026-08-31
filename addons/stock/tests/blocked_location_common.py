@@ -5,7 +5,7 @@ from odoo.fields import Command
 from odoo.tests.common import TransactionCase
 
 
-def ensure_publish_date_field(env):
+def has_publish_date_field(env):
     env.cr.execute(
         "SELECT column_name FROM information_schema.columns "
         "WHERE table_name = 'product_template' AND column_name = 'publish_date'"
@@ -23,7 +23,7 @@ class BlockedLocationCase(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.has_publish_date = ensure_publish_date_field(cls.env)
+        cls.has_publish_date = has_publish_date_field(cls.env)
 
         cls.Location = cls.env["stock.location"]
         cls.Quant = cls.env["stock.quant"]
@@ -31,18 +31,20 @@ class BlockedLocationCase(TransactionCase):
         cls.Move = cls.env["stock.move"]
         cls.MoveLine = cls.env["stock.move.line"]
 
-        cls.product = cls._make_product("Test Product")
+        cls.product = cls._create_product("Test Product")
 
         cls.stock_location = cls.env.ref("stock.stock_location_stock")
         cls.customer_location = cls.env.ref("stock.stock_location_customers")
         cls.supplier_location = cls.env.ref("stock.stock_location_suppliers")
         cls.picking_type_out = cls.env.ref("stock.picking_type_out")
 
-        cls.soft_in_location = cls._make_location("Soft In", block_type="soft_in")
-        cls.soft_out_location = cls._make_location("Soft Out", block_type="soft_out")
-        cls.soft_both_location = cls._make_location("Soft Both", block_type="soft_both")
-        cls.hard_block_location = cls._make_location("Hard", block_type="hard")
-        cls.normal_location = cls._make_location("Normal")
+        cls.soft_in_location = cls._create_location("Soft In", block_type="soft_in")
+        cls.soft_out_location = cls._create_location("Soft Out", block_type="soft_out")
+        cls.soft_both_location = cls._create_location(
+            "Soft Both", block_type="soft_both"
+        )
+        cls.hard_block_location = cls._create_location("Hard", block_type="hard")
+        cls.normal_location = cls._create_location("Normal")
 
         cls.group_force_in = cls.env.ref(
             "stock.group_force_blocked_location_in",
@@ -56,20 +58,20 @@ class BlockedLocationCase(TransactionCase):
         cls.group_stock_user = cls.env.ref("stock.group_stock_user")
         cls.group_stock_manager = cls.env.ref("stock.group_stock_manager")
 
-        cls.normal_user = cls._make_user("Normal User", cls.group_stock_user)
-        cls.force_in_user = cls._make_user(
+        cls.normal_user = cls._create_user("Normal User", cls.group_stock_user)
+        cls.force_in_user = cls._create_user(
             "Force In User", cls.group_stock_user, cls.group_force_in
         )
-        cls.force_out_user = cls._make_user(
+        cls.force_out_user = cls._create_user(
             "Force Out User", cls.group_stock_user, cls.group_force_out
         )
-        cls.hard_override_user = cls._make_user(
+        cls.hard_override_user = cls._create_user(
             "Hard Override User",
             cls.group_stock_user,
             cls.group_stock_manager,
             cls.group_hard_override,
         )
-        cls.manager_user = cls._make_user("Stock Manager", cls.group_stock_manager)
+        cls.manager_user = cls._create_user("Stock Manager", cls.group_stock_manager)
 
         cls.vendor_group = cls.env["res.groups"].create(
             {"name": "Test Vendor (no stock group)"},
@@ -96,19 +98,19 @@ class BlockedLocationCase(TransactionCase):
                     "perm_read": True,
                 },
             )
-        cls.vendor_user = cls._make_user(
+        cls.vendor_user = cls._create_user(
             "Vendor User", cls.env.ref("base.group_user"), cls.vendor_group
         )
 
     @classmethod
-    def _make_product(cls, name):
+    def _create_product(cls, name):
         vals = {"name": name, "type": "consu", "is_storable": True}
         if cls.has_publish_date:
             vals["publish_date"] = fields.Datetime.now()
         return cls.env["product.template"].create(vals).product_variant_ids[:1]
 
     @classmethod
-    def _make_location(cls, name, block_type="none", parent=None):
+    def _create_location(cls, name, block_type="none", parent=None):
         return cls.env["stock.location"].create(
             {
                 "name": name,
@@ -118,7 +120,7 @@ class BlockedLocationCase(TransactionCase):
         )
 
     @classmethod
-    def _make_user(cls, name, *groups):
+    def _create_user(cls, name, *groups):
         login = name.lower().replace(" ", "_")
         return cls.env["res.users"].create(
             {
@@ -142,7 +144,7 @@ class BlockedLocationCase(TransactionCase):
         )
         return sum(quants.mapped("quantity"))
 
-    def _make_delivery(self, user, location, quantity=10.0, product=None):
+    def _create_delivery(self, user, location, quantity=10.0, product=None):
         product = product or self.product
         picking = self.Picking.with_user(user).create(
             {
@@ -165,7 +167,7 @@ class BlockedLocationCase(TransactionCase):
         picking.action_confirm()
         return picking
 
-    def _fill_and_validate(self, picking, user):
+    def _update_quantities_and_validate(self, picking, user):
         for line in picking.move_line_ids:
             line.quantity = line.quantity_product_uom
         picking.move_ids.picked = True

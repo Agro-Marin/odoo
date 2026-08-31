@@ -48,7 +48,7 @@ class TestQuantityVisibility(BlockedLocationCase):
         self.assertEqual(self._qty_for(self.vendor_user), 100.0)
 
     def test_children_of_a_blocked_zone_are_hidden(self):
-        shelf = self._make_location("Hidden Shelf", parent=self.soft_out_location)
+        shelf = self._create_location("Hidden Shelf", parent=self.soft_out_location)
         self._add_stock(shelf, 77.0)
         self.assertEqual(self._qty_for(self.vendor_user), 0.0)
         self.assertEqual(self._qty_for(self.normal_user), 77.0)
@@ -173,7 +173,7 @@ class TestInventoryCount(BlockedLocationCase):
     def test_counting_a_blocked_location_does_not_duplicate_the_quant(self):
         for block_type in ("none", "soft_in", "soft_out", "soft_both", "hard"):
             with self.subTest(block_type=block_type):
-                location = self._make_location(
+                location = self._create_location(
                     f"Counted {block_type}", block_type=block_type
                 )
                 self._add_stock(location, 100.0)
@@ -189,7 +189,7 @@ class TestInventoryCount(BlockedLocationCase):
                 self.assertEqual(counted.inventory_diff_quantity, 0.0)
 
     def test_applying_a_count_in_a_blocked_location_keeps_the_quantity(self):
-        location = self._make_location("Applied Count", block_type="soft_out")
+        location = self._create_location("Applied Count", block_type="soft_out")
         self._add_stock(location, 100.0)
         self.env.flush_all()
 
@@ -200,7 +200,7 @@ class TestInventoryCount(BlockedLocationCase):
         self.assertEqual(self._on_hand(location), 100.0)
 
     def test_auto_apply_count_keeps_the_quantity(self):
-        location = self._make_location("Auto Applied", block_type="soft_out")
+        location = self._create_location("Auto Applied", block_type="soft_out")
         self._add_stock(location, 100.0)
         self.env.flush_all()
 
@@ -217,7 +217,7 @@ class TestInventoryCount(BlockedLocationCase):
         self.assertEqual(self._on_hand(location), 100.0)
 
     def test_a_real_count_difference_still_applies(self):
-        location = self._make_location("Real Difference", block_type="soft_out")
+        location = self._create_location("Real Difference", block_type="soft_out")
         self._add_stock(location, 100.0)
         self.env.flush_all()
 
@@ -229,7 +229,7 @@ class TestInventoryCount(BlockedLocationCase):
         self.assertEqual(self._on_hand(location), 80.0)
 
     def test_counting_a_hard_block_still_needs_the_override_to_apply(self):
-        location = self._make_location("Hard Counted", block_type="hard")
+        location = self._create_location("Hard Counted", block_type="hard")
         self._add_stock(location, 100.0)
         self.env.flush_all()
 
@@ -259,7 +259,7 @@ class TestTranslatedLabels(BlockedLocationCase):
         self.env.flush_all()
         self.env.registry.clear_cache()
 
-        spanish_user = self._make_user("Usuario ES", self.group_stock_user)
+        spanish_user = self._create_user("Usuario ES", self.group_stock_user)
         spanish_user.lang = "es_MX"
         self._add_stock(self.hard_block_location, 50.0)
 

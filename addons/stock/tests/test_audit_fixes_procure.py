@@ -385,7 +385,7 @@ class TestAuditOrderpointFixes(TransactionCase):
             self.assertEqual(orderpoint.qty_to_order_computed, 7.0)
 
     def test_lead_time_stats_exclude_immediate_receipts(self):
-        def make_done_receipt(span):
+        def create_done_receipt(span):
             picking = self.env["stock.picking"].create(
                 {
                     "picking_type_id": self.warehouse.in_type_id.id,
@@ -417,8 +417,8 @@ class TestAuditOrderpointFixes(TransactionCase):
             )
             return picking
 
-        make_done_receipt(timedelta(minutes=10))
-        make_done_receipt(timedelta(days=5))
+        create_done_receipt(timedelta(minutes=10))
+        create_done_receipt(timedelta(days=5))
 
         orderpoint = self.env["stock.warehouse.orderpoint"].create(
             {
