@@ -89,11 +89,11 @@ class ApprovalDelegateWizard(models.TransientModel):
                 )
 
     def _delegatable_states(self) -> list[str]:
-        self.ensure_one()
+        self.check_singleton()
         return ["pending"] if self.apply_to == "pending" else ["pending", "waiting"]
 
     def _get_domain_approver(self, states=None):
-        self.ensure_one()
+        self.check_singleton()
         return [
             ("user_id", "=", self.user_id.id),
             ("state", "in", states or self._delegatable_states()),
@@ -133,7 +133,7 @@ class ApprovalDelegateWizard(models.TransientModel):
             wizard.waiting_count = counts.get((wizard.user_id.id, "waiting"), 0)
 
     def action_confirm(self):
-        self.ensure_one()
+        self.check_singleton()
 
         is_manager = is_approval_manager(self.env)
         if self.user_id != self.env.user and not is_manager:

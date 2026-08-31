@@ -104,7 +104,7 @@ class HrVersion(models.Model):
         # includes the whole interval.
         # Overriden in hr_work_entry_holidays to select the
         # global time off first (eg: Public Holiday > Home Working)
-        self.ensure_one()
+        self.check_singleton()
         for leave in leaves:
             if interval[0] >= leave[0] and interval[1] <= leave[1] and leave[2]:
                 interval_start = interval[0].astimezone(UTC).replace(tzinfo=None)
@@ -170,7 +170,7 @@ class HrVersion(models.Model):
         return result
 
     def _get_interval_work_entry_type(self, interval):
-        self.ensure_one()
+        self.check_singleton()
         if "work_entry_type_id" in interval[2] and interval[2].work_entry_type_id[:1]:
             return interval[2].work_entry_type_id[:1]
         return self.env["hr.work.entry.type"].browse(
@@ -178,7 +178,7 @@ class HrVersion(models.Model):
         )
 
     def _get_valid_leave_intervals(self, attendances, interval):
-        self.ensure_one()
+        self.check_singleton()
         return [interval]
 
     @api.model
@@ -187,7 +187,7 @@ class HrVersion(models.Model):
 
     # Meant for behavior override
     def _get_real_attendance_work_entry_vals(self, intervals):
-        self.ensure_one()
+        self.check_singleton()
         vals = []
         employee = self.employee_id
         for interval in intervals:
@@ -532,7 +532,7 @@ class HrVersion(models.Model):
     def has_static_work_entries(self):
         # Static work entries as in the same are to be generated each month
         # Useful to differentiate attendance based versions from regular ones
-        self.ensure_one()
+        self.check_singleton()
         return self.work_entry_source == "calendar"
 
     def generate_work_entries(
@@ -957,7 +957,7 @@ class HrVersion(models.Model):
         return super().unlink()
 
     def _recompute_work_entries(self, date_from, date_to):
-        self.ensure_one()
+        self.check_singleton()
         if self.employee_id:
             wizard = self.env["hr.work.entry.regeneration.wizard"].create(
                 {

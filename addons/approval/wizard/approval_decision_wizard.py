@@ -99,7 +99,7 @@ class ApprovalDecisionWizard(models.TransientModel):
         }[decision_type]
 
     def _check_decision_allowed(self, action_verb: str) -> None:
-        self.ensure_one()
+        self.check_singleton()
 
         if self.approver_id.state != "pending":
             raise UserError(
@@ -132,7 +132,7 @@ class ApprovalDecisionWizard(models.TransientModel):
         )
 
     def _check_refusal_reason_applicable(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         reason = self.refusal_reason_id
         request = self.request_id
         if reason.category_ids and request.category_id not in reason.category_ids:
@@ -154,7 +154,7 @@ class ApprovalDecisionWizard(models.TransientModel):
             )
 
     def action_confirm_refuse(self):
-        self.ensure_one()
+        self.check_singleton()
         self._check_decision_allowed(self._decision_verb("refuse"))
 
         if not self.refusal_reason_id:
@@ -181,7 +181,7 @@ class ApprovalDecisionWizard(models.TransientModel):
         return {"type": "ir.actions.act_window_close"}
 
     def action_confirm_change(self):
-        self.ensure_one()
+        self.check_singleton()
         self._check_decision_allowed(self._decision_verb("change"))
 
         if not self.change_field:

@@ -10,7 +10,7 @@ class HrEmployeePublic(models.Model):
     courses_completion_text = fields.Char(related="employee_id.courses_completion_text")
 
     def action_view_courses(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.is_user:
             return self.employee_id.action_view_courses()
         return False

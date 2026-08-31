@@ -208,7 +208,7 @@ class EventEventTicket(models.Model):
         If no ticket is created (alone event), event_id argument is used. Then
         return the dictionary with False as key."""
         if event_slot:
-            event_slot.ensure_one()
+            event_slot.check_singleton()
         if self:
             slots_seats_available = self.event_id._get_seats_availability(
                 [[event_slot, ticket] for ticket in self]
@@ -245,7 +245,7 @@ class EventEventTicket(models.Model):
         return "%s\n%s" % (self.display_name, self.event_id.display_name)
 
     def _set_tz_context(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.with_context(tz=self.event_id.date_tz or "UTC")
 
     @api.ondelete(at_uninstall=False)

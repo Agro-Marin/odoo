@@ -755,7 +755,7 @@ class ApprovalCategory(models.Model):
                 category.invalid_minimum_warning = False
 
     def create_request(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "res_model": "approval.request",
@@ -771,13 +771,13 @@ class ApprovalCategory(models.Model):
             return base64.b64encode(icon_file.read())
 
     def _is_applicable_for(self, document) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return True
 
     def _get_view_request(
         self, label: str, extra_domain: list | None = None
     ) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         domain = [("category_id", "=", self.id)]
         if extra_domain:
             domain.extend(extra_domain)
@@ -848,7 +848,7 @@ class ApprovalCategory(models.Model):
         )
 
     def view_rules(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": self.env._("Rules: %s", self.name),
             "type": "ir.actions.act_window",
@@ -859,7 +859,7 @@ class ApprovalCategory(models.Model):
         }
 
     def view_templates(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": self.env._("Templates: %s", self.name),
             "type": "ir.actions.act_window",

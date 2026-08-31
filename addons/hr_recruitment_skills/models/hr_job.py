@@ -47,7 +47,7 @@ class HrJob(models.Model):
             )
 
     def action_search_matching_applicants(self):
-        self.ensure_one()
+        self.check_singleton()
         help_message_1 = self.env._("No Matching Applicants")
         help_message_2 = self.env._(
             "We do not have any applicants who meet the skill requirements for this job position in the database at the moment."

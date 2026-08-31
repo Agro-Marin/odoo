@@ -278,7 +278,7 @@ class HrEmployee(models.Model):
         Check In: create a new attendance record
         Check Out: modify check_out field of appropriate attendance record
         """
-        self.ensure_one()
+        self.check_singleton()
         action_date = fields.Datetime.now()
 
         if self.attendance_state != "checked_in":
@@ -334,7 +334,7 @@ class HrEmployee(models.Model):
         return {"validated_overtime": validated_overtime, "overtime_adjustments": {}}
 
     def action_view_last_month_attendances(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "name": _("Attendances This Month"),

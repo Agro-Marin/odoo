@@ -246,7 +246,7 @@ class TestProjectSharingUi(HttpCase):
         )
         self.authenticate("john", "john")
         self.project_portal.message_subscribe(partner_ids=[user_john.partner_id.id])
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             route="/mail/message/reaction",
             params={"action": "add", "content": "👀", "message_id": message.id},
         )

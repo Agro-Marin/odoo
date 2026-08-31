@@ -44,7 +44,7 @@ class ResPartner(models.Model):
             partner.employees_count = counts.get(partner, 0)
 
     def action_view_employees(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.employees_count > 1:
             return {
                 "name": self.env._("Related Employees"),
@@ -67,7 +67,7 @@ class ResPartner(models.Model):
         }
 
     def _get_all_addr(self):
-        self.ensure_one()
+        self.check_singleton()
         employee_id = self.env["hr.employee"].search(
             [("id", "in", self.employee_ids.ids)],
             limit=1,

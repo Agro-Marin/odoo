@@ -54,7 +54,7 @@ class SurveyUser_Input(models.Model):
 
         return {
             "medium_id": self.env["utm.medium"]
-            ._fetch_or_create_utm_medium("Survey")
+            ._get_or_create_utm_medium("Survey")
             .id,
             "origin_survey_id": survey.id,
             "source_id": self.env["mixin.utm"]
@@ -66,7 +66,7 @@ class SurveyUser_Input(models.Model):
         }
 
     def _prepare_user_input_lead_values(self):
-        self.ensure_one()
+        self.check_singleton()
         input_lead_values = self._prepare_lead_values_from_user_input_lines()
 
         username = participant_name = self.partner_id.name or self.partner_id.email
@@ -97,7 +97,7 @@ class SurveyUser_Input(models.Model):
         return lead_values
 
     def _prepare_lead_values_from_user_input_lines(self):
-        self.ensure_one()
+        self.check_singleton()
 
         answers_by_question = self.user_input_line_ids.grouped("question_id")
         html_input_lines = []
@@ -243,7 +243,7 @@ class SurveyUser_Input(models.Model):
         }
 
     def action_redirect_lead(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "crm.crm_lead_opportunities"
         )

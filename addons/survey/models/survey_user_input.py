@@ -462,7 +462,7 @@ class SurveyUser_Input(models.Model):
         ).action_send_survey()
 
     def action_print_answers(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         url = self.env["ir.http"]._url_for(
             f"/survey/print/{self.survey_id.access_token}?answer_token={self.access_token}",
             self.lang_id.code or None,
@@ -475,7 +475,7 @@ class SurveyUser_Input(models.Model):
         }
 
     def action_redirect_to_attempts(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
 
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "survey.action_survey_user_input"
@@ -500,7 +500,7 @@ class SurveyUser_Input(models.Model):
     SAVE_LATER_COOLDOWN_MINUTES = 5
 
     def _consume_save_later_allowance(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         self.env.cr.execute(
             "SELECT save_later_datetime FROM survey_user_input WHERE id = %s FOR UPDATE",
             [self.id],
@@ -577,7 +577,7 @@ class SurveyUser_Input(models.Model):
 
     def _fire_webhook(self, event: str) -> None:
         """Every guard lives here, so no call site has to remember them."""
-        self.ensure_one()
+        self.check_singleton()
         survey = self.survey_id
         webhook_url = survey.webhook_url
         if not webhook_url or self.test_entry:
@@ -625,7 +625,7 @@ class SurveyUser_Input(models.Model):
     def _prepare_webhook_payload(
         self, event: str = "survey_completed"
     ) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         answers = []
         for line in self.user_input_line_ids:
             if line.skipped:
@@ -655,11 +655,11 @@ class SurveyUser_Input(models.Model):
         }
 
     def get_start_url(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         return f"{self.survey_id.get_start_url()}?answer_token={self.access_token}"
 
     def get_print_url(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         return f"{self.survey_id.get_print_url()}?answer_token={self.access_token}"
 
     _CALC_REF_RE = re.compile(r"\bQ(\d+)\b")
@@ -754,7 +754,7 @@ class SurveyUser_Input(models.Model):
         """
         if not text or "{{Q" not in text:
             return text
-        self.ensure_one()
+        self.check_singleton()
 
         is_markup = isinstance(text, Markup)
         answered = self.user_input_line_ids.filtered(lambda line: not line.skipped)
@@ -1228,7 +1228,7 @@ class SurveyUser_Input(models.Model):
         return survey.question_ids - inactive_questions
 
     def _get_next_skipped_page_or_question(self) -> Any:
-        self.ensure_one()
+        self.check_singleton()
         skipped_mandatory_answer_ids = self.user_input_line_ids.filtered(
             lambda answer: answer.skipped and answer.question_id.constr_mandatory
         )
@@ -1257,7 +1257,7 @@ class SurveyUser_Input(models.Model):
         return page_or_question_ids[current_page_index + 1]
 
     def _get_skipped_questions(self) -> Any:
-        self.ensure_one()
+        self.check_singleton()
 
         return self.user_input_line_ids.filtered(
             lambda answer: answer.skipped and answer.question_id.constr_mandatory

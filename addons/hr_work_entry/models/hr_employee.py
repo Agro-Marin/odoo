@@ -53,7 +53,7 @@ class HrEmployee(models.Model):
         return new_version
 
     def action_view_work_entries(self, initial_date=False):
-        self.ensure_one()
+        self.check_singleton()
         ctx = {"default_employee_id": self.id}
         if initial_date:
             ctx["initial_date"] = initial_date

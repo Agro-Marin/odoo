@@ -7,15 +7,15 @@ class ProjectProject(models.Model):
     _inherit = "project.project"
 
     def action_view_deliveries(self):
-        self.ensure_one()
+        self.check_singleton()
         return self._get_picking_action(_("From WH"), "outgoing")
 
     def action_view_receipts(self):
-        self.ensure_one()
+        self.check_singleton()
         return self._get_picking_action(_("To WH"), "incoming")
 
     def action_view_all_pickings(self):
-        self.ensure_one()
+        self.check_singleton()
         return self._get_picking_action(_("Stock Moves"))
 
     def _get_picking_action(self, action_name, picking_type=None):

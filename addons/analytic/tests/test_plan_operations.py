@@ -124,18 +124,18 @@ class TestAnalyticPlanOperations(TransactionCase):
         # the configuration makes it raise an error
         distribution_model.analytic_distribution = {f"{test_account.id}": 100}
         with self.assertRaisesRegex(UserError, r"require a 100% analytic distribution"):
-            distribution_model._validate_distribution()
+            distribution_model._check_distribution()
 
         # once it is fixed, the error is not raised anymore
         distribution_model.analytic_distribution = {
             f"{test_account.id},{mandatory_account.id}": 100
         }
-        distribution_model._validate_distribution()
+        distribution_model._check_distribution()
 
         # even by keeping a deleted account, the validation still works
         test_account.unlink()
         plan.unlink()
-        distribution_model._validate_distribution()
+        distribution_model._check_distribution()
 
     def test_validate_company_plans(self):
         company_2 = self.env["res.company"].create(
@@ -175,15 +175,15 @@ class TestAnalyticPlanOperations(TransactionCase):
         )
 
         # mandatory applicability is only in company_2, should not raise for company_1
-        distribution_model._validate_distribution(
+        distribution_model._check_distribution(
             business_domain="general", company_id=self.env.company.id
         )
 
         applicability.company_id = False
         # It should apply for all companies now
         with self.assertRaisesRegex(UserError, r"require a 100% analytic distribution"):
-            distribution_model._validate_distribution(
+            distribution_model._check_distribution(
                 business_domain="general", company_id=self.env.company.id
             )
         with self.assertRaisesRegex(UserError, r"require a 100% analytic distribution"):
-            distribution_model._validate_distribution(business_domain="general")
+            distribution_model._check_distribution(business_domain="general")

@@ -92,7 +92,7 @@ class GamificationBadgeUser(models.Model):
         groups = super()._notify_get_recipients_groups(
             message, model_description, msg_vals
         )
-        self.ensure_one()
+        self.check_singleton()
         for group in groups:
             if group[0] == "user":
                 group[2]["has_button_access"] = False

@@ -251,7 +251,7 @@ class ResourceCalendarAttendance(models.Model):
             )
 
     def _copy_attendance_vals(self) -> ValuesType:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": self.name,
             "dayofweek": self.dayofweek,

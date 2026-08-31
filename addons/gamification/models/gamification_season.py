@@ -77,7 +77,7 @@ class GamificationSeason(models.Model):
 
     def action_view_challenges(self) -> dict[str, Any]:
         """Navigate to challenges linked to this season."""
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Season Challenges"),
             "type": "ir.actions.act_window",
@@ -132,7 +132,7 @@ class GamificationSeason(models.Model):
         :param int limit: max entries.
         :return: list of dicts.
         """
-        self.ensure_one()
+        self.check_singleton()
         if not self.start_date or not self.end_date:
             return []
 

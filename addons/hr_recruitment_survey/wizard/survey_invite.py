@@ -27,7 +27,7 @@ class SurveyInvite(models.TransientModel):
         return mail_values
 
     def action_invite(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.applicant_id:
             survey = self.survey_id.with_context(clean_context(self.env.context))
 

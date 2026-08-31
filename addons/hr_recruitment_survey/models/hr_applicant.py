@@ -16,7 +16,7 @@ class HrApplicant(models.Model):
 
     def action_print_survey(self):
         """If response is available then print this response otherwise print survey form (print template of the survey)"""
-        self.ensure_one()
+        self.check_singleton()
         sorted_interviews = self.response_ids.filtered(
             lambda i: i.survey_id == self.survey_id
         ).sorted(lambda i: i.create_date, reverse=True)
@@ -35,7 +35,7 @@ class HrApplicant(models.Model):
         return action
 
     def action_send_survey(self):
-        self.ensure_one()
+        self.check_singleton()
 
         # if an applicant does not already have an associated partner_id, create it
         if not self.partner_id:

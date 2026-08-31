@@ -26,12 +26,12 @@ class HrWorkEntry(models.Model):
         attendances.write({"leave_id": False})
 
     def action_approve_leave(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.leave_id:
             self.leave_id.action_approve()
 
     def action_refuse_leave(self):
-        self.ensure_one()
+        self.check_singleton()
         leave_sudo = self.leave_id.sudo()
         if leave_sudo:
             leave_sudo.action_refuse()

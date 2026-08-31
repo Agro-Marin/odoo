@@ -8,7 +8,7 @@ class EventEventTicket(models.Model):
     def _get_ticket_multiline_description(self):
         """ If people set a description on their product it has more priority
         than the ticket name itself for the SO description. """
-        self.ensure_one()
+        self.check_singleton()
         if self.product_id.description_sale:
             return '%s\n%s' % (self.product_id.description_sale, self.event_id.display_name)
         return super()._get_ticket_multiline_description()

@@ -602,7 +602,7 @@ class HrLeave(models.Model):
             leave.resource_calendar_id = calendar
 
     def _get_overlapping_contracts(self):
-        self.ensure_one()
+        self.check_singleton()
         # The employee's versions are already in cache by the time this runs, and
         # the coarse domain below is refined in Python straight after, so a fresh
         # search only re-reads what the cache holds -- twice per write, because
@@ -1531,7 +1531,7 @@ Versions:
 
     def _prepare_resource_leave_vals(self):
         """Hook method for others to inject data"""
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("%s: Time Off", self.employee_id.name),
             "date_from": self.date_from,
@@ -1565,7 +1565,7 @@ Versions:
             .unlink()
         )
 
-    def _validate_leave_request(self):
+    def _apply_leave_request(self):
         """Validate time off requests
         by creating a calendar event and a resource time off."""
         holidays = self.filtered("employee_id")
@@ -1672,7 +1672,7 @@ Versions:
         return result
 
     def action_cancel(self):
-        self.ensure_one()
+        self.check_singleton()
 
         return {
             "name": _("Cancel Time Off"),
@@ -1825,7 +1825,7 @@ Versions:
         leaves_second_approver.write({"second_approver_id": current_employee.id})
         leaves_first_approver.write({"first_approver_id": current_employee.id})
 
-        self._validate_leave_request()
+        self._apply_leave_request()
         if not self.env.context.get("leave_fast_create"):
             self.filtered(
                 lambda holiday: holiday.validation_type != "no_validation"
@@ -1896,7 +1896,7 @@ Versions:
                 )
 
     def _action_user_cancel(self, reason=None):
-        self.ensure_one()
+        self.check_singleton()
         if not self.can_cancel:
             raise ValidationError(_("This time off cannot be cancelled."))
 
@@ -1979,7 +1979,7 @@ Versions:
         }
 
     def _get_next_states_by_state(self):
-        self.ensure_one()
+        self.check_singleton()
         state_result = {
             "confirm": set(),
             "validate1": set(),
@@ -2130,7 +2130,7 @@ is approved, validated or refused."
     # ------------------------------------------------------------
 
     def _get_responsible_for_approval(self):
-        self.ensure_one()
+        self.check_singleton()
 
         responsible = self.env["res.users"]
         if self.validation_type == "manager" or (
@@ -2295,7 +2295,7 @@ is approved, validated or refused."
         calendar = self.resource_calendar_id
         if not calendar:
             return (0, 24)
-        calendar.ensure_one()
+        calendar.check_singleton()
 
         hour_from, _ = calendar._get_hours_for_date(request_date_from, day_period)
         _, hour_to = calendar._get_hours_for_date(request_date_to, day_period)

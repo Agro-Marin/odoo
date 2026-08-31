@@ -42,7 +42,7 @@ class HrEmployeePublic(models.Model):
     )
 
     def action_view_last_month_attendances(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.is_user:
             return self.employee_id.action_view_last_month_attendances()
         return None

@@ -29,7 +29,7 @@ class HrVersion(models.Model):
         # includes the whole interval.
         # Overridden in hr_work_entry_holidays to select the
         # global time off first (e.g. Public Holiday > Home Working)
-        self.ensure_one()
+        self.check_singleton()
         if "work_entry_type_id" in interval[2]:
             work_entry_types = interval[2].work_entry_type_id
             if work_entry_types and work_entry_types[:1].code in bypassing_codes:

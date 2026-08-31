@@ -699,7 +699,11 @@ class ProjectCustomerPortal(CustomerPortal):
 
         domain = Domain.AND([domain or [], [("has_template_ancestor", "=", False)]])
         if not su and Task.has_access("read"):
-            domain &= Domain(request.env["ir.rule"]._compute_domain(Task._name, "read"))
+            domain &= Domain(
+                request.env["ir.rule"]._get_domain_accessible_records(
+                    Task._name, "read"
+                )
+            )
         Task_sudo = Task.sudo()
         milestone_domain = (
             domain
@@ -1046,7 +1050,7 @@ class ProjectCustomerPortal(CustomerPortal):
         ]
 
         if values.get("mimetype", False) not in valid_image_mime_types:
-            return request.make_response(
+            return request.prepare_response(
                 data=json.dumps(
                     {
                         "error": _(
@@ -1059,7 +1063,7 @@ class ProjectCustomerPortal(CustomerPortal):
             )
 
         attachment = IrAttachment.with_context(image_no_postprocess=True).create(values)
-        return request.make_response(
+        return request.prepare_response(
             data=json.dumps(
                 attachment.read(
                     ["id", "name", "mimetype", "file_size", "access_token"]

@@ -215,7 +215,7 @@ class ProjectCFDReport(models.AbstractModel):
         return main_query
 
     @api.model
-    def _validate_group_by(self, groupby: list[str]) -> None:
+    def _check_group_by(self, groupby: list[str]) -> None:
         date_in_groupby = False
         step_in_groupby = False
         for gb in groupby:
@@ -260,7 +260,7 @@ class ProjectCFDReport(models.AbstractModel):
         limit: int | None = None,
         order: str | None = None,
     ) -> list:
-        self._validate_group_by(groupby)
+        self._check_group_by(groupby)
         self = self.with_context(project_cfd_report_groupby=groupby)
 
         return super()._read_group(

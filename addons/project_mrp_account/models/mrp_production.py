@@ -17,7 +17,7 @@ class MrpProduction(models.Model):
             )
 
     def action_view_analytic_accounts(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "res_model": "account.analytic.account",

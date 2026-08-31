@@ -32,7 +32,7 @@ class GamificationBadgeUser(models.Model):
             )
 
     def action_view_badge(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Received Badge"),
             "type": "ir.actions.act_window",
@@ -48,7 +48,7 @@ class GamificationBadgeUser(models.Model):
         groups = super()._notify_get_recipients_groups(
             message, model_description, msg_vals
         )
-        self.ensure_one()
+        self.check_singleton()
         base_url = self.get_base_url()
         for group in groups:
             if group[0] == "user":

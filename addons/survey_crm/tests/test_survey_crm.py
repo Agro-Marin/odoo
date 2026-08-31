@@ -151,7 +151,7 @@ class TestSurveyCrm(common.TestSurveyCommon, HttpCase):
         )
         self.assertEqual(
             lead_created.medium_id,
-            self.env["utm.medium"]._fetch_or_create_utm_medium("survey"),
+            self.env["utm.medium"]._get_or_create_utm_medium("survey"),
         )
         self.assertEqual(lead_created.source_id.name, self.survey_crm.title)
         self.assertEqual(lead_created.email_from, answers[2])

@@ -38,7 +38,7 @@ class CrmMergeOpportunity(models.TransientModel):
     )
 
     def action_merge(self):
-        self.ensure_one()
+        self.check_singleton()
         merge_opportunity = self.opportunity_ids.merge_opportunity(
             self.user_id.id, self.team_id.id
         )

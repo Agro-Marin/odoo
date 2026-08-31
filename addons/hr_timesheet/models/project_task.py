@@ -252,7 +252,7 @@ class ProjectTask(models.Model):
         ] + super()._get_groups()
 
     def action_view_subtask_timesheet(self):
-        self.ensure_one()
+        self.check_singleton()
         is_internal_user = self.env.user.has_group("base.group_user")
         task_ids = (
             self.with_context(active_test=False)

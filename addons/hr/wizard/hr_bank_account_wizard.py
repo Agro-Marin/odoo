@@ -16,7 +16,7 @@ class BankAccountAllocationWizard(models.TransientModel):
     )
 
     def _prepare_allocations_from_employee(self):
-        self.ensure_one()
+        self.check_singleton()
         wizard_lines = []
         distribution = self.employee_id.salary_distribution or {}
         # Seed sequences for not-yet-distributed accounts AFTER the largest
@@ -63,7 +63,7 @@ class BankAccountAllocationWizard(models.TransientModel):
         return records
 
     def action_save(self):
-        self.ensure_one()
+        self.check_singleton()
 
         # Line amounts are captured at 2 decimals (the wizard-line ``amount``
         # field precision); the percentage total is checked at the same

@@ -261,7 +261,7 @@ class ResUsers(models.Model):
     def _add_karma(
         self, gain: int, source=None, reason: str | None = None
     ) -> bool | None:
-        self.ensure_one()
+        self.check_singleton()
         values = {"gain": gain, "source": source, "reason": reason}
         return self._add_karma_batch({self: values})
 
@@ -576,12 +576,12 @@ WHERE sub.user_id = ANY(%s)""",
         :return: list of dicts with 'url' and 'label' keys,
             e.g. ``[{'url': '/forum', 'label': 'Go to Forum'}]``
         """
-        self.ensure_one()
+        self.check_singleton()
         return []
 
     def action_karma_report(self) -> dict[str, Any]:
         """Open the karma tracking history for this user."""
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Karma Updates"),
             "res_model": "gamification.karma.tracking",

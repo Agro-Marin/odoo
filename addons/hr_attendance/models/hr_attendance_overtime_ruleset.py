@@ -34,7 +34,7 @@ class HrAttendanceOvertimeRuleset(models.Model):
     active = fields.Boolean(default=True, readonly=False)
 
     def _attendances_to_regenerate_for(self):
-        self.ensure_one()
+        self.check_singleton()
         elligible_version = self.env["hr.version"].search(
             [("ruleset_id", "=", self.id)]
         )

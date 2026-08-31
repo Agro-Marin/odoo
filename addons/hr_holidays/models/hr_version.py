@@ -201,7 +201,7 @@ class HrVersion(models.Model):
                             leave_skip_date_check=True, leave_skip_state_check=True
                         )._compute_date_from_to()
                         if leave.state == "validate":
-                            leave._validate_leave_request()
+                            leave._apply_leave_request()
             return False
         return overlapping_contracts
 
@@ -266,7 +266,7 @@ class HrVersion(models.Model):
             )
             .create(all_new_leave_vals)
         )
-        new_leaves.filtered(lambda l: l.state in "validate")._validate_leave_request()
+        new_leaves.filtered(lambda l: l.state in "validate")._apply_leave_request()
         for index, new_leave in enumerate(new_leaves):
             new_leave.message_post_with_source(
                 "mail.message_origin_link",

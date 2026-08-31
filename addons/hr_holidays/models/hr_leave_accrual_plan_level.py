@@ -404,7 +404,7 @@ class HrLeaveAccrualLevel(models.Model):
         """
         Returns the next date with the given last call
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.frequency in self._get_hourly_frequencies() + ["daily"]:
             return last_call + relativedelta(days=1)
 
@@ -464,7 +464,7 @@ class HrLeaveAccrualLevel(models.Model):
         For example if you have a monthly level giving 16/02 would return 01/02
         Contrary to `_get_next_date` this function will return the 01/02 if that date is given
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.frequency in self._get_hourly_frequencies() + ["daily"]:
             return last_call
 

@@ -90,7 +90,7 @@ class HrLeaveAllocationGenerateMultiWizard(models.TransientModel):
             allocation_multi.name = allocation_multi._get_title()
 
     def _get_title(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.holiday_status_id:
             return self.env._("Allocation Request")
         return self.env._(
@@ -101,7 +101,7 @@ class HrLeaveAllocationGenerateMultiWizard(models.TransientModel):
         )
 
     def _get_employees_from_allocation_mode(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.allocation_mode == "employee":
             employees = self.employee_ids or self.env["hr.employee"].search(
                 self._domain_employee_ids()
@@ -119,7 +119,7 @@ class HrLeaveAllocationGenerateMultiWizard(models.TransientModel):
         return employees
 
     def _prepare_allocation_values(self, employees):
-        self.ensure_one()
+        self.check_singleton()
         hours_per_day = {
             e.id: e.resource_calendar_id.hours_per_day
             or self.company_id.resource_calendar_id.hours_per_day
@@ -145,7 +145,7 @@ class HrLeaveAllocationGenerateMultiWizard(models.TransientModel):
         ]
 
     def action_generate_allocations(self):
-        self.ensure_one()
+        self.check_singleton()
         employees = self._get_employees_from_allocation_mode()
         vals_list = self._prepare_allocation_values(employees)
         if vals_list:

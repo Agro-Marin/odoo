@@ -187,8 +187,8 @@ class HrLeave(models.Model):
             )
         )
 
-    def _validate_leave_request(self):
-        super()._validate_leave_request()
+    def _apply_leave_request(self):
+        super()._apply_leave_request()
         self.sudo()._cancel_work_entry_conflict()  # delete preexisting conflicting work_entries
         return True
 

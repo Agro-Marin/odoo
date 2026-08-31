@@ -707,7 +707,7 @@ class FleetVehicle(models.Model):
         return super().write(vals)
 
     def _get_driver_history_data(self, vals):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "vehicle_id": self.id,
             "driver_id": vals["driver_id"],
@@ -745,7 +745,7 @@ class FleetVehicle(models.Model):
 
     def return_action_to_open(self):
         """This opens the xml view specified in xml_id for the current vehicle"""
-        self.ensure_one()
+        self.check_singleton()
         xml_id = self.env.context.get("xml_id")
         if xml_id:
             res = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
@@ -764,7 +764,7 @@ class FleetVehicle(models.Model):
         """This opens log view to view and add new log for this vehicle, groupby default to only show effective costs
         @return: the costs log view
         """
-        self.ensure_one()
+        self.check_singleton()
         copy_context = dict(self.env.context)
         copy_context.pop("group_by", None)
         res = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
@@ -781,13 +781,13 @@ class FleetVehicle(models.Model):
         return res
 
     def _track_subtype(self, init_values):
-        self.ensure_one()
+        self.check_singleton()
         if "driver_id" in init_values or "future_driver_id" in init_values:
             return self.env.ref("fleet.mt_fleet_driver_updated")
         return super()._track_subtype(init_values)
 
     def open_assignation_logs(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "name": "Assignment Logs",
@@ -813,7 +813,7 @@ class FleetVehicle(models.Model):
         }
 
     def action_view_odometer_report(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "fleet.fleet_vehicle_odometer_reporting_action"
         )

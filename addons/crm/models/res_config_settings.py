@@ -244,7 +244,7 @@ class ResConfigSettings(models.TransientModel):
         )
 
     def action_crm_assign_leads(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.env["crm.team"]
             .search([("assignment_optout", "=", False)])

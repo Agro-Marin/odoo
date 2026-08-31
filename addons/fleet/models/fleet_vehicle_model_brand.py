@@ -24,7 +24,7 @@ class FleetVehicleModelBrand(models.Model):
             record.model_count = models_brand.get(record.id, 0)
 
     def action_brand_model(self):
-        self.ensure_one()
+        self.check_singleton()
         view = {
             'name': _('Models'),
             'type': 'ir.actions.act_window',
@@ -36,7 +36,7 @@ class FleetVehicleModelBrand(models.Model):
         return view
 
     def action_view_brand_form(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             'name': _('Manufacturer'),
             'type': 'ir.actions.act_window',

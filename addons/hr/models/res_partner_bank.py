@@ -92,7 +92,7 @@ class ResPartnerBank(models.Model):
         return matched if operator == "in" else ~matched
 
     def action_view_allocation_wizard(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.employee_id.action_view_allocation_wizard()
 
     @api.depends("partner_id", "partner_id.employee_ids")

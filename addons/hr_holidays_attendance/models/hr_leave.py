@@ -77,8 +77,8 @@ class HrLeave(models.Model):
     def action_refuse(self):
         return super().action_refuse()
 
-    def _validate_leave_request(self):
-        super()._validate_leave_request()
+    def _apply_leave_request(self):
+        super()._apply_leave_request()
         self._update_leaves_overtime()
 
     def _remove_resource_leave(self):

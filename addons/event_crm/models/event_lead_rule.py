@@ -166,7 +166,7 @@ class EventLeadRule(models.Model):
         return events.action_generate_leads(event_lead_rules=self)
 
     def _filter_registrations(self, registrations):
-        self.ensure_one()
+        self.check_singleton()
         if self.event_registration_filter and self.event_registration_filter != "[]":
             registrations = registrations.filtered_domain(
                 literal_eval(self.event_registration_filter)

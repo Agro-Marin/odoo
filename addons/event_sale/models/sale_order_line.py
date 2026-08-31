@@ -65,7 +65,7 @@ class SaleOrderLine(models.Model):
         order line has a product_uom_qty attribute that will be the number of
         registrations linked to this line."""
         # Only ever called with one order's own lines (see action_confirm).
-        self.order_id.ensure_one()
+        self.order_id.check_singleton()
         registrations_vals = []
         for so_line in self:
             if so_line.service_tracking != "event":

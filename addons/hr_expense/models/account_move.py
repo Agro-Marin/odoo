@@ -43,7 +43,7 @@ class AccountMove(models.Model):
                 )
 
     def action_view_expense(self):
-        self.ensure_one()
+        self.check_singleton()
         linked_expenses = self.expense_ids
         if len(linked_expenses) > 1:
             return {

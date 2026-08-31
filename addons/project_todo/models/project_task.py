@@ -76,7 +76,7 @@ class ProjectTask(models.Model):
         return super().create(vals_list)
 
     def action_convert_to_task(self):
-        self.ensure_one()
+        self.check_singleton()
         self.company_id = self.project_id.company_id
         return {
             "view_mode": "form",

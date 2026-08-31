@@ -167,12 +167,12 @@ class ProjectMilestone(models.Model):
         return [("project_id", "in", query)]
 
     def toggle_is_reached(self, is_reached: bool) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         self.update({"is_reached": is_reached})
         return self._get_data()
 
     def action_view_tasks(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "project.action_view_task_from_milestone"
         )
@@ -206,7 +206,7 @@ class ProjectMilestone(models.Model):
         ]
 
     def _get_data(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         return {field: self[field] for field in self._get_fields_to_export()}
 
     def _get_data_list(self) -> list[dict]:

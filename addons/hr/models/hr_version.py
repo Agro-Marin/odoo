@@ -633,7 +633,7 @@ class HrVersion(models.Model):
 
     def _is_fully_flexible(self):
         """return True if the version has a fully flexible working calendar"""
-        self.ensure_one()
+        self.check_singleton()
         return not self.resource_calendar_id
 
     @api.depends("resource_calendar_id.flexible_hours")
@@ -688,11 +688,11 @@ class HrVersion(models.Model):
     def _get_contract_wage(self):
         if not self:
             return 0
-        self.ensure_one()
+        self.check_singleton()
         return self[self._get_contract_wage_field()]
 
     def _get_contract_wage_field(self):
-        self.ensure_one()
+        self.check_singleton()
         return "wage"
 
     def _get_normalized_wage(self):
@@ -830,11 +830,11 @@ class HrVersion(models.Model):
                     employee.resource_id.calendar_id = version.resource_calendar_id
 
     def _get_salary_costs_factor(self):
-        self.ensure_one()
+        self.check_singleton()
         return 12.0
 
     def _is_struct_from_country(self, country_code):
-        self.ensure_one()
+        self.check_singleton()
         self_sudo = self.sudo()
         return (
             self_sudo.structure_type_id
@@ -842,14 +842,14 @@ class HrVersion(models.Model):
         )
 
     def _get_tz(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.resource_calendar_id and self.resource_calendar_id.tz:
             return self.resource_calendar_id.tz
         else:
             return self.tz
 
     def action_view_version(self):
-        self.ensure_one()
+        self.check_singleton()
 
         return {
             "type": "ir.actions.act_window",

@@ -343,7 +343,7 @@ class HrJob(models.Model):
             job.employee_count = res.get(job.id, 0)
 
     def _get_first_stage(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.env["hr.recruitment.stage"].search(
             ["|", ("job_ids", "=", False), ("job_ids", "=", self.id)],
             order="sequence asc",
@@ -551,7 +551,7 @@ class HrJob(models.Model):
         }
 
     def action_view_employees(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.env["hr.employee"].has_access("read"):
             res_model = "hr.employee"
         else:

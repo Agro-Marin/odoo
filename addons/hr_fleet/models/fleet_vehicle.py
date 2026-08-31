@@ -144,7 +144,7 @@ class FleetVehicle(models.Model):
         return super().write(vals)
 
     def action_view_employee(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Related Employee"),
             "type": "ir.actions.act_window",

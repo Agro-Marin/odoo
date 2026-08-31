@@ -133,7 +133,7 @@ class SurveyQuestionAnswer(models.Model):
     def _get_answer_matching_domain(
         self, row_id: int | bool = False
     ) -> list[str | tuple[str, str, Any]]:
-        self.ensure_one()
+        self.check_singleton()
         if self.question_type in ("matrix", "likert"):
             return [
                 "&",

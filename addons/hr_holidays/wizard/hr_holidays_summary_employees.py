@@ -26,7 +26,7 @@ class HrHolidaysSummaryEmployee(models.TransientModel):
     )
 
     def print_report(self):
-        self.ensure_one()
+        self.check_singleton()
         [data] = self.read()
         data["emp"] = self.emp.ids or self.env.context.get("active_ids", [])
         employees = self.env["hr.employee"].browse(data["emp"])

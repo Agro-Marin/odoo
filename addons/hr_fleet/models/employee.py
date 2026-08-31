@@ -25,7 +25,7 @@ class HrEmployee(models.Model):
     mobility_card = fields.Char(groups="fleet.fleet_group_user")
 
     def action_view_employee_cars(self):
-        self.ensure_one()
+        self.check_singleton()
 
         return {
             "type": "ir.actions.act_window",

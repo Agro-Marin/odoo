@@ -266,7 +266,7 @@ class LunchOrder(models.Model):
         self._check_wallet()
 
     def action_reorder(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.supplier_id.available_today:
             raise UserError(_('The vendor related to this order is not available today.'))
         self.copy({

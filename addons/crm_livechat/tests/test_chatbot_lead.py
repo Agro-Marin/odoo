@@ -176,7 +176,7 @@ class CrmChatbotCase(chatbot_common.CrmChatbotCase):
         self.assertFalse(play_script_and_get_created_lead().company_id)
 
     def _play_session_with_lead(self):
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session",
             {
                 "channel_id": self.livechat_channel.id,

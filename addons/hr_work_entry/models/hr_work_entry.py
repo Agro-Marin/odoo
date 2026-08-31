@@ -162,7 +162,7 @@ class HrWorkEntry(models.Model):
         return self.write({"state": "draft"})
 
     def action_split(self, vals):
-        self.ensure_one()
+        self.check_singleton()
         if self.state == "validated":
             raise UserError(self.env._("You can't split a validated work entry."))
         if self.duration < 1:

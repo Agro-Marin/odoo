@@ -164,7 +164,7 @@ class AccountAnalyticLine(models.Model):
         """Every analytic account these lines name, across every plan.
 
         `mapped`, not `self[fname]`: this runs over whole batches, and reading
-        a field off a multi-record set goes through `ensure_one`.
+        a field off a multi-record set goes through `check_singleton`.
         """
         accounts = self.env["account.analytic.account"]
         for fname in self._get_plan_fnames():

@@ -145,7 +145,7 @@ class ResourceCalendarLeaves(models.Model):
         aware_datetime_to = naive_datetime_from.replace(tzinfo=tz_to)
         return aware_datetime_to.astimezone(UTC).replace(tzinfo=None)
 
-    def _ensure_datetime(self, datetime_representation, date_format=None):
+    def _resolve_datetime(self, datetime_representation, date_format=None):
         """
         Be sure to get a datetime object if we have the necessary information.
         :param datetime_representation: object which should represent a datetime
@@ -174,10 +174,10 @@ class ResourceCalendarLeaves(models.Model):
                 self.env["resource.calendar"].browse(vals["calendar_id"]).tz
             )
             if user_tz != calendar_tz:
-                datetime_from = self._ensure_datetime(
+                datetime_from = self._resolve_datetime(
                     vals["date_from"], "%Y-%m-%d %H:%M:%S"
                 )
-                datetime_to = self._ensure_datetime(
+                datetime_to = self._resolve_datetime(
                     vals["date_to"], "%Y-%m-%d %H:%M:%S"
                 )
                 if datetime_from and datetime_to:

@@ -1304,7 +1304,7 @@ class TestHrAttendanceOvertime(HttpCase):
                 }
             )
         token = self.employee.company_id.attendance_kiosk_key
-        response = self.make_jsonrpc_request(
+        response = self.call_jsonrpc(
             "/hr_attendance/attendance_employee_data",
             {"token": token, "employee_id": self.employee.id},
         )

@@ -274,7 +274,7 @@ class ApprovalRequestValidation(models.Model):
         return self._LOCKED_FIELDS
 
     def _get_pending_change_candidates(self) -> frozenset[str]:
-        self.ensure_one()
+        self.check_singleton()
         candidates = {"reason"}
         if self.has_date != "no" or self.has_date_range != "no":
             candidates.add("date")
@@ -350,7 +350,7 @@ class ApprovalRequestValidation(models.Model):
         self._check_category_required_fields()
 
     def _check_enough_approvers(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if len(self.approver_ids) < self.approval_minimum:
             raise UserError(
                 self.env._(
@@ -445,7 +445,7 @@ class ApprovalRequestValidation(models.Model):
         pass
 
     def _check_reset_allowed(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if not self.res_model or not self.res_id:
             return
         source_doc = self.get_source_document()

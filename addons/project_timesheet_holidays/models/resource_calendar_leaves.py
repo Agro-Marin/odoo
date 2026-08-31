@@ -236,7 +236,7 @@ class ResourceCalendarLeaves(models.Model):
     def _timesheet_prepare_line_values(
         self, index, employee_id, work_hours_data, day_date, work_hours_count
     ):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _(
                 "Time Off (%(index)s/%(total)s)",
@@ -299,7 +299,7 @@ class ResourceCalendarLeaves(models.Model):
 
     def _get_overlapping_hr_leaves(self, domain=None):
         """Find leaves with potentially missing timesheets."""
-        self.ensure_one()
+        self.check_singleton()
         leave_domain = domain or []
         leave_domain += [
             ("company_id", "=", self.company_id.id),

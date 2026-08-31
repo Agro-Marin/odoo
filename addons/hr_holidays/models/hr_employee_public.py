@@ -62,14 +62,14 @@ class HrEmployeePublic(models.Model):
         self._compute_from_employee("allocation_display")
 
     def action_time_off_dashboard(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.is_user:
             return self.employee_id.action_time_off_dashboard()
         return None
 
     def action_view_time_off_calendar(self):
         """Open the time off calendar filtered on this employee."""
-        self.ensure_one()
+        self.check_singleton()
         action = (
             self.env.ref("hr_holidays.action_my_days_off_dashboard_calendar")
             .sudo()

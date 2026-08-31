@@ -32,7 +32,7 @@ class MixinResourceSchedulingTools(models.AbstractModel):
         :param leave_domain: optional domain for leave filtering
         :return: float (hours)
         """
-        self.ensure_one()
+        self.check_singleton()
         if not date_start or not date_end or date_end <= date_start:
             return 0.0
 
@@ -95,7 +95,7 @@ class MixinResourceSchedulingTools(models.AbstractModel):
         :param calendar: optional ``resource.calendar`` override
         :return: tuple ``(snapped_start, snapped_end)`` as naive UTC datetimes
         """
-        self.ensure_one()
+        self.check_singleton()
         cal = calendar or self._scheduling_resolve_calendar()
         if not cal or not date_start or not date_end:
             return date_start, date_end
@@ -131,7 +131,7 @@ class MixinResourceSchedulingTools(models.AbstractModel):
         :param leave_domain: optional domain for leave filtering
         :return: datetime (end, naive UTC) or ``False`` if hours can't be planned
         """
-        self.ensure_one()
+        self.check_singleton()
         if hours is None or not date_start:
             return False
         if not hours:
@@ -162,7 +162,7 @@ class MixinResourceSchedulingTools(models.AbstractModel):
         3. record's ``company_id`` calendar (if ``company_id`` field exists)
         4. current company's calendar
         """
-        self.ensure_one()
+        self.check_singleton()
         if resource and resource.calendar_id:
             return resource.calendar_id
         if "resource_calendar_id" in self._fields and self.resource_calendar_id:

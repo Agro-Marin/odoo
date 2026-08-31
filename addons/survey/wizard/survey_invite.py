@@ -358,7 +358,7 @@ class SurveyInvite(models.TransientModel):
         return mail_values
 
     def action_invite(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         invite = self
         Partner = self.env["res.partner"]
 

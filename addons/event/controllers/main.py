@@ -24,7 +24,7 @@ class EventController(Controller):
         if event.id not in files:
             return NotFound()
         content = files[event.id]
-        return request.make_response(
+        return request.prepare_response(
             content,
             [
                 ("Content-Type", "application/octet-stream"),
@@ -98,7 +98,7 @@ class EventController(Controller):
                     event_registrations_sudo.ids,
                 )[0]
             )
-            return request.make_response(html)
+            return request.prepare_response(html)
 
         pdf = (
             request.env["ir.actions.report"]
@@ -115,7 +115,7 @@ class EventController(Controller):
             ("Content-Length", len(pdf)),
             ("Content-Disposition", content_disposition(f"{report_name}.pdf")),
         ]
-        return request.make_response(pdf, headers=pdfhttpheaders)
+        return request.prepare_response(pdf, headers=pdfhttpheaders)
 
     @http.route(["/event/init_barcode_interface"], type="jsonrpc", auth="user")
     def init_barcode_interface(self, event_id):

@@ -169,7 +169,7 @@ class HrLeaveAccrualPlan(models.Model):
             )
 
     def action_view_accrual_plan_employees(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Accrual Plan's Employees"),
             "type": "ir.actions.act_window",

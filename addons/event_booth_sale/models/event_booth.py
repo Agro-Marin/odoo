@@ -34,7 +34,7 @@ class EventBooth(models.Model):
         self.write({'is_paid': True})
 
     def action_view_sale_order(self):
-        self.sale_order_id.ensure_one()
+        self.sale_order_id.check_singleton()
         action = self.env['ir.actions.actions']._get_action_dict_by_xml_id('sale.action_sale_order')
         action['views'] = [(False, 'form')]
         action['res_id'] = self.sale_order_id.id

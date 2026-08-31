@@ -55,7 +55,7 @@ class ChatbotScriptStep(models.Model):
         return vals
 
     def _process_step(self, discuss_channel):
-        self.ensure_one()
+        self.check_singleton()
         if self.step_type == "create_lead_and_forward":
             return self._process_step_create_lead_and_forward(discuss_channel)
         posted_message = super()._process_step(discuss_channel)

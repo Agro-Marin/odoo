@@ -383,7 +383,7 @@ class MixinResource(models.AbstractModel):
         # with ``resource.id``.  Without this the failure surfaced deep in the
         # calendar layer as a bare ``Expected singleton``, naming
         # ``resource.resource`` rather than the model actually called.
-        self.ensure_one()
+        self.check_singleton()
         resource = self.resource_id
         calendar = calendar or self.resource_calendar_id
 

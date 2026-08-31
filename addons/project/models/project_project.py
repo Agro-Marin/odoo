@@ -630,11 +630,11 @@ class ProjectProject(models.Model):
             ]
 
     def action_archive_to_history(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         self.env["project.history"].create_from_project(self)
 
     def action_compute_critical_path(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         tasks = self.env["project.task"].search(
             [
                 ("project_id", "=", self.id),
@@ -866,7 +866,7 @@ class ProjectProject(models.Model):
         return {day: hours * capacity / total for day, capacity in days.items()}
 
     def action_level_resources(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         self.action_compute_critical_path()
 
         calendar = self.resource_calendar_id
@@ -1805,7 +1805,7 @@ class ProjectProject(models.Model):
 
     def write(self, vals: dict[str, Any]) -> bool:
         if vals.get("access_token"):
-            self.ensure_one()
+            self.check_singleton()
             if self.privacy_visibility not in ["invited_users", "portal"]:
                 vals["access_token"] = ""
 
@@ -1967,7 +1967,7 @@ class ProjectProject(models.Model):
         return values
 
     @api.constrains("phase_id")
-    def _ensure_stage_has_same_company(self) -> None:
+    def _check_stage_has_same_company(self) -> None:
         for project in self:
             if (
                 project.phase_id.company_id
@@ -1993,7 +1993,7 @@ class ProjectProject(models.Model):
 
     @versioned_envelope
     def get_template_tasks(self) -> list:
-        self.ensure_one()
+        self.check_singleton()
         return self.env["project.task"].search_read(
             [("project_id", "=", self.id), ("is_template", "=", True)],
             ["id", "name"],
@@ -2068,7 +2068,7 @@ class ProjectProject(models.Model):
         return res
 
     def _track_subtype(self, init_values: dict[str, Any]) -> Self:
-        self.ensure_one()
+        self.check_singleton()
         if "phase_id" in init_values:
             return self.env.ref("project.mt_project_stage_change")
         return super()._track_subtype(init_values)
@@ -2093,7 +2093,7 @@ class ProjectProject(models.Model):
         if not self:
             return groups
 
-        self.ensure_one()
+        self.check_singleton()
         portal_privacy = self.privacy_visibility in ["invited_users", "portal"]
         for group_name, _group_method, group_data in groups:
             if group_name in ["portal", "portal_customer"] and not portal_privacy:
@@ -2126,7 +2126,7 @@ class ProjectProject(models.Model):
         return action
 
     def action_find_similar_projects(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         domain = []
         if self.tag_ids:
             domain.append(("tag_ids", "in", self.tag_ids.ids))
@@ -2255,7 +2255,7 @@ class ProjectProject(models.Model):
         return dict(action, context=action_context)
 
     def action_view_assigned_resources(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         task_ids = self.env["project.task"].search([("project_id", "=", self.id)]).ids
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "project.action_project_task_assigned_resources"
@@ -2291,7 +2291,7 @@ class ProjectProject(models.Model):
         return {}
 
     def get_last_update_or_default(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         labels = dict(
             self._fields["last_update_status"]._description_selection(self.env)
         )
@@ -2301,7 +2301,7 @@ class ProjectProject(models.Model):
         }
 
     def get_panel_data(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         if not self.env.user.has_group("project.group_project_user"):
             return {}
         self._refresh_metrics()
@@ -2358,7 +2358,7 @@ class ProjectProject(models.Model):
         }
 
     def _show_profitability(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return True
 
     def _show_profitability_helper(self) -> bool:
@@ -2380,13 +2380,13 @@ class ProjectProject(models.Model):
         }
 
     def _get_milestones(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "data": self.milestone_ids._get_data_list(),
         }
 
     def _get_stat_buttons(self) -> list:
-        self.ensure_one()
+        self.check_singleton()
         closed_task_count = self.task_count - self.open_task_count
         if self.task_count:
             number = self.env._(
@@ -2612,7 +2612,7 @@ class ProjectProject(models.Model):
                 project.access_token = ""
 
     def _check_project_sharing_access(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         if self.privacy_visibility not in ["invited_users", "portal"]:
             return False
         if self.env.user._is_portal():
@@ -2625,7 +2625,7 @@ class ProjectProject(models.Model):
         return self.env.user._is_internal()
 
     def _add_collaborators(self, partners: Any, limited_access: bool = False) -> None:
-        self.ensure_one()
+        self.check_singleton()
         new_collaborators = self._get_new_collaborators(partners)
         if not new_collaborators:
             return
@@ -2644,7 +2644,7 @@ class ProjectProject(models.Model):
         )
 
     def _get_new_collaborators(self, partners: Any) -> list:
-        self.ensure_one()
+        self.check_singleton()
         return partners.filtered(
             lambda partner: (
                 partner not in self.collaborator_ids.partner_id
@@ -2653,7 +2653,7 @@ class ProjectProject(models.Model):
         )
 
     def _add_followers(self, partners: Any) -> None:
-        self.ensure_one()
+        self.check_singleton()
         self.message_subscribe(partners.ids)
 
         dict_tasks_per_partner = {}
@@ -2703,21 +2703,21 @@ class ProjectProject(models.Model):
             )
 
     def _get_template_to_project_warnings(self) -> list:
-        self.ensure_one()
+        self.check_singleton()
         return []
 
     def template_to_project_confirmation_callback(
         self, callbacks: dict[str, Any]
     ) -> None:
-        self.ensure_one()
+        self.check_singleton()
         pass
 
     def _get_template_to_project_confirmation_callbacks(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         return {}
 
     def action_toggle_project_template_mode(self) -> dict | bool:
-        self.ensure_one()
+        self.check_singleton()
         config = {
             "params": {
                 "project_id": self.id,
@@ -2749,12 +2749,12 @@ class ProjectProject(models.Model):
     def create_template_from_project_undo_callback(
         self, callbacks: dict[str, Any]
     ) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if callbacks.get("unarchive_project"):
             self.action_unarchive()
 
     def _get_template_from_project_undo_callbacks(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         callbacks = {}
         if self.active:
             self.action_archive()
@@ -2762,7 +2762,7 @@ class ProjectProject(models.Model):
         return callbacks
 
     def action_create_template_from_project(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         template = self.copy(default={"is_template": True, "partner_id": False})
         template._toggle_template_mode(True)
         template.message_post(body=self.env._("Template created from %s.", self.name))
@@ -2794,7 +2794,7 @@ class ProjectProject(models.Model):
         }
 
     def action_undo_convert_to_template(self) -> dict | bool:
-        self.ensure_one()
+        self.check_singleton()
         self._toggle_template_mode(False)
         self.message_post(
             body=self.env._("Template converted back to regular project.")
@@ -2813,7 +2813,7 @@ class ProjectProject(models.Model):
         }
 
     def _toggle_template_mode(self, is_template: bool) -> None:
-        self.ensure_one()
+        self.check_singleton()
         self.is_template = is_template
         if not is_template:
             self.task_ids.role_ids = False
@@ -2833,7 +2833,7 @@ class ProjectProject(models.Model):
     def action_create_from_template(
         self, values: dict | None = None, role_to_users_mapping: Any = None
     ) -> Self:
-        self.ensure_one()
+        self.check_singleton()
         values = values or {}
 
         if self.date_start and self.date:

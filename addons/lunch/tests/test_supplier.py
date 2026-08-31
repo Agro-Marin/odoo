@@ -27,7 +27,7 @@ class TestSupplier(TestsCommon):
 
     @common.users('cle-lunch-manager')
     def test_send_email_cron(self):
-        self.supplier_kothai.cron_id.ensure_one()
+        self.supplier_kothai.cron_id.check_singleton()
         self.assertEqual(self.supplier_kothai.cron_id.nextcall.time(), time(15, 0))
         self.assertEqual(self.supplier_kothai.cron_id.sudo().code, f"""\
 # This cron is dynamically controlled by Lunch Supplier.

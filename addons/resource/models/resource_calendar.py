@@ -504,7 +504,7 @@ class ResourceCalendar(models.Model):
     # --------------------------------------------------
 
     def switch_calendar_type(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.two_weeks_calendar:
             self.two_weeks_calendar = True
             final_attendances = self._get_two_weeks_attendance()
@@ -517,7 +517,7 @@ class ResourceCalendar(models.Model):
             self.attendance_ids = self._get_default_attendance_ids(self.company_id)
 
     def switch_based_on_duration(self):
-        self.ensure_one()
+        self.check_singleton()
         self.duration_based = not self.duration_based
         if self.duration_based:
             self.attendance_ids.filtered(lambda att: att.day_period == "lunch").unlink()
@@ -600,7 +600,7 @@ class ResourceCalendar(models.Model):
            kept in, and it is now right; the hours question needs that audit
            first.
         """
-        self.ensure_one()
+        self.check_singleton()
         expected_day_hours = self.hours_per_day or HOURS_PER_DAY
         intervals = []
         day = start_datetime.date()
@@ -660,7 +660,7 @@ class ResourceCalendar(models.Model):
         single source of truth for every flexible-hours consumer (interval
         synthesis here, work-hours capping in ``resource.resource``).
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.hours_per_week or self.full_time_required_hours
 
     def _flexible_attendance_intervals(self, start_datetime, end_datetime, tz):
@@ -688,7 +688,7 @@ class ResourceCalendar(models.Model):
            silently shorten every mid-week leave, so the semantics are left as
            they are and the limitation is documented here instead.
         """
-        self.ensure_one()
+        self.check_singleton()
         max_hours_per_week = self._get_flexible_hours_per_week()
         max_hours_per_day = self.hours_per_day
         first_day = start_datetime.date()
@@ -759,7 +759,7 @@ class ResourceCalendar(models.Model):
                 "_attendance_intervals_batch requires a calendar; a resource"
                 " without one is fully flexible and has no attendance lines"
             )
-        self.ensure_one()
+        self.check_singleton()
         # The signature accepts a tz name as well as a tzinfo; normalise once so
         # the ``.astimezone(tz)`` / dict-keying below never sees a bare string
         # (which raises ``TypeError: tzinfo argument must be ...``).
@@ -1254,7 +1254,7 @@ class ResourceCalendar(models.Model):
 
     def _get_days_per_week(self) -> float:
         # If the employee didn't work a full day, it is still counted, i.e. 19h / week (M/T/W(half day)) -> 3 days
-        self.ensure_one()
+        self.check_singleton()
         attendances = self._get_global_attendances()
         if self.two_weeks_calendar:
             number_of_days = len(
@@ -1277,7 +1277,7 @@ class ResourceCalendar(models.Model):
 
     def _get_hours_per_week(self) -> float:
         """Calculate the average hours worked per week."""
-        self.ensure_one()
+        self.check_singleton()
         hour_count = 0.0
         for attendance in self._get_global_attendances():
             if self.duration_based:
@@ -1302,7 +1302,7 @@ class ResourceCalendar(models.Model):
     def _get_unusual_days(self, start_dt, end_dt, company_id=False):
         if not self:
             return {}
-        self.ensure_one()
+        self.check_singleton()
         if not start_dt.tzinfo:
             start_dt = start_dt.replace(tzinfo=UTC)
         if not end_dt.tzinfo:
@@ -1490,7 +1490,7 @@ class ResourceCalendar(models.Model):
 
         Counts the number of work hours between two datetimes.
         """
-        self.ensure_one()
+        self.check_singleton()
         # Set timezone in UTC if no timezone is explicitly given
         if not start_dt.tzinfo:
             start_dt = start_dt.replace(tzinfo=UTC)
@@ -1685,7 +1685,7 @@ class ResourceCalendar(models.Model):
         return revert(day_dt)
 
     def _works_on_date(self, date: date) -> bool:
-        self.ensure_one()
+        self.check_singleton()
 
         working_days = self._get_working_hours()
         dayofweek = str(date.weekday())
@@ -1713,7 +1713,7 @@ class ResourceCalendar(models.Model):
         :param day_period: Optional string ('morning', 'afternoon') to filter for half-days.
         :return: A tuple of floats (hour_from, hour_to).
         """
-        self.ensure_one()
+        self.check_singleton()
         if not target_date:
             err = "Target Date cannot be empty"
             raise ValueError(err)
@@ -1806,7 +1806,7 @@ class ResourceCalendar(models.Model):
         # ``_works_on_date`` and downstream leave/planning consumers would read
         # stale working days for the lifetime of the worker.  Rebuilding the
         # dict is O(#attendances) over already-prefetched records — negligible.
-        self.ensure_one()
+        self.check_singleton()
 
         working_days = defaultdict(lambda: defaultdict(lambda: False))
         # Only real work lines mark a day as worked: section rows are pure UX

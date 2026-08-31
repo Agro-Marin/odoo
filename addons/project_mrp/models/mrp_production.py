@@ -24,7 +24,7 @@ class MrpProduction(models.Model):
         return action
 
     def action_view_project(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "res_model": "project.project",

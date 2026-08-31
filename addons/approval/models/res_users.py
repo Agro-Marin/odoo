@@ -9,7 +9,7 @@ class ResUsers(models.Model):
     _inherit = "res.users"
 
     def _is_approval_manager(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return self.has_group("approval.group_approval_manager")
 
     def write(self, vals):

@@ -35,7 +35,7 @@ class HomeworkLocationWizard(models.TransientModel):
             )
 
     def set_employee_location(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.date:
             return
         default_employee_id = (

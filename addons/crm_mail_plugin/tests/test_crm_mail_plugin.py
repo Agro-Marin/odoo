@@ -16,7 +16,7 @@ class TestCrmMailPlugin(TestMailPluginControllerCommon):
             ]
         )
 
-        result = self.make_jsonrpc_request(
+        result = self.call_jsonrpc(
             "/mail_plugin/partner/get", {"partner_id": partner.id}
         )
 
@@ -37,7 +37,7 @@ class TestCrmMailPlugin(TestMailPluginControllerCommon):
             ]
         )
 
-        result = self.make_jsonrpc_request(
+        result = self.call_jsonrpc(
             "/mail_plugin/partner/get", {"partner_id": partner.id}
         )
 
@@ -87,7 +87,7 @@ class TestCrmMailPlugin(TestMailPluginControllerCommon):
             "email_subject": "test subject",
         }
 
-        result = self.make_jsonrpc_request("/mail_plugin/lead/create", params)
+        result = self.call_jsonrpc("/mail_plugin/lead/create", params)
 
         self.assertIn(
             "lead_id",

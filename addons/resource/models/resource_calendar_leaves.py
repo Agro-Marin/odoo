@@ -142,7 +142,7 @@ class ResourceCalendarLeaves(models.Model):
             leave.date_to = local_date_to.astimezone(UTC).replace(tzinfo=None)
 
     def _copy_leave_vals(self) -> ValuesType:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": self.name,
             "date_from": self.date_from,

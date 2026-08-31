@@ -178,7 +178,7 @@ class ProjectShareWizard(models.TransientModel):
                 project.message_unsubscribe(project_followers_to_remove)
 
     def action_share_record(self) -> dict[str, Any] | None:
-        self.ensure_one()
+        self.check_singleton()
         on_invite = self.env["res.users"]._get_signup_invitation_scope() == "b2b"
         new_portal_user = (
             self.collaborator_ids.filtered(

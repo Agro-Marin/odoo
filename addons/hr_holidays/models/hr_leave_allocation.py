@@ -246,7 +246,7 @@ class HrLeaveAllocation(models.Model):
         self.is_officer = self.env.user.has_group("hr_holidays.group_hr_holidays_user")
 
     def _get_title(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.holiday_status_id:
             return _("Allocation Request")
         if self.type_request_unit == "hour":
@@ -463,7 +463,7 @@ class HrLeaveAllocation(models.Model):
             )
 
     def _get_request_unit(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.allocation_type == "accrual" and self.accrual_plan_id:
             return self.accrual_plan_id.sudo().added_value_type
         elif self.allocation_type == "regular":
@@ -477,7 +477,7 @@ class HrLeaveAllocation(models.Model):
             allocation.type_request_unit = allocation._get_request_unit()
 
     def _get_carryover_date(self, date_from):
-        self.ensure_one()
+        self.check_singleton()
         carryover_time = self.accrual_plan_id.carryover_date
         accrual_plan = self.accrual_plan_id
         carryover_date = False
@@ -534,7 +534,7 @@ class HrLeaveAllocation(models.Model):
         Returns a pair (accrual_plan_level, idx) where accrual_plan_level is the level for the given date
         and idx is the index for the plan in the ordered set of levels
         """
-        self.ensure_one()
+        self.check_singleton()
         if not self.accrual_plan_id.level_ids:
             return (False, False)
         # Sort by sequence which should be equivalent to the level
@@ -571,7 +571,7 @@ class HrLeaveAllocation(models.Model):
     def _get_accrual_plan_level_work_entry_prorata(
         self, level, start_period, start_date, end_period, end_date
     ):
-        self.ensure_one()
+        self.check_singleton()
         datetime_min_time = datetime.min.time()
         start_dt = datetime.combine(start_date, datetime_min_time)
         end_dt = datetime.combine(end_date, datetime_min_time)
@@ -632,7 +632,7 @@ class HrLeaveAllocation(models.Model):
         """
         Returns the added days for that level
         """
-        self.ensure_one()
+        self.check_singleton()
         if (
             level.frequency in level._get_hourly_frequencies()
             or level.accrual_plan_id.is_based_on_worked_time
@@ -1037,7 +1037,7 @@ class HrLeaveAllocation(models.Model):
         # As computing future accrual allocation days automatically updates the allocation,
         # We need to create a temporary copy of that allocation to return the difference in number of days
         # to see how much more days will be allocated from now until that date.
-        self.ensure_one()
+        self.check_singleton()
         if not accrual_date or accrual_date <= date.today():
             return 0
 
@@ -1069,7 +1069,7 @@ class HrLeaveAllocation(models.Model):
         return res
 
     def _get_next_states_by_state(self):
-        self.ensure_one()
+        self.check_singleton()
         state_result = {
             "confirm": set(),
             "validate1": set(),
@@ -1502,7 +1502,7 @@ class HrLeaveAllocation(models.Model):
     # ------------------------------------------------------------
 
     def _get_responsible_for_approval(self):
-        self.ensure_one()
+        self.check_singleton()
         responsible = self.env["res.users"]
 
         if self.validation_type == "manager" or (

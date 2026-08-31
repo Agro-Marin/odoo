@@ -273,7 +273,7 @@ class ApprovalApprover(models.Model):
             )
 
     def _delegation_today(self):
-        self.ensure_one()
+        self.check_singleton()
         return self._delegation_today_by_tz()[self.user_id.tz or "UTC"]
 
     def _delegation_today_by_tz(self) -> dict:
@@ -345,11 +345,11 @@ class ApprovalApprover(models.Model):
         )
 
     def action_approve(self) -> dict[str, Any] | None:
-        self.ensure_one()
+        self.check_singleton()
         return self.request_id.action_approve(self._fan_in_siblings())
 
     def action_refuse(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
 
         if self.env.context.get("skip_wizard"):
             return self.request_id.action_refuse(self._fan_in_siblings())
@@ -392,7 +392,7 @@ class ApprovalApprover(models.Model):
             self.env["mail.activity"].create(create_vals_list)
 
     def _get_effective_approver(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.is_delegated:
             return self.delegate_id
         return self.user_id

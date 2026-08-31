@@ -182,12 +182,12 @@ class HrAttendanceOvertimeRule(models.Model):
                 )
 
     def _get_local_time_start(self, date, tz):
-        self.ensure_one()
+        self.check_singleton()
         ret = _midnight(date) + relativedelta(hours=self.timing_start)
         return _naive_utc(ret.replace(tzinfo=tz))
 
     def _get_local_time_stop(self, date, tz):
-        self.ensure_one()
+        self.check_singleton()
         if self.timing_stop == 24:
             ret = datetime.combine(date, datetime.max.time())
             return _naive_utc(ret.replace(tzinfo=tz))
@@ -195,8 +195,8 @@ class HrAttendanceOvertimeRule(models.Model):
         return _naive_utc(ret.replace(tzinfo=tz))
 
     def _get1_timing_overtime_intervals(self, attendances, version_map):
-        self.ensure_one()
-        attendances.employee_id.ensure_one()
+        self.check_singleton()
+        attendances.employee_id.check_singleton()
         assert self.base_off == "timing"
 
         employee = attendances.employee_id
@@ -324,7 +324,7 @@ class HrAttendanceOvertimeRule(models.Model):
     def _get_daterange_overtime_undertime_intervals_for_quantity_rule(
         self, start, stop, attendance_intervals, schedule
     ):
-        self.ensure_one()
+        self.check_singleton()
         expected_duration = self.expected_hours
         attendances_interval_without_lunch = []
         intervals_attendance_by_attendance = defaultdict(Intervals)
@@ -767,7 +767,7 @@ class HrAttendanceOvertimeRule(models.Model):
         return vals
 
     def _extra_overtime_vals(self):
-        self.ruleset_id.ensure_one()
+        self.ruleset_id.check_singleton()
         paid_rules = self.filtered("paid")
         if not paid_rules:
             return {"amount_rate": 0.0}

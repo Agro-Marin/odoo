@@ -51,7 +51,7 @@ class AccountPayment(models.Model):
         return super().write(vals)
 
     def action_view_expense(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": self.expense_ids.name,
             "type": "ir.actions.act_window",
@@ -63,7 +63,7 @@ class AccountPayment(models.Model):
 
     def _creation_message(self):
         # EXTENDS mail
-        self.ensure_one()
+        self.check_singleton()
         if self.move_id.expense_ids:
             return _(
                 "Payment created for: %s", self.move_id.expense_ids._get_html_link()

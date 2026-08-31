@@ -9,9 +9,9 @@ class HrLeave(models.Model):
         "account.analytic.line", "holiday_id", string="Analytic Lines"
     )
 
-    def _validate_leave_request(self):
+    def _apply_leave_request(self):
         self._generate_timesheets()
-        return super()._validate_leave_request()
+        return super()._apply_leave_request()
 
     def _generate_timesheets(self, ignored_resource_calendar_leaves=None):
         """Timesheet will be generated on leave validation
@@ -99,7 +99,7 @@ class HrLeave(models.Model):
     def _timesheet_prepare_line_values(
         self, index, work_hours_data, day_date, work_hours_count, project, task
     ):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _(
                 "Time Off (%(index)s/%(total)s)",

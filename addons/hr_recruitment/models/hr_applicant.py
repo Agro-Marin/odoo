@@ -1032,7 +1032,7 @@ class HrApplicant(models.Model):
         :return: an act_window action opening the calendar event view
         :rtype: dict
         """
-        self.ensure_one()
+        self.check_singleton()
         if not self.partner_id:
             if not self.partner_name:
                 raise UserError(_("You must define a Contact Name for this applicant."))
@@ -1099,7 +1099,7 @@ class HrApplicant(models.Model):
         }
 
     def action_view_employee(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Employee"),
             "type": "ir.actions.act_window",
@@ -1109,7 +1109,7 @@ class HrApplicant(models.Model):
         }
 
     def action_view_applications(self):
-        self.ensure_one()
+        self.check_singleton()
         similar_applicants = (
             self.env["hr.applicant"]
             .with_context(active_test=False)
@@ -1132,7 +1132,7 @@ class HrApplicant(models.Model):
         }
 
     def action_talent_pool_stat_button(self):
-        self.ensure_one()
+        self.check_singleton()
         # If the applicant has other applications linked to pool but for some
         # reason this applicant is not linked to that account then link it
         if not self.pool_applicant_id:
@@ -1209,7 +1209,7 @@ class HrApplicant(models.Model):
         return res
 
     def _creation_subtype(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.is_pool_applicant:
             return self.env.ref(
                 "hr_recruitment.mt_talent_new", raise_if_not_found=False
@@ -1357,7 +1357,7 @@ class HrApplicant(models.Model):
 
     def create_employee_from_applicant(self):
         """Create the employee and return an action opening it."""
-        self.ensure_one()
+        self.check_singleton()
         self._check_interviewer_access()
 
         if not self.partner_id:
@@ -1402,7 +1402,7 @@ class HrApplicant(models.Model):
         return action
 
     def _get_employee_create_vals(self):
-        self.ensure_one()
+        self.check_singleton()
         address_id = self.partner_id.address_get(["contact"])["contact"]
         address_sudo = self.env["res.partner"].sudo().browse(address_id)
         return {

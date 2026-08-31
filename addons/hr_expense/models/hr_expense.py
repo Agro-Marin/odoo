@@ -1275,7 +1275,7 @@ class HrExpense(models.Model):
         return ""
 
     def _track_subtype(self, init_values):
-        self.ensure_one()
+        self.check_singleton()
         if "state" not in init_values:
             return super()._track_subtype(init_values)
 
@@ -1452,7 +1452,7 @@ class HrExpense(models.Model):
 
         # `_parse_expense_subject` returns an empty product when the subject names
         # none, which the caller two lines up already accounts for -- and
-        # `_get_product_accounts` is `ensure_one()`.
+        # `_get_product_accounts` is `check_singleton()`.
         if product:
             account = product.product_tmpl_id._get_product_accounts()["expense"]
             if account:
@@ -1467,7 +1467,7 @@ class HrExpense(models.Model):
     # ----------------------------------------
 
     def action_view_split_expense(self):
-        self.ensure_one()
+        self.check_singleton()
         split_expense_ids = self.search(
             [("split_expense_origin_id", "=", self.split_expense_origin_id.id)]
         )
@@ -1497,7 +1497,7 @@ class HrExpense(models.Model):
 
     def _can_be_autovalidated(self):
         """Check whether the given expenses can be auto-validated (no approver)"""
-        self.ensure_one()
+        self.check_singleton()
         return (
             not self.manager_id and not self.employee_id.expense_manager_id
         ) or self.manager_id == self.employee_id.user_id
@@ -1506,7 +1506,7 @@ class HrExpense(models.Model):
         """Approve an expense, pops a wizard if a duplicated expense is found to confirm they are all valid expenses"""
         self._check_can_approve()
         for expense in self:
-            expense._validate_distribution(
+            expense._check_distribution(
                 account=expense.account_id.id,
                 product=expense.product_id.id,
                 business_domain="expense",
@@ -1652,7 +1652,7 @@ class HrExpense(models.Model):
         return expenses.ids
 
     def action_show_same_receipt_expense_ids(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.same_receipt_expense_ids._get_records_action(
             name=_(
                 "Expenses with a similar receipt to %(other_expense_name)s",
@@ -1713,7 +1713,7 @@ class HrExpense(models.Model):
             )
 
     def action_split_wizard(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.filtered(
             lambda expense: expense.state in {"posted", "paid", "in_payment"}
         ):
@@ -1743,7 +1743,7 @@ class HrExpense(models.Model):
         }
 
     def action_view_account_move(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.payment_mode == "own_account":
             res_model = "account.move"
             record_id = self.account_move_id
@@ -1936,7 +1936,7 @@ class HrExpense(models.Model):
         self.update_activities_and_mails()
 
     def _get_split_values(self):
-        self.ensure_one()
+        self.check_singleton()
         half_price = self.total_amount_currency / 2
         price_round_up = float_round(
             half_price,
@@ -1968,7 +1968,7 @@ class HrExpense(models.Model):
         ]
 
     def _get_default_responsible_for_approval(self):
-        self.ensure_one()
+        self.check_singleton()
         approver_group = "hr_expense.group_hr_expense_team_approver"
 
         employee = self.employee_id.sudo()
@@ -1990,7 +1990,7 @@ class HrExpense(models.Model):
 
     def _needs_product_price_computation(self):
         # Hook to be overridden.
-        self.ensure_one()
+        self.check_singleton()
         return self.product_has_cost
 
     def _post_wizard(self):
@@ -2124,7 +2124,7 @@ class HrExpense(models.Model):
         return return_vals
 
     def _prepare_payments_vals(self):
-        self.ensure_one()
+        self.check_singleton()
 
         journal = self.journal_id
         payment_channel = self.payment_channel_id
@@ -2240,7 +2240,7 @@ class HrExpense(models.Model):
         }
 
     def _prepare_move_lines_vals(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": self._get_move_line_name(),
             "account_id": self._get_base_account().id,
@@ -2257,7 +2257,7 @@ class HrExpense(models.Model):
         }
 
     def _prepare_base_line_for_taxes_computation(self, **kwargs):
-        self.ensure_one()
+        self.check_singleton()
         return self.env["account.tax"]._prepare_base_line_for_taxes_computation(
             self,
             **{
@@ -2270,7 +2270,7 @@ class HrExpense(models.Model):
 
     def _get_move_line_name(self):
         """Helper to get the name of the account move lines related to an expense"""
-        self.ensure_one()
+        self.check_singleton()
         expense_name = self.name.split("\n")[0][:64]
         return _(
             "%(employee_name)s: %(expense_name)s",

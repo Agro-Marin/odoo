@@ -5,7 +5,7 @@ class EventQuestionAnswer(models.Model):
     _inherit = "event.question.answer"
 
     def action_add_rule_button(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "event_crm.event_lead_rule_answer_action"
         )

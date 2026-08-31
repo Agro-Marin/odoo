@@ -227,7 +227,7 @@ class EventRegistration(models.Model):
         ):
             combinations_per_event.setdefault(event, []).append((slot, ticket, 0))
         for event, slot_tickets in combinations_per_event.items():
-            event._verify_seats_availability(slot_tickets)
+            event._check_seats_availability(slot_tickets)
 
     @api.model
     def default_get(self, fields):
@@ -517,7 +517,7 @@ class EventRegistration(models.Model):
         """Open a window to compose an email, with the template - 'event_badge'
         message loaded by default
         """
-        self.ensure_one()
+        self.check_singleton()
         template = self.env.ref(
             "event.event_registration_mail_template_badge", raise_if_not_found=False
         )
@@ -665,7 +665,7 @@ class EventRegistration(models.Model):
     # ------------------------------------------------------------
 
     def _get_registration_summary(self):
-        self.ensure_one()
+        self.check_singleton()
 
         is_date_closed_today = False
         if self.date_closed:

@@ -230,7 +230,7 @@ class CrmIapLeadMiningRequest(models.Model):
         )
 
     def _prepare_iap_payload(self):
-        self.ensure_one()
+        self.check_singleton()
         payload = {
             "lead_number": self.lead_number,
             "search_type": self.search_type,
@@ -321,7 +321,7 @@ class CrmIapLeadMiningRequest(models.Model):
         return iap_tools.iap_jsonrpc(endpoint, params=params, timeout=timeout)
 
     def _create_leads_from_response(self, result):
-        self.ensure_one()
+        self.check_singleton()
         lead_vals_list = []
         messages_to_post = {}
         for data in result:
@@ -352,7 +352,7 @@ class CrmIapLeadMiningRequest(models.Model):
 
     @api.model
     def _lead_vals_from_response(self, data):
-        self.ensure_one()
+        self.check_singleton()
         company_data = data
         people_data = []
         lead_vals = self.env["crm.iap.lead.helpers"].lead_vals_from_response(
@@ -367,12 +367,12 @@ class CrmIapLeadMiningRequest(models.Model):
         return lead_vals
 
     def action_draft(self):
-        self.ensure_one()
+        self.check_singleton()
         self.name = _("New")
         self.state = "draft"
 
     def action_submit(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.name == _("New"):
             self.name = self.env["ir.sequence"].next_by_code(
                 "crm.iap.lead.mining.request"
@@ -400,7 +400,7 @@ class CrmIapLeadMiningRequest(models.Model):
             return False
 
     def action_get_lead_action(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "crm.crm_lead_all_leads"
         )
@@ -408,7 +408,7 @@ class CrmIapLeadMiningRequest(models.Model):
         return action
 
     def action_get_opportunity_action(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "crm.crm_lead_opportunities"
         )

@@ -158,7 +158,7 @@ class ProjectWorkflowStep(models.Model):
     }
 
     def _next_rating_deadline(self):
-        self.ensure_one()
+        self.check_singleton()
         return fields.Datetime.now() + timedelta(
             days=self._RATING_PERIOD_DAYS.get(self.rating_status_period, 0)
         )
@@ -187,7 +187,7 @@ class ProjectWorkflowStep(models.Model):
             self.env.cr.commit()
 
     def _get_rating_tasks(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.env["project.task"].search(
             [
                 ("step_id", "=", self.id),

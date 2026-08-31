@@ -157,7 +157,7 @@ class LunchAlert(models.Model):
 
     def _notify_chat(self):
         # Called daily by cron
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.available_today:
             _logger.warning("cancelled, not available today")

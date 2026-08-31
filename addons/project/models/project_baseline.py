@@ -52,12 +52,12 @@ class ProjectBaseline(models.Model):
     )
 
     def action_set_current(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         self.project_id.baseline_ids.filtered("is_current").write({"is_current": False})
         self.is_current = True
 
     def action_capture_snapshot(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if self.line_ids:
             raise UserError(
                 self.env._(

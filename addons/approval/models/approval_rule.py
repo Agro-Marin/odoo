@@ -305,7 +305,7 @@ class ApprovalRule(models.Model):
         )
 
     def _evaluate(self, request) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         value = self._get_field_value(request)
         if value is None:
             return False
@@ -328,7 +328,7 @@ class ApprovalRule(models.Model):
                 return None
 
     def _compare(self, value: float, threshold: float) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         op = self.operator
         if op == "gt":
             return value > threshold
@@ -365,7 +365,7 @@ class ApprovalRule(models.Model):
         )
 
     def _condition_bounds(self) -> tuple[float, bool, float, bool] | None:
-        self.ensure_one()
+        self.check_singleton()
         t = self.threshold
         if self.operator == "gt":
             return (t, False, math.inf, True)
@@ -382,8 +382,8 @@ class ApprovalRule(models.Model):
         return None
 
     def _condition_overlaps(self, other) -> bool:
-        self.ensure_one()
-        other.ensure_one()
+        self.check_singleton()
+        other.check_singleton()
         bounds_a = self._condition_bounds()
         bounds_b = other._condition_bounds()
         if bounds_a is None or bounds_b is None:
@@ -391,7 +391,7 @@ class ApprovalRule(models.Model):
         return self._intervals_overlap(bounds_a, bounds_b)
 
     def _get_approver_tuples(self) -> list[tuple[int, bool, int]]:
-        self.ensure_one()
+        self.check_singleton()
         return [
             (user.id, self.approver_required, self.approver_sequence)
             for user in self.approver_ids

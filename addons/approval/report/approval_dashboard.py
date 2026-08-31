@@ -675,7 +675,7 @@ class ApprovalDashboard(models.Model):
         return {"type": "ir.actions.client", "tag": "reload"}
 
     def action_view_slowest_category(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         if not self.slowest_category_id:
             return {"type": "ir.actions.act_window_close"}
 
@@ -689,7 +689,7 @@ class ApprovalDashboard(models.Model):
         }
 
     def action_view_slowest_approver(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         if not self.slowest_approver_id:
             return {"type": "ir.actions.act_window_close"}
 
@@ -706,7 +706,7 @@ class ApprovalDashboard(models.Model):
         }
 
     def action_view_overloaded_approver(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         if not self.most_pending_approver_id:
             return {"type": "ir.actions.act_window_close"}
 

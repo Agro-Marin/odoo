@@ -7,7 +7,7 @@ class HrEmployeePublic(models.Model):
     has_timesheet = fields.Boolean(related="employee_id.has_timesheet")
 
     def action_timesheet_from_employee(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.is_user:
             return self.employee_id.action_timesheet_from_employee()
         return None

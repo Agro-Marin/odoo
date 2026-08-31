@@ -467,7 +467,7 @@ class ResourceReservation(models.Model):
 
     def _scale_allocation(self, work_hours):
         """Apply ``allocated_percentage`` to a raw working-hours figure."""
-        self.ensure_one()
+        self.check_singleton()
         return round(work_hours * self.allocated_percentage / 100.0, 2)
 
     @api.depends(
@@ -863,7 +863,7 @@ class ResourceReservation(models.Model):
 
     def action_view_origin(self):
         """Navigate to the source record."""
-        self.ensure_one()
+        self.check_singleton()
         if not self.res_model or not self.res_id:
             return False
         return {

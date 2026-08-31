@@ -281,7 +281,7 @@ class HrDepartment(models.Model):
         return self.env["hr.department"].search([("id", "child_of", self.ids)])
 
     def action_view_view_child_departments(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "res_model": "hr.department",
@@ -293,7 +293,7 @@ class HrDepartment(models.Model):
     def get_department_hierarchy(self):
         if not self:
             return {}
-        self.ensure_one()
+        self.check_singleton()
 
         return {
             "parent": {

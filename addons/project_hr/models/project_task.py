@@ -108,7 +108,7 @@ class ProjectTask(models.Model):
         field, so the chain collapses to ``employee.resource_id`` —
         already company-scoped, no rebind needed.
         """
-        self.ensure_one()
+        self.check_singleton()
         start_field, end_field = self._get_fields_reservation_date()
         if not start_field or not end_field:
             return []
@@ -149,7 +149,7 @@ class ProjectTask(models.Model):
         Each employee owns its resource, so the chain collapses and the
         cross-company quirk goes away.
         """
-        self.ensure_one()
+        self.check_singleton()
         resources = self.employee_ids.resource_id
 
         if len(resources) == 1:

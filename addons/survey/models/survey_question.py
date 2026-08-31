@@ -744,7 +744,7 @@ class SurveyQuestion(models.Model):
     _MAPPING_ANSWER_TYPES = ("matrix", "likert", "ranking", "constant_sum")
 
     def _is_well_shaped_answer(self, answer: Any) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         if self._is_unanswered(answer):
             return True
         if self.question_type in self._SCALAR_ANSWER_TYPES:
@@ -762,7 +762,7 @@ class SurveyQuestion(models.Model):
         return True
 
     def _check_answer(self, answer: Any, comment: str | None = None) -> dict[int, str]:
-        self.ensure_one()
+        self.check_singleton()
         if isinstance(answer, str):
             answer = answer.strip()
         if self.question_type in ("statement", "calculated"):
@@ -936,7 +936,7 @@ class SurveyQuestion(models.Model):
     def _filter_foreign_answer_ids(
         self, answer_ids: Any, field: str = "suggested_answer_ids"
     ) -> list[Any]:
-        self.ensure_one()
+        self.check_singleton()
         own_ids = set(self[field].ids)
         foreign = []
         for answer_id in answer_ids:
@@ -1087,7 +1087,7 @@ class SurveyQuestion(models.Model):
         return {}
 
     def _get_displayed_suggested_answers(self, seed_token: str = "") -> Any:
-        self.ensure_one()
+        self.check_singleton()
         answers = self.suggested_answer_ids
         if not self.shuffle_answers or not seed_token:
             return answers
@@ -1113,7 +1113,7 @@ class SurveyQuestion(models.Model):
         return total
 
     def _index(self) -> int:
-        self.ensure_one()
+        self.check_singleton()
         return list(self.survey_id.question_and_page_ids).index(self)
 
     def _update_time_limit_from_survey(

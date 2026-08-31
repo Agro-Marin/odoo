@@ -60,7 +60,7 @@ class HrLeaveGenerateMultiWizard(models.TransientModel):
     date_to = fields.Date("End Date", required=True)
 
     def _get_employees_from_allocation_mode(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.allocation_mode == "employee":
             employees = self.employee_ids or self.env["hr.employee"].search(
                 self._domain_employee_ids()
@@ -78,7 +78,7 @@ class HrLeaveGenerateMultiWizard(models.TransientModel):
         return employees
 
     def _prepare_employees_holiday_values(self, employees, date_from_tz, date_to_tz):
-        self.ensure_one()
+        self.check_singleton()
         work_days_data = employees.sudo()._get_work_days_data_batch(
             date_from_tz, date_to_tz
         )
@@ -103,7 +103,7 @@ class HrLeaveGenerateMultiWizard(models.TransientModel):
         ]
 
     def action_generate_time_off(self):
-        self.ensure_one()
+        self.check_singleton()
         employees = self._get_employees_from_allocation_mode()
 
         tz = timezone(
@@ -177,7 +177,7 @@ class HrLeaveGenerateMultiWizard(models.TransientModel):
             )
             .create(vals_list)
         )
-        leaves._validate_leave_request()
+        leaves._apply_leave_request()
 
         return {
             "type": "ir.actions.act_window",

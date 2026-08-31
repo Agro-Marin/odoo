@@ -33,13 +33,13 @@ class MailActivityTodoCreate(models.TransientModel):
 
         :rtype: datetime
         """
-        self.ensure_one()
+        self.check_singleton()
         tz = timezone(self.env.user.tz or "UTC")
         local_end_of_day = datetime.combine(self.date_deadline, time.max, tzinfo=tz)
         return local_end_of_day.astimezone(UTC).replace(tzinfo=None, microsecond=0)
 
     def create_todo_activity(self):
-        self.ensure_one()
+        self.check_singleton()
         todo = self.env["project.task"].create(
             {
                 "name": self.summary,

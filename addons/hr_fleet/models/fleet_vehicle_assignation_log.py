@@ -46,7 +46,7 @@ class FleetVehicleAssignationLog(models.Model):
             doc.attachment_number = attachment.get(doc.id, 0)
 
     def action_get_attachment_view(self):
-        self.ensure_one()
+        self.check_singleton()
         res = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "base.action_attachment"
         )

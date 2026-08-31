@@ -239,7 +239,7 @@ class EventRegistration(models.Model):
         return res
 
     def _get_event_registration_ids_from_order(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.sale_order_id.line_ids.filtered(
             lambda line: line.event_id == self.event_id
         ).registration_ids.ids

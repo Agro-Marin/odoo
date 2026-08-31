@@ -101,7 +101,7 @@ class TestBoardAddToDashboard(HttpCase):
         self.authenticate("admin", "admin")
         board_view = self.env.ref("board.board_my_dash_view")
 
-        result = self.make_jsonrpc_request(
+        result = self.call_jsonrpc(
             "/board/add_to_dashboard",
             {
                 "action_id": board_view.id,
@@ -132,7 +132,7 @@ class TestBoardAddToDashboard(HttpCase):
         """A falsy action_id short-circuits the route: nothing is saved, result is False."""
         self.authenticate("admin", "admin")
 
-        result = self.make_jsonrpc_request(
+        result = self.call_jsonrpc(
             "/board/add_to_dashboard",
             {
                 "action_id": False,

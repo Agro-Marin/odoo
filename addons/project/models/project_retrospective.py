@@ -74,7 +74,7 @@ class ProjectRetrospective(models.Model):
             )
 
     def action_carry_forward(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if not self.previous_id:
             return
         already_carried = set(self.action_ids.mapped("carried_from_id").ids)

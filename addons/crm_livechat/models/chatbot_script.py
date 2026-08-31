@@ -24,7 +24,7 @@ class ChatbotScript(models.Model):
             script.lead_count = mapped_leads.get(script.source_id.id, 0)
 
     def action_view_leads(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "crm.crm_lead_all_leads"
         )

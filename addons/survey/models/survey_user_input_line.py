@@ -235,7 +235,7 @@ class SurveyUser_InputLine(models.Model):
                 raise ValidationError(_("The answer must be in the right type"))
 
     def _get_answer_matching_domain(self) -> list[Any] | None:
-        self.ensure_one()
+        self.check_singleton()
         if self.answer_type in (
             "char_box",
             "text_box",
@@ -276,7 +276,7 @@ class SurveyUser_InputLine(models.Model):
         return None
 
     def _get_answer_value(self) -> Any:
-        self.ensure_one()
+        self.check_singleton()
         if self.answer_type == "char_box":
             return self.value_char_box
         elif self.answer_type == "text_box":

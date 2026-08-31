@@ -771,7 +771,7 @@ class GamificationChallenge(models.Model):
                       a visibility mode set to 'personal'.
         :param subset_goals: goals to restrict the report
         """
-        self.ensure_one()
+        self.check_singleton()
         challenge = self
 
         if challenge.visibility_mode == "ranking":
@@ -847,7 +847,7 @@ class GamificationChallenge(models.Model):
         :return: ``{user_id: gamification.goal recordset}``, users with no goal
             omitted.
         """
-        self.ensure_one()
+        self.check_singleton()
         Goals = self.env["gamification.goal"]
         domain = [
             ("line_id", "in", self.line_ids.ids),
@@ -1121,7 +1121,7 @@ class GamificationChallenge(models.Model):
         :return: list of dicts ``[{'team': record, 'score': float}, ...]``
             sorted by score descending.
         """
-        self.ensure_one()
+        self.check_singleton()
         rankings = []
         for team in self.team_ids:
             score = team.get_team_challenge_score(self)
@@ -1157,7 +1157,7 @@ class GamificationChallenge(models.Model):
 
         :return: dict mapping ``{(user_id, line_id): adjusted_target}``.
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.period == "once":
             return {}
 

@@ -24,7 +24,7 @@ class MixinApprovalThreshold(models.AbstractModel):
     )
 
     def _convert_request_amount(self, request) -> float:
-        self.ensure_one()
+        self.check_singleton()
         from_currency = request.currency_id
         to_currency = self.currency_id
         if not from_currency or not to_currency or from_currency == to_currency:

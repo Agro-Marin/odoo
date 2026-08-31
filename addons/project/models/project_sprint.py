@@ -140,7 +140,7 @@ class ProjectSprint(models.Model):
             sprint.story_points_completed = sum(closed.mapped("story_points"))
 
     def action_start(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         active_sprints = self.search(
             [
                 ("project_id", "=", self.project_id.id),
@@ -159,7 +159,7 @@ class ProjectSprint(models.Model):
         self.state = "active"
 
     def action_close(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         incomplete = self.task_ids.filtered(lambda t: t.state not in CLOSED_STATES)
         self.write(
             {

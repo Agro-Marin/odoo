@@ -233,7 +233,7 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
         return main_query
 
     @api.model
-    def _validate_group_by(self, groupby: list[str]) -> None:
+    def _check_group_by(self, groupby: list[str]) -> None:
         is_closed_or_step_in_groupby = False
         date_in_groupby = False
         for gb in groupby:
@@ -277,7 +277,7 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
         limit: int | None = None,
         order: str | None = None,
     ) -> list:
-        self._validate_group_by(groupby)
+        self._check_group_by(groupby)
         self = self.with_context(project_task_burndown_chart_report_groupby=groupby)
 
         return super()._read_group(

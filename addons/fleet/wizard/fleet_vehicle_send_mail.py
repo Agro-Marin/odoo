@@ -25,7 +25,7 @@ class FleetVehicleSendMail(models.TransientModel):
         self.attachment_ids = self.template_id.attachment_ids
 
     def action_send(self):
-        self.ensure_one()
+        self.check_singleton()
         without_emails = self.vehicle_ids.driver_id.filtered(lambda a: not a.email)
         if without_emails:
             return {

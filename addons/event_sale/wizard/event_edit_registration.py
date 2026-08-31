@@ -84,7 +84,7 @@ class RegistrationEditor(models.TransientModel):
         return self._convert_to_write(res)
 
     def action_make_registration(self):
-        self.ensure_one()
+        self.check_singleton()
         registrations_to_create = []
         for registration_line in self.event_registration_ids:
             if registration_line.registration_id:
@@ -123,7 +123,7 @@ class RegistrationEditorLine(models.TransientModel):
     name = fields.Char(string="Name")
 
     def _prepare_registration_data(self, include_event_values=False):
-        self.ensure_one()
+        self.check_singleton()
         registration_data = {
             "partner_id": self.editor_id.sale_order_id.partner_id.id,
             "name": self.name or self.editor_id.sale_order_id.partner_id.name,

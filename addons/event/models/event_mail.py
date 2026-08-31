@@ -193,7 +193,7 @@ class EventMail(models.Model):
 
         :param registrations: a recordset of registrations to contact
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.notification_type == "mail":
             self._send_mail(registrations)
         return True
@@ -261,7 +261,7 @@ class EventMail(models.Model):
         :return: The newly created scheduled communications
         :rtype: recordset of `event.mail.registration`
         """
-        self.ensure_one()
+        self.check_singleton()
 
         # note: original 2many domain was
         #   ("id", "not in", self.env["event.registration"]._search([
@@ -305,7 +305,7 @@ class EventMail(models.Model):
         :return: The communications to run, capped at `cron_limit`
         :rtype: recordset of `event.mail.registration`
         """
-        self.ensure_one()
+        self.check_singleton()
 
         mail_domain = self.env["event.mail.registration"]._get_skip_domain() + [
             ("scheduler_id", "=", self.id)
@@ -334,7 +334,7 @@ class EventMail(models.Model):
         :param bool auto_commit: Whether to commit between batches
         :return: None
         """
-        self.ensure_one()
+        self.check_singleton()
 
         for chunk in (
             self.env["event.mail.registration"].browse(b)
@@ -371,7 +371,7 @@ class EventMail(models.Model):
             limit to handle, schedule another call of cron to avoid having to
             wait another cron interval check;
         """
-        self.ensure_one()
+        self.check_singleton()
         context_registrations = self.env.context.get("event_mail_registration_ids")
 
         auto_commit = not modules.module.current_test

@@ -451,7 +451,7 @@ class ResUsers(models.Model):
         return domain
 
     def action_create_employee(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.env.company not in self.company_ids:
             raise AccessError(
                 self.env._(
@@ -468,7 +468,7 @@ class ResUsers(models.Model):
         )
 
     def action_view_employees(self):
-        self.ensure_one()
+        self.check_singleton()
         employees = self.employee_ids
         model = (
             "hr.employee"

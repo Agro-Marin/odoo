@@ -100,7 +100,7 @@ class GamificationStreakType(models.Model):
         :param check_date: ``date`` to check.
         :return: ``True`` if the domain matches at least one record.
         """
-        self.ensure_one()
+        self.check_singleton()
         return user.id in self._check_user_activity_batch(user, check_date)
 
     def _check_user_activity_batch(
@@ -127,7 +127,7 @@ class GamificationStreakType(models.Model):
         :param check_date: ``date`` to check.
         :return: set of user IDs that had qualifying activity.
         """
-        self.ensure_one()
+        self.check_singleton()
         if not users:
             return set()
 

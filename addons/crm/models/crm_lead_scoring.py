@@ -73,7 +73,7 @@ class CrmLead(models.Model):
 
         tooltip_data = {}
         if is_tooltip:
-            self.ensure_one()
+            self.check_singleton()
             tooltip_data = {
                 "probability": 0.0,
                 "scores": [],
@@ -599,7 +599,7 @@ class CrmLead(models.Model):
             return leads_values_dict
 
     def update_and_get_pls_tooltip_data(self):
-        self.ensure_one()
+        self.check_singleton()
         _unused, tooltip_data = self._pls_get_naive_bayes_probabilities(is_tooltip=True)
         sorted_scores_with_name = []
 

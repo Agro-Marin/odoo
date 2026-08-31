@@ -188,7 +188,7 @@ class AccountAnalyticLine(models.Model):
                 analytic_line.display_name = analytic_line.project_id.display_name
 
     def _is_readonly(self):
-        self.ensure_one()
+        self.check_singleton()
         # is overridden in other timesheet related modules
         return False
 
@@ -571,7 +571,7 @@ class AccountAnalyticLine(models.Model):
     def _timesheet_get_portal_domain(self):
         if self.env.user.has_group("hr_timesheet.group_hr_timesheet_user"):
             # Then, he is internal user, and we take the domain for this current user
-            return self.env["ir.rule"]._compute_domain(self._name)
+            return self.env["ir.rule"]._get_domain_accessible_records(self._name)
         return (
             Domain(
                 "message_partner_ids",
@@ -697,7 +697,7 @@ class AccountAnalyticLine(models.Model):
         return self._convert_hours_to_days(self.unit_amount)
 
     def _hourly_cost(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.employee_id.hourly_cost or 0.0
 
     def _get_report_base_filename(self):
@@ -710,7 +710,7 @@ class AccountAnalyticLine(models.Model):
         return self.env.context.get("user_id", self.env.user.id)
 
     @api.model
-    def _ensure_uom_hours(self):
+    def _get_or_create_uom_hours(self):
         uom_hours = self.env.ref("uom.product_uom_hour", raise_if_not_found=False)
         if not uom_hours:
             uom_hours = self.env["uom.uom"].create(
@@ -737,7 +737,7 @@ class AccountAnalyticLine(models.Model):
         return True
 
     def action_view_timesheet_view_portal(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "res_id": self.id,

@@ -44,7 +44,7 @@ class HrEmployeeDeleteWizard(models.TransientModel):
             )
 
     def action_archive(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Employee Termination"),
             "type": "ir.actions.act_window",
@@ -59,14 +59,14 @@ class HrEmployeeDeleteWizard(models.TransientModel):
         }
 
     def action_confirm_delete(self):
-        self.ensure_one()
+        self.check_singleton()
         self.employee_ids.unlink()
         return self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "hr.open_view_employee_list_my"
         )
 
     def action_view_timesheets(self):
-        self.ensure_one()
+        self.check_singleton()
         employees = self.with_context(active_test=False).employee_ids
         action = {
             "name": _("Employees' Timesheets"),

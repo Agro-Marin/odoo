@@ -285,7 +285,7 @@ class HrAttendance(models.Model):
             )
 
     def _get_employee_calendar(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.employee_id.resource_calendar_id
             or self.employee_id.company_id.resource_calendar_id
@@ -312,7 +312,7 @@ class HrAttendance(models.Model):
         :param end_dt: datetime ending the interval.
         :returns: float, hours worked
         """
-        self.ensure_one()
+        self.check_singleton()
         calendar = self._get_employee_calendar()
         resource = self.employee_id.resource_id
         tz = timezone(resource.tz) if not calendar else timezone(calendar.tz)
@@ -590,7 +590,7 @@ class HrAttendance(models.Model):
         raise exceptions.UserError(_("You cannot duplicate an attendance."))
 
     def action_in_attendance_maps(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_url",
             "url": get_google_maps_url(self.in_latitude, self.in_longitude),
@@ -598,7 +598,7 @@ class HrAttendance(models.Model):
         }
 
     def action_out_attendance_maps(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_url",
             "url": get_google_maps_url(self.out_latitude, self.out_longitude),
@@ -990,7 +990,7 @@ class HrAttendance(models.Model):
         to_unlink.unlink()
 
     def _get_localized_times(self):
-        self.ensure_one()
+        self.check_singleton()
         tz = timezone(self.employee_id.sudo()._get_version(self.check_in.date()).tz)
         localized_start = (
             self.check_in.replace(tzinfo=UTC).astimezone(tz).replace(tzinfo=None)

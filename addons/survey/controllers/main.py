@@ -843,7 +843,7 @@ class Survey(http.Controller):
             survey_token, answer_token, ensure_token=True
         )
         if access_data["validity_code"] is not True:
-            return request.make_json_response(
+            return request.prepare_json_response(
                 {"error": access_data["validity_code"]}, status=403
             )
         answer_sudo = access_data["answer_sudo"]
@@ -852,19 +852,23 @@ class Survey(http.Controller):
         try:
             question = survey_sudo.question_ids.browse(int(post.get("question_id")))
         except ValueError, TypeError:
-            return request.make_json_response({"error": "invalid_question"}, status=400)
+            return request.prepare_json_response(
+                {"error": "invalid_question"}, status=400
+            )
         if question not in survey_sudo.question_ids or (
             question.question_type != "file_upload"
         ):
-            return request.make_json_response({"error": "invalid_question"}, status=400)
+            return request.prepare_json_response(
+                {"error": "invalid_question"}, status=400
+            )
 
         upload = request.httprequest.files.get("file")
         if not upload:
-            return request.make_json_response({"error": "no_file"}, status=400)
+            return request.prepare_json_response({"error": "no_file"}, status=400)
 
         content = upload.read(question.file_upload_max_size * 1024 * 1024 + 1)
         if len(content) > question.file_upload_max_size * 1024 * 1024:
-            return request.make_json_response({"error": "too_large"}, status=413)
+            return request.prepare_json_response({"error": "too_large"}, status=413)
 
         # This route is auth="public" and creates a record per POST. Without a ceiling,
         # a respondent holding one valid answer token can fill the filestore one upload
@@ -876,7 +880,9 @@ class Survey(http.Controller):
             ("res_id", "=", answer_sudo.id),
         ]
         if Attachment.search_count(own_domain) >= self.MAX_UPLOADS_PER_ANSWER:
-            return request.make_json_response({"error": "too_many_files"}, status=429)
+            return request.prepare_json_response(
+                {"error": "too_many_files"}, status=429
+            )
 
         previous = answer_sudo.user_input_line_ids.filtered(
             lambda line: line.question_id == question and line.value_char_box
@@ -907,11 +913,11 @@ class Survey(http.Controller):
         errors = question._check_answer(attachment.id)
         if errors:
             attachment.unlink()
-            return request.make_json_response(
+            return request.prepare_json_response(
                 {"error": "rejected", "message": errors[question.id]}, status=400
             )
         superseded.unlink()
-        return request.make_json_response(
+        return request.prepare_json_response(
             {"attachment_id": attachment.id, "name": attachment.name}
         )
 
@@ -1446,7 +1452,7 @@ class Survey(http.Controller):
             content_split[0] = "inline"
             report_content_disposition = ";".join(content_split)
 
-        return request.make_response(
+        return request.prepare_response(
             report,
             headers=[
                 ("Content-Type", "application/pdf"),
@@ -1618,7 +1624,7 @@ class Survey(http.Controller):
         }
 
     def _get_lang_with_fallback(self, user_input: Any) -> Any:
-        user_input.ensure_one()
+        user_input.check_singleton()
         user_input_sudo = user_input.sudo()
         if user_input_sudo.lang_id:
             return user_input_sudo.lang_id.sudo(False)
@@ -1656,7 +1662,7 @@ class Survey(http.Controller):
             writer.writerow(row)
 
         filename = f"{survey.title} - Responses.csv"
-        return request.make_response(
+        return request.prepare_response(
             output.getvalue(),
             headers=[
                 ("Content-Type", "text/csv;charset=utf-8"),
@@ -1709,7 +1715,7 @@ class Survey(http.Controller):
         wb.save(output)
 
         filename = f"{survey.title} - Responses.xlsx"
-        return request.make_response(
+        return request.prepare_response(
             output.getvalue(),
             headers=[
                 (

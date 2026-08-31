@@ -401,7 +401,7 @@ class HrEmployee(models.Model):
                 )._compute_date_from_to()
                 non_hourly_leaves.filtered(
                     lambda l: l.state == "validate"
-                )._validate_leave_request()
+                )._apply_leave_request()
             except ValidationError as e:
                 raise ValidationError(
                     _(

@@ -50,7 +50,7 @@ class SurveyFollowupRule(models.Model):
     )
 
     def _evaluate(self, user_input):
-        self.ensure_one()
+        self.check_singleton()
         if self.condition_type == "always":
             return True
         elif self.condition_type == "score_range":
@@ -62,7 +62,7 @@ class SurveyFollowupRule(models.Model):
         return False
 
     def _execute(self, user_input):
-        self.ensure_one()
+        self.check_singleton()
         if not self._evaluate(user_input):
             return
         try:

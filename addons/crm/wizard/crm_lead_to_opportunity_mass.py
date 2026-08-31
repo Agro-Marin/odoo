@@ -71,14 +71,14 @@ class CrmLead2opportunityPartnerMass(models.TransientModel):
             ]
 
     def _convert_and_allocate(self, leads, user_ids, team_id=False):
-        self.ensure_one()
+        self.check_singleton()
         salesmen_ids = []
         if self.user_ids:
             salesmen_ids = self.user_ids.ids
         return super()._convert_and_allocate(leads, salesmen_ids, team_id=team_id)
 
     def action_mass_convert(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.name == "convert" and self.deduplicate:
             active_ids = self.env.context.get("active_ids", [])
             merged_lead_ids = set()

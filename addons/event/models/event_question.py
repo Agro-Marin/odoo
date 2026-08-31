@@ -110,7 +110,7 @@ class EventQuestion(models.Model):
           (Along with secondary pivot and list views)
         - A list view showing textual answers values for text_box questions.
         """
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "event.action_event_registration_report"
         )
@@ -127,7 +127,7 @@ class EventQuestion(models.Model):
         return action
 
     def action_event_view(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "event.action_event_view"
         )

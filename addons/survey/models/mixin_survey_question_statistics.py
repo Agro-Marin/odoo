@@ -445,7 +445,7 @@ class MixinSurveyQuestionStatistics(models.AbstractModel):
     def _get_text_analysis(
         self, user_input_lines: Any
     ) -> dict[str, list[dict[str, Any]]]:
-        self.ensure_one()
+        self.check_singleton()
         field_name = (
             "value_text_box" if self.question_type == "text_box" else "value_char_box"
         )

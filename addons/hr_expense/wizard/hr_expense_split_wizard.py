@@ -61,7 +61,7 @@ class HrExpenseSplitWizard(models.TransientModel):
             )
 
     def action_split_expense(self):
-        self.ensure_one()
+        self.check_singleton()
         expense_split = self.expense_split_line_ids[0]
         copied_expenses = self.env["hr.expense"]
         if expense_split:

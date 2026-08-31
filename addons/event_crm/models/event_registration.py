@@ -271,7 +271,7 @@ class EventRegistration(models.Model):
         return description
 
     def _get_lead_description_registration(self, line_suffix=""):
-        self.ensure_one()
+        self.check_singleton()
         return (
             Markup("<li>")
             + "%s (%s)%s"

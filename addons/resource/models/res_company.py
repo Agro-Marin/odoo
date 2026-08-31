@@ -68,7 +68,7 @@ class ResCompany(models.Model):
             company.resource_calendar_id = calendar
 
     def _prepare_resource_calendar_values(self) -> ValuesType:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": self.env._("Standard 40 hours/week"),
             "company_id": self.id,

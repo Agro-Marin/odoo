@@ -15,7 +15,7 @@ class CrmLeadLost(models.TransientModel):
     lost_feedback = fields.Html("Closing Note", sanitize=True)
 
     def action_lost_reason_apply(self):
-        self.ensure_one()
+        self.check_singleton()
         if not is_html_empty(self.lost_feedback):
             self.lead_ids._track_set_log_message(
                 Markup('<div style="margin-bottom: 4px;"><p>%s:</p>%s<br /></div>')

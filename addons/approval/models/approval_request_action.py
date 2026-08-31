@@ -151,7 +151,7 @@ class ApprovalRequestAction(models.Model):
     def _get_current_pending_approver(
         self, user: models.BaseModel | None = None
     ) -> models.BaseModel:
-        self.ensure_one()
+        self.check_singleton()
         user = user or self.env.user
         return self.approver_ids.filtered(
             lambda a: a.state == "pending" and a._get_effective_approver() == user,
@@ -186,7 +186,7 @@ class ApprovalRequestAction(models.Model):
         decision: str,
         approver: models.BaseModel | None = None,
     ) -> None:
-        self.ensure_one()
+        self.check_singleton()
         assert decision in ("approve", "refuse")
         approver_state = "approved" if decision == "approve" else "refused"
         self._lock_and_reload(with_approvers=True)
@@ -284,12 +284,12 @@ class ApprovalRequestAction(models.Model):
         self,
         approver: models.BaseModel | None = None,
     ) -> dict[str, Any] | None:
-        self.ensure_one()
+        self.check_singleton()
         self._check_no_pending_change("approve")
         self._apply_decision("approve", approver)
 
     def _refuse_cascade(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         if self.state in self._TERMINAL_STATES or self.state == "new":
             return False
         target_state = self._get_parent_cancel_state()
@@ -327,7 +327,7 @@ class ApprovalRequestAction(models.Model):
             )
 
     def _check_change_request_allowed(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if self.state != "pending":
             raise UserError(
                 self.env._(
@@ -349,7 +349,7 @@ class ApprovalRequestAction(models.Model):
         self,
         approver: models.BaseModel | None = None,
     ) -> dict[str, Any] | None:
-        self.ensure_one()
+        self.check_singleton()
 
         self._check_change_request_allowed()
 
@@ -394,7 +394,7 @@ class ApprovalRequestAction(models.Model):
         return None
 
     def action_resubmit(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if not self.pending_change_field:
             raise UserError(
                 self.env._(
@@ -621,7 +621,7 @@ class ApprovalRequestAction(models.Model):
     def action_refuse(
         self, approver: models.BaseModel | None = None
     ) -> dict[str, Any] | None:
-        self.ensure_one()
+        self.check_singleton()
         self._check_no_pending_change("refuse")
 
         if approver is None and not self.env.context.get("skip_wizard"):
@@ -631,7 +631,7 @@ class ApprovalRequestAction(models.Model):
         return None
 
     def _get_decision_wizard_action(self, decision_type: str) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         current_approver = self._get_current_pending_approver()[:1]
         if not current_approver:
             self._raise_not_assigned_approver()
@@ -655,7 +655,7 @@ class ApprovalRequestAction(models.Model):
         return
 
     def action_view_attachment(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         res = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "base.action_attachment"
         )

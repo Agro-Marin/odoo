@@ -263,5 +263,5 @@ class ApprovalRequestCron(models.Model):
         return True
 
     def _can_consent_approve(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return True

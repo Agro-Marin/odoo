@@ -51,7 +51,7 @@ class ProjectForecastWizard(models.TransientModel):
                 wiz.remaining_items = 0
 
     def action_run_forecast(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         if self.simulation_count < 1:
             raise UserError(self.env._("The number of simulations must be at least 1."))
         sim_count = min(self.simulation_count, 100_000)

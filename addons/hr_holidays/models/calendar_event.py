@@ -11,7 +11,7 @@ class CalendarEvent(models.Model):
         This method, implemented and invoked in google_calendar, is necessary
         due to the absence of a bridge module between google_calendar and hr_holidays.
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.res_model == "hr.leave":
             return False
         return super()._need_video_call()

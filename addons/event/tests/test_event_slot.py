@@ -295,7 +295,7 @@ class TestEventSlotSeats(TestEventSlotsCommon):
                     )
                     new.with_user(self.user_eventmanager).unlink()
 
-        # check ``_verify_seats_availability`` itself
+        # check ``_check_seats_availability`` itself
         for check_input, should_crash in [
             # ok for event max seats for both slots
             (((first_slot, False, 2), (second_slot, False, 4)), False),
@@ -307,9 +307,9 @@ class TestEventSlotSeats(TestEventSlotsCommon):
             with self.subTest(check_input=check_input, should_crash=should_crash):
                 if should_crash:
                     with self.assertRaises(exceptions.ValidationError):
-                        test_event._verify_seats_availability(check_input)
+                        test_event._check_seats_availability(check_input)
                 else:
-                    test_event._verify_seats_availability(check_input)
+                    test_event._check_seats_availability(check_input)
 
         # check constraint at write (active change) -> ok, check count
         all_slot2 = test_event.with_context(

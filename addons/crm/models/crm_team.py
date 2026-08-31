@@ -505,7 +505,7 @@ class CrmTeam(models.Model):
         return teams_data
 
     def _allocate_leads_deduplicate(self, leads, duplicates_cache=None):
-        self.ensure_one()
+        self.check_singleton()
         duplicates_cache = duplicates_cache if duplicates_cache is not None else dict()
 
         leads_assigned = self.env["crm.lead"]
@@ -784,7 +784,7 @@ class CrmTeam(models.Model):
         team_with_pipelines.update({"dashboard_button_name": _("Pipeline")})
 
     def action_primary_channel_button(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.use_opportunities:
             return self.action_view_leads()
         return super().action_primary_channel_button()

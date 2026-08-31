@@ -900,7 +900,7 @@ class ProjectTask(models.Model):
     _is_template_idx = models.Index("(is_template) WHERE is_template IS TRUE")
 
     @api.constrains("company_id", "partner_id")
-    def _ensure_company_consistency_with_partner(self) -> None:
+    def _check_company_consistency_with_partner(self) -> None:
         for task in self:
             if (
                 task.partner_id
@@ -915,7 +915,7 @@ class ProjectTask(models.Model):
                 )
 
     @api.constrains("child_ids", "project_id")
-    def _ensure_super_task_is_not_private(self) -> None:
+    def _check_super_task_is_not_private(self) -> None:
         for task in self:
             if not task.project_id and task.subtask_count:
                 raise ValidationError(
@@ -1255,7 +1255,7 @@ class ProjectTask(models.Model):
                     task[f] = False
 
     def _is_recurrence_valid(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return self.repeat_interval > 0 and (
             self.repeat_type != "until"
             or (self.repeat_until and self.repeat_until > fields.Date.today())
@@ -1339,7 +1339,7 @@ class ProjectTask(models.Model):
             )
 
     def _get_attachments_search_domain(self) -> list:
-        self.ensure_one()
+        self.check_singleton()
         return [("res_id", "=", self.id), ("res_model", "=", "project.task")]
 
     def _compute_attachment_ids(self) -> None:
@@ -1403,7 +1403,7 @@ class ProjectTask(models.Model):
                 task._set_elapsed(**task._elapsed_spans_calendar(calendar, index))
 
     def _elapsed_spans_wall_clock(self) -> dict[str, tuple[float, float]]:
-        self.ensure_one()
+        self.check_singleton()
 
         def span(start, stop):
             if not (start and stop):
@@ -1420,7 +1420,7 @@ class ProjectTask(models.Model):
     def _elapsed_spans_calendar(
         self, calendar: Any, index: tuple[list, list, list]
     ) -> dict[str, tuple[float, float]]:
-        self.ensure_one()
+        self.check_singleton()
         items, item_starts, item_stops = index
 
         def span(start, stop):
@@ -1500,7 +1500,7 @@ class ProjectTask(models.Model):
             )
 
     def _planned_hours_formula(self) -> float:
-        self.ensure_one()
+        self.check_singleton()
         return round(
             self.scheduled_hours
             * self.planned_resources
@@ -1542,7 +1542,7 @@ class ProjectTask(models.Model):
         )
 
     def _get_cpm_duration_hours(self) -> float:
-        self.ensure_one()
+        self.check_singleton()
         if self.scheduled_hours:
             return self.scheduled_hours
         units = (self.allocated_percentage or 100.0) / 100.0
@@ -2082,7 +2082,7 @@ class ProjectTask(models.Model):
                 return field.name in writeable
         return True
 
-    def _ensure_fields_write(
+    def _check_write_values_access(
         self, vals: dict[str, Any], defaults: bool = False
     ) -> None:
         if defaults:
@@ -2239,7 +2239,7 @@ class ProjectTask(models.Model):
 
         additional_vals = {}
         if self.env.user._is_portal() and not self.env.su:
-            self._ensure_fields_write(vals, defaults=False)
+            self._check_write_values_access(vals, defaults=False)
 
         self._write_propagate_milestone(vals)
 
@@ -2337,7 +2337,7 @@ class ProjectTask(models.Model):
             vals["name"] = vals["display_name"]
 
         if self.env.user._is_portal() and not self.env.su:
-            self._ensure_fields_write(vals, defaults=True)
+            self._check_write_values_access(vals, defaults=True)
 
         if project_id and "company_id" not in vals:
             additional_vals["company_id"] = (
@@ -2452,7 +2452,7 @@ class ProjectTask(models.Model):
                 ).state = "in_progress"
 
     def _recurrence_sort_key(self) -> tuple:
-        self.ensure_one()
+        self.check_singleton()
         dated = bool(self.date_end)
         return (not dated, self.date_end if dated else None, self.id)
 
@@ -2467,7 +2467,7 @@ class ProjectTask(models.Model):
         scope = vals.pop("recurrence_update", "this")
         if scope == "this" or not self.recurrence_id:
             return None
-        self.ensure_one()
+        self.check_singleton()
 
         rule_fields = vals.keys() & set(self._get_fields_recurrence())
         if rule_fields and scope != "all":
@@ -2642,7 +2642,7 @@ class ProjectTask(models.Model):
         return ("planned_date_begin", "date_end")
 
     def _get_reservation_vals_list(self):
-        self.ensure_one()
+        self.check_singleton()
         start_field, end_field = self._get_fields_reservation_date()
         if not start_field or not end_field:
             return []
@@ -2733,7 +2733,7 @@ class ProjectTask(models.Model):
         return start, stop
 
     def action_view_schedule(self):
-        self.ensure_one()
+        self.check_singleton()
         resources = self.env["resource.resource"]
         for user in self.user_ids:
             get_resource = getattr(user, "_get_project_task_resource", None)
@@ -2937,7 +2937,7 @@ class ProjectTask(models.Model):
         return render_context
 
     def _send_email_notify_to_cc(self, partners_to_notify: Self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         template_id = self.env["ir.model.data"]._xmlid_to_res_id(
             "project.task_invitation_follower", raise_if_not_found=False
         )
@@ -3041,7 +3041,7 @@ class ProjectTask(models.Model):
         return self.env.ref("project.mt_task_new")
 
     def _creation_message(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         if self.project_id:
             return _(
                 'A new task has been created in the "%(project_name)s" project.',
@@ -3050,7 +3050,7 @@ class ProjectTask(models.Model):
         return _("A new task has been created and is not part of any project.")
 
     def _track_subtype(self, init_values: dict[str, Any]) -> Self:
-        self.ensure_one()
+        self.check_singleton()
         mail_message_subtype_per_state = {
             "done": "project.mt_task_done",
             "canceled": "project.mt_task_canceled",
@@ -3096,7 +3096,7 @@ class ProjectTask(models.Model):
         if not self:
             return groups
 
-        self.ensure_one()
+        self.check_singleton()
 
         project_user_group_id = self.env.ref("project.group_project_user").id
         new_group = (
@@ -3402,7 +3402,7 @@ class ProjectTask(models.Model):
         return action
 
     def action_project_sharing_open_subtasks(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         subtasks = self.env["project.task"].search(
             [("id", "child_of", self.id), ("id", "!=", self.id)]
         )
@@ -3430,7 +3430,7 @@ class ProjectTask(models.Model):
         }
 
     def action_project_sharing_open_blocking(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         blockings = self.successor_ids
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "project.project_sharing_project_task_action_blocking_tasks"
@@ -3446,7 +3446,7 @@ class ProjectTask(models.Model):
         return action
 
     def action_dependent_tasks(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "res_model": "project.task",
             "type": "ir.actions.act_window",
@@ -3472,7 +3472,7 @@ class ProjectTask(models.Model):
         }
 
     def action_project_sharing_recurring_tasks(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         recurrent_tasks = self.env["project.task"].search(
             [("recurrence_id", "in", self.recurrence_id.ids)]
         )
@@ -3497,7 +3497,7 @@ class ProjectTask(models.Model):
         }
 
     def action_view_ratings(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "project.rating_rating_action_task"
         )
@@ -3519,7 +3519,7 @@ class ProjectTask(models.Model):
         self.recurrence_id.unlink()
 
     def action_convert_to_subtask(self) -> dict | bool:
-        self.ensure_one()
+        self.check_singleton()
         if self.project_id:
             return {
                 "name": _("Convert to Task/Sub-Task"),
@@ -3549,7 +3549,7 @@ class ProjectTask(models.Model):
         }
 
     def action_convert_to_template(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         if not self.project_id:
             return {
                 "type": "ir.actions.client",
@@ -3583,7 +3583,7 @@ class ProjectTask(models.Model):
         }
 
     def action_undo_convert_to_template(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         self.is_template = False
         self.message_post(body=_("Template converted back to regular task"))
         return {
@@ -3600,7 +3600,7 @@ class ProjectTask(models.Model):
         }
 
     def plan_task_in_calendar(self, vals: dict[str, Any]) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return self.write(vals)
 
     @api.model
@@ -3616,7 +3616,7 @@ class ProjectTask(models.Model):
         ]
 
     def action_create_from_template(self, values=None) -> int:
-        self.ensure_one()
+        self.check_singleton()
         values = values or {}
         default = (
             {
@@ -3650,7 +3650,7 @@ class ProjectTask(models.Model):
         return result
 
     def _get_access_action(self, access_uid=None, force_website=False):
-        self.ensure_one()
+        self.check_singleton()
         user = (
             self.env["res.users"].sudo().browse(access_uid)
             if access_uid
@@ -3780,7 +3780,7 @@ class ProjectTask(models.Model):
         )
 
     def project_sharing_toggle_is_follower(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         self.check_access("write")
         is_follower = self.message_is_follower
         if is_follower:
@@ -3820,7 +3820,7 @@ class ProjectTask(models.Model):
         )
 
     def get_mention_suggestions(self, search: str, limit: int = 8) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         project = self.project_id
         if not (
             project

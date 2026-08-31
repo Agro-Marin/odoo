@@ -103,7 +103,7 @@ class MixinApproval(models.AbstractModel):
             record.can_request_approval = not missing_fields
 
     def _check_can_request_approval(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if self.approval_request_id:
             raise UserError(
                 self.env._("An approval request already exists for this document."),
@@ -140,7 +140,7 @@ class MixinApproval(models.AbstractModel):
             )
 
     def action_refuse_approval(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         self.check_access("write")
         if self.approval_request_id and self.approval_request_id._refuse_cascade():
             self.message_post(
@@ -149,7 +149,7 @@ class MixinApproval(models.AbstractModel):
             )
 
     def action_create_approval_request(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
 
         self.env.cr.execute(
             SQL(
@@ -210,7 +210,7 @@ class MixinApproval(models.AbstractModel):
         }
 
     def _approval_rate_limit_rate_date(self):
-        self.ensure_one()
+        self.check_singleton()
         return fields.Date.context_today(self)
 
     def _approval_rate_limit_exceeded(
@@ -222,7 +222,7 @@ class MixinApproval(models.AbstractModel):
         under_threshold_amount: float,
         excluded_states: tuple = ("cancel",),
     ) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         company = self.company_id
         company_currency = company.currency_id
         rate_date = self._approval_rate_limit_rate_date()
@@ -329,7 +329,7 @@ class MixinApproval(models.AbstractModel):
         return res
 
     def action_view_approval_request(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         return self._get_approval_request_view_action()
 
     def _clear_refused_approval_link(self) -> None:
@@ -353,7 +353,7 @@ class MixinApproval(models.AbstractModel):
         return []
 
     def _get_approval_category(self) -> "ApprovalCategory | bool":  # noqa: UP037 — ORM methods are runtime-introspected (api_doc, /json/2); the TYPE_CHECKING import means the class isn't in the runtime namespace, so the annotation must stay quoted.
-        self.ensure_one()
+        self.check_singleton()
         domain = self._get_domain_approval_category()
         if not domain:
             return False
@@ -384,7 +384,7 @@ class MixinApproval(models.AbstractModel):
         return False
 
     def _get_approval_category_fallback(self, categories):
-        self.ensure_one()
+        self.check_singleton()
         return self.env["approval.category"].browse()
 
     def _raise_approval_category_not_configured(self) -> None:
@@ -394,14 +394,14 @@ class MixinApproval(models.AbstractModel):
         pass
 
     def _get_approval_reason_html(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         return self.env._("Approval requested for %s", self.display_name)
 
     def _get_approval_request_name(self) -> str:
         return self.env._("Approval for %s", self.display_name)
 
     def _get_approval_request_view_action(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": self.env._("Approval Request"),
             "type": "ir.actions.act_window",
@@ -458,7 +458,7 @@ class MixinApproval(models.AbstractModel):
             self._on_approval_reset()
 
     def _approval_decider_names(self, state: str = "approved") -> str:
-        self.ensure_one()
+        self.check_singleton()
         deciders = self.approval_request_id.approver_ids.filtered(
             lambda approver: approver.state == state and approver.decision_date,
         )
@@ -469,7 +469,7 @@ class MixinApproval(models.AbstractModel):
 
     @contextmanager
     def _approval_side_effect(self, failure_note: str):
-        self.ensure_one()
+        self.check_singleton()
         try:
             with self.env.cr.savepoint():
                 yield
@@ -480,21 +480,21 @@ class MixinApproval(models.AbstractModel):
             )
 
     def _on_approval_approved(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         self.message_post(
             body=self.env._("Approval granted"),
             message_type="notification",
         )
 
     def _on_approval_refused(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         self.message_post(
             body=self.env._("Approval refused"),
             message_type="notification",
         )
 
     def _on_approval_cancelled(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         self.message_post(
             body=self.env._(
                 "Approval cancelled (retracted or expired — not a refusal)."
@@ -503,7 +503,7 @@ class MixinApproval(models.AbstractModel):
         )
 
     def _on_approval_revoked(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         self.message_post(
             body=self.env._(
                 "An approver withdrew their approval — the approval "
@@ -526,7 +526,7 @@ class MixinApproval(models.AbstractModel):
             )
 
     def _on_approval_reset(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         self.message_post(
             body=self.env._(
                 "The approval linked to this document was reset to draft — "

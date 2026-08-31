@@ -53,7 +53,7 @@ class SurveySurvey(models.Model):
         user_inputs._create_leads_from_generative_answers()
 
     def action_survey_see_leads(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "crm.crm_lead_all_leads"
         )

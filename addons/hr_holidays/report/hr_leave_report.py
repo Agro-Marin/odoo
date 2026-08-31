@@ -96,7 +96,7 @@ class HrLeaveReport(models.Model):
         """)
 
     def action_view_record(self):
-        self.ensure_one()
+        self.check_singleton()
 
         return {
             "type": "ir.actions.act_window",

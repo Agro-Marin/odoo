@@ -243,7 +243,7 @@ class LunchSupplier(models.Model):
     def _send_auto_email(self):
         """ Send an email to the supplier with the order of the day """
         # Called daily by cron
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.available_today:
             return
@@ -297,7 +297,7 @@ class LunchSupplier(models.Model):
             supplier.available_today = supplier._available_on_date(supplier_date)
 
     def _available_on_date(self, date):
-        self.ensure_one()
+        self.check_singleton()
 
         fieldname = WEEKDAY_TO_NAME[date.weekday()]
         return not (self.recurrency_end_date and date.date() >= self.recurrency_end_date) and self[fieldname]

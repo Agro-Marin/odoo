@@ -95,7 +95,7 @@ class GamificationTeam(models.Model):
         :param challenge: ``gamification.challenge`` record.
         :return: float, average completeness percentage.
         """
-        self.ensure_one()
+        self.check_singleton()
         if not self.member_ids:
             return 0.0
         (start_date, end_date) = start_end_date_for_period(

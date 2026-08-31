@@ -35,7 +35,7 @@ class ProjectProject(models.Model):
             project.production_count = production_count_per_project.get(project)
 
     def action_view_mrp_bom(self):
-        self.ensure_one()
+        self.check_singleton()
         action = {
             "type": "ir.actions.act_window",
             "res_model": "mrp.bom",
@@ -59,7 +59,7 @@ class ProjectProject(models.Model):
         return action
 
     def action_view_mrp_production(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mrp.mrp_production_action"
         )

@@ -3,7 +3,7 @@ from . import models
 from . import report
 from . import wizard
 
-from odoo.libs.sql import make_identifier
+from odoo.libs.sql import normalize_identifier
 from odoo.db.schema import create_index
 
 
@@ -17,11 +17,11 @@ def _project_post_init(env) -> None:
     _check_exists_collaborators_for_project_sharing(env)
 
     project_task_step_field_id = (
-        env["ir.model.fields"]._get_ids("project.task").get("step_id")
+        env["ir.model.fields"]._get_ids_by_name("project.task").get("step_id")
     )
     create_index(
         env.cr,
-        make_identifier(
+        normalize_identifier(
             "mail_tracking_value_mail_message_id_old_value_integer_task_step"
         ),
         env["mail.tracking.value"]._table,

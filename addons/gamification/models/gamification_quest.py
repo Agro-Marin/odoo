@@ -228,7 +228,7 @@ class GamificationQuestEnrollment(models.Model):
         :param step: ``gamification.quest.step`` record.
         :return: created ``gamification.quest.step.completion`` or False.
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.state != "in_progress":
             return False
 
@@ -305,7 +305,7 @@ class GamificationQuestEnrollment(models.Model):
 
     def _complete_quest(self):
         """Mark the quest as completed and grant quest-level rewards."""
-        self.ensure_one()
+        self.check_singleton()
         self.state = "completed"
         user = self.user_id
         quest = self.quest_id

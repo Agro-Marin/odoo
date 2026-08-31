@@ -85,7 +85,7 @@ class ApprovalRequestCompute(models.Model):
                 request.approval_deadline = False
 
     def _get_snapshot_config(self, key: str) -> Any:
-        self.ensure_one()
+        self.check_singleton()
         snapshot = self.category_snapshot or {}
         value = snapshot.get(key)
         if value is None:
@@ -391,7 +391,7 @@ class ApprovalRequestCompute(models.Model):
                 request.prediction_confidence = 0.0
 
     def _prediction_amount_in_own_currency(self, row: dict) -> float:
-        self.ensure_one()
+        self.check_singleton()
         amount = row["amount"]
         row_currency_id = row["currency_id"] and row["currency_id"][0]
         own_currency = self.currency_id

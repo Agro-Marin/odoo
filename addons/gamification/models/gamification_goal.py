@@ -138,7 +138,7 @@ class GamificationGoal(models.Model):
 
         :return: data to write on the goal object
         """
-        self.ensure_one()
+        self.check_singleton()
         if not (self.remind_update_delay and self.last_update):
             return {}
 
@@ -515,7 +515,7 @@ class GamificationGoal(models.Model):
         In case of a manual goal, should return a wizard to update the value
         :return: action description in a dictionary
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.definition_id.action_id:
             # open the action linked to the goal
             action = self.definition_id.action_id.read()[0]

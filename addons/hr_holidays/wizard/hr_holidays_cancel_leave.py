@@ -9,7 +9,7 @@ class HrHolidaysCancelLeave(models.TransientModel):
     reason = fields.Text()
 
     def action_cancel_leave(self):
-        self.ensure_one()
+        self.check_singleton()
 
         self.leave_id._action_user_cancel(self.reason)
 

@@ -514,7 +514,7 @@ class ApprovalRequest(models.Model):
         return res
 
     def _recent_approved_by_owner(self, limit: int = 10) -> Self:
-        self.ensure_one()
+        self.check_singleton()
         return self._recent_approved_by_category(
             self.category_id,
             self.request_owner_id,
@@ -545,7 +545,7 @@ class ApprovalRequest(models.Model):
         }
 
     def _smart_clone_defaults(self, recent=None) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         category = self.category_id
         smart: dict[str, Any] = {}
         if recent is None:
@@ -607,7 +607,7 @@ class ApprovalRequest(models.Model):
             attachment_ids.unlink()
 
     def _track_subtype(self, init_values: dict[str, Any]) -> str | bool:
-        self.ensure_one()
+        self.check_singleton()
         if "state" in init_values:
             return self.env.ref("approval.mt_approval_state")
 

@@ -298,7 +298,7 @@ class GamificationActivity(models.Model):
         structure to rebuild -- rows written before a source record was deleted,
         and any type a future module adds without teaching ``_render_summary``.
         """
-        self.ensure_one()
+        self.check_singleton()
         args = {}
         if self.activity_type == "streak_milestone":
             # The streak's name and day count are not columns on this model, so

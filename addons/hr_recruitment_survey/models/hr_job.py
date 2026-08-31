@@ -12,11 +12,11 @@ class HrJob(models.Model):
     )
 
     def action_test_survey(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.survey_id.action_test_survey()
 
     def action_new_survey(self):
-        self.ensure_one()
+        self.check_singleton()
         survey = self.env["survey.survey"].create(
             {
                 "title": _("Interview Form: %s", self.name),

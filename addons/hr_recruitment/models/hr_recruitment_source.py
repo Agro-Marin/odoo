@@ -12,7 +12,7 @@ class HrRecruitmentSource(models.Model):
     alias_id = fields.Many2one("mail.alias", "Alias ID", ondelete="restrict")
     medium_id = fields.Many2one(
         "utm.medium",
-        default=lambda self: self.env["utm.medium"]._fetch_or_create_utm_medium(
+        default=lambda self: self.env["utm.medium"]._get_or_create_utm_medium(
             "website"
         ),
     )
@@ -30,7 +30,7 @@ class HrRecruitmentSource(models.Model):
 
     def create_alias(self):
         campaign = self.env.ref("hr_recruitment.utm_campaign_job")
-        medium = self.env["utm.medium"]._fetch_or_create_utm_medium("email")
+        medium = self.env["utm.medium"]._get_or_create_utm_medium("email")
         for source in self.filtered(lambda s: not s.alias_id):
             vals = {
                 "alias_defaults": {
@@ -52,7 +52,7 @@ class HrRecruitmentSource(models.Model):
             source.alias_id = self.env["mail.alias"].sudo().create(vals)
 
     def create_and_get_alias(self):
-        self.ensure_one()
+        self.check_singleton()
         self.create_alias()
         return self.email
 

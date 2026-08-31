@@ -12,7 +12,7 @@ class ApprovalRequestHelper(models.Model):
     _inherit = "approval.request"
 
     def _prepare_category_snapshot(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         cat = self.category_id
         replacement = self._find_matching_replacement()
         snapshot: dict[str, Any] = {
@@ -65,7 +65,7 @@ class ApprovalRequestHelper(models.Model):
         return snapshot
 
     def _label(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         return self.name or self.category_id.name
 
     def _cancel_activities(self) -> None:
@@ -114,7 +114,7 @@ class ApprovalRequestHelper(models.Model):
         self.env.cr.cache.pop("approval_default_escalation_manager", None)
 
     def _resolve_escalation_targets(self) -> tuple[dict, models.BaseModel]:
-        self.ensure_one()
+        self.check_singleton()
         by_manager: dict = {}
         unescalated = self.env["approval.approver"]
         for approver in self.approver_ids.filtered(lambda a: a.state == "pending"):
@@ -127,7 +127,7 @@ class ApprovalRequestHelper(models.Model):
         return by_manager, unescalated
 
     def _escalate_to_manager(self) -> int:
-        self.ensure_one()
+        self.check_singleton()
         by_manager, _unescalated = self._resolve_escalation_targets()
         if not by_manager:
             return 0
@@ -161,7 +161,7 @@ class ApprovalRequestHelper(models.Model):
         return len(by_manager)
 
     def _matched_add_approver_rules(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.category_id.rule_ids.filtered(
             lambda r: (
                 r.active
@@ -172,21 +172,21 @@ class ApprovalRequestHelper(models.Model):
         )
 
     def _get_additional_approvers(self) -> list[tuple[int, bool, int]]:
-        self.ensure_one()
+        self.check_singleton()
         result: list[tuple[int, bool, int]] = []
         for rule in self._matched_add_approver_rules():
             result.extend(rule._get_approver_tuples())
         return result
 
     def _applied_rule_ids_after_sync(self, matched_rules):
-        self.ensure_one()
+        self.check_singleton()
         preserved = self.applied_rule_ids.filtered(
             lambda r: r.action_type != "add_approver",
         )
         return preserved | matched_rules
 
     def _matched_add_approver_rule_by_user(self, matched_rules=None) -> dict[int, int]:
-        self.ensure_one()
+        self.check_singleton()
         if matched_rules is None:
             matched_rules = self._matched_add_approver_rules()
         mapping: dict[int, int] = {}
@@ -200,7 +200,7 @@ class ApprovalRequestHelper(models.Model):
         replacement=None,
         matched_rules=None,
     ) -> set[int]:
-        self.ensure_one()
+        self.check_singleton()
         managed = set(self.category_id.approver_ids.user_id.ids)
         if replacement:
             managed.update(replacement.approver_ids.ids)
@@ -211,12 +211,12 @@ class ApprovalRequestHelper(models.Model):
         return managed
 
     def _rule_applies_to_company(self, rule) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         rule_company = rule.company_id
         return not rule_company or rule_company == self.company_id
 
     def _find_matching_replacement(self):
-        self.ensure_one()
+        self.check_singleton()
         candidates = self.category_id.rule_ids.filtered(
             lambda r: (
                 r.active
@@ -248,7 +248,7 @@ class ApprovalRequestHelper(models.Model):
         return False
 
     def _check_auto_action_rules(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         rules = self.category_id.rule_ids.filtered(
             lambda r: (
                 r.active
@@ -313,7 +313,7 @@ class ApprovalRequestHelper(models.Model):
         return candidates.sorted(lambda r: (r.sequence, r.id))[:1]
 
     def _get_pending_duration(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         if not self.date_confirmed:
             return self.env._("Unknown")
 
@@ -375,7 +375,7 @@ class ApprovalRequestHelper(models.Model):
         return self._get_sequence_param("tier", 10)
 
     def get_source_document(self) -> Any:
-        self.ensure_one()
+        self.check_singleton()
         if not self.res_model:
             return False
         try:
@@ -459,7 +459,7 @@ class ApprovalRequestHelper(models.Model):
         return f"({members})"
 
     def _flip_non_terminal_approvers(self, new_state: str) -> None:
-        self.ensure_one()
+        self.check_singleton()
         self.approver_ids.sudo().filtered(
             lambda a, terminal=self._TERMINAL_STATES: a.state not in terminal,
         ).write({"state": new_state})
@@ -469,7 +469,7 @@ class ApprovalRequestHelper(models.Model):
         refusal_reason: models.BaseModel | None,
         refusal_note: str | None,
     ) -> None:
-        self.ensure_one()
+        self.check_singleton()
         vals: dict[str, Any] = {}
         if refusal_reason and not self.refusal_reason_id:
             vals["refusal_reason_id"] = refusal_reason.id
@@ -510,19 +510,19 @@ class ApprovalRequestHelper(models.Model):
                 request._refuse_approval_request()
 
     def _close_pending_change(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if not self.pending_change_field:
             return
         self._get_change_request_activities().sudo().action_feedback()
         self.sudo().write({"pending_change_field": False})
 
     def _notify_if_terminal_transition(self, old_state: str) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if self.state != old_state and self.state in self._TERMINAL_STATES:
             self._notify_source_document_state_change(self.state)
 
     def _notify_source_document_state_change(self, new_state: str) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if not self.res_model or not self.res_id:
             return
 
@@ -558,7 +558,7 @@ class ApprovalRequestHelper(models.Model):
             )
 
     def _send_reminder(self, approvers: models.BaseModel | None = None) -> int:
-        self.ensure_one()
+        self.check_singleton()
         pending_approvers = (
             approvers
             if approvers is not None
@@ -733,7 +733,7 @@ class ApprovalRequestHelper(models.Model):
         group_sequence: int,
         manual_sequence: int,
     ) -> models.BaseModel:
-        self.ensure_one()
+        self.check_singleton()
         (
             approver_staging,
             users_to_approver,
@@ -791,7 +791,7 @@ class ApprovalRequestHelper(models.Model):
         return created
 
     def _create_live_approver_rows(self, missing: dict[int, dict]):
-        self.ensure_one()
+        self.check_singleton()
         sequential = self.approve_sequentially
         anchor_sequence = min(
             (
@@ -828,7 +828,7 @@ class ApprovalRequestHelper(models.Model):
         )
 
     def _raise_approval_minimum_live(self, replacement) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if not replacement:
             return
         if replacement.approval_minimum > self.approval_minimum:
@@ -841,7 +841,7 @@ class ApprovalRequestHelper(models.Model):
     def _log_cycle(self, event: str, **details) -> None:
         if not _logger.isEnabledFor(logging.DEBUG):
             return
-        self.ensure_one()
+        self.check_singleton()
         rows = " ".join(
             f"{approver.user_id.login}={approver.state}"
             for approver in self.approver_ids.sorted(lambda a: (a.sequence, a.id))
@@ -938,7 +938,7 @@ class ApprovalRequestHelper(models.Model):
                 )
 
     def _retire_superseded_delegations(self, rows) -> None:
-        self.ensure_one()
+        self.check_singleton()
         for row in rows:
             delegate = row.delegate_id
             row.sudo().write(
@@ -965,7 +965,7 @@ class ApprovalRequestHelper(models.Model):
         group_sequence: int,
         manual_sequence: int,
     ) -> tuple[dict[int, dict], dict[int, Any], list[Any], Any, Any, Any]:
-        self.ensure_one()
+        self.check_singleton()
         users_to_approver: dict[int, Any] = {}
         duplicate_approvers_to_delete: list[Any] = []
         for approver in self.approver_ids:

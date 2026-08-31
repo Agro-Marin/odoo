@@ -60,7 +60,7 @@ class MixinEventMailSchedule(models.AbstractModel):
 
     def _prepare_event_mail_values(self):
         """The scheduling half of this record, as values for the other model."""
-        self.ensure_one()
+        self.check_singleton()
         return {
             "interval_nbr": self.interval_nbr,
             "interval_unit": self.interval_unit,

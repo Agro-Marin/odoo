@@ -31,14 +31,14 @@ class HrEmployee(models.Model):
                 inactive_emp._create_future_public_holidays_timesheets(inactive_emp)
             else:
                 # Delete future holiday timesheets
-                self_company._delete_future_public_holidays_timesheets()
+                self_company._remove_future_public_holidays_timesheets()
         elif "resource_calendar_id" in vals:
             # Update future holiday timesheets
-            self_company._delete_future_public_holidays_timesheets()
+            self_company._remove_future_public_holidays_timesheets()
             self_company._create_future_public_holidays_timesheets(self_company)
         return result
 
-    def _delete_future_public_holidays_timesheets(self):
+    def _remove_future_public_holidays_timesheets(self):
         future_timesheets = (
             self.env["account.analytic.line"]
             .sudo()

@@ -31,7 +31,7 @@ class ApplicantSendMail(models.TransientModel):
         self.render_model = "hr.applicant"
 
     def action_send(self):
-        self.ensure_one()
+        self.check_singleton()
 
         without_emails = self.applicant_ids.filtered(
             lambda a: not a.email_from or (a.partner_id and not a.partner_id.email)

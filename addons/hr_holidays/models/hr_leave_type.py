@@ -657,7 +657,7 @@ class HrLeaveType(models.Model):
         )
 
     def action_see_days_allocated(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "hr_holidays.hr_leave_allocation_action_all"
         )
@@ -673,7 +673,7 @@ class HrLeaveType(models.Model):
         return action
 
     def action_see_group_leaves(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "hr_holidays.hr_leave_action_action_approve_department"
         )
@@ -686,7 +686,7 @@ class HrLeaveType(models.Model):
         return action
 
     def action_see_accrual_plans(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "hr_holidays.open_view_accrual_plans"
         )

@@ -101,7 +101,7 @@ class GamificationAchievement(models.Model):
             checks all active internal users.
         :return: recordset of newly unlocked ``gamification.achievement.unlock``.
         """
-        self.ensure_one()
+        self.check_singleton()
         if users is None:
             users = self.env["res.users"].search(
                 [

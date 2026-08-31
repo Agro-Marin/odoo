@@ -24,7 +24,7 @@ class ResPartner(models.Model):
     )
 
     @api.constrains("company_id", "project_ids")
-    def _ensure_same_company_than_projects(self) -> None:
+    def _check_same_company_than_projects(self) -> None:
         for partner in self:
             if (
                 partner.company_id
@@ -38,7 +38,7 @@ class ResPartner(models.Model):
                 )
 
     @api.constrains("company_id", "task_ids")
-    def _ensure_same_company_than_tasks(self) -> None:
+    def _check_same_company_than_tasks(self) -> None:
         for partner in self:
             if (
                 partner.company_id
@@ -71,7 +71,7 @@ class ResPartner(models.Model):
                 partner = partner.parent_id
 
     def action_view_tasks(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         action = {
             **self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
                 "project.project_task_action_from_partner"

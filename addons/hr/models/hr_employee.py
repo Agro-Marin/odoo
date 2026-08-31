@@ -922,7 +922,7 @@ class HrEmployee(models.Model):
         ]
 
     def _get_first_versions(self):
-        self.ensure_one()
+        self.check_singleton()
         versions = self.version_ids
         if self.env.context.get("before_date"):
             versions = versions.filtered(
@@ -931,7 +931,7 @@ class HrEmployee(models.Model):
         return versions
 
     def _get_first_version_date(self, no_gap=True):
-        self.ensure_one()
+        self.check_singleton()
         if not self.env.su and not self.env.user.has_group("hr.group_hr_user"):
             raise AccessError(
                 self.env._(
@@ -1051,7 +1051,7 @@ class HrEmployee(models.Model):
         If no valid version is found, we return the very first version of the employee.
         """
         date = date or fields.Date.today()
-        self.ensure_one()
+        self.check_singleton()
         versions = self.version_ids.filtered_domain([("date_version", "<=", date)])
         return (
             max(versions, key=lambda v: v.date_version)
@@ -1130,7 +1130,7 @@ class HrEmployee(models.Model):
             versions_sudo_to_sync.write({"contract_date_end": contract_date_end})
 
     def create_version(self, values):
-        self.ensure_one()
+        self.check_singleton()
         date, contract_date_start, contract_date_end, date_from, date_to = (
             self._get_new_version_dates(values)
         )
@@ -1199,7 +1199,7 @@ class HrEmployee(models.Model):
 
     def create_contract(self, date):
         # Here we can assume that there is no existing contract on the date given
-        self.ensure_one()
+        self.check_singleton()
         if date and isinstance(date, str):
             date = fields.Date.to_date(date)
 
@@ -1345,7 +1345,7 @@ class HrEmployee(models.Model):
         Return a list of intervals (date_from, date_to) where the employee is in contract.
         For a permanent contract, the interval is (date_from, False).
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.env["hr.version"]._read_group(
             [("employee_id", "=", self.id), ("contract_date_start", "!=", False)],
             ["contract_date_start:day", "contract_date_end:day"],
@@ -1356,7 +1356,7 @@ class HrEmployee(models.Model):
         Return a tuple (date_from, date_to) of the contract at the date given.
         (False, False) if the employee is not in contract at that date.
         """
-        self.ensure_one()
+        self.check_singleton()
         contains = self.env["hr.version"]._period_contains
         for date_from, date_to in self._get_all_contract_dates():
             if contains(date_from, date_to, date):
@@ -1635,7 +1635,7 @@ class HrEmployee(models.Model):
         return action
 
     def action_create_user(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.user_id:
             raise ValidationError(self.env._("This employee already has an user."))
         return {
@@ -1977,7 +1977,7 @@ class HrEmployee(models.Model):
         through a per-reason boolean flag on the employee, so both reasons are
         guarded by one mechanism.
         """
-        self.ensure_one()
+        self.check_singleton()
         already_scheduled = (
             self.env["mail.activity"]
             .sudo()
@@ -2114,7 +2114,7 @@ We can redirect you to the public employee list."""
         return res
 
     @api.constrains("pin")
-    def _verify_pin(self):
+    def _check_pin(self):
         for employee in self:
             if employee.pin and not employee.pin.isdigit():
                 raise ValidationError(
@@ -2122,7 +2122,7 @@ We can redirect you to the public employee list."""
                 )
 
     @api.constrains("barcode")
-    def _verify_barcode(self):
+    def _check_barcode(self):
         for employee in self:
             if employee.barcode:
                 if not (
@@ -2510,7 +2510,7 @@ We can redirect you to the public employee list."""
             employee.barcode = barcode
 
     def _get_tz(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.resource_calendar_id.tz
             or self.tz
@@ -2674,7 +2674,7 @@ We can redirect you to the public employee list."""
         )
 
     def _get_unusual_days(self, date_from, date_to=None):
-        self.ensure_one()
+        self.check_singleton()
         date_from_date = datetime.strptime(date_from, "%Y-%m-%d %H:%M:%S").date()
         # ``date_to`` is optional; fall back to a single-day window so neither the
         # per-version branch nor the no-version branch feeds ``None`` into
@@ -2723,11 +2723,11 @@ We can redirect you to the public employee list."""
         return unusual_days
 
     def _get_employee_tz(self):
-        self.ensure_one()
+        self.check_singleton()
         return timezone(self.tz) if self.tz else None
 
     def _get_fallback_calendar(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.resource_calendar_id or self.company_id.resource_calendar_id
 
     def _iter_version_windows(self, start, stop, tz=None):
@@ -2739,7 +2739,7 @@ We can redirect you to the public employee list."""
         rebuilt this arithmetic, with slightly different bounds that were
         impossible to compare while they sat apart.
         """
-        self.ensure_one()
+        self.check_singleton()
         versions = self.sudo()._get_versions_with_contract_overlap_with_period(
             start.date(), stop.date()
         )
@@ -2759,7 +2759,7 @@ We can redirect you to the public employee list."""
             yield version, max(start, window_start), min(stop, window_stop), calendar
 
     def _employee_attendance_intervals(self, start, stop, lunch=False):
-        self.ensure_one()
+        self.check_singleton()
         if not lunch:
             return self._get_expected_attendances(start, stop)
         employee_tz = self._get_employee_tz()
@@ -2779,7 +2779,7 @@ We can redirect you to the public employee list."""
         return duration_data
 
     def _get_expected_attendances(self, date_from, date_to):
-        self.ensure_one()
+        self.check_singleton()
         employee_tz = self._get_employee_tz()
         windows = list(self._iter_version_windows(date_from, date_to, employee_tz))
         if not windows:
@@ -2826,7 +2826,7 @@ We can redirect you to the public employee list."""
         return duration_data
 
     def _get_calendar_attendances(self, date_from, date_to):
-        self.ensure_one()
+        self.check_singleton()
         employee_tz = self._get_employee_tz()
         windows = list(self._iter_version_windows(date_from, date_to, employee_tz))
         if not windows:
@@ -2865,7 +2865,7 @@ We can redirect you to the public employee list."""
         ]
 
     def _get_age(self, target_date=None):
-        self.ensure_one()
+        self.check_singleton()
         if target_date is None:
             target_date = fields.Date.context_today(self.env.user)
         return relativedelta(target_date, self.birthday).years if self.birthday else 0
@@ -2873,7 +2873,7 @@ We can redirect you to the public employee list."""
     def _get_departure_date(self):
         # Primarily used in the archive wizard
         # to pick a good default for the departure date
-        self.ensure_one()
+        self.check_singleton()
         if self.date_end and self.date_end < fields.Date.today():
             return self.departure_date
         return False
@@ -2904,7 +2904,7 @@ We can redirect you to the public employee list."""
         return ["mobile_phone"]
 
     def action_view_versions(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "name": self.name + self.env._(" Records"),
@@ -2958,7 +2958,7 @@ We can redirect you to the public employee list."""
                 employee.primary_bank_account_id = False
 
     def get_accounts_with_fixed_allocations(self):
-        self.ensure_one()
+        self.check_singleton()
         distribution = self.salary_distribution or {}
         return self.bank_account_ids.filtered(
             lambda a: (
@@ -2973,7 +2973,7 @@ We can redirect you to the public employee list."""
         return ba_info.get("amount", 0), ba_info.get("amount_is_percentage", True)
 
     def get_remaining_percentage(self):
-        self.ensure_one()
+        self.check_singleton()
         distribution = self.salary_distribution or {}
         allocated = 0.0
 
@@ -2985,7 +2985,7 @@ We can redirect you to the public employee list."""
         return max(0.0, remaining)
 
     def action_view_allocation_wizard(self):
-        self.ensure_one()
+        self.check_singleton()
         wizard = self.env["hr.bank.account.allocation.wizard"].create(
             {
                 "employee_id": self.id,
@@ -3001,6 +3001,6 @@ We can redirect you to the public employee list."""
         }
 
     def action_toggle_primary_bank_account_trust(self):
-        self.ensure_one()
+        self.check_singleton()
         current_val = self.primary_bank_account_id.allow_out_payment
         self.primary_bank_account_id.allow_out_payment = not current_val

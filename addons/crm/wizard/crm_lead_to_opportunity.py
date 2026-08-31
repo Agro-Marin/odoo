@@ -212,7 +212,7 @@ class CrmLead2opportunityPartner(models.TransientModel):
         return result_opportunities[0]
 
     def _convert_and_allocate(self, leads, user_ids, team_id=False):
-        self.ensure_one()
+        self.check_singleton()
 
         for lead in leads:
             if lead.active:

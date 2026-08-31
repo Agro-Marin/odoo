@@ -58,7 +58,7 @@ class MixinResourceScheduling(models.AbstractModel):
         ``allocated_percentage``, ``enforcement_mode``.  An empty list
         deletes all reservations linked to the record.
         """
-        self.ensure_one()
+        self.check_singleton()
         return []
 
     def _get_fields_sync_trigger(self):
@@ -242,7 +242,7 @@ class MixinResourceScheduling(models.AbstractModel):
 
         :return: ``resource.reservation`` recordset
         """
-        self.ensure_one()
+        self.check_singleton()
         return self._get_schedule_conflicts_batch()[self.id]
 
     def _get_schedule_conflicts_batch(self):

@@ -66,4 +66,4 @@ class HrEmployeeCV(Controller):
             ("Content-Disposition", content_disposition(report_name + ".pdf")),
         ]
 
-        return request.make_response(pdf_content, headers=pdfhttpheaders)
+        return request.prepare_response(pdf_content, headers=pdfhttpheaders)

@@ -18,7 +18,7 @@ class HrContractTemplateWizard(models.TransientModel):
     )
 
     def action_load_template(self):
-        self.ensure_one()
+        self.check_singleton()
         employee_id = self.env.context.get("active_id")
         if not employee_id or not self.contract_template_id:
             return

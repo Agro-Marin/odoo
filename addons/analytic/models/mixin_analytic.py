@@ -264,7 +264,7 @@ class MixinAnalytic(models.AbstractModel):
         ]
         return super().create(vals_list)
 
-    def _validate_distribution(self, **kwargs):
+    def _check_distribution(self, **kwargs):
         if self.env.context.get("validate_analytic", False):
             mandatory_plans_ids = [
                 plan["id"]

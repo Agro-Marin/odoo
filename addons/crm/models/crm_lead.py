@@ -505,7 +505,7 @@ class CrmLead(models.Model):
 
     def _field_to_sql(self, alias, field_expr, query=None) -> SQL:
         if field_expr == "company_currency":
-            alias_company = query.make_alias(self._table, "company_id")
+            alias_company = query.get_table_alias(self._table, "company_id")
             company_field_sql = self._field_to_sql(self._table, "company_id", query)
             query.add_join(
                 "LEFT JOIN",
@@ -995,7 +995,7 @@ class CrmLead(models.Model):
         return {"partner_name": partner_name or self.partner_name}
 
     def _get_partner_email_update(self, force_void=True):
-        self.ensure_one()
+        self.check_singleton()
         if (
             self.partner_id
             and (force_void or self.email_from)
@@ -1013,7 +1013,7 @@ class CrmLead(models.Model):
         return False
 
     def _get_partner_phone_update(self, force_void=True):
-        self.ensure_one()
+        self.check_singleton()
         if (
             self.partner_id
             and (force_void or self.phone)
@@ -1330,12 +1330,12 @@ class CrmLead(models.Model):
         return True
 
     def action_set_automated_probability(self):
-        self.ensure_one()
+        self.check_singleton()
         self._compute_probabilities()
         self.write({"probability": self.automated_probability})
 
     def action_set_won_rainbowman(self):
-        self.ensure_one()
+        self.check_singleton()
         self.action_set_won()
 
         message = self._get_rainbowman_message()
@@ -1354,13 +1354,13 @@ class CrmLead(models.Model):
         return True
 
     def get_rainbowman_message(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.stage_id.is_won:
             return self._get_rainbowman_message()
         return False
 
     def _get_rainbowman_message(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.user_id:
             return False
         self.flush_model()
@@ -1501,7 +1501,7 @@ class CrmLead(models.Model):
         return False
 
     def action_schedule_meeting(self, smart_calendar=True):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "calendar.action_calendar_event"
         )
@@ -1527,7 +1527,7 @@ class CrmLead(models.Model):
         return action
 
     def _get_opportunity_meeting_view_parameters(self):
-        self.ensure_one()
+        self.check_singleton()
         meeting_results = self.env["calendar.event"].search_read(
             [("opportunity_id", "=", self.id)], ["start", "stop", "allday"]
         )
@@ -1595,7 +1595,7 @@ class CrmLead(models.Model):
                 return "month", earliest_start_dt.date()
 
     def action_reschedule_meeting(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.action_schedule_meeting(smart_calendar=False)
         next_activity = self.activity_ids.filtered(
             lambda activity: activity.user_id == self.env.user
@@ -1605,7 +1605,7 @@ class CrmLead(models.Model):
         return action
 
     def action_show_potential_duplicates(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "crm.crm_lead_opportunities"
         )
@@ -1614,7 +1614,7 @@ class CrmLead(models.Model):
         return action
 
     def redirect_lead_opportunity_view(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Lead or Opportunity"),
             "view_mode": "form",
@@ -1860,13 +1860,13 @@ class CrmLead(models.Model):
         )
 
     def _merge_dependences(self, opportunities):
-        self.ensure_one()
+        self.check_singleton()
         self._merge_dependences_history(opportunities)
         self._merge_dependences_attachments(opportunities)
         self._merge_dependences_calendar_events(opportunities)
 
     def _merge_dependences_history(self, opportunities):
-        self.ensure_one()
+        self.check_singleton()
         for opportunity_su in opportunities.sudo():
             for message_su in opportunity_su.message_ids:
                 if message_su.subject:
@@ -1892,7 +1892,7 @@ class CrmLead(models.Model):
         return True
 
     def _merge_dependences_attachments(self, opportunities):
-        self.ensure_one()
+        self.check_singleton()
 
         all_attachments = self.env["ir.attachment"].search(
             [("res_model", "=", self._name), ("res_id", "in", opportunities.ids)]
@@ -1916,7 +1916,7 @@ class CrmLead(models.Model):
         return True
 
     def _merge_dependences_calendar_events(self, opportunities):
-        self.ensure_one()
+        self.check_singleton()
         meetings = self.env["calendar.event"].search(
             [("opportunity_id", "in", opportunities.ids)]
         )
@@ -1928,7 +1928,7 @@ class CrmLead(models.Model):
         )
 
     def _merge_followers(self, opportunities):
-        self.ensure_one()
+        self.check_singleton()
 
         self.env["mail.message"].flush_model()
         self.env["mail.followers"].flush_model()
@@ -1966,7 +1966,7 @@ class CrmLead(models.Model):
         return followers_by_old_lead
 
     def _merge_log_summary(self, merged_followers, opportunities_tail):
-        self.ensure_one()
+        self.check_singleton()
         self.message_post_with_source(
             "crm.crm_lead_merge_summary",
             render_values={
@@ -1978,7 +1978,7 @@ class CrmLead(models.Model):
         )
 
     def _format_properties(self):
-        self.ensure_one()
+        self.check_singleton()
         properties = self.read(["lead_properties"])[0]["lead_properties"]
 
         formatted = []
@@ -2160,7 +2160,7 @@ class CrmLead(models.Model):
         return self.sorted(key=opps_key, reverse=reverse)
 
     def _find_matching_partner(self):
-        self.ensure_one()
+        self.check_singleton()
         partner = self.partner_id
         if not partner and (self.email_normalized or self.email_from):
             partner = self._partner_find_from_emails_single(
@@ -2266,7 +2266,7 @@ class CrmLead(models.Model):
         return self.env.ref("crm.mt_lead_create")
 
     def _creation_message(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.team_id:
             return _(
                 'A new lead has been created for the team "%(team_name)s".',
@@ -2275,7 +2275,7 @@ class CrmLead(models.Model):
         return _("A new lead has been created and is not assigned to any team.")
 
     def _track_subtype(self, init_values):
-        self.ensure_one()
+        self.check_singleton()
         if "stage_id" in init_values and self.won_status == "won":
             return self.env.ref("crm.mt_lead_won")
         elif "lost_reason_id" in init_values and self.lost_reason_id:

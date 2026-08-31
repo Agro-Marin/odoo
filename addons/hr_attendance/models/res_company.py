@@ -128,7 +128,7 @@ class ResCompany(models.Model):
         return res
 
     def _regenerate_attendance_kiosk_key(self):
-        self.ensure_one()
+        self.check_singleton()
         self.write({"attendance_kiosk_key": uuid.uuid4().hex})
 
     def _check_hr_presence_control(self, at_install):

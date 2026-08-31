@@ -1226,12 +1226,12 @@ class TestMailSchedule(EventMailCommon):
             )
         self.assertEqual(len(self._new_mails), 0)
         self.assertEqual(self.mail_mail_create_mocked.call_count, 0)
-        capt_event.records.ensure_one()
+        capt_event.records.check_singleton()
         self.assertEqual(
             capt_event.records.call_at,
             reference_now.replace(microsecond=0) + relativedelta(minutes=10),
         )
-        capt_mail.records.ensure_one()
+        capt_mail.records.check_singleton()
 
         # run cron: emails should be send for registrations
         self.execute_event_cron(freeze_date=reference_now + relativedelta(minutes=10))

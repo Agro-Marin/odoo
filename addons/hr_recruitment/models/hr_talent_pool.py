@@ -56,7 +56,7 @@ class HrTalentPool(models.Model):
             pool.no_of_talents = talent_data.get(pool.id, 0)
 
     def action_talent_pool_add_talents(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": self.env._("Create Talent"),
             "type": "ir.actions.act_window",

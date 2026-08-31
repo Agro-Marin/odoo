@@ -84,7 +84,7 @@ class HrLeaveAllocation(models.Model):
     def _get_accrual_plan_level_work_entry_prorata(
         self, level, start_period, start_date, end_period, end_date
     ):
-        self.ensure_one()
+        self.check_singleton()
         if level.frequency != "worked_hours":
             return super()._get_accrual_plan_level_work_entry_prorata(
                 level, start_period, start_date, end_period, end_date

@@ -129,7 +129,9 @@ class SurveySurvey(models.Model):
                 "in",
                 [
                     lang.id
-                    for lang in self.env["res.lang"]._get_active_by("code").values()
+                    for lang in self.env["res.lang"]
+                    ._get_active_by_field("code")
+                    .values()
                 ],
             )
         ],
@@ -740,7 +742,7 @@ class SurveySurvey(models.Model):
 
     @property
     def questions_layout_effective(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         if self.questions_layout == "conversational":
             return "page_per_question"
         return self.questions_layout
@@ -1063,7 +1065,7 @@ class SurveySurvey(models.Model):
         return user_inputs
 
     def _prefill_identity_questions(self, user_input: Self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         for question in self.question_ids.filtered(
             lambda q: (
                 q.question_type == "char_box"
@@ -1084,7 +1086,7 @@ class SurveySurvey(models.Model):
         check_attempts: bool = True,
         invite_token: str | bool = False,
     ) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if test_entry:
             try:
                 self.with_user(user).check_access("read")
@@ -1104,7 +1106,7 @@ class SurveySurvey(models.Model):
                 raise exceptions.UserError(_("No attempts left."))
 
     def _prepare_user_input_predefined_questions(self) -> Self:
-        self.ensure_one()
+        self.check_singleton()
 
         questions = self.env["survey.question"]
 
@@ -1125,7 +1127,7 @@ class SurveySurvey(models.Model):
         return questions
 
     def _can_go_back(self, answer: Self, page_or_question: Self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         layout = self.questions_layout_effective
         if layout == "one_page" or not self.users_can_go_back:
             return False
@@ -1141,7 +1143,7 @@ class SurveySurvey(models.Model):
     def _has_attempts_left(
         self, partner: Self | bool, email: str | bool, invite_token: str | bool
     ) -> bool:
-        self.ensure_one()
+        self.check_singleton()
 
         if (
             self.access_mode != "public" or self.users_login_required
@@ -1153,7 +1155,7 @@ class SurveySurvey(models.Model):
     def _get_number_of_attempts_lefts(
         self, partner: Self | bool, email: str | bool, invite_token: str | bool
     ) -> int:
-        self.ensure_one()
+        self.check_singleton()
 
         domain = Domain(
             [
@@ -1174,7 +1176,7 @@ class SurveySurvey(models.Model):
         return self.attempts_limit - self.env["survey.user_input"].search_count(domain)
 
     def _get_pages_or_questions(self, user_input: Self) -> Self:
-        self.ensure_one()
+        self.check_singleton()
         result = self.env["survey.question"]
         if self.questions_layout_effective == "page_per_section":
             result = self.page_ids
@@ -1187,7 +1189,7 @@ class SurveySurvey(models.Model):
         return result
 
     def _get_pages_and_questions_to_show(self) -> Self:
-        self.ensure_one()
+        self.check_singleton()
         invalid_questions = self.env["survey.question"]
         questions_and_valid_pages = self.question_and_page_ids.filtered(
             lambda question: (
@@ -1377,7 +1379,7 @@ class SurveySurvey(models.Model):
             self.sudo().flush_recordset(["session_state"])
 
     def _get_session_next_question(self, go_back: bool) -> Self | None:
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.question_ids or not self.env.user.has_group(
             "survey.group_survey_user"
@@ -1444,7 +1446,7 @@ class SurveySurvey(models.Model):
         return fake_user_input
 
     def _prepare_leaderboard_values(self) -> list[dict[str, Any]]:
-        self.ensure_one()
+        self.check_singleton()
 
         leaderboard = self.env["survey.user_input"].search_read(
             [
@@ -1508,7 +1510,7 @@ class SurveySurvey(models.Model):
         return leaderboard
 
     def check_validity(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if not self.question_ids:
             raise UserError(
                 _("You cannot send an invitation for a survey that has no questions.")
@@ -1565,7 +1567,7 @@ class SurveySurvey(models.Model):
         }
 
     def action_start_survey(self, answer: Self | None = None) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         token_query = urlencode(
             {"answer_token": (answer and answer.access_token) or None}
         )
@@ -1578,7 +1580,7 @@ class SurveySurvey(models.Model):
         }
 
     def action_print_survey(self, answer: Self | None = None) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         token_query = urlencode(
             {"answer_token": (answer and answer.access_token) or None}
         )
@@ -1591,7 +1593,7 @@ class SurveySurvey(models.Model):
         }
 
     def action_result_survey(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_url",
             "name": "Results of the Survey",
@@ -1600,7 +1602,7 @@ class SurveySurvey(models.Model):
         }
 
     def action_test_survey(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_url",
             "name": "Test Survey",
@@ -1627,7 +1629,7 @@ class SurveySurvey(models.Model):
         return self._action_survey_user_input()
 
     def action_survey_preview_certification_template(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_url",
             "target": "new",
@@ -1638,7 +1640,7 @@ class SurveySurvey(models.Model):
         if not self.env.user.has_group("survey.group_survey_user"):
             raise AccessError(_("Only survey users can manage sessions."))
 
-        self.ensure_one()
+        self.check_singleton()
         self.sudo().write(
             {
                 "questions_layout": "page_per_question",
@@ -1650,7 +1652,7 @@ class SurveySurvey(models.Model):
         return self.action_view_session_manager()
 
     def action_view_session_manager(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
 
         return {
             "type": "ir.actions.act_url",
@@ -1775,7 +1777,7 @@ class SurveySurvey(models.Model):
     def _prepare_cross_tabulation(
         self, question_row_id: int, question_col_id: int
     ) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         Question = self.env["survey.question"]
         q_row = Question.browse(question_row_id)
         q_col = Question.browse(question_col_id)
@@ -1854,7 +1856,7 @@ class SurveySurvey(models.Model):
         return "certification"
 
     def _create_certification_badge_trigger(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if not self.certification_badge_id:
             raise ValueError(
                 _(
@@ -1968,7 +1970,7 @@ class SurveySurvey(models.Model):
         return {survey_id: median or 0 for survey_id, median in self.env.cr.fetchall()}
 
     def _get_supported_lang_codes(self) -> list[str]:
-        self.ensure_one()
+        self.check_singleton()
         return self.lang_ids.mapped("code") or [
             lg[0] for lg in self.env["res.lang"].get_installed()
         ]

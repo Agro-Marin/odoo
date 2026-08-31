@@ -531,7 +531,7 @@ class EventEvent(models.Model):
         ticket issued a grouped query each time, and the cost only showed up
         once tickets stopped being available -- exactly when the event is busy.
         """
-        self.ensure_one()
+        self.check_singleton()
         sellable = self.event_ticket_ids.filtered(
             lambda ticket: ticket.is_launched and not ticket.is_expired
         )
@@ -956,13 +956,13 @@ class EventEvent(models.Model):
         return super()._mail_get_operation_for_mail_message_operation(message_operation)
 
     def _set_tz_context(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.with_context(tz=self.date_tz or "UTC")
 
     def _get_seats_availability(self, slot_tickets):
         """Get availabilities for given combinations of slot / ticket. Returns
         a list following input order. None denotes no limit."""
-        self.ensure_one()
+        self.check_singleton()
         if not (all(len(item) == 2 for item in slot_tickets)):
             raise ValueError("Input should be a list of tuples containing slot, ticket")
 
@@ -1015,7 +1015,7 @@ class EventEvent(models.Model):
             availabilities.append(available)
         return availabilities
 
-    def _verify_seats_availability(self, slot_tickets):
+    def _check_seats_availability(self, slot_tickets):
         """Check event seats availability, for combinations of slot / ticket.
 
         :param slot_tickets: a list of tuples(slot, ticket, count). Slot and
@@ -1025,7 +1025,7 @@ class EventEvent(models.Model):
         :raises ValidationError: if the event / slot / ticket do not have
           enough available seats
         """
-        self.ensure_one()
+        self.check_singleton()
         if not (all(len(item) == 3 for item in slot_tickets)):
             raise ValueError(
                 "Input should be a list of tuples containing slot, ticket, count"
@@ -1074,7 +1074,7 @@ class EventEvent(models.Model):
     # ------------------------------------------------------------
 
     def action_view_slot_calendar(self):
-        self.ensure_one()
+        self.check_singleton()
         now = datetime.now().astimezone(timezone(self.env.user.tz or "UTC"))
         next_hour = now + timedelta(hours=1)
         return {
@@ -1119,7 +1119,7 @@ class EventEvent(models.Model):
             self.write({"stage_id": first_ended_stage.id})
 
     def _get_date_range_str(self, start_datetime=False, lang_code=False):
-        self.ensure_one()
+        self.check_singleton()
         start = start_datetime or self.date_begin
         today_tz = (
             fields.Datetime.now().replace(tzinfo=UTC).astimezone(timezone(self.date_tz))
@@ -1151,7 +1151,7 @@ class EventEvent(models.Model):
 
         Reference Docs for URL limit -: https://stackoverflow.com/questions/417142/what-is-the-maximum-length-of-a-url-in-different-browsers
         """
-        self.ensure_one()
+        self.check_singleton()
         description = ""
         if self.event_share_url:
             description = (
@@ -1197,7 +1197,7 @@ class EventEvent(models.Model):
         """Returns the ground truth hash for accessing the tickets in route /event/<int:event_id>/my_tickets.
         The dl links are always made event-dependant, hence the method linked to the record in self.
         """
-        self.ensure_one()
+        self.check_singleton()
         return tools.hmac(
             self.env(su=True),
             "event-registration-ticket-report-access",

@@ -36,7 +36,7 @@ class HrEmployeeCvWizard(models.TransientModel):
             wizard.can_show_skills = wizard.employee_ids.skill_ids
 
     def action_validate(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Print Resume"),
             "type": "ir.actions.act_url",

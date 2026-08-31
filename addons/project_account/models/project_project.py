@@ -93,7 +93,7 @@ class ProjectProject(models.Model):
                 costs["total"]["to_bill"] += amount_to_invoice
 
     def _get_action_for_profitability_section(self, record_ids, name):
-        self.ensure_one()
+        self.check_singleton()
         args = [name, [("id", "in", record_ids)]]
         if len(record_ids) == 1:
             args.append(record_ids[0])

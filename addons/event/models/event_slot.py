@@ -88,7 +88,7 @@ class EventSlot(models.Model):
         and shrinking an event under a slot need two constraints -- but not two
         definitions of what "in range" means.
         """
-        self.ensure_one()
+        self.check_singleton()
         event_start = self.event_id.date_begin
         event_end = self.event_id.date_end
         if not (event_start and event_end):

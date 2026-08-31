@@ -8,7 +8,7 @@ from odoo.tools import (
     float_compare,
     float_round,
     frozendict,
-    make_index_name,
+    get_index_name,
     ormcache,
 )
 
@@ -137,7 +137,7 @@ class AccountAnalyticPlan(models.Model):
         return map(self.browse, self.__get_all_plans())
 
     def _strict_column_name(self):
-        self.ensure_one()
+        self.check_singleton()
         project_plan, _other_plans = self._get_all_plans()
         return "account_id" if self == project_plan else f"x_plan{self.id}_id"
 
@@ -295,7 +295,7 @@ class AccountAnalyticPlan(models.Model):
 
     def _get_applicability(self, **kwargs):
         """Returns the applicability of the best applicability line or the default applicability"""
-        self.ensure_one()
+        self.check_singleton()
         if "applicability" in kwargs:
             # For models for example, we want all plans to be visible, so we force the applicability
             return kwargs["applicability"]
@@ -434,7 +434,7 @@ class AccountAnalyticPlan(models.Model):
                     Model = self.env[model]
                     if Model._auto:
                         tablename = Model._table
-                        indexname = make_index_name(tablename, column)
+                        indexname = get_index_name(tablename, column)
                         create_index(
                             self.env.cr,
                             indexname,
@@ -573,7 +573,7 @@ class AccountAnalyticApplicability(models.Model):
 
     def _get_score(self, **kwargs):
         """Gives the score of an applicability with the parameters of kwargs"""
-        self.ensure_one()
+        self.check_singleton()
         # 0.5 is because company is less important than other fields for an equal number of valid fields
         # No company on the applicability and the kwargs together are not considered a more fitting rule
         score = 0.5 if self.company_id and kwargs.get("company_id") else 0

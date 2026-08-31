@@ -87,7 +87,7 @@ class ApprovalTemplate(models.Model):
             template.usage_count = counts.get(template.id, 0)
 
     def action_create_request(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         context = {
             "default_category_id": self.category_id.id,
             "default_template_id": self.id,
@@ -122,7 +122,7 @@ class ApprovalTemplate(models.Model):
         }
 
     def action_view_requests(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": self.env._("Requests from: %s", self.name),
             "type": "ir.actions.act_window",

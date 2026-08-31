@@ -105,7 +105,7 @@ class FleetVehicleModel(models.Model):
         return [('id', 'in', fleet_models.ids)]
 
     def action_model_vehicle(self):
-        self.ensure_one()
+        self.check_singleton()
         context = {'default_model_id': self.id}
         if self.vehicle_count:
             view_mode = 'kanban,list,form'

@@ -103,7 +103,7 @@ class GamificationSkillNode(models.Model):
         :param user: ``res.users`` record.
         :return: True if all conditions are met.
         """
-        self.ensure_one()
+        self.check_singleton()
         Unlock = self.env["gamification.skill.node.unlock"]
 
         # Already unlocked?
@@ -163,7 +163,7 @@ class GamificationSkillNode(models.Model):
         :return: created unlock record, or ``False`` if conditions not met or
             it was unlocked concurrently.
         """
-        self.ensure_one()
+        self.check_singleton()
         if not self.check_unlock_for_user(user):
             return False
 

@@ -29,7 +29,7 @@ class TestLivechatLead(HttpCase, TestCrmCommon):
 
     @users("user_sales_leads")
     def test_crm_lead_creation_guest(self):
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session",
             {
                 "channel_id": self.livechat_channel.id,
@@ -54,7 +54,7 @@ class TestLivechatLead(HttpCase, TestCrmCommon):
 
         self.assertFalse(self.env.ref("base.public_user").active)
 
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session",
             {
                 "channel_id": self.livechat_channel.id,
@@ -85,7 +85,7 @@ class TestLivechatLead(HttpCase, TestCrmCommon):
     @users("user_sales_leads")
     def test_crm_lead_creation_portal(self):
         self.authenticate("user_portal", "user_portal")
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session",
             {
                 "channel_id": self.livechat_channel.id,
@@ -127,7 +127,7 @@ class TestLivechatLead(HttpCase, TestCrmCommon):
         self.authenticate("bob_user", "bob_user")
         self.livechat_channel.user_ids = bob_operator
         self.env["mail.presence"]._update_presence(bob_operator)
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session", {"channel_id": self.livechat_channel.id}
         )
         channel = self.env["discuss.channel"].browse(data["channel_id"])
