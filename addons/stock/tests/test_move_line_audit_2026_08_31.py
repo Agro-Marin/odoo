@@ -1,5 +1,5 @@
-from odoo.exceptions import UserError, ValidationError
-from odoo.tests import Form, tagged
+from odoo.exceptions import UserError
+from odoo.tests import tagged
 
 from odoo.addons.stock.models.stock_move_line import (
     LOGGED_RELATIONS,
@@ -411,3 +411,78 @@ class TestWriteGuardsStillHold(MoveLineAuditCase):
         line = self._outgoing(product, 2.0).move_line_ids
         line.with_user(self.stock_user).write({"product_id": product.id})
         self.assertEqual(line.product_id, product)
+
+
+@tagged("post_install", "-at_install")
+class TestPutInPackScopeIsBounded(MoveLineAuditCase):
+    """`action_put_in_pack` must act on its own recordset, widened only by the
+    wizard round-trip it started -- not by whatever an RPC caller puts in the
+    context.
+    """
+
+    def _picked_picking(self, name):
+        product = self._product(f"Pack {name}")
+        self._stock(product, self.src, 20.0)
+        picking = self._outgoing(product, 5.0)
+        for line in picking.move_line_ids:
+            line.quantity = 5.0
+            line.picked = True
+        return picking
+
+    def test_the_wizard_round_trip_still_widens(self):
+        """Control. The legitimate widening must keep working, or the bounding
+        below would be passing for the wrong reason."""
+        picking = self._picked_picking("RoundTrip")
+        extra = self.env["stock.move.line"].create(
+            {
+                "picking_id": picking.id,
+                "move_id": picking.move_ids[0].id,
+                "product_id": picking.move_ids[0].product_id.id,
+                "product_uom_id": picking.move_ids[0].product_uom_id.id,
+                "quantity": 1.0,
+                "location_id": self.src.id,
+                "location_dest_id": self.customer.id,
+            }
+        )
+        one_line = picking.move_line_ids[0]
+        scope = one_line.with_context(
+            all_move_line_ids=picking.move_line_ids.ids
+        )._get_lines_in_pack_scope()
+        self.assertIn(extra.id, scope.ids, "same-picking lines must still widen")
+        self.assertEqual(scope, picking.move_line_ids)
+
+    def test_a_forged_id_from_another_transfer_is_ignored(self):
+        mine = self._picked_picking("Mine")
+        theirs = self._picked_picking("Theirs")
+        forged = mine.move_line_ids.ids + theirs.move_line_ids.ids
+
+        scope = mine.move_line_ids.with_context(
+            all_move_line_ids=forged
+        )._get_lines_in_pack_scope()
+
+        self.assertEqual(scope, mine.move_line_ids)
+        self.assertFalse(
+            scope & theirs.move_line_ids,
+            "a caller must not reach lines of a transfer it did not name",
+        )
+
+    def test_without_the_context_key_the_recordset_is_unchanged(self):
+        """Control on the ordinary path: no context, no widening."""
+        picking = self._picked_picking("Plain")
+        line = picking.move_line_ids[0]
+        self.assertEqual(line._get_lines_in_pack_scope(), line)
+
+    def test_packing_a_forged_scope_packs_only_the_callers_lines(self):
+        """End to end, not just the helper."""
+        mine = self._picked_picking("PackMine")
+        theirs = self._picked_picking("PackTheirs")
+        mine.move_line_ids.with_context(
+            force_move_lines=True,
+            all_move_line_ids=(mine.move_line_ids | theirs.move_line_ids).ids,
+        ).action_put_in_pack()
+
+        self.assertTrue(mine.move_line_ids.result_package_id)
+        self.assertFalse(
+            theirs.move_line_ids.result_package_id,
+            "the other transfer's lines must not have been packed",
+        )

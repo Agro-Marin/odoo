@@ -437,10 +437,12 @@ class StockPicking(models.Model):
                 for picking in pickings_changing_type:
                     picking.name = picking_type.sequence_id.next_by_id()
 
-        locations_before = {
-            picking.id: (picking.location_id, picking.location_dest_id)
-            for picking in self
-        }
+        locations_before = {}
+        if not self._get_location_trigger_fields().isdisjoint(vals):
+            locations_before = {
+                picking.id: (picking.location_id, picking.location_dest_id)
+                for picking in self
+            }
 
         res = super().write(vals)
 
@@ -456,9 +458,21 @@ class StockPicking(models.Model):
             for picking in self:
                 picking._attach_sign()
         if vals.get("move_ids"):
+            self._clear_cancellation()
             self._autoconfirm_picking()
 
         return res
+
+    def _get_location_trigger_fields(self):
+        field_depends = self.env.registry.field_depends
+        return frozenset(
+            {"location_id", "location_dest_id"}
+            | {
+                dependency.split(".")[0]
+                for name in ("location_id", "location_dest_id")
+                for dependency in field_depends[self._fields[name]]
+            },
+        )
 
     def _propagate_locations_to_moves(self, locations_before):
         moves_by_location_vals = defaultdict(lambda: self.env["stock.move"])
@@ -727,7 +741,8 @@ class StockPicking(models.Model):
         totals = defaultdict(float)
         saved = self.filtered("id")
         if saved:
-            res_groups = self[lines_field]._read_group(
+            lines_model = self.env[self._fields[lines_field].comodel_name]
+            res_groups = lines_model._read_group(
                 [
                     ("picking_id", "in", saved.ids),
                     ("product_id", "!=", False),
@@ -1076,21 +1091,31 @@ class StockPicking(models.Model):
         if value == all_states:
             return qualifying
 
-        def _filter_picking_moves(picking):
-            try:
-                return picking.move_ids._match_searched_availability(
-                    operator,
-                    value,
-                    picking.date_planned,
-                )
-            except UserError:
-                return False
+        deciding_moves = self.env["stock.move"].search(
+            Domain("picking_id", "any", qualifying)
+            & Domain(self._get_domain_availability_deciding_moves()),
+        )
+        deciding_moves._fields["forecast_availability"].compute_value(deciding_moves)
+        matched = self.browse()
+        for picking, moves in deciding_moves.grouped("picking_id").items():
+            if moves._match_searched_availability(
+                operator,
+                value,
+                picking.date_planned,
+            ):
+                matched |= picking
+        if "available" not in value:
+            return Domain("id", "in", matched.ids)
+        return Domain("id", "in", matched.ids) | (
+            qualifying & ~Domain("id", "in", deciding_moves.picking_id.ids)
+        )
 
-        candidate_pickings = self.env["stock.picking"].search(qualifying, order="id")
-        candidate_moves = candidate_pickings.move_ids
-        candidate_moves._fields["forecast_availability"].compute_value(candidate_moves)
-        pickings = candidate_pickings.filtered(_filter_picking_moves)
-        return Domain("id", "in", pickings.ids)
+    @api.model
+    def _get_domain_availability_deciding_moves(self):
+        return [
+            ("state", "not in", tuple(DONE_CANCEL_STATES)),
+            ("product_id.is_storable", "=", True),
+        ]
 
     @api.onchange("picking_type_id", "partner_id")
     def _onchange_picking_type(self):
@@ -1128,6 +1153,7 @@ class StockPicking(models.Model):
 
     def action_confirm(self):
         self._check_company()
+        self._clear_cancellation()
         self.move_ids.filtered(lambda move: move.state == "draft")._action_confirm()
 
         self.move_ids.filtered(
@@ -1220,6 +1246,7 @@ class StockPicking(models.Model):
         pickings_to_notify = self.filtered(
             lambda p: (
                 p.company_id.stock_move_email_validation
+                and p.company_id.stock_mail_confirmation_template_id
                 and p.picking_type_id.code == "outgoing"
             ),
         )
@@ -1258,8 +1285,11 @@ class StockPicking(models.Model):
         if not self.env.context.get("skip_sanity_check", False):
             self._sanity_check()
 
-        if not self.env.context.get("button_validate_picking_ids"):
-            self = self.with_context(button_validate_picking_ids=self.ids)
+        requested_ids = self.env.context.get("button_validate_picking_ids")
+        validating = self.browse(requested_ids) & self if requested_ids else self
+        self = self.with_context(
+            button_validate_picking_ids=(validating or self).ids,
+        )
         res = self._pre_action_done_hook()
         if res is not True:
             return res
@@ -1441,6 +1471,15 @@ class StockPicking(models.Model):
             self = self.with_context(clean_context(self.env.context))
         if self.state in DONE_CANCEL_STATES:
             return None
+        if self.env.context.get("all_move_line_ids"):
+            self = self.with_context(
+                all_move_line_ids=(
+                    self.move_line_ids
+                    & self.env["stock.move.line"].browse(
+                        self.env.context["all_move_line_ids"],
+                    )
+                ).ids,
+            )
         return self.move_line_ids.action_put_in_pack(
             package_id=package_id,
             package_type_id=package_type_id,
@@ -1501,6 +1540,7 @@ class StockPicking(models.Model):
         return action
 
     def action_view_packages(self):
+        self.check_singleton()
         return {
             "name": self.env._("Packages"),
             "res_model": "stock.package",
@@ -1764,6 +1804,14 @@ class StockPicking(models.Model):
         )
         return [action] if action else []
 
+    def _clear_cancellation(self):
+        self.filtered(
+            lambda picking: (
+                picking.is_cancelled
+                and any(move.state != "cancel" for move in picking.move_ids)
+            ),
+        ).is_cancelled = False
+
     def _prepare_backorder_picking_vals(self):
         self.check_singleton()
         return self.copy_data(
@@ -1827,37 +1875,6 @@ class StockPicking(models.Model):
     def _get_next_transfers(self):
         return self.move_ids.move_dest_ids.picking_id - self.return_ids
 
-    @api.model
-    def _get_allocation_allowed_move_states(self, include_assigned=False):
-        states = ["confirmed", "partially_available", "waiting"]
-        if include_assigned:
-            states.append("assigned")
-        return states
-
-    def _get_domain_allocatable_demand(self, location_ids, product_ids):
-        return [
-            (
-                "state",
-                "in",
-                self._get_allocation_allowed_move_states(include_assigned=True),
-            ),
-            ("product_qty", ">", 0),
-            ("location_id", "in", list(location_ids)),
-            ("product_id", "in", list(product_ids)),
-        ]
-
-    def _get_allocation_source_location_ids(self, view_location_ids):
-        return (
-            self.env["stock.location"]
-            .search(
-                [
-                    ("id", "child_of", view_location_ids),
-                    ("usage", "!=", "supplier"),
-                ],
-            )
-            .ids
-        )
-
     def _get_show_allocation(self, picking_type_id):
         if not picking_type_id or picking_type_id.code == "outgoing":
             return False
@@ -1919,6 +1936,7 @@ class StockPicking(models.Model):
             *self._autoprint_package_report(),
         ]
 
+    @api.model
     def _get_impacted_pickings(self, moves):
         impacted_pickings = self.env["stock.picking"]
         explored_moves = self.env["stock.move"]
@@ -2180,10 +2198,10 @@ class StockPicking(models.Model):
 
     def should_print_delivery_address(self):
         self.check_singleton()
-        return (
+        return bool(
             self.move_ids
             and (self.move_ids[0].partner_id or self.partner_id)
-            and self._is_to_external_location()
+            and self._is_to_external_location(),
         )
 
     def _should_show_transfers(self):

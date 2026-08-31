@@ -45,11 +45,19 @@ class StockMoveLine(models.Model):
                 if ml.move_id.is_in or ml.move_id.is_out
             }
         res = super().write(vals)
+        # `write` on a move line can DELETE members of `self`: stock's reservation
+        # engine settles an over-allocation by unlinking competing reservations,
+        # and a line of this very batch can be among them. Everything below
+        # dereferences these records, so work from the survivors. `qty_by_ml` needs
+        # no filtering -- it is read only for lines still in `self`, so a key for a
+        # freed line simply goes unused, and a freed line was an open reservation
+        # that no valuation had ever counted.
+        survivors = self.exists()
         if valuation_trigger:
             # Not `and qty_by_ml`: that map is empty precisely when none of these
             # moves was valued yet, which is the case where the write may be what
             # starts valuing one (clearing a consignment owner, for instance).
-            self._update_stock_move_value(qty_by_ml)
+            survivors._update_stock_move_value(qty_by_ml)
         if analytic_move_to_recompute:
             self.env["stock.move"].browse(
                 analytic_move_to_recompute

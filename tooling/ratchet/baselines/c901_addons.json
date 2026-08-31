@@ -1,4 +1,5 @@
 {
-  "count": 43,
-  "note": "stock: both of its C901 findings sat inside two of the six functions split for pyfunclen_addons -- stock_forecasted._get_report_lines and report_stock_reception.action_assign. Neither was addressed as complexity; the complexity left with the length.\n\n  45 -> 43\n\nCommand: ruff check addons --no-cache --select C901 --statistics"
+  "count": 41,
+  "measured_at": "a9364a9b989ad81cdfbb892970ba552ea4b396dc",
+  "note": "hr_work_entry: both units left with b1c7684780b, which reworked `_get_version_work_entries_values` (25 > 20) and `_generate_work_entries_postprocess` (21 > 20) while fixing the five state defects. Neither was addressed as complexity; the complexity left with the rework, and the floor was not moved with it.\n\nNo new offender anywhere in addons/: the full 43 and the full 41 were diffed by file+function, so `hr_holidays._process_accrual_plans` going 39 -> 40 while staying over the threshold is not mistaken for a move.\n\n  43 -> 41\n\nCommand: ruff check addons --no-cache --select C901 --statistics"
 }
