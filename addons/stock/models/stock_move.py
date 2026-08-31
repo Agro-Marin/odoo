@@ -38,6 +38,12 @@ PROCUREMENT_PRIORITIES = [("0", "Normal"), ("1", "Urgent")]
 
 GENERATED_LOT_VALS_MAX = 10000
 
+# The third value `_convert_string_into_field_data` may return: the part parsed
+# as a field this installation does not use, so drop it without treating it as
+# the lot name. Only overrides produce it -- product_expiry, for a product with
+# no expiration date -- so `stock` alone never shows where it comes from.
+FIELD_DATA_IGNORED = "ignore"
+
 
 class _ReservationOutcome(typing.NamedTuple):
     state: str = ""
@@ -1770,8 +1776,7 @@ class StockMove(models.Model):
         # against a shared origin must see it, or two siblings take the same
         # upstream line.
         reserved_by_this_run = OrderedSet()
-        move_line_vals_list = []
-        ledger = ReservationLedger(move_line_vals_list)
+        ledger = ReservationLedger()
         moves_to_redirect = OrderedSet()
         moves_to_assign, quants_cache, reserved_availability = (
             self._prepare_reservation_run(force_qty)
@@ -1780,6 +1785,10 @@ class StockMove(models.Model):
         for move in moves_to_assign.with_context(
             quants_cache=quants_cache,
             preserve_state=True,
+            # Also in the context because _update_reserved_quantity is called
+            # from outside any run of this method -- point_of_sale reserves a
+            # matched lot directly -- and those callers create their lines
+            # immediately instead of batching into the ledger.
             reservation_ledger=ledger,
         ):
             move = move.with_company(move.company_id)
@@ -1794,7 +1803,7 @@ class StockMove(models.Model):
             if move._should_bypass_reservation():
                 outcome = move._update_reserved_bypass(
                     missing_reserved_quantity,
-                    move_line_vals_list,
+                    ledger,
                     reserved_by_this_run,
                 )
             else:
@@ -1815,7 +1824,6 @@ class StockMove(models.Model):
                 serial_move_ids_by_qty[move._prefill_serial_count()].add(move.id)
 
         self._apply_reservation_outcomes(
-            move_line_vals_list,
             ledger,
             quants_cache,
             assigned_moves_ids,
@@ -1889,7 +1897,6 @@ class StockMove(models.Model):
 
     def _apply_reservation_outcomes(
         self,
-        move_line_vals_list,
         ledger,
         quants_cache,
         assigned_moves_ids,
@@ -1903,13 +1910,13 @@ class StockMove(models.Model):
                 StockMove.browse(move_ids).next_serial_count = count
         _logger.debug(
             "_action_assign: flushing %s move line(s), %s unit(s) pending on quants",
-            len(move_line_vals_list),
+            len(ledger.move_line_vals),
             ledger.total_pending(),
         )
         self.env["stock.move.line"].with_context(
             quants_cache=quants_cache,
             preserve_state=True,
-        ).create(move_line_vals_list)
+        ).create(ledger.move_line_vals)
         _logger.debug(
             "_action_assign: %s assigned, %s partially available",
             len(assigned_moves_ids),
@@ -2345,14 +2352,14 @@ class StockMove(models.Model):
     def _update_reserved_bypass(
         self,
         missing_reserved_quantity,
-        move_line_vals_list,
+        ledger,
         reserved_by_this_run,
     ):
         self.check_singleton()
         if self.move_orig_ids:
             missing_reserved_quantity = self._add_bypassed_origin_lines(
                 missing_reserved_quantity,
-                move_line_vals_list,
+                ledger,
                 reserved_by_this_run,
             )
 
@@ -2371,7 +2378,7 @@ class StockMove(models.Model):
             )
         ):
             for _i in range(self._serial_line_count(missing_reserved_quantity)):
-                move_line_vals_list.append(
+                ledger.move_line_vals.append(
                     self._prepare_move_line_vals(quantity=1),
                 )
         elif still_missing:
@@ -2395,7 +2402,7 @@ class StockMove(models.Model):
                     rounding_method="HALF-UP",
                 )
             else:
-                move_line_vals_list.append(
+                ledger.move_line_vals.append(
                     self._prepare_move_line_vals(
                         quantity=missing_reserved_quantity,
                     ),
@@ -2405,7 +2412,7 @@ class StockMove(models.Model):
     def _add_bypassed_origin_lines(
         self,
         missing_reserved_quantity,
-        move_line_vals_list,
+        ledger,
         reserved_by_this_run,
     ):
         self.check_singleton()
@@ -2427,7 +2434,7 @@ class StockMove(models.Model):
                     "package_id": package_id.id,
                 },
             )
-            move_line_vals_list.append(move_line_vals)
+            ledger.move_line_vals.append(move_line_vals)
             missing_reserved_quantity -= qty_added
             if self.product_id.uom_id.is_zero(missing_reserved_quantity):
                 break
@@ -3993,7 +4000,7 @@ class StockMove(models.Model):
                 field_data = self._convert_string_into_field_data(extra_string, options)
                 if field_data:
                     lot_text = lot_text_parts[0]
-                    if field_data == "ignore":
+                    if field_data == FIELD_DATA_IGNORED:
                         move_line_vals.update(lot_name=lot_text)
                     else:
                         move_line_vals.update(**field_data, lot_name=lot_text)
@@ -4565,7 +4572,7 @@ class StockMove(models.Model):
                     ("lot_id", "in", serial_moves.sudo().lot_ids.ids),
                 ],
             )
-            .check_quantity()
+            ._check_quantity()
         )
 
     def _check_write_vals(self, vals):

@@ -24,6 +24,10 @@ LOGGED_RELATIONS = [
 ]
 
 
+# Distinguishes "caller said nothing" from "caller said None", which for a
+# package or owner is a real, different request.
+_KEEP = object()
+
 RESERVATION_KEY_FIELDS = (
     "product_id",
     "location_id",
@@ -32,17 +36,12 @@ RESERVATION_KEY_FIELDS = (
     "owner_id",
 )
 
+# Derived, not restated: `_log_quant_corrections` gates on this set while
+# `_resolve_logged_relations` fills it from LOGGED_RELATIONS, so a row added
+# there and forgotten here would silently stop that field's corrections
+# reaching the chatter. "quantity" is the one key with no relation behind it.
 RENDERED_KEYS = frozenset(
-    {
-        "quantity",
-        "product_uom_qty",
-        "lot_name",
-        "location_name",
-        "location_dest_name",
-        "package_name",
-        "result_package_dest_name",
-        "owner_name",
-    }
+    {"quantity", *(rendered for _field, rendered in LOGGED_RELATIONS)}
 )
 
 SOURCE_QUANT_FIELDS = ("location_id", "package_id", "lot_id", "owner_id")
@@ -78,8 +77,12 @@ class StockMoveLine(models.Model):
         related="picking_id.partner_id",
         readonly=True,
     )
-    picking_location_id = fields.Many2one(related="picking_id.location_id")
-    picking_location_dest_id = fields.Many2one(related="picking_id.location_dest_id")
+    picking_location_id = fields.Many2one(
+        related="picking_id.location_id",
+    )
+    picking_location_dest_id = fields.Many2one(
+        related="picking_id.location_dest_id",
+    )
     picking_type_id = fields.Many2one(
         comodel_name="stock.picking.type",
         string="Operation type",
@@ -94,7 +97,10 @@ class StockMoveLine(models.Model):
         related="picking_type_id.use_existing_lots",
         readonly=True,
     )
-    picking_code = fields.Selection(related="picking_type_id.code", readonly=True)
+    picking_code = fields.Selection(
+        related="picking_type_id.code",
+        readonly=True,
+    )
 
     move_id = fields.Many2one(
         comodel_name="stock.move",
@@ -273,8 +279,12 @@ class StockMoveLine(models.Model):
         string="Package History",
         index="btree_not_null",
     )
-    is_entire_pack = fields.Boolean(string="Is added through entire package")
-    lots_visible = fields.Boolean(compute="_compute_lots_visible")
+    is_entire_pack = fields.Boolean(
+        string="Is added through entire package",
+    )
+    lots_visible = fields.Boolean(
+        compute="_compute_lots_visible",
+    )
     consume_line_ids = fields.Many2many(
         comodel_name="stock.move.line",
         relation="stock_move_line_consume_rel",
@@ -344,16 +354,26 @@ class StockMoveLine(models.Model):
         return mls
 
     def write(self, vals):
+        self._check_write_allowed(vals)
+        if vals.get("quant_id"):
+            vals = {**vals, **self._prepare_quant_vals(vals)}
+            self._check_write_allowed(vals)
+
+        # Below the expansion, never above it. `_prepare_quant_vals` injects
+        # every RESERVATION_KEY_FIELDS value off the quant, `location_id`
+        # included, so a write naming only `quant_id` relocates the line without
+        # ever saying so in the vals it arrived with. `watched` used to be
+        # computed from those un-expanded vals and never recomputed, which left
+        # `_check_blocked_outgoing` below unreached on exactly that path: writing
+        # `location_id` outright was refused, writing the quant that lives there
+        # was not. Both calls above only read or raise, so taking the snapshot
+        # here still reads pre-write values.
         watched = "quantity" in vals or "location_id" in vals
         before = (
             {line.id: (line.location_id.id, line.quantity) for line in self}
             if watched
             else None
         )
-        self._check_write_allowed(vals)
-        if vals.get("quant_id"):
-            vals = {**vals, **self._prepare_quant_vals(vals)}
-            self._check_write_allowed(vals)
 
         packages_to_check = self.env["stock.package"]
         if "result_package_id" in vals:
@@ -387,6 +407,18 @@ class StockMoveLine(models.Model):
             progressed.date = fields.Datetime.now()
         to_restock._reapply_quant_moves(reverted_in_dates)
         to_adjust._apply_quantity_deltas(deltas)
+
+        # Both settlements above reach `_free_reservation`, which resolves an
+        # over-allocation by unlinking competing reservations -- and its candidate
+        # search spans the table, not just lines outside this batch. A sibling of
+        # `self` can therefore be gone by the time the readers below run, and
+        # every one of them touches `self`. Re-anchoring on the survivors rather
+        # than shielding the batch is deliberate: those siblings are open
+        # reservations losing to stock that has actually moved, which is exactly
+        # what freeing them is for. (`_apply_done_quant_moves` shields its batch
+        # instead, because there every line is about to consume its own
+        # reservation -- a different situation, not an inconsistency.)
+        self = self.exists()
 
         packages_to_check._clear_orphaned_package_dests()
         if reservation_touched:
@@ -574,7 +606,7 @@ class StockMoveLine(models.Model):
             return res
 
         message = None
-        siblings = self._get_similar_move_lines() - self
+        siblings = self._get_similar_move_lines()
         if any(line._serial_name() == serial for line in siblings):
             message = _(
                 "You cannot use the same serial number twice. Please correct the serial numbers encoded."
@@ -734,32 +766,70 @@ class StockMoveLine(models.Model):
         ml_ids_to_create_lot = OrderedSet()
         groups = self.grouped(lambda ml: (ml.product_id, ml.company_id))
         lots_per_group = defaultdict(dict)
-        for lot in self.env["stock.lot"].search(
-            [
-                ("company_id", "in", [False, *self.company_id.ids]),
-                ("product_id", "in", self.product_id.ids),
-                ("name", "in", self.mapped("lot_name")),
-            ]
+        archived_per_group = defaultdict(dict)
+        # `active_test=False` matches the scope `stock.lot._check_unique_lot` and
+        # the UNIQUE index enforce. Searching with it on made the resolver blind
+        # to an archived namesake, so the line fell through to
+        # `_create_production_lots` and the user was told they had created a
+        # duplicate -- of a lot no list view or dropdown shows them.
+        for lot in (
+            self.env["stock.lot"]
+            .with_context(active_test=False)
+            .search(
+                [
+                    ("company_id", "in", [False, *self.company_id.ids]),
+                    ("product_id", "in", self.product_id.ids),
+                    ("name", "in", self.mapped("lot_name")),
+                ]
+            )
         ):
             for product, company in groups:
                 if lot.product_id == product and (
                     not lot.company_id or lot.company_id == company
                 ):
-                    lots_per_group[product, company][lot.name] = lot
+                    bucket = lots_per_group if lot.active else archived_per_group
+                    bucket[product, company][lot.name] = lot
 
+        blocked_by_archived = []
         for (product, company), mls in groups.items():
             lots = lots_per_group[product, company]
+            archived = archived_per_group[product, company]
             for ml in mls:
                 lot = lots.get(ml.lot_name)
                 if lot:
                     ml.lot_id = lot.id
+                elif ml.lot_name and ml.lot_name in archived:
+                    blocked_by_archived.append((product, archived[ml.lot_name]))
                 elif ml.lot_name:
                     ml_ids_to_create_lot.add(ml.id)
                 else:
                     ml_ids_tracked_without_lot.add(ml.id)
 
+        if blocked_by_archived:
+            self._raise_archived_lots(blocked_by_archived)
         self.browse(ml_ids_to_create_lot)._create_production_lots()
         return self.browse(ml_ids_tracked_without_lot)
+
+    @api.model
+    def _raise_archived_lots(self, product_lot_pairs):
+        listed = "\n".join(
+            sorted(
+                _(
+                    " - %(lot)s, on %(product)s",
+                    lot=lot.name,
+                    product=product.display_name,
+                )
+                for product, lot in product_lot_pairs
+            )
+        )
+        raise UserError(
+            _(
+                "These Lot/Serial Numbers exist but are archived, so they cannot "
+                "receive stock:\n%(lots)s\n\n"
+                "Un-archive one to use it again, or enter a different number.",
+                lots=listed,
+            ),
+        )
 
     def _raise_missing_lot(self):
         if not self:
@@ -1058,9 +1128,16 @@ class StockMoveLine(models.Model):
                 abs(available_qty), ml_ids_to_ignore=ml_ids_to_ignore
             )
 
-    def _reservation_key(self):
+    def _reservation_key(self, overrides=None):
+        # `overrides` lets a caller ask for the key this line WOULD have after a
+        # write, without the two sides of one delta map being built by different
+        # code. `_resync_reservation` releases against the stored key and
+        # acquires against the pending one; when it spelled the second out by
+        # hand, a field added to RESERVATION_KEY_FIELDS would have been picked up
+        # by the release side only, and the halves would have keyed differently.
         self.check_singleton()
-        return tuple(self[name] for name in RESERVATION_KEY_FIELDS)
+        overrides = overrides or {}
+        return tuple(overrides.get(name, self[name]) for name in RESERVATION_KEY_FIELDS)
 
     @api.model
     def _get_outstanding_reservation_domain(self):
@@ -1434,9 +1511,14 @@ class StockMoveLine(models.Model):
         return {"quants": quants, "move_lines": lines}
 
     def _get_similar_move_lines(self):
+        # Excludes `self._origin` as well as `self`. The caller is an onchange, so
+        # `self` is a NewId while `picking.move_line_ids` are the stored rows:
+        # subtracting a NewId from them removes nothing and the line was compared
+        # against its own saved serial, warning about a duplicate of itself.
         self.check_singleton()
         picking = self.move_id.picking_id or self.picking_id
-        return picking.move_line_ids.filtered(
+        others = picking.move_line_ids - self - self._origin
+        return others.filtered(
             lambda ml: ml.product_id == self.product_id and (ml.lot_id or ml.lot_name)
         )
 
@@ -1856,13 +1938,7 @@ class StockMoveLine(models.Model):
 
             new_location = updates.get("location_id", ml.location_id)
             if not ml._should_bypass_reservation(new_location):
-                deltas[
-                    ml.product_id,
-                    new_location,
-                    updates.get("lot_id", ml.lot_id),
-                    updates.get("package_id", ml.package_id),
-                    updates.get("owner_id", ml.owner_id),
-                ] += new_reserved_qty
+                deltas[ml._reservation_key(updates)] += new_reserved_qty
 
             if (
                 "quantity" in vals
@@ -1877,41 +1953,36 @@ class StockMoveLine(models.Model):
         self,
         quantity,
         location,
-        action="available",
         in_date=False,
         reserved_delta=None,
-        **quants_value,
+        lot=_KEEP,
+        package=_KEEP,
+        owner=_KEEP,
     ):
-        lot = quants_value.get("lot", self.lot_id)
-        package = quants_value.get("package", self.package_id)
-        owner = quants_value.get("owner", self.owner_id)
+        # `lot`/`package`/`owner` are named rather than collected into **kwargs so
+        # a misspelling is a TypeError instead of a silent fall-back to this
+        # line's own value. _KEEP, not None: None is a legitimate request for
+        # "no package", which is not the same as "use mine".
+        lot = self.lot_id if lot is _KEEP else lot
+        package = self.package_id if package is _KEEP else package
+        owner = self.owner_id if owner is _KEEP else owner
         available_qty = 0
         if not self.product_id.is_storable or self.product_uom_id._is_zero_stored(
             quantity, self.product_id.uom_id
         ):
             return 0, False
-        if action == "available":
-            if reserved_delta and self._should_bypass_reservation(location):
-                reserved_delta = None
-            available_qty, in_date = self.env["stock.quant"]._update_available_quantity(
-                self.product_id,
-                location,
-                quantity,
-                reserved_quantity=reserved_delta or False,
-                lot_id=lot,
-                package_id=package,
-                owner_id=owner,
-                in_date=in_date,
-            )
-        elif action == "reserved" and not self._should_bypass_reservation(location):
-            self.env["stock.quant"]._update_reserved_quantity(
-                self.product_id,
-                location,
-                quantity,
-                lot_id=lot,
-                package_id=package,
-                owner_id=owner,
-            )
+        if reserved_delta and self._should_bypass_reservation(location):
+            reserved_delta = None
+        available_qty, in_date = self.env["stock.quant"]._update_available_quantity(
+            self.product_id,
+            location,
+            quantity,
+            reserved_quantity=reserved_delta or False,
+            lot_id=lot,
+            package_id=package,
+            owner_id=owner,
+            in_date=in_date,
+        )
         if lot and self.product_id.uom_id.compare(available_qty, 0) < 0:
             self._compensate_lot_shortfall(
                 location, lot, package, owner, abs(quantity), in_date
@@ -1977,10 +2048,24 @@ class StockMoveLine(models.Model):
         return None
 
     def _check_write_allowed(self, vals):
+        # The stored state, never `vals.get("state", ...)`. `state` is
+        # `related="move_id.state", store=True`, so a move-less line's stored
+        # value is always False and the "draft" escape hatch could never open
+        # from real data -- it opened only when the caller put `state` in the
+        # same vals, which any authenticated stock user can do over RPC. Since
+        # `product_id` is not in RESTOCK_TRIGGER_FIELDS, `_resync_reservation`
+        # then leaves the old product's reservation behind permanently, outliving
+        # even the line's own deletion.
         if "product_id" in vals and any(
             ml.product_id
             and vals["product_id"] != ml.product_id.id
-            and (ml.move_id or vals.get("state", ml.state) != "draft")
+            # `ml.state`, never `vals.get("state", ...)`. `state` is a stored
+            # related mirror of `move_id.state`, so on a move-less line it is
+            # always False and this escape hatch could never open from stored
+            # data -- it opened only when the caller supplied `state` in the same
+            # write, which let any RPC caller switch the guard off and leave the
+            # old product's quant reserved by nothing.
+            and (ml.move_id or ml.state != "draft")
             for ml in self
         ):
             raise UserError(

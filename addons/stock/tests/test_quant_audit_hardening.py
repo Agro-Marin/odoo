@@ -2,7 +2,7 @@ from datetime import timedelta
 
 from odoo import fields
 from odoo.exceptions import UserError
-from odoo.tests import tagged
+from odoo.tests import TransactionCase, tagged
 
 from odoo.addons.stock.const import (
     CONTEXT_BLOCK_COMPLETING,
@@ -14,7 +14,7 @@ from odoo.addons.stock.const import (
     read_internal_payload,
 )
 from odoo.addons.stock.tests.common import TestStockCommon
-from odoo.addons.stock.tools.reservation import RemovalStrategy
+from odoo.addons.stock.tools.reservation import QuantsCache, RemovalStrategy
 
 
 @tagged("post_install", "-at_install")
@@ -476,6 +476,14 @@ class TestQuantContracts(TestStockCommon):
         )
         self.assertTrue(quants[0].action_view_orderpoints())
 
+    def test_the_serial_check_is_private(self):
+        self.assertFalse(
+            hasattr(self.Quant, "check_quantity"),
+            "check_quantity had one caller -- stock.move._check_quantity -- and"
+            " no XML reference, so a public spelling only widens the API",
+        )
+        self.assertTrue(hasattr(self.Quant, "_check_quantity"))
+
     def test_the_create_allowlist_holds_only_settable_fields(self):
         for name in self.Quant._get_inventory_fields_create():
             if name.startswith("x_"):
@@ -571,3 +579,71 @@ class TestQuantContracts(TestStockCommon):
             " removal-strategy order; if _as_query ever stopped preserving that"
             " order, reservation would silently move to the lowest id",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestQuantsCacheScope(TransactionCase):
+    """`covers()` decides whether `_gather` may answer from the cache instead of
+    the database, so a location it wrongly covers is stock reserved out of the
+    wrong subtree -- a silent wrong answer, not an error."""
+
+    def _cache(self, roots, products=(7,)):
+        return QuantsCache(self.env["stock.quant"], products, roots)
+
+    def test_a_descendant_is_covered_and_the_location_itself_is(self):
+        cache = self._cache(["1/2/"])
+        self.assertTrue(cache.covers(_Stub(7), _Stub(2, "1/2/")))
+        self.assertTrue(cache.covers(_Stub(7), _Stub(99, "1/2/99/")))
+
+    def test_a_sibling_whose_id_is_a_decimal_prefix_is_not_covered(self):
+        # `covers` compares parent_path with str.startswith, so location 20
+        # ("1/20/") only fails to match the root "1/2/" because parent_path
+        # carries a trailing slash. Strip it anywhere and a sibling subtree
+        # starts being served out of this cache.
+        cache = self._cache(["1/2/"])
+        self.assertFalse(
+            cache.covers(_Stub(7), _Stub(20, "1/20/")),
+            "a sibling location must never be served from another's cache",
+        )
+        stripped = self._cache(["1/2"])
+        self.assertTrue(
+            stripped.covers(_Stub(7), _Stub(20, "1/20/")),
+            "this asserts the FAILURE mode on purpose: without the trailing"
+            " slash the sibling is covered, which is why the roots must always"
+            " come from parent_path verbatim",
+        )
+
+    def test_the_roots_come_from_parent_path_verbatim(self):
+        location = (
+            self.env["stock.warehouse"]
+            .search([("company_id", "=", self.env.company.id)], limit=1)
+            .lot_stock_id
+        )
+        self.assertTrue(
+            location.parent_path.endswith("/"),
+            "parent_path is what QuantsCache scopes on; without the trailing"
+            " slash its prefix test admits siblings",
+        )
+        cache = self.env["stock.quant"]._get_quants_by_products_locations(
+            self.env["product.product"].browse(), location
+        )
+        self.assertEqual(cache._location_paths, (location.parent_path,))
+
+    def test_an_unsaved_location_is_never_covered(self):
+        cache = self._cache(["1/2/"])
+        self.assertFalse(cache.covers(_Stub(7), _Stub(0, False)))
+
+    def test_a_cache_with_no_usable_root_covers_nothing(self):
+        cache = self._cache([False, "", None])
+        self.assertEqual(cache._location_paths, ())
+        self.assertFalse(cache.covers(_Stub(7), _Stub(2, "1/2/")))
+
+
+class _Stub:
+    """Minimal stand-in: `covers` reads only `.id` and `.parent_path`."""
+
+    __slots__ = ("id", "parent_path")
+
+    def __init__(self, id_, parent_path=None):
+        self.id = id_
+        self.parent_path = parent_path

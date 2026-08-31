@@ -5,6 +5,8 @@ import dateutil.parser as dparser
 from odoo import api, fields, models
 from odoo.tools import get_lang
 
+from odoo.addons.stock.models.stock_move import FIELD_DATA_IGNORED
+
 
 class StockMove(models.Model):
     _inherit = "stock.move"
@@ -57,7 +59,7 @@ class StockMove(models.Model):
             except ValueError, OverflowError, TypeError:
                 return res
             if self and not self.use_expiration_date:
-                return "ignore"
+                return FIELD_DATA_IGNORED
             return {"expiration_date": parsed_date}
         return res
 

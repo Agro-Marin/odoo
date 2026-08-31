@@ -279,7 +279,7 @@ class StockQuant(models.Model):
                     )
                 )
 
-    def check_quantity(self):
+    def _check_quantity(self):
         sn_quants = self.filtered(
             lambda q: (
                 q.product_id.tracking == "serial"

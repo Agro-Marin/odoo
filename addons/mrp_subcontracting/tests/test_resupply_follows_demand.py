@@ -1,5 +1,7 @@
 """The component supply of a subcontracting production must follow its demand."""
 
+import unittest
+
 from odoo.tests import Form, tagged
 
 from odoo.addons.mrp_subcontracting.tests.common import TestMrpSubcontractingCommon
@@ -10,6 +12,16 @@ class TestResupplyFollowsDemand(TestMrpSubcontractingCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        # Every case here drives the demand from a purchase order, but this
+        # module depends on `mrp` alone. Installed against its declared
+        # dependencies the whole class errored on KeyError: 'purchase.order';
+        # it only ever passed because purchase happens to be installed
+        # alongside. Same guard shape as test_subcontracting.py.
+        if "purchase.order" not in cls.env:
+            raise unittest.SkipTest(
+                "purchase is not installed: this class drives demand from a"
+                " purchase order"
+            )
         cls.warehouse = cls.env["stock.warehouse"].search(
             [("company_id", "=", cls.env.company.id)], limit=1
         )
