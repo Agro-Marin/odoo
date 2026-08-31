@@ -68,6 +68,7 @@ export {
     makeDialogMockEnv,
     makeMockEnv,
     mockService,
+    registerRegistryForCleanup,
     restoreRegistry,
 } from "./_framework/env_test_helpers.js";
 export {

@@ -1292,7 +1292,25 @@ function viewNotFoundError(modelName, viewType, viewId, consequence) {
 
 /** @type {AggregatorFunction} */
 function array_agg_distinct(records, fieldName) {
-    return unique(records.map((record) => record[fieldName]));
+    // Postgres returns these ordered BY VALUE, not by record order, and six
+    // call sites across graph, kanban and list read element [0] of a currency
+    // aggregate to decide which currency to display. Encounter order made that
+    // "the first record's currency" here and "the lowest id" in production.
+    return unique(records.map((record) => record[fieldName])).sort(compareAggregated);
+}
+
+/**
+ * Order two aggregated values the way Postgres orders the column they came from.
+ *
+ * @param {any} a
+ * @param {any} b
+ * @returns {number}
+ */
+function compareAggregated(a, b) {
+    if (typeof a === "number" && typeof b === "number") {
+        return a - b;
+    }
+    return String(a).localeCompare(String(b));
 }
 
 /** @type {AggregatorFunction} */
@@ -1312,7 +1330,11 @@ function bool_or(records, fieldName) {
 
 /** @type {AggregatorFunction} */
 function count_distinct(records, fieldName) {
-    return unique(records.map((record) => record[fieldName])).filter(Boolean).length;
+    // COUNT(DISTINCT x) skips NULL and counts everything else, so a `0` and an
+    // empty string are values. `filter(Boolean)` dropped them with the nulls.
+    return unique(records.map((record) => record[fieldName])).filter(
+        (value) => value !== null && value !== undefined && value !== false,
+    ).length;
 }
 
 /** @type {AggregatorFunction} */
@@ -1344,7 +1366,42 @@ function sum(records, fieldName) {
     return records.reduce((acc, record) => acc + record[fieldName], 0);
 }
 
-/** @type {AggregatorFunction} */
+/**
+ * `avg` was an alias for `sum` here, so every `:avg` a grouped read returned was
+ * a total. A group of three records holding 10 answered 30, and any assertion
+ * written against it encoded that -- including, silently, assertions about code
+ * whose whole job is to correct a per-group average.
+ *
+ * @type {AggregatorFunction}
+ */
+function avg(records, fieldName) {
+    if (!records.length) {
+        return false;
+    }
+    return sum(records, fieldName) / records.length;
+}
+
+/**
+ * NOT the production aggregate, and a test that needs the difference must say so.
+ *
+ * The server's `sum_currency` joins `res_currency_rate` and converts every value
+ * into the company currency before summing (`_read_group_select_sum_currency`);
+ * this sums them untouched, so `field:sum` and `field:sum_currency` are always
+ * equal here. Any assertion that a multi-currency total was *converted* is
+ * therefore comparing a number to itself.
+ *
+ * Modelling rate lookups is more mock than this needs. A test that turns on
+ * conversion overrides the aggregate for its own read, as
+ * `graph_view.test.js` does:
+ *
+ *     onRpc("formatted_read_group", ({ parent }) => {
+ *         const res = parent();
+ *         group["amount:sum_currency"] = group["amount:sum"] * 2;
+ *         return res;
+ *     });
+ *
+ * @type {AggregatorFunction}
+ */
 function sum_currency(records, fieldName) {
     if (!records.length) {
         return false;
@@ -1355,7 +1412,7 @@ function sum_currency(records, fieldName) {
 const AGGREGATOR_FUNCTIONS = {
     array_agg_distinct,
     array_agg,
-    avg: sum,
+    avg,
     bool_and,
     bool_or,
     count_distinct,

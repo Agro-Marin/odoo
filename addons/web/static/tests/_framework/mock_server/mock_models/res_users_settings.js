@@ -54,6 +54,20 @@ export class ResUsersSettings extends ServerModel {
     set_res_users_settings(idOrIds, new_settings) {
         const [id] = ensureArray(idOrIds);
         const [oldSettings] = this.browse(id);
+        if (!oldSettings) {
+            // `browse` answers with nothing for an id no record carries, and
+            // `user.setUserSettings` sends `session.user_settings.id`, which the
+            // mock session does not define -- so this arrives as `undefined`
+            // unless the test seeds one. Saying so beats the `Cannot use 'in'
+            // operator to search for '<key>' in undefined` that reading through
+            // it produced, which named neither the model nor the id.
+            throw new Error(
+                `res.users.settings: no record with id ${JSON.stringify(id)}. ` +
+                    `Seed one for the session, e.g. ` +
+                    `patchWithCleanup(user, _makeUser({ user_settings: { id: 1 } })) ` +
+                    `together with a matching record on the model.`,
+            );
+        }
         const changedSettings = {};
         for (const setting in new_settings) {
             if (

@@ -24,9 +24,12 @@ import { makeMockServer, MockServer } from "./mock_server/mock_server.js";
  */
 
 /**
+ * Snapshot a registry so `restoreRegistry` can put it back. Exported alongside
+ * its two halves so a test can exercise the round trip on a registry of its own.
+ *
  * @param {Registry} registry
  */
-const registerRegistryForCleanup = (registry) => {
+export const registerRegistryForCleanup = (registry) => {
     const content = Object.entries(registry.content).map(([key, value]) => [
         key,
         value.slice(),
@@ -50,7 +53,14 @@ afterEach(() => restoreRegistry(registry), { global: true });
  * @param {Registry} registry
  */
 export function clearRegistry(registry) {
-    registry.content = {};
+    // Object.create(null), not {}: Registry looks keys up with `key in content`
+    // and `content[key]`, both of which walk the prototype chain. A plain object
+    // makes the registry answer for every member of Object.prototype -- a field
+    // widget named "toString" would resolve to Object.prototype.toString instead
+    // of raising KeyNotFoundError. Production builds it the same way
+    // (core/registry.js); a test harness that does not is a harness that can
+    // pass where the real thing would throw.
+    registry.content = Object.create(null);
     registry.elements = null;
     registry.entries = null;
 }
@@ -203,7 +213,12 @@ export function restoreRegistry(registry) {
     if (registriesContent.has(registry)) {
         clearRegistry(registry);
 
-        registry.content = Object.fromEntries(registriesContent.get(registry));
+        // Assign into the null-prototype object clearRegistry just made rather
+        // than replacing it with Object.fromEntries's plain one.
+        Object.assign(
+            registry.content,
+            Object.fromEntries(registriesContent.get(registry)),
+        );
     }
 
     for (const subRegistry of Object.values(registry.subRegistries)) {
