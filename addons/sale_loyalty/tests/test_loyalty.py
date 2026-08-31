@@ -1271,8 +1271,12 @@ class TestLoyalty(TestSaleCouponCommon):
         )
 
         order._update_programs_and_rewards()
-        self._claim_reward(order, giftcard_program)
+        claimed = self._claim_reward(order, giftcard_program)
 
+        self.assertFalse(
+            claimed,
+            "No gift card coupon should be claimable without a triggering product",
+        )
         self.assertEqual(giftcard_program.coupon_count, 0)
 
     def test_ewallet_code_use_restriction(self):
