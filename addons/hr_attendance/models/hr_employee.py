@@ -10,13 +10,14 @@ from odoo.libs.intervals import Intervals
 
 
 class HrEmployee(models.Model):
-    _inherit = "hr.employee"
+    _inherit = ["hr.employee", "mixin.bus.listener"]
 
     attendance_manager_id = fields.Many2one(
         "res.users",
         store=True,
         readonly=False,
         string="Attendance Approver",
+        compute="_compute_attendance_manager",
         domain="[('share', '=', False), ('company_ids', 'in', company_id)]",
         groups="hr_attendance.group_hr_attendance_officer",
         help="The user set in Attendance will access the attendance of the employee through the dedicated app and will be able to edit them.",
@@ -118,6 +119,25 @@ class HrEmployee(models.Model):
         old_officers.sudo()._clean_attendance_officers()
 
         return res
+
+    @api.depends("parent_id")
+    def _compute_attendance_manager(self):
+        """Follow the manager when the approver still was the outgoing one.
+
+        An approver somebody picked by hand is a deliberate choice and is left
+        alone, and an employee who had no approver does not gain one here.
+        """
+        for employee in self:
+            previous_manager = employee._origin.parent_id.user_id
+            new_manager = employee.parent_id.user_id
+            if (
+                new_manager
+                and employee.attendance_manager_id
+                and employee.attendance_manager_id == previous_manager
+            ):
+                employee.attendance_manager_id = new_manager
+            elif not employee.attendance_manager_id:
+                employee.attendance_manager_id = False
 
     def action_archive(self):
         res = super().action_archive()
@@ -293,7 +313,9 @@ class HrEmployee(models.Model):
                     "employee_id": self.id,
                     "check_in": action_date,
                 }
-            return self.env["hr.attendance"].create(vals)
+            attendance = self.env["hr.attendance"].create(vals)
+            self._notify_presence_state()
+            return attendance
         attendance = self.env["hr.attendance"].search(
             [("employee_id", "=", self.id), ("check_out", "=", False)], limit=1
         )
@@ -310,6 +332,7 @@ class HrEmployee(models.Model):
                 )
             else:
                 attendance.write({"check_out": action_date})
+            self._notify_presence_state()
         else:
             raise exceptions.UserError(
                 _(
@@ -319,6 +342,21 @@ class HrEmployee(models.Model):
                 )
             )
         return attendance
+
+    def _notify_presence_state(self):
+        """Announce the employee's presence so open views can follow along.
+
+        Without this the presence icon only tells the truth after a reload.
+        """
+        self.ensure_one()
+        self._bus_send(
+            "hr.employee/presence",
+            {
+                "employee_id": self.id,
+                "hr_presence_state": self.hr_presence_state,
+                "hr_icon_display": self.hr_icon_display,
+            },
+        )
 
     @api.model
     def get_overtime_data(self, domain=None, employee_id=None):

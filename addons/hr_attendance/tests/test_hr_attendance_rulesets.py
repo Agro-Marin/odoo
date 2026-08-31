@@ -314,3 +314,30 @@ class TestHrAttendanceOvertime(TransactionCase):
             )
         )
         self.assertTrue(attendance.with_user(user).linked_overtime_ids.is_manager)
+
+    def test_duplicate_ruleset_carries_its_rules(self):
+        """Duplicating a ruleset must clone its rules and name the copy apart.
+
+        A duplicate that comes out empty is not a starting point, and one that
+        keeps the original name is indistinguishable from it in every list.
+        """
+        original_rules = self.ruleset.rule_ids
+        self.assertEqual(len(original_rules), 3)
+
+        duplicate = self.ruleset.copy()
+
+        self.assertEqual(
+            len(duplicate.rule_ids),
+            len(original_rules),
+            "the copy should carry one rule per rule of the original",
+        )
+        self.assertFalse(
+            duplicate.rule_ids & original_rules,
+            "the copy should own its own rules, not point at the original's",
+        )
+        self.assertEqual(
+            duplicate.rule_ids.mapped("expected_hours"),
+            original_rules.mapped("expected_hours"),
+            "the cloned rules should keep what the original rules said",
+        )
+        self.assertEqual(duplicate.name, f"{self.ruleset.name} (copy)")

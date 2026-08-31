@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime
 from unittest.mock import patch
 
@@ -5,6 +6,8 @@ from odoo import fields
 from odoo.libs.datetime import timezone
 from odoo.tests import Form, new_test_user
 from odoo.tests.common import TransactionCase, tagged
+
+from odoo.addons.bus.models.bus import channel_with_db, json_dump
 
 
 @tagged("attendance_process")
@@ -163,3 +166,36 @@ class TestHrAttendance(TransactionCase):
     #     self.assertEqual(attendance.in_mode, 'manual')
     #     self.assertEqual(attendance.out_mode, 'manual')
     #     self.assertEqual(attendance.color, 0)
+
+    def test_presence_is_broadcast_on_check_in_and_out(self):
+        """Checking in or out must announce the employee's new presence.
+
+        Without it the presence icon only tells the truth after a page
+        reload, so a supervisor watching the employee list at the start of a
+        shift sees nobody arrive.
+        """
+        bus = self.env["bus.bus"].sudo()
+        channel = json_dump(channel_with_db(self.env.cr.dbname, self.test_employee))
+
+        def presence_notifications():
+            self.env.cr.precommit.run()
+            return bus.search([("channel", "=", channel)])
+
+        bus.search([]).unlink()
+        self.test_employee._attendance_action_change()
+        notifications = presence_notifications()
+        self.assertEqual(len(notifications), 1, "checking in should announce once")
+        message = json.loads(notifications.message)
+        self.assertEqual(message["type"], "hr.employee/presence")
+        self.assertEqual(message["payload"]["employee_id"], self.test_employee.id)
+        self.assertEqual(message["payload"]["hr_presence_state"], "present")
+
+        bus.search([]).unlink()
+        self.test_employee._attendance_action_change()
+        notifications = presence_notifications()
+        self.assertEqual(len(notifications), 1, "checking out should announce once")
+        self.assertNotEqual(
+            json.loads(notifications.message)["payload"]["hr_presence_state"],
+            "present",
+            "the employee is no longer checked in",
+        )

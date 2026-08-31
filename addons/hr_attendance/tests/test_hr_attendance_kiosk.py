@@ -43,3 +43,35 @@ class TestHrAttendanceKiosk(HttpCase):
         kiosk_info = kiosk_info["kiosk_backend_info"]
         self.assertEqual(kiosk_info["company_name"], "company_B")
         self.assertEqual(kiosk_info["departments"][0]["count"], 1)
+
+    def test_print_badge_from_kiosk_onboarding(self):
+        """The kiosk can print the badge it just assigned, for its own company.
+
+        The onboarding dialog runs in the public kiosk, so the company's kiosk
+        token is the only thing identifying the caller -- and it must not open
+        the badge of an employee of another company.
+        """
+        self.employee_A.barcode = "0000000001"
+        self.employee_B.barcode = "0000000002"
+        token = self.company_B.sudo().attendance_kiosk_key
+
+        # employee_A belongs to company_B, whose token this is.
+        response = self.url_open(
+            f"/hr_attendance/print_badge?employee_id={self.employee_A.id}&token={token}"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.content)
+        self.assertIn("employee_A", response.headers["Content-Disposition"])
+
+        # employee_B belongs to company_A: company_B's token must not reach it.
+        response = self.url_open(
+            f"/hr_attendance/print_badge?employee_id={self.employee_B.id}&token={token}"
+        )
+        self.assertEqual(response.status_code, 404)
+
+        # A badge that was never assigned has nothing to print.
+        self.employee_A.barcode = False
+        response = self.url_open(
+            f"/hr_attendance/print_badge?employee_id={self.employee_A.id}&token={token}"
+        )
+        self.assertEqual(response.status_code, 404)
