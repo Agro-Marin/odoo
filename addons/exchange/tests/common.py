@@ -1,5 +1,5 @@
 from odoo import models
-from odoo.orm.registration import add_to_registry
+from odoo.orm.registration import add_model_to_registry
 from odoo.tests.common import TransactionCase
 from odoo.tools import OrderedSet
 
@@ -79,7 +79,7 @@ class ExchangeCase(TransactionCase):
         # Two things made the old teardown a no-op. `_setup_models__(cr, [])`
         # takes the NAMED-models branch with an empty list, which resets nothing
         # at all -- only `model_names=None` resets every model and rebuilds
-        # `__bases__` from `_base_classes__`. And `add_to_registry` mutates more
+        # `__bases__` from `_base_classes__`. And `add_model_to_registry` mutates more
         # than it was given credit for: it replaces the target's
         # `_base_classes__`, adds the child's name to EVERY parent's
         # `_inherit_children`, and puts new entries in `registry.models`.
@@ -107,8 +107,8 @@ class ExchangeCase(TransactionCase):
                 model_cls._base_classes__ = base_classes
                 model_cls._inherit_children = inherit_children
 
-        add_to_registry(cls.registry, ExchangeProtocolDemo)
-        add_to_registry(cls.registry, ExchangeSubjectDemo)
+        add_model_to_registry(cls.registry, ExchangeProtocolDemo)
+        add_model_to_registry(cls.registry, ExchangeSubjectDemo)
         cls.registry._setup_models__(cls.env.cr, [])
         # addClassCleanup is LIFO: `restore` registered last runs first, so the
         # full rebuild that follows reads restored state instead of correcting
