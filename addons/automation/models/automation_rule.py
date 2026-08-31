@@ -2,6 +2,7 @@ import contextlib
 import datetime
 import logging
 import re
+import time
 import traceback
 from collections import defaultdict
 from uuid import uuid4
@@ -39,6 +40,21 @@ DOMAIN_FIELDS_RE = re.compile(
 """,
     re.VERBOSE,
 )
+
+
+def job_log_level(status, duration):
+    """Log level for a finished automation run: louder the longer it took.
+
+    Kept a module-level function on purpose, so a deployment that wants
+    different thresholds can override it without touching the run itself.
+    """
+    if status != "done":
+        return logging.ERROR
+    if duration > 1:
+        return logging.WARNING
+    if duration > 0.1:
+        return logging.INFO
+    return logging.DEBUG
 
 
 def _get_domain_fields(env, model, domain):
@@ -1399,12 +1415,35 @@ class AutomationRule(models.Model):
 
         for action in self.sudo().action_server_ids._sorted_by_dependency():
             action_contexts = [batch_context] if action._is_batchable() else contexts
-            for ctx in action_contexts:
-                try:
+            # Time each action across all of its contexts: a batchable action is
+            # one run for the whole batch, the rest are one run per record, so
+            # the context count -- not the record count -- is what was executed.
+            started = time.monotonic()
+            contexts_done = 0
+            status = "aborted"
+            try:
+                for ctx in action_contexts:
                     action.with_context(**ctx).run()
-                except Exception as e:
-                    self._add_postmortem(e)
-                    raise
+                    contexts_done += 1
+                status = "done"
+            except Exception as e:
+                status = "failed"
+                self._add_postmortem(e)
+                raise
+            finally:
+                duration = time.monotonic() - started
+                _logger.log(
+                    job_log_level(status, duration),
+                    "%s %r (%s) %s (%s/%s contexts over %s records; duration %.3fs)",
+                    self._description,
+                    self.sudo().name,
+                    self.id,
+                    status,
+                    contexts_done,
+                    len(action_contexts),
+                    len(records),
+                    duration,
+                )
 
     def _register_hook(self):
 
