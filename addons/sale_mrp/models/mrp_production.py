@@ -9,7 +9,9 @@ class MrpProduction(models.Model):
         compute="_compute_sale_order_count",
         groups="sales_team.group_sale_salesman",
     )
-    sale_line_id = fields.Many2one("sale.order.line", "Origin sale order line")
+    sale_line_id = fields.Many2one(
+        "sale.order.line", "Origin sale order line", copy=False
+    )
 
     @api.depends("reference_ids.sale_ids", "sale_line_id.order_id")
     def _compute_sale_order_count(self):
@@ -52,3 +54,8 @@ class MrpProduction(models.Model):
 
     def _get_sale_orders(self):
         return self.reference_ids.sale_ids | self.sale_line_id.order_id
+
+    def _get_backorder_mo_vals(self):
+        res = super()._get_backorder_mo_vals()
+        res["sale_line_id"] = self.sale_line_id.id
+        return res
