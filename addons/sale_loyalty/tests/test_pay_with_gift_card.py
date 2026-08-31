@@ -222,8 +222,6 @@ class TestPayWithGiftCard(TestSaleCouponCommonWithCode10pc):
         ).generate_coupons()
         gift_card = self.program_gift_card.coupon_ids[0]
 
-        # TODO check amount total of gift_card_line
-
         # TAX EXCL
         self.program_gift_card.reward_ids.discount_line_product_id.taxes_id = [
             Command.link(self.tax_15pc_excl.id)
