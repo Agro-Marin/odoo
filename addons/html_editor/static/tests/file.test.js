@@ -16,6 +16,7 @@ import { onRpc, patchWithCleanup } from "@web/../tests/web_test_helpers";
 
 import { setupEditor, testEditor } from "./_helpers/editor.js";
 import { getContent } from "./_helpers/selection.js";
+import { expectElementCount } from "./_helpers/ui_expectations.js";
 import { expandToolbar } from "./_helpers/toolbar.js";
 import { deleteBackward, insertText } from "./_helpers/user_actions.js";
 import { execCommand } from "./_helpers/userCommands.js";
@@ -34,7 +35,7 @@ const patchUpload = (editor) => {
         patchWithCleanup(editor.services.uploadLocalFiles, {
             async upload() {
                 resolve();
-                return [{ id: 1, name: "file.txt" }];
+                return [{ id: 1, name: "file.txt", mimetype: "text/plain" }];
             },
         });
     });
@@ -237,6 +238,20 @@ test("Should not apply color to file box", async () => {
     await animationFrame();
     const fileBox = queryOne(".o_file_box");
     expect(fileBox).not.toHaveClass("text-o-color-1");
+});
+
+test("clicking a file's icon opens the file viewer", async () => {
+    const { editor } = await setupEditor("<p>[]<br></p>");
+    const mockedUpload = patchUpload(editor);
+
+    await insertText(editor, "/file");
+    await animationFrame();
+    await press("Enter");
+    await mockedUpload;
+    const fileImage = await waitFor(".o_file_box .o_file_image");
+
+    await click(fileImage);
+    await expectElementCount(".o-FileViewer", 1);
 });
 
 test("should remove contenteditable=false on backspace", async () => {
