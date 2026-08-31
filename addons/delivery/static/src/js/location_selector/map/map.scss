@@ -9,7 +9,10 @@
             map-get($theme-colors, "primary"),
             color-contrast(map-get($theme-colors, "primary"))
         )};
-    --LocationSelectorMarker-background: #{o-token(--primary, map-get($theme-colors, "primary"))};
+    --LocationSelectorMarker-background: #{o-token(
+            --primary,
+            map-get($theme-colors, "primary")
+        )};
     --LocationSelectorMarker-color: #{color-contrast(map-get($theme-colors, "primary"))};
 }
 

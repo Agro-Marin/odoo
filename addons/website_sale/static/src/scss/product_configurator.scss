@@ -69,7 +69,8 @@
     );
     aspect-ratio: 1;
     border: $border-width * 5 solid $body-bg;
-    outline: var(--o-wsale-css-attribute-image__outline-width) solid o-token(--border-color, $border-color);
+    outline: var(--o-wsale-css-attribute-image__outline-width) solid
+        o-token(--border-color, $border-color);
     transition: $input-transition;
 
     &:hover,

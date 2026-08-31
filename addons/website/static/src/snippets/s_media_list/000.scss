@@ -16,7 +16,8 @@
         .s_media_list_option {
             flex: 1 1 auto;
             padding: calc($grid-gutter-width / 3) 0;
-            border-right: 1px solid o-palette-token(--o-gray-400, map-get($grays, "400"));
+            border-right: 1px solid
+                o-palette-token(--o-gray-400, map-get($grays, "400"));
             text-align: center;
             &:last-child {
                 border-right: 0;

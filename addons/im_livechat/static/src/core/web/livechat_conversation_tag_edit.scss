@@ -8,7 +8,9 @@
         background-color: o-palette-token(--o-gray-100, $gray-100) !important;
     }
     &:hover {
-        background-color: unquote("color-mix(in srgb, #{o-palette-token(--o-gray-100, $gray-100)} 50%, #{o-palette-token(--o-gray-200, $gray-200)})") !important;
+        background-color: unquote(
+            "color-mix(in srgb, #{o-palette-token(--o-gray-100, $gray-100)} 50%, #{o-palette-token(--o-gray-200, $gray-200)})"
+        ) !important;
     }
 }
 
@@ -16,7 +18,9 @@
     max-height: 100px;
 
     button {
-        background-color: unquote("color-mix(in srgb, #{o-token(--o-bg-view, $o-view-background-color)} 85%, #{o-token(--o-action, $o-action)})");
+        background-color: unquote(
+            "color-mix(in srgb, #{o-token(--o-bg-view, $o-view-background-color)} 85%, #{o-token(--o-action, $o-action)})"
+        );
 
         &:not(:hover) .oi-close {
             border-color: transparent !important;

@@ -22,7 +22,6 @@
     }
 }
 
-
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {
         .o_calendar_filter {

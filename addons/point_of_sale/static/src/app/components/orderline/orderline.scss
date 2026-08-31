@@ -14,7 +14,10 @@
     }
 
     &.selected {
-        background-color: var(--orderline-selected, #{o-token(--o-bg-active, $o-component-active-bg)});
+        background-color: var(
+            --orderline-selected,
+            #{o-token(--o-bg-active, $o-component-active-bg)}
+        );
     }
 
     &.has-change::before {

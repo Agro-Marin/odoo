@@ -177,7 +177,10 @@
         &.o_wsale_filmstrip_bordered {
             --o-wsale-filmstrip-item-border-width: #{$border-width};
             --o-wsale-filmstrip-item-bg: transparent;
-            --o-wsale-filmstrip-item-image-bg: #{o-palette-token(--o-gray-100, $gray-100)};
+            --o-wsale-filmstrip-item-image-bg: #{o-palette-token(
+                    --o-gray-100,
+                    $gray-100
+                )};
             --o-wsale-filmstrip-item-span-height: 2.5rem;
 
             --o-wsale-filmstrip-item-border-color-hover: color-mix(
@@ -289,8 +292,14 @@
             --o-wsale-filmstrip-item-image-bg: transparent;
             --o-wsale-filmstrip-item-placeholder-display: block;
 
-            --o-wsale-filmstrip-item-border-color-active: #{o-token(--border-color, $border-color)};
-            --o-wsale-filmstrip-item-color-active: #{o-palette-token(--o-text, $body-color)};
+            --o-wsale-filmstrip-item-border-color-active: #{o-token(
+                    --border-color,
+                    $border-color
+                )};
+            --o-wsale-filmstrip-item-color-active: #{o-palette-token(
+                    --o-text,
+                    $body-color
+                )};
             --o-wsale-filmstrip-item-bg-active: transparent;
             --o-wsale-filmstrip-item-text-decoration-active: underline;
 
@@ -480,8 +489,14 @@
                     font-weight: var(--o-wsale-filmstrip-item-font-weight);
                     text-align: var(--o-wsale-filmstrip-item-text-align);
                     text-wrap: var(--o-wsale-filmstrip-item-text-wrap);
-                    color: var(--o-wsale-filmstrip-item-color, #{o-palette-token(--o-text, $body-color)});
-                    background-color: var(--o-wsale-filmstrip-item-bg, #{o-token(--light, $light)});
+                    color: var(
+                        --o-wsale-filmstrip-item-color,
+                        #{o-palette-token(--o-text, $body-color)}
+                    );
+                    background-color: var(
+                        --o-wsale-filmstrip-item-bg,
+                        #{o-token(--light, $light)}
+                    );
                     transition: all 0.15s ease-in-out;
 
                     .o_wsale_filmstrip_image {
@@ -689,8 +704,10 @@
             &:where(:not(.o_wsale_has_sidebar)) {
                 @include media-breakpoint-up(sm) {
                     #o_wsale_pager {
-                        border-right: #{$border-width} solid #{o-token(--border-color, $border-color)};
-                        border-left: #{$border-width} solid #{o-token(--border-color, $border-color)};
+                        border-right: #{$border-width} solid
+                            #{o-token(--border-color, $border-color)};
+                        border-left: #{$border-width} solid
+                            #{o-token(--border-color, $border-color)};
                     }
                 }
                 @include media-breakpoint-up(lg) {
@@ -702,8 +719,10 @@
             &.o_wsale_has_sidebar {
                 @include media-breakpoint-up(sm) {
                     #o_wsale_pager {
-                        border-left: #{$border-width} solid #{o-token(--border-color, $border-color)};
-                        border-right: #{$border-width} solid #{o-token(--border-color, $border-color)};
+                        border-left: #{$border-width} solid
+                            #{o-token(--border-color, $border-color)};
+                        border-right: #{$border-width} solid
+                            #{o-token(--border-color, $border-color)};
                     }
                 }
                 @include media-breakpoint-up(lg) {
@@ -720,20 +739,23 @@
             }
 
             &:where(:not(.o_wsale_has_sidebar)) #o_wsale_products_grid {
-                border-left: #{$border-width} solid #{o-token(--border-color, $border-color)};
+                border-left: #{$border-width} solid
+                    #{o-token(--border-color, $border-color)};
             }
 
             &.o_wsale_has_sidebar.o_wsale_products_opt_layout_catalog
                 #o_wsale_products_grid {
                 @include media-breakpoint-down(lg) {
-                    border-left: #{$border-width} solid #{o-token(--border-color, $border-color)};
+                    border-left: #{$border-width} solid
+                        #{o-token(--border-color, $border-color)};
                 }
             }
         }
 
         &.o_wsale_has_sidebar {
             @include media-breakpoint-up(lg) {
-                --o-wsale-sidebar-border: #{$border-width} solid #{o-token(--border-color, $border-color)};
+                --o-wsale-sidebar-border: #{$border-width} solid
+                    #{o-token(--border-color, $border-color)};
             }
             @include media-breakpoint-up(lg) {
                 #products_grid {
@@ -986,7 +1008,8 @@
                         &:before {
                             @include o-position-absolute(0, auto, 0);
                             transform: translateX(calc(var(--_line-gap) * -1));
-                            border-left: $border-width solid o-token(--border-color, $border-color);
+                            border-left: $border-width solid
+                                o-token(--border-color, $border-color);
                             content: "";
                         }
                     }
@@ -1735,7 +1758,10 @@ $-product-radius-map: (
                     }
 
                     &.active {
-                        border-color: o-token(--primary, map-get($theme-colors, "primary"));
+                        border-color: o-token(
+                            --primary,
+                            map-get($theme-colors, "primary")
+                        );
                     }
 
                     &:where(:not(:hover)) {
@@ -1769,7 +1795,10 @@ $-product-radius-map: (
 
                 &.active {
                     border-color: o-token(--primary, map-get($theme-colors, "primary"));
-                    background-color: o-token(--primary, map-get($theme-colors, "primary"));
+                    background-color: o-token(
+                        --primary,
+                        map-get($theme-colors, "primary")
+                    );
                 }
                 > div {
                     display: none;
@@ -2048,7 +2077,8 @@ $-product-radius-map: (
 
                     @include media-breakpoint-down(sm) {
                         padding-bottom: map-get($spacers, 3);
-                        border-bottom: $border-width solid o-token(--border-color, $border-color);
+                        border-bottom: $border-width solid
+                            o-token(--border-color, $border-color);
                     }
                 }
             }

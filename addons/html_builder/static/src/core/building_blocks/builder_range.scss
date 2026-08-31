@@ -1,9 +1,6 @@
 .o-hb-range {
     .popover & {
-        --o-hb-range-thumb-color: light-dark(
-            #{$o-we-bg-darkest},
-            #{$o-we-fg-lighter}
-        );
+        --o-hb-range-thumb-color: light-dark(#{$o-we-bg-darkest}, #{$o-we-fg-lighter});
     }
     &:has(output) {
         .o-hb-rangeInput {

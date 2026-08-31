@@ -85,7 +85,9 @@
                 color: #6b6d70;
 
                 .user-name {
-                    font-family: o-add-unicode-support-font((certification-cursive, cursive));
+                    font-family: o-add-unicode-support-font(
+                        (certification-cursive, cursive)
+                    );
                     font-size: 50pt;
                     line-height: 2;
                     color: #282f33;
@@ -263,7 +265,9 @@
         }
 
         .certification {
-            font-family: o-add-unicode-support-font(("certification-modern", sans-serif));
+            font-family: o-add-unicode-support-font(
+                ("certification-modern", sans-serif)
+            );
             width: 272mm;
             height: 185mm;
             margin: 12.5mm;

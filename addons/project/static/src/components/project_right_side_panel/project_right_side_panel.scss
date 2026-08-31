@@ -69,7 +69,6 @@
     }
 }
 
-
 // The dark half, folded in from `project_right_side_panel.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {

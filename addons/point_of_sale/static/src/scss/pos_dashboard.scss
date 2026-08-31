@@ -38,7 +38,6 @@
     }
 }
 
-
 // The dark half, folded in from `pos_dashboard.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {

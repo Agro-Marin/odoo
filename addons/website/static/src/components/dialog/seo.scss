@@ -169,7 +169,6 @@
     }
 }
 
-
 // The dark half, folded in from `seo.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {

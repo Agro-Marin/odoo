@@ -32,7 +32,9 @@
 
         @for $size from 1 through length($o-colors) {
             .hr_mandatory_day_#{$size - 1} {
-                --mandatory-day-color: #{unquote("var(--o-record-color-#{$size}, #{nth($o-colors, $size)})")};
+                --mandatory-day-color: #{unquote(
+                        "var(--o-record-color-#{$size}, #{nth($o-colors, $size)})"
+                    )};
             }
         }
 

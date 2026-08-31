@@ -1,5 +1,7 @@
 :root {
-    --secondary-active-background: #{unquote("color-mix(in srgb, #{o-token(--o-action, $o-action)} 10%, #{o-token(--o-white, $o-white)})")};
+    --secondary-active-background: #{unquote(
+            "color-mix(in srgb, #{o-token(--o-action, $o-action)} 10%, #{o-token(--o-white, $o-white)})"
+        )};
     --secondary-active-border: #{o-token(--o-action, $o-action)};
 
     --btn-group-gap: 0;

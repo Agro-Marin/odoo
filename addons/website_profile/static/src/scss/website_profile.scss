@@ -126,7 +126,10 @@ $owprofile-color-bg: mix($body-bg, #efeff4);
 
         #gradient {
             --o-pc-color-stop-1: #{lighten(map-get($theme-colors, "primary"), 10%)};
-            --o-pc-color-stop-2: #{o-token(--primary, map-get($theme-colors, "primary"))};
+            --o-pc-color-stop-2: #{o-token(
+                    --primary,
+                    map-get($theme-colors, "primary")
+                )};
         }
     }
 

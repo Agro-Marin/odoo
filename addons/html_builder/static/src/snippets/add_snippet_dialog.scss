@@ -52,7 +52,6 @@
     }
 }
 
-
 // The dark half, folded in from `add_snippet_dialog.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {

@@ -85,7 +85,8 @@
                     padding: map-get($spacers, 1) map-get($spacers, 3);
 
                     &.active {
-                        border-left: $border-width * 2 solid o-token(--link-color, $link-color);
+                        border-left: $border-width * 2 solid
+                            o-token(--link-color, $link-color);
                         border-bottom: 0;
                     }
                 }

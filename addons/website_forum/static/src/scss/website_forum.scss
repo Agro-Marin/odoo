@@ -136,7 +136,8 @@ $-forum-sidebar-width: calc(map-get($container-max-widths, sm) / 2);
 
         blockquote {
             position: relative;
-            border-left: 0.25em solid o-palette-token(--o-gray-500, map-get($grays, "500"));
+            border-left: 0.25em solid
+                o-palette-token(--o-gray-500, map-get($grays, "500"));
             padding-left: 1em;
             color: o-palette-token(--o-gray-600, map-get($grays, "600"));
         }

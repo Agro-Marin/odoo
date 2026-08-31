@@ -324,7 +324,6 @@
     }
 }
 
-
 // The dark half, folded in from `website_loader.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {

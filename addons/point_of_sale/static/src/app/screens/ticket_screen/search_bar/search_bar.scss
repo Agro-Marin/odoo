@@ -12,7 +12,10 @@
 
     li:hover,
     .highlight {
-        background: var(--search-selected-bg, o-palette-token(--o-gray-200, $o-gray-200));
+        background: var(
+            --search-selected-bg,
+            o-palette-token(--o-gray-200, $o-gray-200)
+        );
     }
 }
 

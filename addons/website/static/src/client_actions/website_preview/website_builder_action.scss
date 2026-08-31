@@ -114,7 +114,6 @@ body:has(.o-website-builder_sidebar.o_builder_sidebar_open) {
     }
 }
 
-
 // The dark half, folded in from `website_builder_action.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {

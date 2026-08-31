@@ -12,7 +12,6 @@ th.o_table_header {
     }
 }
 
-
 // The dark half, folded in from `table.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {

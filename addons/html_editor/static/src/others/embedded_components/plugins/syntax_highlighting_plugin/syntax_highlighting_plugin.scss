@@ -87,7 +87,6 @@
     }
 }
 
-
 // The dark half, folded in from `syntax_highlighting_plugin.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {

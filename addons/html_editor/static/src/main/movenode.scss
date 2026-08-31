@@ -80,7 +80,6 @@ $oe-dropzone-size: $oe-dropzone-size-outside + $oe-dropzone-size-inside;
     pointer-events: none;
 }
 
-
 // The dark half, folded in from `movenode.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {

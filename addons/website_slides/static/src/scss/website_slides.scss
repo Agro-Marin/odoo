@@ -507,7 +507,8 @@ $line-height-truncate: 1.5em;
                 @include o-hover-text-color($gray-600, $headings-color);
 
                 &.active {
-                    box-shadow: inset 2px 0 o-token(--primary, map-get($theme-colors, "primary"));
+                    box-shadow: inset 2px 0
+                        o-token(--primary, map-get($theme-colors, "primary"));
                 }
             }
             button {

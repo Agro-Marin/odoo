@@ -31,7 +31,10 @@
         cursor: pointer !important;
 
         &:hover {
-            background: var(--LoyaltyTemplate-background-hover, #{o-token(--o-gray-200, $o-gray-200)});
+            background: var(
+                --LoyaltyTemplate-background-hover,
+                #{o-token(--o-gray-200, $o-gray-200)}
+            );
         }
     }
 }
@@ -48,7 +51,6 @@
         height: fit-content;
     }
 }
-
 
 // The dark half, folded in from `loyalty.dark.scss`.
 @include media-only(screen) {

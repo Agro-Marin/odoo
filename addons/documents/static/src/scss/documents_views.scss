@@ -81,7 +81,8 @@
 .o_documents_drop_over_unauthorized_zone {
     @extend .o_documents_drop_over_zone;
     &:after {
-        border: 2px dashed o-token(--o-danger-text, map-get($o-theme-text-colors, "danger"));
+        border: 2px dashed
+            o-token(--o-danger-text, map-get($o-theme-text-colors, "danger"));
     }
 }
 
@@ -199,12 +200,16 @@
         }
         .o_drag_hover > div {
             border-color: o-palette-token(--success, $o-success) !important;
-            background-color: unquote("color-mix(in srgb, #{o-palette-token(--success, $o-success)} 10%, #{o-token(--o-white, $o-white)})") !important;
+            background-color: unquote(
+                "color-mix(in srgb, #{o-palette-token(--success, $o-success)} 10%, #{o-token(--o-white, $o-white)})"
+            ) !important;
             cursor: move !important;
         }
         .o_drag_invalid > div {
             border-color: o-palette-token(--danger, $o-danger) !important;
-            background-color: unquote("color-mix(in srgb, #{o-palette-token(--danger, $o-danger)} 10%, #{o-token(--o-white, $o-white)})") !important;
+            background-color: unquote(
+                "color-mix(in srgb, #{o-palette-token(--danger, $o-danger)} 10%, #{o-token(--o-white, $o-white)})"
+            ) !important;
             cursor: not-allowed !important;
         }
         .table-success > td {

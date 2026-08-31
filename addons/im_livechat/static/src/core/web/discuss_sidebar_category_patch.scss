@@ -17,14 +17,18 @@
     }
 
     .o-mail-DiscussSidebarChannel:hover &.bg-warning {
-        --background-color: #{unquote("color-mix(in srgb, #{o-palette-token(--body-bg, $o-webclient-background-color)} 80%, #{o-token(--warning, $warning)})")};
+        --background-color: #{unquote(
+                "color-mix(in srgb, #{o-palette-token(--body-bg, $o-webclient-background-color)} 80%, #{o-token(--warning, $warning)})"
+            )};
     }
     .o-mail-DiscussSidebarChannel:hover &.bg-info {
         --background-color: #{mix($o-webclient-background-color, $purple, 80%)};
     }
 
     .o-mail-DiscussSidebarChannel.o-active &.bg-warning {
-        --background-color: #{unquote("color-mix(in srgb, #{o-palette-token(--body-bg, $o-webclient-background-color)} 70%, #{o-token(--warning, $warning)})")};
+        --background-color: #{unquote(
+                "color-mix(in srgb, #{o-palette-token(--body-bg, $o-webclient-background-color)} 70%, #{o-token(--warning, $warning)})"
+            )};
         --border-color: #{o-token-alpha(--warning, $warning, 0.75)};
     }
     .o-mail-DiscussSidebarChannel.o-active &.bg-info {

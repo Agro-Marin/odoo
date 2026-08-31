@@ -259,7 +259,8 @@
                     &:before {
                         @include o-position-absolute(0, auto, 0);
                         transform: translateX(calc(var(--_line-gap) * -1));
-                        border-left: $border-width solid o-token(--border-color, $border-color);
+                        border-left: $border-width solid
+                            o-token(--border-color, $border-color);
                         content: "";
                     }
                 }

@@ -30,7 +30,12 @@
 $-dark-colors: $colors;
 @each $-name, $-color in $colors {
     @if $-color == $o-brand-primary {
-        $-dark-colors: map-merge($-dark-colors, ($-name: $o-dark-brand-primary));
+        $-dark-colors: map-merge(
+            $-dark-colors,
+            (
+                $-name: $o-dark-brand-primary,
+            )
+        );
     }
 }
 
@@ -62,7 +67,6 @@ $-dark-colors: $colors;
         }
     }
 }
-
 
 // The `o-color-*` utilities and the combinations' own background rule. The
 // colours themselves do not invert -- they are website theme data -- but the

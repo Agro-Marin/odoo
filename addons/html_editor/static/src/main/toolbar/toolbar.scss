@@ -77,7 +77,6 @@
     }
 }
 
-
 // The dark half, folded in from `toolbar.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {

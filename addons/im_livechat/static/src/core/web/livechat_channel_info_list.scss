@@ -79,11 +79,20 @@
 
     button.active.o-waiting {
         --list-group-active-color: var(--body-color);
-        --list-group-active-border-color: o-token(--o-warning-text, map-get($o-theme-text-colors, "warning"));
+        --list-group-active-border-color: o-token(
+            --o-warning-text,
+            map-get($o-theme-text-colors, "warning")
+        );
 
         .form-check-input {
-            background-color: o-token(--o-warning-text, map-get($o-theme-text-colors, "warning"));
-            border-color: o-token(--o-warning-text, map-get($o-theme-text-colors, "warning"));
+            background-color: o-token(
+                --o-warning-text,
+                map-get($o-theme-text-colors, "warning")
+            );
+            border-color: o-token(
+                --o-warning-text,
+                map-get($o-theme-text-colors, "warning")
+            );
         }
     }
 
@@ -107,7 +116,6 @@
     width: 24px;
     height: 16px;
 }
-
 
 // The dark half, folded in from `livechat_channel_info_list.dark.scss`.
 @include media-only(screen) {
