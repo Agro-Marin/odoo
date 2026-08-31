@@ -47,6 +47,23 @@
                 <field name="warehouse_id" string="Warehouse" />
                 <separator />
                 <filter
+                    string="Blocked Locations"
+                    name="blocked"
+                    domain="[('effective_block_type', '!=', 'none')]" />
+                <filter
+                    string="Soft Blocked"
+                    name="soft_blocked"
+                    domain="[('effective_block_type', 'in', ['soft_in', 'soft_out', 'soft_both'])]" />
+                <filter
+                    string="Hard Blocked"
+                    name="hard_blocked"
+                    domain="[('effective_block_type', '=', 'hard')]" />
+                <filter
+                    string="Blocked Here (not inherited)"
+                    name="blocked_own"
+                    domain="[('block_type', '!=', 'none')]" />
+                <separator />
+                <filter
                     string="Archived"
                     name="inactive"
                     domain="[('active','=',False)]" />
@@ -77,6 +94,19 @@
                 <field name="active" column_invisible="True" />
                 <field name="complete_name" string="Location" />
                 <field name="usage" />
+                <field
+                    name="effective_block_type"
+                    optional="show"
+                    widget="badge"
+                    decoration-warning="effective_block_type in ('soft_in', 'soft_out', 'soft_both')"
+                    decoration-danger="effective_block_type == 'hard'" />
+                <field
+                    name="block_type"
+                    string="Blocked Here"
+                    optional="hide"
+                    widget="badge"
+                    decoration-warning="block_type in ('soft_in', 'soft_out', 'soft_both')"
+                    decoration-danger="block_type == 'hard'" />
                 <field
                     name="is_empty"
                     optional="hide"
@@ -163,6 +193,18 @@
                             <field name="active" invisible="1" />
                             <field name="usage" />
                             <field
+                                name="block_type"
+                                invisible="usage != 'internal'"
+                                widget="radio" />
+                            <field
+                                name="block_reason"
+                                invisible="block_type == 'none' or usage != 'internal'"
+                                required="block_type != 'none' and usage == 'internal'"
+                                placeholder="Explain why this location is blocked..." />
+                            <field
+                                name="effective_block_type"
+                                invisible="effective_block_type == block_type" />
+                            <field
                                 name="storage_category_id"
                                 invisible="usage != 'internal'"
                                 groups="stock.group_stock_multi_locations" />
@@ -198,6 +240,29 @@
                                 name="removal_strategy_id"
                                 widget="radio"
                                 options="{'no_create': True}" />
+                            <group
+                                string="Blocking Information"
+                                invisible="effective_block_type == 'none'"
+                                name="blocking_info"
+                                colspan="2">
+                                <group>
+                                    <field name="blocked_date" readonly="1" />
+                                    <field name="blocked_by_user_id" readonly="1" />
+                                </group>
+                                <group>
+                                    <field
+                                        name="reserved_qty_when_blocked"
+                                        readonly="1" />
+                                    <button
+                                        name="action_unreserve_stock"
+                                        string="Unreserve All Stock"
+                                        type="object"
+                                        class="oe_highlight"
+                                        groups="stock.group_override_hard_block"
+                                        invisible="effective_block_type != 'hard'"
+                                        confirm="This will unreserve all stock in this location and its children. Are you sure?" />
+                                </group>
+                            </group>
                         </group>
                     </group>
                 </sheet>

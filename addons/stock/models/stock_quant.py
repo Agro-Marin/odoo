@@ -11,7 +11,11 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.tools import SQL
 
-from ..const import INVENTORY_REFERENCE_RELOCATED
+from ..const import (
+    CONTEXT_BLOCK_EXCLUDED_TYPES,
+    INTERNAL_CONTEXT_FLAG,
+    INVENTORY_REFERENCE_RELOCATED,
+)
 from ..tools.reservation import (
     QuantsCache,
     RemovalStrategy,
@@ -1474,7 +1478,36 @@ class StockQuant(models.Model):
                 ),
             )
         domains.append(self._get_expiration_domain())
+        excluded = self._blocked_excluded_types()
+        if excluded is None:
+            excluded = self.env[
+                "stock.location"
+            ]._blocked_types_excluded_from_gathering()
+        if excluded:
+            domains.append(
+                Domain("location_id.effective_block_type", "not in", excluded),
+            )
         return Domain.AND(domains)
+
+    def _blocked_gather_context(self, reserving=False):
+        if self._blocked_excluded_types() is not None:
+            return self
+        excluded = self.env["stock.location"]._blocked_types_excluded_from_gathering(
+            reserving=reserving,
+        )
+        return self.with_context(
+            **{CONTEXT_BLOCK_EXCLUDED_TYPES: (INTERNAL_CONTEXT_FLAG, excluded)},
+        )
+
+    def _blocked_excluded_types(self):
+        cached = self.env.context.get(CONTEXT_BLOCK_EXCLUDED_TYPES)
+        if (
+            isinstance(cached, tuple)
+            and len(cached) == 2
+            and cached[0] is INTERNAL_CONTEXT_FLAG
+        ):
+            return cached[1]
+        return None
 
     def _get_expiration_domain(self):
         return Domain.TRUE
@@ -1639,13 +1672,17 @@ class StockQuant(models.Model):
         strict=False,
         allow_negative=False,
     ):
-        quants = self.sudo()._gather(
-            product_id,
-            location_id,
-            lot_id=lot_id,
-            package_id=package_id,
-            owner_id=owner_id,
-            strict=strict,
+        quants = (
+            self._blocked_gather_context()
+            .sudo()
+            ._gather(
+                product_id,
+                location_id,
+                lot_id=lot_id,
+                package_id=package_id,
+                owner_id=owner_id,
+                strict=strict,
+            )
         )
         return self._sum_available_quantity(
             quants,
@@ -1741,7 +1778,7 @@ class StockQuant(models.Model):
         owner_id=None,
         strict=False,
     ):
-        self = self.sudo()
+        self = self._blocked_gather_context(reserving=True).sudo()
 
         removal_strategy = self._get_removal_strategy(product_id, location_id)
         self = self.with_context(_gather_removal_strategy=removal_strategy)
@@ -1832,6 +1869,7 @@ class StockQuant(models.Model):
     ):
         if not (quantity or reserved_quantity):
             raise ValidationError(_("Quantity or Reserved Quantity should be set."))
+        location_id.with_env(self.env)._check_quantity_change_allowed(quantity)
         self = self.sudo()
         self = self.with_context(
             _gather_removal_strategy=self._get_removal_strategy(product_id, location_id)

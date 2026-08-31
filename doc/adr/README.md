@@ -254,6 +254,7 @@ enforce them.
 | [0081](0081-a-credential-is-stored-in-the-vault-and-nowhere-else.md) | A credential is stored in the vault, and nowhere else | 2026-08-30 | Accepted |
 | [0082](0082-the-method-vocabulary-reaches-core.md) | The method vocabulary reaches core | 2026-08-30 | Accepted |
 | [0083](0083-the-assemble-verbs-lose-their-carve-out.md) | The assemble verbs lose their carve-out | 2026-08-30 | Accepted |
+| [0084](0084-blocking-a-location-is-part-of-what-a-location-is.md) | Blocking a location is part of what a location is | 2026-08-31 | Accepted |
 
 ## Template
 

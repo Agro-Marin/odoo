@@ -6,6 +6,8 @@ from collections import defaultdict
 from datetime import timedelta
 from re import fullmatch as regex_fullmatch
 
+from markupsafe import Markup
+
 from odoo import api, fields, models
 from odoo.api import SUPERUSER_ID
 from odoo.exceptions import UserError, ValidationError
@@ -15,8 +17,18 @@ from odoo.tools.misc import OrderedSet, clean_context, groupby
 from odoo.tools.translate import _
 
 from ..const import (
+    BLOCK_REASON_COMPLETING,
+    BLOCK_REASON_DISPOSAL,
+    BLOCK_REASON_OVERRIDE_HARD,
+    BLOCK_REASON_OVERRIDE_SOFT,
+    CONTEXT_BLOCK_COMPLETING,
+    CONTEXT_BLOCK_IS_INVENTORY,
+    DISPOSAL_DEST_USAGES,
+    INCOMING_BLOCK_TYPES,
+    INTERNAL_CONTEXT_FLAG,
     INVENTORY_REFERENCE_CONFIRMED,
     INVENTORY_REFERENCE_UPDATED,
+    OUTGOING_BLOCK_TYPES,
 )
 from odoo.addons.stock.tools.reservation import ReservationLedger
 
@@ -1971,6 +1983,11 @@ class StockMove(models.Model):
         return True
 
     def _action_done(self, cancel_backorder=False):
+        # Rebound rather than threaded through the few call sites below: every
+        # blocked-location gate this method reaches keys off the context, and a
+        # site left on the unbound self is a gate that silently sees no block.
+        self = self.with_context(**self._blocked_completion_context())
+
         moves = self.filtered(lambda move: move.state == "draft")._action_confirm(
             merge=False,
         )
@@ -2012,6 +2029,7 @@ class StockMove(models.Model):
         moves_todo._push_and_assign_downstream()
 
         if self.env.context.get("is_scrap"):
+            moves._post_blocked_audit()
             return moves
 
         if picking and not cancel_backorder:
@@ -2021,7 +2039,112 @@ class StockMove(models.Model):
         if moves_todo:
             moves_todo._check_quantity()
             moves_todo._action_synch_order()
+            moves_todo._post_blocked_audit()
         return moves_todo
+
+    def _blocked_completion_context(self):
+        context = {CONTEXT_BLOCK_COMPLETING: INTERNAL_CONTEXT_FLAG}
+        if self and all(self.mapped("is_inventory")):
+            context[CONTEXT_BLOCK_IS_INVENTORY] = INTERNAL_CONTEXT_FLAG
+        return context
+
+    def _blocked_audit_entries(self):
+        deciding = self.with_context(
+            **{CONTEXT_BLOCK_COMPLETING: None, CONTEXT_BLOCK_IS_INVENTORY: None},
+        ).env
+        decisions = {}
+        entries = []
+        for line in self.move_line_ids:
+            if not line.quantity:
+                continue
+            for direction, location, block_types in (
+                ("out", line.location_id, OUTGOING_BLOCK_TYPES),
+                ("in", line.location_dest_id, INCOMING_BLOCK_TYPES),
+            ):
+                if location.effective_block_type not in block_types:
+                    continue
+                key = (location.id, direction)
+                if key not in decisions:
+                    decisions[key] = location.with_env(deciding)._block_decision(
+                        direction,
+                    )
+                allowed, override = decisions[key]
+                if direction == "out" and (
+                    line.location_dest_id.usage in DISPOSAL_DEST_USAGES
+                ):
+                    reason = BLOCK_REASON_DISPOSAL
+                elif override:
+                    reason = override
+                elif not allowed:
+                    reason = BLOCK_REASON_COMPLETING
+                else:
+                    continue
+                entries.append(
+                    {
+                        "picking": line.picking_id,
+                        "location": location,
+                        "direction": direction,
+                        "reason": reason,
+                        "product": line.product_id.display_name,
+                        "quantity": line.quantity,
+                        "uom": line.product_uom_id.name,
+                    },
+                )
+        return entries
+
+    def _post_blocked_audit(self):
+        entries = self._blocked_audit_entries()
+        if not entries:
+            return
+        by_thread = defaultdict(list)
+        for entry in entries:
+            by_thread[entry["picking"] or entry["location"]].append(entry)
+        author = self.env.user.partner_id
+        for thread, thread_entries in by_thread.items():
+            thread.sudo().message_post(
+                body=self._blocked_audit_body(thread_entries),
+                subject=self.env._("Blocked Location Operation"),
+                author_id=author.id,
+            )
+
+    def _blocked_audit_body(self, entries):
+        reason_labels = {
+            BLOCK_REASON_OVERRIDE_HARD: self.env._("Hard Block override"),
+            BLOCK_REASON_OVERRIDE_SOFT: self.env._("Soft Block override"),
+            BLOCK_REASON_COMPLETING: self.env._("completing a prior reservation"),
+            BLOCK_REASON_DISPOSAL: self.env._("scrap, correction or consumption"),
+        }
+        direction_labels = {
+            "out": self.env._("Out of blocked locations:"),
+            "in": self.env._("Into blocked locations:"),
+        }
+        body = Markup("<p><b>%s</b></p>") % self.env._(
+            "Blocked location operation by %(user)s",
+            user=self.env.user.name,
+        )
+        for direction in ("out", "in"):
+            directed = [entry for entry in entries if entry["direction"] == direction]
+            if not directed:
+                continue
+            body += Markup("<p><b>%s</b></p><ul>") % direction_labels[direction]
+            grouped = defaultdict(list)
+            for entry in directed:
+                grouped[(entry["location"], entry["reason"])].append(entry)
+            for (location, reason), group in grouped.items():
+                body += Markup("<li><b>%s</b> (%s: %s)<ul>") % (
+                    location.display_name,
+                    location._block_type_label(location.effective_block_type),
+                    reason_labels[reason],
+                )
+                for entry in group:
+                    body += Markup("<li>%s: %s %s</li>") % (
+                        entry["product"],
+                        f"{entry['quantity']:g}",
+                        entry["uom"] or "",
+                    )
+                body += Markup("</ul></li>")
+            body += Markup("</ul>")
+        return body
 
     def _drop_unpicked_lines_and_cancel_empty(self, cancel_backorder):
         ml_ids_to_unlink = OrderedSet()

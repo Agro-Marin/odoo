@@ -955,8 +955,8 @@ free-standing form.
   ``_except_`` is a guard and returns, anything else under ``_unlink_`` deletes.
   An ORM-invoked hook is private.
 
-**``@api.constrains``** ``[review]`` is the fourth and largest, at **642** hooks.
-The Validation row governs the spelling and **574** already carry ``_check_``. The
+**``@api.constrains``** ``[review]`` is the fourth and largest, at **643** hooks.
+The Validation row governs the spelling and **575** already carry ``_check_``. The
 rest are names the ratchet counts (``_validate_``, ``_ensure_``, ``_verify_``) and
 the localisation namespace with the verb behind it
 (``_l10n_se_check_payment_reference``). That leaves **47** spelled with a first
@@ -983,7 +983,7 @@ ways: 3 stems are written with two or more verbs drawn from one semantic family,
 and 103 groups of methods share a byte-identical body under different names.
 
 **Every figure in this section is measured, not stated**
-``[gate doc_restated_counts]``. The population is the 25,240 non-test methods
+``[gate doc_restated_counts]``. The population is the 25,280 non-test methods
 declared on a model class **in this repository** -- the population
 ``naming_vocabulary.py`` ratchets. The census stops here (ADR-0033), so every
 figure is a floor.
@@ -1294,7 +1294,7 @@ assembles is in the wrong family.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **A ``bool`` return does not make a predicate** ``[review]``. **385** functions in
-this repository are annotated ``-> bool`` and are not predicates, against **204**
+this repository are annotated ``-> bool`` and are not predicates, against **205**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
 **answer** to a question about the subject is a predicate, a **converted value**
@@ -1302,7 +1302,7 @@ keeps its conversion verb, a **conventional acknowledgement** is nothing at all.
 The call site is the tell: a predicate reads naturally inside an ``if``, a
 converter where a type would.
 
-**Validation raises; predicates return.** ``_check_*`` (1,099 definitions) is
+**Validation raises; predicates return.** ``_check_*`` (1,105 definitions) is
 canonical and matches ``@api.constrains``. ``_validate_`` (25) plus ``_verify_``,
 ``_ensure_`` and ``_control_`` (47 together) are the same operation under four
 names. A method that *answers* rather than enforces is ``_is_*`` / ``_has_*`` /
@@ -1479,7 +1479,7 @@ near-evenly split, so this is a backlog rather than a tidy-up. Three carve-outs,
 all bindings:
 
 * an ``inverse=`` target is ``_inverse_<field>`` and was never a ``_set_``
-  question -- 247 against 3 now that the count is drained;
+  question -- 251 against 3 now that the count is drained;
 * ``set_values`` / ``get_values`` on ``res.config.settings`` are *bound by name,
   not by inheritance* (§2.4.14);
 * ``set_param`` on ``ir.config_parameter`` is public and reached from JS and XML
@@ -1504,7 +1504,7 @@ moved one whose path had changed, and **deleted** a reservation whose path was
 cleared; it is ``_sync_path_reservations``. **Where a test and the method it
 covers disagree about what the operation is, prefer the test's word.**
 
-**``_post_`` is overloaded** ``[review]``. 138 definitions carry three unrelated
+**``_post_`` is overloaded** ``[review]``. 139 definitions carry three unrelated
 meanings -- ``account.move._post`` (accounting), ``message_post`` (mail) and HTTP
 handlers. Do not add a fourth: new code names the domain operation. The existing
 three are load-bearing.
@@ -1549,7 +1549,7 @@ prepends a scheme and returns a URL, so it was a converter mislabelled as a chec
 **It governs the module's own helpers too, and no gate sees them** ``[review]``.
 ``naming_vocabulary.py`` implements the scope as a *class-membership* test, so two
 populations in the same files are counted by nothing: a function declared at
-**module level** -- **316** of them under ``models/`` and ``wizard/`` -- and a
+**module level** -- **317** of them under ``models/`` and ``wizard/`` -- and a
 method on a **plain class** declared in the same file, of which there are **386**
 across **149** classes. Counted over the addon trees only, since a directory test
 alone would sweep in ORM internals the vocabulary does not reach.

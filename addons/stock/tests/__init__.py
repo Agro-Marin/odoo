@@ -4,6 +4,12 @@ from . import test_audit_fixes_procure
 from . import test_audit_fixes_product
 from . import test_audit_fixes_product_template
 from . import test_audit_fixes_v2
+from . import test_blocked_location_audit
+from . import test_blocked_location_completion
+from . import test_blocked_location_enforcement
+from . import test_blocked_location_forgery
+from . import test_blocked_location_migration
+from . import test_blocked_location_visibility
 from . import test_followup_fixes_product_template
 from . import test_generate_lot_line_vals
 from . import test_generate_serial_numbers

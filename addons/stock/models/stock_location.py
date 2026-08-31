@@ -5,12 +5,29 @@ from collections import defaultdict
 from datetime import timedelta
 from typing import NamedTuple
 
+from markupsafe import Markup
+
 from odoo import _, api, fields, models
 from odoo.api import MODULE_UNINSTALL_FLAG
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.numbers import float_compare
 
+from ..const import (
+    BLOCK_GOVERNED_FIELDS,
+    BLOCK_REASON_OVERRIDE_HARD,
+    BLOCK_REASON_OVERRIDE_SOFT,
+    BLOCK_TYPE_SELECTION,
+    BLOCKABLE_USAGES,
+    CONTEXT_BLOCK_BYPASS,
+    CONTEXT_BLOCK_COMPLETING,
+    CONTEXT_BLOCK_IS_INVENTORY,
+    CONTEXT_BLOCK_SKIP_HOOKS,
+    INCOMING_BLOCK_TYPES,
+    INTERNAL_CONTEXT_FLAG,
+    OUTGOING_BLOCK_TYPES,
+    is_internal_flag,
+)
 from odoo.addons.stock.tools.quantity import resolve_context_record_ids
 
 _logger = logging.getLogger(__name__)
@@ -20,6 +37,26 @@ MAX_CYCLIC_INVENTORY_DAYS = 36500
 STOCKED_USAGES = ("internal", "transit")
 
 TREE_FIELDS = frozenset({"active", "location_id", "usage"})
+
+GROUP_FORCE_BLOCK_IN = "stock.group_force_blocked_location_in"
+GROUP_FORCE_BLOCK_OUT = "stock.group_force_blocked_location_out"
+GROUP_OVERRIDE_HARD_BLOCK = "stock.group_override_hard_block"
+GROUP_STOCK_USER = "stock.group_stock_user"
+
+
+def merge_block_types(*block_types):
+    given = {block_type or "none" for block_type in block_types}
+    if "hard" in given:
+        return "hard"
+    blocks_in = bool(given.intersection(INCOMING_BLOCK_TYPES))
+    blocks_out = bool(given.intersection(OUTGOING_BLOCK_TYPES))
+    if blocks_in and blocks_out:
+        return "soft_both"
+    if blocks_in:
+        return "soft_in"
+    if blocks_out:
+        return "soft_out"
+    return "none"
 
 
 class PutawayCapacity(NamedTuple):
@@ -184,12 +221,79 @@ class StockLocation(models.Model):
         compute="_compute_is_empty",
         search="_search_is_empty",
     )
+    block_type = fields.Selection(
+        selection=BLOCK_TYPE_SELECTION,
+        required=True,
+        default="none",
+        tracking=True,
+        help="Blocking Mode:\n\n"
+        "\u2022 No Blocking: Normal warehouse operations\n\n"
+        "\u2022 Soft Block Incoming: Prevents NEW incoming stock but allows:\n"
+        "  - Removing stock (outgoing operations)\n"
+        "  - System operations (inventory adjustments, sudo)\n"
+        "  Use for: Maintenance, location at capacity\n\n"
+        "\u2022 Soft Block Outgoing: Prevents NEW outgoing reservations but allows:\n"
+        "  - Completing already-reserved pickings\n"
+        "  - Receiving new stock (incoming operations)\n"
+        "  - System operations (inventory adjustments, sudo)\n"
+        "  Use for: Quarantine, quality hold, reserved inventory\n\n"
+        "\u2022 Soft Block Both: Combines incoming and outgoing soft blocks\n"
+        "  Use for: Scheduled maintenance, location reorganization\n\n"
+        "\u2022 Hard Block: Freezes ALL operations including:\n"
+        "  - Prevents completing existing reservations\n"
+        "  - Prevents all stock movements\n"
+        "  - Requires the Hard Block override group to lift, to archive the\n"
+        "    location, or to move it out from under the block\n"
+        "  Use for: Inventory counts, audits, legal holds, emergency quarantine",
+    )
+    effective_block_type = fields.Selection(
+        selection=BLOCK_TYPE_SELECTION,
+        compute="_compute_effective_block_type",
+        store=True,
+        recursive=True,
+        readonly=True,
+        string="Effective Blocking",
+        help="The blocking actually in force here: this location's own mode merged "
+        "with every ancestor's. Stored so the reservation and visibility filters "
+        "are a single indexed join instead of a subtree walk per query.",
+    )
+    block_reason = fields.Text(
+        string="Blocking Reason",
+        tracking=True,
+        help="Detailed explanation for why this location is blocked",
+    )
+    blocked_date = fields.Datetime(
+        string="Blocked Since",
+        readonly=True,
+        copy=False,
+        help="Date and time when blocking was applied",
+    )
+    blocked_by_user_id = fields.Many2one(
+        comodel_name="res.users",
+        string="Blocked By",
+        readonly=True,
+        copy=False,
+        help="User who applied the block",
+    )
+    reserved_qty_when_blocked = fields.Float(
+        digits="Product Unit",
+        readonly=True,
+        copy=False,
+        help="Reserved quantity in this location and its children at the time "
+        "blocking was applied, summed across products.\n"
+        "Comparable only where the location holds a single unit of measure; the "
+        "chatter entry posted at blocking time carries the per-unit breakdown.",
+    )
 
     _barcode_company_unique_idx = models.UniqueIndex(
         "(barcode, COALESCE(company_id, 0)) WHERE barcode IS NOT NULL",
         "The barcode for a location must be unique per company!",
     )
     _parent_path_id_idx = models.Index("(parent_path, id)")
+    _block_type_idx = models.Index("(block_type) WHERE block_type != 'none'")
+    _effective_block_type_idx = models.Index(
+        "(effective_block_type) WHERE effective_block_type != 'none'"
+    )
 
     _inventory_freq_bounded = models.Constraint(
         f"check(cyclic_inventory_frequency between 0 and {MAX_CYCLIC_INVENTORY_DAYS})",
@@ -220,6 +324,19 @@ class StockLocation(models.Model):
                             other.display_name,
                         ),
                     )
+
+    @api.constrains("block_type", "usage")
+    def _check_block_type_usage(self):
+        for location in self:
+            if location.block_type != "none" and location.usage not in BLOCKABLE_USAGES:
+                raise ValidationError(
+                    self.env._(
+                        "%(location)s is a %(usage)s location. Only internal "
+                        "locations can be blocked.",
+                        location=location.display_name,
+                        usage=location._block_usage_label(),
+                    ),
+                )
 
     @api.constrains("usage")
     def _check_inventory_loss_location(self):
@@ -299,9 +416,17 @@ class StockLocation(models.Model):
             )
         locations = super().create(vals_list)
         locations._invalidate_location_tree()
+        locations.filtered(
+            lambda location: location.block_type != "none",
+        )._apply_block_metadata()
         return locations
 
     def write(self, vals):
+        # The block governance check comes before every other check here on
+        # purpose: refusing an archive after _propagate_active has already
+        # archived the subtree leaves the refusal resting on the rollback.
+        transitioning = self._check_block_governance_before_write(vals)
+
         if "cyclic_inventory_frequency" in vals:
             self._check_cyclic_inventory_frequency(vals["cyclic_inventory_frequency"])
         if "company_id" in vals:
@@ -314,6 +439,11 @@ class StockLocation(models.Model):
         res = super().write(vals)
         if not TREE_FIELDS.isdisjoint(vals):
             self._invalidate_location_tree()
+        if transitioning:
+            if vals["block_type"] == "none":
+                transitioning._remove_block_metadata()
+            else:
+                transitioning._apply_block_metadata()
         return res
 
     def copy_data(self, default=None):
@@ -417,6 +547,32 @@ class StockLocation(models.Model):
         for location in self:
             location.net_weight = weight_by_location[location]["net_weight"]
             location.forecast_weight = weight_by_location[location]["forecast_weight"]
+
+    @api.depends("block_type", "location_id.effective_block_type")
+    def _compute_effective_block_type(self):
+        for location in self:
+            location.effective_block_type = merge_block_types(
+                *location._own_and_ancestor_block_types(),
+            )
+
+    def _own_and_ancestor_block_types(self):
+        # Walks block_type up the tree rather than reading the parent's
+        # effective_block_type, which the depends still names so that marking
+        # an ancestor keeps marking the whole subtree. The recompute engine
+        # hands a recursive field one record at a time in its own order, and
+        # it does hand a descendant over before its ancestor -- the parent's
+        # effective_block_type is then still the pre-write value, the
+        # descendant stores it, and nothing marks the descendant again.
+        # block_type is a plain stored column and is never pending.
+        self.ensure_one()
+        block_types = []
+        location = self
+        seen = set()
+        while location and location.id not in seen:
+            seen.add(location.id)
+            block_types.append(location.block_type)
+            location = location.location_id
+        return block_types
 
     @api.depends("name", "location_id.complete_name", "usage")
     def _compute_complete_name(self):
@@ -1116,19 +1272,23 @@ class StockLocation(models.Model):
             loc_domain = Domain("location_id", "in", location_ids)
             dest_loc_domain = Domain("location_dest_id", "in", location_ids)
             dest_loc_domain_out = Domain("location_dest_id", "not in", location_ids)
-            return (
-                loc_domain,
-                dest_loc_domain & ~loc_domain,
-                loc_domain & dest_loc_domain_out,
+            return self._blocked_quantity_domains(
+                (
+                    loc_domain,
+                    dest_loc_domain & ~loc_domain,
+                    loc_domain & dest_loc_domain_out,
+                ),
             )
 
         loc_domain = Domain("location_id", "child_of", location_ids)
         dest_loc_domain_done = Domain("location_dest_id", "child_of", location_ids)
         if self.env.context.get("skip_in_progress"):
-            return (
-                loc_domain,
-                dest_loc_domain_done & ~loc_domain,
-                loc_domain & ~dest_loc_domain_done,
+            return self._blocked_quantity_domains(
+                (
+                    loc_domain,
+                    dest_loc_domain_done & ~loc_domain,
+                    loc_domain & ~dest_loc_domain_done,
+                ),
             )
         dest_loc_domain_in_progress = Domain(
             [
@@ -1163,8 +1323,382 @@ class StockLocation(models.Model):
                 ~dest_loc_domain_in_progress,
             ],
         )
+        return self._blocked_quantity_domains(
+            (
+                loc_domain,
+                dest_loc_domain & ~loc_domain,
+                loc_domain & dest_loc_domain_out,
+            ),
+        )
+
+    def _blocked_quantity_domains(self, domains):
+        if self.env.user.has_group(GROUP_STOCK_USER):
+            return domains
+        if self.env.su and self.env.context.get(CONTEXT_BLOCK_BYPASS):
+            return domains
+        domain_quant, domain_move_in, domain_move_out = domains
+        blocked = Domain("effective_block_type", "in", OUTGOING_BLOCK_TYPES)
+        blocked_location = Domain("location_id", "any", blocked)
+        blocked_dest_done = Domain("location_dest_id", "any", blocked)
+        if self.env.context.get("skip_in_progress"):
+            blocked_destination = blocked_dest_done
+        else:
+            blocked_dest_in_progress = Domain(
+                [
+                    "|",
+                    "&",
+                    ("location_final_id", "!=", False),
+                    ("location_final_id", "any", blocked),
+                    "&",
+                    ("location_final_id", "=", False),
+                    ("location_dest_id", "any", blocked),
+                ],
+            )
+            blocked_destination = Domain(
+                [
+                    "|",
+                    "&",
+                    ("state", "=", "done"),
+                    blocked_dest_done,
+                    "&",
+                    ("state", "!=", "done"),
+                    blocked_dest_in_progress,
+                ],
+            )
         return (
-            loc_domain,
-            dest_loc_domain & ~loc_domain,
-            loc_domain & dest_loc_domain_out,
+            domain_quant & ~blocked_location,
+            domain_move_in & ~blocked_destination,
+            domain_move_out & ~blocked_location,
+        )
+
+    def _block_usage_label(self):
+        self.ensure_one()
+        return dict(
+            self._fields["usage"]._description_selection(self.env),
+        )[self.usage]
+
+    def _block_type_label(self, block_type):
+        return dict(
+            self._fields["block_type"]._description_selection(self.env),
+        )[block_type or "none"]
+
+    def _block_decision(self, direction):
+        self.ensure_one()
+        if direction not in ("in", "out"):
+            raise ValueError(f"direction must be 'in' or 'out', got {direction!r}")
+
+        effective = self.effective_block_type or "none"
+        block_set = INCOMING_BLOCK_TYPES if direction == "in" else OUTGOING_BLOCK_TYPES
+        if effective not in block_set:
+            return True, None
+
+        env = self.env
+        if env.su:
+            return True, None
+        if effective == "hard":
+            if env.user.has_group(GROUP_OVERRIDE_HARD_BLOCK):
+                return True, BLOCK_REASON_OVERRIDE_HARD
+            return False, None
+        if env["stock.quant"]._is_inventory_mode() or (
+            is_internal_flag(env.context, CONTEXT_BLOCK_IS_INVENTORY)
+            and env.user.has_group(GROUP_STOCK_USER)
+        ):
+            return True, None
+        if direction == "out" and is_internal_flag(
+            env.context, CONTEXT_BLOCK_COMPLETING
+        ):
+            return True, None
+        group = GROUP_FORCE_BLOCK_IN if direction == "in" else GROUP_FORCE_BLOCK_OUT
+        if env.user.has_group(group):
+            return True, BLOCK_REASON_OVERRIDE_SOFT
+        return False, None
+
+    def _is_operation_allowed(self, direction):
+        return self._block_decision(direction)[0]
+
+    def _check_operation_allowed(self, direction):
+        self.ensure_one()
+        if self._is_operation_allowed(direction):
+            return
+        block_label = self._block_type_label(self.effective_block_type)
+        if direction == "in":
+            raise UserError(
+                self.env._(
+                    "Cannot add stock to %(location)s: the location is set to "
+                    "%(block)s.",
+                    location=self.display_name,
+                    block=block_label,
+                ),
+            )
+        raise UserError(
+            self.env._(
+                "Cannot move stock from %(location)s: the location is set to "
+                "%(block)s.",
+                location=self.display_name,
+                block=block_label,
+            ),
+        )
+
+    def _check_quantity_change_allowed(self, quantity):
+        if quantity and quantity > 0:
+            self._check_operation_allowed("in")
+        elif quantity and quantity < 0:
+            self._check_operation_allowed("out")
+
+    def _blocked_types_excluded_from_gathering(self, reserving=False):
+        env = self.env
+        if env.su:
+            return OUTGOING_BLOCK_TYPES if reserving else ()
+        if env["stock.quant"]._is_inventory_mode():
+            return ()
+        if env.user.has_group(GROUP_OVERRIDE_HARD_BLOCK):
+            return ()
+        if env.user.has_group(GROUP_FORCE_BLOCK_OUT):
+            return ("hard",)
+        return OUTGOING_BLOCK_TYPES
+
+    def _reserved_quantities_by_uom(self):
+        if not self:
+            return {}
+        groups = self.env["stock.quant"]._read_group(
+            [("location_id", "child_of", self.ids), ("reserved_quantity", ">", 0)],
+            groupby=["location_id", "product_id"],
+            aggregates=["reserved_quantity:sum"],
+        )
+        per_quant_location = {}
+        for quant_location, product, reserved in groups:
+            by_uom = per_quant_location.setdefault(quant_location, defaultdict(float))
+            by_uom[product.uom_id.name] += reserved or 0.0
+
+        totals = {location_id: defaultdict(float) for location_id in self.ids}
+        paths = {location.id: location.parent_path or "" for location in self}
+        for quant_location, by_uom in per_quant_location.items():
+            quant_path = quant_location.parent_path or ""
+            for location_id, path in paths.items():
+                if path and quant_path.startswith(path):
+                    for uom_name, quantity in by_uom.items():
+                        totals[location_id][uom_name] += quantity
+        return {location_id: dict(by_uom) for location_id, by_uom in totals.items()}
+
+    def _total_reserved_quantities(self):
+        return {
+            location_id: sum(by_uom.values())
+            for location_id, by_uom in self._reserved_quantities_by_uom().items()
+        }
+
+    def _check_block_governance_before_write(self, vals):
+        if is_internal_flag(
+            self.env.context, CONTEXT_BLOCK_SKIP_HOOKS
+        ) or BLOCK_GOVERNED_FIELDS.isdisjoint(vals):
+            return self.browse()
+        self._check_block_governance(vals)
+        if "block_type" not in vals:
+            return self.browse()
+        return self.filtered(
+            lambda location: vals["block_type"] != (location.block_type or "none"),
+        )
+
+    def _check_block_governance(self, vals):
+        if self.env.su or self.env.user.has_group(GROUP_OVERRIDE_HARD_BLOCK):
+            return
+
+        if "block_type" in vals and vals["block_type"] != "hard":
+            lifting = self.filtered(lambda location: location.block_type == "hard")
+            if lifting:
+                raise UserError(
+                    self.env._(
+                        "Lifting a hard block on %(locations)s requires the "
+                        '"Unlock Locations: All (Hard)" permission.',
+                        locations=lifting._block_location_names(),
+                    ),
+                )
+        if vals.get("active") is False:
+            archiving = self.filtered(
+                lambda location: location.effective_block_type == "hard",
+            )
+            if archiving:
+                raise UserError(
+                    self.env._(
+                        "Archiving the hard-blocked location %(locations)s "
+                        'requires the "Unlock Locations: All (Hard)" permission.',
+                        locations=archiving._block_location_names(),
+                    ),
+                )
+        if "location_id" in vals:
+            new_parent = self.browse(vals["location_id"] or ())
+            escaping = (
+                self.browse()
+                if new_parent.effective_block_type == "hard"
+                else self.filtered(
+                    lambda location: (
+                        location.effective_block_type == "hard"
+                        and location.block_type != "hard"
+                    ),
+                )
+            )
+            if escaping:
+                raise UserError(
+                    self.env._(
+                        "Moving %(locations)s out from under a hard block "
+                        'requires the "Unlock Locations: All (Hard)" permission.',
+                        locations=escaping._block_location_names(),
+                    ),
+                )
+
+    def _block_location_names(self):
+        return ", ".join(self.mapped("display_name"))
+
+    def _apply_block_metadata(self):
+        if not self:
+            return
+        reserved_by_location = self._reserved_quantities_by_uom()
+        now = fields.Datetime.now()
+        by_total = defaultdict(list)
+        for location in self:
+            by_total[sum(reserved_by_location[location.id].values())].append(
+                location.id
+            )
+        for total, location_ids in by_total.items():
+            self.browse(location_ids).with_context(
+                **{CONTEXT_BLOCK_SKIP_HOOKS: INTERNAL_CONTEXT_FLAG},
+            ).write(
+                {
+                    "blocked_date": now,
+                    "blocked_by_user_id": self.env.uid,
+                    "reserved_qty_when_blocked": total,
+                },
+            )
+        for location in self:
+            location.sudo().message_post(
+                body=location._block_message_body(reserved_by_location[location.id]),
+            )
+
+    def _block_message_body(self, reserved_by_uom):
+        self.ensure_one()
+        body = Markup("<p><b>%s</b> %s</p>") % (
+            self.env._("Location Blocked:"),
+            self._block_type_label(self.block_type),
+        )
+        quantities = self._format_reserved_quantities(reserved_by_uom)
+        if quantities:
+            if self.block_type == "hard":
+                body += Markup("<p>⚠️ <b>%s</b> %s</p>") % (
+                    self.env._("Warning:"),
+                    self.env._(
+                        "%(quantities)s are currently reserved. A hard block "
+                        "prevents completing these reservations — consider "
+                        "unreserving the stock or using a soft block instead.",
+                        quantities=quantities,
+                    ),
+                )
+            else:
+                body += Markup("<p>ℹ️ <b>%s</b> %s</p>") % (
+                    self.env._("Info:"),
+                    self.env._(
+                        "%(quantities)s are currently reserved. Existing "
+                        "reservations will be allowed to complete.",
+                        quantities=quantities,
+                    ),
+                )
+        if self.block_reason:
+            body += Markup("<p><b>%s</b> %s</p>") % (
+                self.env._("Reason:"),
+                self.block_reason,
+            )
+        return body
+
+    def _format_reserved_quantities(self, reserved_by_uom):
+        return ", ".join(
+            f"{quantity:.2f} {uom_name}"
+            for uom_name, quantity in sorted(reserved_by_uom.items())
+            if quantity > 0
+        )
+
+    def _remove_block_metadata(self):
+        if not self:
+            return
+        self.with_context(
+            **{CONTEXT_BLOCK_SKIP_HOOKS: INTERNAL_CONTEXT_FLAG},
+        ).write(
+            {
+                "blocked_date": False,
+                "blocked_by_user_id": False,
+                "reserved_qty_when_blocked": 0.0,
+                "block_reason": False,
+            },
+        )
+        body = Markup("<b>%s</b>") % self.env._("Location Unblocked")
+        for location in self:
+            location.sudo().message_post(body=body)
+
+    def action_unreserve_stock(self):
+        self.ensure_one()
+
+        if self.effective_block_type != "hard":
+            return {
+                "type": "ir.actions.client",
+                "tag": "display_notification",
+                "params": {
+                    "title": self.env._("Not a Hard Block"),
+                    "message": self.env._(
+                        "Unreserving is only available for hard-blocked locations."
+                    ),
+                    "type": "warning",
+                },
+            }
+
+        if not self.env.su and not self.env.user.has_group(GROUP_OVERRIDE_HARD_BLOCK):
+            raise UserError(
+                self.env._(
+                    "Clearing the reservations of the hard-blocked location "
+                    '%(location)s requires the "Unlock Locations: All (Hard)" '
+                    "permission.",
+                    location=self.display_name,
+                ),
+            )
+
+        self._unreserve_all_stock()
+
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": self.env._("Stock Unreserved"),
+                "message": self.env._(
+                    "All reservations in this location have been cleared."
+                ),
+                "type": "success",
+                "next": {"type": "ir.actions.client", "tag": "soft_reload"},
+            },
+        }
+
+    def _unreserve_all_stock(self):
+        self.ensure_one()
+
+        move_lines = self.env["stock.move.line"].search(
+            [
+                ("location_id", "child_of", self.id),
+                ("state", "not in", ("done", "cancel", "draft")),
+                ("quantity_product_uom", ">", 0),
+            ],
+        )
+        if not move_lines:
+            return
+
+        moves = move_lines.move_id
+        line_count = len(move_lines)
+        move_count = len(moves)
+        moves._do_unreserve()
+
+        self.sudo().message_post(
+            body=Markup("<b>%s</b><br/>%s")
+            % (
+                self.env._("Hard Block Auto-Unreserve:"),
+                self.env._(
+                    "Unreserved %(line_count)d stock move line(s) across "
+                    "%(move_count)d move(s).",
+                    line_count=line_count,
+                    move_count=move_count,
+                ),
+            ),
         )

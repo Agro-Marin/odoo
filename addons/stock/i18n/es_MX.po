@@ -1,0 +1,447 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* stock
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 19.0\n"
+"Report-Msgid-Bugs-To: \n"
+"Last-Translator: Agromarin\n"
+"Language-Team: Spanish (Mexico)\n"
+"Language: es_MX\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid ""
+"%(location)s is a %(usage)s location. Only internal locations can be "
+"blocked."
+msgstr ""
+"%(location)s es una ubicación de tipo %(usage)s. Sólo las ubicaciones "
+"internas se pueden bloquear."
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid ""
+"%(qty).2f units are currently reserved. A hard block prevents completing "
+"these reservations — consider unreserving the stock or using a soft block "
+"instead."
+msgstr ""
+"Actualmente hay %(qty).2f unidades reservadas. Un bloqueo duro impide "
+"completar esas reservas: considere liberar la existencia o usar un bloqueo "
+"suave."
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid ""
+"%(qty).2f units are currently reserved. Existing reservations will be "
+"allowed to complete."
+msgstr ""
+"Actualmente hay %(qty).2f unidades reservadas. Las reservas existentes "
+"podrán completarse."
+
+#. module: stock
+#: model:res.groups,name:stock.group_override_hard_block
+msgid "All (Hard)"
+msgstr "Todas (Duro)"
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid "All reservations in this location have been cleared."
+msgstr "Se liberaron todas las reservas de esta ubicación."
+
+#. module: stock
+#: model:res.groups,comment:stock.group_override_hard_block
+msgid ""
+"Allows ALL operations on hard-blocked locations (inventory counts,\n"
+"            audits, legal holds).\n"
+"            Requires highest authorization level."
+msgstr ""
+"Permite TODAS las operaciones sobre ubicaciones con bloqueo duro (inventarios físicos, auditorías, retenciones legales).\n"
+"            Requiere el nivel de autorización más alto."
+
+#. module: stock
+#: model:res.groups,comment:stock.group_force_blocked_location_in
+msgid ""
+"Allows adding stock to soft-blocked incoming locations (e.g.,\n"
+"            maintenance areas)"
+msgstr ""
+"Permite ingresar existencia a ubicaciones con bloqueo suave de entradas (por"
+" ejemplo, áreas en mantenimiento)"
+
+#. module: stock
+#: model:res.groups,comment:stock.group_force_blocked_location_both
+msgid "Allows operations on soft-blocked locations in both directions"
+msgstr ""
+"Permite operaciones en ambos sentidos sobre ubicaciones con bloqueo suave"
+
+#. module: stock
+#: model:res.groups,comment:stock.group_force_blocked_location_out
+msgid ""
+"Allows removing stock from soft-blocked outgoing locations (e.g.,\n"
+"            quarantine, quality hold)"
+msgstr ""
+"Permite retirar existencia de ubicaciones con bloqueo suave de salidas (por "
+"ejemplo, cuarentena o retención por calidad)"
+
+#. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_location__block_type
+msgid "Block Type"
+msgstr "Tipo de bloqueo"
+
+#. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_location__blocked_by_user_id
+msgid "Blocked By"
+msgstr "Bloqueada por"
+
+#. module: stock
+#: model_terms:ir.ui.view,arch_db:stock.view_stock_location_list_2
+msgid "Blocked Here"
+msgstr "Bloqueada aquí"
+
+#. module: stock
+#: model_terms:ir.ui.view,arch_db:stock.view_stock_location_search
+msgid "Blocked Here (not inherited)"
+msgstr "Bloqueada aquí (sin heredar)"
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_move.py:0
+msgid "Blocked Location Operation"
+msgstr "Operación en ubicación bloqueada"
+
+#. module: stock
+#: model_terms:ir.ui.view,arch_db:stock.view_stock_location_search
+msgid "Blocked Locations"
+msgstr "Ubicaciones bloqueadas"
+
+#. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_location__blocked_date
+msgid "Blocked Since"
+msgstr "Bloqueada desde"
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_move.py:0
+msgid "Blocked location operation by %(user)s"
+msgstr "Operación en ubicación bloqueada por %(user)s"
+
+#. module: stock
+#: model_terms:ir.ui.view,arch_db:stock.view_stock_location_form
+msgid "Blocking Information"
+msgstr "Información de bloqueo"
+
+#. module: stock
+#: model:ir.model.fields,help:stock.field_stock_location__block_type
+msgid ""
+"Blocking Mode:\n"
+"\n"
+"• No Blocking: Normal warehouse operations\n"
+"\n"
+"• Soft Block Incoming: Prevents NEW incoming stock but allows:\n"
+"  - Removing stock (outgoing operations)\n"
+"  - System operations (inventory adjustments, sudo)\n"
+"  Use for: Maintenance, location at capacity\n"
+"\n"
+"• Soft Block Outgoing: Prevents NEW outgoing reservations but allows:\n"
+"  - Completing already-reserved pickings\n"
+"  - Receiving new stock (incoming operations)\n"
+"  - System operations (inventory adjustments, sudo)\n"
+"  Use for: Quarantine, quality hold, reserved inventory\n"
+"\n"
+"• Soft Block Both: Combines incoming and outgoing soft blocks\n"
+"  Use for: Scheduled maintenance, location reorganization\n"
+"\n"
+"• Hard Block: Freezes ALL operations including:\n"
+"  - Prevents completing existing reservations\n"
+"  - Prevents all stock movements\n"
+"  - Requires the Hard Block override group to lift\n"
+"  Use for: Inventory counts, audits, legal holds, emergency quarantine"
+msgstr ""
+"Modo de bloqueo:\n"
+"\n"
+"• Sin bloqueo: operación normal del almacén\n"
+"\n"
+"• Bloqueo suave de entradas: impide NUEVAS entradas pero permite:\n"
+"  - Retirar existencia (operaciones de salida)\n"
+"  - Operaciones del sistema (ajustes de inventario, sudo)\n"
+"  Úselo para: mantenimiento, ubicación a su capacidad máxima\n"
+"\n"
+"• Bloqueo suave de salidas: impide NUEVAS reservas de salida pero permite:\n"
+"  - Completar entregas ya reservadas\n"
+"  - Recibir existencia nueva (operaciones de entrada)\n"
+"  - Operaciones del sistema (ajustes de inventario, sudo)\n"
+"  Úselo para: cuarentena, retención por calidad, inventario apartado\n"
+"\n"
+"• Bloqueo suave en ambos sentidos: combina los dos bloqueos suaves\n"
+"  Úselo para: mantenimiento programado, reorganización de la ubicación\n"
+"\n"
+"• Bloqueo duro: congela TODAS las operaciones, incluyendo:\n"
+"  - Impide completar las reservas existentes\n"
+"  - Impide cualquier movimiento de existencia\n"
+"  - Requiere el grupo de excepción de bloqueo duro para retirarse\n"
+"  Úselo para: inventarios físicos, auditorías, retenciones legales, cuarentena de emergencia"
+
+#. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_location__block_reason
+msgid "Blocking Reason"
+msgstr "Motivo del bloqueo"
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid "Cannot add stock to %(location)s: the location is set to %(block)s."
+msgstr ""
+"No se puede ingresar existencia a %(location)s: la ubicación está en "
+"%(block)s."
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid "Cannot move stock from %(location)s: the location is set to %(block)s."
+msgstr ""
+"No se puede retirar existencia de %(location)s: la ubicación está en "
+"%(block)s."
+
+#. module: stock
+#: model:ir.model.fields,help:stock.field_stock_location__blocked_date
+msgid "Date and time when blocking was applied"
+msgstr "Fecha y hora en que se aplicó el bloqueo"
+
+#. module: stock
+#: model:ir.model.fields,help:stock.field_stock_location__block_reason
+msgid "Detailed explanation for why this location is blocked"
+msgstr ""
+"Explicación detallada del motivo por el que la ubicación está bloqueada"
+
+#. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_location__effective_block_type
+msgid "Effective Blocking"
+msgstr "Bloqueo efectivo"
+
+#. module: stock
+#: model_terms:ir.ui.view,arch_db:stock.view_stock_location_form
+msgid "Explain why this location is blocked..."
+msgstr "Explique por qué se bloquea esta ubicación..."
+
+#. module: stock
+#: model:ir.model.fields.selection,name:stock.selection__stock_location__block_type__hard
+#: model:ir.model.fields.selection,name:stock.selection__stock_location__effective_block_type__hard
+msgid "Hard Block (Freeze All)"
+msgstr "Bloqueo duro (congelar todo)"
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid "Hard Block Auto-Unreserve:"
+msgstr "Liberación automática por bloqueo duro:"
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_move.py:0
+msgid "Hard Block override"
+msgstr "excepción de bloqueo duro"
+
+#. module: stock
+#: model_terms:ir.ui.view,arch_db:stock.view_stock_location_search
+msgid "Hard Blocked"
+msgstr "Con bloqueo duro"
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid "Info:"
+msgstr "Información:"
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_move.py:0
+msgid "Into blocked locations:"
+msgstr "Hacia ubicaciones bloqueadas:"
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid ""
+"Lifting a hard block on %(locations)s requires the \"Unlock Locations: All "
+"(Hard)\" permission."
+msgstr ""
+"Retirar un bloqueo duro en %(locations)s requiere el permiso \"Desbloquear "
+"ubicaciones: Todas (Duro)\"."
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid "Location Blocked:"
+msgstr "Ubicación bloqueada:"
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid "Location Unblocked"
+msgstr "Ubicación desbloqueada"
+
+#. module: stock
+#: model:ir.model.fields.selection,name:stock.selection__stock_location__block_type__none
+#: model:ir.model.fields.selection,name:stock.selection__stock_location__effective_block_type__none
+msgid "No Blocking"
+msgstr "Sin bloqueo"
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid "Not a Hard Block"
+msgstr "No tiene bloqueo duro"
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_move.py:0
+msgid "Out of blocked locations:"
+msgstr "Desde ubicaciones bloqueadas:"
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid "Reason:"
+msgstr "Motivo:"
+
+#. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_location__reserved_qty_when_blocked
+msgid "Reserved Qty When Blocked"
+msgstr "Cantidad reservada al bloquear"
+
+#. module: stock
+#: model:ir.model.fields.selection,name:stock.selection__stock_location__block_type__soft_both
+#: model:ir.model.fields.selection,name:stock.selection__stock_location__effective_block_type__soft_both
+msgid "Soft Block Both Directions"
+msgstr "Bloqueo suave en ambos sentidos"
+
+#. module: stock
+#: model:ir.model.fields.selection,name:stock.selection__stock_location__block_type__soft_in
+#: model:ir.model.fields.selection,name:stock.selection__stock_location__effective_block_type__soft_in
+msgid "Soft Block Incoming"
+msgstr "Bloqueo suave de entradas"
+
+#. module: stock
+#: model:ir.model.fields.selection,name:stock.selection__stock_location__block_type__soft_out
+#: model:ir.model.fields.selection,name:stock.selection__stock_location__effective_block_type__soft_out
+msgid "Soft Block Outgoing"
+msgstr "Bloqueo suave de salidas"
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_move.py:0
+msgid "Soft Block override"
+msgstr "excepción de bloqueo suave"
+
+#. module: stock
+#: model_terms:ir.ui.view,arch_db:stock.view_stock_location_search
+msgid "Soft Blocked"
+msgstr "Con bloqueo suave"
+
+#. module: stock
+#: model:res.groups,name:stock.group_force_blocked_location_both
+msgid "Soft Both"
+msgstr "Suave ambos"
+
+#. module: stock
+#: model:res.groups,name:stock.group_force_blocked_location_in
+msgid "Soft In"
+msgstr "Suave entrada"
+
+#. module: stock
+#: model:res.groups,name:stock.group_force_blocked_location_out
+msgid "Soft Out"
+msgstr "Suave salida"
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid "Stock Unreserved"
+msgstr "Existencia liberada"
+
+#. module: stock
+#: model:ir.model.fields,help:stock.field_stock_location__effective_block_type
+msgid ""
+"The blocking actually in force here: this location's own mode merged with "
+"every ancestor's. Stored so the reservation and visibility filters are a "
+"single indexed join instead of a subtree walk per query."
+msgstr ""
+"El bloqueo realmente vigente aquí: el modo propio de la ubicación combinado "
+"con el de todos sus ancestros. Se almacena para que los filtros de reserva y"
+" de visibilidad sean una sola unión indexada en lugar de recorrer el "
+"subárbol en cada consulta."
+
+#. module: stock
+#: model_terms:ir.ui.view,arch_db:stock.view_stock_location_form
+msgid ""
+"This will unreserve all stock in this location and its children. Are you "
+"sure?"
+msgstr ""
+"Esto liberará toda la existencia reservada en esta ubicación y sus hijas. "
+"¿Desea continuar?"
+
+#. module: stock
+#: model:ir.model.fields,help:stock.field_stock_location__reserved_qty_when_blocked
+msgid ""
+"Total reserved quantity at the time blocking was applied.\n"
+"Used for audit trail and decision making."
+msgstr ""
+"Cantidad total reservada en el momento en que se aplicó el bloqueo.\n"
+"Se usa para la pista de auditoría y la toma de decisiones."
+
+#. module: stock
+#: model:res.groups.privilege,name:stock.res_groups_privilege_blocked_location
+msgid "Unlock Locations"
+msgstr "Desbloquear ubicaciones"
+
+#. module: stock
+#: model_terms:ir.ui.view,arch_db:stock.view_stock_location_form
+msgid "Unreserve All Stock"
+msgstr "Liberar toda la existencia"
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid ""
+"Unreserved %(line_count)d stock move line(s) across %(move_count)d move(s)."
+msgstr ""
+"Se liberaron %(line_count)d línea(s) de movimiento en %(move_count)d "
+"movimiento(s)."
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid "Unreserving is only available for hard-blocked locations."
+msgstr "La liberación sólo está disponible para ubicaciones con bloqueo duro."
+
+#. module: stock
+#: model:ir.model.fields,help:stock.field_stock_location__blocked_by_user_id
+msgid "User who applied the block"
+msgstr "Usuario que aplicó el bloqueo"
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid "Warning:"
+msgstr "Advertencia:"
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_move.py:0
+msgid "completing a prior reservation"
+msgstr "completa una reserva previa"
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_move.py:0
+msgid "scrap, correction or consumption"
+msgstr "desecho, corrección o consumo"
+

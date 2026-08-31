@@ -5,7 +5,13 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.tools import OrderedSet, groupby
 
-from ..const import INVENTORY_REFERENCE_REVERTED
+from ..const import (
+    CONTEXT_BLOCK_COMPLETING,
+    DISPOSAL_DEST_USAGES,
+    INVENTORY_REFERENCE_REVERTED,
+    OUTGOING_BLOCK_TYPES,
+    is_internal_flag,
+)
 from odoo.addons.web.controllers.utils import clean_action
 
 LOGGED_RELATIONS = [
@@ -334,9 +340,16 @@ class StockMoveLine(models.Model):
         if done_lines.move_id:
             done_lines.move_id._check_quantity()
 
+        mls._check_blocked_outgoing()
         return mls
 
     def write(self, vals):
+        watched = "quantity" in vals or "location_id" in vals
+        before = (
+            {line.id: (line.location_id.id, line.quantity) for line in self}
+            if watched
+            else None
+        )
         self._check_write_allowed(vals)
         if vals.get("quant_id"):
             vals = {**vals, **self._prepare_quant_vals(vals)}
@@ -386,7 +399,27 @@ class StockMoveLine(models.Model):
         if moves_to_recompute_state:
             moves_to_recompute_state._recompute_state()
 
+        if watched:
+            self.filtered(
+                lambda line: (
+                    line.product_uom_id.compare(line.quantity, before[line.id][1]) > 0
+                    or line.location_id.id != before[line.id][0]
+                ),
+            )._check_blocked_outgoing()
         return res
+
+    def _check_blocked_outgoing(self):
+        if self.env.su or is_internal_flag(self.env.context, CONTEXT_BLOCK_COMPLETING):
+            return
+        blocked = self.filtered(
+            lambda line: (
+                line.quantity > 0
+                and line.location_id.effective_block_type in OUTGOING_BLOCK_TYPES
+                and line.location_dest_id.usage not in DISPOSAL_DEST_USAGES
+            ),
+        )
+        for location in blocked.location_id:
+            location._check_operation_allowed("out")
 
     def unlink(self):
         self._unlink_except_done_or_cancel()

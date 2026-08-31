@@ -34,3 +34,46 @@ ADVANCED_STOCK_OPTION_GROUPS = (
 )
 
 TEMPLATE_STOCK_FLAGS = ("type", "is_storable", "tracking")
+
+BLOCK_TYPE_SELECTION = [
+    ("none", "No Blocking"),
+    ("soft_in", "Soft Block Incoming"),
+    ("soft_out", "Soft Block Outgoing"),
+    ("soft_both", "Soft Block Both Directions"),
+    ("hard", "Hard Block (Freeze All)"),
+]
+
+INCOMING_BLOCK_TYPES = ("soft_in", "soft_both", "hard")
+OUTGOING_BLOCK_TYPES = ("soft_out", "soft_both", "hard")
+
+BLOCKABLE_USAGES = ("internal",)
+
+DISPOSAL_DEST_USAGES = ("inventory", "production")
+
+BLOCK_GOVERNED_FIELDS = frozenset({"block_type", "location_id", "active"})
+
+BLOCK_REASON_COMPLETING = "completing"
+BLOCK_REASON_DISPOSAL = "disposal"
+BLOCK_REASON_OVERRIDE_HARD = "override_hard"
+BLOCK_REASON_OVERRIDE_SOFT = "override_soft"
+
+CONTEXT_BLOCK_COMPLETING = "stock_blocked_completing"
+CONTEXT_BLOCK_IS_INVENTORY = "stock_blocked_is_inventory"
+CONTEXT_BLOCK_EXCLUDED_TYPES = "stock_blocked_excluded_types"
+CONTEXT_BLOCK_SKIP_HOOKS = "stock_blocked_skip_hooks"
+CONTEXT_BLOCK_BYPASS = "bypass_blocked_locations"
+
+INTERNAL_CONTEXT_FLAG = object()
+"""Marker proving a blocking context key was set here and not by an RPC caller.
+
+Every gate around a blocked location keys off the context, and the web client
+controls the context of every ``call_kw``. A plain ``True`` therefore lets anyone
+forge ``stock_blocked_completing`` and walk stock out of a soft-blocked location.
+A module-level object is unforgeable across the JSON boundary, stays hashable so
+``Environment`` is still cached, and is stable so ``with_context`` does not churn
+environments.
+"""
+
+
+def is_internal_flag(context, key):
+    return context.get(key) is INTERNAL_CONTEXT_FLAG

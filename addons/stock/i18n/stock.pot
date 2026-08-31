@@ -131,6 +131,14 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid ""
+"%(location)s is a %(usage)s location. Only internal locations can be "
+"blocked."
+msgstr ""
+
+#. module: stock
+#. odoo-python
 #: code:addons/stock/models/stock_warehouse.py:0
 msgid ""
 "%(location)s is not inside warehouse %(warehouse)s, so it cannot be its "
@@ -207,6 +215,23 @@ msgstr ""
 #. odoo-python
 #: code:addons/stock/models/stock_scrap.py:0
 msgid "%(product)s: Insufficient Quantity To Scrap"
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid ""
+"%(quantities)s are currently reserved. A hard block prevents completing "
+"these reservations — consider unreserving the stock or using a soft block "
+"instead."
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid ""
+"%(quantities)s are currently reserved. Existing reservations will be allowed"
+" to complete."
 msgstr ""
 
 #. module: stock
@@ -1148,6 +1173,11 @@ msgid "All"
 msgstr ""
 
 #. module: stock
+#: model:res.groups,name:stock.group_override_hard_block
+msgid "All (Hard)"
+msgstr ""
+
+#. module: stock
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_putaway_rule_list
 msgid "All Categories"
 msgstr ""
@@ -1171,6 +1201,12 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/stock/static/src/views/search/stock_report_search_panel.xml:0
 msgid "All Warehouses"
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid "All reservations in this location have been cleared."
 msgstr ""
 
 #. module: stock
@@ -1217,6 +1253,33 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_move_line__allowed_uom_ids
 #: model:ir.model.fields,field_description:stock.field_stock_scrap__allowed_uom_ids
 msgid "Allowed Uom"
+msgstr ""
+
+#. module: stock
+#: model:res.groups,comment:stock.group_override_hard_block
+msgid ""
+"Allows ALL operations on hard-blocked locations (inventory counts,\n"
+"            audits, legal holds).\n"
+"            Requires highest authorization level."
+msgstr ""
+
+#. module: stock
+#: model:res.groups,comment:stock.group_force_blocked_location_in
+msgid ""
+"Allows adding stock to soft-blocked incoming locations (e.g.,\n"
+"            maintenance areas)"
+msgstr ""
+
+#. module: stock
+#: model:res.groups,comment:stock.group_force_blocked_location_both
+msgid "Allows operations on soft-blocked locations in both directions"
+msgstr ""
+
+#. module: stock
+#: model:res.groups,comment:stock.group_force_blocked_location_out
+msgid ""
+"Allows removing stock from soft-blocked outgoing locations (e.g.,\n"
+"            quarantine, quality hold)"
 msgstr ""
 
 #. module: stock
@@ -1346,6 +1409,14 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_warehouse_orderpoint_search
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_warehouse_search
 msgid "Archived"
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid ""
+"Archiving the hard-blocked location %(locations)s requires the \"Unlock "
+"Locations: All (Hard)\" permission."
 msgstr ""
 
 #. module: stock
@@ -1649,6 +1720,87 @@ msgid "Before scheduled date"
 msgstr ""
 
 #. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_location__block_type
+msgid "Block Type"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_location__blocked_by_user_id
+msgid "Blocked By"
+msgstr ""
+
+#. module: stock
+#: model_terms:ir.ui.view,arch_db:stock.view_stock_location_list_2
+msgid "Blocked Here"
+msgstr ""
+
+#. module: stock
+#: model_terms:ir.ui.view,arch_db:stock.view_stock_location_search
+msgid "Blocked Here (not inherited)"
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_move.py:0
+msgid "Blocked Location Operation"
+msgstr ""
+
+#. module: stock
+#: model_terms:ir.ui.view,arch_db:stock.view_stock_location_search
+msgid "Blocked Locations"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_location__blocked_date
+msgid "Blocked Since"
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_move.py:0
+msgid "Blocked location operation by %(user)s"
+msgstr ""
+
+#. module: stock
+#: model_terms:ir.ui.view,arch_db:stock.view_stock_location_form
+msgid "Blocking Information"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,help:stock.field_stock_location__block_type
+msgid ""
+"Blocking Mode:\n"
+"\n"
+"• No Blocking: Normal warehouse operations\n"
+"\n"
+"• Soft Block Incoming: Prevents NEW incoming stock but allows:\n"
+"  - Removing stock (outgoing operations)\n"
+"  - System operations (inventory adjustments, sudo)\n"
+"  Use for: Maintenance, location at capacity\n"
+"\n"
+"• Soft Block Outgoing: Prevents NEW outgoing reservations but allows:\n"
+"  - Completing already-reserved pickings\n"
+"  - Receiving new stock (incoming operations)\n"
+"  - System operations (inventory adjustments, sudo)\n"
+"  Use for: Quarantine, quality hold, reserved inventory\n"
+"\n"
+"• Soft Block Both: Combines incoming and outgoing soft blocks\n"
+"  Use for: Scheduled maintenance, location reorganization\n"
+"\n"
+"• Hard Block: Freezes ALL operations including:\n"
+"  - Prevents completing existing reservations\n"
+"  - Prevents all stock movements\n"
+"  - Requires the Hard Block override group to lift, to archive the\n"
+"    location, or to move it out from under the block\n"
+"  Use for: Inventory counts, audits, legal holds, emergency quarantine"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_location__block_reason
+msgid "Blocking Reason"
+msgstr ""
+
+#. module: stock
 #: model:ir.model.fields,field_description:stock.field_stock_package__quant_ids
 msgid "Bulk Content"
 msgstr ""
@@ -1750,6 +1902,12 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid "Cannot add stock to %(location)s: the location is set to %(block)s."
+msgstr ""
+
+#. module: stock
+#. odoo-python
 #: code:addons/stock/report/report_stock_reception.py:0
 msgid "Cannot assign transfer %(transfer)s in state %(state)s."
 msgstr ""
@@ -1758,6 +1916,12 @@ msgstr ""
 #. odoo-python
 #: code:addons/stock/models/stock_package.py:0
 msgid "Cannot move an empty package"
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid "Cannot move stock from %(location)s: the location is set to %(block)s."
 msgstr ""
 
 #. module: stock
@@ -1915,6 +2079,14 @@ msgstr ""
 #. module: stock
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_quant_list_inventory_editable
 msgid "Clear"
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid ""
+"Clearing the reservations of the hard-blocked location %(location)s requires"
+" the \"Unlock Locations: All (Hard)\" permission."
 msgstr ""
 
 #. module: stock
@@ -2601,6 +2773,11 @@ msgid "Date Scheduled"
 msgstr ""
 
 #. module: stock
+#: model:ir.model.fields,help:stock.field_stock_location__blocked_date
+msgid "Date and time when blocking was applied"
+msgstr ""
+
+#. module: stock
 #: model:ir.model.fields,help:stock.field_product_replenish__date_planned
 msgid "Date at which the replenishment should take place."
 msgstr ""
@@ -3159,6 +3336,11 @@ msgid "Detailed Operations"
 msgstr ""
 
 #. module: stock
+#: model:ir.model.fields,help:stock.field_stock_location__block_reason
+msgid "Detailed explanation for why this location is blocked"
+msgstr ""
+
+#. module: stock
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_picking_form
 msgid "Details"
 msgstr ""
@@ -3408,6 +3590,11 @@ msgid ""
 msgstr ""
 
 #. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_location__effective_block_type
+msgid "Effective Blocking"
+msgstr ""
+
+#. module: stock
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_picking_form
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_picking_list_vpicktree
 msgid "Effective Date"
@@ -3555,6 +3742,11 @@ msgstr ""
 #. module: stock
 #: model:ir.model.fields,field_description:stock.field_res_config_settings__module_product_expiry
 msgid "Expiration Dates"
+msgstr ""
+
+#. module: stock
+#: model_terms:ir.ui.view,arch_db:stock.view_stock_location_form
+msgid "Explain why this location is blocked..."
 msgstr ""
 
 #. module: stock
@@ -3900,6 +4092,29 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/stock/static/src/client_actions/multi_print.js:0
 msgid "HTML reports cannot be auto-printed, skipping report: %s"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields.selection,name:stock.selection__stock_location__block_type__hard
+#: model:ir.model.fields.selection,name:stock.selection__stock_location__effective_block_type__hard
+msgid "Hard Block (Freeze All)"
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid "Hard Block Auto-Unreserve:"
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_move.py:0
+msgid "Hard Block override"
+msgstr ""
+
+#. module: stock
+#: model_terms:ir.ui.view,arch_db:stock.view_stock_location_search
+msgid "Hard Blocked"
 msgstr ""
 
 #. module: stock
@@ -4370,6 +4585,12 @@ msgid ""
 msgstr ""
 
 #. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid "Info:"
+msgstr ""
+
+#. module: stock
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_lot_form
 msgid "Information"
 msgstr ""
@@ -4482,6 +4703,12 @@ msgstr ""
 msgid ""
 "Internal reference number in case it differs from the manufacturer's "
 "lot/serial number"
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_move.py:0
+msgid "Into blocked locations:"
 msgstr ""
 
 #. module: stock
@@ -5090,6 +5317,14 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid ""
+"Lifting a hard block on %(locations)s requires the \"Unlock Locations: All "
+"(Hard)\" permission."
+msgstr ""
+
+#. module: stock
+#. odoo-python
 #: code:addons/stock/models/stock_quant.py:0
 msgid ""
 "Lines %(first)s and %(second)s both count the same quant (%(quant)s). Merge "
@@ -5147,6 +5382,12 @@ msgid "Location Barcode"
 msgstr ""
 
 #. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid "Location Blocked:"
+msgstr ""
+
+#. module: stock
 #: model:ir.model.fields,field_description:stock.field_stock_location__name
 msgid "Location Name"
 msgstr ""
@@ -5161,6 +5402,12 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_location__usage
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_location_search
 msgid "Location Type"
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid "Location Unblocked"
 msgstr ""
 
 #. module: stock
@@ -5651,6 +5898,14 @@ msgid "Moves History"
 msgstr ""
 
 #. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid ""
+"Moving %(locations)s out from under a hard block requires the \"Unlock "
+"Locations: All (Hard)\" permission."
+msgstr ""
+
+#. module: stock
 #: model:ir.model.fields,field_description:stock.field_res_config_settings__group_stock_adv_location
 msgid "Multi-Step Routes"
 msgstr ""
@@ -5822,6 +6077,12 @@ msgstr ""
 #. module: stock
 #: model_terms:ir.ui.view,arch_db:stock.view_backorder_confirmation
 msgid "No Backorder"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields.selection,name:stock.selection__stock_location__block_type__none
+#: model:ir.model.fields.selection,name:stock.selection__stock_location__effective_block_type__none
+msgid "No Blocking"
 msgstr ""
 
 #. module: stock
@@ -5999,6 +6260,12 @@ msgstr ""
 #. module: stock
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_view_stock_warehouse_orderpoint_search_report
 msgid "Not Snoozed"
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid "Not a Hard Block"
 msgstr ""
 
 #. module: stock
@@ -6381,6 +6648,12 @@ msgstr ""
 #. module: stock
 #: model:ir.model.fields,field_description:stock.field_stock_warehouse__out_type_id
 msgid "Out Type"
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_move.py:0
+msgid "Out of blocked locations:"
 msgstr ""
 
 #. module: stock
@@ -7686,6 +7959,12 @@ msgid "Reason for relocation"
 msgstr ""
 
 #. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid "Reason:"
+msgstr ""
+
+#. module: stock
 #: model:ir.model.fields.selection,name:stock.selection__stock_picking_type__code__incoming
 msgid "Receipt"
 msgstr ""
@@ -8073,8 +8352,20 @@ msgid "Reserve Partial Packagings"
 msgstr ""
 
 #. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_location__reserved_qty_when_blocked
+msgid "Reserved Qty When Blocked"
+msgstr ""
+
+#. module: stock
 #: model:ir.model.fields,field_description:stock.field_stock_quant__reserved_quantity
 msgid "Reserved Quantity"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,help:stock.field_stock_location__reserved_qty_when_blocked
+msgid ""
+"Reserved quantity in this location and its children at the time blocking was applied, summed across products.\n"
+"Comparable only where the location holds a single unit of measure; the chatter entry posted at blocking time carries the per-unit breakdown."
 msgstr ""
 
 #. module: stock
@@ -8911,6 +9202,50 @@ msgid "Snoozed"
 msgstr ""
 
 #. module: stock
+#: model:ir.model.fields.selection,name:stock.selection__stock_location__block_type__soft_both
+#: model:ir.model.fields.selection,name:stock.selection__stock_location__effective_block_type__soft_both
+msgid "Soft Block Both Directions"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields.selection,name:stock.selection__stock_location__block_type__soft_in
+#: model:ir.model.fields.selection,name:stock.selection__stock_location__effective_block_type__soft_in
+msgid "Soft Block Incoming"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields.selection,name:stock.selection__stock_location__block_type__soft_out
+#: model:ir.model.fields.selection,name:stock.selection__stock_location__effective_block_type__soft_out
+msgid "Soft Block Outgoing"
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_move.py:0
+msgid "Soft Block override"
+msgstr ""
+
+#. module: stock
+#: model_terms:ir.ui.view,arch_db:stock.view_stock_location_search
+msgid "Soft Blocked"
+msgstr ""
+
+#. module: stock
+#: model:res.groups,name:stock.group_force_blocked_location_both
+msgid "Soft Both"
+msgstr ""
+
+#. module: stock
+#: model:res.groups,name:stock.group_force_blocked_location_in
+msgid "Soft In"
+msgstr ""
+
+#. module: stock
+#: model:res.groups,name:stock.group_force_blocked_location_out
+msgid "Soft Out"
+msgstr ""
+
+#. module: stock
 #: model_terms:ir.ui.view,arch_db:stock.inventory_warning_set_view
 msgid "Some selected lines already have quantities set, they will be ignored."
 msgstr ""
@@ -9175,6 +9510,12 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/stock/static/src/stock_forecasted/forecasted_details.js:0
 msgid "Stock To Reserve: %(quantity)s %(uom)s"
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid "Stock Unreserved"
 msgstr ""
 
 #. module: stock
@@ -9483,6 +9824,14 @@ msgstr ""
 #. module: stock
 #: model:ir.model.constraint,message:stock.constraint_stock_location_barcode_company_unique_idx
 msgid "The barcode for a location must be unique per company!"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,help:stock.field_stock_location__effective_block_type
+msgid ""
+"The blocking actually in force here: this location's own mode merged with "
+"every ancestor's. Stored so the reservation and visibility filters are a "
+"single indexed join instead of a subtree walk per query."
 msgstr ""
 
 #. module: stock
@@ -9996,6 +10345,13 @@ msgstr ""
 #. module: stock
 #: model_terms:ir.ui.view,arch_db:stock.inventory_warning_reset_view
 msgid "This will discard all unapplied counts, do you want to proceed?"
+msgstr ""
+
+#. module: stock
+#: model_terms:ir.ui.view,arch_db:stock.view_stock_location_form
+msgid ""
+"This will unreserve all stock in this location and its children. Are you "
+"sure?"
 msgstr ""
 
 #. module: stock
@@ -10524,6 +10880,11 @@ msgid ""
 msgstr ""
 
 #. module: stock
+#: model:res.groups.privilege,name:stock.res_groups_privilege_blocked_location
+msgid "Unlock Locations"
+msgstr ""
+
+#. module: stock
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_package_form
 msgid "Unpack"
 msgstr ""
@@ -10534,6 +10895,24 @@ msgstr ""
 #: model:ir.actions.server,name:stock.action_unreserve_picking
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_picking_list_vpicktree
 msgid "Unreserve"
+msgstr ""
+
+#. module: stock
+#: model_terms:ir.ui.view,arch_db:stock.view_stock_location_form
+msgid "Unreserve All Stock"
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid ""
+"Unreserved %(line_count)d stock move line(s) across %(move_count)d move(s)."
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid "Unreserving is only available for hard-blocked locations."
 msgstr ""
 
 #. module: stock
@@ -10626,6 +11005,11 @@ msgstr ""
 #. module: stock
 #: model:ir.model.fields,help:stock.field_stock_quant__user_id
 msgid "User assigned to do product count."
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,help:stock.field_stock_location__blocked_by_user_id
+msgid "User who applied the block"
 msgstr ""
 
 #. module: stock
@@ -10882,6 +11266,12 @@ msgstr ""
 #: code:addons/stock/models/product_product.py:0
 #: code:addons/stock/models/product_template.py:0
 msgid "Warning!"
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid "Warning:"
 msgstr ""
 
 #. module: stock
@@ -11611,6 +12001,12 @@ msgid "closest"
 msgstr ""
 
 #. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_move.py:0
+msgid "completing a prior reservation"
+msgstr ""
+
+#. module: stock
 #. odoo-javascript
 #: code:addons/stock/static/src/views/search/stock_orderpoint_search_panel.xml:0
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_rule_form
@@ -11750,6 +12146,13 @@ msgid "report_stock_quantity_graph"
 msgstr ""
 
 #. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_move.py:0
+msgid "scrap, correction or consumption"
+msgstr ""
+
+
+#. module: stock
 #: model:ir.actions.server,name:stock.click_dashboard_graph
 msgid "stock.click_dashboard_graph"
 msgstr ""
@@ -11814,3 +12217,4 @@ msgstr ""
 #: code:addons/stock/static/src/widgets/generate_serial.js:0
 msgid "“%s” is not a whole number."
 msgstr ""
+
