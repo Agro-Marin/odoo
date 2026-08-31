@@ -184,17 +184,14 @@ class SaleOrderTemplate(models.Model):
         return result
 
     def _update_product_translations(self):
-        languages = self.env["res.lang"].search([("active", "=", True)])
-        for lang in languages:
+        for code, _lang_name in self.env["res.lang"].get_installed():
             for line in self.sale_order_template_line_ids:
                 if (
                     line.name
                     == line.product_id.get_product_multiline_description_sale()
                 ):
-                    line.with_context(
-                        lang=lang.code
-                    ).name = line.product_id.with_context(
-                        lang=lang.code
+                    line.with_context(lang=code).name = line.product_id.with_context(
+                        lang=code
                     ).get_product_multiline_description_sale()
 
     @api.model
