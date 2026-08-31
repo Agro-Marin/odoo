@@ -97,11 +97,124 @@ function hasMonetaryAggregate(columns, fields) {
 }
 
 /**
+ * @param {Record<string, any>[]} rows
+ * @param {string} fieldName
+ * @returns {{ value: any, record: Record<string, any> }[]}
+ */
+function collectFieldEntries(rows, fieldName) {
+    const entries = [];
+    for (const record of rows) {
+        const value = record[fieldName];
+        if (value || value === 0) {
+            entries.push({ value, record });
+        }
+    }
+    return entries;
+}
+
+/**
+ * The column's field, if this column can be aggregated at all.
+ *
+ * @param {any} column
+ * @param {Record<string, any>} fields
+ * @param {Record<string, boolean>} optionalActiveFields
+ * @returns {Record<string, any> | null}
+ */
+function aggregatableField(column, fields, optionalActiveFields) {
+    if (column.type !== "field") {
+        return null;
+    }
+    if (column.name in optionalActiveFields && !optionalActiveFields[column.name]) {
+        return null;
+    }
+    const field = fields[column.name];
+    if (!field || !AGGREGATABLE_FIELD_TYPES.includes(field.type)) {
+        return null;
+    }
+    return field;
+}
+
+/**
+ * An `avg` over groups is not the average of the group averages.
+ *
+ * Each row here is a group, so the mean has to be re-weighted by the number of
+ * records behind it: by `__count` when the server already averaged
+ * (`aggregator === "avg"`), and by dividing the summed total when it summed.
+ *
+ * @param {{ value: any, record: Record<string, any> }[]} fieldEntries
+ * @param {string} aggregator
+ * @returns {number | undefined} undefined when the caller should fall back
+ */
+export function weightedGroupAverage(fieldEntries, aggregator) {
+    const totalCount = fieldEntries.reduce((s, e) => s + (e.record.__count || 0), 0);
+    if (!totalCount) {
+        return undefined;
+    }
+    if (aggregator === "avg") {
+        return (
+            fieldEntries.reduce((s, e) => s + e.value * (e.record.__count || 0), 0) /
+            totalCount
+        );
+    }
+    if (aggregator === "sum") {
+        return fieldEntries.reduce((s, e) => s + e.value, 0) / totalCount;
+    }
+    return undefined;
+}
+
+/**
+ * A cell that shows why there is no total, rather than a wrong one.
+ *
+ * @param {string} help
+ * @returns {Record<string, any>}
+ */
+function blockedAggregate(help) {
+    return { help, value: "", multiCurrency: true, rawValue: undefined };
+}
+
+/**
+ * Rewrite each entry into `currencyId`, in place, unless a rate is missing.
+ *
+ * @param {{ value: any, record: Record<string, any> }[]} fieldEntries
+ * @param {Object} params
+ * @param {string} params.currencyField
+ * @param {any} params.currencyId
+ * @param {Record<number, any>} params.rates
+ * @param {boolean} params.isGroupedAggregation
+ * @returns {boolean} whether every entry could be converted
+ */
+function convertEntriesToCompanyCurrency(
+    fieldEntries,
+    { currencyField, currencyId, rates, isGroupedAggregation },
+) {
+    const converted = [];
+    for (const entry of fieldEntries) {
+        const currency = isGroupedAggregation
+            ? entry.record[currencyField]?.[0]
+            : entry.record[currencyField]?.id;
+        if (!currency || currency === currencyId) {
+            converted.push(entry.value);
+            continue;
+        }
+        const rate = rates?.[currency]?.toCompanyRate;
+        if (rate === undefined) {
+            return false;
+        }
+        converted.push(entry.value * rate);
+    }
+    fieldEntries.forEach((entry, index) => {
+        entry.value = converted[index];
+    });
+    return true;
+}
+
+/**
  * @param {Pick<import("./list_renderer").ListGridContext, "getColumns" | "getFields" | "getProps" | "getOptionalActiveFields">} ctx
  * @returns {{
  * computeAggregates: () => Record<string, object>,
+ * resolveAggregateCurrency: (column: any, field: Record<string, any>, fieldEntries: any[], rows: Record<string, any>[], isGroupedAggregation: boolean) => { currencyId: any, multiCurrency: boolean, blocked: string | null },
  * formatGroupAggregate: (group: object, column: object) => object,
- * getFieldCurrencies: (fieldName: string) => Set,
+ * getFieldCurrencies: (fieldName: string, known?: { column?: object, rows?: Record<string, any>[] }) => Set,
  * getCurrencyField: (column: object) => string,
  * openMultiCurrencyPopover: (ev: Event, value: any, fieldName: string) => void,
  * state: { currencyRates: Record<number, any> | null, ratesFailed: boolean },
@@ -166,13 +279,16 @@ export function useListAggregates(ctx) {
 
         /**
          * @param {string} fieldName
+         * @param {{ column?: object, rows?: Record<string, any>[] }} [known]
+         *        what the caller already holds; computeAggregates has both, and
+         *        re-deriving them per monetary column re-walked every record.
          * @returns {Set}
          */
-        getFieldCurrencies(fieldName) {
-            const columns = getColumns();
-            const column = columns.find((c) => c.name === fieldName);
+        getFieldCurrencies(fieldName, known = {}) {
+            const column =
+                known.column ?? getColumns().find((c) => c.name === fieldName);
             const currencyField = self.getCurrencyField(column);
-            const values = getAggregationValues();
+            const values = known.rows ?? getAggregationValues();
             const { list } = getProps();
             if (/** @type {any} */ (list).isGrouped && !list.selection.length) {
                 return values.reduce((set, value) => {
@@ -189,6 +305,90 @@ export function useListAggregates(ctx) {
         },
 
         /**
+         * The currency a monetary column totals in, and whether it can total
+         * at all.
+         *
+         * Converting entries into the company currency is part of resolving it:
+         * a total is only meaningful once every entry is in one currency, and
+         * the reasons it can fail -- a group mixing currencies, rates still in
+         * flight, a currency with no rate -- are the reasons there is no total.
+         * `blocked` carries the one to show instead.
+         *
+         * @param {any} column
+         * @param {Record<string, any>} field
+         * @param {{ value: any, record: Record<string, any> }[]} fieldEntries
+         * @param {Record<string, any>[]} rows
+         * @param {boolean} isGroupedAggregation
+         * @returns {{ currencyId: any, multiCurrency: boolean, blocked: string | null }}
+         */
+        resolveAggregateCurrency(
+            column,
+            field,
+            fieldEntries,
+            rows,
+            isGroupedAggregation,
+        ) {
+            const plain = {
+                currencyId: undefined,
+                multiCurrency: false,
+                blocked: null,
+            };
+            if (field.type !== "monetary" && column.widget !== "monetary") {
+                return plain;
+            }
+            const { list } = getProps();
+            const currencyField = self.getCurrencyField(column);
+            if (!(currencyField in list.activeFields)) {
+                return plain;
+            }
+            const currencyId = isGroupedAggregation
+                ? rows.find((v) => v[currencyField]?.length)?.[currencyField][0]
+                : rows[0][currencyField] && rows[0][currencyField].id;
+            if (field.type !== "monetary") {
+                return { currencyId, multiCurrency: false, blocked: null };
+            }
+            const currencies = self.getFieldCurrencies(column.name, { column, rows });
+            if (currencies.size <= 1) {
+                return { currencyId, multiCurrency: false, blocked: null };
+            }
+            const companyCurrencyId = user.activeCompany?.currency_id;
+            const mixed =
+                isGroupedAggregation &&
+                fieldEntries.some((entry) => entry.record[currencyField]?.length > 1);
+            if (mixed) {
+                return {
+                    currencyId: companyCurrencyId,
+                    multiCurrency: true,
+                    blocked: _t("No total: a group mixes several currencies"),
+                };
+            }
+            const rates = state.currencyRates;
+            if (!rates) {
+                requestCurrencyRates();
+                return {
+                    currencyId: companyCurrencyId,
+                    multiCurrency: true,
+                    blocked: state.ratesFailed
+                        ? _t("No total: currency rates could not be loaded")
+                        : _t("No total: currency rates are still loading"),
+                };
+            }
+            const converted = convertEntriesToCompanyCurrency(fieldEntries, {
+                currencyField,
+                currencyId: companyCurrencyId,
+                rates,
+                isGroupedAggregation,
+            });
+            return {
+                currencyId: companyCurrencyId,
+                multiCurrency: true,
+                blocked: converted
+                    ? null
+                    : _t("No total: one currency has no exchange rate"),
+            };
+        },
+
+        /**
          * @returns {Record<string, object>}
          */
         computeAggregates() {
@@ -196,176 +396,67 @@ export function useListAggregates(ctx) {
             const fields = getFields();
             const optionalActiveFields = getOptionalActiveFields();
             const { list } = getProps();
+            const isGroupedAggregation =
+                Boolean(/** @type {any} */ (list).isGrouped) && !list.selection.length;
+            /** @type {Record<string, any>} */
             const aggregates = {};
-            /** @type {Record<string, any>[] | null} */
             /** @type {Record<string, any>[] | null} */
             let values = null;
 
             for (const column of columns) {
-                if (column.type !== "field") {
+                const field = aggregatableField(column, fields, optionalActiveFields);
+                if (!field) {
                     continue;
                 }
-                const fieldName = column.name;
-                if (
-                    fieldName in optionalActiveFields &&
-                    !optionalActiveFields[fieldName]
-                ) {
-                    continue;
-                }
-                const field = fields[fieldName];
-                const type = field.type;
-                if (!AGGREGATABLE_FIELD_TYPES.includes(type)) {
-                    continue;
-                }
-                const { attrs = {}, widget } = column;
                 const func = aggregateFunction(column);
                 if (!func) {
                     continue;
                 }
                 const rows = (values ??= getAggregationValues());
-                const fieldEntries = [];
-                for (const record of rows) {
-                    const value = record[fieldName];
-                    if (value || value === 0) {
-                        fieldEntries.push({ value, record });
-                    }
-                }
+                const fieldEntries = collectFieldEntries(rows, column.name);
                 if (!fieldEntries.length) {
                     continue;
                 }
-                let currencyId;
-                let multiCurrency = false;
-                let hasMixedCurrencyGroup = false;
-                let missingRates = false;
-                let unknownRate = false;
-                if (type === "monetary" || widget === "monetary") {
-                    const currencyField = self.getCurrencyField(column);
-                    if (currencyField in list.activeFields) {
-                        const isGroupedAggregation =
-                            /** @type {any} */ (list).isGrouped &&
-                            !list.selection.length;
-                        if (isGroupedAggregation) {
-                            currencyId = rows.find((v) => v[currencyField]?.length)?.[
-                                currencyField
-                            ][0];
-                        } else {
-                            currencyId =
-                                rows[0][currencyField] && rows[0][currencyField].id;
-                        }
-                        if (func && type === "monetary") {
-                            const currencies = self.getFieldCurrencies(fieldName);
-                            if (currencies.size > 1) {
-                                multiCurrency = true;
-                                currencyId = user.activeCompany?.currency_id;
-                                hasMixedCurrencyGroup =
-                                    isGroupedAggregation &&
-                                    fieldEntries.some(
-                                        (entry) =>
-                                            entry.record[currencyField]?.length > 1,
-                                    );
-                                const rates = state.currencyRates;
-                                if (!hasMixedCurrencyGroup && !rates) {
-                                    requestCurrencyRates();
-                                    missingRates = true;
-                                } else if (!hasMixedCurrencyGroup) {
-                                    const converted = [];
-                                    for (const entry of fieldEntries) {
-                                        const currency = isGroupedAggregation
-                                            ? entry.record[currencyField]?.[0]
-                                            : entry.record[currencyField]?.id;
-                                        if (!currency || currency === currencyId) {
-                                            converted.push(entry.value);
-                                            continue;
-                                        }
-                                        const rate = rates?.[currency]?.toCompanyRate;
-                                        if (rate === undefined) {
-                                            unknownRate = true;
-                                            break;
-                                        }
-                                        converted.push(entry.value * rate);
-                                    }
-                                    if (!unknownRate) {
-                                        fieldEntries.forEach((entry, index) => {
-                                            entry.value = converted[index];
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                if (missingRates || unknownRate) {
-                    let help;
-                    if (unknownRate) {
-                        help = _t("No total: one currency has no exchange rate");
-                    } else if (state.ratesFailed) {
-                        help = _t("No total: currency rates could not be loaded");
-                    } else {
-                        help = _t("No total: currency rates are still loading");
-                    }
-                    aggregates[fieldName] = {
-                        help,
-                        value: "",
-                        multiCurrency: true,
-                        rawValue: undefined,
-                    };
+
+                const currency = self.resolveAggregateCurrency(
+                    column,
+                    field,
+                    fieldEntries,
+                    rows,
+                    isGroupedAggregation,
+                );
+                if (currency.blocked) {
+                    aggregates[column.name] = blockedAggregate(currency.blocked);
                     continue;
                 }
-                if (hasMixedCurrencyGroup) {
-                    aggregates[fieldName] = {
-                        help: _t("No total: a group mixes several currencies"),
-                        value: "",
-                        multiCurrency: true,
-                        rawValue: undefined,
-                    };
-                    continue;
-                }
-                if (func) {
-                    let aggregatedValue;
-                    if (
-                        func === "avg" &&
-                        /** @type {any} */ (list).isGrouped &&
-                        !list.selection.length
-                    ) {
-                        const aggregator = field.aggregator || "sum";
-                        const totalCount = fieldEntries.reduce(
-                            (s, e) => s + (e.record.__count || 0),
-                            0,
-                        );
-                        if (totalCount && aggregator === "avg") {
-                            aggregatedValue =
-                                fieldEntries.reduce(
-                                    (s, e) => s + e.value * (e.record.__count || 0),
-                                    0,
-                                ) / totalCount;
-                        } else if (totalCount && aggregator === "sum") {
-                            aggregatedValue =
-                                fieldEntries.reduce((s, e) => s + e.value, 0) /
-                                totalCount;
-                        }
-                    }
-                    if (aggregatedValue === undefined) {
-                        aggregatedValue = computeAggregatedValue(
-                            fieldEntries.map((entry) => entry.value),
-                            func,
-                        );
-                    }
-                    const { formatter, formatOptions } = resolveAggregateFormat(
-                        column,
-                        field,
+
+                let aggregatedValue;
+                if (func === "avg" && isGroupedAggregation) {
+                    aggregatedValue = weightedGroupAverage(
+                        fieldEntries,
+                        field.aggregator || "sum",
                     );
-                    if (currencyId) {
-                        formatOptions.currencyId = currencyId;
-                    }
-                    aggregates[fieldName] = {
-                        help: multiCurrency ? "" : attrs[func],
-                        value: formatter
-                            ? formatter(aggregatedValue, formatOptions)
-                            : aggregatedValue,
-                        multiCurrency,
-                        rawValue: aggregatedValue,
-                    };
                 }
+                aggregatedValue ??= computeAggregatedValue(
+                    fieldEntries.map((entry) => entry.value),
+                    func,
+                );
+
+                const { formatter, formatOptions } = resolveAggregateFormat(
+                    column,
+                    field,
+                );
+                if (currency.currencyId) {
+                    formatOptions.currencyId = currency.currencyId;
+                }
+                aggregates[column.name] = {
+                    help: currency.multiCurrency ? "" : (column.attrs || {})[func],
+                    value: formatter
+                        ? formatter(aggregatedValue, formatOptions)
+                        : aggregatedValue,
+                    multiCurrency: currency.multiCurrency,
+                    rawValue: aggregatedValue,
+                };
             }
             return aggregates;
         },

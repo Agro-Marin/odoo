@@ -26,31 +26,25 @@ export class ListGridState {
     _colIndexById = new Map();
 
     /**
+     * Only what `update()` never refreshes.
+     *
+     * Every other option this took was overwritten by the first `update()` --
+     * which `ListRenderer` calls from `onWillRender`, before anything reads the
+     * state -- and `columns` was handed `this.columns` while it was still `[]`.
+     * A constructor that appears to seed a grid it does not seed is worse than
+     * one that admits `update()` owns the data.
+     *
      * @param {object} options
-     * @param {object} options.list
-     * @param {object[]} options.columns
-     * @param {boolean} [options.hasSelectors]
-     * @param {boolean} [options.hasOpenFormViewColumn]
-     * @param {boolean} [options.hasActionsColumn]
-     * @param {boolean} [options.isRTL]
-     * @param {boolean} [options.showGroupAddLine]
+     * @param {object} options.list the list to materialise until the first update
+     * @param {boolean} [options.isRTL] the one option `update()` is never passed
      */
-    constructor({
-        list,
-        columns,
-        hasSelectors = false,
-        hasOpenFormViewColumn = false,
-        hasActionsColumn = false,
-        isRTL = false,
-        showGroupAddLine = false,
-    }) {
+    constructor({ list, isRTL = false }) {
         this._list = list;
-        this._setColumns(columns);
-        this._hasSelectors = hasSelectors;
-        this._hasOpenFormViewColumn = hasOpenFormViewColumn;
-        this._hasActionsColumn = hasActionsColumn;
         this._isRTL = isRTL;
-        this._showGroupAddLine = showGroupAddLine;
+        this._hasSelectors = false;
+        this._hasOpenFormViewColumn = false;
+        this._hasActionsColumn = false;
+        this._showGroupAddLine = false;
 
         /** @type {FlatRow[]} */
         this._flatRows = [];

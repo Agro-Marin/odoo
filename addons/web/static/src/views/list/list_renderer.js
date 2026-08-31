@@ -386,7 +386,6 @@ export class ListRenderer extends Component {
 
         this.gridState = new ListGridState({
             list: this.props.list,
-            columns: this.columns,
             isRTL: this.isRTL,
         });
 

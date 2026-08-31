@@ -115,6 +115,7 @@ test(`a button column does not repaint every row on handover`, async () => {
     });
 });
 
+test.tags("desktop");
 test(`selectors stay disabled for the whole handover`, async () => {
     await mountView({ resModel: "foo", type: "list", arch: ARCH });
 
@@ -136,6 +137,7 @@ test(`selectors stay disabled for the whole handover`, async () => {
     );
 });
 
+test.tags("desktop");
 test(`leaving edition re-enables the selectors`, async () => {
     await mountView({ resModel: "foo", type: "list", arch: ARCH });
 

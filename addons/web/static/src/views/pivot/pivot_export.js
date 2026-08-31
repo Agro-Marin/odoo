@@ -36,14 +36,17 @@ export function computeExportedTableWidth(leafCount, measureCount) {
 export function formatPivotForExport(table, metaData) {
     const { headers } = table;
 
-    let colGroupHeaderRows = headers.slice(0, -1);
     const measureRow = headers.at(-1).map(processHeader);
 
-    colGroupHeaderRows[0].splice(0, 1);
-
-    colGroupHeaderRows = colGroupHeaderRows.map((headerRow) =>
-        headerRow.map(processHeader),
-    );
+    // The first header row opens with the empty corner cell above the row
+    // labels, which the export does not carry. Drop it by copying the row: this
+    // formatter is handed the renderer's own table shape, and splicing it in
+    // place consumed one cell per call.
+    const colGroupHeaderRows = headers
+        .slice(0, -1)
+        .map((headerRow, rowIndex) =>
+            (rowIndex === 0 ? headerRow.slice(1) : headerRow).map(processHeader),
+        );
 
     const tableRows = table.rows.map((row) => ({
         title: row.title,

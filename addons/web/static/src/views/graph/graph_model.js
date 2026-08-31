@@ -451,6 +451,15 @@ export class GraphModel extends Model {
               })
             : { cumulatedStartValue: {}, cumulatedStartConverted: {} };
 
+        /** @type {import("./graph_data_points").GraphSeriesContext} */
+        const series = {
+            fieldAggregate,
+            monetaryAggregates,
+            defaultCurrency,
+            graphCurrencies,
+            cumulatedStartValue,
+            cumulatedStartConverted,
+        };
         /** @type {import("./graph_data_points").Numbering} */
         const numbering = {};
         const getDefaultFilterLabel = (gb) => this._getDefaultFilterLabel(gb);
@@ -466,17 +475,7 @@ export class GraphModel extends Model {
                 getDefaultFilterLabel,
             });
             dataPoints.push(
-                makeDataPoint(group, {
-                    labels,
-                    rawValues,
-                    isFalsyXGroup,
-                    fieldAggregate,
-                    monetaryAggregates,
-                    defaultCurrency,
-                    graphCurrencies,
-                    cumulatedStartValue,
-                    cumulatedStartConverted,
-                }),
+                makeDataPoint(group, { labels, rawValues, isFalsyXGroup }, series),
             );
         }
         return applyCurrencyFallback(dataPoints, {

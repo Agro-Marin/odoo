@@ -20,6 +20,17 @@ const OPEN_FORM_VIEW_BUTTON_WIDTH = 54;
 const DELETE_BUTTON_WIDTH = 12;
 
 /**
+ * @param {HTMLTableElement} table
+ * @param {{
+ * columns: any[],
+ * isEmpty: boolean,
+ * hasSelectors: boolean,
+ * hasOpenFormViewColumn: boolean,
+ * hasActionsColumn: boolean,
+ * }} state
+ * @param {number} allowedWidth total width the columns must add up to
+ * @param {number[]} [startingWidths] widths to resize from, instead of measuring
+ *        the table -- used when a resize continues from a previous layout
  * @returns {Number[]}
  */
 function computeWidths(table, state, allowedWidth, startingWidths) {

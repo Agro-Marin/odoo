@@ -1,13 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
+import { _t } from "@web/core/translation";
+
 /**
  * @param {string} gb
  * @param {Object} fields
  * @returns {string}
  */
-
-import { _t } from "@web/core/translation";
 function normalize(gb, fields) {
     const [fieldName, interval] = gb.split(":");
     const field = fields[fieldName];
@@ -32,7 +32,7 @@ function sanitizeValue(value) {
  * @param {any} value
  * @param {string} groupBy
  * @param {Object} config
- * @returns {string}
+ * @returns {string | number}
  */
 function sanitizeLabel(value, groupBy, config) {
     const { metaData } = config;
@@ -89,7 +89,7 @@ function getNumberedLabel(label, fieldName, config) {
  * @param {string[]} groupBys
  * @param {Object} config
  * @param {Object} fields
- * @returns {string[]}
+ * @returns {(string | number)[]}
  */
 export function getGroupLabels(group, groupBys, config, fields) {
     return groupBys.map((gb) => {

@@ -221,25 +221,35 @@ export function getRawValue(group, fieldAggregate) {
 }
 
 /**
+ * Everything a data point needs that is fixed for the whole series.
+ *
+ * These six were passed per group, which rebuilt the same nine-key object once
+ * per row and made the parameter list a byte-exact duplicate of its only call
+ * site. Splitting them out leaves the per-group triple at the call site and the
+ * series context built once.
+ *
+ * @typedef {Object} GraphSeriesContext
+ * @property {string} fieldAggregate
+ * @property {string[]} [monetaryAggregates]
+ * @property {any} [defaultCurrency]
+ * @property {Set<any>} graphCurrencies
+ * @property {Record<string, any>} cumulatedStartValue
+ * @property {Record<string, any>} cumulatedStartConverted
+ */
+
+/**
  * @param {ServerGroup} group
- * @param {Object} params
- * @param {any[]} params.labels
- * @param {Record<string, any>[]} params.rawValues
- * @param {boolean} params.isFalsyXGroup
- * @param {string} params.fieldAggregate
- * @param {string[]} [params.monetaryAggregates]
- * @param {any} [params.defaultCurrency]
- * @param {Set<any>} params.graphCurrencies
- * @param {Record<string, any>} params.cumulatedStartValue
- * @param {Record<string, any>} params.cumulatedStartConverted
+ * @param {Object} groupInfo
+ * @param {any[]} groupInfo.labels
+ * @param {Record<string, any>[]} groupInfo.rawValues
+ * @param {boolean} groupInfo.isFalsyXGroup
+ * @param {GraphSeriesContext} series
  * @returns {GraphDataPoint}
  */
 export function makeDataPoint(
     group,
+    { labels, rawValues, isFalsyXGroup },
     {
-        labels,
-        rawValues,
-        isFalsyXGroup,
         fieldAggregate,
         monetaryAggregates,
         defaultCurrency,

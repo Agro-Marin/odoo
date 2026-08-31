@@ -43,13 +43,14 @@ function makeGridState(options = {}) {
         mockColumn("phone"),
     ];
     const list = options.list || mockList(records);
-    const gridState = new ListGridState({
-        list,
+    // construct then update, which is the order ListRenderer uses: everything
+    // but the list and the direction arrives from the first onWillRender.
+    const gridState = new ListGridState({ list, isRTL: options.isRTL ?? false });
+    gridState.update({
         columns,
         hasSelectors: options.hasSelectors ?? false,
         hasOpenFormViewColumn: options.hasOpenFormViewColumn ?? false,
         hasActionsColumn: options.hasActionsColumn ?? false,
-        isRTL: options.isRTL ?? false,
         showGroupAddLine: options.showGroupAddLine ?? false,
     });
     gridState.rebuild();

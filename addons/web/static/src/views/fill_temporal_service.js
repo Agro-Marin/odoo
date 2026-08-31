@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
@@ -74,6 +75,8 @@ export const GRANULARITY_TABLE = {
  * method. It will be used when we want to get continuous groups in chronological
  * order in a specific date/time range.
  */
+const DEFAULT_MIN_GROUPS = 4;
+
 export class FillTemporalPeriod {
     /**
      * Assigned by the helpers the constructor calls, which is a sequence
@@ -266,7 +269,14 @@ export class FillTemporalPeriod {
      *                            constraints
      */
     setMinGroups(minGroups) {
-        this.minGroups = minGroups || 1;
+        const next = minGroups || 1;
+        if (next === this.minGroups) {
+            return;
+        }
+        this.minGroups = next;
+        if (this.computedEnd) {
+            this._computeEnd();
+        }
     }
     /**
      * sets the end of the period to the desired DateTime. It must be greater
@@ -280,12 +290,28 @@ export class FillTemporalPeriod {
         this.computedEnd = false;
     }
     /**
-     * sets the start of the period to the desired DateTime. It must be smaller than end
+     * Re-anchor the period on the granularity period containing "now".
      *
-     * @param {DateTime} start
+     * The constructor reads the clock once, and the service caches the instance
+     * for the whole session, so without this a view left mounted across a period
+     * boundary keeps sending the start it was built with. A derived end is
+     * recomputed with it; an end that was set deliberately (setEnd / expand, or
+     * the last group with data) is kept and only clamped to stay >= start.
+     *
+     * @returns {boolean} whether the anchor moved
      */
-    setStart(start) {
-        this.start = luxon.DateTime.min(this.end, start);
+    refreshStart() {
+        const start = GRANULARITY_TABLE[this.granularity].startOf(luxon.DateTime.now());
+        if (start.equals(this.start)) {
+            return false;
+        }
+        this.start = start;
+        if (this.computedEnd) {
+            this._computeEnd();
+        } else {
+            this.end = luxon.DateTime.max(this.start, this.end);
+        }
+        return true;
     }
     /**
      * Adds one "granularity" period to [this.end], to expand the current fill_temporal period
@@ -314,8 +340,8 @@ export class FillTemporalPeriod {
  */
 export class FillTemporal {
     constructor() {
-        /** @type {Record<string, Record<string, Record<string, FillTemporalPeriod>>>} */
-        this._fillTemporalPeriods = {};
+        /** @type {Map<string, FillTemporalPeriod>} */
+        this._fillTemporalPeriods = new Map();
     }
 
     /**
@@ -341,7 +367,8 @@ export class FillTemporal {
      *                              type: date field type: 'date' or 'datetime'
      * @param {string} configuration.granularity can either be : hour, day, week, month,
      *                              quarter, year
-     * @param {number} [configuration.minGroups=4] optional minimal amount of desired groups
+     * @param {number} [configuration.minGroups] minimal amount of desired groups;
+     *                              omitted leaves a cached period's minimum untouched
      * @param {boolean} [configuration.forceRecompute=false] optional whether the fill_temporal
      *                                         period should be reinstancied
      * @returns {FillTemporalPeriod}
@@ -350,30 +377,65 @@ export class FillTemporal {
         modelName,
         field,
         granularity,
-        minGroups = 4,
+        minGroups,
         forceRecompute = false,
     }) {
-        if (!(modelName in this._fillTemporalPeriods)) {
-            this._fillTemporalPeriods[modelName] = {};
-        }
-        if (!(field.name in this._fillTemporalPeriods[modelName])) {
-            this._fillTemporalPeriods[modelName][field.name] = {};
-        }
-        if (
-            !(granularity in this._fillTemporalPeriods[modelName][field.name]) ||
-            forceRecompute
-        ) {
-            this._fillTemporalPeriods[modelName][field.name][granularity] =
-                new FillTemporalPeriod(modelName, field, granularity, minGroups);
-        } else if (
-            this._fillTemporalPeriods[modelName][field.name][granularity].minGroups !==
-            minGroups
-        ) {
-            this._fillTemporalPeriods[modelName][field.name][granularity].setMinGroups(
-                minGroups,
+        const key = JSON.stringify([modelName, field.name, granularity]);
+        let period = this._fillTemporalPeriods.get(key);
+        if (!period || forceRecompute) {
+            period = new FillTemporalPeriod(
+                modelName,
+                field,
+                granularity,
+                minGroups ?? DEFAULT_MIN_GROUPS,
             );
+            this._fillTemporalPeriods.set(key, period);
+            return period;
         }
-        return this._fillTemporalPeriods[modelName][field.name][granularity];
+        // Only a caller that actually supplied a minimum may move it: callers
+        // that do not care must not silently reset one that was configured.
+        if (minGroups !== undefined) {
+            period.setMinGroups(minGroups);
+        }
+        period.refreshStart();
+        return period;
+    }
+
+    /**
+     * Resolve the period for a groupBy spec, deriving the cache key from the spec
+     * itself.
+     *
+     * This is the entry point every caller should use. The key is
+     * (model, field, granularity), and callers that assembled it themselves did
+     * not agree: crm's forecast model split the spec, while its renderer read a
+     * `granularity` property off the field descriptor -- which no field has, so
+     * it always resolved to "month" and expanded a period the model never read.
+     * Deriving the key in one place is what makes that class of bug unwritable.
+     *
+     * @param {Object} configuration
+     * @param {string} configuration.modelName
+     * @param {string} configuration.groupBySpec a groupBy entry, i.e. "date_deadline:week"
+     * @param {Record<string, any>} configuration.fields the model's field descriptors
+     * @param {number} [configuration.minGroups]
+     * @param {boolean} [configuration.forceRecompute]
+     * @returns {FillTemporalPeriod}
+     */
+    getFillTemporalPeriodForGroupBy({
+        modelName,
+        groupBySpec,
+        fields,
+        minGroups,
+        forceRecompute,
+    }) {
+        const [fieldName, granularity] = groupBySpec.split(":");
+        const { name, type } = fields[fieldName];
+        return this.getFillTemporalPeriod({
+            modelName,
+            field: { name, type },
+            granularity: granularity || "month",
+            minGroups,
+            forceRecompute,
+        });
     }
 }
 

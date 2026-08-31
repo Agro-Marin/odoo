@@ -148,7 +148,7 @@ function adjacentGroupButton(cell, step) {
  * @param {"left" | "right"} [direction]
  * @returns {HTMLElement | null}
  */
-function focusAtPosition(tableRef, { rowIndex, colIndex }, direction) {
+function elementToFocusAtPosition(tableRef, { rowIndex, colIndex }, direction) {
     const row = tableRef.el.querySelector(`[data-row-index="${rowIndex}"]`);
     if (!row) {
         return null;
@@ -241,6 +241,23 @@ export function useListKeyboardNavigation(tableRef, ctx) {
         get pendingVirtFocus() {
             return pendingVirtFocus;
         },
+        /**
+         * Land a focus that had to wait for virtualization to render its row.
+         *
+         * Two passes by design, and it is worth saying why rather than making
+         * it one. The first finds the row (or counts a retry, if the scroll has
+         * not painted it yet) and applies the focus; the *second* confirms the
+         * focus stuck -- `element === document.activeElement` -- and only then
+         * drops the pending state. Clearing on the first pass would trust a
+         * focus() call nothing has yet confirmed.
+         *
+         * That confirmation is only sound because `toFocus` cannot diverge from
+         * `element`: `dispatchFutureCell` latches the move it was handed, and
+         * `findFocusFutureCell` returns the latched element when the cell,
+         * row-ness and direction all match. Without that latch the renderer's
+         * hook could hand back a different cell, the equality would never hold,
+         * and this would re-focus once per patch until MAX_VIRT_FOCUS_RETRIES.
+         */
         resolvePendingVirtFocus() {
             if (!pendingVirtFocus) {
                 return;
@@ -263,7 +280,7 @@ export function useListKeyboardNavigation(tableRef, ctx) {
                 pendingVirtFocus = null;
                 return;
             }
-            const element = focusAtPosition(tableRef, { rowIndex, colIndex });
+            const element = elementToFocusAtPosition(tableRef, { rowIndex, colIndex });
             if (!element) {
                 pending.retries = (pending.retries || 0) + 1;
                 return;
@@ -346,7 +363,11 @@ export function useListKeyboardNavigation(tableRef, ctx) {
                                 ? "right"
                                 : "left"
                             : undefined;
-                    const element = focusAtPosition(tableRef, next, indexDirection);
+                    const element = elementToFocusAtPosition(
+                        tableRef,
+                        next,
+                        indexDirection,
+                    );
                     if (element) {
                         return { el: element };
                     }

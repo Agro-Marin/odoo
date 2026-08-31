@@ -360,14 +360,11 @@ export class FormCompiler extends ViewCompiler {
                 forceNewline = false;
             }
 
-            if (getTag(child, true) === "separator") {
-                itemSpan = Number.parseInt(
-                    formGroup.getAttribute("maxCols") || "2",
-                    10,
-                );
-            }
-
-            if (child.matches("div[class='clearfix']:empty")) {
+            // A separator and an empty clearfix both span the whole group row.
+            if (
+                getTag(child, true) === "separator" ||
+                child.matches("div[class='clearfix']:empty")
+            ) {
                 itemSpan = Number.parseInt(
                     formGroup.getAttribute("maxCols") || "2",
                     10,

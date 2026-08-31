@@ -439,10 +439,12 @@ describe("getRawValue", () => {
 });
 
 describe("makeDataPoint", () => {
-    const base = {
+    const groupInfo = {
         labels: ["Al", "Draft"],
         rawValues: [{ user_id: [7, "Al"] }, { state: "draft" }],
         isFalsyXGroup: false,
+    };
+    const base = {
         fieldAggregate: "amount:sum",
         graphCurrencies: new Set(),
         cumulatedStartValue: {},
@@ -452,6 +454,7 @@ describe("makeDataPoint", () => {
     test("carries the group's count, domain and value", () => {
         const p = makeDataPoint(
             { __count: 3, __domain: [["id", "=", 1]], "amount:sum": 12 },
+            groupInfo,
             base,
         );
         expect(p.count).toBe(3);
@@ -461,28 +464,26 @@ describe("makeDataPoint", () => {
     });
 
     test("datasetId drops the x-axis level so a series spans its x values", () => {
-        const p = makeDataPoint({ __count: 1, "amount:sum": 1 }, base);
+        const p = makeDataPoint({ __count: 1, "amount:sum": 1 }, groupInfo, base);
         expect(p.datasetId).toBe('[{"state":"draft"}]');
         expect(p.xIdentifier).toBe('[{"user_id":[7,"Al"]}]');
         expect(p.identifier).toBe('[{"user_id":[7,"Al"]},{"state":"draft"}]');
     });
 
     test("cumulated start is looked up by datasetId, defaulting to 0", () => {
-        const p = makeDataPoint(
-            { __count: 1, "amount:sum": 1 },
-            {
-                ...base,
-                cumulatedStartValue: { '[{"state":"draft"}]': 40 },
-            },
-        );
+        const p = makeDataPoint({ __count: 1, "amount:sum": 1 }, groupInfo, {
+            ...base,
+            cumulatedStartValue: { '[{"state":"draft"}]': 40 },
+        });
         expect(p.cumulatedStart).toBe(40);
         expect(
-            makeDataPoint({ __count: 1, "amount:sum": 1 }, base).cumulatedStart,
+            makeDataPoint({ __count: 1, "amount:sum": 1 }, groupInfo, base)
+                .cumulatedStart,
         ).toBe(0);
     });
 
     test("a non-monetary point carries no currency", () => {
-        const p = makeDataPoint({ __count: 1, "amount:sum": 1 }, base);
+        const p = makeDataPoint({ __count: 1, "amount:sum": 1 }, groupInfo, base);
         expect("currencyId" in p).toBe(false);
     });
 
@@ -495,6 +496,7 @@ describe("makeDataPoint", () => {
                 "amount:sum_currency": 120,
                 "currency_id:array_agg_distinct": [3],
             },
+            groupInfo,
             { ...base, monetaryAggregates: aggs, defaultCurrency: 1, graphCurrencies },
         );
         expect(p.currencyId).toBe(3);
@@ -511,6 +513,7 @@ describe("makeDataPoint", () => {
                 "amount:sum_currency": 120,
                 "currency_id:array_agg_distinct": [3, 4],
             },
+            groupInfo,
             { ...base, monetaryAggregates: aggs, defaultCurrency: 1, graphCurrencies },
         );
         expect(p.currencyId).toBe(1);
@@ -527,6 +530,7 @@ describe("makeDataPoint", () => {
                 "amount:sum_currency": 0,
                 "currency_id:array_agg_distinct": [3],
             },
+            groupInfo,
             { ...base, monetaryAggregates: aggs, defaultCurrency: 1, graphCurrencies },
         );
         expect([...graphCurrencies]).toEqual([]);

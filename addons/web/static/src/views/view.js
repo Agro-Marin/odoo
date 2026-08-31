@@ -198,6 +198,29 @@ const FORWARDED_TO_CONTROLLER = ["noBreadcrumbs"];
 /**
  * @type {string[]}
  */
+/**
+ * The props of `props` that a component declares.
+ *
+ * `loadView` builds two prop bags. The controller's has always been
+ * filter-then-build against STANDARD_PROPS; withSearch's was build-then-prune --
+ * spread every prop, then delete each key WithSearch does not declare, ten lines
+ * later. Two opposite strategies for one job, and the pruning one silently
+ * decided the fate of every key assigned in between.
+ *
+ * @param {Record<string, any>} props
+ * @param {Record<string, any>} declared
+ * @returns {Record<string, any>}
+ */
+function pickDeclaredProps(props, declared) {
+    const picked = {};
+    for (const key of Object.keys(props)) {
+        if (key in declared) {
+            picked[key] = props[key];
+        }
+    }
+    return picked;
+}
+
 export const STANDARD_PROPS = Object.keys(viewProps).filter(
     (key) => key !== "*" && !FORWARDED_TO_CONTROLLER.includes(key),
 );
@@ -328,8 +351,8 @@ export class View extends Component {
         } = props;
 
         const hasSearchView = views.some((/** @type {any} */ v) => v[1] === "search");
-        const loadView = !arch || (!actionMenus && loadActionMenus);
-        const loadSearchView =
+        const mustLoadView = !arch || (!actionMenus && loadActionMenus);
+        const mustLoadSearchView =
             hasSearchView &&
             ((searchViewId !== undefined && !searchViewArch) ||
                 (!irFilters && loadIrFilters));
@@ -337,7 +360,7 @@ export class View extends Component {
         /** @type {any} */
         let viewDescription = { id: viewId, resModel, type };
         let searchViewDescription;
-        if (loadView || loadSearchView) {
+        if (mustLoadView || mustLoadSearchView) {
             const options = {
                 actionId: config.actionId,
                 loadActionMenus,
@@ -357,7 +380,7 @@ export class View extends Component {
             }
             viewDescription = result.views[type];
             searchViewDescription = /** @type {any} */ (result.views).search;
-            if (loadSearchView) {
+            if (mustLoadSearchView) {
                 searchViewId = searchViewId || searchViewDescription.id;
                 if (!searchViewArch) {
                     searchViewArch = searchViewDescription.arch;
@@ -471,7 +494,7 @@ export class View extends Component {
         this.componentProps = finalProps;
         /** @type {Record<string, any>} */
         this.withSearchProps = {
-            ...toRaw(props),
+            ...pickDeclaredProps(toRaw(props), WithSearch.props),
             hideCustomGroupBy: props.hideCustomGroupBy || descr.hideCustomGroupBy,
             searchMenuTypes,
             canOrderByCount,
@@ -505,12 +528,6 @@ export class View extends Component {
 
         if (defaultGroupBy?.length) {
             this.withSearchProps.defaultGroupBy = defaultGroupBy;
-        }
-
-        for (const key of Object.keys(this.withSearchProps)) {
-            if (!(key in WithSearch.props)) {
-                delete this.withSearchProps[key];
-            }
         }
     }
 
