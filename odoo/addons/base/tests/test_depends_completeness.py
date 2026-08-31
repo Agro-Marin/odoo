@@ -141,7 +141,7 @@ class TestDependsSweep(TransactionCase):
             registry.field_depends[field] = stripped
             registry.__dict__.pop("_field_triggers", None)
             registry.model_graph.reset_triggers()
-            registry._ensure_field_triggers()
+            registry._get_field_triggers()
             self.env.invalidate_all()
             stale = self.findStaleComputedFields(
                 child + other,
@@ -152,7 +152,7 @@ class TestDependsSweep(TransactionCase):
             registry.field_depends[field] = original
             registry.__dict__.pop("_field_triggers", None)
             registry.model_graph.reset_triggers()
-            registry._ensure_field_triggers()
+            registry._get_field_triggers()
             self.env.invalidate_all()
 
         self.assertTrue(

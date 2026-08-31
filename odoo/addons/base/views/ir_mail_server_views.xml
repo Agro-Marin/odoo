@@ -73,7 +73,7 @@
                                 <button
                                     class="btn btn-link pt-0"
                                     type="object"
-                                    name="action_retrieve_max_email_size">
+                                    name="action_update_max_email_size">
                                     <i class="fa-solid fa-gear" /> Detect Max Limit
                                 </button>
                             </div>

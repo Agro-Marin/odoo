@@ -35,7 +35,7 @@ class TestRtlcssResolution(BaseCase):
             patch.object(assetsbundle.css_pipeline.os, "name", "nt"),
             patch.object(
                 assetsbundle.css_pipeline.misc,
-                "find_in_path",
+                "get_executable_path",
                 return_value="C:/npm/rtlcss.cmd",
             ) as find,
         ):
@@ -49,7 +49,7 @@ class TestRtlcssResolution(BaseCase):
             patch.object(assetsbundle.css_pipeline.os, "name", "posix"),
             patch.object(
                 assetsbundle.css_pipeline.misc,
-                "find_in_path",
+                "get_executable_path",
                 return_value="/usr/bin/rtlcss",
             ),
         ):
@@ -68,7 +68,7 @@ class TestRtlcssResolution(BaseCase):
             patch.object(assetsbundle.css_pipeline.os, "name", "posix"),
             patch.object(
                 assetsbundle.css_pipeline.misc,
-                "find_in_path",
+                "get_executable_path",
                 side_effect=OSError(errno.ENOENT, "not found"),
             ),
             patch.object(

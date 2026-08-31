@@ -4052,14 +4052,14 @@ class TestQWebCachedTemplateError(TransactionCase):
     def test_get_template_view_does_not_raise_the_cached_instance(self):
         View = self.env["ir.ui.view"]
         seen = []
-        original = type(View)._raise_cached_template_error
+        original = type(View)._prepare_cached_template_error
 
         def spy(records, error):
             seen.append(error)
-            original(records, error)
+            return original(records, error)
 
         with (
-            patch.object(type(View), "_raise_cached_template_error", spy),
+            patch.object(type(View), "_prepare_cached_template_error", spy),
             self.assertRaises(MissingError),
         ):
             View._get_template_view("base.no_such_template_view")
@@ -4070,7 +4070,7 @@ class TestQWebCachedTemplateError(TransactionCase):
         lengths = []
         for _ in range(5):
             with self.assertRaises(MissingError) as caught:
-                self.env["ir.ui.view"]._raise_cached_template_error(error)
+                raise self.env["ir.ui.view"]._prepare_cached_template_error(error)
             self.assertIsNot(caught.exception, error)
             lengths.append(self._traceback_length(caught.exception))
         self.assertEqual(
@@ -4084,7 +4084,7 @@ class TestQWebCachedTemplateError(TransactionCase):
         error = UserError("boom")
         error.context = {"view": self.env["ir.ui.view"]}
         with self.assertRaises(UserError) as caught:
-            self.env["ir.ui.view"]._raise_cached_template_error(error)
+            raise self.env["ir.ui.view"]._prepare_cached_template_error(error)
         self.assertIsNot(caught.exception, error)
         self.assertEqual(caught.exception.context, error.context)
         self.assertIsNone(error.__traceback__, "the cached instance was mutated")

@@ -271,13 +271,11 @@ class ResCompany(models.Model):
                 )
             )
 
-    @api.constrains(
-        lambda self: self._get_company_root_delegated_field_names() + ["parent_id"]
-    )
+    @api.constrains(lambda self: self._get_root_delegated_field_names() + ["parent_id"])
     def _check_root_delegated_fields(self) -> None:
         for company in self:
             if company.parent_id:
-                for fname in company._get_company_root_delegated_field_names():
+                for fname in company._get_root_delegated_field_names():
                     if company[fname] != company.parent_id[fname]:
                         description = (
                             self.env["ir.model.fields"]
@@ -332,7 +330,7 @@ class ResCompany(models.Model):
 
         for vals in vals_list:
             if parent := self.browse(vals.get("parent_id")):
-                for fname in self._get_company_root_delegated_field_names():
+                for fname in self._get_root_delegated_field_names():
                     vals.setdefault(
                         fname,
                         self._fields[fname].convert_to_write(parent[fname], parent),
@@ -390,9 +388,7 @@ class ResCompany(models.Model):
         if vals.get("active") is False:
             self.child_ids.active = False
 
-        delegated_changed = set(vals) & set(
-            self._get_company_root_delegated_field_names()
-        )
+        delegated_changed = set(vals) & set(self._get_root_delegated_field_names())
         if delegated_changed:
             roots = self.filtered(lambda company: not company.parent_id)
             all_branches = self.sudo().search(
@@ -413,7 +409,7 @@ class ResCompany(models.Model):
         if companies_needs_l10n:
             companies_needs_l10n.install_l10n_modules()
 
-        company_address_fields = self._get_company_address_field_names()
+        company_address_fields = self._get_address_field_names()
         company_address_fields_upd = set(company_address_fields) & set(vals.keys())
         if company_address_fields_upd:
             self.invalidate_model(company_address_fields)
@@ -424,16 +420,14 @@ class ResCompany(models.Model):
         self.env.registry.clear_cache()
         return res
 
-    def _get_company_root_delegated_field_names(self) -> list[str]:
+    def _get_root_delegated_field_names(self) -> list[str]:
         return ["currency_id"]
 
-    def _get_company_address_field_names(self) -> list[str]:
+    def _get_address_field_names(self) -> list[str]:
         return ["street", "street2", "city", "zip", "state_id", "country_id"]
 
     def _get_company_address_update(self, partner: Any) -> dict[str, Any]:
-        return {
-            fname: partner[fname] for fname in self._get_company_address_field_names()
-        }
+        return {fname: partner[fname] for fname in self._get_address_field_names()}
 
     @api.depends("parent_path")
     def _compute_hierarchy(self) -> None:
@@ -447,7 +441,7 @@ class ResCompany(models.Model):
 
     @api.depends(
         lambda self: [
-            f"partner_id.{fname}" for fname in self._get_company_address_field_names()
+            f"partner_id.{fname}" for fname in self._get_address_field_names()
         ]
     )
     def _compute_address(self) -> None:
@@ -519,7 +513,7 @@ class ResCompany(models.Model):
     @api.onchange("parent_id")
     def _onchange_parent_id(self) -> None:
         if self.parent_id:
-            for fname in self._get_company_root_delegated_field_names():
+            for fname in self._get_root_delegated_field_names():
                 if self[fname] != self.parent_id[fname]:
                     self[fname] = self.parent_id[fname]
 
@@ -585,7 +579,7 @@ class ResCompany(models.Model):
         view_type: str = "form",
         **options: Any,
     ) -> tuple:
-        delegated_fnames = set(self._get_company_root_delegated_field_names())
+        delegated_fnames = set(self._get_root_delegated_field_names())
         arch, view = super()._get_view(view_id, view_type, **options)
         for f in arch.iter("field"):
             if f.get("name") in delegated_fnames:
@@ -644,7 +638,7 @@ class ResCompany(models.Model):
 
     @ormcache("tuple(self.env.companies.ids)", "self.id", "self.env.uid")
     def __accessible_branches(self) -> list[int]:
-        self.ensure_one()
+        self.check_singleton()
 
         accessible_branch_ids = []
         accessible = self.env.companies
@@ -680,7 +674,7 @@ class ResCompany(models.Model):
         return self == self.sudo().search([("id", "child_of", self.root_id.ids)])
 
     def action_all_company_branches(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "name": self.env._("Branches"),
@@ -694,7 +688,7 @@ class ResCompany(models.Model):
         }
 
     def _get_public_user(self) -> models.Model:
-        self.ensure_one()
+        self.check_singleton()
         login = f"public-user@company-{self.id}.com"
         existing = (
             self.env["res.users"]

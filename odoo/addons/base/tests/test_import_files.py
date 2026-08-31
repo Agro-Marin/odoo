@@ -897,11 +897,11 @@ class TestFieldConverters(TransactionCase):
 
     def test_database_id_possible_values_shows_database_ids(self):
         field = self.env["res.partner"]._fields["parent_id"]
-        external = self.converter._get_action_possible_values(field, "id")
+        external = self.converter._prepare_action_possible_values(field, "id")
         self.assertEqual(external["res_model"], "ir.model.data")
         self.assertEqual(external["domain"], [("model", "=", "res.partner")])
         for subfield in (None, ".id"):
-            action = self.converter._get_action_possible_values(field, subfield)
+            action = self.converter._prepare_action_possible_values(field, subfield)
             self.assertEqual(
                 action["res_model"],
                 "res.partner",

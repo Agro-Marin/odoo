@@ -20,7 +20,7 @@ from odoo.exceptions import AccessDenied
 from odoo.http import (
     SAFE_HTTP_METHODS,
     Response,
-    build_routing_map,
+    prepare_routing_map,
     request,
 )
 from odoo.libs.hashing import cache_hash
@@ -353,7 +353,7 @@ class IrHttp(models.AbstractModel):
             odoo.tools.config["server_wide_modules"]
         )
         mods = sorted(installed)
-        return build_routing_map(
+        return prepare_routing_map(
             self._generate_routing_rules(mods),
             converters=self._get_converters(),
         )

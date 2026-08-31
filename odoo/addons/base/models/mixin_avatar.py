@@ -3,7 +3,7 @@ from base64 import b64encode
 from datetime import UTC
 
 from odoo import api, fields, models
-from odoo.libs.colors import hsl_from_seed
+from odoo.libs.colors import get_hsl_from_seed
 from odoo.tools import file_open, html_escape
 from odoo.tools.misc import limited_field_access_token
 
@@ -60,9 +60,9 @@ class MixinAvatar(models.AbstractModel):
             record[avatar_field] = avatar
 
     def _prepare_avatar_svg(self) -> bytes:
-        self.ensure_one()
+        self.check_singleton()
         initial = html_escape(self[self._avatar_name_field].strip()[0].upper())
-        bgcolor = hsl_from_seed(
+        bgcolor = get_hsl_from_seed(
             self[self._avatar_name_field]
             + str(
                 self.create_date.replace(tzinfo=UTC).timestamp()
@@ -87,5 +87,5 @@ class MixinAvatar(models.AbstractModel):
         return _get_placeholder_image(self._get_avatar_placeholder_path())
 
     def _get_avatar_128_access_token(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         return limited_field_access_token(self, "avatar_128", scope="binary")

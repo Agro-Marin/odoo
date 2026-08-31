@@ -92,7 +92,7 @@ Heavy use throughout base for expensive queries that rarely change:
 ```python
 # Cached by model name — cleared on ACL changes
 @tools.ormcache("model_name", "access_mode", cache="stable")
-def _get_access_groups(self, model_name, access_mode="read"): ...
+def _get_groups_with_access(self, model_name, access_mode="read"): ...
 
 
 # Cached by XML ID — cleared on data changes
@@ -102,7 +102,7 @@ def _xmlid_lookup(self, xmlid): ...
 
 # Cached by model name — cleared on rule changes
 @tools.ormcache("self.env.uid", "self.env.su", "model_name", "mode")
-def _compute_domain(self, model_name, mode="read"): ...
+def _get_domain_accessible_records(self, model_name, mode="read"): ...
 ```
 
 **Cache invalidation**: Most cached methods are invalidated via `clear_caches()` in

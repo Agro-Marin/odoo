@@ -408,15 +408,15 @@ class ResPartner(models.Model):
     _barcode_gin_index = models.Index("USING gin (barcode jsonb_path_ops)")
 
     def _compute_application_statistics(self) -> None:
-        result = self._compute_application_statistics_hook()
+        result = self._get_application_statistics()
         for p in self:
             p.application_statistics = result.get(p.id, [])
 
-    def _compute_application_statistics_hook(self) -> defaultdict[int, list]:
+    def _get_application_statistics(self) -> defaultdict[int, list]:
         return defaultdict(list)
 
     def _get_street_split(self) -> dict[str, str]:
-        self.ensure_one()
+        self.check_singleton()
         return tools.street_split(self.street or "")
 
     @api.depends("name", "user_ids.share", "image_1920", "is_company", "type")
@@ -486,7 +486,7 @@ class ResPartner(models.Model):
         return super()._get_avatar_placeholder_path()
 
     def _get_complete_name(self, type_description: dict[str, str]) -> str:
-        self.ensure_one()
+        self.check_singleton()
 
         name = self.name or ""
         if self.parent_id:
@@ -660,7 +660,7 @@ class ResPartner(models.Model):
             if vats and any(vat in vat_by_value for vat in vats):
                 country_id = partner.country_id.id if partner.country_id else None
                 company_id = partner.company_id.id if partner.company_id else None
-                partner.same_vat_partner_id = _find_duplicate(
+                partner.same_vat_partner_id = _get_duplicate_partner(
                     partner_id,
                     vats,
                     vat_by_value,
@@ -677,7 +677,7 @@ class ResPartner(models.Model):
             ):
                 country_id = partner.country_id.id if partner.country_id else None
                 company_id = partner.company_id.id if partner.company_id else None
-                partner.same_company_registry_partner_id = _find_duplicate(
+                partner.same_company_registry_partner_id = _get_duplicate_partner(
                     partner_id,
                     [partner.company_registry],
                     reg_by_value,
@@ -806,7 +806,7 @@ class ResPartner(models.Model):
         you merge its duplicates into each other and leave it behind, which is
         the opposite of the intent.
         """
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "name": _("%s and its possible duplicates", self.display_name),
@@ -823,7 +823,7 @@ class ResPartner(models.Model):
         `synced_with_commercial`, so a delivery address answers with its
         company's tax ID rather than nothing.
         """
-        self.ensure_one()
+        self.check_singleton()
         identifier = self.identifier_ids.filtered(
             lambda i, code=code: i.type_id.code == code
         )[:1]
@@ -838,7 +838,7 @@ class ResPartner(models.Model):
 
     def _set_identifier(self, code: str, value) -> None:
         """Set, replace or clear this contact's identifier of type `code`."""
-        self.ensure_one()
+        self.check_singleton()
         identifier_type = self.env["res.partner.identifier.type"]._by_code(code)
         if not identifier_type:
             raise UserError(
@@ -1163,7 +1163,7 @@ class ResPartner(models.Model):
     def _commercial_sync_to_descendants(
         self, fields_to_sync: list[str] | None = None
     ) -> None:
-        self.ensure_one()
+        self.check_singleton()
         commercial_partner = self.commercial_partner_id
         if fields_to_sync is None:
             fields_to_sync = self._commercial_fields()
@@ -1230,7 +1230,7 @@ class ResPartner(models.Model):
             if contacts:
                 contacts._update_address(values)
 
-    def _handle_first_contact_creation(self) -> None:
+    def _update_parent_address(self) -> None:
         parent = self.parent_id
         address_fields = self._address_fields()
         if (
@@ -1271,9 +1271,7 @@ class ResPartner(models.Model):
         if public_partner_ids:
             self.filtered(lambda p: p.id in public_partner_ids).is_public = True
 
-    def _raise_linked_user_error(
-        self, users: ResUsers, operation: str
-    ) -> typing.NoReturn:
+    def _prepare_linked_user_error(self, users: ResUsers, operation: str) -> UserError:
         names = ", ".join(users.mapped("display_name"))
         if operation == "archive":
             lead = _("You cannot archive contacts linked to an active user.")
@@ -1290,8 +1288,8 @@ class ResPartner(models.Model):
                 remedy=remedy_self,
                 names=names,
             )
-            raise RedirectWarning(error_msg, users._action_show(), _("Go to users"))
-        raise ValidationError(
+            return RedirectWarning(error_msg, users._action_show(), _("Go to users"))
+        return ValidationError(
             _(
                 "%(lead)s\n%(remedy)s\n\nLinked active users :\n%(names)s",
                 lead=lead,
@@ -1310,7 +1308,7 @@ class ResPartner(models.Model):
                 self.env["res.users"].sudo().search([("partner_id", "in", self.ids)])
             )
             if users:
-                self._raise_linked_user_error(users, "archive")
+                raise self._prepare_linked_user_error(users, "archive")
         if vals.get("website"):
             vals["website"] = self._clean_website(vals["website"])
         if vals.get("name"):
@@ -1407,7 +1405,7 @@ class ResPartner(models.Model):
     def _unlink_except_user(self) -> None:
         users = self.env["res.users"].sudo().search([("partner_id", "in", self.ids)])
         if users:
-            self._raise_linked_user_error(users, "delete")
+            raise self._prepare_linked_user_error(users, "delete")
 
     def _load_records_create(self, vals_list: list[ValuesType]) -> Self:
         partners = super(
@@ -1440,13 +1438,13 @@ class ResPartner(models.Model):
 
         for partner, vals in zip(partners, vals_list, strict=True):
             partner._children_sync(vals)
-            partner._handle_first_contact_creation()
+            partner._update_parent_address()
         return partners
 
     def _create_parent_from_name(
         self, parent_name: str, additional_values: dict[str, Any] | None = None
     ) -> Self:
-        self.ensure_one()
+        self.check_singleton()
         if not parent_name:
             return self.browse()
         values = {
@@ -1470,11 +1468,11 @@ class ResPartner(models.Model):
         return parent_company
 
     def _create_contact_parent_company(self, values: dict[str, Any]) -> Self:
-        self.ensure_one()
+        self.check_singleton()
         return self.create(values)
 
     def open_commercial_entity(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "res_model": "res.partner",
@@ -1782,7 +1780,7 @@ class ResPartner(models.Model):
         return self.country_id.name or ""
 
     def _get_all_addr(self) -> list[ValuesType]:
-        self.ensure_one()
+        self.check_singleton()
         return [
             {
                 "contact_type": self.type,

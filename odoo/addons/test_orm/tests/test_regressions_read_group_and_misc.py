@@ -267,7 +267,7 @@ class TestExportXidDeterminism(TransactionCase):
         )
         self.assertLess(first.id, second.id)
 
-        [(rec, xid)] = list(record._ensure_xml_ids())
+        [(rec, xid)] = list(record._get_or_create_xml_ids())
         self.assertEqual(rec, record)
         self.assertEqual(xid, "__export__.audit_xid_first")
         self.assertEqual(

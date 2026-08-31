@@ -240,7 +240,7 @@ class TestBatchingIsDeliveredNotJustPromised(ServerActionCase):
         origin = cls._run_action_object_write_multi
 
         def spy(action, eval_context=None):
-            seen.append(len(action._get_target_records()))
+            seen.append(len(action._get_records_targeted()))
             return origin(action, eval_context=eval_context)
 
         self.patch(cls, "_run_action_object_write_multi", spy)
@@ -414,7 +414,7 @@ class TestNeedingARecordIsAskedOfTheAction(ServerActionCase):
     def test_a_create_with_no_link_field_runs_without_a_target(self):
         action = self._create_action()
         self.assertIn("object_create", action._get_states_needing_a_live_record())
-        self.assertFalse(action._needs_a_live_record())
+        self.assertFalse(action._is_live_record_required())
 
         before = self.env["res.partner"].search([]).ids
         action.run()
@@ -426,7 +426,7 @@ class TestNeedingARecordIsAskedOfTheAction(ServerActionCase):
     def test_a_create_that_links_is_skipped_without_a_target(self):
         link = self.env["ir.model.fields"]._get("res.partner", "child_ids")
         action = self._create_action(link_field_id=link.id)
-        self.assertTrue(action._needs_a_live_record())
+        self.assertTrue(action._is_live_record_required())
 
         before = self.env["res.partner"].search([]).ids
         action.run()
@@ -440,7 +440,7 @@ class TestNeedingARecordIsAskedOfTheAction(ServerActionCase):
         action = self._action(
             state="object_write", update_path="ref", evaluation_type="value", value="V"
         )
-        self.assertTrue(action._needs_a_live_record())
+        self.assertTrue(action._is_live_record_required())
 
     def test_the_cron_warning_follows_the_same_question(self):
         link = self.env["ir.model.fields"]._get("res.partner", "child_ids")
@@ -456,7 +456,7 @@ class TestOneRecordResolution(ServerActionCase):
         partners = self._partners(2, "amb")
         action = self._action(state="code", code="pass")
         self.assertFalse(
-            action.with_context(active_ids=partners.ids).sudo()._get_target_records(),
+            action.with_context(active_ids=partners.ids).sudo()._get_records_targeted(),
             "ids that do not say which model they belong to name nothing",
         )
 
@@ -466,8 +466,8 @@ class TestOneRecordResolution(ServerActionCase):
             state="code", code="action = {'n': len(records), 'r': record.id}"
         )
         scoped = action.with_context(**self._ctx(partners))
-        eval_context = scoped._get_eval_context(scoped)
-        self.assertEqual(eval_context["records"], scoped.sudo()._get_target_records())
+        eval_context = scoped._prepare_eval_context(scoped)
+        self.assertEqual(eval_context["records"], scoped.sudo()._get_records_targeted())
         self.assertEqual(eval_context["record"], partners[:1])
         self.assertEqual(scoped.run(), {"n": 3, "r": partners[0].id})
 
@@ -573,9 +573,9 @@ class TestTheOverridesStayInTheirChain(ServerActionCase):
         )
 
     def test_every_eval_context_override_requires_its_action(self):
-        parameter = inspect.signature(type(self.Action)._get_eval_context).parameters[
-            "action"
-        ]
+        parameter = inspect.signature(
+            type(self.Action)._prepare_eval_context
+        ).parameters["action"]
         self.assertIs(
             parameter.default,
             inspect.Parameter.empty,

@@ -354,7 +354,7 @@ class TestUsers(UsersCommonCase):
             [], limit=1, order="id desc"
         )
         non_existing_user = User.browse(last_user_id.id + 1)
-        self.assertFalse(non_existing_user._compute_session_token("session_id"))
+        self.assertFalse(non_existing_user._get_session_token("session_id"))
 
 
 @tagged("post_install", "-at_install", "groups")
@@ -1393,13 +1393,13 @@ class TestSelfFieldBatchAccessLeak(UsersCommonCase):
         from odoo.fields import Field
 
         seen = []
-        original = Field.ensure_access
+        original = Field.check_read_access
 
         def spy(field, record):
             seen.append(len(record))
             return original(field, record)
 
-        patcher = patch.object(Field, "ensure_access", spy)
+        patcher = patch.object(Field, "check_read_access", spy)
         patcher.start()
         self.addCleanup(patcher.stop)
         return seen
@@ -1411,9 +1411,9 @@ class TestSelfFieldBatchAccessLeak(UsersCommonCase):
         self.assertIn(
             2,
             seen,
-            "mapped must ensure_access on the full recordset, not records[:1]",
+            "mapped must check_read_access on the full recordset, not records[:1]",
         )
-        self.assertNotIn(1, seen, "no fast-path ensure_access saw only one record")
+        self.assertNotIn(1, seen, "no fast-path check_read_access saw only one record")
 
     def test_filtered_checks_the_whole_recordset(self):
         pair = self.user_internal | self.user_portal_1
@@ -1469,61 +1469,61 @@ class TestSessionTokenInvalidation(TransactionCase):
 
     def test_write_path_rotates_the_token(self):
         user = self._user("sess_write")
-        before = user._compute_session_token(self.SID)
+        before = user._get_session_token(self.SID)
         self.assertTrue(before)
 
         user.write({"password": "Another!Pwd456"})
         self.env.flush_all()
-        self.assertNotEqual(before, user._compute_session_token(self.SID))
+        self.assertNotEqual(before, user._get_session_token(self.SID))
 
     def test_encrypted_setter_rotates_the_token(self):
         user = self._user("sess_encrypted")
-        before = user._compute_session_token(self.SID)
+        before = user._get_session_token(self.SID)
 
         hashed = self.env["res.users"]._crypt_context().hash("Another!Pwd456")
-        user._set_encrypted_password(user.id, hashed)
+        user._update_encrypted_password(user.id, hashed)
         self.env.flush_all()
 
         self.assertNotEqual(
             before,
-            user._compute_session_token(self.SID),
+            user._get_session_token(self.SID),
             "a password written straight to the column must still end the session",
         )
 
     def test_empty_password_setter_rotates_the_token(self):
         user = self._user("sess_empty")
-        before = user._compute_session_token(self.SID)
+        before = user._get_session_token(self.SID)
 
-        user._set_empty_password()
+        user._clear_password()
         self.env.flush_all()
 
         self.assertNotEqual(
             before,
-            user._compute_session_token(self.SID),
+            user._get_session_token(self.SID),
             "clearing the password must end the session -- this is the path "
             "auth_ldap.change_password takes",
         )
 
     def test_archiving_rotates_the_token(self):
         user = self._user("sess_archive")
-        before = user._compute_session_token(self.SID)
+        before = user._get_session_token(self.SID)
 
         user.active = False
         self.env.flush_all()
 
-        self.assertNotEqual(before, user._compute_session_token(self.SID))
+        self.assertNotEqual(before, user._get_session_token(self.SID))
 
     def test_an_untouched_user_keeps_its_token(self):
         user = self._user("sess_stable")
         other = self._user("sess_other")
-        before = user._compute_session_token(self.SID)
+        before = user._get_session_token(self.SID)
 
         other.write({"password": "Another!Pwd456"})
         self.env.flush_all()
 
         self.assertEqual(
             before,
-            user._compute_session_token(self.SID),
+            user._get_session_token(self.SID),
             "one user's password change must not invalidate another's session",
         )
 

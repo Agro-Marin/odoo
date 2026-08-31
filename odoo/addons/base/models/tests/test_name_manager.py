@@ -64,7 +64,7 @@ def declare(
 
 def use(manager: NameManager, name: str, groups=DEFS.universe) -> etree._Element:
     node = field_node("other")
-    manager.must_have_fields(
+    manager.add_used_fields(
         node,
         {name},
         node_info(view_groups=groups),
@@ -174,7 +174,7 @@ class TestParentRouting:
             parent=parent,
             group_definitions=DEFS,
         )
-        child.must_have_fields(
+        child.add_used_fields(
             field_node("other"),
             {"parent.field_p", "field_c"},
             node_info(),
@@ -186,7 +186,7 @@ class TestParentRouting:
 
     def test_parent_prefixed_name_in_root_view_is_tolerated(self):
         manager = make_manager({"field_a": StubField()})
-        manager.must_have_fields(
+        manager.add_used_fields(
             field_node("other"),
             {"parent.field_x"},
             node_info(),

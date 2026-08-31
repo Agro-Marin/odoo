@@ -76,7 +76,7 @@ SAFE_EVAL_BASE = {
 }
 
 
-def make_compute(
+def prepare_compute(
     text: str, deps: str | None, origin: str = "unknown"
 ) -> Callable[[models.BaseModel], Any]:
     filename = f"<compute {origin}>"
@@ -209,7 +209,7 @@ def select_en(
     return model.env.execute_query(query)
 
 
-def _build_upsert_query(
+def _prepare_upsert_query(
     model: models.BaseModel,
     fnames: list[str],
     conflict: list[str],
@@ -322,7 +322,7 @@ def upsert_en(
     batch_size = 65000 // len(fnames) or 1
     key_to_id = {}
     for batch in batched(values, batch_size, strict=False):
-        query = _build_upsert_query(model, fnames, conflict, comma(batch))
+        query = _prepare_upsert_query(model, fnames, conflict, comma(batch))
         for result_row in model.env.execute_query(query):
             key_to_id[result_row[1:]] = result_row[0]
 

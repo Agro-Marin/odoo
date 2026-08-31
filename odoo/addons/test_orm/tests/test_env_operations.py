@@ -162,17 +162,17 @@ class TestEnsureOne(TransactionCase):
         cls.cats = Category.create([{"name": f"Multi{i}"} for i in range(3)])
 
     def test_ensure_one_singleton(self):
-        result = self.cat.ensure_one()
+        result = self.cat.check_singleton()
         self.assertIs(result, self.cat)
 
     def test_ensure_one_empty(self):
         empty = self.env["test_orm.category"]
         with self.assertRaises(ValueError):
-            empty.ensure_one()
+            empty.check_singleton()
 
     def test_ensure_one_multi(self):
         with self.assertRaises(ValueError):
-            self.cats.ensure_one()
+            self.cats.check_singleton()
 
 
 class TestEnvironmentProperties(TransactionCase):

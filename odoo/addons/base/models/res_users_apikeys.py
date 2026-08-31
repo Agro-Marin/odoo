@@ -309,8 +309,8 @@ class ResUsersApikeysDescription(models.TransientModel):
         return records
 
     @check_identity
-    def make_key(self) -> dict[str, Any]:
-        self.check_access_make_key()
+    def action_generate_key(self) -> dict[str, Any]:
+        self.check_access_generate_key()
 
         description = self.sudo()
         k = self.env["res.users.apikeys"]._generate(
@@ -329,7 +329,7 @@ class ResUsersApikeysDescription(models.TransientModel):
             },
         }
 
-    def check_access_make_key(self) -> None:
+    def check_access_generate_key(self) -> None:
         self.env["res.users.apikeys"]._check_generate_access()
 
 

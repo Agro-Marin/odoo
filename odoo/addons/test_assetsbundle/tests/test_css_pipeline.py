@@ -62,7 +62,7 @@ class _MissRecordset:
     def __len__(self):
         return 0
 
-    def ensure_one(self):
+    def check_singleton(self):
         raise ValueError("empty recordset")
 
 
@@ -181,7 +181,7 @@ class TestPreprocessCssAtRulesIdempotent(BaseCase):
         bundle = _fake_bundle(stylesheets=[scss], rtl=rtl)
         pipeline = CssPipeline(bundle)
         pipeline.compile_css = lambda compiler, source: self._COMPILED
-        pipeline.run_rtlcss = lambda source: source
+        pipeline.convert_css_to_rtl = lambda source: source
         return pipeline, bundle
 
     def test_source_list_untouched_atrules_in_render_list(self):
@@ -1242,7 +1242,7 @@ class TestAuditRtlSilentDegradation(TransactionCase):
             "odoo.addons.base.models.assetsbundle.css_pipeline._check_rtlcss",
             return_value=False,
         ):
-            out = bundle._css.run_rtlcss(PLAIN_CSS)
+            out = bundle._css.convert_css_to_rtl(PLAIN_CSS)
         self.assertEqual(out, PLAIN_CSS)
         self.assertFalse(bundle.css_errors)
 
@@ -1260,7 +1260,7 @@ class TestRunRtlcssEmptyOutputGuard(BaseCase):
             ),
             patch.object(_ab.css_pipeline, "_run_cli_pipe", return_value=fake_out),
         ):
-            result = pipe.run_rtlcss(source)
+            result = pipe.convert_css_to_rtl(source)
         return result, bundle.css_errors
 
     def test_whitespace_only_output_surfaces_error(self):

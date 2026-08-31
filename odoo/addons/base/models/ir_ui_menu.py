@@ -57,9 +57,9 @@ class IrUiMenu(models.Model):
 
     @api.depends("name", "parent_id.complete_name")
     def _compute_complete_name(self) -> None:
-        self._set_full_name("complete_name")
+        self._update_full_name("complete_name")
 
-    def _set_full_name(self, fname: str) -> None:
+    def _update_full_name(self, fname: str) -> None:
         for menu in self:
             if menu.parent_id:
                 menu[fname] = (
@@ -187,7 +187,7 @@ class IrUiMenu(models.Model):
 
     @api.depends("name", "parent_id.display_name")
     def _compute_display_name(self) -> None:
-        self._set_full_name("display_name")
+        self._update_full_name("display_name")
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
@@ -196,7 +196,7 @@ class IrUiMenu(models.Model):
         self.env.registry.clear_cache()
         return super().create(
             [
-                {**values, "web_icon_data": self._compute_web_icon_data(icon)}
+                {**values, "web_icon_data": self._prepare_web_icon_data(icon)}
                 if (icon := values.get("web_icon", _MISSING)) is not _MISSING
                 else values
                 for values in vals_list
@@ -209,11 +209,11 @@ class IrUiMenu(models.Model):
         if "web_icon" in vals:
             vals = {
                 **vals,
-                "web_icon_data": self._compute_web_icon_data(vals.get("web_icon")),
+                "web_icon_data": self._prepare_web_icon_data(vals.get("web_icon")),
             }
         return super().write(vals)
 
-    def _compute_web_icon_data(self, web_icon: str | None) -> bytes | bool:
+    def _prepare_web_icon_data(self, web_icon: str | None) -> bytes | bool:
         if web_icon and len(web_icon.split(",")) == 2:
             return self._read_image(web_icon)
         return False
@@ -284,7 +284,7 @@ class IrUiMenu(models.Model):
         for menu in visible_menus:
             children_dict[menu.parent_id.id].append(menu.id)
 
-        app_info = self._get_menu_app_ids(children_dict)
+        app_info = self._get_app_id_by_menu(children_dict)
         visible_menus = visible_menus.filtered(lambda menu: menu.id in app_info)
 
         xmlids = visible_menus._get_menuitems_xmlids()
@@ -341,21 +341,21 @@ class IrUiMenu(models.Model):
         return menus_dict
 
     @classmethod
-    def _get_menu_app_ids(cls, children_dict: dict) -> dict[int, int]:
+    def _get_app_id_by_menu(cls, children_dict: dict) -> dict[int, int]:
         app_info: dict[int, int] = {}
         for root_menu_id in children_dict[False]:
-            cls._set_app_id(app_info, children_dict, root_menu_id, root_menu_id)
+            cls._update_app_id(app_info, children_dict, root_menu_id, root_menu_id)
         return app_info
 
     @classmethod
-    def _set_app_id(
+    def _update_app_id(
         cls, app_info: dict, children_dict: dict, menu_app_id: int, menu_id: int
     ) -> None:
         if menu_id in app_info:
             return
         app_info[menu_id] = menu_app_id
         for child_id in children_dict[menu_id]:
-            cls._set_app_id(app_info, children_dict, menu_app_id, child_id)
+            cls._update_app_id(app_info, children_dict, menu_app_id, child_id)
 
     def _get_menu_icons(self, visible_menus: Any) -> dict[int, dict]:
         icon_attachments = (

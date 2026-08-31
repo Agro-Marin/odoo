@@ -712,7 +712,7 @@ class TestCertificateLoadErrors(TransactionCase):
             cert_path.write_bytes(b"not a certificate")
             key_path.write_bytes(b"not a key")
             with self.assertRaises(UserError) as ctx:
-                self.IrMailServer._ssl_context_from_cert_files(
+                self.IrMailServer._prepare_ssl_context_from_cert_files(
                     str(cert_path), str(key_path), "starttls_strict", "smtp.example.com"
                 )
         self.assertIn("not a valid file", str(ctx.exception))
@@ -792,7 +792,7 @@ class TestCertificateChain(TransactionCase):
 
     def _loaded_chain(self, cert_pem):
         loaded = []
-        real_context = self.IrMailServer._client_ssl_context
+        real_context = self.IrMailServer._prepare_client_ssl_context
 
         def capturing(encryption, smtp_server):
             context = real_context(encryption, smtp_server)
@@ -813,9 +813,11 @@ class TestCertificateChain(TransactionCase):
             return context
 
         with patch.object(
-            type(self.IrMailServer), "_client_ssl_context", staticmethod(capturing)
+            type(self.IrMailServer),
+            "_prepare_client_ssl_context",
+            staticmethod(capturing),
         ):
-            self._server(cert_pem)._ssl_context_from_certificate()
+            self._server(cert_pem)._prepare_ssl_context_from_certificate()
         return [cert.subject.rfc4514_string() for cert in loaded]
 
     def test_full_chain_is_presented(self):
@@ -1122,7 +1124,7 @@ class TestCertificateChainOnTheWire(TransactionCase):
                         "smtp_ssl_private_key": base64.b64encode(self.key_pem),
                     }
                 )
-                context = server._ssl_context_from_certificate()
+                context = server._prepare_ssl_context_from_certificate()
                 context.verify_mode = ssl.CERT_NONE
                 plain = socket.create_connection(listener.getsockname(), timeout=10)
                 with contextlib.suppress(OSError):
@@ -1557,7 +1559,7 @@ class TestRemoteCallSurface(TransactionCase):
             )
 
     def test_ui_buttons_stay_rpc_callable_for_an_administrator(self):
-        for name in ("test_smtp_connection", "action_retrieve_max_email_size"):
+        for name in ("test_smtp_connection", "action_update_max_email_size"):
             with self.subTest(method=name):
                 self.assertTrue(get_public_method(self.env["ir.mail_server"], name))
 
@@ -2188,8 +2190,10 @@ class TestEncryptionPolicyIsOneDecision(TransactionCase):
     def test_both_context_builders_agree_on_every_mode(self):
         for encryption, (_i, _s, verified) in self.EXPECTED.items():
             with self.subTest(encryption=encryption):
-                stdlib = self.IrMailServer._ssl_context_for_encryption(encryption)
-                pyopenssl = self.IrMailServer._client_ssl_context(
+                stdlib = self.IrMailServer._prepare_ssl_context_for_encryption(
+                    encryption
+                )
+                pyopenssl = self.IrMailServer._prepare_client_ssl_context(
                     encryption, "smtp.example.com"
                 )
                 self.assertIs(
@@ -2207,12 +2211,14 @@ class TestEncryptionPolicyIsOneDecision(TransactionCase):
         for encryption in set(self.EXPECTED) - VERIFIED_ENCRYPTIONS:
             with self.subTest(encryption=encryption):
                 self.assertFalse(
-                    self.IrMailServer._ssl_context_for_encryption(
+                    self.IrMailServer._prepare_ssl_context_for_encryption(
                         encryption
                     ).check_hostname
                 )
                 self.assertEqual(
-                    self.IrMailServer._client_ssl_context(encryption, "h").verify_mode,
+                    self.IrMailServer._prepare_client_ssl_context(
+                        encryption, "h"
+                    ).verify_mode,
                     ssl.CERT_NONE,
                 )
 

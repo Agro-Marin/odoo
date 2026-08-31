@@ -35,19 +35,19 @@ class TestValidateXmlFromAttachment(TransactionCase):
     def test_a_schema_that_cannot_be_parsed_is_not_a_pass(self):
         self.env["ir.attachment"].create({"name": "broken.xsd", "raw": _BROKEN_SCHEMA})
         with self.assertRaises(FileNotFoundError) as caught:
-            xml_utils.validate_xml_from_attachment(self.env, "<b/>", "broken.xsd")
+            xml_utils.check_xml_from_attachment(self.env, "<b/>", "broken.xsd")
         self.assertIn("could not be parsed", str(caught.exception))
 
     def test_required_false_still_accepts_an_unparseable_schema(self):
         self.env["ir.attachment"].create({"name": "broken.xsd", "raw": _BROKEN_SCHEMA})
         with self.assertLogs("odoo.tools.xml_utils", "WARNING"):
-            xml_utils.validate_xml_from_attachment(
+            xml_utils.check_xml_from_attachment(
                 self.env, "<b/>", "broken.xsd", required=False
             )
 
     def test_a_valid_schema_still_validates(self):
         self.env["ir.attachment"].create({"name": "good.xsd", "raw": _SCHEMA})
-        xml_utils.validate_xml_from_attachment(self.env, "<a>x</a>", "good.xsd")
+        xml_utils.check_xml_from_attachment(self.env, "<a>x</a>", "good.xsd")
 
 
 class TestCheckXml(TransactionCase):

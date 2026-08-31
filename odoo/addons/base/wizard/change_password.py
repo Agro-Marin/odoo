@@ -30,7 +30,7 @@ class ChangePasswordWizard(models.TransientModel):
     )
 
     def change_password_button(self) -> dict[str, str]:
-        self.ensure_one()
+        self.check_singleton()
         self.user_ids.change_password_button()
         if self.env.user in self.user_ids.user_id:
             return {"type": "ir.actions.client", "tag": "reload"}

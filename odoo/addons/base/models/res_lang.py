@@ -314,7 +314,7 @@ class ResLang(models.Model):
                 f"_get_data() requires exactly one keyword argument, got {len(kwargs)}"
             )
         [[field_name, field_value]] = kwargs.items()
-        return self._get_active_by(field_name)[field_value]
+        return self._get_active_by_field(field_name)[field_value]
 
     def _lang_get(self, code: str) -> Self:
         return self.browse(self._get_data(code=code).id)
@@ -325,10 +325,13 @@ class ResLang(models.Model):
     @api.model
     @api.readonly
     def get_installed(self) -> list[tuple[str, str]]:
-        return [(code, data.name) for code, data in self._get_active_by("code").items()]
+        return [
+            (code, data.name)
+            for code, data in self._get_active_by_field("code").items()
+        ]
 
     @tools.ormcache("field", cache="stable")
-    def _get_active_by(self, field: str) -> LangDataDict:
+    def _get_active_by_field(self, field: str) -> LangDataDict:
         if field not in self.CACHED_FIELDS:
             raise UserError(_('Field "%s" is not cached', field))
         if field == "code":
@@ -344,7 +347,7 @@ class ResLang(models.Model):
                 }
             )
         return LangDataDict(
-            {data[field]: data for data in self._get_active_by("code").values()}
+            {data[field]: data for data in self._get_active_by_field("code").values()}
         )
 
     def action_unarchive(self) -> bool:
@@ -484,7 +487,7 @@ class ResLang(models.Model):
         return candidate
 
     def format(self, percent: str, value, grouping: bool = False) -> str:
-        self.ensure_one()
+        self.check_singleton()
         data = self._get_data(id=self.id)
         if not data:
             raise UserError(_("The language %s is not installed.", self.name))

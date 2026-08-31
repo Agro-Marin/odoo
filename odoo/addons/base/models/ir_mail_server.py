@@ -454,15 +454,15 @@ class IrMail_Server(models.Model):
             return None
 
     def _from_filter_sender(self) -> str | None:
-        self.ensure_one()
+        self.check_singleton()
         return self._from_filter_index(self.from_filter).sender()
 
     def _from_filter_domain(self) -> str | None:
-        self.ensure_one()
+        self.check_singleton()
         return self._from_filter_index(self.from_filter).domain()
 
     def _get_test_email_from(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         email_from = self._from_filter_sender()
         if not email_from and (domain := self._from_filter_domain()):
             email_from = f"noreply@{domain}"
@@ -507,8 +507,8 @@ class IrMail_Server(models.Model):
         self._probe_smtp_connections()
         return self._connection_test_notification(_("Connection Test Successful!"))
 
-    def action_retrieve_max_email_size(self) -> dict[str, Any]:
-        self.ensure_one()
+    def action_update_max_email_size(self) -> dict[str, Any]:
+        self.check_singleton()
         for server, advertised in self._probe_smtp_connections().items():
             if not advertised:
                 raise UserError(
@@ -542,7 +542,7 @@ class IrMail_Server(models.Model):
         return {server: server._probe_smtp_connection() for server in self}
 
     def _probe_smtp_connection(self) -> float | None:
-        self.ensure_one()
+        self.check_singleton()
         smtp = None
         in_data = False
         try:
@@ -661,9 +661,9 @@ class IrMail_Server(models.Model):
             is_certificate = self.smtp_authentication == "certificate"
             encryption = self.smtp_encryption
             if is_certificate:
-                ssl_context = self._ssl_context_from_certificate()
+                ssl_context = self._prepare_ssl_context_from_certificate()
             elif encryption != "none":
-                ssl_context = self._ssl_context_for_encryption(encryption)
+                ssl_context = self._prepare_ssl_context_for_encryption(encryption)
             else:
                 ssl_context = None
             return _SmtpTransport(
@@ -698,11 +698,11 @@ class IrMail_Server(models.Model):
                     cert_filename,
                     server,
                 )
-            ssl_context = self._ssl_context_from_cert_files(
+            ssl_context = self._prepare_ssl_context_from_cert_files(
                 cert_filename, key_filename, encryption, server
             )
         elif encryption not in (None, "none"):
-            ssl_context = self._ssl_context_for_encryption(encryption)
+            ssl_context = self._prepare_ssl_context_for_encryption(encryption)
         else:
             ssl_context = None
 
@@ -842,7 +842,7 @@ class IrMail_Server(models.Model):
         )
 
     @staticmethod
-    def _client_ssl_context(
+    def _prepare_client_ssl_context(
         encryption: str | None, smtp_server: str | None
     ) -> PyOpenSSLContext:
         ssl_context = PyOpenSSLContext(ssl.PROTOCOL_TLS_CLIENT)
@@ -860,7 +860,7 @@ class IrMail_Server(models.Model):
         return ssl_context
 
     def _load_certificate_material(self) -> tuple[list[Any], Any]:
-        self.ensure_one()
+        self.check_singleton()
         try:
             chain = load_pem_x509_certificates(
                 base64.b64decode(self.smtp_ssl_certificate)
@@ -879,9 +879,11 @@ class IrMail_Server(models.Model):
             )
         return chain, private_key
 
-    def _ssl_context_from_certificate(self) -> PyOpenSSLContext:
-        self.ensure_one()
-        ssl_context = self._client_ssl_context(self.smtp_encryption, self.smtp_host)
+    def _prepare_ssl_context_from_certificate(self) -> PyOpenSSLContext:
+        self.check_singleton()
+        ssl_context = self._prepare_client_ssl_context(
+            self.smtp_encryption, self.smtp_host
+        )
         (leaf, *intermediates), private_key = self._load_certificate_material()
         try:
             ssl_context._ctx.use_certificate(leaf)
@@ -892,14 +894,14 @@ class IrMail_Server(models.Model):
             raise self._prepare_ssl_load_error(e) from None
         return ssl_context
 
-    def _ssl_context_from_cert_files(
+    def _prepare_ssl_context_from_cert_files(
         self,
         cert_filename: str,
         key_filename: str,
         encryption: str | None = None,
         smtp_server: str | None = None,
     ) -> PyOpenSSLContext:
-        ssl_context = self._client_ssl_context(encryption, smtp_server)
+        ssl_context = self._prepare_client_ssl_context(encryption, smtp_server)
         try:
             ssl_context.load_cert_chain(cert_filename, keyfile=key_filename)
             ssl_context._ctx.check_privatekey()
@@ -908,7 +910,7 @@ class IrMail_Server(models.Model):
         return ssl_context
 
     @staticmethod
-    def _ssl_context_for_encryption(encryption: str) -> ssl.SSLContext:
+    def _prepare_ssl_context_for_encryption(encryption: str) -> ssl.SSLContext:
         ssl_context = ssl.create_default_context()
         if encryption in VERIFIED_ENCRYPTIONS:
             ssl_context.check_hostname = True
@@ -991,14 +993,14 @@ class IrMail_Server(models.Model):
                 continue
             msg[key] = value
 
-        self._set_email_body(
+        self._update_email_body(
             msg, body or "", subtype, body_alternative, subtype_alternative
         )
         self._add_email_attachments(msg, attachments or ())
         return msg
 
     @api.model
-    def _set_email_body(
+    def _update_email_body(
         self,
         msg: EmailMessage,
         body: str,
@@ -1252,7 +1254,7 @@ class IrMail_Server(models.Model):
                     with suppress(Exception):
                         smtp.close()
 
-    def _find_mail_server_allowed_domain(self) -> fields.Domain:
+    def _get_domain_mail_servers_allowed(self) -> fields.Domain:
         return fields.Domain.TRUE
 
     def _get_mail_server(
@@ -1261,19 +1263,23 @@ class IrMail_Server(models.Model):
         notifications_email = self._get_notifications_email()
 
         if mail_servers is None:
-            mail_servers = self.sudo().search(self._find_mail_server_allowed_domain())
+            mail_servers = self.sudo().search(self._get_domain_mail_servers_allowed())
         mail_servers = mail_servers.filtered("active")
         index = self._from_filter_memo()
 
         if email_normalize(email_from) and (
-            mail_server := self._first_server_for(mail_servers, index, email_from)
+            mail_server := self._get_first_server_for_email(
+                mail_servers, index, email_from
+            )
         ):
             return mail_server, email_from
 
         fallbacks = self._filter_mail_servers_fallback(mail_servers)
 
         if notifications_email and (
-            mail_server := self._first_server_for(fallbacks, index, notifications_email)
+            mail_server := self._get_first_server_for_email(
+                fallbacks, index, notifications_email
+            )
         ):
             return mail_server, notifications_email
 
@@ -1307,7 +1313,7 @@ class IrMail_Server(models.Model):
         return index
 
     @api.model
-    def _first_server_for(
+    def _get_first_server_for_email(
         self,
         candidates: Self,
         index: Callable[[Self], _FromFilter],

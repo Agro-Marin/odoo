@@ -258,7 +258,7 @@ class IrCron(models.Model):
         return super(IrCron, model).default_get(fields)
 
     def method_direct_trigger(self) -> dict[str, Any] | bool:
-        self.ensure_one()
+        self.check_singleton()
         self.check_access("write")
         self.env.invalidate_all(flush=True)
         cron_cr = self.env.cr
@@ -521,10 +521,10 @@ class IrCron(models.Model):
             )
             _logger.error("Job %r (%s) timed out", job.cron_name, job.id)
 
-        vals = ir_cron._get_failure_vals(job, status)
+        vals = ir_cron._prepare_failure_vals(job, status)
 
         if status in (CompletionStatus.FULLY_DONE, CompletionStatus.FAILED):
-            vals |= ir_cron._get_reschedule_vals(job)
+            vals |= ir_cron._prepare_reschedule_vals(job)
         elif status == CompletionStatus.PARTIALLY_DONE:
             ir_cron._reschedule_job_asap(job)
             if NOTIFY_CRON_CHANGES:
@@ -571,7 +571,9 @@ class IrCron(models.Model):
         return start_time + budget * RUN_BUDGET_RATIO if budget else None
 
     @staticmethod
-    def _run_callback(cron: Self, job: CronJob, env: api.Environment) -> None:
+    def _run_server_action_with_retry(
+        cron: Self, job: CronJob, env: api.Environment
+    ) -> None:
         retrying(
             partial(cron._run_server_action, job.cron_name, job.ir_actions_server_id),
             env,
@@ -704,7 +706,7 @@ class IrCron(models.Model):
 
             success = False
             try:
-                cls._run_callback(cron, job, env)
+                cls._run_server_action_with_retry(cron, job, env)
                 success = True
             except Exception as exc:
                 _logger.exception(
@@ -746,7 +748,7 @@ class IrCron(models.Model):
         return self.env.cr.now().replace(microsecond=0)
 
     @api.model
-    def _get_failure_vals(
+    def _prepare_failure_vals(
         self, job: CronJob, status: CompletionStatus
     ) -> dict[str, Any]:
         if status == CompletionStatus.FAILED:
@@ -825,7 +827,7 @@ class IrCron(models.Model):
         return nextcall
 
     @api.model
-    def _get_reschedule_vals(self, job: CronJob) -> dict[str, Any]:
+    def _prepare_reschedule_vals(self, job: CronJob) -> dict[str, Any]:
         now = self._get_now()
         return {
             "nextcall": self._get_next_call(
@@ -857,7 +859,7 @@ class IrCron(models.Model):
         )
 
     def _run_server_action(self, cron_name: str, server_action_id: int) -> None:
-        self.ensure_one()
+        self.check_singleton()
         try:
             if self.pool is not self.pool.check_signaling(self.env.cr):
                 self.env.transaction.reset()
@@ -914,7 +916,7 @@ class IrCron(models.Model):
     def _trigger(
         self, at: datetime | Iterable[datetime] | None = None, *, coalesce: int = 0
     ) -> IrCronTrigger:
-        self.ensure_one()
+        self.check_singleton()
         if at is None:
             at_list = [self._get_now()]
         elif isinstance(at, datetime):
@@ -937,7 +939,7 @@ class IrCron(models.Model):
         return self._add_triggers(at_list)
 
     def _add_triggers(self, at_list: list[datetime]) -> IrCronTrigger:
-        self.ensure_one()
+        self.check_singleton()
         now = self._get_now()
 
         if not self.sudo().active:

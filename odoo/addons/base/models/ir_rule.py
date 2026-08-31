@@ -86,7 +86,7 @@ class IrRule(models.Model):
                 except Exception as e:
                     raise ValidationError(_("Invalid domain: %s", e)) from None
 
-    def _compute_domain_keys(self) -> list[str]:
+    def _get_domain_keys(self) -> list[str]:
         return ["allowed_company_ids"]
 
     def _get_failing(self, for_records: Any, mode: str = "read") -> Self:
@@ -155,18 +155,20 @@ class IrRule(models.Model):
             "self.env.su",
             "model_name",
             "mode",
-            "tuple(self._compute_domain_context_values())",
+            "tuple(self._get_domain_context_values())",
             "self.pool._init",
         ),
     )
-    def _compute_domain(self, model_name: str, mode: str = "read") -> Domain:
+    def _get_domain_accessible_records(
+        self, model_name: str, mode: str = "read"
+    ) -> Domain:
         model = self.env[model_name]
 
         global_domains: list[Domain] = []
         for parent_model_name, parent_field_name in model._inherits.items():
             if not model._fields[parent_field_name].store:
                 continue
-            if domain := self._compute_domain(parent_model_name, mode):
+            if domain := self._get_domain_accessible_records(parent_model_name, mode):
                 global_domains.append(Domain(parent_field_name, "any", domain))
 
         rules = self._get_rules(model_name, mode=mode)
@@ -193,8 +195,8 @@ class IrRule(models.Model):
             global_domains.append(Domain.OR(group_domains))
         return Domain.AND(global_domains).optimize(model)
 
-    def _compute_domain_context_values(self) -> Any:
-        for k in self._compute_domain_keys():
+    def _get_domain_context_values(self) -> Any:
+        for k in self._get_domain_keys():
             v = self.env.context.get(k)
             if isinstance(v, list):
                 v = tuple(v)

@@ -19,7 +19,7 @@ class TestRpcPath(HttpCaseWithUserDemo):
 
     def test_rpc_path_call_button(self):
         with self.assertLogs("werkzeug", logging.INFO) as capture:
-            self.make_jsonrpc_request(
+            self.call_jsonrpc(
                 "/web/dataset/call_button",
                 {
                     "model": "res.users",
@@ -37,7 +37,7 @@ class TestRpcPath(HttpCaseWithUserDemo):
 
     def test_rpc_path_call_kw(self):
         with self.assertLogs("werkzeug", logging.INFO) as capture:
-            self.make_jsonrpc_request(
+            self.call_jsonrpc(
                 "/web/dataset/call_kw",
                 {
                     "model": "res.users",
@@ -55,7 +55,7 @@ class TestRpcPath(HttpCaseWithUserDemo):
 
     def test_rpc_path_call_kw_with_path(self):
         with self.assertLogs("werkzeug", logging.INFO) as capture:
-            self.make_jsonrpc_request(
+            self.call_jsonrpc(
                 "/web/dataset/call_kw/res.users.read",
                 {
                     "model": "res.users",
@@ -74,7 +74,7 @@ class TestRpcPath(HttpCaseWithUserDemo):
     @mute_logger("odoo.addons.rpc.controllers.jsonrpc")
     def test_rpc_path_jsonrpc(self):
         with self.assertLogs("werkzeug", logging.INFO) as capture:
-            self.make_jsonrpc_request(
+            self.call_jsonrpc(
                 "/jsonrpc",
                 {
                     "service": "object",

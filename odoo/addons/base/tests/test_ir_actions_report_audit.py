@@ -19,7 +19,7 @@ from odoo.tools.safe_eval import safe_eval
 from odoo.addons.base.models.ir_actions_report import (
     PDF_OPTIONS_DATA_KEY,
     OdooURLFetcher,
-    _is_fetch_host_blocked,
+    _is_host_blocked,
     _weasy_state,
 )
 
@@ -103,10 +103,10 @@ class TestReportUrlFetcher(TransactionCase):
             "fe80::1",
         ):
             with self.subTest(host=host):
-                self.assertTrue(_is_fetch_host_blocked(host))
+                self.assertTrue(_is_host_blocked(host))
         for host in ("8.8.8.8", "93.184.216.34", "cdn.example.com", None, ""):
             with self.subTest(host=host):
-                self.assertFalse(_is_fetch_host_blocked(host))
+                self.assertFalse(_is_host_blocked(host))
 
     def test_loopback_names_are_blocked_without_resolving(self):
         for host in (
@@ -119,12 +119,12 @@ class TestReportUrlFetcher(TransactionCase):
             "db.localhost.",
         ):
             with self.subTest(host=host):
-                self.assertTrue(_is_fetch_host_blocked(host))
+                self.assertTrue(_is_host_blocked(host))
 
     def test_names_needing_resolution_stay_unblocked(self):
         for host in ("localtest.me", "internal.corp.example.com"):
             with self.subTest(host=host):
-                self.assertFalse(_is_fetch_host_blocked(host))
+                self.assertFalse(_is_host_blocked(host))
 
     @mute_logger("odoo.addons.base.models.ir_actions_report")
     def test_fetch_refuses_private_ip(self):

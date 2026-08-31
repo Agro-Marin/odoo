@@ -5,7 +5,7 @@ from pathlib import Path
 from odoo.libs.web import urls
 from odoo.tests.common import BaseCase, TransactionCase
 from odoo.tools import config, misc
-from odoo.tools.mail import validate_url
+from odoo.tools.mail import normalize_url
 from odoo.tools.misc import (
     file_open,
     file_path,
@@ -698,12 +698,12 @@ class TestUrlValidate(BaseCase):
             ("example.com#h3", "http://example.com#h3"),
         ]:
             with self.subTest(case=case):
-                self.assertEqual(validate_url(case), truth)
+                self.assertEqual(normalize_url(case), truth)
 
-        self.assertEqual(validate_url("/index.html"), "/index.html")
-        self.assertEqual(validate_url("?debug=1"), "?debug=1")
+        self.assertEqual(normalize_url("/index.html"), "/index.html")
+        self.assertEqual(normalize_url("?debug=1"), "?debug=1")
         self.assertEqual(
-            validate_url("#model=project.task&id=3603607"),
+            normalize_url("#model=project.task&id=3603607"),
             "#model=project.task&id=3603607",
         )
 
@@ -902,7 +902,7 @@ class TestMiscToken(TransactionCase):
         }
         expiration = datetime.datetime.now() - datetime.timedelta(days=1)
         token = misc.hash_sign(self.env, "test", payload, expiration=expiration)
-        self.assertIsNone(misc.verify_hash_signed(self.env, "test", token))
+        self.assertIsNone(misc.resolve_hash_signed(self.env, "test", token))
 
     def test_long_payload(self):
         payload = {
@@ -912,7 +912,7 @@ class TestMiscToken(TransactionCase):
             "some_dict": {"name": "New Dict"},
         }
         token = misc.hash_sign(self.env, "test", payload, expiration_hours=24)
-        self.assertEqual(misc.verify_hash_signed(self.env, "test", token), payload)
+        self.assertEqual(misc.resolve_hash_signed(self.env, "test", token), payload)
 
     def test_None_payload(self):
         with self.assertRaises(Exception):
@@ -921,7 +921,7 @@ class TestMiscToken(TransactionCase):
     def test_list_payload(self):
         payload = ["str1", "str2", "str3", 4, 5]
         token = misc.hash_sign(self.env, "test", payload, expiration_hours=24)
-        self.assertEqual(misc.verify_hash_signed(self.env, "test", token), payload)
+        self.assertEqual(misc.resolve_hash_signed(self.env, "test", token), payload)
 
     def test_modified_payload(self):
         payload = ["str1", "str2", "str3", 4, 5]
@@ -932,7 +932,7 @@ class TestMiscToken(TransactionCase):
         new_timestamp = int(new_timestamp.timestamp())
         new_timestamp = new_timestamp.to_bytes(8, byteorder="little")
         token = base64.urlsafe_b64encode(token[:1] + new_timestamp + token[9:]).decode()
-        self.assertIsNone(misc.verify_hash_signed(self.env, "test", token))
+        self.assertIsNone(misc.resolve_hash_signed(self.env, "test", token))
 
 
 class TestFormatAmountFunction(TransactionCase):

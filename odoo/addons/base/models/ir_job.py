@@ -147,7 +147,7 @@ def _running_job(job: dict[str, Any]) -> Iterator[None]:
         thread.ir_job = previous
 
 
-def _job_config_of(model_cls: type, method_name: str) -> dict | None:
+def _get_job_config(model_cls: type, method_name: str) -> dict | None:
     for klass in model_cls.__mro__:
         func = klass.__dict__.get(method_name)
         if func is not None and (job_config := getattr(func, "_job_config", None)):
@@ -455,7 +455,7 @@ class IrJob(models.Model):
     def _check_job_method(
         self, records: models.BaseModel, method_name: str
     ) -> dict[str, Any]:
-        job_config = _job_config_of(type(records), method_name)
+        job_config = _get_job_config(type(records), method_name)
         if job_config is None:
             raise UserError(
                 self.env._(
@@ -706,7 +706,7 @@ class IrJob(models.Model):
                 return
             try:
                 IrJob._reap_dead_jobs(cr)
-                IrJob._resolve_dependencies(cr)
+                IrJob._release_ready_dependents(cr)
                 cr.commit()
             except psycopg.errors.SerializationFailure:
                 cr.rollback()
@@ -947,7 +947,7 @@ class IrJob(models.Model):
                 )
             ) from None
         records = model.browse(job["record_ids"] or [])
-        if _job_config_of(type(records), job["method_name"]) is None:
+        if _get_job_config(type(records), job["method_name"]) is None:
             raise TerminalJobError(
                 env._(
                     "Job %(id)s calls %(model)s.%(method)s, which is not "
@@ -1261,7 +1261,7 @@ class IrJob(models.Model):
         return cr.rowcount
 
     @staticmethod
-    def _resolve_dependencies(cr) -> None:
+    def _release_ready_dependents(cr) -> None:
         cr.execute(
             SQL(
                 """
@@ -1334,7 +1334,7 @@ class IrJob(models.Model):
             )
 
     def action_run_now(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         self.browse().check_access("write")
         self.env.flush_all()
         cr = self.env.cr

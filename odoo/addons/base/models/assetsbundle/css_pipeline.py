@@ -37,7 +37,7 @@ def _rtlcss_bin() -> str:
     names = ("rtlcss.cmd", "rtlcss") if os.name == "nt" else ("rtlcss",)
     for name in names:
         with suppress(OSError):
-            return misc.find_in_path(name)
+            return misc.get_executable_path(name)
     node_bin = str(Path(odoo.__path__[0]).parent / "node_modules" / ".bin")
     for name in names:
         if found := shutil.which(name, path=node_bin):
@@ -124,7 +124,7 @@ class CssPipeline:
                 if not isinstance(asset, PreprocessedCSS)
             ]
             compiled += "\n".join(asset.get_source() for asset in plain_css_assets)
-            compiled = self.run_rtlcss(compiled)
+            compiled = self.convert_css_to_rtl(compiled)
 
         compile_failed = bool(bundle.css_errors)
         if compile_failed:
@@ -278,7 +278,7 @@ class CssPipeline:
 
         return _rewrite_css_outside_strings(cls._RX_APPEARANCE, _prefix, source.strip())
 
-    def run_rtlcss(self, source: str) -> str:
+    def convert_css_to_rtl(self, source: str) -> str:
         if not _check_rtlcss():
             return source
 

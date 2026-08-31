@@ -28,7 +28,7 @@ class TestPropertiesBaseDefinition(TransactionCase):
 
     def _stable_cache_and_key(self):
         cache, key, _counter = get_cache_key_counter(
-            self.Definition._search_definition_id_for_property_field,
+            self.Definition._get_definition_id_for_property_field_stored,
             self.MODEL,
             self.FIELD,
         )

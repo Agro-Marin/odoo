@@ -26,7 +26,7 @@ class MixinBand(models.AbstractModel):
         return True
 
     def _band_scope_domain(self):
-        self.ensure_one()
+        self.check_singleton()
         return []
 
     @staticmethod
@@ -36,7 +36,7 @@ class MixinBand(models.AbstractModel):
         return band_a.min_value < max_b and band_b.min_value < max_a
 
     def _covers(self, value):
-        self.ensure_one()
+        self.check_singleton()
         upper = self.max_value or float("inf")
         return self.min_value <= value < upper
 

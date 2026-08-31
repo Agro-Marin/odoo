@@ -83,7 +83,7 @@ class TestResUsersApikeys(TransactionCase):
         with self.assertRaises(AccessError):
             self.env["res.users.apikeys.description"].with_user(
                 portal
-            ).check_access_make_key()
+            ).check_access_generate_key()
 
     def test_generate_requires_internal_user(self):
         portal = new_test_user(

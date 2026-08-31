@@ -73,7 +73,7 @@ def _is_tls_verification_required(url: str) -> bool:
     return urlparse(url).hostname not in _LOOPBACK_HOSTS
 
 
-def _is_fetch_host_blocked(hostname: str | None) -> bool:
+def _is_host_blocked(hostname: str | None) -> bool:
     if not hostname:
         return False
     host = hostname.strip("[]").lower().rstrip(".")
@@ -404,7 +404,7 @@ class OdooURLFetcher(URLFetcher):
 
         is_local = not parsed.hostname or self._is_same_origin(parsed)
         if not is_local:
-            if _is_fetch_host_blocked(parsed.hostname):
+            if _is_host_blocked(parsed.hostname):
                 _logger.warning(
                     "WeasyPrint refused a report resource pointing at a "
                     "private/reserved host (possible SSRF): %s",
@@ -1103,7 +1103,7 @@ class IrActionsReport(models.Model):
         }
 
     def action_view_qweb_views(self) -> dict[str, Any] | bool:
-        self.ensure_one()
+        self.check_singleton()
         action_ref = self.env.ref("base.action_ui_view", raise_if_not_found=False)
         if not action_ref or len(self.report_name.split(".")) < 2:
             return False
@@ -1127,7 +1127,7 @@ class IrActionsReport(models.Model):
         return True
 
     def _get_attachment_filenames(self, records: Any) -> dict[int, Any]:
-        self.ensure_one()
+        self.check_singleton()
         if not self.attachment:
             return dict.fromkeys(records.ids, "")
         return {
@@ -1139,7 +1139,7 @@ class IrActionsReport(models.Model):
     def _get_attachments(
         self, records: Any, filenames: dict[int, Any] | None = None
     ) -> dict[int, Any]:
-        self.ensure_one()
+        self.check_singleton()
         if filenames is None:
             filenames = self._get_attachment_filenames(records)
         names_by_id = {res_id: name for res_id, name in filenames.items() if name}

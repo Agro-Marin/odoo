@@ -827,11 +827,11 @@ class TestSslContexts(TransactionCase):
     def test_ssl_context_for_encryption_modes(self):
         IrMailServer = self.env["ir.mail_server"]
         for encryption in ("ssl_strict", "starttls_strict"):
-            ctx = IrMailServer._ssl_context_for_encryption(encryption)
+            ctx = IrMailServer._prepare_ssl_context_for_encryption(encryption)
             self.assertTrue(ctx.check_hostname, encryption)
             self.assertEqual(ctx.verify_mode, ssl.CERT_REQUIRED, encryption)
         for encryption in ("ssl", "starttls"):
-            ctx = IrMailServer._ssl_context_for_encryption(encryption)
+            ctx = IrMailServer._prepare_ssl_context_for_encryption(encryption)
             self.assertFalse(ctx.check_hostname, encryption)
             self.assertEqual(ctx.verify_mode, ssl.CERT_NONE, encryption)
 
@@ -844,7 +844,7 @@ class TestSslContexts(TransactionCase):
             key_path = Path(tmp) / "key.pem"
             cert_path.write_bytes(self.cert_pem)
             key_path.write_bytes(self.key_pem)
-            ctx = self.env["ir.mail_server"]._ssl_context_from_cert_files(
+            ctx = self.env["ir.mail_server"]._prepare_ssl_context_from_cert_files(
                 str(cert_path), str(key_path)
             )
             self.assertEqual(type(ctx).__name__, "PyOpenSSLContext")
@@ -862,7 +862,7 @@ class TestSslContexts(TransactionCase):
             cert_path.write_bytes(self.cert_pem)
             key_path.write_bytes(self.key_pem)
             for encryption in ("ssl_strict", "starttls_strict"):
-                ctx = IrMailServer._ssl_context_from_cert_files(
+                ctx = IrMailServer._prepare_ssl_context_from_cert_files(
                     str(cert_path), str(key_path), encryption, "smtp.example.com"
                 )
                 self.assertEqual(
@@ -871,7 +871,7 @@ class TestSslContexts(TransactionCase):
                     encryption,
                 )
             for encryption in (None, "none", "ssl", "starttls"):
-                ctx = IrMailServer._ssl_context_from_cert_files(
+                ctx = IrMailServer._prepare_ssl_context_from_cert_files(
                     str(cert_path), str(key_path), encryption, "smtp.example.com"
                 )
                 self.assertEqual(ctx._ctx.get_verify_mode(), VERIFY_NONE, encryption)
@@ -904,7 +904,7 @@ class TestSslContexts(TransactionCase):
     def test_ssl_context_from_certificate_builds_for_all_variants(self):
         for encryption in ("starttls", "starttls_strict", "ssl", "ssl_strict"):
             server = self._make_cert_server(encryption)
-            ctx = server._ssl_context_from_certificate()
+            ctx = server._prepare_ssl_context_from_certificate()
             self.assertEqual(type(ctx).__name__, "PyOpenSSLContext", encryption)
 
     def test_ssl_context_from_certificate_key_mismatch_raises_usererror(self):

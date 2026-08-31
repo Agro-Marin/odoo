@@ -58,7 +58,7 @@ class TestIsValidObjectName(TransactionCase):
 
 class TestRegistrationValidatorsSurviveOptO(TransactionCase):
     def test_validate_rec_name_rejects_unknown_field(self):
-        from odoo.orm.registration import _validate_rec_name
+        from odoo.orm.registration import _check_rec_name
 
         cls = type(
             "FakeModel",
@@ -70,10 +70,10 @@ class TestRegistrationValidatorsSurviveOptO(TransactionCase):
             },
         )
         with self.assertRaises(TypeError):
-            _validate_rec_name(cls)
+            _check_rec_name(cls)
 
     def test_validate_active_name_rejects_unknown_field(self):
-        from odoo.orm.registration import _validate_active_name
+        from odoo.orm.registration import _check_active_name
 
         cls = type(
             "FakeModel",
@@ -85,10 +85,10 @@ class TestRegistrationValidatorsSurviveOptO(TransactionCase):
             },
         )
         with self.assertRaises(TypeError):
-            _validate_active_name(cls)
+            _check_active_name(cls)
 
     def test_validate_active_name_rejects_unsupported_name(self):
-        from odoo.orm.registration import _validate_active_name
+        from odoo.orm.registration import _check_active_name
 
         cls = type(
             "FakeModel",
@@ -100,13 +100,13 @@ class TestRegistrationValidatorsSurviveOptO(TransactionCase):
             },
         )
         with self.assertRaises(TypeError):
-            _validate_active_name(cls)
+            _check_active_name(cls)
 
     def test_add_to_registry_rejects_non_definition(self):
-        from odoo.orm.registration import add_to_registry
+        from odoo.orm.registration import add_model_to_registry
 
         with self.assertRaises(TypeError):
-            add_to_registry(self.env.registry, type("NotAModel", (), {}))
+            add_model_to_registry(self.env.registry, type("NotAModel", (), {}))
 
     def test_setup_detects_circular_inherits(self):
         from odoo.orm.registration import _setup

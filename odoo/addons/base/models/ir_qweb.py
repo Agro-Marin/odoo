@@ -1062,7 +1062,7 @@ class IrQweb(models.AbstractModel):
         id_or_xmlid = _id_or_xmlid(template)
         value = self._preload_trees([id_or_xmlid]).get(id_or_xmlid)
         if value.get("error"):
-            self.env["ir.ui.view"]._raise_cached_template_error(value["error"])
+            raise self.env["ir.ui.view"]._prepare_cached_template_error(value["error"])
 
         value_tree = deepcopy(value["tree"])
         return (value_tree, value["template"], value["ref"])

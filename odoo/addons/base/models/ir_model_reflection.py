@@ -8,7 +8,7 @@ from odoo import fields, models
 from odoo.api import ValuesType
 from odoo.db import schema as sql
 from odoo.exceptions import AccessError
-from odoo.libs.sql import make_identifier
+from odoo.libs.sql import normalize_identifier
 from odoo.tools import SQL, OrderedSet
 from odoo.tools.translate import _
 
@@ -86,7 +86,7 @@ class IrModelConstraint(models.Model):
             if owners.get(name, set()) - ids_set:
                 continue
 
-            hname = make_identifier(name)
+            hname = normalize_identifier(name)
             if data.type not in ("f", "u", "i"):
                 continue
 

@@ -12,8 +12,8 @@ from odoo.tools.date_utils import (
     end_of,
     get_fiscal_year,
     localized,
+    parse_date_expression,
     parse_iso_date,
-    resolve_date,
     start_of,
     subtract,
     to_timezone,
@@ -189,21 +189,23 @@ class TestDateUtils(TransactionCase):
 
     def test_resolve_date(self):
         env = self.env
-        self.assertEqual(resolve_date("2024-01-05", env), date(2024, 1, 5))
+        self.assertEqual(parse_date_expression("2024-01-05", env), date(2024, 1, 5))
         self.assertEqual(
-            resolve_date("2024-01-05 00:30:00", env),
+            parse_date_expression("2024-01-05 00:30:00", env),
             datetime(2024, 1, 5, 0, 30),
         )
-        self.assertEqual(resolve_date("2024-01-05 00:00:00", env), datetime(2024, 1, 5))
+        self.assertEqual(
+            parse_date_expression("2024-01-05 00:00:00", env), datetime(2024, 1, 5)
+        )
 
         with self.assertRaises(ValueError):
-            resolve_date("2024-01-05 00:00:00+02:00", env)
+            parse_date_expression("2024-01-05 00:00:00+02:00", env)
 
     @freeze_time("2024-01-05 13:05:00")
     def test_parse_date_relative_utc(self):
         self.env["res.lang"]._lang_get(self.env.user.lang).week_start = "1"
         env = self.env(context={"tz": "UTC"})
-        parse = partial(resolve_date, env=env)
+        parse = partial(parse_date_expression, env=env)
 
         self.assertEqual(parse("=1d"), datetime(2024, 1, 1))
         self.assertEqual(parse("=2000y"), datetime(2000, 1, 5))
@@ -250,7 +252,7 @@ class TestDateUtils(TransactionCase):
     @freeze_time("2024-01-05 13:05:00")
     def test_parse_date_relative_tz(self):
         env = self.env(context={"tz": "Etc/GMT-1"})
-        parse = partial(resolve_date, env=env)
+        parse = partial(parse_date_expression, env=env)
 
         self.assertEqual(parse("now"), datetime(2024, 1, 5, 13, 5))
         self.assertEqual(parse("=5H"), datetime(2024, 1, 5, 4))

@@ -22,7 +22,7 @@ from odoo.tools.assets.esm_graph import (
 )
 from odoo.tools.json import scriptsafe as json
 from odoo.tools.misc import file_open, file_path
-from odoo.tools.sass_embedded import SassCompileError, SassNotFoundError, find_sass
+from odoo.tools.sass_embedded import SassCompileError, SassNotFoundError, get_sass_path
 
 if TYPE_CHECKING:
     from .bundle import AssetsBundle
@@ -78,7 +78,7 @@ class WebAsset:
     def name(self) -> str:
         return "<inline asset>" if self.inline else self.url
 
-    def _resolve_attachment(self) -> None:
+    def _load_attachment(self) -> None:
         if not (self.inline or self._filename or self._ir_attach):
             try:
                 self._ir_attach = (
@@ -86,7 +86,7 @@ class WebAsset:
                     .sudo()
                     ._get_serve_attachment(self.url)
                 )
-                self._ir_attach.ensure_one()
+                self._ir_attach.check_singleton()
             except ValueError:
                 raise AssetNotFoundError(f"Could not find {self.name}") from None
 
@@ -94,7 +94,7 @@ class WebAsset:
     def last_modified(self) -> float | int:
         if self._last_modified is None:
             with suppress(AssetNotFoundError):
-                self._resolve_attachment()
+                self._load_attachment()
             if self._filename:
                 with suppress(OSError):
                     self._last_modified = Path(self._filename).stat().st_mtime
@@ -117,7 +117,7 @@ class WebAsset:
 
     def _get_content(self) -> str:
         try:
-            self._resolve_attachment()
+            self._load_attachment()
             if self._filename:
                 with file_open(self._filename, "rb", filter_ext=EXTENSIONS) as fp:
                     return fp.read().decode("utf-8")
@@ -410,7 +410,7 @@ class ScssStylesheetAsset(PreprocessedCSS):
     def get_command(self) -> list[str]:
         import odoo.addons
 
-        sass = find_sass()
+        sass = get_sass_path()
         if sass is None:
             raise SassNotFoundError(
                 "Dart Sass not found. It is a required dependency of this fork: "

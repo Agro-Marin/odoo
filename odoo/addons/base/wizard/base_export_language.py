@@ -63,7 +63,7 @@ class BaseLanguageExport(models.TransientModel):
     )
 
     def act_getfile(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         lang = self.lang if self.lang != NEW_LANG_KEY else False
         mods = None
 

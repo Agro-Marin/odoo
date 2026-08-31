@@ -12,7 +12,7 @@ from odoo.http import request
 from odoo.libs.profiling import Speedscope
 from odoo.models import GC_UNLINK_LIMIT
 from odoo.tools.misc import str2bool
-from odoo.tools.profiler import make_session
+from odoo.tools.profiler import get_session_name
 
 _logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ class IrProfile(models.Model):
         records.unlink()
         return len(records), len(records) == GC_UNLINK_LIMIT
 
-    def _compute_has_memory(self) -> bool:
+    def _has_memory(self) -> bool:
         return all(
             bool(profile.others and json.loads(profile.others).get("memory"))
             for profile in self
@@ -102,7 +102,7 @@ class IrProfile(models.Model):
                 execution._generate_speedscope(params)
             )
 
-    def _default_profile_params(self) -> dict[str, bool]:
+    def _prepare_profile_params_default(self) -> dict[str, bool]:
         has_sql = any(profile.sql for profile in self)
         has_traces = any(profile.traces_async for profile in self)
         return {
@@ -183,7 +183,7 @@ class IrProfile(models.Model):
         if params["profile_aggregation_mode"] == "temporal":
             self._add_outputs(sp, "all", params)
 
-        result = json.dumps(sp.make(**params))
+        result = json.dumps(sp.prepare_document(**params))
         return result.encode("utf-8")
 
     def _add_outputs(self, sp: Speedscope, suffix: str, params: dict[str, Any]) -> None:
@@ -252,7 +252,9 @@ class IrProfile(models.Model):
                     )
                 )
             if not request.session.get("profile_session"):
-                request.session["profile_session"] = make_session(self.env.user.name)
+                request.session["profile_session"] = get_session_name(
+                    self.env.user.name
+                )
                 request.session["profile_expiration"] = limit
                 if request.session.get("profile_collectors") is None:
                     request.session["profile_collectors"] = []

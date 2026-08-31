@@ -61,7 +61,7 @@ class IrActionsTodo(models.Model):
         )
 
     def action_launch(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         self.state = "done"
 
         action = self.action_id._get_action_concrete()

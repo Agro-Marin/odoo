@@ -10,13 +10,13 @@ from odoo.addons.base.models.ir_actions_server import IrActionsServer
 @tagged("post_install", "-at_install")
 class TestServerActionEvalContext(TransactionCase):
     def test_eval_context_requires_action(self):
-        parameter = inspect.signature(IrActionsServer._get_eval_context).parameters[
+        parameter = inspect.signature(IrActionsServer._prepare_eval_context).parameters[
             "action"
         ]
         self.assertIs(
             parameter.default,
             inspect.Parameter.empty,
-            "ir.actions.server._get_eval_context must require its action",
+            "ir.actions.server._prepare_eval_context must require its action",
         )
 
     def test_eval_context_with_action(self):
@@ -28,7 +28,7 @@ class TestServerActionEvalContext(TransactionCase):
                 "code": "True",
             }
         )
-        eval_context = self.env["ir.actions.server"]._get_eval_context(action)
+        eval_context = self.env["ir.actions.server"]._prepare_eval_context(action)
         self.assertEqual(eval_context["model"]._name, "res.partner")
         self.assertIn("env", eval_context)
         self.assertIn("log", eval_context)

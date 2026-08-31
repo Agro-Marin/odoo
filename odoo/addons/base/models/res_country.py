@@ -136,12 +136,12 @@ class ResCountry(models.Model):
 
     @api.model
     @tools.ormcache("code", cache="stable")
-    def _phone_code_for(self, code: str) -> int:
+    def _get_phone_code_by_code(self, code: str) -> int:
         return self.search([("code", "=", code)]).phone_code
 
     @api.model
     @tools.ormcache(cache="stable")
-    def _id_by_code(self) -> frozendict[str, int]:
+    def _get_id_by_code(self) -> frozendict[str, int]:
         return frozendict(
             (country.code, country.id)
             for country in self.sudo().search_fetch([], ["code"])
@@ -169,7 +169,7 @@ class ResCountry(models.Model):
         return super().unlink()
 
     def get_fields_address(self) -> list[str]:
-        self.ensure_one()
+        self.check_singleton()
         return re.findall(r"%\((\w+)\)s", self.address_format or "")
 
     @api.depends("code")

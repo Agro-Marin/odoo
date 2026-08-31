@@ -581,7 +581,7 @@
                     </p>
                     <footer>
                         <button
-                            name="make_key"
+                            name="action_generate_key"
                             type="object"
                             string="Generate key"
                             class="btn-primary"

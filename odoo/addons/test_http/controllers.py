@@ -95,7 +95,7 @@ class TestHttp(http.Controller):
             )
         }
 
-        return request.make_response(
+        return request.prepare_response(
             json.dumps(environ, indent=4), headers=list(CT_JSON.items())
         )
 
@@ -131,10 +131,10 @@ class TestHttp(http.Controller):
 
     @http.route("/test_http/openapi.json", type="http", auth="none", methods=["GET"])
     def openapi_json(self):
-        spec = http.openapi_from_map(
+        spec = http.prepare_openapi_from_map(
             request.app.nodb_routing_map, title="test_http API", typed_only=True
         )
-        return request.make_json_response(spec)
+        return request.prepare_json_response(spec)
 
     @http.route(
         "/test_http/echo-http-post",
@@ -209,7 +209,7 @@ class TestHttp(http.Controller):
             data = request.get_json_data()
         except ValueError as exc:
             raise werkzeug.exceptions.BadRequest("Invalid JSON data") from exc
-        return request.make_json_response(data)
+        return request.prepare_json_response(data)
 
     @http.route(
         '/test_http/<model("test_http.galaxy"):galaxy>',

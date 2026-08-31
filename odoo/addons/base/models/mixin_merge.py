@@ -20,7 +20,7 @@ class MixinMerge(models.AbstractModel):
     def _merge_absorbs_source_values(self) -> bool:
         return True
 
-    def _get_excluded_merge_tables(self, model: str) -> set[str]:
+    def _get_merge_tables_excluded(self, model: str) -> set[str]:
         tables = {self._table}
         for field in self._fields.values():
             if field.type == "many2many" and field.relation:
@@ -31,7 +31,7 @@ class MixinMerge(models.AbstractModel):
                     tables.add(field.relation)
         return tables
 
-    def _get_fk_on(self, table: str) -> list[tuple[str, str]]:
+    def _get_foreign_keys_on_table(self, table: str) -> list[tuple[str, str]]:
         query = """
             SELECT cl1.relname as table, att1.attname as column
             FROM pg_constraint as con, pg_class as cl1, pg_class as cl2, pg_attribute as att1, pg_attribute as att2
@@ -70,10 +70,10 @@ class MixinMerge(models.AbstractModel):
         return bool(self.env.cr.fetchone())
 
     def _get_relations_to_repoint(self, model: str) -> list[tuple[str, str]]:
-        skipped_tables = self._get_excluded_merge_tables(model)
+        skipped_tables = self._get_merge_tables_excluded(model)
         return [
             (table, column)
-            for table, column in self._get_fk_on(self.env[model]._table)
+            for table, column in self._get_foreign_keys_on_table(self.env[model]._table)
             if table not in skipped_tables
         ]
 

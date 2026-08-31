@@ -44,7 +44,7 @@ class BaseLanguageInstall(models.TransientModel):
             lang_installer.first_lang_id = lang_installer.lang_ids[0]
 
     def lang_install(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         mods = self.env["ir.module.module"].search([("state", "=", "installed")])
         self.lang_ids.active = True
         mods._update_translations(self.lang_ids.mapped("code"), self.overwrite)

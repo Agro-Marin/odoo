@@ -1367,7 +1367,7 @@ class TestIrCronUpdateFailureCount(TransactionCase, CronMixinCase):
     def _apply(self, status, **job_overrides):
         job = make_job(self.cron, **job_overrides)
         Cron = self.env["ir.cron"]
-        Cron._write_job_row(job, Cron._get_failure_vals(job, status))
+        Cron._write_job_row(job, Cron._prepare_failure_vals(job, status))
         self.cron.invalidate_recordset()
 
     def test_first_failure_sets_count_and_date(self):
@@ -1798,7 +1798,7 @@ class TestIrCronDeactivationNotice(TransactionCase, CronMixinCase):
             "_notify_admin",
             lambda self, message: messages.append(message),
         ):
-            self.env["ir.cron"]._get_failure_vals(job, CompletionStatus.FAILED)
+            self.env["ir.cron"]._prepare_failure_vals(job, CompletionStatus.FAILED)
 
         self.assertEqual(len(messages), 1)
         self.assertIn(
@@ -1920,7 +1920,7 @@ class TestIrCronAttemptConvergence(TransactionCase, CronMixinCase):
         self.assertEqual(status, CompletionStatus.FULLY_DONE)
         self.assertTrue(
             job.deactivate,
-            "_commit_progress(deactivate=True) has to reach _get_failure_vals, "
+            "_commit_progress(deactivate=True) has to reach _prepare_failure_vals, "
             "and the job object is the only channel between them",
         )
 

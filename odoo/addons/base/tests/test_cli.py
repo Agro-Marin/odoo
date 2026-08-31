@@ -11,10 +11,10 @@ from unittest import mock
 
 from odoo.cli import upgrade_code
 from odoo.cli.command import (
-    build_bootstrap_parser,
     commands,
     load_addons_commands,
     load_internal_commands,
+    prepare_bootstrap_parser,
 )
 from odoo.db import SYSTEM_DBS
 from odoo.tests import BaseCase
@@ -639,7 +639,7 @@ class TestCommand(BaseCase):
         self.assertTrue(deploy.session.get.called)
 
     def test_bootstrap_parser_rejects_abbreviation(self):
-        parser = build_bootstrap_parser()
+        parser = prepare_bootstrap_parser()
         ns, rest = parser.parse_known_args(["server", "--addons=/y"])
         self.assertIsNone(ns.addons_path)
         self.assertIn("--addons=/y", rest)
@@ -866,7 +866,7 @@ class TestCommand(BaseCase):
         for meth in (
             "add_config_arguments",
             "bootstrap_config",
-            "require_single_database",
+            "get_configured_database",
         ):
             self.assertIn(
                 meth,
@@ -1000,16 +1000,16 @@ class TestCommand(BaseCase):
             )
 
     def test_build_config_args_forwards_only_connection_flags(self):
-        from odoo.cli.command import build_config_args
+        from odoo.cli.command import get_config_argv
 
         self.assertEqual(
-            build_config_args("cfg", "db"),
+            get_config_argv("cfg", "db"),
             ["--no-http", "-c", "cfg", "-d", "db"],
         )
-        self.assertNotIn("--addons-path", build_config_args("cfg", "db"))
+        self.assertNotIn("--addons-path", get_config_argv("cfg", "db"))
         self.assertIn(
             "--workers=4",
-            build_config_args(None, None, extra_args=["--workers=4"]),
+            get_config_argv(None, None, extra_args=["--workers=4"]),
         )
 
     def test_db_refuses_system_databases(self):
@@ -1402,7 +1402,7 @@ class TestCommand(BaseCase):
     def test_bootstrap_swallows_addons_path_before_any_command_sees_it(self):
         from odoo.cli.db import Db
 
-        parser = build_bootstrap_parser()
+        parser = prepare_bootstrap_parser()
         for argv in (
             ["db", "init", "foo", "--addons-path=/x"],
             ["db", "--addons-path=/x", "list"],
@@ -1448,7 +1448,7 @@ class TestCommand(BaseCase):
         ob._prefetch_field_kinds({"t"})
         fields = [("t", "roomy"), ("t", "snug"), ("t", "wide_open")]
         self.assertEqual(
-            ob.find_unfittable_fields(fields, "pw"),
+            ob.get_fields_unfittable(fields, "pw"),
             [(("t", "snug"), 150, 180)],
             msg="only the column that actually cannot hold the ciphertext",
         )
@@ -1460,7 +1460,7 @@ class TestCommand(BaseCase):
         fields = [("t", "snug"), ("t", "other")]
         with mock.patch.object(
             Obfuscate,
-            "find_unfittable_fields",
+            "get_fields_unfittable",
             return_value=[(("t", "snug"), 150, 180)],
         ):
             with self.assertRaises(SystemExit) as ctx:
@@ -1618,8 +1618,8 @@ class TestCommand(BaseCase):
                 template = Template(name)
                 given = argument.get(name, "scaffold_probe")
                 params = template.parse_params(given)
-                modname = template.modname_for(given, params)
-                template.render_to(modname, Path(tmp), params=params)
+                modname = template.get_module_name(given, params)
+                template.render_to_directory(modname, Path(tmp), params=params)
                 module = Path(tmp) / modname
 
                 manifest_path = module / "__manifest__.py"
@@ -1679,7 +1679,7 @@ class TestCommand(BaseCase):
                 modname = convention.modname(given, params)
                 self.assertTrue(modname and not modname.startswith("_"), msg=modname)
                 self.assertEqual(
-                    Template(template_id).modname_for(given, params),
+                    Template(template_id).get_module_name(given, params),
                     modname,
                     msg="Template disagrees with its own convention",
                 )
@@ -1696,7 +1696,7 @@ class TestCommand(BaseCase):
                     template = Template(directory.name)
                     params = template.parse_params(given)
                     self.assertIn("name", params)
-                    self.assertTrue(template.modname_for(given, params))
+                    self.assertTrue(template.get_module_name(given, params))
 
     def test_db_dump_refuses_an_unwritable_destination_before_dumping(self):
         from odoo.cli import db as dbmod

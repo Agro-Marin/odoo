@@ -356,7 +356,7 @@ class IrSequence(models.Model):
         return res
 
     def _carry_over_pg_counters(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         sub_seqs = self.date_range_ids
         predicted = _predict_nextvals(
             self.env,
@@ -414,7 +414,7 @@ class IrSequence(models.Model):
         def _interpolate(s, d):
             return (s % d) if s else ""
 
-        self.ensure_one()
+        self.check_singleton()
         if not self.prefix and not self.suffix:
             return "", ""
         now = range_date = effective_date = datetime.now(self.env.tz)
@@ -533,7 +533,7 @@ class IrSequence(models.Model):
         return date_range
 
     def _get_current_sequence(self, sequence_date: Any = None) -> Any:
-        self.ensure_one()
+        self.check_singleton()
         if not self.use_date_range:
             return self
         dt = sequence_date or self.env.context.get(
@@ -570,7 +570,7 @@ class IrSequence(models.Model):
         )._next()
 
     def _next_batch(self, count: int, sequence_date: Any = None) -> list[str]:
-        self.ensure_one()
+        self.check_singleton()
         if count <= 0:
             return []
         if not self.use_date_range:
@@ -600,7 +600,7 @@ class IrSequence(models.Model):
 
     def preview_next(self, sequence_date: Any = None) -> str:
         self.browse().check_access("read")
-        self.ensure_one()
+        self.check_singleton()
         if not self.use_date_range:
             if sequence_date is None:
                 return self.get_next_char(self.number_next_actual)

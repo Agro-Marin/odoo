@@ -588,7 +588,7 @@ class IrActionsServer(models.Model):
         ]
 
     def _get_child_warnings(self) -> list[str]:
-        self.ensure_one()
+        self.check_singleton()
         warnings = []
         children_wrong_model = self.env["ir.actions.server"]
         children_wrong_groups = self.env["ir.actions.server"]
@@ -629,7 +629,7 @@ class IrActionsServer(models.Model):
         return warnings
 
     def _get_warning_messages(self) -> list[str]:
-        self.ensure_one()
+        self.check_singleton()
         warnings = self._get_child_warnings()
 
         relation_chain = (
@@ -645,7 +645,7 @@ class IrActionsServer(models.Model):
                 )
             )
 
-        if self.usage == "ir_cron" and self._needs_a_live_record():
+        if self.usage == "ir_cron" and self._is_live_record_required():
             warnings.append(
                 _(
                     "A scheduled action runs on no record, and this one needs "
@@ -703,7 +703,7 @@ class IrActionsServer(models.Model):
         )
 
     def _prepare_automated_name(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         if self.state == "object_create":
             return _("Create %(model_name)s", model_name=self.crud_model_id.name)
         if self.state == "object_write":
@@ -757,7 +757,7 @@ class IrActionsServer(models.Model):
                 (
                     "model",
                     "in",
-                    list(self.env["ir.model.access"]._get_allowed_models()),
+                    list(self.env["ir.model.access"]._get_models_allowed()),
                 )
             ]
         )
@@ -789,7 +789,7 @@ class IrActionsServer(models.Model):
     def _get_update_path_target(
         self,
     ) -> tuple[models.Model | Literal[False], models.Model | Literal[False]]:
-        self.ensure_one()
+        self.check_singleton()
         field_chain = self._get_relation_chain("update_path")
         if not field_chain:
             return False, False
@@ -803,7 +803,7 @@ class IrActionsServer(models.Model):
     def _get_relation_chain(
         self, searched_field_name: str, raise_on_error: bool = False
     ) -> list[fields.Field]:
-        self.ensure_one()
+        self.check_singleton()
         if (
             not searched_field_name
             or searched_field_name not in self._fields
@@ -860,7 +860,7 @@ class IrActionsServer(models.Model):
         return " > ".join(field.get_description(self.env)["string"] for field in chain)
 
     def _get_webhook_payload(self, record: models.Model) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         payload = {
             "_model": self.model_id.model,
             "_id": record.id,
@@ -917,7 +917,7 @@ class IrActionsServer(models.Model):
         return "model_name"
 
     def _is_batchable(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         if self.state == "multi":
             return bool(self.child_ids) and all(
                 child._is_batchable() for child in self.child_ids
@@ -930,8 +930,8 @@ class IrActionsServer(models.Model):
     def _get_states_needing_a_live_record(self) -> frozenset[str]:
         return frozenset((*CRUD_STATES, "webhook"))
 
-    def _needs_a_live_record(self) -> bool:
-        self.ensure_one()
+    def _is_live_record_required(self) -> bool:
+        self.check_singleton()
         if self.state not in self._get_states_needing_a_live_record():
             return False
         if self.state in ("object_create", "object_copy"):
@@ -952,7 +952,7 @@ class IrActionsServer(models.Model):
         return getattr(model_class, f"_run_action_{self.state}", None), False
 
     def _is_batch_safe(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         if self.state in ("multi", "object_write"):
             return self._is_batchable()
         return True
@@ -969,7 +969,7 @@ class IrActionsServer(models.Model):
         return True
 
     def action_view_code_history(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "name": _("Code History"),
@@ -1005,11 +1005,11 @@ class IrActionsServer(models.Model):
         self, eval_context: dict[str, Any] | None = None
     ) -> None:
         self._write_update_path(
-            self._get_target_records(), self._eval_value(eval_context=eval_context)
+            self._get_records_targeted(), self._eval_value(eval_context=eval_context)
         )
 
     def _write_update_path(self, records: Any, vals: dict[int, Any]) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if not self.update_path:
             raise UserError(
                 _(
@@ -1040,7 +1040,7 @@ class IrActionsServer(models.Model):
         targets.write(value)
 
     def _run_action_webhook(self, eval_context: dict[str, Any] | None = None) -> None:
-        record = self._get_target_records()[:1]
+        record = self._get_records_targeted()[:1]
         url = self.webhook_url
         if not record:
             return
@@ -1073,7 +1073,7 @@ class IrActionsServer(models.Model):
         deliver = self._prepare_webhook_delivery(url, timeout, action_label, target)
 
         @self.env.cr.postrollback.add
-        def _add_post_rollback():
+        def _warn_webhook_rolled_back():
             _logger.warning(
                 "Webhook %s to %s cancelled: the transaction rolled back",
                 action_label,
@@ -1081,7 +1081,7 @@ class IrActionsServer(models.Model):
             )
 
         @self.env.cr.postcommit.add
-        def _add_post_commit():
+        def _deliver_webhook_after_commit():
             deliver(json_values)
 
     def _prepare_webhook_delivery(self, url, timeout, action_label, target):
@@ -1141,7 +1141,7 @@ class IrActionsServer(models.Model):
     def _link_to_active_record(self, new_id: int) -> None:
         if not self.link_field_id:
             return
-        record = self._get_target_records()[:1]
+        record = self._get_records_targeted()[:1]
         if not record:
             return
         if self.link_field_id.ttype in ("one2many", "many2many"):
@@ -1163,7 +1163,7 @@ class IrActionsServer(models.Model):
         res_id, _res_name = self.env[self.crud_model_id.model].name_create(self.value)
         self._link_to_active_record(res_id)
 
-    def _get_eval_context(self, action: Self) -> dict[str, Any]:
+    def _prepare_eval_context(self, action: Self) -> dict[str, Any]:
 
         def log(message, level="info"):
             with self.pool.cursor() as cr:
@@ -1185,10 +1185,10 @@ class IrActionsServer(models.Model):
                     ),
                 )
 
-        eval_context = super()._get_eval_context(action=action)
+        eval_context = super()._prepare_eval_context(action=action)
         model_name = action.model_id.sudo().model
         model = self.env[model_name]
-        targets = action._get_target_records()
+        targets = action._get_records_targeted()
         records = targets or None
         record = targets[:1] or None
         if onchange_self := self.env.context.get("onchange_self"):
@@ -1206,7 +1206,7 @@ class IrActionsServer(models.Model):
         )
         return eval_context
 
-    def _get_target_records(self, action: Self | None = None) -> Any:
+    def _get_records_targeted(self, action: Self | None = None) -> Any:
         action = action or self
         model = action.env[action.sudo().model_name]
         context = action.env.context
@@ -1226,8 +1226,8 @@ class IrActionsServer(models.Model):
     def run(self) -> dict[str, Any] | bool:
         res = False
         for action in self.sudo():
-            eval_context = self._get_eval_context(action)
-            records = self._get_target_records(action)
+            eval_context = self._prepare_eval_context(action)
+            records = self._get_records_targeted(action)
             action.sudo(self.env.su)._check_access_to_run(records)
             res = action._run(records, eval_context)
         return res
@@ -1247,7 +1247,7 @@ class IrActionsServer(models.Model):
         )
 
     def _run(self, records: Any, eval_context: dict[str, Any]) -> dict[str, Any] | bool:
-        self.ensure_one()
+        self.check_singleton()
         if self.warning:
             raise ServerActionWithWarningsError(
                 _(
@@ -1270,7 +1270,7 @@ class IrActionsServer(models.Model):
         if (
             not records
             and not self.env.context.get("onchange_self")
-            and self._needs_a_live_record()
+            and self._is_live_record_required()
         ):
             self._log_missing_target(runner)
             return False
@@ -1291,7 +1291,7 @@ class IrActionsServer(models.Model):
         return res or False
 
     def _check_access_to_run(self, records: Any) -> None:
-        self.ensure_one()
+        self.check_singleton()
         config = self.sudo()
 
         action_groups = config.group_ids
@@ -1394,7 +1394,7 @@ class IrActionsServer(models.Model):
                 action.value = action.selection_value.value
 
     def _coerce_number(self, converter: Any) -> Any:
-        self.ensure_one()
+        self.check_singleton()
         try:
             return converter(self.value)
         except ValueError, TypeError:
@@ -1464,7 +1464,7 @@ class IrActionsServer(models.Model):
         )
 
     def action_view_parent_action(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "target": "current",
@@ -1474,7 +1474,7 @@ class IrActionsServer(models.Model):
         }
 
     def action_view_scheduled_action(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         if not self.ir_cron_ids:
             raise UserError(
                 _("No scheduled action is associated with this server action.")

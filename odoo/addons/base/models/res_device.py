@@ -261,7 +261,7 @@ class ResDevice(models.Model):
             raise AccessError(_("You can only revoke your own devices."))
         ResDeviceLog = self.env["res.device.log"]
         session_identifiers = list(unique(device.session_identifier for device in self))
-        root.session_store.delete_from_identifiers(session_identifiers)
+        root.session_store.remove_from_identifiers(session_identifiers)
         revoked_devices = ResDeviceLog.sudo().search(
             [("session_identifier", "in", session_identifiers)]
         )

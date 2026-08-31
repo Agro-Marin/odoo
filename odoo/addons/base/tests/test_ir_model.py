@@ -429,9 +429,9 @@ class TestIrModelEdition(TransactionCase):
         )
 
     def test_make_compute_filters_blank_dependencies(self):
-        from odoo.addons.base.models.ir_model_common import make_compute
+        from odoo.addons.base.models.ir_model_common import prepare_compute
 
-        compute = make_compute("pass", "field_a, , field_b,")
+        compute = prepare_compute("pass", "field_a, , field_b,")
         self.assertEqual(compute._depends, ("field_a", "field_b"))
         self.assertEqual(compute.__name__, "compute")
 
@@ -471,9 +471,9 @@ class TestIrModelEdition(TransactionCase):
         self.assertIn("<compute x_imc_boom.x_calc>", frames)
 
     def test_manual_compute_syntax_error_names_the_field(self):
-        from odoo.addons.base.models.ir_model_common import make_compute
+        from odoo.addons.base.models.ir_model_common import prepare_compute
 
-        compute = make_compute("for record in self\n    pass\n", None, "x_m.x_f")
+        compute = prepare_compute("for record in self\n    pass\n", None, "x_m.x_f")
         with self.assertRaises(SyntaxError) as cm:
             compute(self.env["ir.model"])
         self.assertIn("<compute x_m.x_f>", str(cm.exception))

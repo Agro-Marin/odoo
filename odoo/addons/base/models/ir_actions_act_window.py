@@ -167,7 +167,7 @@ class IrActionsAct_Window(models.Model):
             act.views = views
 
     def _get_empty_list_help(self, stored_help: str | bool) -> str | bool:
-        self.ensure_one()
+        self.check_singleton()
         if self.res_model not in self.env:
             return stored_help
         ctx = self.env["ir.actions.actions"]._eval_action_context(self.context)

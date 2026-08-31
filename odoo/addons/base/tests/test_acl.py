@@ -326,7 +326,7 @@ class TestIrRule(TransactionCaseWithUserDemo):
             "Superuser must get no record rules (env.su bypass).",
         )
         self.assertTrue(
-            su_rule._compute_domain("res.partner", "read").is_true(),
+            su_rule._get_domain_accessible_records("res.partner", "read").is_true(),
             "Superuser domain must be unrestricted (Domain.TRUE).",
         )
 
@@ -336,7 +336,7 @@ class TestIrRule(TransactionCaseWithUserDemo):
             "Demo user must get the global rule.",
         )
         self.assertFalse(
-            demo_rule._compute_domain("res.partner", "read").is_true(),
+            demo_rule._get_domain_accessible_records("res.partner", "read").is_true(),
             "Demo user domain must be restricted by the global rule.",
         )
 
@@ -489,11 +489,11 @@ class TestIrModelAccess(TransactionCaseWithUserDemo):
     def test_invalid_access_mode(self):
         Access = self.env["ir.model.access"]
         with self.assertRaises(ValueError):
-            Access._get_allowed_models("foo")
+            Access._get_models_allowed("foo")
         with self.assertRaises(ValueError):
             Access.group_names_with_access("res.partner", "foo")
         with self.assertRaises(ValueError):
-            Access._get_access_groups("res.partner", "foo")
+            Access._get_groups_with_access("res.partner", "foo")
 
     @mute_logger("odoo.addons.base.models.ir_model_access", "odoo.db.cursor")
     def test_create_missing_name_raises_field_error(self):
@@ -542,25 +542,25 @@ class TestIrModelAccess(TransactionCaseWithUserDemo):
             ]
 
         registry.clear_all_caches()
-        Access._get_allowed_models("read")
-        Access._get_access_groups("res.partner", "read")
+        Access._get_models_allowed("read")
+        Access._get_groups_with_access("res.partner", "read")
         self.assertTrue(
-            cached("default", "_get_allowed_models"),
-            "_get_allowed_models should populate the 'default' bucket.",
+            cached("default", "_get_models_allowed"),
+            "_get_models_allowed should populate the 'default' bucket.",
         )
         self.assertTrue(
-            cached("stable", "_get_access_groups"),
-            "_get_access_groups should populate the 'stable' bucket.",
+            cached("stable", "_get_groups_with_access"),
+            "_get_groups_with_access should populate the 'stable' bucket.",
         )
 
         Access.call_cache_clearing_methods()
         self.assertFalse(
-            cached("default", "_get_allowed_models"),
-            "_get_allowed_models (default bucket) must be invalidated.",
+            cached("default", "_get_models_allowed"),
+            "_get_models_allowed (default bucket) must be invalidated.",
         )
         self.assertFalse(
-            cached("stable", "_get_access_groups"),
-            "_get_access_groups (stable bucket) must be invalidated.",
+            cached("stable", "_get_groups_with_access"),
+            "_get_groups_with_access (stable bucket) must be invalidated.",
         )
 
     def test_allowed_models_cache_shared_across_same_group_users(self):
@@ -578,15 +578,15 @@ class TestIrModelAccess(TransactionCaseWithUserDemo):
         )
         self.assertEqual(user_a._get_group_ids(), user_b._get_group_ids())
         Access = self.env["ir.model.access"]
-        allowed_a = Access.with_user(user_a)._get_allowed_models("read")
-        allowed_b = Access.with_user(user_b)._get_allowed_models("read")
+        allowed_a = Access.with_user(user_a)._get_models_allowed("read")
+        allowed_b = Access.with_user(user_b)._get_models_allowed("read")
         self.assertIs(
             allowed_a,
             allowed_b,
-            "Same-group users must share one _get_allowed_models cache entry.",
+            "Same-group users must share one _get_models_allowed cache entry.",
         )
         self.assertIsNot(
-            allowed_a, Access.with_user(user_a)._get_allowed_models("write")
+            allowed_a, Access.with_user(user_a)._get_models_allowed("write")
         )
 
     def test_check_unknown_model_warns(self):
@@ -721,13 +721,13 @@ class TestIrModelAccessCacheInvalidation(TransactionCaseWithUserDemo):
 
         self.env.flush_all()
         self.env.registry.clear_cache()
-        self.assertIn("res.partner", Access._get_allowed_models("write"))
+        self.assertIn("res.partner", Access._get_models_allowed("write"))
 
         Access.browse(acls.ids).write({"perm_write": False})
 
         self.assertNotIn(
             "res.partner",
-            Access._get_allowed_models("write"),
+            Access._get_models_allowed("write"),
             "revoking a model ACL must take effect in the worker that revoked it",
         )
 
@@ -737,11 +737,11 @@ class TestIrModelAccessCacheInvalidation(TransactionCaseWithUserDemo):
         acls = self._granting_acls("res.partner", admin)
         Access.browse(acls.ids).write({"perm_write": False})
         self.env.registry.clear_cache()
-        self.assertNotIn("res.partner", Access._get_allowed_models("write"))
+        self.assertNotIn("res.partner", Access._get_models_allowed("write"))
 
         Access.browse(acls.ids).write({"perm_write": True})
 
-        self.assertIn("res.partner", Access._get_allowed_models("write"))
+        self.assertIn("res.partner", Access._get_models_allowed("write"))
 
     def test_unlink_takes_effect_in_the_writing_worker(self):
         admin = self.env.ref("base.user_admin")
@@ -750,11 +750,11 @@ class TestIrModelAccessCacheInvalidation(TransactionCaseWithUserDemo):
         self.assertTrue(acls, "expected admin to have an unlink ACL on res.partner")
         self.env.flush_all()
         self.env.registry.clear_cache()
-        self.assertIn("res.partner", Access._get_allowed_models("unlink"))
+        self.assertIn("res.partner", Access._get_models_allowed("unlink"))
 
         Access.browse(acls.ids).unlink()
 
-        self.assertNotIn("res.partner", Access._get_allowed_models("unlink"))
+        self.assertNotIn("res.partner", Access._get_models_allowed("unlink"))
 
 
 class TestResGroupsCacheInvalidation(TransactionCaseWithUserDemo):

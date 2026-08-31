@@ -26,8 +26,8 @@ class NameManager:
         self.available_names = set()
         self.used_fields = collections.defaultdict(dict)
         self.used_names = {}
-        self.must_exist_actions = {}
-        self.must_exist_groups = {}
+        self.required_actions = {}
+        self.required_groups = {}
         self.parent = parent
         self.children = []
         if self.parent:
@@ -67,7 +67,7 @@ class NameManager:
         )
         self.available_names.add(info.get("id") or name)
 
-    def has_action(self, name: str) -> None:
+    def add_available_action(self, name: str) -> None:
         self.available_actions.add(name)
 
     @staticmethod
@@ -75,7 +75,7 @@ class NameManager:
         attr, expr = use
         return f"{attr}={expr!r}"
 
-    def must_have_fields(
+    def add_used_fields(
         self,
         node: etree._Element,
         names: set[str],
@@ -89,16 +89,16 @@ class NameManager:
             if not name.startswith("parent."):
                 self.used_fields[name][access_groups] = (use, node)
             elif self.parent:
-                self.parent.must_have_fields(node, {name[7:]}, node_info, use)
+                self.parent.add_used_fields(node, {name[7:]}, node_info, use)
 
-    def must_have_name(self, name: str, use: str) -> None:
+    def add_used_name(self, name: str, use: str) -> None:
         self.used_names[name] = use
 
-    def must_exist_action(self, action_id: str, node: etree._Element) -> None:
-        self.must_exist_actions[action_id] = node
+    def add_required_action(self, action_id: str, node: etree._Element) -> None:
+        self.required_actions[action_id] = node
 
-    def must_exist_group(self, name: str, node: etree._Element) -> None:
-        self.must_exist_groups[name] = node
+    def add_required_group(self, name: str, node: etree._Element) -> None:
+        self.required_groups[name] = node
 
     def _get_field_groups(self, name: str) -> Any:
         if name in self.field_groups:
@@ -124,8 +124,8 @@ class NameManager:
     def check(self, view: Any) -> None:
         self._check_used_names(view)
         self._check_available_fields(view)
-        self._check_must_exist_actions(view)
-        self._check_must_exist_groups(view)
+        self._check_required_actions(view)
+        self._check_required_groups(view)
         self._check_used_fields(view)
         self._check_group_consistency(view)
 
@@ -142,25 +142,23 @@ class NameManager:
                     name_or_id=name,
                     use=use,
                 )
-                view._raise_view_error(msg)
-            elif (
-                name not in self.available_actions and name not in self.available_names
-            ):
+                raise view._prepare_view_error(msg)
+            if name not in self.available_actions and name not in self.available_names:
                 msg = _(
                     "Name or id \u201c%(name_or_id)s\u201d in %(use)s must be present in view but is missing.",
                     name_or_id=name,
                     use=use,
                 )
-                view._raise_view_error(msg)
+                raise view._prepare_view_error(msg)
 
     def _check_available_fields(self, view: Any) -> None:
         for name in self.available_fields:
             if name not in self.model._fields and name not in self.field_info:
                 message = _("Field `%(name)s` does not exist", name=name)
-                view._raise_view_error(message)
+                raise view._prepare_view_error(message)
 
-    def _check_must_exist_actions(self, view: Any) -> None:
-        for name, node in self.must_exist_actions.items():
+    def _check_required_actions(self, view: Any) -> None:
+        for name, node in self.required_actions.items():
             try:
                 action_id = int(name)
             except ValueError:
@@ -172,14 +170,14 @@ class NameManager:
                         "Invalid xmlid %(xmlid)s for button of type action.",
                         xmlid=name,
                     )
-                    view._raise_view_error(msg, node)
+                    raise view._prepare_view_error(msg, node) from None
                 if not issubclass(view.pool[model], view.pool["ir.actions.actions"]):
                     msg = _(
                         "%(xmlid)s is of type %(xmlid_model)s, expected a subclass of ir.actions.actions",
                         xmlid=name,
                         xmlid_model=model,
                     )
-                    view._raise_view_error(msg, node)
+                    raise view._prepare_view_error(msg, node) from None
             action = view.env["ir.actions.actions"].browse(action_id).exists()
             if not action:
                 msg = _(
@@ -187,10 +185,10 @@ class NameManager:
                     action_reference=name,
                     action_id=action_id,
                 )
-                view._raise_view_error(msg, node)
+                raise view._prepare_view_error(msg, node)
 
-    def _check_must_exist_groups(self, view: Any) -> None:
-        for name, node in self.must_exist_groups.items():
+    def _check_required_groups(self, view: Any) -> None:
+        for name, node in self.required_groups.items():
             if self.group_definitions.get_id(name) is None:
                 msg = _(
                     "The group \u201c%(name)s\u201d defined in view does not exist!",
@@ -207,7 +205,7 @@ class NameManager:
                     definition=name,
                     use=self._describe_use(use),
                 )
-                view._raise_view_error(msg, node)
+                raise view._prepare_view_error(msg, node)
             info = self.available_fields.get(name, {}).get("info")
 
             if info is None:
@@ -223,7 +221,7 @@ class NameManager:
                     name=name,
                     use=self._describe_use(use),
                 )
-                view._raise_view_error(msg, node)
+                raise view._prepare_view_error(msg, node)
 
     def _check_group_consistency(self, view: Any) -> None:
         for name, (
@@ -234,8 +232,8 @@ class NameManager:
                 name, missing_groups, reasons
             )
             if error_type == "does_not_exist":
-                view._raise_view_error(message)
-            elif error_type:
+                raise view._prepare_view_error(message)
+            if error_type:
                 view._log_view_warning(message, None)
 
     def _error_message_group_inconsistency(

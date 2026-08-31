@@ -382,7 +382,7 @@ class IrUiView(models.Model):
             view.arch = arch_fs or view.arch_db
 
     def _get_arch_from_file(self) -> str | None:
-        self.ensure_one()
+        self.check_singleton()
         if not self.arch_fs:
             return None
         xml_id = self.xml_id or self.key
@@ -587,7 +587,7 @@ class IrUiView(models.Model):
                 match = TRANSLATED_ATTRS_RE.search(node.get("expr", ""))
                 if match:
                     message = f"View inheritance may not use attribute {match.group(1)!r} as a selector."
-                    self._raise_view_error(message, node)
+                    raise self._prepare_view_error(message, node)
                 if WRONGCLASS.search(node.get("expr", "")):
                     _logger.warning(
                         "Error-prone use of @class in view %s (%s): use the "
@@ -600,7 +600,7 @@ class IrUiView(models.Model):
                 for attr in TRANSLATED_ATTRS:
                     if node.get(attr):
                         message = f"View inheritance may not use attribute {attr!r} as a selector."
-                        self._raise_view_error(message, node)
+                        raise self._prepare_view_error(message, node)
 
     def _get_combined_archs_by_id(self) -> dict[int, _Element]:
         if len(self) < 2 or self.pool._init:
@@ -770,7 +770,7 @@ class IrUiView(models.Model):
     )
     _model_type_inherit_id = models.Index("(model, inherit_id)")
 
-    def _compute_defaults(self, values: dict[str, Any]) -> dict[str, Any]:
+    def _prepare_view_defaults(self, values: dict[str, Any]) -> dict[str, Any]:
         if "inherit_id" in values:
             if not values["inherit_id"] or all(not view.inherit_id for view in self):
                 values.setdefault(
@@ -894,7 +894,7 @@ class IrUiView(models.Model):
                     if path_info:
                         values["arch_fs"] = path_info.addons_path
                         values["arch_updated"] = False
-            self._compute_defaults(values)
+            self._prepare_view_defaults(values)
 
         self.env.registry.clear_cache("templates")
         result = super().create(vals_list)
@@ -931,7 +931,7 @@ class IrUiView(models.Model):
         if recombines:
             recombines = self._combines_cleanly()
 
-        res = super().write(self._compute_defaults(vals))
+        res = super().write(self._prepare_view_defaults(vals))
 
         if revalidate:
             self._check_xml()
@@ -1035,7 +1035,7 @@ class IrUiView(models.Model):
             and f.name not in _CTE_EXCLUDED_FIELDS
         ]
 
-    def _get_inheriting_views(self) -> Self:
+    def _get_views_inheriting(self) -> Self:
         if not self.ids:
             return self.browse()
         domain = self._get_inheriting_views_domain()
@@ -1125,7 +1125,7 @@ class IrUiView(models.Model):
         return self.browse(vid for vid in self.ids if vid in valid_view_ids)
 
     def _check_view_access(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         if self.inherit_id and self.mode != "primary":
             return self.inherit_id._check_view_access()
         if set(self.group_ids.ids) & set(self.env.user._get_group_ids()):
@@ -1141,7 +1141,7 @@ class IrUiView(models.Model):
         raise AccessError(error)
 
     def _view_display_name(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         return f"{self.name} ({self.xml_id})" if self.xml_id else self.name
 
     def _view_error_context(self, node: _Element | None) -> dict[str, Any]:
@@ -1155,17 +1155,16 @@ class IrUiView(models.Model):
             "line": node.sourceline if node is not None else 1,
         }
 
-    def _raise_view_error(
+    def _prepare_view_error(
         self,
         message: str,
         node: _Element | None = None,
         *,
-        from_exception: BaseException | None = None,
         from_traceback: Any = None,
-    ) -> typing.NoReturn:
+    ) -> ValueError:
         err = ValueError(message).with_traceback(from_traceback)
         err.context = self._view_error_context(node)
-        raise err from from_exception
+        return err
 
     def _log_view_warning(self, message: str, node: _Element | None) -> None:
         _logger.warning(
@@ -1231,11 +1230,11 @@ class IrUiView(models.Model):
                 pre_locate=pre_locate,
             )
         except ValueError as e:
-            self._raise_view_error(str(e), specs_tree)
+            raise self._prepare_view_error(str(e), specs_tree) from None
         return source
 
     def _combine(self, hierarchy: dict[Self, list[Self]]) -> _Element:
-        self.ensure_one()
+        self.check_singleton()
         if self.mode != "primary":
             raise ValueError(
                 f"_combine() requires a primary view, got mode={self.mode!r}"
@@ -1278,7 +1277,7 @@ class IrUiView(models.Model):
         return etree.tostring(self._get_combined_arch(), encoding="unicode")
 
     def _get_combined_arch(self) -> _Element:
-        self.ensure_one()
+        self.check_singleton()
         return self._get_combined_archs()[0]
 
     def _prefetch_ancestry(self) -> None:
@@ -1334,7 +1333,7 @@ class IrUiView(models.Model):
         check_view_ids = views.env.context.get("check_view_ids") or []
         views = views.with_context(check_view_ids=[*check_view_ids, *views.ids])
 
-        all_tree_views = views._get_inheriting_views()
+        all_tree_views = views._get_views_inheriting()
 
         if self.pool._init and not self.env.context.get("load_all_views"):
             all_tree_views = all_tree_views._filter_loaded_views(
@@ -1377,13 +1376,13 @@ class IrUiView(models.Model):
     def _get_cached_template_prefetched_keys(self) -> list[str]:
         return ["id", "key", "active"]
 
-    def _get_template_minimal_cache_keys(self) -> tuple[bool]:
+    def _get_template_cache_keys_minimal(self) -> tuple[bool]:
         return (bool(self.env.context.get("active_test", True)),)
 
     @api.model
     @tools.ormcache(
         "id_or_xmlid",
-        "isinstance(id_or_xmlid, str) and self._get_template_minimal_cache_keys()",
+        "isinstance(id_or_xmlid, str) and self._get_template_cache_keys_minimal()",
         cache="templates",
     )
     def _get_cached_template_info(
@@ -1423,8 +1422,8 @@ class IrUiView(models.Model):
         return frozendict(info)
 
     @api.model
-    def _raise_cached_template_error(self, error: Exception) -> typing.NoReturn:
-        raise copy.copy(error)
+    def _prepare_cached_template_error(self, error: Exception) -> Exception:
+        return copy.copy(error)
 
     @api.model
     def _get_template_view(
@@ -1432,7 +1431,7 @@ class IrUiView(models.Model):
     ) -> Self:
         info = self._get_cached_template_info(id_or_xmlid)
         if info["error"] and raise_if_not_found:
-            self._raise_cached_template_error(info["error"])
+            raise self._prepare_cached_template_error(info["error"])
         return self.env["ir.ui.view"].browse(info["id"])
 
     @api.model
@@ -1568,7 +1567,7 @@ class IrUiView(models.Model):
     def postprocess_and_fields(
         self, node: _Element, model: str | None = None, **options: Any
     ) -> tuple[str, dict[str, set[str]]]:
-        self and self.ensure_one()
+        self and self.check_singleton()
 
         name_manager = self._postprocess_view(node, model or self.model, **options)
         self._strip_arch_indentation(node)
@@ -1713,7 +1712,7 @@ class IrUiView(models.Model):
         translate: bool,
     ) -> tuple[NameManager, SetDefinitions, Any]:
         if model_name not in self.env:
-            self._raise_view_error(
+            raise self._prepare_view_error(
                 _("Model not found: %(model)s", model=model_name), node
             )
 
@@ -1724,7 +1723,7 @@ class IrUiView(models.Model):
         )
         parent_name_manager = node_info["name_manager"] if node_info else None
 
-        model_groups &= self.env["ir.model.access"]._get_access_groups(model_name)
+        model_groups &= self.env["ir.model.access"]._get_groups_with_access(model_name)
 
         model = self.env[model_name]
         if not translate:
@@ -1745,13 +1744,13 @@ class IrUiView(models.Model):
     def _iter_arch_nodes(
         self,
         root: _Element,
-        make_node_info: Callable[[_Element, dict[str, Any] | None], dict[str, Any]],
+        get_node_info: Callable[[_Element, dict[str, Any] | None], dict[str, Any]],
     ) -> typing.Iterator[tuple[_Element, dict[str, Any]]]:
         stack: list[tuple[_Element, dict[str, Any] | None]] = [(root, None)]
         while stack:
             node, parent_info = stack.pop()
             had_parent = node.getparent() is not None
-            node_info = make_node_info(node, parent_info)
+            node_info = get_node_info(node, parent_info)
             yield node, node_info
             if had_parent and node.getparent() is None:
                 continue
@@ -1792,7 +1791,7 @@ class IrUiView(models.Model):
             **(scoped or {}),
         }
 
-        def make_node_info(
+        def get_node_info(
             node: _Element, parent_info: dict[str, Any] | None
         ) -> dict[str, Any]:
             inherited = initial if parent_info is None else parent_info
@@ -1808,7 +1807,7 @@ class IrUiView(models.Model):
                 )
             return info
 
-        return name_manager, make_node_info
+        return name_manager, get_node_info
 
     def _postprocess_view(
         self,
@@ -1820,7 +1819,7 @@ class IrUiView(models.Model):
     ) -> NameManager:
         root = node
 
-        name_manager, make_node_info = self._arch_scope(
+        name_manager, get_node_info = self._arch_scope(
             root,
             model_name,
             node_info,
@@ -1835,7 +1834,7 @@ class IrUiView(models.Model):
 
         self._postprocess_debug_to_cache(root)
 
-        for elem, elem_info in self._iter_arch_nodes(root, make_node_info):
+        for elem, elem_info in self._iter_arch_nodes(root, get_node_info):
             postprocessor = getattr(self, f"_postprocess_tag_{elem.tag}", None)
             if postprocessor is not None:
                 had_parent = elem.getparent() is not None
@@ -1864,7 +1863,7 @@ class IrUiView(models.Model):
 
         root.set("model_access_rights", model._name)
 
-        if self._onchange_able_view(root):
+        if self._can_onchange_view(root):
             self._postprocess_on_change(root, model)
 
         return name_manager
@@ -1976,7 +1975,7 @@ class IrUiView(models.Model):
         for attr, expr in node.items():
             if attr in VIEW_MODIFIERS or attr.startswith("decoration-"):
                 vnames = get_expression_field_names(expr)
-                name_manager.must_have_fields(node, vnames, node_info, (attr, expr))
+                name_manager.add_used_fields(node, vnames, node_info, (attr, expr))
             elif attr == "groups":
                 node.attrib.pop("groups")
 
@@ -2038,11 +2037,11 @@ class IrUiView(models.Model):
                 )
                 if isinstance(domain, str):
                     vnames = get_expression_field_names(domain)
-                    name_manager.must_have_fields(
+                    name_manager.add_used_fields(
                         node, vnames, node_info, ("domain", domain)
                     )
             if field.type == "properties":
-                name_manager.must_have_fields(
+                name_manager.add_used_fields(
                     node,
                     [field.definition_record],
                     node_info,
@@ -2051,11 +2050,11 @@ class IrUiView(models.Model):
             context = node.get("context")
             if context:
                 vnames = get_expression_field_names(context)
-                name_manager.must_have_fields(
+                name_manager.add_used_fields(
                     node, vnames, node_info, ("context", context)
                 )
             if field.type == "binary" and (field_filename := node.get("filename")):
-                name_manager.must_have_fields(
+                name_manager.add_used_fields(
                     node,
                     [field_filename],
                     node_info,
@@ -2172,19 +2171,19 @@ class IrUiView(models.Model):
             field.is_editable() and node.get("readonly") not in ("1", "True")
         )
 
-    def _onchange_able_view(self, node: _Element) -> bool | None:
-        func = getattr(self, f"_onchange_able_view_{node.tag}", None)
+    def _can_onchange_view(self, node: _Element) -> bool | None:
+        func = getattr(self, f"_can_onchange_view_{node.tag}", None)
         if func is not None:
             return func(node)
         return None
 
-    def _onchange_able_view_form(self, node: _Element) -> bool:
+    def _can_onchange_view_form(self, node: _Element) -> bool:
         return True
 
-    def _onchange_able_view_list(self, node: _Element) -> bool:
+    def _can_onchange_view_list(self, node: _Element) -> bool:
         return True
 
-    def _onchange_able_view_kanban(self, node: _Element) -> bool:
+    def _can_onchange_view_kanban(self, node: _Element) -> bool:
         return True
 
     def _check_view(
@@ -2195,11 +2194,11 @@ class IrUiView(models.Model):
         editable: bool = True,
         node_info: dict[str, Any] | None = None,
     ) -> NameManager:
-        self.ensure_one()
+        self.check_singleton()
 
         view_type = view_type or self.type
         if not view_type:
-            self._raise_view_error(
+            raise self._prepare_view_error(
                 _(
                     "The view type could not be determined from its architecture. "
                     "Check that the architecture is well-formed XML, or set the "
@@ -2208,7 +2207,7 @@ class IrUiView(models.Model):
                 node,
             )
         if node.tag != view_type:
-            self._raise_view_error(
+            raise self._prepare_view_error(
                 _(
                     "The root node of a %(view_type)s view should be a <%(view_type)s>, not a <%(tag)s>",
                     view_type=view_type,
@@ -2217,7 +2216,7 @@ class IrUiView(models.Model):
                 node,
             )
         if node_info is None and node.get("groups"):
-            self._raise_view_error(
+            raise self._prepare_view_error(
                 _(
                     "The root node of a view cannot carry a 'groups' attribute: "
                     "restricting it would leave nothing to display. Use the view's "
@@ -2231,9 +2230,9 @@ class IrUiView(models.Model):
             info["validate"] = info["validate"] or elem.get("__validate__")
             if groups := elem.get("groups"):
                 for group_name in groups.replace("!", "").split(","):
-                    name_manager.must_exist_group(group_name, elem)
+                    name_manager.add_required_group(group_name, elem)
 
-        name_manager, make_node_info = self._arch_scope(
+        name_manager, get_node_info = self._arch_scope(
             node,
             model_name,
             node_info,
@@ -2243,7 +2242,7 @@ class IrUiView(models.Model):
             refine=refine,
         )
 
-        for elem, elem_info in self._iter_arch_nodes(node, make_node_info):
+        for elem, elem_info in self._iter_arch_nodes(node, get_node_info):
             validator = getattr(self, f"_check_view_tag_{elem.tag}", None)
             if validator is not None:
                 validator(elem, name_manager, elem_info)
@@ -2269,7 +2268,7 @@ class IrUiView(models.Model):
                 'The "editable" attribute of list views must be "top" or "bottom", received %(value)s',
                 value=editable_attr,
             )
-            self._raise_view_error(msg, node)
+            raise self._prepare_view_error(msg, node)
         allowed_tags = (
             "field",
             "button",
@@ -2285,7 +2284,7 @@ class IrUiView(models.Model):
                     tags=", ".join(allowed_tags),
                     wrong_tag=child.tag,
                 )
-                self._raise_view_error(msg, child)
+                raise self._prepare_view_error(msg, child)
 
     def _check_view_tag_graph(
         self,
@@ -2301,7 +2300,7 @@ class IrUiView(models.Model):
                     "A <graph> can only contains <field> nodes, found a <%s>",
                     child.tag,
                 )
-                self._raise_view_error(msg, child)
+                raise self._prepare_view_error(msg, child)
 
     def _check_view_tag_calendar(
         self,
@@ -2320,7 +2319,7 @@ class IrUiView(models.Model):
         searchpanels = [child for child in node if child.tag == "searchpanel"]
         if searchpanels:
             if len(searchpanels) > 1:
-                self._raise_view_error(
+                raise self._prepare_view_error(
                     _("Search tag can only contain one search panel"), node
                 )
             node_info["children"] = [
@@ -2344,7 +2343,7 @@ class IrUiView(models.Model):
 
         name = node.get("name")
         if not name:
-            self._raise_view_error(
+            raise self._prepare_view_error(
                 _('Field tag must have a "name" attribute defined'), node
             )
 
@@ -2377,10 +2376,10 @@ class IrUiView(models.Model):
                     name=name,
                     domain=node.get("domain"),
                 )
-                self._raise_view_error(msg, node)
+                raise self._prepare_view_error(msg, node)
 
             if field.type == "properties" and node_info["view_type"] != "search":
-                name_manager.must_have_fields(
+                name_manager.add_used_fields(
                     node,
                     {field._description_definition_record},
                     node_info,
@@ -2405,7 +2404,7 @@ class IrUiView(models.Model):
                 field_name=name,
                 model_name=name_manager.model._name,
             )
-            self._raise_view_error(msg, node)
+            raise self._prepare_view_error(msg, node)
 
         name_manager.has_field(
             node,
@@ -2453,7 +2452,7 @@ class IrUiView(models.Model):
                         "Invalid default period %(default_period)s for date filter",
                         default_period=default_period,
                     )
-                    self._raise_view_error(msg, node)
+                    raise self._prepare_view_error(msg, node)
 
     def _get_client_button_types(self, view_type: str) -> set[str]:
         types = set()
@@ -2478,7 +2477,7 @@ class IrUiView(models.Model):
         type_ = node.get("type")
         if special:
             if special not in ("cancel", "save", "add"):
-                self._raise_view_error(
+                raise self._prepare_view_error(
                     _("Invalid special '%(value)s' in button", value=special),
                     node,
                 )
@@ -2491,14 +2490,14 @@ class IrUiView(models.Model):
                         action_name=name,
                         model_name=name_manager.model._name,
                     )
-                    self._raise_view_error(msg, node)
+                    raise self._prepare_view_error(msg, node)
                 if name.startswith("_") or getattr(func, "_api_private", False):
                     msg = _(
                         "%(method)s on %(model)s is private and cannot be called from a button",
                         method=name,
                         model=name_manager.model._name,
                     )
-                    self._raise_view_error(msg, node)
+                    raise self._prepare_view_error(msg, node)
                 try:
                     inspect.signature(
                         func, annotation_format=annotationlib.Format.FORWARDREF
@@ -2506,11 +2505,11 @@ class IrUiView(models.Model):
                 except TypeError:
                     msg = "%s on %s has parameters and cannot be called from a button"
                     self._log_view_warning(msg % (name, name_manager.model._name), node)
-                name_manager.has_action(name)
+                name_manager.add_available_action(name)
         elif type_ == "action":
             if name:
-                name_manager.must_exist_action(name, node)
-                name_manager.has_action(name)
+                name_manager.add_required_action(name, node)
+                name_manager.add_available_action(name)
         elif type_ and type_ not in self._get_client_button_types(
             node_info["view_type"]
         ):
@@ -2538,7 +2537,7 @@ class IrUiView(models.Model):
                         name=field.name,
                         type=field.type,
                     )
-                    self._raise_view_error(msg, node)
+                    raise self._prepare_view_error(msg, node)
                 domain = node_info["editable"] and field._description_domain(self.env)
                 if isinstance(domain, str):
                     desc = f"domain of python field '{name}'"
@@ -2571,7 +2570,7 @@ class IrUiView(models.Model):
                 field=name,
                 model=name_manager.model._name,
             )
-            self._raise_view_error(msg, node)
+            raise self._prepare_view_error(msg, node)
 
     def _check_view_tag_searchpanel(
         self,
@@ -2586,7 +2585,7 @@ class IrUiView(models.Model):
                 msg = _(
                     "Searchpanel items with a domain attribute must have select='multi'."
                 )
-                self._raise_view_error(msg, child)
+                raise self._prepare_view_error(msg, child)
 
     def _check_view_tag_label(
         self,
@@ -2602,9 +2601,8 @@ class IrUiView(models.Model):
                 'Label tag must contain a "for". To match label style '
                 "without corresponding field or button, use 'class=\"o_form_label\"'."
             )
-            self._raise_view_error(msg, node)
-        else:
-            name_manager.must_have_name(for_, '<label for="...">')
+            raise self._prepare_view_error(msg, node)
+        name_manager.add_used_name(for_, '<label for="...">')
 
     def _check_view_tag_page(
         self,
@@ -2615,7 +2613,9 @@ class IrUiView(models.Model):
         if not node_info["validate"]:
             return
         if node.getparent() is None or node.getparent().tag != "notebook":
-            self._raise_view_error(_("Page direct ancestor must be notebook"), node)
+            raise self._prepare_view_error(
+                _("Page direct ancestor must be notebook"), node
+            )
 
     def _check_view_tag_img(
         self,
@@ -2729,9 +2729,9 @@ class IrUiView(models.Model):
                 expr=expr,
                 error=e,
             )
-            self._raise_view_error(message, node, from_exception=e)
+            raise self._prepare_view_error(message, node) from e
         if vnames:
-            name_manager.must_have_fields(node, vnames, node_info, ("context", expr))
+            name_manager.add_used_fields(node, vnames, node_info, ("context", expr))
         for key, val_ast in get_dict_asts(expr).items():
             if key != "group_by":
                 continue
@@ -2743,7 +2743,7 @@ class IrUiView(models.Model):
                     attribute=attr,
                     value=expr,
                 )
-                self._raise_view_error(msg, node)
+                raise self._prepare_view_error(msg, node)
             fname = val_ast.value.split(":")[0]
             if fname not in name_manager.model._fields:
                 msg = _(
@@ -2752,7 +2752,7 @@ class IrUiView(models.Model):
                     attribute=attr,
                     value=expr,
                 )
-                self._raise_view_error(msg, node)
+                raise self._prepare_view_error(msg, node)
 
     def _check_attr_integer(
         self,
@@ -2763,7 +2763,7 @@ class IrUiView(models.Model):
         node_info: dict[str, Any],
     ) -> None:
         if not expr.isdigit():
-            self._raise_view_error(
+            raise self._prepare_view_error(
                 _(
                     "\u201c%(attribute)s\u201d value must be an integer (%(value)s)",
                     attribute=attr,
@@ -2782,7 +2782,7 @@ class IrUiView(models.Model):
     ) -> None:
         vnames = get_expression_field_names(expr)
         if vnames:
-            name_manager.must_have_fields(node, vnames, node_info, (attr, expr))
+            name_manager.add_used_fields(node, vnames, node_info, (attr, expr))
 
     def _check_attr_data_bs_toggle(
         self,
@@ -2843,7 +2843,9 @@ class IrUiView(models.Model):
         expr: str,
         node_info: dict[str, Any],
     ) -> None:
-        self._raise_view_error(_("Forbidden attribute used in arch (%s).", attr), node)
+        raise self._prepare_view_error(
+            _("Forbidden attribute used in arch (%s).", attr), node
+        )
 
     def _check_attr_qweb(
         self,
@@ -2855,7 +2857,9 @@ class IrUiView(models.Model):
     ) -> None:
         self._check_qweb_directive(node, attr, node_info["view_type"])
         if COMP_REGEX.search(expr):
-            self._raise_view_error(_("Forbidden use of `__comp__` in arch."), node)
+            raise self._prepare_view_error(
+                _("Forbidden use of `__comp__` in arch."), node
+            )
 
     def _check_classes(self, node: _Element, expr: str) -> None:
         for msg in check_class_accessibility(node, expr):
@@ -2874,7 +2878,7 @@ class IrUiView(models.Model):
             else _QWEB_DIRECTIVES_ALLOWED
         )
         if not allowed.match(directive):
-            self._raise_view_error(
+            raise self._prepare_view_error(
                 _("Forbidden owl directive used in arch (%s).", directive), node
             )
 
@@ -2897,8 +2901,8 @@ class IrUiView(models.Model):
                 expr=py_expression,
                 error=e,
             )
-            self._raise_view_error(msg, node, from_exception=e)
-        name_manager.must_have_fields(node, fnames, node_info, (attr, py_expression))
+            raise self._prepare_view_error(msg, node) from e
+        name_manager.add_used_fields(node, fnames, node_info, (attr, py_expression))
 
     def _check_domain_identifiers(
         self,
@@ -2918,10 +2922,10 @@ class IrUiView(models.Model):
                 expr=domain,
                 error=e,
             )
-            self._raise_view_error(msg, node, from_exception=e)
+            raise self._prepare_view_error(msg, node) from e
 
         self._check_field_paths(node, fnames, target_model, f"{use} ({domain})")
-        name_manager.must_have_fields(node, vnames, node_info, ("domain", domain))
+        name_manager.add_used_fields(node, vnames, node_info, ("domain", domain))
 
     def _check_field_paths(
         self, node: _Element, field_paths: set[str], model_name: str, use: str
@@ -2939,7 +2943,7 @@ class IrUiView(models.Model):
                         field_path=field_path,
                         use=use,
                     )
-                    self._raise_view_error(msg, node)
+                    raise self._prepare_view_error(msg, node)
                 try:
                     field = Model._fields[name]
                 except KeyError:
@@ -2949,7 +2953,7 @@ class IrUiView(models.Model):
                         field=name,
                         use=use,
                     )
-                    self._raise_view_error(msg, node)
+                    raise self._prepare_view_error(msg, node) from None
                 if not field._description_searchable:
                     msg = _(
                         "Unsearchable field “%(field)s” in path “%(field_path)s” in %(use)s)",
@@ -2957,7 +2961,7 @@ class IrUiView(models.Model):
                         field_path=field_path,
                         use=use,
                     )
-                    self._raise_view_error(msg, node)
+                    raise self._prepare_view_error(msg, node)
                 if (
                     field.type in ("date", "datetime")
                     and index + 2 == len(names)
@@ -3127,8 +3131,8 @@ class IrUiView(models.Model):
     def _create_all_specific_views(self, processed_modules: list[str]) -> None:
         pass
 
-    def _get_specific_views(self) -> Self:
-        self.ensure_one()
+    def _get_views_specific(self) -> Self:
+        self.check_singleton()
         if self.type != "qweb":
             return self.env["ir.ui.view"]
         return (
@@ -3140,7 +3144,7 @@ class IrUiView(models.Model):
     def _load_records_write(self, values: dict[str, Any]) -> None:
         self = self.with_context(ir_ui_view_loading_records=True)
         if self.type == "qweb":
-            for cow_view in self._get_specific_views():
+            for cow_view in self._get_views_specific():
                 authorized_vals = {
                     key: value
                     for key, value in values.items()

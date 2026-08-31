@@ -218,7 +218,7 @@ class TestBridgeShimSources(TransactionCase):
         return AssetsBundle("web.assets_web", [], env=self.env)._bridges
 
     def test_a_shim_re_exports_the_real_module_names(self):
-        shims = self._manager().build_shim_sources({"@web/core/registry"})
+        shims = self._manager().prepare_shim_sources({"@web/core/registry"})
         shim = shims["@web/core/registry"]
         self.assertIn('odoo.loader.modules.get("@web/core/registry")', shim)
         self.assertRegex(
@@ -229,7 +229,7 @@ class TestBridgeShimSources(TransactionCase):
         self.assertRegex(shim, r"_e\d+ as registry\b")
 
     def test_no_specifiers_means_no_work(self):
-        self.assertEqual(self._manager().build_shim_sources(set()), {})
+        self.assertEqual(self._manager().prepare_shim_sources(set()), {})
 
     def test_discovery_reads_the_import_kind_not_just_the_specifier(self):
         modules = [
@@ -274,7 +274,7 @@ class TestParentSelfBridge(TransactionCase):
             _Mod("@a/two", "export const TWO = 2;\n"),
         )
         with self.assertLogs("odoo.assets.bridge", level="DEBUG"):
-            bridges = manager._build_parent_self_bridge()
+            bridges = manager._prepare_parent_self_bridge()
 
         self.assertEqual(sorted(bridges), ["@a/one", "@a/two"])
         self.assertTrue(
@@ -298,7 +298,7 @@ class TestParentSelfBridge(TransactionCase):
             ),
             self.assertLogs("odoo.assets.bridge", level="DEBUG"),
         ):
-            manager._build_parent_self_bridge()
+            manager._prepare_parent_self_bridge()
 
         shim = captured["@a/face"]
         for name in ("A", "B", "C"):
@@ -310,13 +310,13 @@ class TestParentSelfBridge(TransactionCase):
             _Mod("../legacy/thing", "export const X = 1;\n"),
         )
         with self.assertLogs("odoo.assets.bridge", level="DEBUG"):
-            bridges = manager._build_parent_self_bridge()
+            bridges = manager._prepare_parent_self_bridge()
 
         self.assertEqual(list(bridges), ["@a/one"])
 
     def test_no_native_modules_means_no_bridges(self):
         manager = self._manager()
-        self.assertEqual(manager._build_parent_self_bridge(), {})
+        self.assertEqual(manager._prepare_parent_self_bridge(), {})
 
 
 class TestBridgeRwCursorEscalation(TransactionCase):

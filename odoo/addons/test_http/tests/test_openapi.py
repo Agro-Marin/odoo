@@ -1,9 +1,9 @@
 from odoo.http._params import ParamSpec
 from odoo.http.openapi import (
     RouteInfo,
-    build_openapi,
-    openapi_from_map,
     param_spec_to_schema,
+    prepare_openapi_document,
+    prepare_openapi_from_map,
 )
 from odoo.tests import BaseCase, HttpCase, new_test_user, tagged
 
@@ -43,7 +43,7 @@ class TestOpenApi(BaseCase):
             {"type": "http", "auth": "public", "typed": True},
             _http_handler,
         )
-        doc = build_openapi([route])
+        doc = prepare_openapi_document([route])
         self.assertEqual(doc["openapi"], "3.1.0")
         path_item = doc["paths"]["/x/{id}"]
         self.assertNotIn("head", path_item)
@@ -63,7 +63,7 @@ class TestOpenApi(BaseCase):
             {"type": "jsonrpc", "auth": "user", "typed": True},
             _json_handler,
         )
-        doc = build_openapi([route])
+        doc = prepare_openapi_document([route])
         op = doc["paths"]["/api/order"]["post"]
         schema = op["requestBody"]["content"]["application/json"]["schema"]
         self.assertEqual(schema["properties"]["qty"], {"type": "integer"})
@@ -83,7 +83,7 @@ class TestOpenApi(BaseCase):
             RouteInfo("/blog", frozenset({"GET"}), {"type": "http"}, index),
             RouteInfo("/x/<int:id>", frozenset({"GET"}), {"type": "http"}, index),
         ]
-        doc = build_openapi(routes)
+        doc = prepare_openapi_document(routes)
         ids = [
             op["operationId"] for item in doc["paths"].values() for op in item.values()
         ]
@@ -98,7 +98,7 @@ class TestOpenApi(BaseCase):
         untyped = RouteInfo(
             "/legacy", frozenset({"GET"}), {"type": "http"}, lambda self, **k: None
         )
-        doc = build_openapi([typed, untyped], typed_only=True)
+        doc = prepare_openapi_document([typed, untyped], typed_only=True)
         self.assertIn("/typed", doc["paths"])
         self.assertNotIn("/legacy", doc["paths"])
 
@@ -111,7 +111,9 @@ class TestOpenApi(BaseCase):
         import werkzeug.routing as wz
 
         wmap = wz.Map([wz.Rule("/a/<int:id>", endpoint=handler, methods=["GET"])])
-        op = openapi_from_map(wmap, title="T", version="9")["paths"]["/a/{id}"]["get"]
+        op = prepare_openapi_from_map(wmap, title="T", version="9")["paths"]["/a/{id}"][
+            "get"
+        ]
         self.assertEqual(
             {(p["name"], p["in"]) for p in op["parameters"]},
             {("id", "path"), ("n", "query")},

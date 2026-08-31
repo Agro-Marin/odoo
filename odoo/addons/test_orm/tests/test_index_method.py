@@ -1,5 +1,5 @@
 from odoo.db import schema as sql
-from odoo.libs.sql import make_index_name
+from odoo.libs.sql import get_index_name
 from odoo.tests import TransactionCase, tagged
 
 
@@ -25,7 +25,7 @@ class TestIndexMethodMigration(TransactionCase):
 
         cr = self.cr
         field = registry["res.partner"]._fields["ref"]
-        indexname = make_index_name("res_partner", "ref")
+        indexname = get_index_name("res_partner", "ref")
 
         sql.drop_index(cr, indexname, "res_partner")
         sql.create_index(cr, indexname, "res_partner", ['"ref"'], "btree")

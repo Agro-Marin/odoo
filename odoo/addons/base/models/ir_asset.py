@@ -108,8 +108,7 @@ class IrAsset(models.Model):
     path = fields.Char(string="Path (or glob pattern)", required=True)
     target = fields.Char(string="Target")
 
-    @api.constrains("bundle")
-    def _check_bundle_name(self) -> None:
+    def _warn_bundle_name(self) -> None:
         for asset in self:
             if asset.bundle and asset.bundle.count(".") != 1:
                 _logger.warning(
@@ -138,11 +137,14 @@ class IrAsset(models.Model):
     def create(self, vals_list: list[ValuesType]) -> Self:
         records = super().create(vals_list)
         if records:
+            records._warn_bundle_name()
             self._invalidate_assets_cache()
         return records
 
     def write(self, vals: dict[str, Any]) -> bool:
         result = super().write(vals)
+        if self and "bundle" in vals:
+            self._warn_bundle_name()
         if self and not self._get_fields_invalidating_assets_cache().isdisjoint(vals):
             self._invalidate_assets_cache()
         return result

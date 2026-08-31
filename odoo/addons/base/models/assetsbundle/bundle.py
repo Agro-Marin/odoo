@@ -322,7 +322,7 @@ class AssetsBundle:
                 _map(header["alias"], asset.url, "alias")
 
         bridge_import_map = (
-            self._bridges._build_native_to_legacy_bridge(set(import_map))
+            self._bridges._prepare_native_to_legacy_bridge(set(import_map))
             if with_bridges
             else {}
         )
@@ -352,7 +352,7 @@ class AssetsBundle:
     def _get_esbuild_addon_flags(cls, odoo_root: Path) -> tuple[list, list]:
         return EsbuildCompiler._get_esbuild_addon_flags(odoo_root)
 
-    def _make_esbuild_compiler(self) -> EsbuildCompiler:
+    def _prepare_esbuild_compiler(self) -> EsbuildCompiler:
         registry = esm_registry()
         return EsbuildCompiler(
             self.name,
@@ -372,7 +372,7 @@ class AssetsBundle:
         dynamic_child_specs: frozenset[str] | None = None,
         secondary_parent_stubs: dict[str, str] | None = None,
     ) -> EsbuildResult:
-        return self._make_esbuild_compiler().compile(
+        return self._prepare_esbuild_compiler().compile(
             timeout_s=timeout_s,
             target=target,
             source_maps=source_maps,

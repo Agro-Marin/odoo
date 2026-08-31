@@ -635,7 +635,7 @@ class IrAttachment(models.Model):
         return fname, str(full_path)
 
     def _get_pdf_raw(self) -> bytes | None:
-        self.ensure_one()
+        self.check_singleton()
         if self.type != "binary" or not (self.mimetype or "").startswith(
             "application/pdf"
         ):
@@ -680,7 +680,7 @@ class IrAttachment(models.Model):
         }
 
     def _get_raw_access_token(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         return limited_field_access_token(self, "raw", scope="binary")
 
     @api.model
@@ -695,7 +695,7 @@ class IrAttachment(models.Model):
         return self.search(domain, order=order, limit=1)
 
     @api.model
-    def get_serving_groups(self) -> list[str]:
+    def get_groups_allowed_to_serve(self) -> list[str]:
         return ["base.group_system"]
 
     def _get_content_for_rewrite(self, attach: Self, operation: str) -> bytes | None:
@@ -783,7 +783,7 @@ class IrAttachment(models.Model):
         return self._get_mimetype_from_values(naming | vals)
 
     def _get_content_prefix(self, size: int | None = None) -> bytes:
-        self.ensure_one()
+        self.check_singleton()
         stored = self._get_stored_content(size)
         if stored is not None:
             return stored
@@ -801,7 +801,7 @@ class IrAttachment(models.Model):
         return self.with_context(**BIN_SIZE_KEYS)
 
     def _get_stored_content(self, size: int | None = None) -> bytes | None:
-        self.ensure_one()
+        self.check_singleton()
         if self.store_fname:
             data = self._get_storage_backend_for_key(self.store_fname).read(
                 self.store_fname, size
@@ -839,7 +839,7 @@ class IrAttachment(models.Model):
         return True
 
     def _get_static_file_path(self) -> str | None:
-        self.ensure_one()
+        self.check_singleton()
         if not self.url:
             return None
         host = request.httprequest.environ.get("HTTP_HOST", "") if request else ""
@@ -1374,7 +1374,7 @@ class IrAttachment(models.Model):
         return record
 
     def _to_http_stream(self) -> Stream:
-        self.ensure_one()
+        self.check_singleton()
 
         stream = Stream(
             mimetype=self.mimetype,
@@ -1410,7 +1410,7 @@ class IrAttachment(models.Model):
         return stream
 
     def _migrate_remote_to_local(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return self.type == "binary"
 
     @api.autovacuum
@@ -1676,7 +1676,7 @@ class IrAttachment(models.Model):
     def _can_return_content(
         self, field_name: str | None = None, access_token: str | None = None
     ) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         attachment_sudo = self.sudo().with_context(prefetch_fields=False)
         if access_token:
             if not consteq(attachment_sudo.access_token or "", access_token):
@@ -1798,7 +1798,7 @@ class IrAttachment(models.Model):
         if not served:
             return
         has_group = self.env.user.has_group
-        if not any(has_group(g) for g in self.get_serving_groups()):
+        if not any(has_group(g) for g in self.get_groups_allowed_to_serve()):
             raise ValidationError(
                 _("Sorry, you are not allowed to write on this document")
             )
@@ -1813,7 +1813,7 @@ class IrAttachment(models.Model):
         )
 
     def _is_remote_source(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return bool(
             self.url
             and not self.file_size

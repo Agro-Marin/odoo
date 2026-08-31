@@ -51,5 +51,5 @@ class ServerActionHistoryWizard(models.TransientModel):
             )
 
     def restore_revision(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         self.action_id.code = self.revision.code

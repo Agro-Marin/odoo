@@ -712,7 +712,7 @@ class IrFieldsConverter(models.AbstractModel):
         return callable(field.selection) or isinstance(field.selection, str)
 
     @api.model
-    def _build_selection_index(
+    def _prepare_selection_index_and_labels(
         self, field: fields.Field
     ) -> tuple[dict[str, Any], dict[str, str]]:
         selection, current_lang_labels = self._get_selection_and_labels(field)
@@ -772,7 +772,7 @@ class IrFieldsConverter(models.AbstractModel):
         tnx_cache = self._get_transaction_cache()
         cache_key = ("selection_index", field.model_name, field.name, self.env.lang)
         if cache_key not in tnx_cache:
-            tnx_cache[cache_key] = self._build_selection_index(field)
+            tnx_cache[cache_key] = self._prepare_selection_index_and_labels(field)
         return tnx_cache[cache_key]
 
     @api.model
@@ -799,7 +799,7 @@ class IrFieldsConverter(models.AbstractModel):
         )
 
     @api.model
-    def _get_action_possible_values(
+    def _prepare_action_possible_values(
         self, field: ConvertibleField, subfield: str | None
     ) -> dict:
         action = {
@@ -874,7 +874,7 @@ class IrFieldsConverter(models.AbstractModel):
                 ValueError,
                 self.env._("Invalid database id '%s' for the field '%%(field)s'"),
                 value,
-                {"moreinfo": self._get_action_possible_values(field, ".id")},
+                {"moreinfo": self._prepare_action_possible_values(field, ".id")},
             ) from None
         exists = self.env[field.comodel_name].browse(tentative_id).exists()
         return RefLookup((tentative_id if exists else None), field_type, "", [])
@@ -953,7 +953,7 @@ class IrFieldsConverter(models.AbstractModel):
             )
         display_value = value[:50] if isinstance(value, str) else value
         error_info_dict = {
-            "moreinfo": self._get_action_possible_values(field, subfield)
+            "moreinfo": self._prepare_action_possible_values(field, subfield)
         }
         if self.env.context.get("import_file"):
             error_info_dict.update({"value": display_value, "field_type": field_type})

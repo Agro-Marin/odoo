@@ -273,7 +273,7 @@ class ResConfigSettings(models.TransientModel):
             IrConfigParameter.set_param(icp, value)
 
     def execute(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         if not self.env.is_admin():
             raise AccessError(_("Only administrators can change the settings"))
 

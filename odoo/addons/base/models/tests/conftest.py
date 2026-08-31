@@ -24,7 +24,7 @@ def _stub_pytest_package_chain() -> None:
 _stub_pytest_package_chain()
 
 
-def _ensure_tools_stub() -> None:
+def _stub_tools_module() -> None:
     tools = sys.modules.get("odoo.tools")
     if tools is None:
         tools_path = Path(__file__).resolve().parents[4] / "tools"
@@ -53,4 +53,4 @@ def _ensure_tools_stub() -> None:
         tools._ = _
 
 
-_ensure_tools_stub()
+_stub_tools_module()

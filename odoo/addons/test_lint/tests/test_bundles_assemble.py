@@ -3,7 +3,7 @@ import logging
 from odoo.modules import Manifest
 from odoo.tests import tagged
 from odoo.tools.assets.esm_graph import (
-    find_escaping_relative_imports,
+    get_escaping_relative_imports,
     lex_module,
 )
 
@@ -47,9 +47,7 @@ class TestBundlesAssemble(lint_case.LintCase):
             for bundle in bundles:
                 try:
                     asset_bundle = qweb._get_asset_bundle(bundle, css=False, js=True)
-                    escapes = find_escaping_relative_imports(
-                        asset_bundle.native_modules
-                    )
+                    escapes = get_escaping_relative_imports(asset_bundle.native_modules)
                 except Exception as exc:
                     failures.append(f"  {bundle}: {type(exc).__name__}: {exc}")
                     continue

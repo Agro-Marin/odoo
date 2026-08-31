@@ -189,13 +189,13 @@ class ResGroups(models.Model):
 
         if isinstance(operand, str):
 
-            def make_operand(val):
+            def value_to_operand(val):
                 return val
 
             operands = [operand]
         else:
 
-            def make_operand(val):
+            def value_to_operand(val):
                 return [val]
 
             operands = operand
@@ -204,7 +204,7 @@ class ResGroups(models.Model):
         for group in operands:
             if not group:
                 continue
-            domain = Domain("name", operator, make_operand(group))
+            domain = Domain("name", operator, value_to_operand(group))
             where_domains.append(domain)
 
             if "/" in group:
@@ -219,10 +219,10 @@ class ResGroups(models.Model):
                 domain = Domain(
                     "privilege_id",
                     "any!",
-                    Domain("name", operator, make_operand(privilege_name)),
+                    Domain("name", operator, value_to_operand(privilege_name)),
                 )
                 if group_name:
-                    domain &= Domain("name", operator, make_operand(group_name))
+                    domain &= Domain("name", operator, value_to_operand(group_name))
                 where_domains.append(domain)
 
         return Domain.OR(where_domains)
@@ -494,7 +494,7 @@ class ResGroups(models.Model):
             group.all_users_count = len(group.all_implied_by_ids.user_ids)
 
     def action_show_all_users(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": self.env._(
                 "Users and implied users of %(group)s", group=self.display_name

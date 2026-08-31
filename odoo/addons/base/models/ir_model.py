@@ -402,7 +402,7 @@ class IrModel(models.Model):
     def _reflect_models(self, model_names: list[str]) -> None:
         if not model_names:
             return
-        id_cache_generation = self._get_id.__cache__.generation_of(self)
+        id_cache_generation = self._get_id.__cache__.get_cache_generation(self)
         rows = [
             self._prepare_model_vals(self.env[model_name]) for model_name in model_names
         ]
@@ -514,7 +514,7 @@ class IrModelInherit(models.Model):
 
         module_mapping = defaultdict(OrderedSet)
         for model_name in model_names:
-            get_field_id = self.env["ir.model.fields"]._get_ids(model_name).get
+            get_field_id = self.env["ir.model.fields"]._get_ids_by_name(model_name).get
             model_id = get_model_id(model_name)
             model = self.env[model_name]
 

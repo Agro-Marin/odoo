@@ -185,7 +185,7 @@ Automated server actions — execute code, CRUD operations, or webhooks.
 - `_run_action_object_copy(eval_context)` — Duplicate record
 - `_run_action_webhook(eval_context)` — Send POST request
 - `_run_action_multi(eval_context)` — Run child actions sequentially
-- `_get_eval_context(action)` — Build safe evaluation context
+- `_prepare_eval_context(action)` — Prepare safe evaluation context
 - `create_action()`, `unlink_action()` — Manage action bindings
 
 #### IrActionsServerHistory — `ir.actions.server.history` (`_name`)
@@ -278,7 +278,7 @@ Field metadata registry — one record per field per model.
 
 **Key Methods:**
 - `_get(model_name, field_name)` — Get field record
-- `_get_ids(model_name)` — Get `{field_name: field_id}` dict
+- `_get_ids_by_name(model_name)` — Get `{field_name: field_id}` dict
 - `_reflect_fields(model_names)` — Sync field metadata from registry to DB
 
 ---
@@ -320,8 +320,8 @@ Model-level access control lists.
 
 **Key Methods:**
 - `check(model, mode, raise_exception)` — Check current user has access
-- `_get_access_groups(model_name, access_mode)` — Get group expression (ormcache)
-- `_get_allowed_models(mode)` — Models accessible to current user (ormcache)
+- `_get_groups_with_access(model_name, access_mode)` — Get group expression (ormcache)
+- `_get_models_allowed(mode)` — Models accessible to current user (ormcache)
 - `group_names_with_access(model_name, access_mode)` — Visible group names with access
 - `_prepare_access_error(model, mode)` — Build detailed AccessError message
 
@@ -392,7 +392,7 @@ Record-level access rules — domain-based filtering per model/group/operation.
 - `perm_read`, `perm_write`, `perm_create`, `perm_unlink` (Boolean, default=True)
 
 **Key Methods:**
-- `_compute_domain(model_name, mode)` — Compute effective domain for current user (ormcache)
+- `_get_domain_accessible_records(model_name, mode)` — Compute effective domain for current user (ormcache)
 - `_get_rules(model_name, mode)` — Get applicable rules
 - `_get_failing(for_records, mode)` — Get rules failing on specific records
 - `_eval_context()` — Build safe_eval context (user, company_ids, company_id)
@@ -461,7 +461,7 @@ Validates view XML structure: fields, actions, groups, names.
 
 **Key Methods:**
 - `has_field(node, name, node_info, info)` — Register available field
-- `must_have_fields(node, names, node_info, use)` — Declare field dependency
+- `add_used_fields(node, names, node_info, use)` — Declare field dependency
 - `check(view)` — Validate all dependencies exist + group consistency
 
 ---
@@ -658,7 +658,7 @@ cascade-cancelled (transitively) when a dependency fails or is cancelled.
 - `_claim_next(cr, worker_ident)` — claim under advisory xact-lock + SKIP LOCKED, per-channel capacity
 - `_run_claimed(cr, job)` — execute, mark done and release ready dependents in the same transaction (atomic completion)
 - `_record_failure(cr, job, exc)` — retry with backoff (`RetryableJobError.seconds` honored) or fail + cascade-cancel dependents
-- `_release_dependents(cr, job_id)` / `_cancel_dependents(cr, job_ids)` / `_resolve_dependencies(cr)` — graph resolution (inline fast path + repair sweep for unlocked enqueue races)
+- `_release_dependents(cr, job_id)` / `_cancel_dependents(cr, job_ids)` / `_release_ready_dependents(cr)` — graph resolution (inline fast path + repair sweep for unlocked enqueue races)
 - `_reap_dead_jobs(cr)` — requeue started jobs whose session advisory lock is gone
 - `_notifydb()` / `_notify_workers(db_name)` — wake job workers via pg_notify; `_job_ping(message)` — smoke-test job
 - `_notify_failed(cr, job, exc)` — hook on permanent failure (no-op in base; override per DB, cf. `IrCron._notify_admin`)
@@ -1118,7 +1118,7 @@ Inherits: `mixin.format.address`, `mixin.format.vat.label`, `mixin.avatar`, `mix
 - `_get_complete_name()` — Build display name with company/type
 - `_compute_avatar_*()` — Avatar computation (SVG or image)
 - `_fields_sync(values)` — Sync fields between parent/child
-- `_handle_first_contact_creation(partner)` — Auto-link children when parent created
+- `_update_parent_address(partner)` — Auto-link children when parent created
 - `create(vals_list)`, `write(vals)` — With partner_share computation, commercial field sync
 
 ### models/res_partner_category.py
@@ -1280,7 +1280,7 @@ Company hierarchy with branch support.
 - `paperformat_id` (Many2one → report.paperformat)
 
 **Key Methods:**
-- `_get_company_root_delegated_field_names()` — Fields synced from root (currency_id)
+- `_get_root_delegated_field_names()` — Fields synced from root (currency_id)
 - `_accessible_branches()` — Browse accessible branches for current user
 - `_get_public_user()` — Get/create public user for company
 - `create(vals_list)` — Auto-create partner, sync delegated fields, install l10n
@@ -1539,7 +1539,7 @@ integrations can point at a tag without depending on its display name.
 
 **Key Methods:**
 - `_default_color()` — Deterministic colour from the name
-- `_code_from_name(name)` — Slugified stable code
+- `_name_to_code(name)` — Slugified stable code
 
 ### models/mixin_tag_nested.py
 
@@ -1615,7 +1615,7 @@ source records onto the destination, then absorb the source values.
 
 **Key Methods:**
 - `_get_relations_to_repoint(model)` — FK (table, column) pairs, minus the excluded tables
-- `_get_fk_on(table)`, `_has_check_or_unique_constraint(table, column)` — Schema introspection
+- `_get_foreign_keys_on_table(table)`, `_has_check_or_unique_constraint(table, column)` — Schema introspection
 - `_update_foreign_keys_generic(model, src_records, dst_record)` — Re-point every FK
 - `_repoint_table`, `_repoint_join_rows`, `_repoint_rows`, `_repoint_rows_one_by_one` — The per-table strategies
 - `_update_reference_fields_generic(...)` — Sidecar rows, `reference` fields, company-dependent many2ones and `ir_default`

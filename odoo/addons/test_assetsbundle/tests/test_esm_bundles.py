@@ -76,7 +76,7 @@ class _NativeStubBundle:
     def _bridges(self):
         return self
 
-    def _build_native_to_legacy_bridge(self, specifiers, modules=None):
+    def _prepare_native_to_legacy_bridge(self, specifiers, modules=None):
         self.bridge_input = set(specifiers)
         return {"@legacy/shim": "data:text/javascript,"}
 
@@ -370,9 +370,9 @@ class TestBridgeExportResolverReadsDisk(BaseCase):
 
 class TestEscapingRelativeImports(BaseCase):
     def _escapes(self, modules):
-        from odoo.tools.assets.esm_graph import find_escaping_relative_imports
+        from odoo.tools.assets.esm_graph import get_escaping_relative_imports
 
-        return find_escaping_relative_imports(modules)
+        return get_escaping_relative_imports(modules)
 
     def test_an_import_that_stays_inside_the_bundle_is_not_an_escape(self):
         modules = [

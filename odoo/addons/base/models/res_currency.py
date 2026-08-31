@@ -308,7 +308,7 @@ class ResCurrency(models.Model):
             currency.date = currency.rate_ids[:1].name
 
     def amount_to_text(self, amount: float) -> str:
-        self.ensure_one()
+        self.check_singleton()
 
         def _num2words(number, lang):
             try:
@@ -343,19 +343,19 @@ class ResCurrency(models.Model):
             )
 
     def format(self, amount: float) -> str:
-        self.ensure_one()
+        self.check_singleton()
         return tools.format_amount(self.env, amount + 0.0, self)
 
     def round(self, amount: float) -> float:
-        self.ensure_one()
+        self.check_singleton()
         return tools.float_round(amount, precision_rounding=self.rounding)
 
     def compare_amounts(self, amount1: float, amount2: float) -> int:
-        self.ensure_one()
+        self.check_singleton()
         return tools.float_compare(amount1, amount2, precision_rounding=self.rounding)
 
     def is_zero(self, amount: float) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return tools.float_is_zero(amount, precision_rounding=self.rounding)
 
     @ormcache(cache="stable")
@@ -413,8 +413,8 @@ class ResCurrency(models.Model):
             raise UserError(
                 self.env._("Cannot convert amount: target currency is not set.")
             )
-        self.ensure_one()
-        to_currency.ensure_one()
+        self.check_singleton()
+        to_currency.check_singleton()
         if not from_amount:
             return 0.0
         to_amount = from_amount * self._get_conversion_rate(

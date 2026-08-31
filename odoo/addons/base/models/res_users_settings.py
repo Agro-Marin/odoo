@@ -39,7 +39,7 @@ class ResUsersSettings(models.Model):
     def _res_users_settings_format(
         self, fields_to_format: list[str] | None = None
     ) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         fields_blacklist = self._get_fields_blacklist()
         if fields_to_format:
             fields_to_format = [
@@ -65,7 +65,7 @@ class ResUsersSettings(models.Model):
     _PROTECTED_SETTINGS_FIELDS = frozenset({"user_id", "id", *models.MAGIC_COLUMNS})
 
     def set_res_users_settings(self, new_settings: dict[str, Any]) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         changed_settings = {}
         for setting, new_value in new_settings.items():
             if setting in self._PROTECTED_SETTINGS_FIELDS:
@@ -79,7 +79,7 @@ class ResUsersSettings(models.Model):
         return self._res_users_settings_format([*changed_settings.keys(), "id"])
 
     def _is_setting_changed(self, fname: str, new_value: Any) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         current_value = self[fname]
         match self._fields[fname].type:
             case "many2one":

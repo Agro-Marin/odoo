@@ -67,11 +67,13 @@ class PropertiesBaseDefinition(models.Model):
             return definition_id
 
         try:
-            return self._search_definition_id_for_property_field(model_name, field_name)
+            return self._get_definition_id_for_property_field_stored(
+                model_name, field_name
+            )
         except ValueError:
             pass
 
-        field_ids = self.env["ir.model.fields"]._get_ids(model_name)
+        field_ids = self.env["ir.model.fields"]._get_ids_by_name(model_name)
         field_id = field_ids.get(field_name)
         if not field_id:
             field = self.env["ir.model.fields"].sudo()._get(model_name, field_name)
@@ -83,10 +85,10 @@ class PropertiesBaseDefinition(models.Model):
         return definition_record.id
 
     @ormcache("model_name", "field_name", cache="stable")
-    def _search_definition_id_for_property_field(
+    def _get_definition_id_for_property_field_stored(
         self, model_name: str, field_name: str
     ) -> int:
-        field_ids = self.env["ir.model.fields"]._get_ids(model_name)
+        field_ids = self.env["ir.model.fields"]._get_ids_by_name(model_name)
         field_id = field_ids.get(field_name)
 
         if field_id:

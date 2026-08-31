@@ -764,7 +764,7 @@ class TestPartnerCompanyDependentSync(TransactionCase):
                 "_commercial_fields",
                 lambda self: commercial_fields + ["barcode"],
             ),
-            patch.object(Partner.__class__, "_validate_fields"),
+            patch.object(Partner.__class__, "_check_fields"),
         ):
             self.assertEqual(
                 Partner._company_dependent_commercial_fields(), ["barcode"]
@@ -817,7 +817,7 @@ class TestPartnerCompanyDependentSync(TransactionCase):
                 "_commercial_fields",
                 lambda self: commercial_fields + ["barcode"],
             ),
-            patch.object(Partner.__class__, "_validate_fields"),
+            patch.object(Partner.__class__, "_check_fields"),
         ):
             contact = Partner.create({"name": "Reach Child", "parent_id": company.id})
             self.assertEqual(
@@ -2017,7 +2017,7 @@ class TestPartnerAddressCompany(TransactionCase):
                 "_commercial_fields",
                 lambda self: commercial_fields + ["barcode"],
             ),
-            patch.object(ResPartner.__class__, "_validate_fields"),
+            patch.object(ResPartner.__class__, "_check_fields"),
         ):
             child_address = ResPartner.create(
                 {
@@ -2044,7 +2044,7 @@ class TestPartnerAddressCompany(TransactionCase):
                 "_commercial_fields",
                 lambda self: ["barcode"],
             ),
-            patch.object(ResPartner.__class__, "_validate_fields"),
+            patch.object(ResPartner.__class__, "_check_fields"),
         ):
             child = ResPartner.create({"name": "Child", "parent_id": parent.id})
             self.assertFalse(child.barcode)

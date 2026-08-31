@@ -59,7 +59,7 @@ class MixinTag(models.AbstractModel):
             )
         }
         for tag in pending:
-            base = self._code_from_name(tag.name) or "TAG"
+            base = self._name_to_code(tag.name) or "TAG"
             candidate, suffix = base, 1
             while candidate in taken:
                 suffix += 1
@@ -68,5 +68,5 @@ class MixinTag(models.AbstractModel):
             tag.code = candidate
 
     @api.model
-    def _code_from_name(self, name):
+    def _name_to_code(self, name):
         return _CODE_SEPARATORS.sub("_", (name or "").upper()).strip("_")[:64]

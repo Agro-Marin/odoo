@@ -78,7 +78,9 @@ class IrModelAccess(models.Model):
 
     @api.model
     @tools.ormcache("model_name", "access_mode", cache="stable")
-    def _get_access_groups(self, model_name: str, access_mode: str = "read") -> Any:
+    def _get_groups_with_access(
+        self, model_name: str, access_mode: str = "read"
+    ) -> Any:
         self._check_access_mode(access_mode)
         model = self.env["ir.model"]._get(model_name)
         accesses = self.sudo().search(
@@ -96,7 +98,7 @@ class IrModelAccess(models.Model):
         return group_definitions.from_ids(accesses.group_id.ids)
 
     @tools.ormcache("self.env.user._get_group_ids()", "mode", "self.pool._init")
-    def _get_allowed_models(self, mode: str = "read") -> frozenset[str]:
+    def _get_models_allowed(self, mode: str = "read") -> frozenset[str]:
         self._check_access_mode(mode)
 
         group_ids = self.env.user._get_group_ids()
@@ -145,7 +147,7 @@ class IrModelAccess(models.Model):
             _logger.warning("Missing model %s", model)
             return False
 
-        has_access = model in self._get_allowed_models(mode)
+        has_access = model in self._get_models_allowed(mode)
         if not has_access and raise_exception:
             raise self._prepare_access_error(model, mode) from None
         return has_access

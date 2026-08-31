@@ -31,7 +31,7 @@ class TestMixinProfiler(TransactionCase):
         self.assertIn("res.partner.create", report)
         self.assertIn("res.partner.write", report)
 
-        data = mp._get_data()
+        data = mp._get_profile_data()
         self.assertGreaterEqual(data.methods["res.partner.create"]["calls"], 1)
         self.assertGreaterEqual(data.methods["res.partner.write"]["calls"], 1)
 

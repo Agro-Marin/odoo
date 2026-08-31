@@ -97,8 +97,8 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
     def _merge_absorbs_source_values(self) -> bool:
         return not self or self.absorb_source_values
 
-    def _get_excluded_merge_tables(self, model: str) -> set[str]:
-        tables = super()._get_excluded_merge_tables(model)
+    def _get_merge_tables_excluded(self, model: str) -> set[str]:
+        tables = super()._get_merge_tables_excluded(model)
         if model == "res.partner" and not self._merge_absorbs_source_values():
             tables.add("res_partner_bank")
         return tables
@@ -449,7 +449,9 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         return groups
 
     @api.model
-    def _partner_use_in(self, aggr_ids: list[int], models: dict[str, str]) -> bool:
+    def _is_partner_used_in_models(
+        self, aggr_ids: list[int], models: dict[str, str]
+    ) -> bool:
         return any(
             self.env[model].search_count([(field, "in", aggr_ids)])
             for model, field in models.items()
@@ -469,7 +471,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             )
         )
 
-    def _compute_models(self) -> dict[str, str]:
+    def _get_exclusion_models(self) -> dict[str, str]:
         model_mapping = {}
         if self.exclude_contact:
             model_mapping["res.users"] = "partner_id"
@@ -518,13 +520,13 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         }
 
     def _process_query(self, query: SQL) -> None:
-        self.ensure_one()
+        self.check_singleton()
         self.env.cr.execute(query)  # noqa: E8501  built via SQL() by _generate_query or parent_migration_process_cb, not from user input
         self._process_groups(self.env.cr.fetchall())
 
     def _process_groups(self, groups: list[tuple[int, list[int]]]) -> None:
-        self.ensure_one()
-        model_mapping = self._compute_models()
+        self.check_singleton()
+        model_mapping = self._get_exclusion_models()
 
         all_ids = [pid for _, aggr_ids in groups for pid in aggr_ids]
         accessible = self.env["res.partner"].search([("id", "in", all_ids)])
@@ -536,7 +538,9 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             if len(partner_ids) < 2:
                 continue
 
-            if model_mapping and self._partner_use_in(partner_ids, model_mapping):
+            if model_mapping and self._is_partner_used_in_models(
+                partner_ids, model_mapping
+            ):
                 continue
 
             self.env["base.partner.merge.line"].create(
@@ -558,7 +562,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         _logger.info("counter: %s", counter)
 
     def action_start_manual_process(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         groups: list[tuple[int, list[int]]] = []
 
         if self._selected_groupby_fields() or not self.match_similar_names:
@@ -574,7 +578,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         return self._action_next_screen()
 
     def action_start_automatic_process(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         self.action_start_manual_process()
         self.env.invalidate_all()
 
@@ -593,7 +597,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         }
 
     def parent_migration_process_cb(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
 
         query = SQL("""
             SELECT
@@ -620,7 +624,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                 min(p1.id)
         """)
 
-        self._process_query(query)
+        self._add_merge_lines_from_query(query)
 
         for line in self.line_ids:
             self._merge_duplicate_group(literal_eval(line.aggr_ids))
@@ -648,7 +652,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         }
 
     def action_update_all_process(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         self.parent_migration_process_cb()
 
         wizard = self.create(

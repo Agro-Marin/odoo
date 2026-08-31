@@ -86,7 +86,7 @@ class IrModelFieldsSelection(models.Model):
         expected = {
             (field_id, value): (label, index)
             for field in selection_fields
-            for field_id in [IMF._get_ids(field.model_name)[field.name]]
+            for field_id in [IMF._get_ids_by_name(field.model_name)[field.name]]
             for index, (value, label) in enumerate(field.selection)
         }
 
@@ -132,7 +132,7 @@ class IrModelFieldsSelection(models.Model):
     def _update_selection(
         self, model_name: str, field_name: str, selection: list[tuple[str, str]]
     ) -> None:
-        field_id = self.env["ir.model.fields"]._get_ids(model_name)[field_name]
+        field_id = self.env["ir.model.fields"]._get_ids_by_name(model_name)[field_name]
 
         cur_rows = self._existing_selection_data(model_name, field_name)
         new_rows = {
@@ -182,8 +182,8 @@ class IrModelFieldsSelection(models.Model):
         self.env.cr.execute(query, [model_name, field_name])
         return {row["value"]: row for row in self.env.cr.dictfetchall()}
 
-    def _raise_base_field_error(self) -> None:
-        raise UserError(
+    def _prepare_base_field_error(self) -> UserError:
+        return UserError(
             _(
                 "Properties of base fields cannot be altered in this manner! "
                 "Please modify them through Python code, "
@@ -198,7 +198,7 @@ class IrModelFieldsSelection(models.Model):
         for field in self.env["ir.model.fields"].browse(field_ids):
             field_names.add((field.model, field.name))
             if field.state != "manual":
-                self._raise_base_field_error()
+                raise self._prepare_base_field_error()
         recs = super().create(vals_list)
 
         model_names = OrderedSet()
@@ -228,7 +228,7 @@ class IrModelFieldsSelection(models.Model):
         if not self.env.user._is_admin() and any(
             record.field_id.state != "manual" for record in self
         ):
-            self._raise_base_field_error()
+            raise self._prepare_base_field_error()
 
         if "value" in vals:
             if len(self) > len(self.field_id):
@@ -291,7 +291,7 @@ class IrModelFieldsSelection(models.Model):
         if self.pool.ready and any(
             selection.field_id.state != "manual" for selection in self
         ):
-            self._raise_base_field_error()
+            raise self._prepare_base_field_error()
 
     def unlink(self) -> bool:
         model_names = self.field_id.model_id.mapped("model")

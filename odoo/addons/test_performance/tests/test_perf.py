@@ -878,20 +878,20 @@ class TestHotPaths(PerfTestCase):
         self.env.flush_all()
 
         def bench():
-            field.ensure_computed(records)
+            field.recompute_pending(records)
 
         timer = _bench(bench, n=500, warmup=20)
-        self._log(timer.stats("ensure_computed(noop)", warmup=0))
+        self._log(timer.stats("recompute_pending(noop)", warmup=0))
 
     def test_31_ensure_computed_non_stored(self):
         records = self.Model.search([], limit=100)
         field = self.Model._fields["computed_value"]
 
         def bench():
-            field.ensure_computed(records)
+            field.recompute_pending(records)
 
         timer = _bench(bench, n=500, warmup=20)
-        self._log(timer.stats("ensure_computed(non_stored)", warmup=0))
+        self._log(timer.stats("recompute_pending(non_stored)", warmup=0))
 
 
 @tagged("-standard", "orm_perf")

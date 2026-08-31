@@ -46,7 +46,7 @@ from odoo.db.pool import (
     _SuppressKnownPoolWarnings,
 )
 from odoo.db.reaper import checked_out as reaper_checked_out
-from odoo.db.utils import connection_info_for
+from odoo.db.utils import get_connection_info_for
 from odoo.exceptions import ConcurrencyError
 from odoo.modules.registry import Registry
 from odoo.orm.models.mixins._crud_common import COPY_THRESHOLD
@@ -408,7 +408,7 @@ class TestTestCursor(common.TransactionCase):
         cursors = []
         pool = ConnectionPool(maxconn=4)
         self.addCleanup(pool.close_all)
-        db, info = connection_info_for(self.cr.dbname)
+        db, info = get_connection_info_for(self.cr.dbname)
         try:
             connection = Connection(pool, db, info)
 
@@ -1666,7 +1666,7 @@ class TestComposableQueries(BaseCase):
 
 class TestConnectionInfoFor(BaseCase):
     def test_postgresql_uri(self):
-        db, info = connection_info_for("postgresql://user:pass@localhost:5432/mydb")
+        db, info = get_connection_info_for("postgresql://user:pass@localhost:5432/mydb")
         self.assertEqual(db, "mydb")
         self.assertIn("dsn", info)
         self.assertEqual(info["dsn"], "postgresql://user:pass@localhost:5432/mydb")
@@ -1674,29 +1674,29 @@ class TestConnectionInfoFor(BaseCase):
         self.assertIn("keepalives", info)
 
     def test_postgres_uri_scheme(self):
-        db, info = connection_info_for("postgres://localhost/testdb")
+        db, info = get_connection_info_for("postgres://localhost/testdb")
         self.assertEqual(db, "testdb")
         self.assertIn("dsn", info)
 
     def test_uri_no_path_uses_username(self):
-        db, _ = connection_info_for("postgresql://admin@localhost/")
+        db, _ = get_connection_info_for("postgresql://admin@localhost/")
         self.assertEqual(db, "admin")
 
     def test_uri_no_path_no_user_uses_hostname(self):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", RuntimeWarning)
-            db, _ = connection_info_for("postgresql://localhost/")
+            db, _ = get_connection_info_for("postgresql://localhost/")
         self.assertEqual(db, "localhost")
 
     def test_plain_dbname(self):
-        db, info = connection_info_for("mydb")
+        db, info = get_connection_info_for("mydb")
         self.assertEqual(db, "mydb")
         self.assertEqual(info["dbname"], "mydb")
         self.assertNotIn("dsn", info)
         self.assertIn("connect_timeout", info)
 
     def test_application_name_included(self):
-        _, info = connection_info_for("mydb")
+        _, info = get_connection_info_for("mydb")
         self.assertIn("application_name", info)
 
 
@@ -1705,7 +1705,7 @@ class TestConnectionDsnRedaction(BaseCase):
 
     def _dsn_for(self, target):
         pool = ConnectionPool(maxconn=1)
-        dbname, info = connection_info_for(target)
+        dbname, info = get_connection_info_for(target)
         return Connection(pool, dbname, info).dsn
 
     def test_uri_password_not_leaked(self):
@@ -1718,7 +1718,7 @@ class TestConnectionDsnRedaction(BaseCase):
 
     def test_keyword_password_not_leaked(self):
         pool = ConnectionPool(maxconn=1)
-        _, info = connection_info_for("mydb")
+        _, info = get_connection_info_for("mydb")
         info["password"] = self.CANARY
         dsn = Connection(pool, "mydb", info).dsn
         self.assertNotIn(self.CANARY, repr(dsn))
@@ -1904,7 +1904,7 @@ class TestSuppressKnownPoolWarnings(BaseCase):
 
 class TestPoolSemaphoreAccounting(BaseCase):
     def _info(self):
-        return connection_info_for(common.get_db_name())[1]
+        return get_connection_info_for(common.get_db_name())[1]
 
     def test_borrow_tags_and_give_back_releases(self):
         pool = ConnectionPool(maxconn=2)
@@ -1950,7 +1950,7 @@ class TestPoolSemaphoreAccounting(BaseCase):
 
 class TestConnectionStateReset(BaseCase):
     def _raw_conn(self):
-        info = connection_info_for(common.get_db_name())[1]
+        info = get_connection_info_for(common.get_db_name())[1]
         conn = psycopg.connect(
             **{k: v for k, v in info.items() if k != "dsn"}, autocommit=True
         )
@@ -2040,7 +2040,10 @@ class TestConnectionStateReset(BaseCase):
 
 class TestIdlePoolReaper(BaseCase):
     def _info(self, app):
-        return {**connection_info_for(common.get_db_name())[1], "application_name": app}
+        return {
+            **get_connection_info_for(common.get_db_name())[1],
+            "application_name": app,
+        }
 
     @staticmethod
     def _dbset(pool):
@@ -2134,7 +2137,7 @@ class TestIdlePoolReaper(BaseCase):
 
 class TestCursorDelReclaimsConnection(BaseCase):
     def _info(self):
-        return connection_info_for(common.get_db_name())[1]
+        return get_connection_info_for(common.get_db_name())[1]
 
     def test_del_warns_and_reclaims_permit(self):
         import gc
@@ -2168,7 +2171,7 @@ class TestCursorDelReclaimsConnection(BaseCase):
 class TestPoolTimeoutCleanup(BaseCase):
     def test_pool_removed_on_timeout(self):
         pool = ConnectionPool(maxconn=4)
-        info = connection_info_for("nonexistent_db_test")[1]
+        info = get_connection_info_for("nonexistent_db_test")[1]
         key = _normalize_dsn_key(info)
 
         mock_pool = MagicMock()
@@ -2185,7 +2188,7 @@ class TestPoolTimeoutCleanup(BaseCase):
 
     def test_pool_kept_on_timeout_with_live_connections(self):
         pool = ConnectionPool(maxconn=4)
-        info = connection_info_for("nonexistent_db_test")[1]
+        info = get_connection_info_for("nonexistent_db_test")[1]
         key = _normalize_dsn_key(info)
 
         mock_pool = MagicMock()
@@ -2202,7 +2205,7 @@ class TestPoolTimeoutCleanup(BaseCase):
 
     def test_pool_not_removed_on_other_errors(self):
         pool = ConnectionPool(maxconn=4)
-        info = connection_info_for("nonexistent_db_test")[1]
+        info = get_connection_info_for("nonexistent_db_test")[1]
         key = _normalize_dsn_key(info)
 
         mock_pool = MagicMock()
@@ -2404,7 +2407,7 @@ class TestURIMalformedWarning(BaseCase):
     def test_hostname_fallback_emits_warning(self):
         with warnings.catch_warnings(record=True) as captured:
             warnings.simplefilter("always")
-            db, _info = connection_info_for("postgresql://localhost/")
+            db, _info = get_connection_info_for("postgresql://localhost/")
         self.assertEqual(db, "localhost")
         matched = [w for w in captured if issubclass(w.category, RuntimeWarning)]
         self.assertTrue(
@@ -2414,7 +2417,7 @@ class TestURIMalformedWarning(BaseCase):
     def test_well_formed_uri_no_warning(self):
         with warnings.catch_warnings(record=True) as captured:
             warnings.simplefilter("always")
-            db, _info = connection_info_for("postgresql://localhost/mydb")
+            db, _info = get_connection_info_for("postgresql://localhost/mydb")
         self.assertEqual(db, "mydb")
         matched = [w for w in captured if issubclass(w.category, RuntimeWarning)]
         self.assertFalse(
@@ -2572,7 +2575,7 @@ class TestPGAppNameWarningOnce(BaseCase):
             with warnings.catch_warnings(record=True) as captured:
                 warnings.simplefilter("always")
                 for _ in range(5):
-                    connection_info_for("mydb")
+                    get_connection_info_for("mydb")
             pg = [w for w in captured if "ODOO_PGAPPNAME" in str(w.message)]
             self.assertEqual(
                 len(pg),
@@ -2705,7 +2708,7 @@ class TestDiscardOnReturn(BaseCase):
 class TestURIHealthParamsMerge(BaseCase):
     def test_uri_connect_timeout_preserved(self):
         uri = "postgresql://u:p@h:5432/db?connect_timeout=60&keepalives_idle=300"
-        _, info = connection_info_for(uri)
+        _, info = get_connection_info_for(uri)
         self.assertNotIn("connect_timeout", info)
         self.assertNotIn("keepalives_idle", info)
         self.assertEqual(info.get("keepalives"), "1")
@@ -3043,7 +3046,7 @@ class TestBorrowHonoursItsTimeout(BaseCase):
 
     def test_missing_database_on_a_reachable_host_still_fails_fast(self):
         pool = ConnectionPool(maxconn=4, borrow_timeout=30.0)
-        _, info = connection_info_for("_test_no_such_db_borrow_budget")
+        _, info = get_connection_info_for("_test_no_such_db_borrow_budget")
         try:
             start = time.monotonic()
             with self.assertRaises(psycopg.errors.InvalidCatalogName):
@@ -3360,14 +3363,14 @@ class TestVersionGateInBorrow(BaseCase):
         self.assertIn("MIN_PG_VERSION", gate_src)
         self.assertIn(
             "_check_min_server_version",
-            inspect.getsource(ConnectionPool._validate_borrowed_conn),
+            inspect.getsource(ConnectionPool._check_borrowed_conn),
         )
         self.assertIn(
             "_check_min_server_version",
             inspect.getsource(ConnectionPool._borrow_direct),
         )
         borrow_src = inspect.getsource(ConnectionPool.borrow)
-        self.assertIn("_validate_borrowed_conn", borrow_src)
+        self.assertIn("_check_borrowed_conn", borrow_src)
 
 
 class TestPsycopgPoolPrivateApi(BaseCase):
@@ -3384,7 +3387,7 @@ class TestPoolFailsFastOnMissingDatabase(BaseCase):
     def test_borrow_missing_db_raises_invalid_catalog_name_fast(self):
         pool = ConnectionPool(maxconn=4)
         self.addCleanup(pool.close_all)
-        info = connection_info_for("zzz_missing_db_for_probe_test")[1]
+        info = get_connection_info_for("zzz_missing_db_for_probe_test")[1]
         start = time.monotonic()
         with self.assertRaises(psycopg.errors.InvalidCatalogName):
             pool.borrow(info)
@@ -3398,7 +3401,7 @@ class TestPoolFailsFastOnMissingDatabase(BaseCase):
     def test_probe_is_wired_into_pool_creation(self):
         src = inspect.getsource(ConnectionPool._get_or_create_pool)
         self.assertIn(
-            "self._probe.ensure_connectable",
+            "self._probe.check_connectable",
             src,
             "the pre-flight probe moved to db/probe.py; pool creation must "
             "still go through it or a missing database costs a PoolTimeout",
@@ -3408,7 +3411,7 @@ class TestPoolFailsFastOnMissingDatabase(BaseCase):
 class TestBorrowReturnsConnectionOnPostGetconnFailure(BaseCase):
     def test_info_failure_returns_connection_and_releases_semaphore(self):
         pool = ConnectionPool(maxconn=4)
-        info = connection_info_for("nonexistent_db_test")[1]
+        info = get_connection_info_for("nonexistent_db_test")[1]
         key = _normalize_dsn_key(info)
 
         class _Info:
@@ -3438,7 +3441,7 @@ class TestBorrowReturnsConnectionOnPostGetconnFailure(BaseCase):
 
     def test_min_version_path_also_returns_connection(self):
         pool = ConnectionPool(maxconn=4)
-        info = connection_info_for("nonexistent_db_test")[1]
+        info = get_connection_info_for("nonexistent_db_test")[1]
         key = _normalize_dsn_key(info)
 
         conn = MagicMock()
@@ -3667,7 +3670,7 @@ class TestAdapterIsolationPerConnection(BaseCase):
             self.assertIsInstance(cr.fetchone()[0], float)
 
     def test_raw_connection_decodes_numeric_as_decimal(self):
-        _, info = connection_info_for(common.get_db_name())
+        _, info = get_connection_info_for(common.get_db_name())
         conn = psycopg.connect(**info)
         try:
             self.assertIsInstance(
@@ -3702,7 +3705,7 @@ class TestPoolMinconn(BaseCase):
 
     def test_maintenance_databases_are_never_pooled(self):
         pool = ConnectionPool(maxconn=4, minconn=2)
-        _, info = connection_info_for("postgres")
+        _, info = get_connection_info_for("postgres")
         try:
             conn = pool.borrow(info)
             self.assertEqual(
@@ -3727,7 +3730,7 @@ class TestPoolMinconn(BaseCase):
 
     def test_maintenance_db_double_give_back_is_noop(self):
         pool = ConnectionPool(maxconn=2)
-        _, info = connection_info_for("postgres")
+        _, info = get_connection_info_for("postgres")
         try:
             conn = pool.borrow(info)
             pool.give_back(conn)
@@ -4017,7 +4020,7 @@ class TestPreparedCacheSurvivesReleaseNotRollback(BaseCase):
 class TestBorrowValidationFailureNoLeak(BaseCase):
     def test_version_gate_failure_releases_semaphore_and_putconn(self):
         pool = ConnectionPool(maxconn=4)
-        info = connection_info_for("nonexistent_db_test")[1]
+        info = get_connection_info_for("nonexistent_db_test")[1]
         key = _normalize_dsn_key(info)
 
         conn = MagicMock()
@@ -4500,7 +4503,7 @@ class TestCronsRecoverLikeRequests(BaseCase):
         cls = registry()["ir.cron"]
         self.assertIn(
             "retrying",
-            _calls(cls._run_callback),
+            _calls(cls._run_server_action_with_retry),
             "without it a deadlock, a serialization failure or a stale cached "
             "plan counts against the cron's deactivation budget",
         )
@@ -4508,7 +4511,7 @@ class TestCronsRecoverLikeRequests(BaseCase):
     def test_the_run_loop_reaches_the_wrapped_runner(self):
         methods = _own_methods(registry()["ir.cron"])
         self.assertIn(
-            "_run_callback",
+            "_run_server_action_with_retry",
             _reachable("_run_job", methods),
             "the run loop must reach the wrapped runner",
         )
@@ -4525,7 +4528,7 @@ class TestCronsRecoverLikeRequests(BaseCase):
         }
         self.assertEqual(
             callers,
-            {"_run_callback"},
+            {"_run_server_action_with_retry"},
             f"{self.ACTION} must be invoked only from the runner wrapped in "
             f"retrying(); these call it too",
         )
@@ -4540,7 +4543,7 @@ class TestCronsRecoverLikeRequests(BaseCase):
             self.assertTrue(cron, "base installs crons; one is needed to drive")
             cls = type(cron)
             with patch.object(cls, self.ACTION, callback):
-                cls._run_callback(
+                cls._run_server_action_with_retry(
                     cron,
                     make_job(cron, cron_name="probe", ir_actions_server_id=0),
                     env,
@@ -4996,11 +4999,18 @@ class TestDropDependingViewsQuoting(BaseCase):
             cr.execute("CREATE TABLE _test_dv (id serial primary key, a int)")
             cr.execute("CREATE VIEW _test_dv_view AS SELECT a FROM _test_dv")
             self.assertEqual(
-                [v for v, _ in sql_schema.get_depending_views(cr, "_test_dv", "a")],
+                [
+                    v
+                    for v, _ in sql_schema.get_views_depending_on_table(
+                        cr, "_test_dv", "a"
+                    )
+                ],
                 ["_test_dv_view"],
             )
             sql_schema.drop_depending_views(cr, "_test_dv", "a")
-            self.assertEqual(sql_schema.get_depending_views(cr, "_test_dv", "a"), [])
+            self.assertEqual(
+                sql_schema.get_views_depending_on_table(cr, "_test_dv", "a"), []
+            )
         finally:
             cr.rollback()
             cr.close()
@@ -5531,7 +5541,7 @@ class TestMaintenanceConnectionOptions(BaseCase):
         pool = ConnectionPool(maxconn=4)
         conn = None
         try:
-            _, info = connection_info_for(common.get_db_name())
+            _, info = get_connection_info_for(common.get_db_name())
             conn = pool.borrow(info)
             self.assertEqual(conn.execute("SHOW work_mem").fetchone()[0], "19MB")
         finally:
@@ -5549,7 +5559,7 @@ class TestMaintenanceConnectionOptions(BaseCase):
         pool = ConnectionPool(maxconn=4)
         conn = None
         try:
-            _, info = connection_info_for("postgres")
+            _, info = get_connection_info_for("postgres")
             conn = pool.borrow(info)
             self.assertNotEqual(
                 conn.execute("SHOW work_mem").fetchone()[0],
@@ -5574,7 +5584,7 @@ class TestMaintenanceConnectionOptions(BaseCase):
         conn = None
         name = "_test_guc_create_db"
         try:
-            _, info = connection_info_for("postgres")
+            _, info = get_connection_info_for("postgres")
             conn = pool.borrow(info)
             conn.autocommit = True
             conn.execute(f'DROP DATABASE IF EXISTS "{name}"')
@@ -5593,7 +5603,7 @@ class TestMaintenanceConnectionOptions(BaseCase):
         pool = ConnectionPool(maxconn=4)
         conn = None
         try:
-            _, info = connection_info_for("postgres")
+            _, info = get_connection_info_for("postgres")
             conn = pool.borrow(info)
             self.assertEqual(
                 conn.execute("SHOW idle_session_timeout").fetchone()[0],
@@ -5640,14 +5650,14 @@ class TestReplicaConnectionInfo(BaseCase):
         config["db_replica_password"] = "replica_pw"
         config["db_replica_sslmode"] = "verify-full"
 
-        _, ro = connection_info_for("mydb", readonly=True)
+        _, ro = get_connection_info_for("mydb", readonly=True)
         self.assertEqual(ro["host"], "replica.example")
         self.assertEqual(ro["port"], 5433)
         self.assertEqual(ro["user"], "replica_user")
         self.assertEqual(ro["password"], "replica_pw")
         self.assertEqual(ro["sslmode"], "verify-full")
 
-        _, rw = connection_info_for("mydb", readonly=False)
+        _, rw = get_connection_info_for("mydb", readonly=False)
         self.assertEqual(rw["host"], "primary.example")
         self.assertEqual(rw["user"], "primary_user")
         self.assertEqual(rw["password"], "primary_pw")
@@ -5679,7 +5689,7 @@ class TestReplicaConnectionInfo(BaseCase):
         ):
             config[key] = None
 
-        _, ro = connection_info_for("mydb", readonly=True)
+        _, ro = get_connection_info_for("mydb", readonly=True)
         self.assertEqual(ro["host"], "replica.example", "the one override applies")
         self.assertEqual(ro["port"], 5432)
         self.assertEqual(ro["user"], "shared_user")
@@ -6048,7 +6058,7 @@ class TestSaturatedPoolNamesItsHolders(BaseCase):
     def setUp(self):
         super().setUp()
         self.pool = ConnectionPool(maxconn=2, borrow_timeout=0.2)
-        self.info = connection_info_for(common.get_db_name())[1]
+        self.info = get_connection_info_for(common.get_db_name())[1]
         self.addCleanup(self.pool.close_all)
 
     def test_exhaustion_error_names_the_oldest_checkouts(self):

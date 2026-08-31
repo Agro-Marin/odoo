@@ -90,12 +90,12 @@ class ResPartnerBank(models.Model):
     _check_company_domain = models.check_company_domain_parent_of
 
     @api.model
-    def _get_supported_account_types(self) -> list[tuple[str, str]]:
+    def _get_account_types_supported(self) -> list[tuple[str, str]]:
         return [("bank", _("Normal"))]
 
     active = fields.Boolean(default=True)
     acc_type = fields.Selection(
-        selection=lambda x: x.env["res.partner.bank"]._get_supported_account_types(),
+        selection=lambda x: x.env["res.partner.bank"]._get_account_types_supported(),
         compute="_compute_acc_type",
         string="Type",
         help="Bank account type: Normal or IBAN. Inferred from the bank account number.",
@@ -166,7 +166,7 @@ class ResPartnerBank(models.Model):
         return [("sanitized_acc_number", operator, value)]
 
     def _user_can_trust(self):
-        self.ensure_one()
+        self.check_singleton()
         return True
 
     def _get_or_create_bank_account(
@@ -266,7 +266,7 @@ class ResPartnerBank(models.Model):
         return super().write(self._sanitize_vals(vals))
 
     def action_archive_bank(self) -> dict[str, str]:
-        self.ensure_one()
+        self.check_singleton()
         self.action_archive()
         return {"type": "ir.actions.client", "tag": "reload"}
 

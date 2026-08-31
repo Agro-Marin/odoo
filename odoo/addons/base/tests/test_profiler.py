@@ -178,7 +178,7 @@ class TestSpeedscope(BaseCase):
         }
 
     def test_convert_empty(self):
-        Speedscope().make()
+        Speedscope().prepare_document()
 
     def test_converts_profile_simple(self):
         profile = self.example_profile()
@@ -186,7 +186,7 @@ class TestSpeedscope(BaseCase):
         sp = Speedscope(init_stack_trace=profile["init_stack_trace"])
         sp.add("profile", profile["result"])
         sp.add_output(["profile"], complete=False)
-        res = sp.make()
+        res = sp.prepare_document()
 
         frames = res["shared"]["frames"]
         self.assertEqual(len(frames), 4)
@@ -215,7 +215,7 @@ class TestSpeedscope(BaseCase):
         sp = Speedscope(init_stack_trace=profile["init_stack_trace"])
         sp.add("profile", profile["result"])
         sp.add_output(["profile"], complete=False)
-        res = sp.make()
+        res = sp.prepare_document()
         profile_combined = res["profiles"][0]
         events = [(e["type"], e["frame"]) for e in profile_combined["events"]]
 
@@ -240,7 +240,7 @@ class TestSpeedscope(BaseCase):
         sp = Speedscope(init_stack_trace=profile["init_stack_trace"])
         sp.add("profile", profile["result"])
         sp.add_output(["profile"], complete=True)
-        res = sp.make()
+        res = sp.prepare_document()
 
         profile_combined = res["profiles"][0]
         events = [(e["type"], e["frame"]) for e in profile_combined["events"]]
@@ -282,7 +282,7 @@ class TestSpeedscope(BaseCase):
         sp.add("sql", async_profile)
         sp.add("traces", sql_profile)
         sp.add_output(["sql", "traces"], complete=False)
-        res = sp.make()
+        res = sp.prepare_document()
         profile_combined = res["profiles"][0]
         events = [
             (
@@ -334,7 +334,7 @@ class TestSpeedscope(BaseCase):
         sp = Speedscope(init_stack_trace=[])
         sp.add("sql", sql_profile)
         sp.add_output(["sql"], complete=False, hide_gaps=True)
-        res = sp.make()
+        res = sp.prepare_document()
         sql_output = res["profiles"][0]
         events = [
             (e["at"], e["type"], res["shared"]["frames"][e["frame"]]["name"])
@@ -382,7 +382,7 @@ class TestSpeedscope(BaseCase):
         sp = Speedscope(init_stack_trace=profile["init_stack_trace"])
         sp.add("profile", profile["result"])
         sp.add_output(["profile"], complete=True)
-        res = sp.make()
+        res = sp.prepare_document()
         events = [
             (e["type"], res["shared"]["frames"][e["frame"]]["name"])
             for e in res["profiles"][0]["events"]
@@ -433,7 +433,7 @@ class TestSpeedscope(BaseCase):
         sp = Speedscope(init_stack_trace=profile["init_stack_trace"])
         sp.add("profile", profile["result"])
         sp.add_output(["profile"], complete=True)
-        res = sp.make()
+        res = sp.prepare_document()
         events = [
             (e["type"], res["shared"]["frames"][e["frame"]]["name"])
             for e in res["profiles"][0]["events"]
@@ -482,7 +482,7 @@ class TestSpeedscope(BaseCase):
         sp = Speedscope(init_stack_trace=profile["init_stack_trace"])
         sp.add("profile", profile["result"])
         sp.add_output(["profile"], complete=False)
-        res = sp.make()
+        res = sp.prepare_document()
         events = [
             (e["type"], res["shared"]["frames"][e["frame"]]["name"])
             for e in res["profiles"][0]["events"]
@@ -527,7 +527,7 @@ class TestSpeedscope(BaseCase):
         sp = Speedscope(init_stack_trace=profile["init_stack_trace"])
         sp.add("profile", profile["result"])
         sp.add_output(["profile"], complete=False, use_context=False)
-        res = sp.make()
+        res = sp.prepare_document()
         events = [
             (e["type"], res["shared"]["frames"][e["frame"]]["name"])
             for e in res["profiles"][0]["events"]

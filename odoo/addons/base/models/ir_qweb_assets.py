@@ -24,7 +24,7 @@ from odoo.tools.assets.esbuild_policy import EsbuildCircuit
 from odoo.tools.assets.esm_graph import (
     addon_specifier_to_url,
     discover_transitive_import_specifiers,
-    find_escaping_relative_imports,
+    get_escaping_relative_imports,
     resolve_specifier_url,
 )
 from odoo.tools.assets.esm_registry import esm_registry, external_libs
@@ -440,7 +440,7 @@ class IrQweb(models.AbstractModel):
         self,
         asset_bundle: AssetsBundle,
     ) -> None:
-        escapes = find_escaping_relative_imports(asset_bundle.native_modules)
+        escapes = get_escaping_relative_imports(asset_bundle.native_modules)
         if not escapes:
             return
         details = "; ".join(
@@ -841,7 +841,7 @@ class IrQweb(models.AbstractModel):
             if "/../" not in spec and not spec.startswith("../")
         }
         if aliasable:
-            child_stubs = asset_bundle._bridges.build_shim_sources(aliasable)
+            child_stubs = asset_bundle._bridges.prepare_shim_sources(aliasable)
             secondary_stubs = {**child_stubs, **secondary_stubs}
         return frozenset(child_specs - aliasable) or None, secondary_stubs
 
@@ -1127,7 +1127,7 @@ class IrQweb(models.AbstractModel):
         )
         if not shared:
             return {}
-        return sec_ab._bridges.build_shim_sources(set(shared))
+        return sec_ab._bridges.prepare_shim_sources(set(shared))
 
     def _merge_secondary_import_maps(
         self,
@@ -1270,7 +1270,7 @@ class IrQweb(models.AbstractModel):
             combined_modules = []
             for dyn_ab in dynamic_bundles:
                 combined_modules.extend(dyn_ab.native_modules)
-            bridge_map = dynamic_bundles[0]._bridges._build_native_to_legacy_bridge(
+            bridge_map = dynamic_bundles[0]._bridges._prepare_native_to_legacy_bridge(
                 set(import_map) | child_specifiers,
                 modules=combined_modules,
             )
@@ -1297,7 +1297,7 @@ class IrQweb(models.AbstractModel):
     def _add_import_map_parent_self_bridges(
         asset_bundle: AssetsBundle, import_map: dict[str, str]
     ) -> None:
-        self_bridges = asset_bundle._bridges._build_parent_self_bridge()
+        self_bridges = asset_bundle._bridges._prepare_parent_self_bridge()
         import_map.update(self_bridges)
         for asset in asset_bundle.native_modules:
             header = asset.parsed_header

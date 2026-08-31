@@ -16,7 +16,7 @@ from odoo.libs.filesystem import (
 )
 from odoo.tools import file_open, replace_exceptions
 from odoo.tools.image import image_guess_size_from_field_name, image_process
-from odoo.tools.misc import verify_limited_field_access_token
+from odoo.tools.misc import is_valid_limited_field_access_token
 
 DEFAULT_PLACEHOLDER_PATH = "web/static/img/placeholder.png"
 _logger = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ class IrBinary(models.AbstractModel):
                     res_id=res_id,
                 )
             )
-        if access_token and verify_limited_field_access_token(
+        if access_token and is_valid_limited_field_access_token(
             record, field_name, access_token, scope="binary"
         ):
             return record.sudo()
@@ -101,7 +101,7 @@ class IrBinary(models.AbstractModel):
             ValueError,
             by=UserError(_("Expected singleton: %(record)s", record=record)),
         ):
-            record.ensure_one()
+            record.check_singleton()
 
         try:
             field = record._fields[field_name]

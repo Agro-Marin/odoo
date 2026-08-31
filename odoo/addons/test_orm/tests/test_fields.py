@@ -17,7 +17,7 @@ from odoo.exceptions import (
 )
 from odoo.fields import Domain
 from odoo.libs.filesystem import SVG, ZIP
-from odoo.orm.registration import add_to_registry
+from odoo.orm.registration import add_model_to_registry
 from odoo.tests import Form, TransactionCase, tagged, users
 from odoo.tools import float_repr, human_size, mute_logger
 from odoo.tools.image import image_data_uri
@@ -4921,7 +4921,7 @@ class TestSelectionOndeleteAdvanced(TransactionCase):
                 ondelete={"random": "poop"},
             )
 
-        add_to_registry(self.registry, Foo)
+        add_model_to_registry(self.registry, Foo)
 
         with self.assertRaises(ValueError):
             self.registry._setup_models__(self.env.cr, [])
@@ -4940,7 +4940,7 @@ class TestSelectionOndeleteAdvanced(TransactionCase):
                 ondelete={"corona": "set default"},
             )
 
-        add_to_registry(self.registry, Foo)
+        add_model_to_registry(self.registry, Foo)
 
         with self.assertRaises(ValueError):
             self.registry._setup_models__(self.env.cr, [])
@@ -4959,7 +4959,7 @@ class TestSelectionOndeleteAdvanced(TransactionCase):
                 ondelete={"westvleteren": "set foooo"},
             )
 
-        add_to_registry(self.registry, Foo)
+        add_model_to_registry(self.registry, Foo)
 
         with self.assertRaises(ValueError):
             self.registry._setup_models__(self.env.cr, [])
@@ -4978,7 +4978,7 @@ class TestSelectionOndeleteAdvanced(TransactionCase):
                 ondelete={"brap": "set null"},
             )
 
-        add_to_registry(self.registry, Foo)
+        add_model_to_registry(self.registry, Foo)
 
         with self.assertRaises(ValueError):
             self.registry._setup_models__(self.env.cr, [])
@@ -4996,7 +4996,7 @@ class TestSelectionOndeleteAdvanced(TransactionCase):
                 ]
             )
 
-        add_to_registry(self.registry, Foo)
+        add_model_to_registry(self.registry, Foo)
 
         with self.assertRaises(ValueError):
             self.registry._setup_models__(self.env.cr, [])
@@ -5011,7 +5011,7 @@ class TestFieldParametersValidation(TransactionCase):
 
             name = fields.Char(invalid_parameter=42)
 
-        add_to_registry(self.registry, Foo)
+        add_model_to_registry(self.registry, Foo)
         self.addCleanup(self.registry.__delitem__, Foo._name)
 
         with self.assertLogs("odoo.fields", level="WARNING") as cm:
@@ -5343,7 +5343,7 @@ class TestWrongRelatedError(TransactionCase):
             foo_id = fields.Many2one("test_orm.foo")
             foo_non_existing = fields.Char(related="foo_id.non_existing_field")
 
-        add_to_registry(self.registry, Foo)
+        add_model_to_registry(self.registry, Foo)
         self.addCleanup(self.registry.__delitem__, Foo._name)
 
         errMsg = (

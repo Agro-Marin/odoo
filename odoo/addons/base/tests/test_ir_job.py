@@ -524,7 +524,7 @@ class TestIrJob(TransactionCase):
         j1 = self.partner.delayed()._ir_job_test_append()
         j2 = self.partner.delayed(after=j1)._ir_job_test_append()
         self.env.cr.execute("UPDATE ir_job SET state = 'done' WHERE id = %s", (j1.id,))
-        IrJob._resolve_dependencies(self.env.cr)
+        IrJob._release_ready_dependents(self.env.cr)
         j2.invalidate_recordset()
         self.assertEqual(j2.state, "pending")
 
@@ -533,7 +533,7 @@ class TestIrJob(TransactionCase):
         self.env.cr.execute(
             "UPDATE ir_job SET state = 'failed' WHERE id = %s", (j3.id,)
         )
-        IrJob._resolve_dependencies(self.env.cr)
+        IrJob._release_ready_dependents(self.env.cr)
         j4.invalidate_recordset()
         self.assertEqual(j4.state, "cancelled")
 
@@ -731,7 +731,7 @@ class TestIrJob(TransactionCase):
             "the override itself carries no marker — that is the whole trap",
         )
         self.assertEqual(
-            ir_job._job_config_of(Extending, "_sync"),
+            ir_job._get_job_config(Extending, "_sync"),
             {
                 "channel": "heavy",
                 "priority": 10,
@@ -743,7 +743,7 @@ class TestIrJob(TransactionCase):
 
     def test_job_marker_is_still_required_somewhere_in_the_chain(self):
         self.assertIsNone(
-            ir_job._job_config_of(self.partner_cls, "_compute_display_name")
+            ir_job._get_job_config(self.partner_cls, "_compute_display_name")
         )
         with self.assertRaises(UserError):
             self.partner.delayed()._compute_display_name()
@@ -1151,7 +1151,7 @@ class TestIrJob(TransactionCase):
         db_conn = odoo.db.db_connect(db_name)
         with (
             patch.object(IrJob, "_reap_dead_jobs") as reaper,
-            patch.object(IrJob, "_resolve_dependencies"),
+            patch.object(IrJob, "_release_ready_dependents"),
         ):
             IrJob._run_maintenance(db_conn)
             IrJob._run_maintenance(db_conn)
@@ -1745,7 +1745,7 @@ class TestIrJobDrainLoop(BaseCase):
             partner = env["res.partner"].create({"name": "conflict target"})
             partner_id = partner.id
             cr.commit()
-        self.addCleanup(self._delete_partner, partner_id)
+        self.addCleanup(self._remove_partner_row, partner_id)
         observed_lock = []
         snapshots = []
 
@@ -1812,7 +1812,7 @@ class TestIrJobDrainLoop(BaseCase):
             "the replay ran on a fresh snapshot, not the rolled-back one",
         )
 
-    def _delete_partner(self, partner_id):
+    def _remove_partner_row(self, partner_id):
         with self.registry.cursor() as cr:
             cr.execute("DELETE FROM res_partner WHERE id = %s", (partner_id,))
             cr.commit()

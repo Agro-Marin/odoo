@@ -24,7 +24,7 @@ class Base(models.AbstractModel):
     def _get_access_action(
         self, access_uid: int | None = None, force_website: bool = False
     ) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         return self.get_formview_action(access_uid=access_uid)
 
     @api.model
@@ -442,7 +442,7 @@ class Base(models.AbstractModel):
         }
 
     @api.model
-    def _onchange_spec(
+    def _get_onchange_spec(
         self, view_info: dict[str, Any] | None = None
     ) -> dict[str, str | None]:
         result = {}
@@ -469,7 +469,9 @@ class Base(models.AbstractModel):
         self, view_info: dict[str, Any] | None = None
     ) -> dict[str, Any]:
 
-        def fill_spec(node: _Element, model: Any, fields_spec: dict[str, Any]) -> None:
+        def update_spec(
+            node: _Element, model: Any, fields_spec: dict[str, Any]
+        ) -> None:
             if node.tag == "field":
                 field_name = node.attrib["name"]
                 field_spec = fields_spec.setdefault(field_name, {})
@@ -481,18 +483,18 @@ class Base(models.AbstractModel):
                     if field.relational:
                         comodel = model.env[field.comodel_name]
                         for child in node:
-                            fill_spec(child, comodel, sub_fields_spec)
+                            update_spec(child, comodel, sub_fields_spec)
                     if field.type == "one2many":
                         sub_fields_spec.pop(field.inverse_name, None)
                     if sub_fields_spec:
                         field_spec.setdefault("fields", {}).update(sub_fields_spec)
             else:
                 for child in node:
-                    fill_spec(child, model, fields_spec)
+                    update_spec(child, model, fields_spec)
 
         if view_info is None:
             view_info = self.get_view()
 
         result = {}
-        fill_spec(etree.fromstring(view_info["arch"]), self, result)
+        update_spec(etree.fromstring(view_info["arch"]), self, result)
         return result

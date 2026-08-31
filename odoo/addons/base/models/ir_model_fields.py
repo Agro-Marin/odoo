@@ -10,7 +10,7 @@ from odoo.api import ValuesType
 from odoo.db import schema as sql
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import NO_ACCESS
-from odoo.libs.sql import make_index_name
+from odoo.libs.sql import get_index_name
 from odoo.models import pop_field
 from odoo.tools import SQL, OrderedSet, frozendict, unique
 from odoo.tools.safe_eval import safe_eval
@@ -20,8 +20,8 @@ from .ir_model_common import (
     MODULE_UNINSTALL_FLAG,
     compute_modules,
     field_xmlid,
-    make_compute,
     mark_modified,
+    prepare_compute,
     reload_schema,
     select_en,
     upsert_en,
@@ -609,11 +609,13 @@ class IrModelFields(models.Model):
                 )
 
     def _get(self, model_name: str, name: str) -> Self:
-        field_id = self._get_ids(model_name).get(name) if model_name and name else None
+        field_id = (
+            self._get_ids_by_name(model_name).get(name) if model_name and name else None
+        )
         return self.sudo().browse(field_id or ())
 
     @tools.ormcache("model_name", cache="stable")
-    def _get_ids(self, model_name: str) -> dict[str, int]:
+    def _get_ids_by_name(self, model_name: str) -> dict[str, int]:
         cr = self.env.cr
         cr.execute("SELECT name, id FROM ir_model_fields WHERE model=%s", [model_name])
         return dict(cr.fetchall())
@@ -994,8 +996,8 @@ class IrModelFields(models.Model):
             self.env.cr.execute(
                 SQL(
                     "ALTER INDEX IF EXISTS %s RENAME TO %s",
-                    SQL.identifier(make_index_name(table, oldname)),
-                    SQL.identifier(make_index_name(table, newname)),
+                    SQL.identifier(get_index_name(table, oldname)),
+                    SQL.identifier(get_index_name(table, newname)),
                 )
             )
 
@@ -1304,7 +1306,7 @@ class IrModelFields(models.Model):
         elif field_data["ttype"] == "monetary":
             attrs["currency_field"] = field_data["currency_field"]
         if field_data["compute"]:
-            attrs["compute"] = make_compute(
+            attrs["compute"] = prepare_compute(
                 field_data["compute"],
                 field_data["depends"],
                 f"{field_data['model']}.{field_data['name']}",
@@ -1353,7 +1355,7 @@ class IrModelFields(models.Model):
     @api.model
     @tools.ormcache("model_name", "self.env.lang", cache="stable")
     def _get_fields_cached(self, model_name: str) -> dict[str, dict[str, Any]]:
-        fields_ = self.sudo().browse(self._get_ids(model_name).values())
+        fields_ = self.sudo().browse(self._get_ids_by_name(model_name).values())
         result = {
             field.name: {
                 "id": field.id,

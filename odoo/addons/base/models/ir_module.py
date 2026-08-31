@@ -319,7 +319,7 @@ class IrModuleModule(models.Model):
         return modules.Manifest.for_addon(name, display_warning=False)
 
     def _read_description_index_html(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         path = str(Path(self.name, "static/description/index.html"))
         try:
             with tools.file_open(path, "rb", filter_ext=(".html",)) as desc_file:
@@ -328,7 +328,7 @@ class IrModuleModule(models.Model):
             return ""
 
     def _render_description_rst(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         raw_description = self.description or ""
         try:
             html, messages = render_rst_html(raw_description)
@@ -570,7 +570,7 @@ class IrModuleModule(models.Model):
         )
 
     def _auto_install_dependencies_satisfiable(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return not any(
             dep.state in UNSATISFIABLE_DEPENDENCY_STATES for dep in self.dependencies_id
         )
@@ -927,7 +927,7 @@ class IrModuleModule(models.Model):
                     todo.append(dependent)
         return todo
 
-    def _drop_unchanged_from_upgrade(self, cascade: list[Self]) -> list[int]:
+    def _get_module_ids_to_upgrade(self, cascade: list[Self]) -> list[int]:
         if not config["skip_unchanged_modules"] or not column_exists(
             self.env.cr, "ir_module_module", "content_checksum"
         ):
@@ -984,7 +984,7 @@ class IrModuleModule(models.Model):
             return None
         self.update_list()
         cascade = self._upgrade_cascade()
-        self.browse(self._drop_unchanged_from_upgrade(cascade)).write(
+        self.browse(self._get_module_ids_to_upgrade(cascade)).write(
             {"state": "to upgrade"}
         )
         if uninstalled_dep_names := self._uninstalled_dependency_names(cascade):
@@ -1094,7 +1094,7 @@ class IrModuleModule(models.Model):
         needed: set,
         cast: SQL,
     ) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         cr = self.env.cr
         if to_add := sorted(needed - existing):
             cr.execute(
@@ -1157,7 +1157,7 @@ class IrModuleModule(models.Model):
 
     def _update_countries(self, countries: tuple[str, ...] | list[str] = ()) -> None:
         existing = set(self.country_ids.ids)
-        id_by_code = self.env["res.country"]._id_by_code()
+        id_by_code = self.env["res.country"]._get_id_by_code()
         needed = {
             country_id
             for code in countries

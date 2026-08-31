@@ -237,19 +237,19 @@ class TestViewInheritance(ViewCase):
 
     def test_get_inheriting_views(self):
         self.assertEqual(
-            self.view_ids["A"]._get_inheriting_views(),
+            self.view_ids["A"]._get_views_inheriting(),
             self.get_views(["A", "A1", "A2", "A12", "A21", "A22", "A221"]),
         )
         self.assertEqual(
-            self.view_ids["A21"]._get_inheriting_views(),
+            self.view_ids["A21"]._get_views_inheriting(),
             self.get_views(["A21"]),
         )
         self.assertEqual(
-            self.view_ids["A11"]._get_inheriting_views(),
+            self.view_ids["A11"]._get_views_inheriting(),
             self.get_views(["A11", "A111"]),
         )
         self.assertEqual(
-            (self.view_ids["A11"] + self.view_ids["A"])._get_inheriting_views(),
+            (self.view_ids["A11"] + self.view_ids["A"])._get_views_inheriting(),
             self.get_views(
                 ["A", "A1", "A2", "A11", "A111", "A12", "A21", "A22", "A221"]
             ),
@@ -7863,7 +7863,7 @@ class TestInheritingViewsQuery(ViewCase):
             return_value=Domain("inherit_id.name", "!=", "zzz"),
         ):
             with self.assertRaises(ValueError) as catcher:
-                view._get_inheriting_views()
+                view._get_views_inheriting()
         self.assertIn("_get_inheriting_views_domain", str(catcher.exception))
 
 
@@ -8149,7 +8149,7 @@ class TestCopyRegeneratesTheKey(ViewCase):
         copy = original.copy()
         self.env.flush_all()
         self.env.invalidate_all()
-        self.assertNotIn(copy.id, original._get_specific_views().ids)
+        self.assertNotIn(copy.id, original._get_views_specific().ids)
 
 
 @tagged("post_install", "-at_install")
@@ -8283,8 +8283,8 @@ class TestBothPhasesShareOneScope(ViewCase):
         View = type(self.View)
         original = View._iter_arch_nodes
 
-        def traced(view, root, make_node_info):
-            for node, info in original(view, root, make_node_info):
+        def traced(view, root, get_node_info):
+            for node, info in original(view, root, get_node_info):
                 seen.append((node.tag, info))
                 yield node, info
 
@@ -8361,8 +8361,8 @@ class TestBothPhasesShareOneScope(ViewCase):
         View = type(self.View)
         original = View._iter_arch_nodes
 
-        def traced(v, root, make_node_info):
-            for node, info in original(v, root, make_node_info):
+        def traced(v, root, get_node_info):
+            for node, info in original(v, root, get_node_info):
                 steered.append(info)
                 yield node, info
 
@@ -8424,11 +8424,11 @@ class TestBothPhasesShareOneScope(ViewCase):
             seen.append((node.tag, info["view_groups"].key))
 
         tree = etree.fromstring("<form><group groups='base.group_system'/></form>")
-        _manager, make_node_info = self.View._arch_scope(
+        _manager, get_node_info = self.View._arch_scope(
             tree, "ir.ui.view", None, translate=False, editable=True, refine=refine
         )
-        root_info = make_node_info(tree, None)
-        make_node_info(tree.find("group"), root_info)
+        root_info = get_node_info(tree, None)
+        get_node_info(tree.find("group"), root_info)
         self.assertEqual(
             seen[1][1],
             seen[0][1],

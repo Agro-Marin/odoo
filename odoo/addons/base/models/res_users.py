@@ -247,17 +247,17 @@ class ResUsers(models.Model):
         return None
 
     @tools.ormcache("self.id", "sid")
-    def _compute_session_token(self, sid: str) -> str | bool:
+    def _get_session_token(self, sid: str) -> str | bool:
         field_values = self._session_token_get_values()
         return self._session_token_hash_compute(sid, field_values)
 
     @tools.ormcache("self.id")
     def _get_group_ids(self) -> tuple[int, ...]:
-        self.ensure_one()
+        self.check_singleton()
         return self.with_context({}).all_group_ids._ids
 
     def _effective_group_ids(self) -> tuple[int, ...]:
-        self.ensure_one()
+        self.check_singleton()
         return self._get_group_ids() if self.id else self.all_group_ids._origin._ids
 
     @tools.ormcache(cache="stable")
@@ -552,10 +552,10 @@ class ResUsers(models.Model):
     def _inverse_password(self) -> None:
         ctx = self._crypt_context()
         hashed = [(user.id, ctx.hash(user.password)) for user in self if user.password]
-        self.filtered(lambda user: not user.password)._set_empty_password()
-        self._set_encrypted_passwords(hashed)
+        self.filtered(lambda user: not user.password)._clear_password()
+        self._update_encrypted_passwords(hashed)
 
-    def _set_empty_password(self) -> None:
+    def _clear_password(self) -> None:
         if not self:
             return
         self.flush_recordset(["password"])
@@ -565,10 +565,10 @@ class ResUsers(models.Model):
         self.invalidate_recordset(["password"])
         self._invalidate_session_tokens()
 
-    def _set_encrypted_password(self, uid: int, pw: str) -> None:
-        self._set_encrypted_passwords([(uid, pw)])
+    def _update_encrypted_password(self, uid: int, pw: str) -> None:
+        self._update_encrypted_passwords([(uid, pw)])
 
-    def _set_encrypted_passwords(self, hashed: list[tuple[int, str]]) -> None:
+    def _update_encrypted_passwords(self, hashed: list[tuple[int, str]]) -> None:
         if not hashed:
             return
         ctx = self._crypt_context()
@@ -592,7 +592,7 @@ class ResUsers(models.Model):
     def _check_credentials(
         self, credential: dict[str, Any], env: dict[str, Any]
     ) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         if not (credential["type"] == "password" and credential.get("password")):
             raise AccessDenied
 
@@ -614,15 +614,15 @@ class ResUsers(models.Model):
             if row is None:
                 raise AccessDenied
             [hashed] = row
-            valid, replacement = self._crypt_context().verify_and_update(
+            valid, replacement = self._crypt_context().match_and_update(
                 credential["password"], hashed
             )
             if replacement is not None:
-                self._set_encrypted_password(self.id, replacement)
+                self._update_encrypted_password(self.id, replacement)
                 if request and self == self.env.user:
                     self.env.flush_all()
                     self.env.registry.clear_cache()
-                    new_token = self._compute_session_token(request.session.sid)
+                    new_token = self._get_session_token(request.session.sid)
                     request.session.session_token = new_token
 
             if valid:
@@ -1124,7 +1124,7 @@ class ResUsers(models.Model):
     def _get_fields_session_token(self) -> set[str]:
         return {"id", "login", "password", "active"}
 
-    def _get_session_token_query_params(self) -> dict[str, SQL]:
+    def _prepare_session_token_query_params(self) -> dict[str, SQL]:
         database_secret = SQL(
             "SELECT value FROM ir_config_parameter WHERE key='database.secret'"
         )
@@ -1145,7 +1145,7 @@ class ResUsers(models.Model):
         self.env.cr.execute(
             SQL(
                 "SELECT %(select)s FROM %(from)s %(joins)s WHERE %(where)s GROUP BY %(group_by)s",
-                **self._get_session_token_query_params(),
+                **self._prepare_session_token_query_params(),
             )
         )
         if self.env.cr.rowcount != 1:
@@ -1281,12 +1281,12 @@ class ResUsers(models.Model):
 
     @check_identity
     def action_revoke_all_devices(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         target = self.env.user if self.id == self.env.uid else self
         return target._action_revoke_all_devices()
 
     def _action_revoke_all_devices(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         self.device_ids.filtered(lambda d: not d.is_current)._revoke()
         return {"type": "ir.actions.client", "tag": "reload"}
 
@@ -1336,7 +1336,7 @@ class ResUsers(models.Model):
         if group_spec == ".":
             return False
 
-        self.ensure_one()
+        self.check_singleton()
         self._assert_group_query_allowed()
 
         positives = []
@@ -1359,7 +1359,7 @@ class ResUsers(models.Model):
 
     @api.readonly
     def has_group(self, group_ext_id: str) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         self._assert_group_query_allowed()
         return self._has_group_effective(group_ext_id)
 
@@ -1368,7 +1368,7 @@ class ResUsers(models.Model):
         return group_id is not None and group_id in self._effective_group_ids()
 
     def has_any_group_id(self, group_ids: collections.abc.Collection[int]) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         self._assert_group_query_allowed()
 
         group_ids = set(group_ids)
@@ -1403,7 +1403,7 @@ class ResUsers(models.Model):
         return action
 
     def action_show_groups(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Groups"),
             "view_mode": "list,form",
@@ -1415,7 +1415,7 @@ class ResUsers(models.Model):
         }
 
     def action_show_accesses(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Access Rights"),
             "view_mode": "list,form",
@@ -1427,7 +1427,7 @@ class ResUsers(models.Model):
         }
 
     def action_show_rules(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Record Rules"),
             "view_mode": "list,form",
@@ -1439,27 +1439,27 @@ class ResUsers(models.Model):
         }
 
     def _is_internal(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return self._has_group("base.group_user")
 
     def _is_portal(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return self._has_group("base.group_portal")
 
     def _is_public(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return self._has_group("base.group_public")
 
     def _is_system(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return self._has_group("base.group_system")
 
     def _is_admin(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return self._is_superuser() or self._has_group("base.group_erp_manager")
 
     def _is_superuser(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return self.id == SUPERUSER_ID
 
     @api.model
@@ -1600,7 +1600,7 @@ class UsersMultiCompany(models.Model):
     _inherit = "res.users"
 
     def _wants_multi_company_group(self, group_id: int) -> bool | None:
-        self.ensure_one()
+        self.check_singleton()
         user = self.sudo()
         is_member = group_id in user.group_ids.ids
         wanted = len(user.company_ids) > 1

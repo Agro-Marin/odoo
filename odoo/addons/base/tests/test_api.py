@@ -423,16 +423,16 @@ class TestAPI(SavepointCaseWithUserDemo):
         )
         self.assertTrue(len(ps) > 1)
         with self.assertRaises(ValueError):
-            ps.ensure_one()
+            ps.check_singleton()
 
         p1 = ps[0]
         self.assertEqual(len(p1), 1)
-        self.assertEqual(p1.ensure_one(), p1)
+        self.assertEqual(p1.check_singleton(), p1)
 
         p0 = self.env["res.partner"].browse()
         self.assertEqual(len(p0), 0)
         with self.assertRaises(ValueError):
-            p0.ensure_one()
+            p0.check_singleton()
 
     @mute_logger("odoo.models")
     def test_80_contains(self):

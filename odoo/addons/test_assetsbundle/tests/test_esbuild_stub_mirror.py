@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from odoo import tools
 from odoo.tests.common import BaseCase, TransactionCase
-from odoo.tools.assets.esbuild import EsbuildCompiler, _find_esbuild
+from odoo.tools.assets.esbuild import EsbuildCompiler, _get_esbuild_path
 from odoo.tools.json import scriptsafe as json
 
 from odoo.addons.base.models.assetsbundle import AssetsBundle
@@ -25,7 +25,7 @@ class TestEsbuildCompilerAddonFlagsSeam(BaseCase):
             javascripts=[],
             _get_esbuild_addon_flags=sentinel,
         )
-        compiler = AssetsBundle._make_esbuild_compiler(fake)
+        compiler = AssetsBundle._prepare_esbuild_compiler(fake)
         self.assertIs(compiler._addon_flags_provider, sentinel)
 
 
@@ -97,7 +97,7 @@ class TestSecondaryStubMirror(BaseCase):
                 "export const rpc = 'REAL_RPC';",
             )
 
-    @unittest.skipUnless(_find_esbuild(), "esbuild binary not available")
+    @unittest.skipUnless(_get_esbuild_path(), "esbuild binary not available")
     def test_esbuild_resolves_face_and_submodule_together(self):
         with tempfile.TemporaryDirectory() as tmp:
             _stub_root, _real, targets = self._build_mirror(tmp)
@@ -111,7 +111,7 @@ class TestSecondaryStubMirror(BaseCase):
 
             proc = subprocess.run(
                 [
-                    _find_esbuild(),
+                    _get_esbuild_path(),
                     str(entry),
                     "--bundle",
                     "--format=esm",
@@ -192,7 +192,7 @@ class TestDeepStubMirror(BaseCase):
             (stub_root / "leaked").symlink_to(outside, target_is_directory=True)
 
             with self.assertRaises(RuntimeError) as caught:
-                EsbuildCompiler._ensure_inside_mirror(
+                EsbuildCompiler._check_inside_mirror(
                     stub_root / "leaked" / "module.js", stub_root
                 )
             self.assertIn("outside the stub mirror", str(caught.exception))
@@ -255,7 +255,7 @@ class TestBarePackageStubMirror(BaseCase):
                 "export const net = 'REAL_NET';",
             )
 
-    @unittest.skipUnless(_find_esbuild(), "esbuild binary not available")
+    @unittest.skipUnless(_get_esbuild_path(), "esbuild binary not available")
     def test_esbuild_prefers_the_shim_over_the_packages_index(self):
         with tempfile.TemporaryDirectory() as tmp:
             _stub_root, _real, targets = self._build_mirror(tmp)
@@ -274,7 +274,7 @@ class TestBarePackageStubMirror(BaseCase):
 
             proc = subprocess.run(
                 [
-                    _find_esbuild(),
+                    _get_esbuild_path(),
                     str(entry),
                     "--bundle",
                     "--format=esm",
@@ -336,7 +336,7 @@ NATIVE_ENTRY = "@test_assetsbundle/../tests/native_esm/entry"
 NATIVE_REEXPORT = "@test_assetsbundle/../tests/native_esm/reexport"
 
 
-@unittest.skipUnless(_find_esbuild(), "esbuild binary not available")
+@unittest.skipUnless(_get_esbuild_path(), "esbuild binary not available")
 class TestEsbuildEndToEnd(TransactionCase):
     def _bundle(self):
         return self.env["ir.qweb"]._get_asset_bundle(
@@ -425,7 +425,7 @@ class TestMinifyJsFailureModes(BaseCase):
         from odoo.tools.assets import esbuild
 
         with (
-            patch.object(esbuild, "_find_esbuild", return_value=None),
+            patch.object(esbuild, "_get_esbuild_path", return_value=None),
             self.assertLogs("odoo.assets.esbuild", level="WARNING") as logged,
         ):
             self.assertIsNone(esbuild.minify_js(self.SOURCE, label="probe.js"))
@@ -437,7 +437,7 @@ class TestMinifyJsFailureModes(BaseCase):
         from odoo.tools.assets import esbuild
 
         with (
-            patch.object(esbuild, "_find_esbuild", return_value="/bin/true"),
+            patch.object(esbuild, "_get_esbuild_path", return_value="/bin/true"),
             patch.object(
                 esbuild.subprocess,
                 "run",
@@ -452,7 +452,7 @@ class TestMinifyJsFailureModes(BaseCase):
         from odoo.tools.assets import esbuild
 
         with (
-            patch.object(esbuild, "_find_esbuild", return_value="/bin/false"),
+            patch.object(esbuild, "_get_esbuild_path", return_value="/bin/false"),
             self.assertLogs("odoo.assets.esbuild", level="WARNING") as logged,
         ):
             self.assertIsNone(esbuild.minify_js("this is not js {", label="bad.js"))
@@ -460,7 +460,7 @@ class TestMinifyJsFailureModes(BaseCase):
         self.assertIn("minify_failed", joined)
         self.assertIn("esbuild minify stderr for bad.js", joined)
 
-    @unittest.skipUnless(_find_esbuild(), "esbuild binary not available")
+    @unittest.skipUnless(_get_esbuild_path(), "esbuild binary not available")
     def test_the_success_path_really_minifies(self):
         from odoo.tools.assets import esbuild
 
@@ -476,7 +476,7 @@ class TestRunEsbuildFailureReporting(BaseCase):
 
     def test_a_nonzero_exit_dumps_the_entry_and_names_the_file(self):
         compiler = self._compiler()
-        self.addCleanup(compiler._purge_stale_fail_dumps, compiler.name)
+        self.addCleanup(compiler._remove_stale_fail_dumps, compiler.name)
 
         with self.assertLogs("odoo.assets.esbuild", level="WARNING") as logged:
             with self.assertRaises(RuntimeError) as caught:
@@ -501,7 +501,7 @@ class TestRunEsbuildFailureReporting(BaseCase):
 
     def test_each_failure_purges_the_previous_dump_for_that_bundle(self):
         compiler = self._compiler("test.purge")
-        self.addCleanup(compiler._purge_stale_fail_dumps, compiler.name)
+        self.addCleanup(compiler._remove_stale_fail_dumps, compiler.name)
 
         def fail_once(text):
             with self.assertLogs("odoo.assets.esbuild", level="WARNING") as logged:
@@ -526,7 +526,7 @@ class TestRunEsbuildFailureReporting(BaseCase):
 
     def test_a_clean_exit_says_nothing_and_writes_nothing(self):
         compiler = self._compiler("test.quiet")
-        compiler._purge_stale_fail_dumps(compiler.name)
+        compiler._remove_stale_fail_dumps(compiler.name)
         with self.assertNoLogs("odoo.assets.esbuild", level="WARNING"):
             compiler._run_esbuild(["true"], 30, "// fine\n", 0.0)
         self.assertEqual(

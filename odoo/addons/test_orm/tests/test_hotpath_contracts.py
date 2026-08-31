@@ -54,7 +54,7 @@ class TestFieldGetContracts(TransactionCase):
                 hit_value,
                 miss_value,
                 f"{fname}: cache-hit {hit_value!r} != cache-miss {miss_value!r} "
-                "(_make_scalar_get closure diverged from convert_to_record)",
+                "(_prepare_scalar_get closure diverged from convert_to_record)",
             )
 
     def test_scalar_none_to_falsy(self):
@@ -447,7 +447,7 @@ class TestPreconditionAPI(TransactionCase):
         self.Line.create({"move_id": move.id, "quantity": 12})
 
         field = self.Move._fields["quantity"]
-        field.ensure_computed(move)
+        field.recompute_pending(move)
         field_cache = field._get_cache(self.env)
         self.assertIn(move.id, field_cache)
         self.assertEqual(field_cache[move.id], 12)
@@ -456,7 +456,7 @@ class TestPreconditionAPI(TransactionCase):
     def test_ensure_computed_noop_for_non_computed(self):
         move = self.Move.create({"tag_repeat": 5})
         field = self.Move._fields["tag_repeat"]
-        field.ensure_computed(move)
+        field.recompute_pending(move)
         self.assertEqual(move.tag_repeat, 5)
 
     def test_read_cache_hit(self):

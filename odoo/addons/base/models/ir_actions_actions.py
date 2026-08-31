@@ -391,7 +391,7 @@ class IrActionsActions(models.Model):
         return {action_id: found.get(action_id, root._name) for action_id in self.ids}
 
     def _get_action_concrete(self) -> Self:
-        self.ensure_one()
+        self.check_singleton()
         [model_name] = self._get_model_names_concrete().values()
         return self.env[model_name].browse(self.id)
 
@@ -408,7 +408,7 @@ class IrActionsActions(models.Model):
     @api.model
     def _eval_action_domain(self, domain: str | None, **names: Any) -> list:
         eval_context = {
-            **self._get_eval_context(self),
+            **self._prepare_eval_context(self),
             **self.env.context,
             **names,
         }
@@ -417,14 +417,14 @@ class IrActionsActions(models.Model):
     @api.model
     def _eval_action_context(self, context: str | None, **names: Any) -> dict:
         eval_context = {
-            **self._get_eval_context(self),
+            **self._prepare_eval_context(self),
             **self.env.context,
             **names,
         }
         return _eval_dict_or_default(context, eval_context, {})
 
     @api.model
-    def _get_eval_context(self, action: Any) -> dict[str, Any]:
+    def _prepare_eval_context(self, action: Any) -> dict[str, Any]:
         return {
             "uid": self.env.uid,
             "user": self.env.user,
@@ -537,7 +537,7 @@ class IrActionsActions(models.Model):
         return record._get_action_dict()
 
     def _get_action_dict(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         return self.sudo().read(sorted(self._get_fields_readable()))[0]
 
     def _get_fields_readable(self) -> frozenset[str]:
@@ -597,5 +597,5 @@ class IrActionsActions(models.Model):
                 )
 
     def _is_cached_registry_wide(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return bool(self.binding_model_id or self.path)

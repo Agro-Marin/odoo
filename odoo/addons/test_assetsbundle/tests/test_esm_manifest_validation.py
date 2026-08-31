@@ -3,9 +3,9 @@ from unittest.mock import patch
 
 from odoo.tests.common import BaseCase, TransactionCase
 from odoo.tools.assets.esm_registry import (
+    check_esm_config,
     esm_registry,
     external_libs,
-    validate_esm_config,
 )
 
 from odoo.addons.base.models.assetsbundle import AssetsBundle
@@ -18,7 +18,7 @@ class TestEsmConfigValidation(TransactionCase):
         self.assertIn("point_of_sale._assets_pos", reg.bundles)
         self.assertIn("web_tour.automatic", reg.dynamic_children["web.assets_web"])
         self.assertIn("web.assets_unit_tests", reg.import_map_included_bundles)
-        validate_esm_config(
+        check_esm_config(
             reg.bundles,
             reg.dynamic_children,
             reg.import_map_includes,
@@ -71,7 +71,7 @@ class TestEsmConfigValidation(TransactionCase):
 
     def test_unregistered_secondary_parent_rejected(self):
         with self.assertRaisesRegex(ValueError, "secondary_import_map_includes"):
-            validate_esm_config(
+            check_esm_config(
                 {"web.assets_tests"},
                 {},
                 {},
@@ -80,7 +80,7 @@ class TestEsmConfigValidation(TransactionCase):
 
     def test_unregistered_secondary_child_rejected(self):
         with self.assertRaisesRegex(ValueError, "not.an_esm_child"):
-            validate_esm_config(
+            check_esm_config(
                 {"web.assets_web"},
                 {},
                 {},
@@ -89,11 +89,11 @@ class TestEsmConfigValidation(TransactionCase):
 
     def test_duplicate_children_rejected(self):
         with self.assertRaisesRegex(ValueError, "Duplicate"):
-            validate_esm_config({"p", "c"}, {"p": ["c", "c"]}, {}, {})
+            check_esm_config({"p", "c"}, {"p": ["c", "c"]}, {}, {})
 
     def test_dynamic_and_include_overlap_rejected(self):
         with self.assertRaisesRegex(ValueError, "both"):
-            validate_esm_config({"p", "c"}, {"p": ["c"]}, {"p": ["c"]}, {})
+            check_esm_config({"p", "c"}, {"p": ["c"]}, {"p": ["c"]}, {})
 
     def test_check_external_libs_follows_esbuild_pattern(self):
         AssetsBundle._check_external_libs(
@@ -268,7 +268,7 @@ class TestEsmManifestShapeGuards(BaseCase):
         with patch.object(
             Manifest, "all_addon_manifests", staticmethod(lambda: [fake])
         ):
-            return reg._build()
+            return reg._prepare_esm_registry()
 
     def test_a_non_mapping_esm_key_is_refused(self):
         with self.assertRaisesRegex(TypeError, "manifest 'esm' must be a dict"):

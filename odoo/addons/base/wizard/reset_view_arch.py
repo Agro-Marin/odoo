@@ -99,7 +99,7 @@ class ResetViewArchWizard(models.TransientModel):
                 view.has_diff = view_arch != diff_to
 
     def reset_view_button(self) -> dict[str, str]:
-        self.ensure_one()
+        self.check_singleton()
         if self.reset_mode == "other_view":
             self.view_id.write({"arch_db": self.arch_to_compare})
         else:
