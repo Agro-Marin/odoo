@@ -191,3 +191,35 @@ that outlives its field is how the next wrong one gets in.
 Two amendments in one day, in opposite directions — a cursor wrongly counted, and
 eight credentials wrongly excluded — is the measurement supporting this record's
 own claim that the count *is* the decision.
+
+### 2026-08-31 — two exclusions the name could not have told you
+
+Both came out of working the backlog rather than reading it, which is now the
+third time that has been how a misclassification surfaced.
+
+**A hash is not a credential.** `website`'s `visibility_password` reads exactly like
+a stored password and holds `crypt_context.hash(...)`; the plaintext is never
+stored and the field is never read back, only compared. `DERIVED` could not see
+it — that rule goes by the suffix (`_hash`, `_encrypted`, `_masked`) and this
+field has none. The check is now structural: a field this file assigns from a
+`.hash(...)` call is a hash, whatever it is called. Vaulting one would wrap a
+deliberately one-way value in something reversible, which is worse than leaving
+it where it is.
+
+**A key we publish is not a secret.** `website`'s `google_maps_api_key` is served by
+`/website/google_maps_api_key`, which is `auth="public"`: any anonymous visitor
+can ask for it, because the browser needs it to load Maps. Encrypting it at
+rest, logging its access and rate-limiting it protects nothing when the value is
+handed to whoever asks — and it would put a rate-limited decrypt behind an
+unauthenticated route, which is a way to take a site down rather than a way to
+secure it. `PUBLISHED` records it, separately from `SHARE_FIELDS`: those are
+tokens authorising a visitor to OUR records, while this one does authorise us to
+somebody else's API and simply is not secret.
+
+The distinction does not follow the name, and the pair that proves it sits one
+module apart. `website_sale_autocomplete`'s `google_places_api_key` reads almost
+identically and is used server-side, in a controller that calls Google and
+returns the result, so it never reaches a browser and stays in the backlog.
+Tests assert both directions for both rules: the hashed field and the published
+key are exempt, and a password merely sitting in a file that hashes something
+else, and the near-namesake used server-side, are not.

@@ -113,6 +113,68 @@ class TestTheFourExclusions:
         _write(tmp_path, monkeypatch, f"{name} = fields.Char()")
         assert gate.offenders() == []
 
+    def test_a_field_written_from_a_hash_is_not_a_credential(
+        self, tmp_path, monkeypatch
+    ):
+        """The name says plaintext and the code says otherwise.
+
+        `website`'s `visibility_password` reads exactly like a stored password
+        and holds `crypt_context.hash(...)`. `DERIVED` cannot see it: that rule
+        goes by the suffix, and this one has none. Vaulting a hash would wrap a
+        deliberately one-way value in something reversible.
+        """
+        _write(
+            tmp_path,
+            monkeypatch,
+            "visibility_password = fields.Char()\n"
+            "\n"
+            "    def _inverse_display(self):\n"
+            "        for r in self:\n"
+            "            r.visibility_password = crypt_context.hash(r.display)",
+        )
+        assert gate.offenders() == []
+
+    def test_a_password_merely_mentioned_near_a_hash_is_still_a_credential(
+        self, tmp_path, monkeypatch
+    ):
+        """The rule keys on the assignment, not on the file containing `hash`."""
+        _write(
+            tmp_path,
+            monkeypatch,
+            "ldap_password = fields.Char()\n"
+            "\n"
+            "    def _check(self):\n"
+            "        for r in self:\n"
+            "            r.other_field = crypt_context.hash(r.display)",
+        )
+        assert [f.field for f in gate.offenders()] == ["ldap_password"]
+
+    def test_a_key_we_publish_is_not_a_secret(self, tmp_path, monkeypatch):
+        """Served to anonymous visitors by design, so there is nothing to protect.
+
+        Vaulting it would also put a rate-limited decrypt behind an
+        unauthenticated route, which is a way to take a site down.
+        """
+        _write(
+            tmp_path,
+            monkeypatch,
+            "google_maps_api_key = fields.Char()",
+            module="website",
+        )
+        assert gate.offenders() == []
+
+    def test_its_near_namesake_used_server_side_is_still_a_secret(
+        self, tmp_path, monkeypatch
+    ):
+        """The judgement is per field and does not follow the name."""
+        _write(
+            tmp_path,
+            monkeypatch,
+            "google_places_api_key = fields.Char()",
+            module="website_sale_autocomplete",
+        )
+        assert [f.field for f in gate.offenders()] == ["google_places_api_key"]
+
     def test_the_vault_itself_is_exempt_by_construction(self, tmp_path, monkeypatch):
         _write(
             tmp_path, monkeypatch, "api_key = fields.Char()", module=gate.VAULT_MODULE

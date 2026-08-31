@@ -82,6 +82,28 @@ SHARE_FIELDS = frozenset(
     }
 )
 
+# A credential to a third party that we hand to the public on purpose.
+#
+# `website.google_maps_api_key` is served by `/website/google_maps_api_key`,
+# which is `auth="public"`: any anonymous visitor can ask for it, because the
+# browser needs it to load Maps. Vaulting it protects nothing -- it would be
+# encrypted at rest, access-logged and rate-limited, and then handed to whoever
+# asked -- and it would put a rate-limited decrypt on an unauthenticated route,
+# which is a way to take the site down rather than a way to secure it.
+#
+# This is NOT the same judgement as SHARE_FIELDS above, which is about tokens
+# authorising a visitor to OUR records. This one does authorise us to somebody
+# else's API; it is simply not a secret, because we publish it.
+#
+# The distinction is per field and does not follow the name:
+# `website_sale_autocomplete.google_places_api_key` reads almost identically and
+# is used server-side, never leaving the backend, so it stays in the backlog.
+PUBLISHED = frozenset(
+    {
+        "website.google_maps_api_key",
+    }
+)
+
 # Computed *from* a secret, and the point of them is that they are not it.
 DERIVED = re.compile(r"(_hash|_masked|_fingerprint|_encrypted|_plain|_display)$")
 
@@ -123,6 +145,36 @@ def module_names() -> dict[str, str]:
     return found
 
 
+def _hashed_field_names(tree: ast.AST) -> set[str]:
+    """Fields this file assigns from a hashing call.
+
+    A hash is not a credential. The vault exists to hand a secret back verbatim,
+    and a hash is never handed back -- it is compared. Encrypting one adds a
+    reversible layer around a value that was made one-way on purpose, which is
+    strictly worse than leaving it alone.
+
+    `DERIVED` catches the ones that say so in their name (`_hash`, `_encrypted`).
+    This catches the ones that do not: `website`'s `visibility_password` holds
+    `crypt_context.hash(...)` and is named like the plaintext it is not.
+    """
+    hashed: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(
+            isinstance(sub, ast.Call)
+            and isinstance(sub.func, ast.Attribute)
+            and sub.func.attr == "hash"
+            for sub in ast.walk(node.value)
+        ):
+            continue
+        for target in node.targets:
+            name = getattr(target, "attr", None) or getattr(target, "id", None)
+            if name:
+                hashed.add(name)
+    return hashed
+
+
 def _is_transient(node: ast.ClassDef) -> bool:
     return bool(node.bases) and "TransientModel" in ast.unparse(node.bases[0])
 
@@ -158,6 +210,7 @@ def findings() -> list[Finding]:
                 tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
             except SyntaxError:
                 continue
+            hashed = _hashed_field_names(tree)
             for node in ast.walk(tree):
                 if not isinstance(node, ast.ClassDef) or _is_transient(node):
                     continue
@@ -178,9 +231,9 @@ def findings() -> list[Finding]:
                         continue
                     if SHARE.match(name) or DERIVED.search(name):
                         continue
-                    if f"{module}.{name}" in SHARE_FIELDS:
+                    if f"{module}.{name}" in SHARE_FIELDS | PUBLISHED:
                         continue
-                    if CURSOR.search(name):
+                    if CURSOR.search(name) or name in hashed:
                         continue
                     if not _is_stored_field(call):
                         continue
