@@ -43,7 +43,7 @@
                         invisible="state != 'draft' or move_type not in ('out_invoice', 'out_refund')"
                         readonly="state != 'draft'"
                         class="oe_edit_only"
-                        domain="[('partner_id.commercial_partner_id', '=', commercial_partner_id)] if partner_id else [] + [
+                        domain="([('partner_id.commercial_partner_id', '=', commercial_partner_id)] if partner_id else []) + [
                                 '|',
                                     ('move_id', '=', False),
                                     ('move_id.move_type', '=', move_type)
