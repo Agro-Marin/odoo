@@ -61,7 +61,10 @@ class ParseLog(unittest.TestCase):
 
     def test_out_of_scope_packages_are_ignored(self) -> None:
         errors, checked = gate.parse_log(
-            log(parsing("odoo/tools/misc.py"), error("odoo/tools/misc.py"))
+            log(
+                parsing("odoo/addons/base/models/ir_model.py"),
+                error("odoo/addons/base/models/ir_model.py"),
+            )
         )
         self.assertEqual((errors, checked), ({}, set()))
 

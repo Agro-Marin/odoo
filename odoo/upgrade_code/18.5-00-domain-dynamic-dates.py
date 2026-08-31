@@ -21,8 +21,10 @@ class NoChange(Exception):
 
 class InvertUnaryTransformer(ast.NodeTransformer):
     def visit_UnaryOp(self, node: ast.UnaryOp) -> ast.expr:
-        if isinstance(node.op, ast.USub) and isinstance(
-            value := node.operand, ast.Constant
+        if (
+            isinstance(node.op, ast.USub)
+            and isinstance(value := node.operand, ast.Constant)
+            and isinstance(value.value, (int, float, complex))
         ):
             value.value = -value.value
             return value
@@ -56,16 +58,24 @@ class UpgradeDomainTransformer(ast.NodeTransformer):
         return self.visit_Tuple(node)
 
     def visit_Tuple(self, node: ast.Tuple | ast.List) -> ast.expr:
-        if len(node.elts) != 3 or not isinstance(node.elts[0], ast.Constant):
-            return self.generic_visit(node)
+        if (
+            len(node.elts) != 3
+            or not isinstance(node.elts[0], ast.Constant)
+            # elts[1] is the operator, read and rewritten as .value below.
+            or not isinstance(operator_node := node.elts[1], ast.Constant)
+        ):
+            return typing.cast("ast.expr", self.generic_visit(node))
         value_node = node.elts[2]
         if isinstance(value_node, (ast.Tuple, ast.List)):
-            value_node.elts = [
-                self.visit_Tuple(
-                    ast.Tuple([ast.Constant("x"), ast.Constant("="), el])
-                ).elts[2]
-                for el in value_node.elts
-            ]
+            rewritten = []
+            for el in value_node.elts:
+                # A synthetic ("x", "=", el) triple, so each element of an `in`
+                # value is rewritten the same way a scalar one is. visit_Tuple
+                # returns the node it was handed on every path.
+                triple = ast.Tuple([ast.Constant("x"), ast.Constant("="), el])
+                visited = typing.cast("ast.Tuple", self.visit_Tuple(triple))
+                rewritten.append(visited.elts[2])
+            value_node.elts = rewritten
             return node
         value = self.visit(value_node)
         if isinstance(value, str):
@@ -74,14 +84,14 @@ class UpgradeDomainTransformer(ast.NodeTransformer):
                 value = value.removeprefix("today ")
             if "!" in value:
                 value = value.replace("!", "")
-                operator = node.elts[1].value
+                operator = operator_node.value
                 if operator == ">":
                     operator += "="
                 elif operator == "<=":
                     operator = operator[:-1]
                 else:
                     return self._cannot_parse(node)
-                node.elts[1].value = operator
+                operator_node.value = operator
             node.elts[2] = ast.Constant(value)
             if not self.log:
                 self.log = []
@@ -89,14 +99,20 @@ class UpgradeDomainTransformer(ast.NodeTransformer):
 
     @staticmethod
     def parse_offset_keywords(kws: list[ast.keyword]) -> str | None:
-        values = {
-            kw.arg: kw.value.value for kw in kws if isinstance(kw.value, ast.Constant)
+        # Integers only. Every offset this renders is a whole number of days,
+        # months, hours and so on, and the length check below then rejects a
+        # call carrying anything else -- which previously passed the check and
+        # crashed in add_term() on `value < 0`.
+        values: dict[str | None, int] = {
+            kw.arg: kw.value.value
+            for kw in kws
+            if isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, int)
         }
         if len(values) != len(kws):
             return None
         result = ""
 
-        def build(value: float, suffix: str, eq: bool = False) -> None:
+        def add_term(value: float, suffix: str, eq: bool = False) -> None:
             nonlocal result
             if eq:
                 sign = "="
@@ -127,7 +143,7 @@ class UpgradeDomainTransformer(ast.NodeTransformer):
             ("seconds", "S"),
         ):
             if value := values.pop(name, None):
-                build(value, suffix)
+                add_term(value, suffix)
         for name, suffix in (
             ("day", "d"),
             ("month", "m"),
@@ -137,7 +153,7 @@ class UpgradeDomainTransformer(ast.NodeTransformer):
             ("second", "S"),
         ):
             if value := values.pop(name, None):
-                build(value, suffix, eq=True)
+                add_term(value, suffix, eq=True)
         if values:
             return None
         return result
@@ -159,14 +175,19 @@ class UpgradeDomainTransformer(ast.NodeTransformer):
             case ast.Attribute(value=value_node, attr="to_utc"), [], []:
                 value = self.visit(value_node)
             case (
-                ast.Attribute(value=value, attr="strftime"),
-                [ast.Constant(value=format)],
+                # The capture is named for what it is rather than reusing
+                # `value`, which is this method's accumulator: the two were the
+                # same name and the pattern silently rebound it.
+                ast.Attribute(value=target_node, attr="strftime"),
+                # str() narrows the Constant's value, which is otherwise the
+                # whole literal union; a strftime format is always a string.
+                [ast.Constant(value=str() as format)],
                 _,
             ):
-                if isinstance(value, ast.Name) and value.id == "time":
+                if isinstance(target_node, ast.Name) and target_node.id == "time":
                     value = "now"
                 else:
-                    value = self.visit(value)
+                    value = self.visit(target_node)
                 if isinstance(value, str):
                     if len(format) <= 10:
                         value = value.replace("now", "today")
@@ -207,8 +228,21 @@ class UpgradeDomainTransformer(ast.NodeTransformer):
                 args,
                 [],
             ):
-                with contextlib.suppress(ValueError):
-                    return datetime.time(*(n.value for n in args))
+                # Every argument must be an integer literal. .value on a
+                # non-Constant raised AttributeError and a non-int reached
+                # datetime.time() as a TypeError, and this suppress catches
+                # neither.
+                consts = [
+                    n.value
+                    for n in args
+                    if isinstance(n, ast.Constant) and isinstance(n.value, int)
+                ]
+                # At most four: datetime.time's fifth positional is tzinfo, and
+                # an int is not one.
+                if len(consts) == len(args) and len(consts) <= 4:
+                    hour, minute, second, micro = (*consts, 0, 0, 0, 0)[:4]
+                    with contextlib.suppress(ValueError):
+                        return datetime.time(hour, minute, second, micro)
 
         if isinstance(value, str):
             return value
@@ -221,7 +255,8 @@ class UpgradeDomainTransformer(ast.NodeTransformer):
             if isinstance(node.op, ast.Add):
                 return left + right
             if isinstance(node.op, ast.Sub):
-                right = right.translate(str.maketrans({"+": "-", "-": "+"}))
+                swap: dict[str, str | int | None] = {"+": "-", "-": "+"}
+                right = right.translate(str.maketrans(swap))
                 return left + right
             return self._cannot_parse(node, "binop")
         return node

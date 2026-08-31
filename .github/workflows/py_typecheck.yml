@@ -55,6 +55,21 @@ on:
       # every addon test runs on, and its `tests` directory name kept it out of
       # this gate and out of every _sources-based one.
       - 'odoo/tests/**/*.py'
+      # The tenth and eleventh scopes. `odoo/*.py` is not a stray glob: the
+      # seven top-level modules are named one by one with -m, and logutils.py
+      # alone held 23 of the 40 errors those two lanes opened on. Without these
+      # six globs a PR touching only the tree a lane was added for would not run
+      # that lane -- the same defect the seventh scope's note describes,
+      # reintroduced by the commit that closed the scope gap. Checked under
+      # GitHub's filter-pattern semantics, where `*` does not span a separator:
+      # an fnmatch probe calls `odoo/*.py` a match for
+      # `odoo/_monkeypatches/ast.py` and GitHub does not.
+      - 'odoo/*.py'
+      - 'odoo/api/**/*.py'
+      - 'odoo/fields/**/*.py'
+      - 'odoo/models/**/*.py'
+      - 'odoo/_monkeypatches/**/*.py'
+      - 'odoo/upgrade_code/**/*.py'
       - 'mypy.ini'
       - 'requirements*.txt'
       - 'tooling/ratchet/**'
@@ -156,7 +171,7 @@ jobs:
         run: |
           set +e
           python -m mypy --no-incremental --config-file mypy.ini \
-            -p odoo.tools 2>&1 | tee /tmp/mypy_tools.log
+            -p odoo.tools --verbose 2>&1 | tee /tmp/mypy_tools.log
           set -e
           ERR_COUNT=$(grep -cE ": error:" /tmp/mypy_tools.log || true)
           echo "error_count=${ERR_COUNT}" >> "$GITHUB_OUTPUT"
@@ -236,6 +251,85 @@ jobs:
           python tooling/ratchet/ratchet.py mypy_tests --count "${{ steps.mypy_tests.outputs.error_count }}" --json | tee /tmp/verdict_tests.json
           python tooling/ratchet/ratchet.py mypy_tests --count "${{ steps.mypy_tests.outputs.error_count }}"
 
+      - name: Run mypy (rest of core)
+        id: mypy_core_rest
+        # A TENTH SCOPE, AND A TENTH FLOOR: everything left in odoo/ that the
+        # nine scopes above do not name -- the three ORM façades, the two
+        # upgrade trees, _monkeypatches, and the seven top-level modules.
+        #
+        # These were in NO lane until 2026-08-30, which is not the same as
+        # being clean and reads identically from `ratchet.py --list`: a scope
+        # nothing measures and a scope measuring zero both show no errors. They
+        # held 40 -- 15 in _monkeypatches and 25 in three top-level modules,
+        # nearly all of them logutils.py.
+        #
+        # One of the 40 was a live defect, not a typing nit. PostgreSQLHandler
+        # called `tools.sql.column_exists`, and `odoo.tools.sql` had been
+        # deleted by `025bfb53b19`; the call sits inside
+        # contextlib.suppress(Exception), so every boot swallowed the
+        # AttributeError and left _support_metadata pinned to False. Nothing
+        # else in CI could see it -- the suppression makes it invisible at
+        # runtime and the module is imported by every process.
+        #
+        # THE FLOOR OPENS AT ZERO, as cli's and tests' did: all 40 were fixed
+        # rather than banked. tooling/typecheck/test_py_scope_coverage.py is
+        # what keeps the union of these ten scopes equal to the tree, so a new
+        # core package cannot repeat the gap.
+        run: |
+          set +e
+          # odoo/upgrade is deliberately absent: it holds a .gitkeep and no
+          # Python at all, and a scope resolving to nothing is a lane passing
+          # over air. odoo/upgrade_code has its own step below, because mypy
+          # refuses module mode and path mode in one invocation.
+          python -m mypy --no-incremental --config-file mypy.ini \
+            -p odoo.api -p odoo.fields -p odoo.models -p odoo._monkeypatches \
+            -m odoo -m odoo.__main__ -m odoo._testing_bootstrap \
+            -m odoo.exceptions -m odoo.init -m odoo.logutils -m odoo.release \
+            --verbose 2>&1 | tee /tmp/mypy_core_rest.log
+          set -e
+          # `|| true`, NOT `|| echo 0` -- see the note on the six-package step.
+          # This floor is zero, so the spelling is load-bearing on every green
+          # run rather than on some future one.
+          ERR_COUNT=$(grep -cE ": error:" /tmp/mypy_core_rest.log || true)
+          echo "error_count=${ERR_COUNT}" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce ratchet (rest of core)
+        run: |
+          python tooling/ratchet/ratchet.py mypy_core_rest --count "${{ steps.mypy_core_rest.outputs.error_count }}" --json | tee /tmp/verdict_core_rest.json
+          python tooling/ratchet/ratchet.py mypy_core_rest --count "${{ steps.mypy_core_rest.outputs.error_count }}"
+
+      - name: Run mypy (odoo/upgrade_code)
+        id: mypy_upgrade_code
+        # AN ELEVENTH SCOPE, AND IT IS PATH MODE ON PURPOSE. The upgrade
+        # scripts are named 18.5-00-domain-dynamic-dates.py and the like --
+        # valid filenames, invalid module names. mypy's module mode walks a
+        # package by dotted name, so `-p odoo.upgrade_code` parsed the
+        # directory, NONE of the nine files in it, and reported success. Passed
+        # as a path the same nine held 31 errors.
+        #
+        # A separate step because mypy refuses `-p` and a path together
+        # ("May only specify one of: module/package, files, or command").
+        #
+        # THE FLOOR OPENS AT ZERO. Several of the 31 were latent crashes rather
+        # than typing nits, all on inputs that parse: negating a non-numeric
+        # Constant, .value on a non-Constant argument, a DictReader.fieldnames
+        # of None, and data_file_module_name annotated FileManager -- which has
+        # no .path -- in two scripts. tooling/typecheck/test_py_scope_coverage.py
+        # holds this directory to path mode.
+        run: |
+          set +e
+          python -m mypy --no-incremental --config-file mypy.ini \
+            odoo/upgrade_code/ --verbose 2>&1 | tee /tmp/mypy_upgrade_code.log
+          set -e
+          # `|| true`, NOT `|| echo 0` -- see the note on the six-package step.
+          ERR_COUNT=$(grep -cE ": error:" /tmp/mypy_upgrade_code.log || true)
+          echo "error_count=${ERR_COUNT}" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce ratchet (odoo/upgrade_code)
+        run: |
+          python tooling/ratchet/ratchet.py mypy_upgrade_code --count "${{ steps.mypy_upgrade_code.outputs.error_count }}" --json | tee /tmp/verdict_upgrade_code.json
+          python tooling/ratchet/ratchet.py mypy_upgrade_code --count "${{ steps.mypy_upgrade_code.outputs.error_count }}"
+
       - name: Enforce per-file locks
         id: scope
         # The ratchet above measures ONE integer over six packages, so a clean
@@ -245,13 +339,19 @@ jobs:
         # complementary: the ratchet still catches aggregate drift inside the
         # exception set, and this catches every movement the total hides.
         #
-        # ALL THREE logs: cli and tests are SCOPED_PACKAGEs but are checked by
-        # their own mypy runs, so their "LOG:  Parsing" lines are in the other
-        # files. Feed the gate only /tmp/mypy.log and every cli and tests file
-        # reads as `unchecked` -- the verdict that exists precisely so a file
-        # nothing compiled cannot pass for a file found clean.
+        # EVERY LANE'S LOG. A SCOPED_PACKAGE checked by its own mypy run has
+        # its "LOG:  Parsing" lines in that run's file, so a log omitted here
+        # makes every file of its package read as `unchecked` -- the verdict
+        # that exists precisely so a file nothing compiled cannot pass for a
+        # file found clean. The list must therefore track SCOPED_PACKAGES:
+        # tools, api, fields, models, _monkeypatches and upgrade_code joined it
+        # when the scope gap was closed, and their lanes are the last three
+        # files below. Each of those runs carries --verbose for this step alone;
+        # it does not perturb the counts, as no verbose line matches ": error:".
         run: |
-          cat /tmp/mypy.log /tmp/mypy_cli.log /tmp/mypy_tests.log > /tmp/mypy_scoped.log
+          cat /tmp/mypy.log /tmp/mypy_cli.log /tmp/mypy_tests.log \
+              /tmp/mypy_tools.log /tmp/mypy_core_rest.log \
+              /tmp/mypy_upgrade_code.log > /tmp/mypy_scoped.log
           python tooling/typecheck/py_scope_gate.py --log /tmp/mypy_scoped.log --check
 
       - name: Summarise

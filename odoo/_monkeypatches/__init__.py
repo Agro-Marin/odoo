@@ -3,13 +3,18 @@ import os
 import pkgutil
 import sys
 import time
+from importlib.abc import Loader
 from types import ModuleType
 from typing import Any
 
 _SELF_PREFIX = __name__ + "."
 
 
-class _PatchingLoader:
+class _PatchingLoader(Loader):
+    # A real Loader, not a duck. find_spec() below assigns one onto
+    # ModuleSpec.loader, whose contract is Loader | None; inheriting states the
+    # contract the assignment already depends on instead of leaving it implied.
+    # Delegation to the wrapped loader still goes through __getattr__.
     def __init__(self, loader: Any, target: str) -> None:
         self._loader = loader
         self._target = target
@@ -37,7 +42,7 @@ class PatchImportHook:
         if fullname in sys.modules:
             patch_module(fullname)
 
-    def _target_of(self, fullname: str) -> str | None:
+    def _get_hook_target(self, fullname: str) -> str | None:
         if fullname in self.hooks:
             return fullname
         if fullname.startswith(_SELF_PREFIX):
@@ -49,7 +54,7 @@ class PatchImportHook:
     def find_spec(
         self, fullname: str, path: Any = None, target: ModuleType | None = None
     ) -> Any:
-        patched = self._target_of(fullname)
+        patched = self._get_hook_target(fullname)
         if patched is None:
             return None
 

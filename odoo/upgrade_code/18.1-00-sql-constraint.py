@@ -60,7 +60,7 @@ def upgrade(file_manager: FileManager) -> None:
     leftover_re = re.compile(r"\b_sql_constraints\b")
     ind = " " * 4
 
-    def build_sql_object(match: re.Match[str]) -> str:
+    def prepare_sql_object(match: re.Match[str]) -> str:
         try:
             constraints = ast.literal_eval("[" + match.group(1) + "]")
         except SyntaxError, ValueError:
@@ -101,7 +101,7 @@ def upgrade(file_manager: FileManager) -> None:
                 file.path,
             )
             continue
-        content = sql_expression_re.sub(build_sql_object, content)
+        content = sql_expression_re.sub(prepare_sql_object, content)
         if leftover_re.search(content):
             log.warning("Failed to replace in file %s", file.path)
         file.content = content

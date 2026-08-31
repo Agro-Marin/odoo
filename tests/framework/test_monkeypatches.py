@@ -145,7 +145,14 @@ class TestAstLiteralEvalLimit(unittest.TestCase):
         import ast
         import inspect
 
-        self.assertEqual(list(inspect.signature(ast.literal_eval).parameters), ["expr"])
+        self.assertEqual(
+            list(inspect.signature(ast.literal_eval).parameters), ["node_or_string"]
+        )
+
+    def test_the_stdlib_keyword_spelling_still_reaches_the_patch(self):
+        import ast
+
+        self.assertEqual(ast.literal_eval(node_or_string="[1, 2]"), [1, 2])
 
     def test_the_limit_cannot_be_overridden_by_a_caller(self):
         import ast
@@ -160,7 +167,10 @@ class TestAstLiteralEvalLimit(unittest.TestCase):
 
     @mute_logger("odoo._monkeypatches.ast")
     def test_the_env_var_is_resolved_once_and_validated(self):
-        from odoo._monkeypatches.ast import DEFAULT_BUFFER_SIZE, buffer_size_from_env
+        from odoo._monkeypatches.ast import (
+            DEFAULT_BUFFER_SIZE,
+            get_buffer_size_from_env,
+        )
 
         for raw, expected in (
             (None, DEFAULT_BUFFER_SIZE),
@@ -174,7 +184,7 @@ class TestAstLiteralEvalLimit(unittest.TestCase):
                 self.subTest(raw=raw),
                 self.patch_env("ODOO_LIMIT_LITEVAL_BUFFER", raw),
             ):
-                self.assertEqual(buffer_size_from_env(), expected)
+                self.assertEqual(get_buffer_size_from_env(), expected)
 
     def patch_env(self, name, value):
         import contextlib

@@ -1,0 +1,7 @@
+{
+  "gate": "mypy",
+  "package": "upgrade_code",
+  "total": 0,
+  "note": "Per-file ceilings for the files mypy excepts; membership still comes from exceptions/mypy/upgrade_code.txt. Harvested with the mypy version pinned in requirements-dev.txt — a different version reports different counts.",
+  "budgets": {}
+}

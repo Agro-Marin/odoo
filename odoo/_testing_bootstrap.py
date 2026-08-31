@@ -77,4 +77,7 @@ def pytest_load_initial_conftests(early_config, parser, args) -> None:
             _stub_for_target(target)
 
 
-pytest_load_initial_conftests.tryfirst = True
+# pytest's function-attribute spelling of @pytest.hookimpl(tryfirst=True). It is
+# used in preference to the decorator because this module must stay
+# stdlib-only: it runs before the stubs it installs are in place.
+pytest_load_initial_conftests.tryfirst = True  # type: ignore[attr-defined]

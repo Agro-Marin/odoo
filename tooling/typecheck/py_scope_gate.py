@@ -18,7 +18,41 @@ ROOT = find_odoo_root(Path(__file__).resolve(), tool="py_scope_gate")
 EXCEPTIONS_DIR = HERE / "exceptions" / "mypy"
 BUDGETS_DIR = HERE / "budgets"
 
-SCOPED_PACKAGES = ("orm", "db", "libs", "http", "service", "modules", "cli", "tests")
+# Every package of the core that a mypy lane names. The per-file locks are what
+# tell a file mypy found clean from a file mypy never opened, so a package with a
+# lane and no entry here is measured in aggregate only: its floor can sit at zero
+# while a file inside it goes unparsed. That is not hypothetical -- it is how
+# `-p odoo.upgrade_code` reported success over nine scripts it had not read.
+# `tools` had a lane and no entry from the day that lane was added; `api`,
+# `fields`, `models`, `_monkeypatches` and `upgrade_code` had neither until the
+# scope gap was closed.
+#
+# Top-level modules (odoo/logutils.py and the six beside it) are NOT here and do
+# not need to be. package_of() keys on the second path component and they have
+# none, but they are named one by one with `-m`, and mypy refuses a `-m` it
+# cannot resolve: `mypy: error: Cannot find module "odoo.x"` matches the
+# ": error:" the ratchet greps, so the lane goes red rather than quietly
+# measuring six modules where it claims seven. A named module cannot be skipped
+# the way a file inside a package can, which is the whole thing per-file locking
+# defends against. What holds the NAMING itself is
+# tooling/typecheck/test_py_scope_coverage.py: a top-level module appearing with
+# no lane, or a lane naming one that has been deleted, fails there.
+SCOPED_PACKAGES = (
+    "orm",
+    "db",
+    "libs",
+    "http",
+    "service",
+    "modules",
+    "cli",
+    "tests",
+    "tools",
+    "api",
+    "fields",
+    "models",
+    "_monkeypatches",
+    "upgrade_code",
+)
 
 ERROR_LINE_RE = re.compile(
     r"^(?P<path>[^\s:][^:]*\.py):(?P<line>\d+):(?P<col>\d+): error: "
@@ -243,13 +277,13 @@ def rank(errors: dict[str, dict[str, int]]) -> list[tuple[float, int, str]]:
 
 def report(verdicts: list[PackageVerdict], stream=sys.stdout) -> None:
     print(
-        f"\n  {'package':10s} {'locked':>7} {'excepted':>9} {'coverage':>9}",
+        f"\n  {'package':16s} {'locked':>7} {'excepted':>9} {'coverage':>9}",
         file=stream,
     )
     for verdict in verdicts:
         flag = "" if not verdict.failures else f"   {verdict.failures} FAIL"
         print(
-            f"  {verdict.package:10s} {verdict.locked:7d} {verdict.excepted:9d}"
+            f"  {verdict.package:16s} {verdict.locked:7d} {verdict.excepted:9d}"
             f" {verdict.coverage:8.0%}{flag}",
             file=stream,
         )
@@ -257,7 +291,7 @@ def report(verdicts: list[PackageVerdict], stream=sys.stdout) -> None:
     excepted = sum(v.excepted for v in verdicts)
     gated = locked + excepted
     print(
-        f"  {'TOTAL':10s} {locked:7d} {excepted:9d}"
+        f"  {'TOTAL':16s} {locked:7d} {excepted:9d}"
         f" {(locked / gated if gated else 1):8.0%}",
         file=stream,
     )

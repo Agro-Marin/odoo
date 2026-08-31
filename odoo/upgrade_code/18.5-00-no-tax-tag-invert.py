@@ -11,7 +11,7 @@ from lxml import etree
 if typing.TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from odoo.cli.upgrade_code import FileManager
+    from odoo.cli.upgrade_code import FileAccessor, FileManager
 
 _logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ def template2country(template: str) -> str:
     return f"base.{template[:2]}"
 
 
-def data_file_module_name(f: object) -> str:
+def data_file_module_name(f: FileAccessor) -> str:
     return f.path.parts[f.path.parts.index("data") - 1]
 
 
@@ -100,7 +100,9 @@ def strip_signs_from_template(file, country_tax_signs: dict) -> None:
     buffer = StringIO()
     writer = csv.DictWriter(
         buffer,
-        fieldnames=csv_file.fieldnames,
+        # fieldnames is None until a header is read; csv_data being non-empty
+        # means it has been.
+        fieldnames=csv_file.fieldnames or (),
         delimiter=",",
         quotechar='"',
         quoting=csv.QUOTE_ALL,
@@ -202,7 +204,7 @@ def upgrade(file_manager: FileManager) -> None:
     ]
     nb_report_files = len(tax_report_files)
 
-    tag_signs = defaultdict(dict)
+    tag_signs: dict = defaultdict(dict)
     for i, file in enumerate(tax_template_files):
         file_manager.print_progress(i, nb_template_files + nb_report_files, file.path)
         country = template2country(file.path.stem.split("-", maxsplit=1)[1])
@@ -213,7 +215,7 @@ def upgrade(file_manager: FileManager) -> None:
         for country in sorted(conflicts):
             _logger.warning("%s: %s", country, conflicts[country])
 
-    unknowns = defaultdict(list)
+    unknowns: dict = defaultdict(list)
     for i, file in enumerate(tax_report_files):
         file_manager.print_progress(
             nb_template_files + i,

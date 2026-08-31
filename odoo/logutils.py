@@ -8,12 +8,14 @@ import platform
 import sys
 import traceback
 import warnings
+from io import TextIOWrapper
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Any, Final, Protocol, TextIO, cast
 
 import werkzeug.serving
 
 from . import db, release, tools
+from .db.schema import column_exists
 from .libs.colors import BLUE, DEFAULT, GREEN, RED, WHITE, YELLOW, colorize
 from .libs.json import dumps as json_dumps
 from .libs.worker_thread import current_worker_thread
@@ -30,9 +32,14 @@ class WatchedFileHandler(logging.handlers.WatchedFileHandler):
         super().__init__(filename)
         self._builtin_open = None
 
-    def _open(self) -> IO[str]:
-        return Path(self.baseFilename).open(
-            self.mode, encoding=self.encoding, errors=self.errors
+    def _open(self) -> TextIOWrapper:
+        # The return type is the supertype's, not IO[str]: FileHandler._open is
+        # declared over TextIOWrapper and its callers use .reconfigure().
+        return cast(
+            "TextIOWrapper",
+            Path(self.baseFilename).open(
+                self.mode, encoding=self.encoding, errors=self.errors
+            ),
         )
 
 
@@ -47,7 +54,7 @@ class PostgreSQLHandler(logging.Handler):
                 db.db_connect(tools.config["log_db"], allow_uri=True).cursor() as cr,
             ):
                 self._support_metadata = bool(
-                    tools.sql.column_exists(cr, "ir_logging", "metadata")
+                    column_exists(cr, "ir_logging", "metadata")
                 )
 
     def emit(self, record: logging.LogRecord) -> None:
@@ -88,11 +95,12 @@ class PostgreSQLHandler(logging.Handler):
                 from . import modules
 
                 metadata = {}
-                if modules.module.current_test:
+                # current_test is the literal True between tests (loader.py sets
+                # it so), and only a TestCase carries get_log_metadata.
+                test = modules.module.current_test
+                if test is not True and test:
                     with contextlib.suppress(Exception):
-                        metadata["test"] = (
-                            modules.module.current_test.get_log_metadata()
-                        )
+                        metadata["test"] = test.get_log_metadata()
 
                 if metadata:
                     cr.execute(
@@ -136,25 +144,30 @@ class PerfFilter(logging.Filter):
         return cursor_mode or "-"
 
     def filter(self, record: logging.LogRecord) -> bool:
+        # perf_info is declared on this module's LogRecord, which
+        # patch_logging() installs as the process-wide record factory, not on
+        # logging.LogRecord -- the parameter type the Filter contract fixes.
+        # The parameter keeps its name: Filter.filter's is positional-or-keyword.
+        perf_record = cast("LogRecord", record)
         worker = current_worker_thread()
         if hasattr(worker, "query_count"):
             query_count = worker.query_count
             query_time = worker.query_time
             perf_t0 = worker.perf_t0
             remaining_time = tools.real_time() - perf_t0 - query_time
-            record.perf_info = "%s %s %s" % self.format_perf(
+            perf_record.perf_info = "%s %s %s" % self.format_perf(
                 query_count, query_time, remaining_time
             )
             if tools.config["db_replica_host"] or "replica" in tools.config["dev_mode"]:
                 cursor_mode = worker.cursor_mode
-                record.perf_info = (
-                    f"{record.perf_info} {self.format_cursor_mode(cursor_mode)}"
+                perf_record.perf_info = (
+                    f"{perf_record.perf_info} {self.format_cursor_mode(cursor_mode)}"
                 )
             del worker.query_count
         elif tools.config["db_replica_host"] or "replica" in tools.config["dev_mode"]:
-            record.perf_info = "- - - -"
+            perf_record.perf_info = "- - - -"
         else:
-            record.perf_info = "- - -"
+            perf_record.perf_info = "- - -"
         return True
 
 
@@ -215,10 +228,12 @@ class JSONFormatter(logging.Formatter):
             }
 
     def format(self, record: logging.LogRecord) -> str:
-        record_json = {}
+        # Values are heterogeneous: most keys copy a LogRecord attribute, but
+        # "test" carries the metadata mapping get_log_metadata() returns.
+        record_json: dict[str, object] = {}
         record_keys = self.record_keys
         if record_keys is None:
-            record_keys = self._get_default_record_keys(record)
+            record_keys = self._get_record_keys_default(record)
         for key in record_keys:
             if key == "exc_info":
                 if record.exc_info:
@@ -237,9 +252,10 @@ class JSONFormatter(logging.Formatter):
             elif key == "test":
                 from .modules import module
 
-                if module.current_test:
+                test = module.current_test
+                if test is not True and test:
                     with contextlib.suppress(Exception):
-                        record_json[key] = module.current_test.get_log_metadata()
+                        record_json[key] = test.get_log_metadata()
             else:
                 value = getattr(record, key, None)
                 if value is not None:
@@ -247,7 +263,7 @@ class JSONFormatter(logging.Formatter):
 
         return json.dumps(record_json, default=str)
 
-    def _get_default_record_keys(self, record: logging.LogRecord) -> list:
+    def _get_record_keys_default(self, record: logging.LogRecord) -> list:
         return sorted(
             (record.__dict__.keys() | {"message", "test"}) - self.ignore_record_keys
         )
@@ -262,9 +278,8 @@ class LogRecord(logging.LogRecord):
         lineno: int,
         msg: object,
         args: tuple | dict[str, object] | None,
-        exc_info: tuple[type[BaseException], BaseException, types.TracebackType]
+        exc_info: tuple[type[BaseException], BaseException, types.TracebackType | None]
         | tuple[None, None, None]
-        | bool
         | None,
         func: str | None = None,
         sinfo: str | None = None,
@@ -290,7 +305,22 @@ class LogRecord(logging.LogRecord):
         self.uid = uid if uid is not None else "-"
 
 
-showwarning: object = None
+class _ShowWarning(Protocol):
+    def __call__(
+        self,
+        message: Warning | str,
+        category: type[Warning],
+        filename: str,
+        lineno: int,
+        file: TextIO | None = None,
+        line: str | None = None,
+    ) -> None: ...
+
+
+# The stdlib hook patch_logging() saves before replacing it. It starts as the
+# real one rather than None, so calling it before that point is a no-op rather
+# than a TypeError.
+showwarning: _ShowWarning = warnings.showwarning
 
 
 def _silence_dependency_warnings() -> None:
@@ -360,7 +390,9 @@ def _apply_log_config_file() -> dict | None:
 
 def _install_log_handler() -> None:
     format = "%(asctime)s %(pid)s %(levelname)s uid:%(uid)s %(dbname)s %(name)s: %(message)s %(perf_info)s"
-    handler = logging.StreamHandler()
+    # Handler, not StreamHandler: the branches below replace it with syslog,
+    # NT-event-log and file handlers, none of which is a StreamHandler.
+    handler: logging.Handler = logging.StreamHandler()
 
     if tools.config["syslog"]:
         if os.name == "nt":
@@ -395,8 +427,8 @@ def _install_log_handler() -> None:
         and isinstance(handler, logging.StreamHandler)
         and (is_a_tty(handler.stream) or os.environ.get("ODOO_PY_COLORS"))
     ):
-        formatter = ColoredFormatter(format)
-        perf_filter = ColoredPerfFilter()
+        formatter: logging.Formatter = ColoredFormatter(format)
+        perf_filter: PerfFilter = ColoredPerfFilter()
     else:
         formatter = logging.Formatter(format)
         perf_filter = PerfFilter()
@@ -483,7 +515,10 @@ PSEUDOCONFIG_MAPPER: Final[dict[str, list[str]]] = {
 
 RUNBOT: Final[int] = 25
 
-logging.RUNBOT = RUNBOT
+# A custom level published on the logging module, and _nameToLevel is the
+# private table that resolves its name. Neither is something typeshed declares,
+# which is what makes these two lines a patch rather than an API call.
+logging.RUNBOT = RUNBOT  # type: ignore[attr-defined]
 logging.addLevelName(RUNBOT, "INFO")
 logging._nameToLevel["INFO"] = logging.INFO
 IGNORE: Final[frozenset[str]] = frozenset(
@@ -494,17 +529,23 @@ IGNORE: Final[frozenset[str]] = frozenset(
 
 
 def showwarning_with_traceback(
-    message: Warning,
+    message: Warning | str,
     category: type[Warning],
     filename: str,
     lineno: int,
-    file: IO[str] | None = None,
+    file: TextIO | None = None,
     line: str | None = None,
 ) -> None:
-    if category is BytesWarning and message.args[0] in IGNORE:
+    # The signature is warnings.showwarning's, which this replaces: message is
+    # a str when a caller passes warnings.warn a plain string.
+    if (
+        category is BytesWarning
+        and isinstance(message, Warning)
+        and message.args[0] in IGNORE
+    ):
         return None
 
-    filtered = []
+    filtered: list[traceback.FrameSummary] = []
     for frame in traceback.extract_stack():
         if frame.name == "__call__" and frame.filename.endswith(
             "/odoo/http/application.py"
@@ -524,8 +565,10 @@ def showwarning_with_traceback(
     )
 
 
-def runbot(self: logging.Logger, message: str, *args: object, **kws: object) -> None:
+def runbot(self: logging.Logger, message: str, *args: object, **kws: Any) -> None:
     self.log(RUNBOT, message, *args, **kws)
 
 
-logging.Logger.runbot = runbot
+# Logger.runbot is this fork's own level-25 shorthand, added to the class the
+# same way Logger.warning et al. are defined on it.
+logging.Logger.runbot = runbot  # type: ignore[attr-defined]

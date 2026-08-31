@@ -2315,7 +2315,7 @@ def rewrite_fiscal_position_file(
     module_name = file.addon.name
     csv_file = csv.DictReader(file.content.splitlines())
     csv_data = list(csv_file)
-    field_names = csv_file.fieldnames
+    field_names = list(csv_file.fieldnames or ())
     if not field_names:
         return
     if SRC_FIELD not in field_names or DEST_FIELD not in field_names:
@@ -2400,7 +2400,7 @@ def rewrite_tax_file(
     buffer = StringIO()
     writer = csv.DictWriter(
         buffer,
-        fieldnames=tax_fieldnames(csv_file.fieldnames, is_primary_tax),
+        fieldnames=tax_fieldnames(list(csv_file.fieldnames), is_primary_tax),
         delimiter=",",
         quotechar='"',
         quoting=csv.QUOTE_ALL,
@@ -2441,7 +2441,7 @@ def upgrade(file_manager: FileManager) -> None:
     nb_tax_files = len(tax_data_files)
 
     eu_b2c_fps: dict[str, str] = {}
-    tax_positions = defaultdict(
+    tax_positions: dict = defaultdict(
         lambda: defaultdict(
             lambda: defaultdict(lambda: defaultdict(fp=set(), replaces=set()))
         )

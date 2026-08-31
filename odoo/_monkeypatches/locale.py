@@ -4,11 +4,14 @@ import time
 
 
 def patch_module() -> None:
+    # typeshed declares D_FMT/T_FMT Final because on POSIX they are; these two
+    # branches exist for the platforms (Windows) where nl_langinfo and its
+    # constants are absent altogether, which is exactly what hasattr tests.
     if not hasattr(locale, "D_FMT"):
-        locale.D_FMT = 1
+        locale.D_FMT = 1  # type: ignore[misc]
 
     if not hasattr(locale, "T_FMT"):
-        locale.T_FMT = 2
+        locale.T_FMT = 2  # type: ignore[misc]
 
     if not hasattr(locale, "nl_langinfo"):
 
@@ -34,4 +37,7 @@ def patch_module() -> None:
                 return format_time
             return None
 
-        locale.nl_langinfo = nl_langinfo
+        # The stdlib signature returns str; this stand-in returns None for the
+        # constants it does not synthesise, which is what the callers here
+        # already handle.
+        locale.nl_langinfo = nl_langinfo  # type: ignore[assignment]

@@ -10,7 +10,7 @@ from lxml import etree
 from lxml.builder import E
 
 if typing.TYPE_CHECKING:
-    from odoo.cli.upgrade_code import FileManager
+    from odoo.cli.upgrade_code import FileAccessor, FileManager
 
 
 MODELS = {
@@ -66,7 +66,9 @@ def parse_xmlid(xmlid: str, default_module: str) -> tuple[str, str]:
     return split_id[0], split_id[1]
 
 
-def data_file_module_name(f: FileManager) -> str:
+def data_file_module_name(f: FileAccessor) -> str:
+    # A FileAccessor, not a FileManager: the manager has no .path, and both
+    # call sites pass an element of the manager, which is what it iterates.
     return f.path.parts[f.path.parts.index("data") - 1]
 
 
@@ -164,6 +166,9 @@ def inline_csv_translations(file, module_name: str, translations: dict) -> None:
     csv_data = list(csv_file)
     if not csv_data or "id" not in csv_data[0]:
         return
+    # DictReader.fieldnames is None until a header is read; csv_data being
+    # non-empty means it has been.
+    fieldnames = list(csv_file.fieldnames or ())
     fnames = sorted(set(csv_data[0].keys()) & set(MODELS[model]))
     if not fnames:
         return
@@ -174,12 +179,12 @@ def inline_csv_translations(file, module_name: str, translations: dict) -> None:
     buffer = StringIO()
     writer = csv.DictWriter(
         buffer,
-        fieldnames=csv_file.fieldnames
+        fieldnames=fieldnames
         + [
             f"{fname}@{lang}"
             for lang in langs
             for fname in fnames
-            if f"{fname}@{lang}" not in csv_file.fieldnames
+            if f"{fname}@{lang}" not in fieldnames
         ],
         delimiter=",",
         quotechar='"',
@@ -215,7 +220,7 @@ def upgrade(file_manager: FileManager) -> None:
     ]
     nb_data_files = len(data_files)
 
-    translations = defaultdict(
+    translations: dict = defaultdict(
         lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
     )
     for i, file in enumerate(translation_files):

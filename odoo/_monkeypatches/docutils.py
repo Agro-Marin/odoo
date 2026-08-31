@@ -30,6 +30,9 @@ def _role_literal(
 
 
 class _AdmonitionWithLead(Note):
+    # docutils ships no stubs, so Directive's attributes arrive untyped and
+    # mypy cannot resolve self.content from the assignment in run() alone.
+    content: StringList
     lead: ClassVar[str] = "%s"
     required_arguments = 0
     optional_arguments = 1

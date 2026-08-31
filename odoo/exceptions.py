@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from odoo.tools.translate import LazyGettext
@@ -53,8 +53,16 @@ class AccessError(UserError):
     http_status: int = HTTPStatus.FORBIDDEN
 
 
+class _Named(Protocol):
+    # All CacheMiss needs of a Field is its name. Stating that as a Protocol
+    # keeps this module foundational -- it imports nothing from odoo.orm, which
+    # the root-modules-are-foundational layering contract forbids -- while still
+    # typing the attribute the message reads.
+    name: str
+
+
 class CacheMiss(KeyError):
-    def __init__(self, record: object, field: object) -> None:
+    def __init__(self, record: object, field: _Named) -> None:
         super().__init__("%r.%s" % (record, field.name))
 
 
