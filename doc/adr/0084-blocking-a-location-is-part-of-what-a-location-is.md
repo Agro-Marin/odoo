@@ -50,19 +50,19 @@ failed: three levels deep, a grandchild kept `none` under a hard-blocked
 ancestor. The cause is not in the addon — the recompute engine hands a recursive
 field one record at a time in an order that put the descendant before its
 ancestor, so the descendant read the parent's pre-write value, stored it, and
-was never marked again. `stock.location.complete_name` has the same shape and
+was never marked again. `stock.location`'s `complete_name` has the same shape and
 the same exposure; it has survived on batch order.
 
 ## Decision
 
 **The blocking feature is part of `stock`.** Its fields, groups, enforcement,
-views, translations and tests live in `odoo/addons/stock`; the addon is gone.
+views, translations and tests live in `addons/stock`; the addon is gone.
 
 Its xml ids are re-homed from `stock_blocked_location.*` to `stock.*`, its three
 inherited views are folded into the base arch of the views they inherited, and
 its constants live in `stock/const.py` beside the ones already there.
 
-`effective_block_type` now walks `block_type` up the tree rather than reading
+`effective_block_type` walks `block_type` up the tree rather than reading
 its parent's `effective_block_type`. The `depends` still names the parent's
 computed field, because that is what marks a whole subtree when an ancestor
 changes; the compute body reads a plain stored column, which is never pending,
@@ -120,7 +120,7 @@ directory is missing *and everything that depends on it*, so by `stock`'s own
 pre-migration `marin` would already have stopped loading.
 
 The addon's own data migrations are carried over in
-`odoo/addons/stock/migrations/1.13/`, for databases that never reached them —
+`addons/stock/migrations/1.13/`, for databases that never reached them —
 **as a `post-migrate`, through the ORM, and that is not a stylistic choice.**
 Every gate reads `effective_block_type`, never `block_type`. Clearing an illegal
 `block_type` in raw SQL, which is what the addon's own 19.0.3.0.0 did, leaves
@@ -136,3 +136,32 @@ under-enforcing as readily as over-enforcing.
 against the raw-SQL shape to confirm it fails there.
 
 No new gate. The feature is held by `stock`'s existing lanes.
+
+## Amendments
+
+### 2026-08-31 — three references corrected, no argument touched
+
+`test_adr_coherence` was red on this record from the commit that landed it, and
+its author had signed off. Corrected by another session under §12.1, which makes
+a red gate mine once nobody is mid-fix on it. Recorded here because §10 makes an
+Accepted record immutable, so a later reader is owed the diff rather than a
+silent rewrite. The decision, the reasoning and every figure are unchanged.
+
+- **The stock paths lost their odoo/ prefix**, twice, including the migrations
+  path: they now read `addons/stock`. The gate resolves ADR paths from the repo
+  root, where `odoo/` is the framework core PACKAGE and the bundled addons are
+  `addons/`, so the original spelling resolved to nothing. Named in prose here
+  rather than quoted, because a backticked path is itself a reference the gate
+  must resolve -- quoting the broken one to explain it keeps the gate red.
+- **`` `stock.location.complete_name` `` → `` `stock.location`'s `complete_name` ``.**
+  A backticked dotted token is read as a model name, and no `_name`/`_inherit`
+  declares that one. The field is real; the spelling asserted a model that is
+  not. This is the same convention the rest of the corpus follows — `portal`'s
+  `access_token` rather than the dotted form.
+- **"`effective_block_type` now walks…" → "…walks…".** "Now" asserts a live
+  status inside an immutable record, which `TestNoLiveStatusClaims` forbids: what
+  is current at the time of writing stops being current, and the record cannot
+  be edited to say so.
+
+The `stock.location`'s `complete_name` exposure the Context names is unchanged
+and still open.
