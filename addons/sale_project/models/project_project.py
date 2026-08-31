@@ -1153,7 +1153,6 @@ class ProjectProject(models.Model):
                     "sequence": 27,
                 }
             )
-        if self.env.user.has_group("sales_team.group_sale_salesman_all_leads"):
             buttons.append(
                 {
                     "icon": "dollar",
