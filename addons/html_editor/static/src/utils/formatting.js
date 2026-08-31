@@ -3,13 +3,7 @@ import { normalizeCSSColor } from "@web/core/utils/format/colors";
 
 import { closestBlock, isBlock } from "./blocks.js";
 import { removeClass } from "./dom.js";
-import {
-    isBold,
-    isDirectionSwitched,
-    isItalic,
-    isStrikeThrough,
-    isUnderline,
-} from "./dom_info.js";
+import { isBold, isItalic, isStrikeThrough, isUnderline } from "./dom_info.js";
 import { closestElement, closestPath, findNode, findUpTo } from "./dom_traversal.js";
 
 export const FONT_SIZE_CLASSES = [
@@ -187,9 +181,6 @@ export const formatsSpecs = {
                 node.classList.add("o_default_font_size");
             }
         },
-    },
-    switchDirection: {
-        isFormatted: (node, props) => isDirectionSwitched(node, props.editable),
     },
 };
 
