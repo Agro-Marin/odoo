@@ -2170,3 +2170,317 @@ class TestWarehouse(TestStockCommon):
             any(route.rule_ids.mapped("active")),
             "and must not carry live rules underneath it",
         )
+
+    def test_each_warehouse_gets_its_own_operation_type_color(self):
+        Warehouse = self.env["stock.warehouse"]
+        color_fields = ("in_type_id", "out_type_id", "int_type_id", "pick_type_id")
+        taken = {
+            picking_type.color
+            for picking_type in self.env["stock.picking.type"]
+            .with_context(active_test=False)
+            .search(
+                [
+                    ("warehouse_id", "!=", False),
+                    ("company_id", "=", self.env.company.id),
+                ]
+            )
+        }
+        made = Warehouse.create(
+            [{"name": "Hue %d" % index, "code": "HUE%d" % index} for index in range(3)]
+        )
+        self.env.flush_all()
+        seen = []
+        for warehouse in made:
+            colors = {warehouse[field].color for field in color_fields}
+            self.assertEqual(
+                len(colors),
+                1,
+                "%s spread its operation types over several colors" % warehouse.code,
+            )
+            color = colors.pop()
+            self.assertNotIn(
+                color,
+                taken,
+                "%s reused a color another warehouse already holds" % warehouse.code,
+            )
+            taken.add(color)
+            seen.append(color)
+        self.assertEqual(
+            len(set(seen)), len(seen), "the new warehouses share a color: %s" % seen
+        )
+
+    def test_default_names_read_the_existing_ones_once_per_company(self):
+        Warehouse = self.env["stock.warehouse"]
+        model = type(Warehouse)
+        original = model._existing_warehouse_values
+        calls = []
+
+        def spy(records, field_name, company, taken=()):
+            calls.append(field_name)
+            return original(records, field_name, company, taken)
+
+        self.patch(model, "_existing_warehouse_values", spy)
+        Warehouse.create([{} for _ in range(5)])
+        self.env.flush_all()
+        self.assertEqual(
+            sorted(calls),
+            ["code", "name"],
+            "the existing names and codes are read once per field per company, "
+            "not once per record; got %s" % calls,
+        )
+
+    def test_supplying_a_name_and_code_reads_nothing(self):
+        Warehouse = self.env["stock.warehouse"]
+        model = type(Warehouse)
+        original = model._existing_warehouse_values
+        calls = []
+
+        def spy(records, field_name, company, taken=()):
+            calls.append(field_name)
+            return original(records, field_name, company, taken)
+
+        self.patch(model, "_existing_warehouse_values", spy)
+        Warehouse.create({"name": "Explicit", "code": "EXPL"})
+        self.env.flush_all()
+        self.assertEqual(
+            calls, [], "nothing needs generating, so nothing should be read"
+        )
+
+    def test_a_settled_warehouse_rebuilds_its_routes_without_writing(self):
+        warehouse = self.env["stock.warehouse"].create(
+            {"name": "Settled", "code": "STL"}
+        )
+        self.env.flush_all()
+        model = type(warehouse)
+        original = model.write
+        writes = []
+
+        def spy(records, vals):
+            writes.append(set(vals))
+            return original(records, vals)
+
+        self.patch(model, "write", spy)
+        warehouse._create_or_update_route()
+        self.env.flush_all()
+        self.assertEqual(
+            writes,
+            [],
+            "re-linking routes that are already linked cost a full write: %s" % writes,
+        )
+
+    def test_reactivation_replays_every_trigger_field_through_write(self):
+        warehouse = self.env["stock.warehouse"].create(
+            {"name": "Replayed", "code": "RPL"}
+        )
+        self.env.flush_all()
+        seen = []
+        model = type(warehouse)
+        original = model.write
+
+        def spy(records, vals):
+            seen.append(set(vals))
+            return original(records, vals)
+
+        warehouse.action_archive()
+        self.env.flush_all()
+        self.patch(model, "write", spy)
+        warehouse.action_unarchive()
+        self.env.flush_all()
+
+        triggers = set(warehouse._get_fields_route_trigger())
+        replayed = {name for vals in seen for name in vals} & triggers
+        self.assertEqual(
+            replayed,
+            triggers,
+            "reactivation must write every trigger field so each module's write() "
+            "override replays its own reconfiguration; missing: %s"
+            % (triggers - replayed),
+        )
+
+    def test_a_rebuilt_operation_type_keeps_its_warehouse_color(self):
+        Warehouse = self.env["stock.warehouse"]
+        first, _second, third = Warehouse.create(
+            [{"name": "Hue %s" % code, "code": code} for code in ("GPA", "GPB", "GPC")]
+        )
+        self.env.flush_all()
+        expected = third.in_type_id.color
+
+        first.unlink()  # frees a lower color, so a fresh allocation would differ
+        self.env.flush_all()
+
+        stale = third.out_type_id
+        stale.barcode = False
+        third.write({"out_type_id": False})
+        third.write(third._create_or_update_picking_types())
+        self.env.flush_all()
+
+        self.assertEqual(
+            third.out_type_id.color,
+            expected,
+            "the rebuilt operation type was given a fresh color instead of its "
+            "warehouse's, so one warehouse now spans two colors",
+        )
+
+    def test_rebuilding_one_side_keeps_the_return_operation_type(self):
+        warehouse = self.env["stock.warehouse"].create(
+            {"name": "Returner", "code": "RTN"}
+        )
+        self.env.flush_all()
+        incoming = warehouse.in_type_id
+        self.assertEqual(warehouse.out_type_id.return_picking_type_id, incoming)
+        self.assertEqual(incoming.return_picking_type_id, warehouse.out_type_id)
+
+        stale_outgoing = warehouse.out_type_id
+        stale_outgoing.barcode = False
+        warehouse.write({"out_type_id": False})
+        warehouse.write(warehouse._create_or_update_picking_types())
+        self.env.flush_all()
+
+        self.assertNotEqual(warehouse.out_type_id, stale_outgoing)
+        self.assertEqual(
+            warehouse.out_type_id.return_picking_type_id,
+            incoming,
+            "the rebuilt outgoing type did not point back at the surviving receipt",
+        )
+        self.assertEqual(
+            incoming.return_picking_type_id,
+            warehouse.out_type_id,
+            "the receipt still points at the operation type that was replaced",
+        )
+
+    def test_a_reconfigure_leaves_a_custom_return_operation_type_alone(self):
+        warehouse = self.env["stock.warehouse"].create(
+            {"name": "Curated", "code": "CUR"}
+        )
+        self.env.flush_all()
+        custom = self.env["stock.picking.type"].create(
+            {
+                "name": "Curated Return",
+                "code": "incoming",
+                "sequence_code": "CRT",
+                "company_id": self.env.company.id,
+            }
+        )
+        warehouse.in_type_id.return_picking_type_id = custom
+        self.env.flush_all()
+
+        warehouse.write({"reception_steps": "two_steps"})
+        warehouse.write({"delivery_steps": "pick_pack_ship"})
+        warehouse.write({"code": "CUX"})
+        self.env.flush_all()
+
+        self.assertEqual(
+            warehouse.in_type_id.return_picking_type_id,
+            custom,
+            "a reconfigure re-paired operation types that it never recreated",
+        )
+
+    def test_a_squatted_operation_type_barcode_does_not_break_a_recode(self):
+        warehouse = self.env["stock.warehouse"].create(
+            {"name": "Squatted", "code": "SQA"}
+        )
+        squatter = self.env["stock.picking.type"].create(
+            {
+                "name": "Hand made",
+                "code": "internal",
+                "sequence_code": "HAND",
+                "barcode": "SQBIN",
+                "company_id": self.env.company.id,
+            }
+        )
+        self.env.flush_all()
+
+        warehouse.write({"code": "SQB"})
+        self.env.flush_all()
+
+        self.assertEqual(squatter.barcode, "SQBIN", "the squatter lost its barcode")
+        self.assertFalse(
+            warehouse.in_type_id.barcode,
+            "the receipt type took a barcode another operation type already held",
+        )
+        self.assertEqual(
+            warehouse.out_type_id.barcode,
+            "SQBOUT",
+            "an unclaimed barcode was dropped along with the contested one",
+        )
+
+    def test_two_records_claiming_one_barcode_do_not_reach_the_database(self):
+        Warehouse = self.env["stock.warehouse"]
+        values_list = [{"barcode": "TWINBC"}, {"barcode": "TWINBC"}]
+        Warehouse._resolve_barcodes(
+            "stock.picking.type", values_list, self.env.company.id
+        )
+        self.assertEqual(
+            [values["barcode"] for values in values_list],
+            ["TWINBC", False],
+            "the resolver checked the database but not its own batch, so both "
+            "records would reach the unique index",
+        )
+
+    def test_duplicate_barcode_suffixes_are_refused_at_declaration(self):
+        warehouse = self.warehouse_1
+        codes = warehouse._get_picking_type_codes()
+        suffixes = dict(warehouse._get_picking_type_barcode_suffixes(codes))
+        suffixes["xdock_type_id"] = suffixes["in_type_id"]
+        with self.assertRaises(ValueError):
+            warehouse._check_picking_type_registry(
+                warehouse._prepare_picking_type_update_vals(),
+                warehouse._prepare_picking_type_create_vals(),
+                suffixes,
+                codes,
+            )
+
+    def test_two_locations_claiming_one_barcode_do_not_reach_the_database(self):
+        Warehouse = self.env["stock.warehouse"]
+        model = type(Warehouse)
+        original = model._prepare_sub_location_vals
+
+        def clashing(self, vals, code=False):
+            values = original(self, vals, code)
+            values["wh_qc_stock_loc_id"] = dict(
+                values["wh_qc_stock_loc_id"],
+                barcode=values["lot_stock_id"]["barcode"],
+            )
+            return values
+
+        self.patch(model, "_prepare_sub_location_vals", clashing)
+        warehouse = Warehouse.create({"name": "Clashing Loc", "code": "CLL"})
+        self.env.flush_all()
+        self.assertEqual(warehouse.lot_stock_id.barcode, "CLLSTOCK")
+        self.assertFalse(
+            warehouse.wh_qc_stock_loc_id.barcode,
+            "the second claimant of a barcode kept it and reached the unique index",
+        )
+
+    def test_a_step_field_without_a_default_does_not_crash_the_builder(self):
+        Warehouse = self.env["stock.warehouse"]
+        original = type(Warehouse)._get_fields_location_step
+        self.patch(
+            type(Warehouse),
+            "_get_fields_location_step",
+            lambda self: original(self) + ["code"],
+        )
+        values = Warehouse.browse()._get_location_step_values({})
+        self.assertEqual(values["reception_steps"], "one_step")
+        self.assertEqual(values["code"], "")
+
+    def test_an_oversized_code_derives_names_from_what_is_stored(self):
+        warehouse = self.env["stock.warehouse"].create(
+            {"name": "Oversize", "code": "OVR"}
+        )
+        self.env.flush_all()
+        warehouse.write({"code": "ABCDEFGH"})
+        self.env.flush_all()
+
+        stored = warehouse.code
+        self.assertEqual(stored, "ABCDE", "stock.warehouse.code is a Char(5)")
+        self.assertEqual(warehouse.view_location_id.name, stored)
+        self.assertEqual(warehouse.lot_stock_id.barcode, stored + "STOCK")
+        self.assertEqual(warehouse.in_type_id.barcode, stored + "IN")
+        rule = self.env["stock.rule"].search(
+            [("warehouse_id", "=", warehouse.id)], limit=1
+        )
+        self.assertTrue(
+            rule.name.startswith(stored + ": "),
+            "rule %r is prefixed by a code the warehouse does not hold" % rule.name,
+        )

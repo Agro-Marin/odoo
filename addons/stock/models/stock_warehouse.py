@@ -18,6 +18,11 @@ class Routing(typing.NamedTuple):
     action: str
 
 
+class PendingWrite(typing.NamedTuple):
+    toggling: models.Model
+    old_resupply_whs: dict
+
+
 class OwnedRecords(typing.NamedTuple):
     picking_types: models.Model
     rules: models.Model
@@ -297,12 +302,11 @@ class StockWarehouse(models.Model):
             view_location = warehouse.view_location_id
             if not view_location:
                 continue
-            root = view_location.parent_path
             for field_name in warehouse._sub_location_field_names():
                 location = warehouse[field_name]
-                if not location or not root:
+                if not location:
                     continue
-                if not (location.parent_path or "").startswith(root):
+                if not self._location_is_inside(location, view_location):
                     raise ValidationError(
                         _(
                             "%(location)s is not inside warehouse %(warehouse)s, so it "
@@ -312,6 +316,23 @@ class StockWarehouse(models.Model):
                             field=warehouse._fields[field_name].string,
                         )
                     )
+
+    @api.model
+    def _location_is_inside(self, location, ancestor):
+        root, path = ancestor.parent_path, location.parent_path
+        if root and path:
+            return path.startswith(root)
+        # parent_path is a stored compute; when it has not been written yet a
+        # prefix test cannot answer, and answering "inside" would make the
+        # constraint vacuous exactly when the tree is in flux.
+        current = location
+        seen = set()
+        while current and current.id not in seen:
+            if current == ancestor:
+                return True
+            seen.add(current.id)
+            current = current.location_id
+        return False
 
     @api.constrains("resupply_wh_ids")
     def _check_resupply_wh_ids(self):
@@ -326,8 +347,8 @@ class StockWarehouse(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        taken_names = defaultdict(set)
-        taken_codes = defaultdict(set)
+        taken = {}
+        chosen = defaultdict(set)
         for vals in vals_list:
             company = (
                 self.env["res.company"].browse(vals["company_id"])
@@ -337,18 +358,20 @@ class StockWarehouse(models.Model):
             vals.setdefault("company_id", company.id)
             if "name" not in vals:
                 vals["name"] = self._generate_default_name(
-                    company, taken_names[company.id]
+                    company,
+                    self._taken_warehouse_values(taken, "name", company, chosen),
                 )
             if "code" not in vals:
                 vals["code"] = self._generate_default_code(
-                    company, taken_codes[company.id]
+                    company,
+                    self._taken_warehouse_values(taken, "code", company, chosen),
                 )
             else:
                 vals["code"] = self._normalize_code(vals["code"])
             if "partner_id" not in vals:
                 vals["partner_id"] = company.partner_id.id
-            taken_names[company.id].add(vals["name"])
-            taken_codes[company.id].add(vals["code"])
+            chosen["name", company.id].add(vals["name"])
+            chosen["code", company.id].add(vals["code"])
             if not vals.get("view_location_id"):
                 loc_vals = {
                     "name": vals["code"],
@@ -365,7 +388,9 @@ class StockWarehouse(models.Model):
                 .items()
                 if not vals.get(field)
             }
-            self._resolve_barcodes(list(sub_locations.values()), company.id)
+            self._resolve_barcodes(
+                "stock.location", list(sub_locations.values()), company.id
+            )
             for values in sub_locations.values():
                 values["location_id"] = vals["view_location_id"]
                 values["company_id"] = company.id
@@ -430,7 +455,7 @@ class StockWarehouse(models.Model):
 
         if vals.get("delivery_steps"):
             warehouses._update_location_delivery(vals["delivery_steps"])
-            warehouses._update_reception_delivery_resupply(vals["delivery_steps"])
+            warehouses._update_delivery_steps_resupply(vals["delivery_steps"])
 
         old_resupply_whs = {}
         if vals.get("resupply_wh_ids") and not vals.get("resupply_route_ids"):
@@ -458,10 +483,7 @@ class StockWarehouse(models.Model):
             else warehouses.browse()
         )
 
-        return {
-            "toggling": toggling,
-            "old_resupply_whs": old_resupply_whs,
-        }
+        return PendingWrite(toggling=toggling, old_resupply_whs=old_resupply_whs)
 
     def _post_write_refresh(self, vals, before):
         warehouses = self
@@ -489,7 +511,7 @@ class StockWarehouse(models.Model):
             if refresh_global:
                 warehouse._create_or_update_global_routes_rules()
 
-            if warehouse in before["toggling"]:
+            if warehouse in before.toggling:
                 warehouse._toggle_active(vals["active"], triggers)
 
         if "name" in changed or "code" in changed:
@@ -498,16 +520,18 @@ class StockWarehouse(models.Model):
             )._update_reference_sequences(only=None if "code" in changed else {"name"})
 
         for warehouse in warehouses:
-            if warehouse.id in before["old_resupply_whs"]:
-                warehouse._sync_resupply_routes(
-                    before["old_resupply_whs"][warehouse.id]
-                )
+            if warehouse.id in before.old_resupply_whs:
+                warehouse._sync_resupply_routes(before.old_resupply_whs[warehouse.id])
 
         if "active" in vals:
             self._update_multiwarehouse_group()
 
     def unlink(self):
-        self._unlink_except_in_use()
+        # the check has to precede _collect_owned_records: by the time an
+        # @api.ondelete hook would fire, the picking types and rules it inspects
+        # are already gone, so it would pass on every warehouse.
+        if not self.env.context.get("_force_unlink"):
+            self._unlink_except_in_use()
         leftovers = [warehouse._collect_owned_records() for warehouse in self]
 
         for owned in leftovers:
@@ -525,7 +549,6 @@ class StockWarehouse(models.Model):
         self._update_multiwarehouse_group()
         return res
 
-    @api.ondelete(at_uninstall=False)
     def _unlink_except_in_use(self):
         owned_picking_types = (
             self.env["stock.picking.type"]
@@ -621,22 +644,25 @@ class StockWarehouse(models.Model):
     def copy_data(self, default=None):
         default = dict(default or {})
         vals_list = super().copy_data(default=default)
-        taken_names = defaultdict(set)
-        taken_codes = defaultdict(set)
+        taken = {}
+        chosen = defaultdict(set)
         for warehouse, vals in zip(self, vals_list, strict=True):
             company = warehouse.company_id
             if "name" not in default:
                 vals["name"] = self._unique_copy_name(
-                    _("%s (copy)", warehouse.name), company, taken_names[company.id]
+                    _("%s (copy)", warehouse.name),
+                    company,
+                    self._taken_warehouse_values(taken, "name", company, chosen),
                 )
             if "code" not in default:
                 vals["code"] = self._generate_default_code(
-                    company, taken_codes[company.id]
+                    company,
+                    self._taken_warehouse_values(taken, "code", company, chosen),
                 )
             if vals.get("name"):
-                taken_names[company.id].add(vals["name"])
+                chosen["name", company.id].add(vals["name"])
             if vals.get("code"):
-                taken_codes[company.id].add(vals["code"])
+                chosen["code", company.id].add(vals["code"])
         return vals_list
 
     def _default_name(self):
@@ -714,6 +740,11 @@ class StockWarehouse(models.Model):
         rules.write({"active": active})
 
         if active:
+            # writing the trigger fields to their own values is deliberate: it
+            # re-dispatches through every module's write() override, so
+            # reactivation replays whatever each of them does for its own trigger
+            # field. mrp_subcontracting rebuilds its resupply rules from exactly
+            # this. Calling the base refresh helpers directly would drop that.
             values = {depend: self[depend] for depend in reactivate_depends}
             if values:
                 self.write(values)
@@ -875,7 +906,7 @@ class StockWarehouse(models.Model):
             defaults = {} if record else self.default_get(missing)
             for name in missing:
                 if not record:
-                    values[name] = defaults[name]
+                    values[name] = defaults.get(name, False)
                     continue
                 value = record[name]
                 values[name] = (
@@ -926,29 +957,36 @@ class StockWarehouse(models.Model):
         }
 
     @api.model
-    def _resolve_barcodes(self, values_list, company_id, ignore_location_ids=()):
+    def _resolve_barcodes(self, model_name, values_list, company_id, ignore_ids=()):
         wanted = {values["barcode"] for values in values_list if values.get("barcode")}
         if not wanted:
             return
         domain = [("barcode", "in", list(wanted)), ("company_id", "=", company_id)]
-        if ignore_location_ids:
-            domain.append(("id", "not in", list(ignore_location_ids)))
+        if ignore_ids:
+            domain.append(("id", "not in", list(ignore_ids)))
         taken = {
-            row["barcode"]: row["complete_name"]
-            for row in self.env["stock.location"]
+            record.barcode: record.display_name
+            for record in self.env[model_name]
             .with_context(active_test=False)
-            .search_read(domain, ["barcode", "complete_name"])
+            .search(domain)
         }
+        claimed = set()
         for values in values_list:
-            owner = taken.get(values.get("barcode"))
+            barcode = values.get("barcode")
+            if not barcode:
+                continue
+            owner = taken.get(barcode) or (barcode in claimed and "another of its own")
             if owner:
                 _logger.warning(
-                    "Barcode %s is already used by location %s; the new warehouse "
-                    "location will be created without a barcode.",
-                    values["barcode"],
+                    "Barcode %s is already used by %s %s; the warehouse record "
+                    "will be left without a barcode.",
+                    barcode,
+                    self.env[model_name]._description,
                     owner,
                 )
                 values["barcode"] = False
+                continue
+            claimed.add(barcode)
 
     def _create_missing_locations(self, vals):
         location_fields = self._sub_location_field_names()
@@ -971,7 +1009,9 @@ class StockWarehouse(models.Model):
                     "view_location_id", warehouse.view_location_id.id
                 )
                 values["company_id"] = company_id
-            warehouse._resolve_barcodes(list(missing.values()), company_id)
+            warehouse._resolve_barcodes(
+                "stock.location", list(missing.values()), company_id
+            )
             locations = self.env["stock.location"].create(list(missing.values()))
             warehouse.write(dict(zip(missing, locations.ids, strict=True)))
 
@@ -989,9 +1029,10 @@ class StockWarehouse(models.Model):
             if not wanted:
                 continue
             warehouse._resolve_barcodes(
+                "stock.location",
                 [values for _location, values in wanted],
                 warehouse.company_id.id,
-                ignore_location_ids=locations.ids,
+                ignore_ids=locations.ids,
             )
             for location, location_values in wanted:
                 location.barcode = location_values["barcode"]
@@ -1108,24 +1149,33 @@ class StockWarehouse(models.Model):
             for field, picking_type in zip(to_create, picking_types, strict=True):
                 warehouse_data[field] = picking_type.id
 
-        if "out_type_id" in warehouse_data:
-            PickingType.browse(warehouse_data["out_type_id"]).write(
-                {"return_picking_type_id": warehouse_data.get("in_type_id", False)}
-            )
-        if "in_type_id" in warehouse_data:
-            PickingType.browse(warehouse_data["in_type_id"]).write(
-                {"return_picking_type_id": warehouse_data.get("out_type_id", False)}
-            )
+        self._pair_return_picking_types(warehouse_data)
         return warehouse_data
+
+    def _pair_return_picking_types(self, created_ids):
+        PickingType = self.env["stock.picking.type"]
+        if not {"in_type_id", "out_type_id"} & set(created_ids):
+            return
+        in_type = PickingType.browse(created_ids.get("in_type_id")) or self.in_type_id
+        out_type = (
+            PickingType.browse(created_ids.get("out_type_id")) or self.out_type_id
+        )
+        if not (in_type and out_type):
+            return
+        in_type.return_picking_type_id = out_type
+        out_type.return_picking_type_id = in_type
 
     def _get_picking_type_color(self):
         self.check_singleton()
+        PickingType = self.env["stock.picking.type"].with_context(active_test=False)
+        own = PickingType.search([("warehouse_id", "=", self.id)], limit=1, order="id")
+        if own:
+            return own.color
         used = {
-            row["color"]
-            for row in self.env["stock.picking.type"].search_read(
+            color
+            for (color,) in PickingType._read_group(
                 [
                     ("warehouse_id", "!=", False),
-                    ("color", "!=", False),
                     ("company_id", "=", self.company_id.id),
                 ],
                 ["color"],
@@ -1134,21 +1184,25 @@ class StockWarehouse(models.Model):
         return next((color for color in range(12) if color not in used), 0)
 
     def _get_last_picking_type_sequence(self):
-        rows = (
+        [(highest,)] = (
             self.env["stock.picking.type"]
             .with_context(active_test=False)
-            .search_read(
-                [("sequence", "!=", False)],
-                ["sequence"],
-                limit=1,
-                order="sequence desc",
-            )
+            ._read_group([], aggregates=["sequence:max"])
         )
-        return (rows and rows[0]["sequence"]) or 0
+        return highest or 0
 
     @api.model
     def _check_picking_type_registry(self, update_data, create_data, suffixes, codes):
         expected = set(codes)
+        declared = [s for s in suffixes.values() if isinstance(s, str)]
+        duplicated = sorted({s for s in declared if declared.count(s) > 1})
+        if duplicated:
+            raise ValueError(
+                "stock.warehouse picking-type barcode suffixes are not unique: %s "
+                "is claimed by more than one picking type, so their barcodes would "
+                "collide. _get_picking_type_barcode_suffixes must return a distinct "
+                "suffix per picking type." % duplicated
+            )
         for label, mapping in (
             ("_prepare_picking_type_update_vals", update_data),
             ("_prepare_picking_type_create_vals", create_data),
@@ -1176,8 +1230,18 @@ class StockWarehouse(models.Model):
     def _update_picking_type_barcodes(self, update_data, suffixes):
         self.check_singleton()
         code = self._normalized_code()
-        for field, suffix in suffixes.items():
-            update_data[field]["barcode"] = code + suffix
+        fields_order = list(suffixes)
+        wanted = [{"barcode": code + suffixes[field]} for field in fields_order]
+        owned = (
+            self.env["stock.picking.type"]
+            .with_context(active_test=False)
+            .search([("warehouse_id", "=", self.id)])
+        )
+        self._resolve_barcodes(
+            "stock.picking.type", wanted, self.company_id.id, ignore_ids=owned.ids
+        )
+        for field, values in zip(fields_order, wanted, strict=True):
+            update_data[field]["barcode"] = values["barcode"]
 
     def _prepare_picking_type_update_vals(self):
         input_loc, output_loc = self._get_input_output_locations()
@@ -1348,8 +1412,13 @@ class StockWarehouse(models.Model):
                 "warehouse_selectable", False
             ):
                 routes.append(route)
-        field_vals["route_ids"] = [fields.Command.link(route.id) for route in routes]
-        self.write(field_vals)
+        new_links = [route for route in routes if route not in self.route_ids]
+        if new_links:
+            field_vals["route_ids"] = [
+                fields.Command.link(route.id) for route in new_links
+            ]
+        if field_vals:
+            self.write(field_vals)
         return field_vals
 
     def _prepare_route_vals(self):
@@ -1867,7 +1936,7 @@ class StockWarehouse(models.Model):
             "company_id": (self.company_id & supplier_warehouse.company_id).id,
         }
 
-    def _update_reception_delivery_resupply(self, delivery_new):
+    def _update_delivery_steps_resupply(self, delivery_new):
         if not delivery_new:
             return
         for warehouse in self:
@@ -1973,6 +2042,14 @@ class StockWarehouse(models.Model):
         if mto_domain:
             Rule.search(mto_domain).write({"active": not multi_step})
 
+    def _taken_warehouse_values(self, cache, field_name, company, chosen=None):
+        key = (field_name, company.id)
+        if key not in cache:
+            cache[key] = self._existing_warehouse_values(field_name, company)
+        if chosen is None:
+            return cache[key]
+        return cache[key] | chosen[key]
+
     def _existing_warehouse_values(self, field_name, company, taken=()):
         return set(taken) | set(
             self.env["stock.warehouse"]
@@ -1981,8 +2058,9 @@ class StockWarehouse(models.Model):
             .mapped(field_name)
         )
 
-    def _generate_default_name(self, company, taken=()):
-        existing = self._existing_warehouse_values("name", company, taken)
+    def _generate_default_name(self, company, existing=None):
+        if existing is None:
+            existing = self._existing_warehouse_values("name", company)
         if not existing:
             return company.name
         counter = len(existing) + 1
@@ -1996,14 +2074,16 @@ class StockWarehouse(models.Model):
                 return candidate
             counter += 1
 
-    def _generate_default_code(self, company, taken=()):
-        base = self._normalize_code(company.name)[:5] or "WH"
-        existing = self._existing_warehouse_values("code", company, taken)
+    def _generate_default_code(self, company, existing=None):
+        if existing is None:
+            existing = self._existing_warehouse_values("code", company)
+        size = self._fields["code"].size
+        base = self._normalize_code(company.name) or "WH"
         if base not in existing:
             return base
         for counter in range(2, 100000):
             suffix = str(counter)
-            candidate = base[: 5 - len(suffix)] + suffix
+            candidate = base[: size - len(suffix)] + suffix
             if candidate not in existing:
                 return candidate
         raise UserError(
@@ -2013,8 +2093,9 @@ class StockWarehouse(models.Model):
             )
         )
 
-    def _unique_copy_name(self, base, company, taken=()):
-        existing = self._existing_warehouse_values("name", company, taken)
+    def _unique_copy_name(self, base, company, existing=None):
+        if existing is None:
+            existing = self._existing_warehouse_values("name", company)
         if base not in existing:
             return base
         counter = 2
@@ -2026,7 +2107,7 @@ class StockWarehouse(models.Model):
 
     @api.model
     def _normalize_code(self, code):
-        return (code or "").replace(" ", "").upper()
+        return (code or "").replace(" ", "").upper()[: self._fields["code"].size]
 
     def _normalized_code(self):
         self.check_singleton()

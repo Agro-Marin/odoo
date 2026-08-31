@@ -19,10 +19,12 @@ from ..const import (
     BLOCK_REASON_OVERRIDE_SOFT,
     BLOCK_TYPE_SELECTION,
     BLOCKABLE_USAGES,
+    CONTEXT_ACTIVE_CASCADE,
     CONTEXT_BLOCK_BYPASS,
     CONTEXT_BLOCK_COMPLETING,
     CONTEXT_BLOCK_IS_INVENTORY,
     CONTEXT_BLOCK_SKIP_HOOKS,
+    CONTEXT_PUTAWAY_SCAN,
     INCOMING_BLOCK_TYPES,
     INTERNAL_CONTEXT_FLAG,
     OUTGOING_BLOCK_TYPES,
@@ -63,6 +65,44 @@ class PutawayCapacity(NamedTuple):
     forecast_weight: dict
     foreign_inbound_ids: frozenset
     package_weight: float
+
+
+class PutawayScan:
+    """Memo for one batch of putaway placements of a single product.
+
+    A batch places several quantities without writing anything between
+    placements, so every database-derived figure it reads is constant across the
+    whole batch while the quantities it has already placed are not. Holding the
+    constants here is what lets the placements be the only thing that varies.
+
+    ``staged`` counts only what this batch has placed itself, never the
+    ``additional_qty`` a caller seeds ``placed`` with. The distinction is the
+    whole point: a caller's ``additional_qty`` may describe move lines that
+    already exist in the database -- ``_generate_serial_move_line_commands``
+    passes exactly that for the lines it is reusing, without an
+    ``exclude_sml_ids`` to take them back out -- so their weight is already in
+    ``forecast_weight`` and counting it again would double it. What this batch
+    placed itself has no row anywhere yet, so it is the part that has to be
+    added by hand.
+    """
+
+    def __init__(self, product, placed=None):
+        self.product = product
+        self.placed = defaultdict(float, placed or {})
+        self.staged = defaultdict(float)
+        self._memo = {}
+
+    def memo(self, key, factory):
+        if key not in self._memo:
+            self._memo[key] = factory()
+        return self._memo[key]
+
+    def place(self, location, quantity):
+        self.placed[location.id] += quantity
+        self.staged[location.id] += quantity
+
+    def staged_weight(self, location_id):
+        return self.staged.get(location_id, 0.0) * self.product.weight
 
 
 class StockLocation(models.Model):
@@ -306,14 +346,28 @@ class StockLocation(models.Model):
         replenish_locations = self.filtered("replenish_location")
         if not replenish_locations:
             return
+        # A conflict is an ancestor or a descendant and can be nothing else, so
+        # ask for those two sets rather than for every replenish location there
+        # is and then discarding almost all of them in Python.
+        ancestor_ids = {
+            int(node)
+            for location in replenish_locations
+            if location.parent_path
+            for node in location.parent_path.split("/")[:-1]
+        }
         others = self.with_context(active_test=False).search(
-            [("replenish_location", "=", True)],
+            Domain("replenish_location", "=", True)
+            & Domain("id", "not in", replenish_locations.ids)
+            & (
+                Domain("id", "in", list(ancestor_ids))
+                | Domain("id", "child_of", replenish_locations.ids)
+            ),
         )
         for location in replenish_locations:
             if not location.parent_path:
                 continue
             for other in others:
-                if other == location or not other.parent_path:
+                if not other.parent_path:
                     continue
                 if location.parent_path.startswith(
                     other.parent_path
@@ -379,34 +433,29 @@ class StockLocation(models.Model):
         modified_locations = self.filtered(lambda location: location.usage != usage)
         if not modified_locations:
             return
-        Quant = self.env["stock.quant"]
+        # A view groups its children and cannot hold products at all, so any
+        # quant refuses it -- including an emptied one. Every other type only
+        # refuses to walk away from stock that is actually there.
+        domain = Domain("location_id", "in", modified_locations.ids)
+        if usage != "view":
+            domain &= Domain("quantity", ">", 0)
+        blocking = self.env["stock.quant"].search(domain, limit=1).location_id
+        if not blocking:
+            return
         if usage == "view":
-            blocking = Quant.search(
-                [("location_id", "in", modified_locations.ids)],
-                limit=1,
-            ).location_id
-            if blocking:
-                raise UserError(
-                    _(
-                        "A view location groups its children and cannot hold "
-                        "products; %s still does.",
-                        blocking.display_name,
-                    ),
-                )
-        blocking = Quant.search(
-            [
-                ("location_id", "in", modified_locations.ids),
-                ("quantity", ">", 0),
-            ],
-            limit=1,
-        ).location_id
-        if blocking:
             raise UserError(
                 _(
-                    "%s still holds stock, so its type cannot be changed.",
+                    "A view location groups its children and cannot hold "
+                    "products; %s still does.",
                     blocking.display_name,
                 ),
             )
+        raise UserError(
+            _(
+                "%s still holds stock, so its type cannot be changed.",
+                blocking.display_name,
+            ),
+        )
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -458,16 +507,28 @@ class StockLocation(models.Model):
         subtree = self.with_context(active_test=False).search(
             [("id", "child_of", self.ids)],
         )
+        # Before anything else, and over the whole subtree rather than over the
+        # receiver: deleting a location is a stronger act than archiving one,
+        # and archiving a hard-blocked location already needs the group.
+        if not self.env.context.get(MODULE_UNINSTALL_FLAG):
+            subtree._check_block_governance_before_unlink()
         descendants = subtree - self
         if (
             descendants
             and not self.env.context.get("stock_unlink_subtree")
             and not self.env.context.get(MODULE_UNINSTALL_FLAG)
         ):
-            blocking = self.browse(
-                location.id
-                for location in self
-                if any(child._child_of(location) for child in descendants)
+            blocking, held = next(
+                (
+                    (location, children)
+                    for location in self
+                    if (
+                        children := descendants.filtered(
+                            lambda child, parent=location: child._child_of(parent),
+                        )
+                    )
+                ),
+                (self.browse(), self.browse()),
             )
             # @api.ondelete cannot express this check: unlink() re-dispatches on
             # the expanded subtree, so a hook would see no descendants left to
@@ -477,12 +538,8 @@ class StockLocation(models.Model):
                     "You cannot delete location %(location)s: it still contains "
                     "%(count)s sub-location(s) (archived ones included). Delete or "
                     "move them first.",
-                    location=blocking[:1].display_name,
-                    count=len(
-                        descendants.filtered(
-                            lambda child, parent=blocking[:1]: child._child_of(parent)
-                        )
-                    ),
+                    location=blocking.display_name,
+                    count=len(held),
                 ),
             )
         res = super(StockLocation, subtree).unlink()
@@ -584,6 +641,7 @@ class StockLocation(models.Model):
             else:
                 location.complete_name = location.name
 
+    @api.depends("quant_ids.quantity", "quant_ids.reserved_quantity")
     def _compute_is_empty(self):
         occupied_ids = self._get_occupied_location_ids(self)
         for location in self:
@@ -693,6 +751,7 @@ class StockLocation(models.Model):
     def _get_occupancy_domain(self):
         return Domain("quantity", "!=", 0) | Domain("reserved_quantity", "!=", 0)
 
+    @api.model
     def _get_occupied_location_ids(self, locations=None):
         domain = self._get_occupancy_domain() & Domain(
             "location_id.usage", "in", STOCKED_USAGES
@@ -740,58 +799,71 @@ class StockLocation(models.Model):
         return self.usage in ("supplier", "customer", "inventory", "production")
 
     def _propagate_active(self, active):
-        self = self.filtered(lambda location: location.active != bool(active))
-        if not self:
+        changing = self.filtered(lambda location: location.active != bool(active))
+        if not changing:
             return
-        if self.env.context.get("do_not_check_quant"):
+        if is_internal_flag(self.env.context, CONTEXT_ACTIVE_CASCADE):
+            # Sentinel for the cascade at the end of this method, which writes
+            # the whole subtree at once and so leaves re-entry nothing to do.
+            # It is the unforgeable marker rather than a plain context key
+            # because this one flag used to do two jobs: as `do_not_check_quant`
+            # it also skipped the guards below, so any `call_kw` could set it and
+            # archive a location over its own stock -- and, because the cascade
+            # is what the early return skips, leave the subtree active beneath an
+            # archived parent.
             return
         descendant_locations = (
             self.env["stock.location"]
             .with_context(active_test=False)
-            .search([("id", "child_of", self.ids)])
+            .search([("id", "child_of", changing.ids)])
         )
         if not active:
-            blocking_warehouse = self.env["stock.warehouse"].search(
-                [
-                    ("active", "=", True),
-                    "|",
-                    ("lot_stock_id", "in", descendant_locations.ids),
-                    ("view_location_id", "in", descendant_locations.ids),
-                ],
-                limit=1,
-            )
-            if blocking_warehouse:
-                location = (
-                    blocking_warehouse.lot_stock_id
-                    if blocking_warehouse.lot_stock_id in descendant_locations
-                    else blocking_warehouse.view_location_id
-                )
-                raise UserError(
-                    _(
-                        "You cannot archive location %(location)s because it is used by warehouse %(warehouse)s",
-                        location=location.display_name,
-                        warehouse=blocking_warehouse.display_name,
-                    ),
-                )
-            internal_descendants = descendant_locations.filtered(
-                lambda l: l.usage == "internal"
-            )
-            blocking_quants = self.env["stock.quant"].search(
-                self._get_occupancy_domain()
-                & Domain("location_id", "in", internal_descendants.ids),
-            )
-            if blocking_quants:
-                raise UserError(
-                    _(
-                        "You can't disable locations %s because they still contain products.",
-                        ", ".join(blocking_quants.mapped("location_id.display_name")),
-                    ),
-                )
-        (descendant_locations - self).with_context(do_not_check_quant=True).write(
+            changing._check_archivable(descendant_locations)
+        (descendant_locations - changing).with_context(
+            **{CONTEXT_ACTIVE_CASCADE: INTERNAL_CONTEXT_FLAG},
+        ).write(
             {
                 "active": active,
             },
         )
+
+    def _check_archivable(self, descendant_locations):
+        blocking_warehouse = self.env["stock.warehouse"].search(
+            [
+                ("active", "=", True),
+                "|",
+                ("lot_stock_id", "in", descendant_locations.ids),
+                ("view_location_id", "in", descendant_locations.ids),
+            ],
+            limit=1,
+        )
+        if blocking_warehouse:
+            location = (
+                blocking_warehouse.lot_stock_id
+                if blocking_warehouse.lot_stock_id in descendant_locations
+                else blocking_warehouse.view_location_id
+            )
+            raise UserError(
+                _(
+                    "You cannot archive location %(location)s because it is used by warehouse %(warehouse)s",
+                    location=location.display_name,
+                    warehouse=blocking_warehouse.display_name,
+                ),
+            )
+        # The same helper `is_empty` and its search answer with, so a location
+        # the interface shows as occupied is exactly a location that refuses to
+        # archive. Asking only about `usage == "internal"` here is what let a
+        # transit location archive over stock the list view was calling occupied.
+        occupied = self.browse(
+            sorted(self._get_occupied_location_ids(descendant_locations)),
+        )
+        if occupied:
+            raise UserError(
+                _(
+                    "You can't disable locations %s because they still contain products.",
+                    ", ".join(occupied.mapped("display_name")),
+                ),
+            )
 
     @api.model
     def _invalidate_location_tree(self):
@@ -804,7 +876,7 @@ class StockLocation(models.Model):
         self, product, quantity=0, package=None, packaging=None, additional_qty=None
     ):
         self.check_singleton()
-        self = self._filter_putaway_access()
+        destination = self._filter_putaway_access()
         products = self.env.context.get("products", self.env["product.product"])
         products |= product
         package_type = self.env["stock.package.type"]
@@ -822,7 +894,7 @@ class StockLocation(models.Model):
             map(int, (leaf_category.parent_path or "").split("/")[:-1])
         )
 
-        putaway_rules = self.putaway_rule_ids.filtered(
+        putaway_rules = destination.putaway_rule_ids.filtered(
             lambda rule: (
                 (not rule.product_id or rule.product_id in products)
                 and (not rule.category_id or rule.category_id in category_ancestors)
@@ -843,11 +915,13 @@ class StockLocation(models.Model):
         putaway_location = None
         locations = self.env.context.get("locations")
         if locations is None:
-            locations = self.child_internal_location_ids
+            locations = destination.child_internal_location_ids
         else:
-            locations = locations.filtered(lambda loc: loc._child_of(self))
+            locations = locations.filtered(
+                lambda loc, parent=destination: loc._child_of(parent),
+            )
         if putaway_rules:
-            qty_by_location = self._get_putaway_qty_by_location(
+            qty_by_location = destination._get_putaway_qty_by_location(
                 product, package, package_type, locations, additional_qty
             )
             putaway_location = putaway_rules._get_putaway_location(
@@ -856,7 +930,9 @@ class StockLocation(models.Model):
 
         if not putaway_location:
             putaway_location = (
-                locations[0] if locations and self.usage == "view" else self
+                locations[0]
+                if locations and destination.usage == "view"
+                else destination
             )
 
         return putaway_location
@@ -865,43 +941,76 @@ class StockLocation(models.Model):
         self, product, quantities, package=None, packaging=None, additional_qty=None
     ):
         self.check_singleton()
-        qty_by_location = defaultdict(float, additional_qty or {})
+        scan = PutawayScan(product, additional_qty)
+        scanner = self.with_context(**{CONTEXT_PUTAWAY_SCAN: scan})
         locations = []
         for quantity in quantities:
-            location = self._get_putaway_strategy(
+            location = scanner._get_putaway_strategy(
                 product,
                 quantity,
                 package=package,
                 packaging=packaging,
-                additional_qty=qty_by_location,
+                additional_qty=scan.placed,
             )
-            qty_by_location[location.id] += quantity
-            locations.append(location)
+            scan.place(location, quantity)
+            locations.append(location._without_putaway_scan())
         return locations
+
+    def _without_putaway_scan(self):
+        # Hand the caller back a record that does not carry the batch's memo,
+        # so nothing downstream can reuse it once it has gone stale. Rebuilding
+        # the context rather than re-binding the environment is deliberate:
+        # `_filter_putaway_access` may have returned a sudo recordset -- that is
+        # the whole of mrp_subcontracting's override -- and `with_env` would
+        # silently drop the elevation along with the memo.
+        return self.with_context(
+            {
+                key: value
+                for key, value in self.env.context.items()
+                if key != CONTEXT_PUTAWAY_SCAN
+            },
+        )
+
+    def _putaway_memo(self, key, factory):
+        scan = self.env.context.get(CONTEXT_PUTAWAY_SCAN)
+        if scan is None:
+            return factory()
+        return scan.memo(key, factory)
 
     def _get_putaway_qty_by_location(
         self, product, package, package_type, locations, additional_qty=None
     ):
-        qty_by_location = defaultdict(int)
-        if locations.storage_category_id:
-            exclude_sml_ids = list(self.env.context.get("exclude_sml_ids", set()))
-            if package and package.package_type_id:
-                qty_by_location.update(
-                    self._get_putaway_package_count_by_location(
-                        package_type, locations, exclude_sml_ids
-                    )
-                )
-            else:
-                qty_by_location.update(
-                    self._get_putaway_product_qty_by_location(
-                        product, locations, exclude_sml_ids
-                    )
-                )
-
-        if additional_qty:
-            for location_id, qty in additional_qty.items():
-                qty_by_location[location_id] += qty
+        qty_by_location = defaultdict(
+            float,
+            self._get_stored_putaway_qty(product, package, package_type, locations),
+        )
+        for location_id, qty in (additional_qty or {}).items():
+            qty_by_location[location_id] += qty
         return qty_by_location
+
+    def _get_stored_putaway_qty(self, product, package, package_type, locations):
+        if not locations.storage_category_id:
+            return {}
+        by_package = bool(package and package.package_type_id)
+        exclude_sml_ids = list(self.env.context.get("exclude_sml_ids", set()))
+        return self._putaway_memo(
+            (
+                "stored_qty",
+                by_package,
+                package_type.id,
+                product.id,
+                tuple(locations.ids),
+            ),
+            lambda: (
+                self._get_putaway_package_count_by_location(
+                    package_type, locations, exclude_sml_ids
+                )
+                if by_package
+                else self._get_putaway_product_qty_by_location(
+                    product, locations, exclude_sml_ids
+                )
+            ),
+        )
 
     def _get_putaway_package_count_by_location(
         self, package_type, locations, exclude_sml_ids
@@ -970,6 +1079,26 @@ class StockLocation(models.Model):
     def _get_putaway_capacity(self, product, package=None):
         if not self:
             return PutawayCapacity({}, frozenset(), 0.0)
+        stored = self._putaway_memo(
+            ("capacity", product.id, package.id if package else 0, tuple(self.ids)),
+            lambda: self._get_stored_putaway_capacity(product, package),
+        )
+        scan = self.env.context.get(CONTEXT_PUTAWAY_SCAN)
+        if scan is None:
+            return stored
+        # The batch's own placements exist nowhere yet, so no query can see
+        # their weight. Folding it in here is what makes the weight capacity as
+        # batch-aware as the quantity capacity already was through
+        # `additional_qty`.
+        return stored._replace(
+            forecast_weight={
+                location_id: stored.forecast_weight.get(location_id, 0.0)
+                + scan.staged_weight(location_id)
+                for location_id in self.ids
+            },
+        )
+
+    def _get_stored_putaway_capacity(self, product, package):
         weight_by_location = self._get_weight(
             self.env.context.get("exclude_sml_ids", set()),
         )
@@ -1264,70 +1393,79 @@ class StockLocation(models.Model):
             and any(candidate.parent_path.startswith(path) for path in parent_paths)
         }
 
+    def _move_destination_domains(self, leaf) -> tuple[Domain, Domain]:
+        """The (into, out of) destination domains built from one leaf predicate.
+
+        `leaf(field_name)` builds the Domain testing that field. A move's
+        destination is `location_dest_id` once it is done and
+        `location_final_id or location_dest_id` while it is not; the quantity
+        scope and the blocked-location filter both need precisely that shape and
+        differ only in what they ask of the field.
+
+        The outbound half is spelled out as its own state split rather than as
+        `~inbound`. The two are equal, but only because Odoo compiles
+        ("state", "!=", "done") to (state NOT IN ('done') OR state IS NULL) --
+        that OR is what makes the two branches partition. A hand-written `<>`
+        would leave a NULL state matching neither, and the negation would then
+        differ from this.
+        """
+        done = leaf("location_dest_id")
+        if self.env.context.get("skip_in_progress"):
+            return done, ~done
+        in_progress = Domain(
+            [
+                "|",
+                "&",
+                ("location_final_id", "!=", False),
+                leaf("location_final_id"),
+                "&",
+                ("location_final_id", "=", False),
+                leaf("location_dest_id"),
+            ],
+        )
+        return (
+            Domain(
+                [
+                    "|",
+                    "&",
+                    ("state", "=", "done"),
+                    done,
+                    "&",
+                    ("state", "!=", "done"),
+                    in_progress,
+                ],
+            ),
+            Domain(
+                [
+                    "|",
+                    "&",
+                    ("state", "=", "done"),
+                    ~done,
+                    "&",
+                    ("state", "!=", "done"),
+                    ~in_progress,
+                ],
+            ),
+        )
+
     def _quantity_domains(self, location_ids) -> tuple[Domain, Domain, Domain]:
         if not location_ids:
             return (Domain.FALSE,) * 3
         location_ids = list(location_ids)
         if self.env.context.get("strict"):
             loc_domain = Domain("location_id", "in", location_ids)
-            dest_loc_domain = Domain("location_dest_id", "in", location_ids)
-            dest_loc_domain_out = Domain("location_dest_id", "not in", location_ids)
-            return self._blocked_quantity_domains(
-                (
-                    loc_domain,
-                    dest_loc_domain & ~loc_domain,
-                    loc_domain & dest_loc_domain_out,
-                ),
+            dest_in = Domain("location_dest_id", "in", location_ids)
+            dest_out = Domain("location_dest_id", "not in", location_ids)
+        else:
+            loc_domain = Domain("location_id", "child_of", location_ids)
+            dest_in, dest_out = self._move_destination_domains(
+                lambda field: Domain(field, "child_of", location_ids),
             )
-
-        loc_domain = Domain("location_id", "child_of", location_ids)
-        dest_loc_domain_done = Domain("location_dest_id", "child_of", location_ids)
-        if self.env.context.get("skip_in_progress"):
-            return self._blocked_quantity_domains(
-                (
-                    loc_domain,
-                    dest_loc_domain_done & ~loc_domain,
-                    loc_domain & ~dest_loc_domain_done,
-                ),
-            )
-        dest_loc_domain_in_progress = Domain(
-            [
-                "|",
-                "&",
-                ("location_final_id", "!=", False),
-                ("location_final_id", "child_of", location_ids),
-                "&",
-                ("location_final_id", "=", False),
-                ("location_dest_id", "child_of", location_ids),
-            ],
-        )
-        dest_loc_domain = Domain(
-            [
-                "|",
-                "&",
-                ("state", "=", "done"),
-                dest_loc_domain_done,
-                "&",
-                ("state", "!=", "done"),
-                dest_loc_domain_in_progress,
-            ],
-        )
-        dest_loc_domain_out = Domain(
-            [
-                "|",
-                "&",
-                ("state", "=", "done"),
-                ~dest_loc_domain_done,
-                "&",
-                ("state", "!=", "done"),
-                ~dest_loc_domain_in_progress,
-            ],
-        )
         return self._blocked_quantity_domains(
             (
                 loc_domain,
-                dest_loc_domain & ~loc_domain,
-                loc_domain & dest_loc_domain_out,
+                dest_in & ~loc_domain,
+                loc_domain & dest_out,
             ),
         )
 
@@ -1339,32 +1477,9 @@ class StockLocation(models.Model):
         domain_quant, domain_move_in, domain_move_out = domains
         blocked = Domain("effective_block_type", "in", OUTGOING_BLOCK_TYPES)
         blocked_location = Domain("location_id", "any", blocked)
-        blocked_dest_done = Domain("location_dest_id", "any", blocked)
-        if self.env.context.get("skip_in_progress"):
-            blocked_destination = blocked_dest_done
-        else:
-            blocked_dest_in_progress = Domain(
-                [
-                    "|",
-                    "&",
-                    ("location_final_id", "!=", False),
-                    ("location_final_id", "any", blocked),
-                    "&",
-                    ("location_final_id", "=", False),
-                    ("location_dest_id", "any", blocked),
-                ],
-            )
-            blocked_destination = Domain(
-                [
-                    "|",
-                    "&",
-                    ("state", "=", "done"),
-                    blocked_dest_done,
-                    "&",
-                    ("state", "!=", "done"),
-                    blocked_dest_in_progress,
-                ],
-            )
+        blocked_destination, __ = self._move_destination_domains(
+            lambda field: Domain(field, "any", blocked),
+        )
         return (
             domain_quant & ~blocked_location,
             domain_move_in & ~blocked_destination,
@@ -1377,6 +1492,7 @@ class StockLocation(models.Model):
             self._fields["usage"]._description_selection(self.env),
         )[self.usage]
 
+    @api.model
     def _block_type_label(self, block_type):
         return dict(
             self._fields["block_type"]._description_selection(self.env),
@@ -1468,7 +1584,10 @@ class StockLocation(models.Model):
         per_quant_location = {}
         for quant_location, product, reserved in groups:
             by_uom = per_quant_location.setdefault(quant_location, defaultdict(float))
-            by_uom[product.uom_id.name] += reserved or 0.0
+            # Keyed by the UoM record. `name` is translatable and not unique, so
+            # keying by it merged distinct units and made the breakdown depend on
+            # the acting user's language.
+            by_uom[product.uom_id] += reserved or 0.0
 
         totals = {location_id: defaultdict(float) for location_id in self.ids}
         paths = {location.id: location.parent_path or "" for location in self}
@@ -1497,6 +1616,21 @@ class StockLocation(models.Model):
         return self.filtered(
             lambda location: vals["block_type"] != (location.block_type or "none"),
         )
+
+    def _check_block_governance_before_unlink(self):
+        if self.env.su or self.env.user.has_group(GROUP_OVERRIDE_HARD_BLOCK):
+            return
+        blocked = self.filtered(
+            lambda location: location.effective_block_type == "hard",
+        )
+        if blocked:
+            raise UserError(
+                self.env._(
+                    "Deleting the hard-blocked location %(locations)s requires "
+                    'the "Unlock Locations: All (Hard)" permission.',
+                    locations=blocked._block_location_names(),
+                ),
+            )
 
     def _check_block_governance(self, vals):
         if self.env.su or self.env.user.has_group(GROUP_OVERRIDE_HARD_BLOCK):
@@ -1607,10 +1741,13 @@ class StockLocation(models.Model):
             )
         return body
 
+    @api.model
     def _format_reserved_quantities(self, reserved_by_uom):
         return ", ".join(
-            f"{quantity:.2f} {uom_name}"
-            for uom_name, quantity in sorted(reserved_by_uom.items())
+            f"{quantity:.2f} {uom.name}"
+            for uom, quantity in sorted(
+                reserved_by_uom.items(), key=lambda item: item[0].name or ""
+            )
             if quantity > 0
         )
 

@@ -253,10 +253,14 @@ def _list_baselines(*, as_json: bool, notes: bool = False) -> int:
                         "count": int(data["count"]),
                         "note": str(data.get("note", "")),
                         "measured_at": str(data.get("measured_at", "")),
-                        "orphaned": _is_ancestor_of_head(
-                            str(data.get("measured_at", ""))
+                        "orphaned": (
+                            ancestry := _is_ancestor_of_head(
+                                str(data.get("measured_at", ""))
+                            )
                         )
                         is False,
+                        "unchecked": ancestry is None
+                        and bool(data.get("measured_at", "")),
                     }
                 )
             except (OSError, ValueError, KeyError, TypeError) as exc:
@@ -272,7 +276,15 @@ def _list_baselines(*, as_json: bool, notes: bool = False) -> int:
             print("no baselines yet")
         width = max((len(r["gate"]) for r in rows + broken), default=0)
         for row in rows:
-            flag = "  ORPHANED-BASE" if row["orphaned"] else ""
+            if row["orphaned"]:
+                flag = "  ORPHANED-BASE"
+            elif row["unchecked"]:
+                # Unknowable is not wrong, so this is deliberately not
+                # ORPHANED-BASE -- but it is not clean either, and rendering it
+                # blank made a floor stamped on a vanished commit look verified.
+                flag = "  UNCHECKED"
+            else:
+                flag = ""
             print(f"{row['gate']:<{width}} {row['count']:>8}{flag}")
             if notes:
                 for line in _note_lines(row["note"]):
@@ -289,6 +301,14 @@ def _list_baselines(*, as_json: bool, notes: bool = False) -> int:
                 f"HEAD's history: {', '.join(orphaned)}.\n"
                 f"Their count was measured on a tree this branch never had, so it "
                 f"may never have been true. Re-measure before trusting one."
+            )
+        unchecked = [r["gate"] for r in rows if r["unchecked"]]
+        if unchecked:
+            print(
+                f"\n{len(unchecked)} floor(s) whose stamped commit git could not "
+                f"resolve: {', '.join(unchecked)}.\n"
+                f"That is unknowable rather than wrong -- but it is not a verified "
+                f"base either, so it cannot be read as clean."
             )
         if rows and not notes:
             print(f"\n{len(rows)} floor(s). --notes prints what moved each one.")

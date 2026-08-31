@@ -57,6 +57,9 @@ BLOCK_REASON_DISPOSAL = "disposal"
 BLOCK_REASON_OVERRIDE_HARD = "override_hard"
 BLOCK_REASON_OVERRIDE_SOFT = "override_soft"
 
+CONTEXT_ACTIVE_CASCADE = "stock_location_active_cascade"
+CONTEXT_PUTAWAY_SCAN = "stock_putaway_scan"
+
 CONTEXT_BLOCK_COMPLETING = "stock_blocked_completing"
 CONTEXT_BLOCK_IS_INVENTORY = "stock_blocked_is_inventory"
 CONTEXT_BLOCK_EXCLUDED_TYPES = "stock_blocked_excluded_types"

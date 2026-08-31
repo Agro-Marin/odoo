@@ -139,6 +139,33 @@ class ProvenanceTests(unittest.TestCase):
             _code, out, _ = self._run(["--list"])
         self.assertNotIn("ORPHANED-BASE", out)
 
+    def test_an_unanswerable_stamp_is_rendered_as_unchecked(self):
+        """Unknowable is not wrong, but it is not verified either.
+
+        Rendering it blank made a floor stamped on a commit git can no longer
+        resolve look exactly like one whose base was confirmed to be in HEAD's
+        history.
+        """
+        (self.dir / "mypy.json").write_text('{"count": 5, "measured_at": "x"}\n')
+        with mock.patch.object(ratchet, "_is_ancestor_of_head", return_value=None):
+            _code, out, _ = self._run(["--list"])
+        self.assertIn("UNCHECKED", out)
+        self.assertIn("could not resolve", out)
+
+    def test_a_baseline_with_no_stamp_at_all_is_not_unchecked(self):
+        """104 committed baselines carry no measured_at; absent is not doubtful."""
+        (self.dir / "mypy.json").write_text('{"count": 5, "note": "n"}\n')
+        _code, out, _ = self._run(["--list"])
+        self.assertNotIn("UNCHECKED", out)
+        self.assertNotIn("ORPHANED-BASE", out)
+
+    def test_a_verified_stamp_is_neither_flagged_nor_unchecked(self):
+        (self.dir / "mypy.json").write_text('{"count": 5, "measured_at": "deadbeef"}\n')
+        with mock.patch.object(ratchet, "_is_ancestor_of_head", return_value=True):
+            _code, out, _ = self._run(["--list"])
+        self.assertNotIn("UNCHECKED", out)
+        self.assertNotIn("ORPHANED-BASE", out)
+
     def test_an_empty_stamp_asks_git_nothing(self):
         self.assertIsNone(ratchet._is_ancestor_of_head(""))
 
