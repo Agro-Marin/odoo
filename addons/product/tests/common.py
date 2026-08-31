@@ -86,6 +86,7 @@ class ProductCommon(UomCommon):
                     **create_vals,
                 }
             )
+            .with_env(cls.env)
         )
 
 
