@@ -9,7 +9,6 @@ class ProductTemplate(models.Model):
     _inherit = "product.template"
     _check_company_auto = True
 
-
     service_type = fields.Selection(
         selection=[("manual", "Manually set quantities on order")],
         string="Track Service",
@@ -70,7 +69,6 @@ class ProductTemplate(models.Model):
         digits="Product Unit",
         compute="_compute_sales_count",
     )
-
 
     @api.constrains("company_id")
     def _check_sale_product_company(self):
@@ -144,7 +142,6 @@ class ProductTemplate(models.Model):
                     ),
                 )
 
-
     @api.depends("purchase_ok")
     def _compute_visible_expense_policy(self):
         visibility = self.env.user.has_group("analytic.group_analytic_accounting")
@@ -190,7 +187,6 @@ class ProductTemplate(models.Model):
     def _compute_product_tooltip(self):
         super()._compute_product_tooltip()
 
-
     @api.onchange("type")
     def _onchange_type(self):
         res = super()._onchange_type()
@@ -202,7 +198,6 @@ class ProductTemplate(models.Model):
                 ),
             }
         return res
-
 
     @api.readonly
     def action_view_sales(self):
@@ -267,7 +262,6 @@ class ProductTemplate(models.Model):
     @api.model
     def _get_saleable_tracking_types(self):
         return ["no"]
-
 
     @api.model
     def _get_configurator_display_price(
