@@ -487,7 +487,7 @@ export const htmlField = {
               ]
             : [];
     },
-    extractProps({ attrs, options }, dynamicInfo) {
+    extractProps({ attrs, options, viewType }) {
         const editorConfig = {
             mediaModalParams: {
                 useMediaLibrary: true,
@@ -533,7 +533,7 @@ export const htmlField = {
         if ("debouncePowerbuttons" in options) {
             editorConfig.debouncePowerbuttons = Boolean(options.debouncePowerbuttons);
         }
-        return {
+        const props = {
             editorConfig,
             isCollaborative: options.collaborative,
             collaborativeTrigger: options.collaborative_trigger,
@@ -549,6 +549,14 @@ export const htmlField = {
             cssReadonlyAssetId: options.cssReadonly,
             codeview: Boolean(options.codeview) && Boolean(odoo.debug),
         };
+
+        // A list row is not a place to mount a full editor: it would build one
+        // per visible record. Render the readonly viewer instead.
+        if (viewType === "list") {
+            props.readonly = true;
+        }
+
+        return props;
     },
 };
 
