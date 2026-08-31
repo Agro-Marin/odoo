@@ -17,8 +17,9 @@ function isExpectedDateTime({
     expectedDateTime = DateTime.now(),
     tolerance = TIME_TOLERANCE,
 }) {
-    const actualTimestamp = DateTime.fromFormat(dateString, "MM/dd/yyyy HH:mm:ss").toUnixInteger();
-    const expectedTimestamp = expectedDateTime.toUnixInteger();
+    const actualTimestamp = DateTime.fromFormat(dateString, "MM/dd/yyyy HH:mm").toUnixInteger();
+    // The picker no longer shows or keeps seconds, so compare on the minute.
+    const expectedTimestamp = 60 * Math.floor(expectedDateTime.toUnixInteger() / 60);
     const difference = Math.abs(actualTimestamp - expectedTimestamp);
     return difference <= tolerance;
 }
@@ -72,16 +73,16 @@ test("defaults to last one when invalid date provided", async () => {
     );
     await setupHTMLBuilder(`<div class="test-options-target" data-date="1554219400">b</div>`);
     await contains(":iframe .test-options-target").click();
-    expect(".we-bg-options-container input").toHaveValue("04/02/2019 16:36:40");
+    expect(".we-bg-options-container input").toHaveValue("04/02/2019 16:36");
 
     await contains(".we-bg-options-container input").edit("INVALID DATE");
-    expect(".we-bg-options-container input").toHaveValue("04/02/2019 16:36:40");
+    expect(".we-bg-options-container input").toHaveValue("04/02/2019 16:36");
 
-    await contains(".we-bg-options-container input").edit("04/01/2019 10:00:00");
-    expect(".we-bg-options-container input").toHaveValue("04/01/2019 10:00:00");
+    await contains(".we-bg-options-container input").edit("04/01/2019 10:00");
+    expect(".we-bg-options-container input").toHaveValue("04/01/2019 10:00");
 
     await contains(".we-bg-options-container input").edit("INVALID DATE");
-    expect(".we-bg-options-container input").toHaveValue("04/01/2019 10:00:00");
+    expect(".we-bg-options-container input").toHaveValue("04/01/2019 10:00");
 });
 
 test("defaults to last one when invalid date provided (date)", async () => {
@@ -98,7 +99,7 @@ test("defaults to last one when invalid date provided (date)", async () => {
     await contains(".we-bg-options-container input").edit("INVALID DATE");
     expect(".we-bg-options-container input").toHaveValue("04/02/2019");
 
-    await contains(".we-bg-options-container input").edit("04/01/2019 10:00:00");
+    await contains(".we-bg-options-container input").edit("04/01/2019 10:00");
     expect(".we-bg-options-container input").toHaveValue("04/01/2019");
 
     await contains(".we-bg-options-container input").edit("INVALID DATE");
@@ -114,8 +115,8 @@ test("defaults to now when no date is selected", async () => {
     );
     await setupHTMLBuilder(`<div class="test-options-target">b</div>`);
     await contains(":iframe .test-options-target").click();
-    await contains(".we-bg-options-container input").edit("04/01/2019 10:00:00");
-    expect(".we-bg-options-container input").toHaveValue("04/01/2019 10:00:00");
+    await contains(".we-bg-options-container input").edit("04/01/2019 10:00");
+    expect(".we-bg-options-container input").toHaveValue("04/01/2019 10:00");
 
     await contains(".we-bg-options-container input").edit("");
     const dateString = queryOne(".we-bg-options-container input").value;
@@ -131,8 +132,8 @@ test("defaults to now when clicking on clear button", async () => {
     );
     await setupHTMLBuilder(`<div class="test-options-target">b</div>`);
     await contains(":iframe .test-options-target").click();
-    await contains(".we-bg-options-container input").edit("04/01/2019 10:00:00");
-    expect(".we-bg-options-container input").toHaveValue("04/01/2019 10:00:00");
+    await contains(".we-bg-options-container input").edit("04/01/2019 10:00");
+    expect(".we-bg-options-container input").toHaveValue("04/01/2019 10:00");
 
     for (let i = 0; i < 3; i++) {
         await contains(".we-bg-options-container input").click();
@@ -200,15 +201,15 @@ test("edit a date with the datetime picker should correctly apply the mutation",
     await contains(":iframe .test-options-target").click();
     await contains(".we-bg-options-container input").click();
     await contains(".o_date_item_cell:contains('9')").click();
-    expect(".we-bg-options-container input").toHaveValue("04/09/2019 16:36:40");
+    expect(".we-bg-options-container input").toHaveValue("04/09/2019 16:36");
 
     await contains(".o_datetime_buttons .btn:contains('apply')").click();
-    expect(".we-bg-options-container input").toHaveValue("04/09/2019 16:36:40");
-    expect(":iframe .test-options-target").toHaveAttribute("data-date", "1554824200");
+    expect(".we-bg-options-container input").toHaveValue("04/09/2019 16:36");
+    expect(":iframe .test-options-target").toHaveAttribute("data-date", "1554824160");
 
     // refresh the Edit tab
     await contains(":iframe .another-target").click();
     await contains(":iframe .test-options-target").click();
-    expect(".we-bg-options-container input").toHaveValue("04/09/2019 16:36:40");
-    expect(":iframe .test-options-target").toHaveAttribute("data-date", "1554824200");
+    expect(".we-bg-options-container input").toHaveValue("04/09/2019 16:36");
+    expect(":iframe .test-options-target").toHaveAttribute("data-date", "1554824160");
 });

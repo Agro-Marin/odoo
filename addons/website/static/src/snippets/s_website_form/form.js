@@ -252,6 +252,7 @@ export class Form extends Interaction {
                 onChange: () =>
                     inputEl.dispatchEvent(new Event("input", { bubbles: true })),
                 pickerProps: {
+                    showWeekNumbers: false,
                     type: fieldEl.matches(".s_website_form_date, .o_website_form_date")
                         ? "date"
                         : "datetime",

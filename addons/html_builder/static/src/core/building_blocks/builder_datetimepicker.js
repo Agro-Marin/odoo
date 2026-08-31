@@ -2,6 +2,7 @@
 import { Component, useState } from "@odoo/owl";
 import { useDateTimePicker } from "@web/components/datetime";
 import { ConversionError, formatDate, formatDateTime, parseDateTime } from "@web/core/l10n/dates";
+import { localization } from "@web/core/l10n/localization";
 import { luxon } from "@web/core/l10n/luxon";
 import { pick } from "@web/core/utils/collections/objects";
 import { effect } from "@web/core/utils/reactive";
@@ -71,10 +72,17 @@ export class BuilderDateTimePicker extends Component {
             minDate,
             maxDate,
             value: this.getCurrentValueDateTime(),
-            rounding: 0,
+            rounding: 1,
         });
 
-        this.formatDateTime = this.props.type === "date" ? formatDate : formatDateTime;
+        // A countdown or a form field is set to the minute; seconds are noise
+        // the user should neither see nor be able to edit. `rounding: 1` keeps
+        // them out of the picker, and this format keeps them out of the input.
+        const isDateOnly = this.props.type === "date";
+        this.formatDateTime = isDateOnly ? formatDate : formatDateTime;
+        this.displayFormat = isDateOnly
+            ? localization.dateFormat
+            : localization.dateTimeFormat.replace(":ss", "").replace(".ss", "");
 
         this.dateTimePicker = useDateTimePicker({
             target: "root",
@@ -105,7 +113,11 @@ export class BuilderDateTimePicker extends Component {
      * @returns {String} a formatted date string
      */
     formatRawValue(rawValue) {
-        return rawValue ? this.formatDateTime(DateTime.fromSeconds(parseInt(rawValue))) : "";
+        return rawValue
+            ? this.formatDateTime(DateTime.fromSeconds(parseInt(rawValue)), {
+                  format: this.displayFormat,
+              })
+            : "";
     }
 
     /**
@@ -119,7 +131,7 @@ export class BuilderDateTimePicker extends Component {
         try {
             const parsedDateTime = parseDateTime(displayValue);
             if (parsedDateTime) {
-                return parsedDateTime.toUnixInteger().toString();
+                return parsedDateTime.set({ second: 0, millisecond: 0 }).toUnixInteger().toString();
             }
         } catch (e) {
             // A ConversionError means displayValue is an invalid date: keep
