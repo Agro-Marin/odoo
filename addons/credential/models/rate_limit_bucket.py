@@ -4,6 +4,7 @@ from typing import Any
 
 from odoo import api, fields, models
 from odoo.db import insert_or_existing
+from odoo.service.model import PG_CONCURRENCY_EXCEPTIONS_TO_RETRY
 
 _logger = logging.getLogger(__name__)
 
@@ -351,6 +352,28 @@ class RateLimitBucket(models.Model):
             )
             self.env.cr.execute(f"RELEASE SAVEPOINT {savepoint_name}")
             return False
+
+        except PG_CONCURRENCY_EXCEPTIONS_TO_RETRY:
+            # Two requests contended for this bucket's row. That is a fact about
+            # the database, not about the caller's quota, and it must not become
+            # a verdict on the request.
+            #
+            # Every cursor here is REPEATABLE READ, and the strict path takes
+            # `FOR UPDATE` on one hot row under a `lock_timeout`. Under
+            # concurrency that yields SerializationFailure, LockNotAvailable or
+            # DeadlockDetected -- the three the framework names retryable, and
+            # which the request layer already retries with a fresh snapshot.
+            # Swallowing one into `return False` denied a caller who had quota,
+            # and made the STRICTER setting fail harder the more load it saw:
+            # measured over HTTP at 3000 tokens/min with a single user, one
+            # client passed 160 of 160 while sixteen clients were refused 101 of
+            # 160, with 2881 tokens still in the bucket.
+            #
+            # Re-raised, so the retry happens where it can work. A savepoint
+            # rollback would not help: the snapshot is fixed for the
+            # transaction, so retrying the same read inside it fails the same
+            # way.
+            raise
 
         except Exception as e:
             self.env.cr.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")

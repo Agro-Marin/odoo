@@ -2,8 +2,11 @@ from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import psycopg
+
 from odoo import fields
-from odoo.tests.common import TransactionCase
+from odoo.libs.logging import mute_logger
+from odoo.tests.common import TransactionCase, tagged
 
 from odoo.addons.credential.tools import EndpointRateLimiter
 
@@ -267,3 +270,66 @@ class TestEndpointRateLimiterStrictMode(TransactionCase):
             bucket_model.consume_for(endpoint, 7, strict=False)
             bucket.consume_token.assert_called_with(strict=False)
             self.assertEqual(get_or_create.call_args[0][1], 7)
+
+
+@tagged("post_install", "-at_install")
+class TestRateLimitBucketContention(TransactionCase):
+    """A row conflict is not a verdict on the caller's quota.
+
+    Every cursor here is REPEATABLE READ and the strict path takes `FOR UPDATE`
+    on one hot row under a `lock_timeout`, so concurrency produces exactly the
+    three errors the framework calls retryable. Swallowing one into a refusal
+    made the stricter setting fail harder the more load it saw.
+    """
+
+    def setUp(self):
+        super().setUp()
+        endpoint = self.env["credential.category"].search([], limit=1)
+        self.bucket = self.env["rate.limit.bucket"].create({
+            "bucket_key": "contention.probe",
+            "endpoint_model": endpoint._name,
+            "endpoint_id": endpoint.id,
+            "tokens": 100.0,
+        })
+
+    def _raise_on_lock(self, error):
+        def _lock(_self, strict):
+            raise error
+
+        self.patch(self.registry["rate.limit.bucket"], "_lock_bucket_row", _lock)
+
+    @mute_logger("odoo.addons.credential.models.rate_limit_bucket")
+    def test_a_serialization_failure_is_reraised_not_denied(self):
+        self._raise_on_lock(psycopg.errors.SerializationFailure("40001"))
+
+        with self.assertRaises(psycopg.errors.SerializationFailure):
+            self.bucket.consume_token(strict=True)
+
+    @mute_logger("odoo.addons.credential.models.rate_limit_bucket")
+    def test_a_lock_timeout_is_reraised_not_denied(self):
+        # The strict path sets `lock_timeout`, so this is the error IT produces.
+        self._raise_on_lock(psycopg.errors.LockNotAvailable("55P03"))
+
+        with self.assertRaises(psycopg.errors.LockNotAvailable):
+            self.bucket.consume_token(strict=True)
+
+    @mute_logger("odoo.addons.credential.models.rate_limit_bucket")
+    def test_a_deadlock_is_reraised_not_denied(self):
+        self._raise_on_lock(psycopg.errors.DeadlockDetected("40P01"))
+
+        with self.assertRaises(psycopg.errors.DeadlockDetected):
+            self.bucket.consume_token(strict=True)
+
+    @mute_logger("odoo.addons.credential.models.rate_limit_bucket")
+    def test_a_real_error_still_denies_in_strict_mode(self):
+        # The re-raise must not swallow the fail-closed behaviour it sits above:
+        # an error that is NOT a row conflict still denies under strict.
+        self._raise_on_lock(ValueError("something actually wrong"))
+
+        self.assertFalse(self.bucket.consume_token(strict=True))
+
+    @mute_logger("odoo.addons.credential.models.rate_limit_bucket")
+    def test_a_real_error_still_allows_when_not_strict(self):
+        self._raise_on_lock(ValueError("something actually wrong"))
+
+        self.assertTrue(self.bucket.consume_token(strict=False))
