@@ -1584,3 +1584,23 @@ class TestPortalRulePermFlags(SaleCommon):
                 self.assertFalse(rule.perm_write)
                 self.assertFalse(rule.perm_create)
                 self.assertFalse(rule.perm_unlink)
+
+
+@tagged("post_install", "-at_install")
+class TestPaymentLinkWizardWarning(SaleCommon):
+    """The expired-quotation warning branch must still fire alongside the
+    prepayment-amount one, not have been silently dropped (F23)."""
+
+    def test_expired_order_gets_warning_message(self):
+        self.sale_order.date_validity = fields.Date.today() - timedelta(days=1)
+        self.assertTrue(self.sale_order.is_expired)
+
+        wizard = (
+            self.env["payment.link.wizard"]
+            .with_context(
+                active_model="sale.order",
+                active_id=self.sale_order.id,
+            )
+            .create({})
+        )
+        self.assertEqual(wizard.warning_message, "The sale order has expired.")
