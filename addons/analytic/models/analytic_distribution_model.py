@@ -12,6 +12,11 @@ class AccountAnalyticDistributionModel(models.Model):
     _check_company_auto = True
     _check_company_domain = models.check_company_domain_parent_of
 
+    # Only ``required`` is restated: Odoo merges field definitions along ``_inherit``,
+    # so the compute, search, store and copy stay those of ``mixin.analytic``. A model
+    # of this kind exists only to carry a distribution, which is not true of the other
+    # models that take the mixin -- hence the constraint here and not there.
+    analytic_distribution = fields.Json(required=True)
     sequence = fields.Integer(default=10)
     partner_id = fields.Many2one(
         "res.partner",

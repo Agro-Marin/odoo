@@ -34,6 +34,20 @@ class TestAnalyticMixin(TransactionCase):
         # `=`, `!=`, `ilike` and `not ilike` compare against an analytic account name;
         # `in` takes a tuple/list of analytic account ids directly.
 
+        # Two of the records below deliberately carry no distribution, because that is
+        # the case three of the assertions are about. `account.analytic.distribution.model`
+        # requires one, but it is the only model inheriting `mixin.analytic` in this
+        # module, and the mixin itself does not require it -- every other inheritor
+        # (`account.move.line`, `hr.expense.split`, ...) leaves the field optional. So
+        # the constraint is dropped for the length of this test to reach the general
+        # case. `TransactionCase` rolls the DDL back with everything else.
+        self.env.cr.execute(
+            """
+            ALTER TABLE account_analytic_distribution_model
+            ALTER analytic_distribution DROP NOT NULL
+            """
+        )
+
         self.adm_sales_admin_ad = self.env[
             "account.analytic.distribution.model"
         ].create(
@@ -103,9 +117,7 @@ class TestAnalyticMixin(TransactionCase):
             filter_domain("!=", "Commercial & Marketing"),
             adm_ids - self.adm_com_marketing_ad,
         )
-        self.assertEqual(
-            filter_domain("!=", ""), adm_ids
-        )  # Should return every ADM
+        self.assertEqual(filter_domain("!=", ""), adm_ids)  # Should return every ADM
         self.assertEqual(
             filter_domain("!=", self.commercial_aa.id), adm_ids - self.adm_commercial_ad
         )

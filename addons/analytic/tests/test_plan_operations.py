@@ -117,12 +117,11 @@ class TestAnalyticPlanOperations(TransactionCase):
         )
         distribution_model = (
             self.env["account.analytic.distribution.model"]
-            .create({})
+            .create({"analytic_distribution": {f"{test_account.id}": 100}})
             .with_context(validate_analytic=True)
         )
 
         # the configuration makes it raise an error
-        distribution_model.analytic_distribution = {f"{test_account.id}": 100}
         with self.assertRaisesRegex(UserError, r"require a 100% analytic distribution"):
             distribution_model._validate_distribution()
 
@@ -143,12 +142,15 @@ class TestAnalyticPlanOperations(TransactionCase):
                 "name": "company_2",
             }
         )
-        plan = self.env["account.analytic.plan"].create(
+        plan, other_plan = self.env["account.analytic.plan"].create(
             [
                 {
                     "name": "Plan",
                     "default_applicability": "optional",
-                }
+                },
+                {
+                    "name": "Other Plan",
+                },
             ]
         )
         applicability = self.env["account.analytic.applicability"].create(
@@ -168,9 +170,22 @@ class TestAnalyticPlanOperations(TransactionCase):
                 }
             ]
         )
+        # The distribution has to point somewhere now that it cannot be empty, and it
+        # must point *outside* `plan`: a distribution naming the mandatory plan's own
+        # account would satisfy the applicability under test and the assertions below
+        # would stop meaning anything.
+        other_account = self.env["account.analytic.account"].create(
+            [
+                {
+                    "name": "Other Account",
+                    "code": "other",
+                    "plan_id": other_plan.id,
+                }
+            ]
+        )
         distribution_model = (
             self.env["account.analytic.distribution.model"]
-            .create({})
+            .create({"analytic_distribution": {f"{other_account.id}": 100}})
             .with_context(validate_analytic=True)
         )
 
@@ -187,3 +202,23 @@ class TestAnalyticPlanOperations(TransactionCase):
             )
         with self.assertRaisesRegex(UserError, r"require a 100% analytic distribution"):
             distribution_model._validate_distribution(business_domain="general")
+
+    def test_distribution_model_requires_a_distribution(self):
+        """A distribution model exists only to carry a distribution, so it must have one."""
+        ADM = self.env["account.analytic.distribution.model"]
+        partner = self.env["res.partner"].create({"name": "Partner"})
+
+        with self.assertRaises(psycopg.errors.NotNullViolation), mute_logger("odoo.db"):
+            ADM.create({"partner_id": partner.id})
+
+    def test_distribution_model_rejects_an_empty_distribution(self):
+        """An empty mapping is not a distribution either.
+
+        `Json.convert_to_cache` maps every falsy value to `None`, so `{}` reaches the
+        column as NULL and the same constraint catches it. Pinned because a reader would
+        reasonably expect `required` to stop only `False`.
+        """
+        ADM = self.env["account.analytic.distribution.model"]
+
+        with self.assertRaises(psycopg.errors.NotNullViolation), mute_logger("odoo.db"):
+            ADM.create({"analytic_distribution": {}})

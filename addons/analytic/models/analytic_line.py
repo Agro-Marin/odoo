@@ -125,8 +125,12 @@ class AccountAnalyticLine(models.Model):
         return "amount"
 
     def _search_from_last_fiscal_year(self, operator, value):
+        # ``context_today`` and not ``today``: the latter is the server's UTC date,
+        # which is neither the user's nor the company's. They fall in different fiscal
+        # years for the last six hours of 31 December at UTC-6, and the window would
+        # then open a year late.
         fiscalyear_date_range = self.env.company.compute_fiscalyear_dates(
-            fields.Date.today()
+            fields.Date.context_today(self)
         )
         return [
             ("date", ">=", fiscalyear_date_range["date_from"] - relativedelta(years=1))
