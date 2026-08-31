@@ -6,18 +6,9 @@ from odoo.fields import Domain
 
 
 class HrVersion(models.Model):
-    """Employee Contract."""
-
-    # TODO BIOUTIFY ME (the whole file :)
     _inherit = "hr.version"
     _description = "Employee Contract"
 
-    # Write and Create: special case when setting a contract as running.
-    # If there is already a validated time off over another contract
-    # with a different schedule, split the time off, before the
-    # _check_contracts raises an issue.
-    # If there are existing leaves that are spanned by this new
-    # contract, update their resource calendar to the current one.
     @api.constrains("contract_date_start", "contract_date_end")
     def _check_contracts(self):
         self._get_leaves()._check_contracts()
@@ -45,7 +36,6 @@ class HrVersion(models.Model):
                     is_created = True
                 overlapping_contracts = self._check_overlapping_contract(leave)
                 if not overlapping_contracts:
-                    # When the leave is set to draft
                     leave._compute_date_from_to()
                     continue
                 all_new_leave_origin, all_new_leave_vals = (
@@ -57,16 +47,12 @@ class HrVersion(models.Model):
                         leaves_state,
                     )
                 )
-            # TODO FIXME
-            # to keep creation order, not ideal but ok for now.
             if not is_created:
                 created_versions |= super().create([vals])
         try:
             if all_new_leave_vals:
                 self._create_all_new_leave(all_new_leave_origin, all_new_leave_vals)
         except ValidationError as e:
-            # In case a validation error is thrown due to holiday creation with the new resource calendar (which can
-            # increase their duration), we catch this error to display a more meaningful error message.
             raise ValidationError(
                 self.env._(
                     "Changing the contract on this employee changes their working schedule in a period "
@@ -102,13 +88,15 @@ class HrVersion(models.Model):
                         else None
                     )
                     leaves = contract._get_leaves(extra_domain=extra_domain)
+                    if not leaves:
+                        continue
+                    super(HrVersion, contract).write(vals)
                     for leave in leaves:
-                        super(HrVersion, contract).write(vals)
                         overlapping_contracts = self._check_overlapping_contract(leave)
                         if not overlapping_contracts:
                             continue
                         leaves_state = self._refuse_leave(leave, leaves_state)
-                        specific_contracts += contract
+                        specific_contracts |= contract
                         all_new_leave_origin, all_new_leave_vals = (
                             self._populate_all_new_leave_vals_from_split_leave(
                                 all_new_leave_origin,
@@ -121,8 +109,6 @@ class HrVersion(models.Model):
                 if all_new_leave_vals:
                     self._create_all_new_leave(all_new_leave_origin, all_new_leave_vals)
             except ValidationError as e:
-                # In case a validation error is thrown due to holiday creation with the new resource calendar (which can
-                # increase their duration), we catch this error to display a more meaningful error message.
                 raise ValidationError(
                     self.env._(
                         "Changing the contract on this employee changes their working schedule in a period "
@@ -180,7 +166,6 @@ class HrVersion(models.Model):
         return self.env["hr.leave"].search(domain)
 
     def _check_overlapping_contract(self, leave):
-        # Get all overlapping contracts but exclude draft contracts that are not included in this transaction.
         overlapping_contracts = leave._get_overlapping_contracts().sorted(
             key=lambda c: c.contract_date_start
         )
@@ -248,8 +233,6 @@ class HrVersion(models.Model):
             new_leave = self.env["hr.leave"].new(new_leave_vals)
             new_leave._compute_date_from_to()
             new_leave._compute_duration()
-            # Could happen for part-time contract, that time off is not necessary
-            # anymore.
             if new_leave.date_from < new_leave.date_to:
                 all_new_leave_origin.append(leave)
                 all_new_leave_vals.append(new_leave._convert_to_write(new_leave._cache))
@@ -266,7 +249,7 @@ class HrVersion(models.Model):
             )
             .create(all_new_leave_vals)
         )
-        new_leaves.filtered(lambda l: l.state in "validate")._apply_leave_request()
+        new_leaves.filtered(lambda l: l.state == "validate")._apply_leave_request()
         for index, new_leave in enumerate(new_leaves):
             new_leave.message_post_with_source(
                 "mail.message_origin_link",

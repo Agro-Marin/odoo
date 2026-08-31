@@ -1,0 +1,373 @@
+from datetime import date
+
+from odoo.exceptions import ValidationError
+from odoo.tests import tagged
+
+from odoo.addons.hr_holidays.tests.common import TestHrHolidaysCommon
+
+
+@tagged("post_install", "-at_install")
+class TestLeaveWriteGuards(TestHrHolidaysCommon):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.leave_type = cls.env["hr.leave.type"].create(
+            {
+                "name": "Strict Two Days",
+                "requires_allocation": True,
+                "request_unit": "day",
+                "leave_validation_type": "hr",
+                "allocation_validation_type": "no_validation",
+                "employee_requests": True,
+                "allows_negative": False,
+                "company_id": cls.company.id,
+            }
+        )
+
+    def _allocate(self, days):
+        allocation = self.env["hr.leave.allocation"].create(
+            {
+                "name": "Strict allocation",
+                "employee_id": self.employee_emp_id,
+                "holiday_status_id": self.leave_type.id,
+                "number_of_days": days,
+            }
+        )
+        allocation.action_approve()
+        return allocation
+
+    def _one_day_leave(self, day):
+        return self.env["hr.leave"].create(
+            {
+                "employee_id": self.employee_emp_id,
+                "holiday_status_id": self.leave_type.id,
+                "request_date_from": day,
+                "request_date_to": day,
+            }
+        )
+
+    def test_extending_the_end_date_is_checked_against_the_allocation(self):
+        self._allocate(2)
+        leave = self._one_day_leave(date(2026, 9, 7))
+        with self.assertRaises(
+            ValidationError,
+            msg="pushing request_date_to out to a full week must be refused "
+            "against a 2-day allocation, exactly as pulling request_date_from "
+            "back would be",
+        ):
+            leave.write({"request_date_to": date(2026, 9, 11)})
+
+    def test_extending_the_start_date_is_checked_against_the_allocation(self):
+        self._allocate(2)
+        leave = self._one_day_leave(date(2026, 10, 9))
+        with self.assertRaises(ValidationError):
+            leave.write({"request_date_from": date(2026, 10, 5)})
+
+    def test_write_does_not_mutate_the_caller_vals(self):
+        self._allocate(20)
+        leave = self._one_day_leave(date(2026, 11, 2))
+        vals = {"date_from": leave.date_from}
+        leave.write(vals)
+        self.assertEqual(
+            list(vals),
+            ["date_from"],
+            "write() injected request_date_from into the dict it was handed; a "
+            "caller looping one dict over several records would carry it along",
+        )
+
+    def test_create_without_an_explicit_leave_type(self):
+        self.leave_type.requires_allocation = False
+        leave = (
+            self.env["hr.leave"]
+            .with_context(default_holiday_status_id=self.leave_type.id)
+            .create(
+                {
+                    "employee_id": self.employee_emp_id,
+                    "holiday_status_id": self.leave_type.id,
+                    "request_date_from": date(2026, 9, 21),
+                    "request_date_to": date(2026, 9, 21),
+                }
+            )
+        )
+        self.assertTrue(leave.holiday_status_id)
+        leave_without_type = self.env["hr.leave"].create(
+            {
+                "employee_id": self.employee_emp_id,
+                "request_date_from": date(2026, 9, 22),
+                "request_date_to": date(2026, 9, 22),
+            }
+        )
+        self.assertTrue(leave_without_type.holiday_status_id)
+
+    def test_stretching_an_hourly_leave_is_checked(self):
+        lt = self.env["hr.leave.type"].create(
+            {
+                "name": "Strict Hours",
+                "requires_allocation": True,
+                "request_unit": "hour",
+                "leave_validation_type": "hr",
+                "allocation_validation_type": "no_validation",
+                "employee_requests": True,
+                "allows_negative": False,
+                "company_id": self.company.id,
+            }
+        )
+        self.env["hr.leave.allocation"].create(
+            {
+                "name": "two hours",
+                "employee_id": self.employee_emp_id,
+                "holiday_status_id": lt.id,
+                "number_of_days": 0.25,
+            }
+        ).action_approve()
+        leave = self.env["hr.leave"].create(
+            {
+                "employee_id": self.employee_emp_id,
+                "holiday_status_id": lt.id,
+                "request_date_from": date(2027, 3, 1),
+                "request_date_to": date(2027, 3, 1),
+                "request_unit_hours": True,
+                "request_hour_from": 8.0,
+                "request_hour_to": 9.0,
+            }
+        )
+        with self.assertRaises(
+            ValidationError,
+            msg="request_hour_to changes how much allocation the leave consumes, "
+            "so widening it must be checked exactly as request_date_to is; a "
+            "trigger list naming only the date fields let an hourly leave grow "
+            "from 1h to 7.6h against a 2h allocation",
+        ):
+            leave.write({"request_hour_to": 17.0})
+
+    def test_widening_a_half_day_leave_is_checked(self):
+        lt = self.env["hr.leave.type"].create(
+            {
+                "name": "Strict Half Day",
+                "requires_allocation": True,
+                "request_unit": "half_day",
+                "leave_validation_type": "hr",
+                "allocation_validation_type": "no_validation",
+                "employee_requests": True,
+                "allows_negative": False,
+                "company_id": self.company.id,
+            }
+        )
+        self.env["hr.leave.allocation"].create(
+            {
+                "name": "half a day",
+                "employee_id": self.employee_emp_id,
+                "holiday_status_id": lt.id,
+                "number_of_days": 0.5,
+            }
+        ).action_approve()
+        leave = self.env["hr.leave"].create(
+            {
+                "employee_id": self.employee_emp_id,
+                "holiday_status_id": lt.id,
+                "request_date_from": date(2027, 4, 1),
+                "request_date_to": date(2027, 4, 1),
+                "request_date_from_period": "am",
+                "request_date_to_period": "am",
+            }
+        )
+        self.assertEqual(leave.number_of_days, 0.5)
+        with self.assertRaises(
+            ValidationError,
+            msg="flipping request_date_to_period from am to pm doubles the "
+            "leave; the am/pm fields feed _compute_date_from_to and so must "
+            "re-run the balance check",
+        ):
+            leave.write({"request_date_to_period": "pm"})
+
+    def test_a_write_that_changes_nothing_skips_the_balance_check(self):
+        self._allocate(2)
+        leave = self._one_day_leave(date(2027, 5, 3))
+        leave.write({"request_date_to": date(2027, 5, 3)})
+        self.assertEqual(
+            leave.number_of_days,
+            1.0,
+            "rewriting a date with the value it already holds changes no "
+            "consumption, so the check must be skipped rather than re-run",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestLeaveTypeBalances(TestHrHolidaysCommon):
+    def test_two_types_sharing_a_name_keep_separate_balances(self):
+        common_vals = {
+            "requires_allocation": True,
+            "request_unit": "day",
+            "leave_validation_type": "hr",
+            "allocation_validation_type": "no_validation",
+            "employee_requests": True,
+            "company_id": self.company.id,
+        }
+        first, second = self.env["hr.leave.type"].create(
+            [
+                {"name": "Paid Time Off", **common_vals},
+                {"name": "Paid Time Off", **common_vals},
+            ]
+        )
+        for leave_type, days in ((first, 20), (second, 7)):
+            allocation = self.env["hr.leave.allocation"].create(
+                {
+                    "name": "alloc",
+                    "employee_id": self.employee_emp_id,
+                    "holiday_status_id": leave_type.id,
+                    "number_of_days": days,
+                }
+            )
+            allocation.action_approve()
+
+        pair = (first + second).with_context(employee_id=self.employee_emp_id)
+        self.assertEqual(
+            pair.mapped("max_leaves"),
+            [20.0, 7.0],
+            "each leave type must report its own allocation, not the balance "
+            "of the first type that happens to share its name",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestAllocationApprovalActivity(TestHrHolidaysCommon):
+    def test_activity_follows_the_allocation_validation_type(self):
+        leave_type = self.env["hr.leave.type"].create(
+            {
+                "name": "Allocation needs HR, leaves do not",
+                "requires_allocation": True,
+                "request_unit": "day",
+                "allocation_validation_type": "hr",
+                "leave_validation_type": "no_validation",
+                "employee_requests": True,
+                "company_id": self.company.id,
+                "responsible_ids": [(4, self.user_hruser_id)],
+            }
+        )
+        allocation = self.env["hr.leave.allocation"].create(
+            {
+                "name": "waiting for an officer",
+                "employee_id": self.employee_emp_id,
+                "holiday_status_id": leave_type.id,
+                "number_of_days": 1,
+            }
+        )
+        self.assertEqual(allocation.state, "confirm")
+        activities = self.env["mail.activity"].search(
+            [
+                ("res_model", "=", "hr.leave.allocation"),
+                ("res_id", "=", allocation.id),
+            ]
+        )
+        self.assertTrue(
+            activities,
+            "the allocation is waiting on an officer, so the officer needs an "
+            "activity; keying off leave_validation_type suppressed it",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestIsAbsentSearch(TestHrHolidaysCommon):
+    def test_search_honours_the_searched_value(self):
+        Employee = self.env["hr.employee"]
+        absent = Employee._search_is_absent("in", [True])
+        present = Employee._search_is_absent("in", [False])
+        self.assertNotEqual(
+            list(absent),
+            list(present),
+            "is_absent = False returned the same domain as is_absent = True, "
+            "so the 'not absent' filter listed exactly the absent employees",
+        )
+
+    def test_public_employee_delegates_to_hr_employee(self):
+        self.assertEqual(
+            list(self.env["hr.employee.public"]._search_is_absent("in", [True])),
+            list(self.env["hr.employee"]._search_is_absent("in", [True])),
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestAccrualLevelPeriodBounds(TestHrHolidaysCommon):
+    def test_monthly_previous_date_starts_the_period_the_others_do_not(self):
+        plan = self.env["hr.leave.accrual.plan"].create({"name": "Anchor plan"})
+        level_vals = {
+            "accrual_plan_id": plan.id,
+            "added_value": 1,
+            "added_value_type": "day",
+            "start_count": 0,
+            "milestone_date": "creation",
+        }
+        monthly, bimonthly, yearly = self.env["hr.leave.accrual.level"].create(
+            [
+                {**level_vals, "frequency": "monthly", "first_day": "20"},
+                {
+                    **level_vals,
+                    "frequency": "bimonthly",
+                    "first_day": "20",
+                    "second_day": "25",
+                },
+                {
+                    **level_vals,
+                    "frequency": "yearly",
+                    "yearly_month": "6",
+                    "yearly_day": "20",
+                },
+            ]
+        )
+        last_call = date(2026, 3, 15)
+        self.assertEqual(monthly._get_previous_date(last_call), date(2026, 2, 21))
+        self.assertEqual(bimonthly._get_previous_date(last_call), date(2026, 2, 25))
+        self.assertEqual(yearly._get_previous_date(last_call), date(2025, 6, 20))
+
+
+@tagged("post_install", "-at_install")
+class TestConsumedLeavesExcess(TestHrHolidaysCommon):
+    def test_two_leaves_ending_the_same_day_both_report_their_excess(self):
+        leave_type = self.env["hr.leave.type"].create(
+            {
+                "name": "Hourly, one hour allocated",
+                "requires_allocation": True,
+                "request_unit": "hour",
+                "leave_validation_type": "no_validation",
+                "allocation_validation_type": "no_validation",
+                "employee_requests": True,
+                "allows_negative": True,
+                "max_allowed_negative": 100,
+                "company_id": self.company.id,
+            }
+        )
+        allocation = self.env["hr.leave.allocation"].create(
+            {
+                "name": "one hour",
+                "employee_id": self.employee_emp_id,
+                "holiday_status_id": leave_type.id,
+                "number_of_days": 0.125,
+            }
+        )
+        allocation.action_approve()
+
+        day = date(2026, 9, 7)
+        Leave = self.env["hr.leave"].with_context(leave_skip_date_check=True)
+        morning, afternoon = (
+            Leave.create(
+                {
+                    "employee_id": self.employee_emp_id,
+                    "holiday_status_id": leave_type.id,
+                    "request_date_from": day,
+                    "request_date_to": day,
+                    "request_unit_hours": True,
+                    "request_hour_from": hour_from,
+                    "request_hour_to": hour_to,
+                }
+            )
+            for hour_from, hour_to in ((8.0, 10.0), (13.0, 16.0))
+        )
+
+        _consumed, extra = self.employee_emp._get_consumed_leaves(leave_type, day)
+        excess = extra[self.employee_emp][leave_type]["excess_days"]
+        self.assertEqual(
+            sorted(entry["leave_id"] for entry in excess.values()),
+            sorted((morning + afternoon).ids),
+            "both same-day leaves overran the allocation; keying excess_days "
+            "by end date alone let the second overwrite the first",
+        )

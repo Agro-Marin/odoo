@@ -89,7 +89,6 @@ class TestHrLeaveMandatoryDays(TransactionCase):
 
     @freeze_time("2021-10-15")
     def test_request_mandatory_days(self):
-        # An employee can request time off outside mandatory days
         self.env["hr.leave"].with_user(self.employee_user.id).create(
             {
                 "name": "coucou",
@@ -100,7 +99,6 @@ class TestHrLeaveMandatoryDays(TransactionCase):
             }
         )
 
-        # Taking a time off during a Mandatory Day is not allowed for a simple employee...
         with self.assertRaises(ValidationError):
             self.env["hr.leave"].with_user(self.employee_user.id).create(
                 {
@@ -123,7 +121,6 @@ class TestHrLeaveMandatoryDays(TransactionCase):
                 }
             )
 
-        # ... but is allowed for a Time Off Officer
         self.env["hr.leave"].with_user(self.manager_user.id).create(
             {
                 "name": "coucou",
@@ -140,7 +137,6 @@ class TestHrLeaveMandatoryDays(TransactionCase):
             "2021-11-01", "2021-11-30"
         )
 
-        # Mandatory Days spanning multiple days should be split in single days
         expected_data = {
             "2021-11-02": 1,
             "2021-11-08": 2,
@@ -157,20 +153,38 @@ class TestHrLeaveMandatoryDays(TransactionCase):
 
         with Form(
             self.env["hr.leave"]
-            .with_user(self.employee_user.id)
+            .with_user(self.manager_user.id)
             .with_context(default_employee_id=self.employee_emp.id)
         ) as leave_form:
             leave_form.holiday_status_id = self.leave_type
             leave_form.request_date_from = datetime(2021, 11, 1)
             leave_form.request_date_to = datetime(2021, 11, 1)
 
-            leave_form.save()  # need to be saved to have access to record
+            leave_form.save()
             self.assertFalse(leave_form.record.has_mandatory_day)
 
             leave_form.request_date_to = datetime(2021, 11, 5)
 
-            leave_form.save()  # need to be saved to have access to record
+            leave_form.save()
             self.assertTrue(leave_form.record.has_mandatory_day)
+
+    @freeze_time("2021-10-15")
+    def test_extending_a_leave_onto_a_mandatory_day_is_refused(self):
+        leave = (
+            self.env["hr.leave"]
+            .with_user(self.employee_user.id)
+            .create(
+                {
+                    "employee_id": self.employee_emp.id,
+                    "holiday_status_id": self.leave_type.id,
+                    "request_date_from": datetime(2021, 11, 1),
+                    "request_date_to": datetime(2021, 11, 1),
+                }
+            )
+        )
+        self.assertFalse(leave.has_mandatory_day)
+        with self.assertRaises(ValidationError):
+            leave.write({"request_date_to": datetime(2021, 11, 5)})
 
     @freeze_time("2021-10-15")
     def test_department_mandatory_days(self):
@@ -197,7 +211,6 @@ class TestHrLeaveMandatoryDays(TransactionCase):
 
         self.employee_emp.write({"department_id": post_production_department.id})
 
-        # Create one mandatory day for each department
         self.env["hr.leave.mandatory.day"].create(
             {
                 "name": "Last Rush Before Launch (production)",
@@ -232,8 +245,6 @@ class TestHrLeaveMandatoryDays(TransactionCase):
             }
         )
 
-        # The employee should only be able to create a time off on mandatory days
-        # that do not include his department
         with self.assertRaises(ValidationError):
             self.env["hr.leave"].with_user(self.employee_user.id).create(
                 {
@@ -266,22 +277,6 @@ class TestHrLeaveMandatoryDays(TransactionCase):
 
     @freeze_time("2021-10-15")
     def test_job_position_mandatory_days(self):
-        """
-        Test mandatory leave restrictions based on job positions and departments.
-
-        This test ensures that employees cannot request time off on mandatory leave days
-        that are assigned to their specific job position or department. The logic includes:
-
-        - Creating a production department and job positions.
-        - Assigning an employee to a department and job position.
-        - Defining mandatory leave days for specific jobs and departments.
-        - Validating that the employee cannot take leave on restricted days.
-        - Allowing leave requests on days without conflicts.
-
-        Expected behavior:
-        - Raises a ValidationError if the employee's department or job position is linked to a mandatory leave day.
-        - Allows leave requests on days that do not conflict with their assigned job or department.
-        """
         production_department = self.env["hr.department"].create(
             {
                 "name": "Production Department",
@@ -289,7 +284,6 @@ class TestHrLeaveMandatoryDays(TransactionCase):
             }
         )
 
-        # Create job positions
         production_manager, post_production_manager = self.env["hr.job"].create(
             [
                 {
@@ -310,7 +304,6 @@ class TestHrLeaveMandatoryDays(TransactionCase):
             }
         )
 
-        # Create mandatory leave days for job positions and departments
         self.env["hr.leave.mandatory.day"].create(
             [
                 {
@@ -354,8 +347,6 @@ class TestHrLeaveMandatoryDays(TransactionCase):
             ]
         )
 
-        # The employee should only be able to create a time off on mandatory days
-        # that do not conflict with their job or department restrictions
         with self.assertRaises(ValidationError):
             self.env["hr.leave"].with_user(self.employee_user.id).create(
                 {
@@ -459,7 +450,6 @@ class TestHrLeaveMandatoryDays(TransactionCase):
             "2021-11-01", "2021-11-30"
         )
 
-        # Mandatory Days spanning multiple days should be split in single days
         expected_data = {
             "2021-11-02": 1,
             "2021-11-04": 3,
@@ -471,13 +461,11 @@ class TestHrLeaveMandatoryDays(TransactionCase):
             "2021-11-12": 2,
         }
 
-        # All mandatory days for both employees should be returned
         self.assertEqual(len(mandatory_days), len(expected_data))
         for day, color in expected_data.items():
             self.assertTrue(day in mandatory_days)
             self.assertEqual(color, mandatory_days[day])
 
-        # Check that has_mandatory_day is computed correctly for multiple leaves
         leave_1, leave_2 = (
             self.env["hr.leave"]
             .with_user(self.manager_user.id)

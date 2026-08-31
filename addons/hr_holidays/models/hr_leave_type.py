@@ -1,5 +1,3 @@
-# Copyright (c) 2005-2006 Axelor SARL. (http://www.axelor.com)
-
 import logging
 import operator as py_operator
 from collections import defaultdict
@@ -71,7 +69,6 @@ class HrLeaveType(models.Model):
         help="Non-visible allocations can still be selected when taking a leave, but will simply not be displayed on the leave dashboard.",
     )
 
-    # employee specific computed data
     max_leaves = fields.Float(
         compute="_compute_leaves",
         string="Maximum Allowed",
@@ -219,7 +216,6 @@ class HrLeaveType(models.Model):
     accrual_count = fields.Float(
         compute="_compute_accrual_count", string="Accruals count"
     )
-    # negative time off
     allows_negative = fields.Boolean(
         string="Allow Negative Cap",
         help="If checked, users request can exceed the allocated days and balance can go in negative.",
@@ -236,10 +232,6 @@ class HrLeaveType(models.Model):
 
     @api.model
     def _search_has_valid_allocation(self, operator, value):
-        """Returns leave_type ids for which a valid allocation exists
-        or that don't need an allocation
-        return [('id', domain_operator, [x['id'] for x in res])]
-        """
         if operator not in ("in", "not in"):
             return NotImplemented
 
@@ -251,7 +243,6 @@ class HrLeaveType(models.Model):
                 self.env.context.get("default_date_to")
             )
 
-            # Cast: Datetime -> Date using user's tz
             date_from = fields.Date.context_today(self, default_date_from_dt)
             date_to = fields.Date.context_today(self, default_date_to_dt)
 
@@ -306,52 +297,52 @@ class HrLeaveType(models.Model):
 
     @api.constrains("include_public_holidays_in_duration")
     def _check_overlapping_public_holidays(self):
-        # checking for the current user's company too
+        now = datetime.now()
+        min_datetime = now.replace(
+            month=1, day=1, hour=0, minute=0, second=0, microsecond=0
+        )
+        max_datetime = now.replace(month=12, day=31, hour=23, minute=59, second=59)
+
+        leaves = self.env["hr.leave"].search(
+            [
+                ("holiday_status_id", "in", self.ids),
+                ("date_from", ">=", fields.Datetime.to_string(min_datetime)),
+                ("date_from", "<=", fields.Datetime.to_string(max_datetime)),
+                ("state", "in", ("validate", "validate1", "confirm")),
+            ]
+        )
+        if not leaves:
+            return
+
         companies = self.company_id | self.env.company
         public_holidays = self.env["resource.calendar.leaves"].search(
             [
                 ("resource_id", "=", False),
                 ("company_id", "in", companies.ids),
+                ("date_from", "<=", max(leaves.mapped("date_to"))),
+                ("date_to", ">=", min(leaves.mapped("date_from"))),
             ]
         )
+        if not public_holidays:
+            return
 
-        # Define the date range for the current year
-        min_datetime = fields.Datetime.to_string(
-            datetime.now().replace(
-                month=1, day=1, hour=0, minute=0, second=0, microsecond=0
-            )
+        holiday_spans = [
+            (holiday.date_from.date(), holiday.date_to.date())
+            for holiday in public_holidays
+        ]
+        overlaps = any(
+            leave.date_from.date() <= holiday_to
+            and leave.date_to.date() >= holiday_from
+            for leave in leaves
+            for holiday_from, holiday_to in holiday_spans
         )
-        max_datetime = fields.Datetime.to_string(
-            datetime.now().replace(month=12, day=31, hour=23, minute=59, second=59)
-        )
-
-        leaves = self.env["hr.leave"].search(
-            [
-                ("holiday_status_id", "in", self.ids),
-                ("date_from", ">=", min_datetime),
-                ("date_from", "<=", max_datetime),
-                ("state", "in", ("validate", "validate1", "confirm")),
-            ]
-        )
-
-        for leave in leaves:
-            leave_from_date = leave.date_from.date()
-            leave_to_date = leave.date_to.date()
-
-            for public_holiday in public_holidays:
-                public_holiday_from_date = public_holiday.date_from.date()
-                public_holiday_to_date = public_holiday.date_to.date()
-
-                if (
-                    leave_from_date <= public_holiday_to_date
-                    and leave_to_date >= public_holiday_from_date
-                ):
-                    raise ValidationError(
-                        _(
-                            "You cannot modify the 'Public Holiday Included' setting since one or more leaves for that \
+        if overlaps:
+            raise ValidationError(
+                _(
+                    "You cannot modify the 'Public Holiday Included' setting since one or more leaves for that \
                         time off type are overlapping with public holidays, meaning that the balance of those employees would be affected by this change."
-                        )
-                    )
+                )
+            )
 
     @api.depends("requires_allocation", "max_leaves", "virtual_remaining_leaves")
     def _compute_has_valid_allocation(self):
@@ -439,11 +430,22 @@ class HrLeaveType(models.Model):
         leaves = defaultdict(int)
 
         if employee:
-            allocations = self.env["hr.leave.allocation"].search(
-                [("employee_id", "=", employee.id), ("state", "=", "validate")]
+            today = fields.Date.today()
+            grouped = self.env["hr.leave.allocation"]._read_group(
+                [
+                    ("employee_id", "=", employee.id),
+                    ("state", "=", "validate"),
+                    ("date_from", "<=", today),
+                    "|",
+                    ("date_to", "=", False),
+                    ("date_to", ">=", today),
+                ],
+                ["holiday_status_id"],
+                ["number_of_days:sum"],
             )
-            for allocation in allocations:
-                leaves[allocation.holiday_status_id.id] += allocation.number_of_days
+            leaves.update(
+                {leave_type.id: total for leave_type, total in grouped if leave_type}
+            )
         valid_leaves = [leaf for leaf, number in leaves.items() if op(number, value)]
         return [("id", "in", valid_leaves)]
 
@@ -466,18 +468,16 @@ class HrLeaveType(models.Model):
     )
     def _compute_leaves(self):
         employee = self.env["hr.employee"]._get_contextual_employee()
-        # This is a workaround to save the date value in context for next triggers
-        # when context gets cleaned and 'default_' context keys gets removed
         target_date = self.env.context.get("leave_date_from") or self.env.context.get(
             "default_date_from"
         )
         data_days = self.get_allocation_data(employee, target_date)[employee]
+        data_by_leave_type_id = {item[3]: item[1] for item in data_days}
         for holiday_status in self:
-            result = [item for item in data_days if item[0] == holiday_status.name]
-            leave_type_tuple = result[0] if result else ("", {})
-            holiday_status.max_leaves = leave_type_tuple[1].get("max_leaves", 0)
-            holiday_status.leaves_taken = leave_type_tuple[1].get("leaves_taken", 0)
-            holiday_status.virtual_remaining_leaves = leave_type_tuple[1].get(
+            data = data_by_leave_type_id.get(holiday_status.id, {})
+            holiday_status.max_leaves = data.get("max_leaves", 0)
+            holiday_status.leaves_taken = data.get("leaves_taken", 0)
+            holiday_status.virtual_remaining_leaves = data.get(
                 "virtual_remaining_leaves", 0
             )
 
@@ -585,7 +585,6 @@ class HrLeaveType(models.Model):
     @api.depends_context("holiday_status_display_name", "employee_id")
     def _compute_display_name(self):
         if not self.requested_display_name():
-            # leave counts is based on employee_id, would be inaccurate if not based on correct employee
             return super()._compute_display_name()
         for record in self:
             name = record.name
@@ -620,20 +619,8 @@ class HrLeaveType(models.Model):
 
     @api.model
     def _search(self, domain, offset=0, limit=None, order=None, **kwargs):
-        """Override _search to order the results, according to some employee.
-        The order is the following
-
-         - allocation fixed first, then allowing allocation, then free allocation
-         - virtual remaining leaves (higher the better, so using reverse on sorted)
-
-        This override is necessary because those fields are not stored and depends
-        on an employee_id given in context. This sort will be done when there
-        is an employee_id in context and that no other order has been given
-        to the method.
-        """
         employee = self.env["hr.employee"]._get_contextual_employee()
         if order == self._order and employee:
-            # retrieve all leaves, sort them, then apply offset and limit
             leaves = self.browse(super()._search(domain, **kwargs))
             leaves = leaves.sorted(key=self._model_sorting_key, reverse=True)
             leaves = leaves[offset : (offset + limit) if limit else None]
@@ -648,9 +635,6 @@ class HrLeaveType(models.Model):
         ]
 
     def copy_translations(self, new, excluded=()):
-        # ``copy_data`` renames ``name`` in the duplicating user's language
-        # only; without this the copy would keep the source record's exact
-        # ``name`` in every other language.
         super().copy_translations(new, excluded=(*excluded, "name"))
         self._copy_translations_of_renamed_field(
             new, "name", lambda record, term: record.env._("%s (copy)", term)
@@ -697,10 +681,6 @@ class HrLeaveType(models.Model):
             "default_time_off_type_id": self.id,
         }
         return action
-
-    # ------------------------------------------------------------
-    # Leave - Allocation link methods
-    # ------------------------------------------------------------
 
     @api.model
     def has_accrual_allocation(self):
@@ -787,12 +767,12 @@ class HrLeaveType(models.Model):
                     leave_type.requires_allocation,
                     leave_type.id,
                 )
-                for excess_date, excess_days in extra_data[employee][leave_type][
-                    "excess_days"
-                ].items():
+                for (excess_date, leave_id), excess_days in extra_data[employee][
+                    leave_type
+                ]["excess_days"].items():
                     amount = excess_days["amount"]
                     lt_info[1]["virtual_excess_data"].update(
-                        {excess_date.strftime("%Y-%m-%d"): excess_days}
+                        {f"{excess_date:%Y-%m-%d}-{leave_id}": excess_days}
                     )
                     lt_info[1]["total_virtual_excess"] += amount
                     if not leave_type.allows_negative:
@@ -811,20 +791,15 @@ class HrLeaveType(models.Model):
                 for allocation, data in allocations_leaves_consumed[employee][
                     leave_type
                 ].items():
-                    # We only need the allocation that are valid at the given date
                     if allocation:
                         today = fields.Date.today()
                         if allocation.date_from <= today and (
                             not allocation.date_to or allocation.date_to >= today
                         ):
-                            # we get each allocation available now to indicate visually if
-                            # the future evaluation holds changes compared to now
                             allocations_now |= allocation
                         if allocation.date_from <= target_date and (
                             not allocation.date_to or allocation.date_to >= target_date
                         ):
-                            # we get each allocation available now to indicate visually if
-                            # the future evaluation holds changes compared to now
                             allocations_date |= allocation
                         if allocation.date_from > target_date:
                             continue
@@ -872,7 +847,6 @@ class HrLeaveType(models.Model):
                             end_datetime - start_datetime
                         ).days + 1
                     else:
-                        # closest_allocation_duration corresponds to the time remaining before the allocation expires
                         calendar_attendance = calendar._work_intervals_batch(
                             start_datetime, end_datetime, resources=employee.resource_id
                         )
@@ -888,8 +862,6 @@ class HrLeaveType(models.Model):
                 else:
                     closest_allocation_expire = False
                     closest_allocation_duration = False
-                # the allocations are assumed to be different from today's allocations if there is any
-                # accrual days granted or if there is any difference between allocations now and on the selected date
                 holds_changes = (
                     lt_info[1]["accrual_bonus"] > 0
                     or bool(allocations_date - allocations_now)
@@ -914,7 +886,6 @@ class HrLeaveType(models.Model):
     def _get_closest_expiring_leaves_date_and_count(
         self, allocations, remaining_leaves, target_date
     ):
-        # Get the expiration date and carryover date of all allocations and compute the closest expiration date
         expiration_dates_per_allocation = defaultdict(
             lambda: {
                 "expiration_date": fields.Date(),
@@ -938,10 +909,6 @@ class HrLeaveType(models.Model):
                 or accrual_plan_level.carryover_options == "limited"
             ):
                 carryover_date = allocation.sudo()._get_carryover_date(target_date)
-                # If carry over date == target date, then add 1 year to carry over date.
-                # Rational: for example if carry over date = 01/01 this year and target date = 01/01 this year,
-                # then any accrued days on 01/01 this year will have their carry over date 01/01 next year
-                # and not 01/01 this year.
                 if carryover_date == target_date:
                     carryover_date += relativedelta(years=1)
 
@@ -966,7 +933,6 @@ class HrLeaveType(models.Model):
             filter(lambda date: date is not False, expiration_dates)
         )
         expiration_dates.sort()
-        # Compute the number of expiring leaves
         for closest_expiration_date in expiration_dates:
             expiring_leaves_count = 0
             for allocation in allocations:
@@ -1006,7 +972,6 @@ class HrLeaveType(models.Model):
             if expiring_leaves_count != 0:
                 return closest_expiration_date, expiring_leaves_count
 
-        # No leaves will expire
         return False, 0
 
     def _get_carried_over_days_expiration_data(self, allocations, target_date):

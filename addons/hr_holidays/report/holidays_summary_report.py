@@ -23,6 +23,10 @@ COLORS_MAP = {
 }
 
 
+def _color_of(record):
+    return COLORS_MAP.get(record.color % len(COLORS_MAP), COLORS_MAP[0])
+
+
 class ReportHr_HolidaysReport_Holidayssummary(models.AbstractModel):
     _name = "report.hr_holidays.report_holidayssummary"
     _description = "Holidays Summary Report"
@@ -65,7 +69,6 @@ class ReportHr_HolidaysReport_Holidayssummary(models.AbstractModel):
         return res
 
     def _get_months(self, start_date):
-        # it works for geting month name between two dates.
         res = []
         start_date = fields.Date.from_string(start_date)
         end_date = start_date + relativedelta(days=59)
@@ -100,17 +103,15 @@ class ReportHr_HolidaysReport_Holidayssummary(models.AbstractModel):
         )
 
         for holiday in holidays:
-            # Convert date to user timezone, otherwise the report will not be consistent with the
-            # value displayed in the interface.
             date_from = fields.Datetime.from_string(holiday.date_from)
             date_from = fields.Datetime.context_timestamp(holiday, date_from).date()
             date_to = fields.Datetime.from_string(holiday.date_to)
             date_to = fields.Datetime.context_timestamp(holiday, date_to).date()
             for _index in range((date_to - date_from).days + 1):
                 if start_date <= date_from <= end_date:
-                    res[(date_from - start_date).days]["color"] = COLORS_MAP[
-                        holiday.holiday_status_id.color
-                    ]
+                    res[(date_from - start_date).days]["color"] = _color_of(
+                        holiday.holiday_status_id
+                    )
                 date_from += timedelta(1)
             count += holiday.number_of_days
         employee = self.env["hr.employee"].browse(empid)
@@ -191,7 +192,7 @@ class ReportHr_HolidaysReport_Holidayssummary(models.AbstractModel):
         )
 
         return [
-            {"color": COLORS_MAP[leave_type.color], "name": leave_type.name}
+            {"color": _color_of(leave_type), "name": leave_type.name}
             for leave_type in holidays.holiday_status_id
         ]
 
@@ -201,15 +202,6 @@ class ReportHr_HolidaysReport_Holidayssummary(models.AbstractModel):
         holidays_report = self.env["ir.actions.report"]._get_report_from_name(
             "hr_holidays.report_holidayssummary"
         )
-        # `self` is report_model's own empty recordset (see
-        # ir.actions.report._get_rendering_context: it calls
-        # `report_model._get_report_values(docids, ...)` on an unbound
-        # `report.<name>` model), and docids here are hr.employee ids, not
-        # hr.leave ones. A `docs`/`holidays` key built from
-        # `self.env["hr.leave"].browse(self.ids)` was always an empty
-        # hr.leave recordset built from the wrong model's ids, and the QWeb
-        # template never reads `docs` — dropped rather than fixed to browse
-        # the wrong model correctly.
         if data and data.get("form"):
             return {
                 "doc_ids": docids,

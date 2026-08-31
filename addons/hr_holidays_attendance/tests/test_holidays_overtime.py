@@ -138,7 +138,6 @@ class TestHolidaysOvertime(TransactionCase):
                 overtime_leave_data[self.employee][0][1]["virtual_remaining_leaves"],
                 8.0,
             )
-            # `employee_company` must be present to avoid traceback when opening the Time Off Type
             self.assertTrue(
                 overtime_leave_data[self.employee][0][1].get("employee_company")
             )
@@ -193,6 +192,28 @@ class TestHolidaysOvertime(TransactionCase):
         leave.date_to = datetime(2021, 1, 4)
         self._check_deductible(8)
 
+    def test_leave_overtime_rechecked_on_every_duration_write(self):
+        self.new_attendance(
+            check_in=datetime(2021, 1, 2, 8), check_out=datetime(2021, 1, 2, 16)
+        )
+        leave = self.env["hr.leave"].create(
+            {
+                "name": "no overtime",
+                "employee_id": self.employee.id,
+                "holiday_status_id": self.leave_type_no_alloc.id,
+                "request_date_from": "2021-01-04",
+                "request_date_to": "2021-01-04",
+            }
+        )
+        vals = {"date_to": datetime(2021, 1, 6)}
+        with self.assertRaises(ValidationError):
+            leave.write(vals)
+        self.assertEqual(
+            list(vals),
+            ["date_to"],
+            "hr.leave.write() must not inject keys into the dict it was handed",
+        )
+
     def test_employee_create_allocation(self):
         with self.with_user("user"):
             self.assertEqual(self.employee.total_overtime, 0)
@@ -244,7 +265,6 @@ class TestHolidaysOvertime(TransactionCase):
                 )
             )
 
-            # User can request another allocation even without overtime
             self.env["hr.leave.allocation"].create(
                 {
                     "name": "test allocation",
@@ -419,7 +439,6 @@ class TestHolidaysOvertime(TransactionCase):
         )
 
     def test_worked_leave_type_overtime(self):
-        """Test that an attendance during a worked time off doesn't count as overtime."""
         calendar = self.env["resource.calendar"].create({"name": "Calendar"})
         self.env["hr.version"].create(
             {
@@ -497,8 +516,6 @@ class TestHolidaysOvertime(TransactionCase):
         self._check_deductible(8)
 
     def test_get_overtime_data_by_employee(self):
-        # Even if employee has not overtime, it should still appear in return
-        # value
         expected_overtime_data = {
             "compensable_overtime": 0,
             "not_compensable_overtime": 0,
@@ -511,8 +528,6 @@ class TestHolidaysOvertime(TransactionCase):
             "get_overtime_data_by_employee() did not return an empty overtime_data",
         )
 
-        # These attendances will create some extra hours that is deductible as
-        # time off
         self.new_attendance(
             check_in=datetime(2021, 1, 1, 8), check_out=datetime(2021, 1, 1, 20)
         )
@@ -523,8 +538,6 @@ class TestHolidaysOvertime(TransactionCase):
             check_in=datetime(2021, 2, 2, 4), check_out=datetime(2021, 2, 2, 18)
         )
 
-        # The extra hours from the next attendances will not be deductible as
-        # time off. Affects compensable_overtime's value.
         not_compensable_ruleset = self.env["hr.attendance.overtime.ruleset"].create(
             {
                 "name": "Ruleset schedule quantity",
@@ -543,14 +556,10 @@ class TestHolidaysOvertime(TransactionCase):
         )
         self.employee.ruleset_id = not_compensable_ruleset
 
-        # Creates extra hours, but won't be usable as time off
-        # Affects not_compensable_overtime's value.
         self.new_attendance(
             check_in=datetime(2021, 3, 3, 5), check_out=datetime(2021, 3, 3, 20)
         )
 
-        # Use some of the overtime as a day off (8 hours)
-        # Affects unspent_compensable_time's value
         leave = self.env["hr.leave"].create(
             {
                 "name": "no overtime",

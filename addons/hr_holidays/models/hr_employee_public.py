@@ -1,5 +1,3 @@
-from datetime import date, timedelta
-
 from odoo import fields, models
 
 
@@ -38,25 +36,7 @@ class HrEmployeePublic(models.Model):
         self._compute_from_employee(["leave_date_to", "is_absent"])
 
     def _search_is_absent(self, operator, value):
-        if operator != "in":
-            return NotImplemented
-        # This search is only used for the 'Absent Today' filter however
-        # this only returns employees that are absent right now.
-        today_start = date.today()
-        today_end = today_start + timedelta(1)
-        holidays = (
-            self.env["hr.leave"]
-            .sudo()
-            .search(
-                [
-                    ("employee_id", "!=", False),
-                    ("state", "=", "validate"),
-                    ("date_from", "<", today_end),
-                    ("date_to", ">=", today_start),
-                ]
-            )
-        )
-        return [("id", "in", holidays.employee_id.ids)]
+        return self.env["hr.employee"]._search_is_absent(operator, value)
 
     def _compute_allocation_display(self):
         self._compute_from_employee("allocation_display")
@@ -68,7 +48,6 @@ class HrEmployeePublic(models.Model):
         return None
 
     def action_view_time_off_calendar(self):
-        """Open the time off calendar filtered on this employee."""
         self.check_singleton()
         action = (
             self.env.ref("hr_holidays.action_my_days_off_dashboard_calendar")

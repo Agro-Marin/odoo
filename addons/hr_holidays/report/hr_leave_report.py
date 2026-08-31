@@ -74,8 +74,14 @@ class HrLeaveReport(models.Model):
                 LEFT JOIN hr_version v ON v.id = employee.current_version_id
                 where employee.active IS True
                 union all select
-                    null as allocation_id,
+                    -- UNION ALL binds branches by POSITION, and the derived
+                    -- table takes its column names from the first branch, so
+                    -- these two must stay in the first branch's order.  When
+                    -- they were swapped, every request row filed its hr.leave
+                    -- id under allocation_id and left leave_id null, which sent
+                    -- action_view_record to an unrelated allocation form.
                     request.id as leave_id,
+                    null as allocation_id,
                     request.employee_id as employee_id,
                     request.private_name as name,
                     (request.number_of_days * -1) as number_of_days,

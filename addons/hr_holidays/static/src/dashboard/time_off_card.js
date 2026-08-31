@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { formatNumber, useNewAllocationRequest } from "@hr_holidays/views/hooks";
 import { Component, onWillRender } from "@odoo/owl";
+import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { usePopover } from "@web/ui/popover";
@@ -52,7 +53,7 @@ export class TimeOffCardPopover extends Component {
         );
 
         const resModel = "hr.leave.allocation";
-        const name = "My Allocations";
+        const name = _t("My Allocations");
         const context = isInHolidaysUserGroup
             ? {}
             : {
@@ -80,7 +81,7 @@ export class TimeOffCardPopover extends Component {
         );
 
         const resModel = "hr.leave";
-        const name = "My Time Off";
+        const name = _t("My Time Off");
         const domain = [
             ["state", "in", stateList],
             ["holiday_status_id", "=", timeOffType],
@@ -122,14 +123,6 @@ export class TimeOffCard extends Component {
         this.actionService = useService("action");
         this.lang = user.lang;
         this.formatNumber = formatNumber;
-        const { data } = this.props;
-        this.errorLeaves = Object.values(data.virtual_excess_data).map(
-            (data) => data.leave_id,
-        );
-        this.errorLeavesDuration = Object.values(data.virtual_excess_data).reduce(
-            (acc, data) => acc + data.amount,
-            0,
-        );
         this.updateWarning();
 
         onWillRender(this.updateWarning);
@@ -137,6 +130,9 @@ export class TimeOffCard extends Component {
 
     updateWarning() {
         const { data } = this.props;
+        const excess = Object.values(data.virtual_excess_data);
+        this.errorLeaves = excess.map((entry) => entry.leave_id);
+        this.errorLeavesDuration = excess.reduce((acc, entry) => acc + entry.amount, 0);
         const errorLeavesSignificant = data.allows_negative
             ? this.errorLeavesDuration > data.max_allowed_negative
             : this.errorLeavesDuration > 0;
@@ -191,7 +187,7 @@ export class TimeOffCard extends Component {
         );
 
         const resModel = "hr.leave";
-        const name = "My Time Off";
+        const name = _t("My Time Off");
         const domain = [
             ["holiday_status_id", "=", holidayStatusId],
             ["company_id", "=", data.employee_company],

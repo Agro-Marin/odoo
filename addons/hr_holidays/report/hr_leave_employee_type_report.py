@@ -16,7 +16,7 @@ class HrLeaveEmployeeTypeReport(models.Model):
     leave_type = fields.Many2one("hr.leave.type", string="Time Off Type", readonly=True)
     holiday_status = fields.Selection(
         [
-            ("taken", "Taken"),  # taken = validated
+            ("taken", "Taken"),
             ("left", "Left"),
             ("planned", "Planned"),
         ]
@@ -77,10 +77,16 @@ class HrLeaveEmployeeTypeReport(models.Model):
                 INNER JOIN hr_employee as employee ON (allocation.employee_id = employee.id)
                 LEFT JOIN hr_version v ON v.id = employee.current_version_id
 
-                /* Obtain the minimum id for a given employee and type of leave */
+                /* The single row that carries the remaining balance for an
+                   employee+type. It must be restricted to validated allocations,
+                   because aggregate_allocation below sums only those: picking the
+                   overall minimum id parked the whole balance on a refused
+                   allocation whenever a refused request preceded an approved one,
+                   so slicing the pivot by state credited it to "Refused". */
                 LEFT JOIN
                     (SELECT employee_id, holiday_status_id, min(id) as min_id
-                    FROM hr_leave_allocation GROUP BY employee_id, holiday_status_id) min_allocation_id
+                    FROM hr_leave_allocation WHERE state = 'validate'
+                    GROUP BY employee_id, holiday_status_id) min_allocation_id
                 on (allocation.employee_id=min_allocation_id.employee_id and allocation.holiday_status_id=min_allocation_id.holiday_status_id)
 
                 /* Obtain the sum of allocations (validated) */

@@ -24,24 +24,28 @@ class HrLeave(models.Model):
         self._check_overtime_deductible(res)
         return res
 
-    def write(self, vals):
-        res = super().write(vals)
-        fields_to_check = {
+    OVERTIME_TRIGGER_FIELDS = frozenset(
+        {
+            "date_from",
+            "date_to",
+            "employee_id",
+            "holiday_status_id",
             "number_of_days",
             "request_date_from",
             "request_date_to",
             "state",
-            "employee_id",
-            "holiday_status_id",
         }
-        if not any(field for field in fields_to_check if field in vals):
+    )
+
+    def write(self, vals):
+        res = super().write(vals)
+        if self.OVERTIME_TRIGGER_FIELDS.isdisjoint(vals):
             return res
         self._check_overtime_deductible(self)
         return res
 
     @api.model
     def _get_deductible_employee_overtime(self, employees):
-        # Uses the calculation logic now located in the hr.employee model.
         return employees._get_deductible_employee_overtime()
 
     @api.depends("number_of_hours", "employee_id", "holiday_status_id")
@@ -51,7 +55,6 @@ class HrLeave(models.Model):
             leave.employee_overtime = diff_by_employee[leave.employee_id]
 
     def _check_overtime_deductible(self, leaves):
-        # If the type of leave is overtime deductible, we have to check that the employee has enough extra hours
         hours = leaves.employee_id._get_deductible_employee_overtime()
         for leave in leaves.filtered("overtime_deductible"):
             if hours[leave.employee_id] < 0:

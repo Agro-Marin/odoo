@@ -5,6 +5,7 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.fields import Domain
 from odoo.libs.datetime import timezone
 from odoo.libs.numbers import float_round
 
@@ -100,11 +101,11 @@ class HrEmployee(models.Model):
                 ]
             )
         )
-        for holiday in holidays:
-            employee = self.filtered(
-                lambda e, holiday=holiday: e.id == holiday.employee_id.id
-            )
-            employee.current_leave_id = holiday.holiday_status_id.id
+        leave_type_by_employee = {
+            holiday.employee_id.id: holiday.holiday_status_id.id for holiday in holidays
+        }
+        for employee in self.filtered(lambda e: e.id in leave_type_by_employee):
+            employee.current_leave_id = leave_type_by_employee[employee.id]
 
     def _compute_hr_presence_state(self):
         super()._compute_hr_presence_state()
@@ -116,7 +117,6 @@ class HrEmployee(models.Model):
         employees.update({"hr_presence_state": "absent"})
 
     def _compute_allocation_count(self):
-        # Don't get allocations that are expired
         current_date = date.today()
         data = self.env["hr.leave.allocation"]._read_group(
             [
@@ -205,7 +205,6 @@ class HrEmployee(models.Model):
         )
 
     def _get_first_working_interval(self, dt):
-        # find the first working interval after a given date
         dt = dt.replace(tzinfo=UTC)
         lookahead_days = [7, 30, 90, 180, 365, 730]
         work_intervals = None
@@ -229,7 +228,6 @@ class HrEmployee(models.Model):
                 work_intervals.get(self.resource_id.id)
                 and work_intervals[self.resource_id.id]._items
             ):
-                # return start time of the earliest interval
                 return work_intervals[self.resource_id.id]._items[0][0]
         return None
 
@@ -240,7 +238,6 @@ class HrEmployee(models.Model):
         "leave_ids.holiday_status_id.time_type",
     )
     def _compute_leave_status(self):
-        # Used SUPERUSER_ID to forcefully get status of other user's leave, to bypass record rule
         holidays = (
             self.env["hr.leave"]
             .sudo()
@@ -302,8 +299,6 @@ class HrEmployee(models.Model):
     def _search_is_absent(self, operator, value):
         if operator != "in":
             return NotImplemented
-        # This search is only used for the 'Absent Today' filter however
-        # this only returns employees that are absent right now.
         today_start = date.today()
         today_end = today_start + timedelta(1)
         holidays = (
@@ -318,7 +313,9 @@ class HrEmployee(models.Model):
                 ]
             )
         )
-        return [("id", "in", holidays.employee_id.ids)]
+        if True in value and False in value:
+            return Domain.TRUE
+        return [("id", "in" if True in value else "not in", holidays.employee_id.ids)]
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -340,9 +337,6 @@ class HrEmployee(models.Model):
 
     def write(self, vals):
         values = vals
-        # Prevent the resource calendar of leaves to be updated by a write to
-        # employee. When this module is enabled the resource calendar of
-        # leaves are determined by those of the contracts.
         self = self.with_context(no_leave_resource_calendar_update=True)
         if "parent_id" in values:
             manager = self.env["hr.employee"].browse(values["parent_id"]).user_id
@@ -373,12 +367,8 @@ class HrEmployee(models.Model):
                     leave_manager.sudo().write({"group_ids": [(4, approver_group.id)]})
 
         res = super().write(values)
-        # remove users from the Responsible group if they are no longer leave managers
         old_managers.sudo()._clean_leave_responsible_users()
 
-        # Change the resource calendar of the employee's leaves in the future
-        # Other modules can disable this behavior by setting the context key
-        # 'no_leave_resource_calendar_update'
         if "resource_calendar_id" in values and not self.env.context.get(
             "no_leave_resource_calendar_update"
         ):
@@ -428,7 +418,8 @@ class HrEmployee(models.Model):
                     ]
                 )
             )
-            holidays.write(hr_vals)
+            if hr_vals:
+                holidays.write(hr_vals)
             if values.get("parent_id") is not None:
                 hr_vals["manager_id"] = values["parent_id"]
             allocations = (
@@ -661,42 +652,6 @@ class HrEmployee(models.Model):
                 allocation.holiday_status_id
             ] |= allocation
 
-        # _get_consumed_leaves returns a tuple of two dictionnaries.
-        # 1) The first is a dictionary to map the number of days/hours of leaves taken per allocation
-        # The structure is the following:
-        # - KEYS:
-        # allocation_leaves_consumed
-        #  |--employee_id
-        #      |--holiday_status_id
-        #          |--allocation
-        #              |--virtual_leaves_taken
-        #              |--leaves_taken
-        #              |--virtual_remaining_leaves
-        #              |--remaining_leaves
-        #              |--max_leaves
-        #              |--accrual_bonus
-        # - VALUES:
-        # Integer representing the number of (virtual) remaining leaves, (virtual) leaves taken or max leaves
-        # for each allocation.
-        # leaves_taken and remaining_leaves only take into account validated leaves, while the "virtual" equivalent are
-        # also based on leaves in "confirm" or "validate1" state.
-        # Accrual bonus gives the amount of additional leaves that will have been granted at the given
-        # target_date in comparison to today.
-        # The unit is in hour or days depending on the leave type request unit
-        # 2) The second is a dictionary mapping the remaining days per employee and per leave type that are either
-        # not taken into account by the allocations, mainly because accruals don't take future leaves into account.
-        # This is used to warn the user if the leaves they takes bring them above their available limit.
-        # - KEYS:
-        # allocation_leaves_consumed
-        #  |--employee_id
-        #      |--holiday_status_id
-        #          |--to_recheck_leaves
-        #          |--excess_days
-        #          |--exceeding_duration
-        # - VALUES:
-        # "to_recheck_leaves" stores every leave that is not yet taken into account by the "allocation_leaves_consumed" dictionary.
-        # "excess_days" represents the excess amount that somehow isn't taken into account by the first dictionary.
-        # "exceeding_duration" sum up the to_recheck_leaves duration and compares it to the maximum allocated for that time period.
         allocations_leaves_consumed = defaultdict(
             lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: 0)))
         )
@@ -767,7 +722,6 @@ class HrEmployee(models.Model):
                     "date_from"
                 ):
                     leave_duration = leave[leave_duration_field]
-                    skip_excess = False
 
                     if (
                         leave.date_from.date() > target_date
@@ -782,14 +736,10 @@ class HrEmployee(models.Model):
                         to_recheck_leaves_per_leave_type[employee][leave_type][
                             "to_recheck_leaves"
                         ] |= leave
-                        skip_excess = True
                         continue
 
                     if leave_type.requires_allocation:
                         for allocation in sorted_leave_allocations:
-                            # We don't want to include future leaves linked to accruals into the total count of available leaves.
-                            # However, we'll need to check if those leaves take more than what will be accrued in total of those days
-                            # to give a warning if the total exceeds what will be accrued.
                             if allocation.date_from > leave.date_to.date() or (
                                 allocation.date_to
                                 and allocation.date_to < leave.date_from.date()
@@ -843,10 +793,10 @@ class HrEmployee(models.Model):
                             leave_duration -= allocated_time
                             if not leave_duration:
                                 break
-                        if round(leave_duration, 2) > 0 and not skip_excess:
+                        if round(leave_duration, 2) > 0:
                             to_recheck_leaves_per_leave_type[employee][leave_type][
                                 "excess_days"
-                            ][leave.date_to.date()] = {
+                            ][(leave.date_to.date(), leave.id)] = {
                                 "amount": leave_duration,
                                 "is_virtual": leave.state != "validate",
                                 "leave_id": leave.id,
@@ -900,7 +850,6 @@ class HrEmployee(models.Model):
         return (allocations_leaves_consumed, to_recheck_leaves_per_leave_type)
 
     def _get_hours_per_day(self, date_from):
-        """Return 24H to handle the case of Fully Flexible (ones without a working calendar)"""
         if not self:
             return 0
         calendars = self._get_calendars(date_from)

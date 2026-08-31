@@ -1,5 +1,6 @@
 from datetime import date, timedelta
 
+from odoo.exceptions import AccessError, ValidationError
 from odoo.tests.common import tagged, users
 
 from odoo.addons.base.tests.common import HttpCase
@@ -10,10 +11,6 @@ from odoo.addons.hr_holidays.tests.common import TestHrHolidaysCommon
 class TestHolidaysCalendar(HttpCase, TestHrHolidaysCommon):
     @users("enguerran")
     def test_hours_time_off_request_calendar_view(self):
-        """
-        Testing the flow of clicking on a day, save the leave request directly
-        and verify that the start/end time are correctly set.
-        """
         self.env.user.tz = "UTC"
         first_day_of_year = date(date.today().year, 1, 1)
         days_to_thursday = (3 - first_day_of_year.weekday()) % 7
@@ -31,7 +28,6 @@ class TestHolidaysCalendar(HttpCase, TestHrHolidaysCommon):
         expected_leave_start = leave.date_from.hour
         expected_leave_end = leave.date_to.hour
 
-        # Tour that takes a leave on the first thursday of the year.
         self.start_tour("/", "time_off_request_calendar_view", login="enguerran")
 
         last_leave = (
@@ -48,10 +44,6 @@ class TestHolidaysCalendar(HttpCase, TestHrHolidaysCommon):
         )
 
     def test_timezone_calendar_event_single_day(self):
-        """
-        Test that single-day time off requests have a single day display in calendar
-        """
-
         leave_type, leave_type_half = self.env["hr.leave.type"].create(
             [
                 {
@@ -69,8 +61,6 @@ class TestHolidaysCalendar(HttpCase, TestHrHolidaysCommon):
                 },
             ]
         )
-
-        # case 1: full day in Los/Angeles tz
 
         test_date = date(2025, 4, 22)
         self.employee_emp.user_id.tz = "America/Los_Angeles"
@@ -99,8 +89,6 @@ class TestHolidaysCalendar(HttpCase, TestHrHolidaysCommon):
             f"Meeting end date should be {test_date}",
         )
 
-        # case 2: half day in Los/Angeles tz
-
         test_date_half = date(2025, 4, 23)
 
         leave_half = self.env["hr.leave"].create(
@@ -120,3 +108,75 @@ class TestHolidaysCalendar(HttpCase, TestHrHolidaysCommon):
         self.assertEqual(leave_half.meeting_id.allday, False)
         self.assertEqual(leave_half.meeting_id.start, leave_half.date_from)
         self.assertEqual(leave_half.meeting_id.stop, leave_half.date_to)
+
+
+@tagged("post_install", "-at_install")
+class TestLeaveReportCalendarApproval(TestHrHolidaysCommon):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.manager_leave_type = cls.env["hr.leave.type"].create(
+            {
+                "name": "Calendar Manager Type",
+                "company_id": cls.company.id,
+                "requires_allocation": False,
+                "request_unit": "day",
+                "leave_validation_type": "manager",
+            }
+        )
+        cls.hr_leave_type = cls.env["hr.leave.type"].create(
+            {
+                "name": "Calendar HR Type",
+                "company_id": cls.company.id,
+                "requires_allocation": False,
+                "request_unit": "day",
+                "leave_validation_type": "hr",
+            }
+        )
+
+    def _row_for(self, leave):
+        return self.env["hr.leave.report.calendar"].search(
+            [("leave_id", "=", leave.id)]
+        )
+
+    def _leave(self, leave_type, day):
+        return self.env["hr.leave"].create(
+            {
+                "employee_id": self.employee_emp_id,
+                "holiday_status_id": leave_type.id,
+                "request_date_from": day,
+                "request_date_to": day,
+            }
+        )
+
+    def test_the_employees_approver_may_approve_a_manager_validated_leave(self):
+        self.employee_emp.leave_manager_id = self.user_employee.id
+        leave = self._leave(self.manager_leave_type, date(2027, 6, 7))
+        row = self._row_for(leave).with_user(self.user_employee)
+        row.action_approve()
+        self.assertEqual(leave.state, "validate")
+
+    def test_a_stranger_may_not_approve(self):
+        self.employee_emp.leave_manager_id = self.user_hrmanager.id
+        leave = self._leave(self.manager_leave_type, date(2027, 6, 14))
+        row = self._row_for(leave).with_user(self.user_employee)
+        with self.assertRaises(
+            (ValidationError, AccessError),
+            msg="action_approve on the calendar report is a second approval path "
+            "beside hr.leave itself; only an officer or the employee's own "
+            "approver may use it",
+        ):
+            row.action_approve()
+        self.assertEqual(leave.state, "confirm")
+
+    def test_the_approver_may_not_approve_an_officer_validated_leave(self):
+        self.employee_emp.leave_manager_id = self.user_employee.id
+        leave = self._leave(self.hr_leave_type, date(2027, 6, 21))
+        row = self._row_for(leave).with_user(self.user_employee)
+        with self.assertRaises(
+            (ValidationError, AccessError),
+            msg="leave_validation_type 'hr' means an officer decides, so being "
+            "the employee's approver is not enough",
+        ):
+            row.action_approve()
+        self.assertEqual(leave.state, "confirm")

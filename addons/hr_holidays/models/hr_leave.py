@@ -21,6 +21,16 @@ from odoo.addons.resource.models.utils import HOURS_PER_DAY
 
 _logger = logging.getLogger(__name__)
 
+VALIDITY_TRIGGER_FIELDS = frozenset(
+    {
+        "employee_id",
+        "holiday_status_id",
+        "state",
+    }
+)
+
+CONSUMPTION_FIELDS = ("date_from", "date_to", "number_of_days", "number_of_hours")
+
 
 def get_employee_from_context(values, context, user_employee_id):
     employee_ids_list = [
@@ -36,41 +46,6 @@ def get_employee_from_context(values, context, user_employee_id):
 
 
 class HrLeave(models.Model):
-    """Time Off Request."""
-
-    # Access specifications:
-    #  - a regular employee / user
-    #   - can see all leaves;
-    #   - cannot see name field of leaves belonging to other user as it may contain
-    #     private information that we don't want to share to other people than
-    #     HR people;
-    #   - can modify only its own not validated leaves (except writing on state to
-    #     bypass approval);
-    #   - can discuss on its leave requests;
-    #   - can reset only its own leaves;
-    #   - cannot validate any leaves;
-    #  - an Officer
-    #   - can see all leaves;
-    #   - can validate "HR" single validation leaves from people if
-    #    - he is the employee manager;
-    #    - he is the department manager;
-    #    - he is member of the same department;
-    #    - target employee has no manager and no department manager;
-    #   - can validate "Manager" single validation leaves from people if
-    #    - he is the employee manager;
-    #    - he is the department manager;
-    #    - target employee has no manager and no department manager;
-    #   - can first validate "Both" double validation leaves from people like "HR"
-    #     single validation, moving the leaves to validate1 state;
-    #   - cannot validate its own leaves;
-    #   - can reset only its own leaves;
-    #   - can refuse all leaves;
-    #  - a Manager
-    #   - can do everything he wants
-    #
-    # On top of that multicompany rules apply based on company defined on the
-    # leave request leave type.
-
     _name = "hr.leave"
     _description = "Time Off"
     _order = "date_from desc"
@@ -119,19 +94,7 @@ class HrLeave(models.Model):
         return defaults
 
     def _default_get_request_dates(self, values):
-        # The UI views initialize date_{from,to} due to how calendar views work.
-        # However it is request_date_{from,to} that should be used instead.
-        # Instead of overwriting all the javascript methods to use
-        # request_date_{from,to} instead of date_{from,to}, we just convert
-        # date_{from,to} to request_date_{from,to} here.
 
-        # Request dates are determined during an onchange scenario.
-        # To ensure that the values are correct in the client context (UI),
-        # the timezone must be applied (because no processing is carried out
-        # when these dates are received on the frontend).
-        # Note:
-        # Without the application of the timezone, days based on UTC datetimes
-        # will be returned (and will therefore not be correct for the client).
         client_tz = self.env.tz
         if values.get("date_from"):
             if not values.get("request_date_from"):
@@ -147,7 +110,6 @@ class HrLeave(models.Model):
             del values["date_to"]
         return values
 
-    # description
     name = fields.Char(
         "Description",
         compute="_compute_name",
@@ -184,7 +146,6 @@ class HrLeave(models.Model):
         readonly=True,
         index=True,
     )
-    # leave type configuration
     holiday_status_id = fields.Many2one(
         "hr.leave.type",
         compute="_compute_holiday_status_id",
@@ -208,7 +169,6 @@ class HrLeave(models.Model):
         related="holiday_status_id.leave_validation_type",
         readonly=False,
     )
-    # HR data
 
     employee_id = fields.Many2one(
         "hr.employee",
@@ -239,7 +199,6 @@ class HrLeave(models.Model):
         readonly=False,
     )
     notes = fields.Text("Reasons", readonly=False)
-    # duration
     resource_calendar_id = fields.Many2one(
         "resource.calendar",
         compute="_compute_resource_calendar_id",
@@ -247,13 +206,10 @@ class HrLeave(models.Model):
         readonly=False,
         copy=False,
     )
-    # allocated leave balance
     max_leaves = fields.Float(compute="_compute_leaves")
     virtual_remaining_leaves = fields.Float(
         compute="_compute_leaves", string="Available Time Off"
     )
-    # These dates are computed based on request_date_{to,from} and should
-    # therefore never be set directly.
     date_from = fields.Datetime(
         "Start Date",
         compute="_compute_date_from_to",
@@ -281,8 +237,7 @@ class HrLeave(models.Model):
     last_several_days = fields.Boolean("All day", compute="_compute_last_several_days")
     duration_display = fields.Char(
         "Requested", compute="_compute_duration_display", store=True
-    )  # details
-    # details
+    )
     meeting_id = fields.Many2one("calendar.event", string="Meeting", copy=False)
     first_approver_id = fields.Many2one(
         "hr.employee",
@@ -316,7 +271,6 @@ class HrLeave(models.Model):
     )
 
     attachment_ids = fields.One2many("ir.attachment", "res_id", string="Attachments")
-    # To display in form view
     supported_attachment_ids = fields.Many2many(
         "ir.attachment",
         string="Attach File",
@@ -326,20 +280,14 @@ class HrLeave(models.Model):
     supported_attachment_ids_count = fields.Integer(
         compute="_compute_supported_attachment_ids"
     )
-    # UX fields
     leave_type_request_unit = fields.Selection(
         related="holiday_status_id.request_unit", readonly=True
     )
     leave_type_support_document = fields.Boolean(
         related="holiday_status_id.support_document"
     )
-    # Interface fields used when not using hour-based computation
-    # These are the fields that should be used to manipulate the start- and
-    # end-dates of the leave request. date_from and date_to are computed and
-    # should therefore not be set directly.
     request_date_from = fields.Date("Request Start Date")
     request_date_to = fields.Date("Request End Date")
-    # Interface fields used when using hour-based computation
     request_hour_from = fields.Float(
         string="Hour from",
         compute="_compute_request_hour_from_to",
@@ -352,7 +300,6 @@ class HrLeave(models.Model):
         readonly=False,
         store=True,
     )
-    # used only when the leave is taken in half days
     request_date_from_period = fields.Selection(
         [("am", "Morning"), ("pm", "Afternoon")],
         string="Date Period Start",
@@ -361,14 +308,12 @@ class HrLeave(models.Model):
     request_date_to_period = fields.Selection(
         [("am", "Morning"), ("pm", "Afternoon")], string="Date Period End", default="pm"
     )
-    # request type
     request_unit_half = fields.Boolean(
         "Half-Day", compute="_compute_request_unit_half", store=True
     )
     request_unit_hours = fields.Boolean(
         "Specific Time", compute="_compute_request_unit_hours", store=True
     )
-    # view
     is_hatched = fields.Boolean("Hatched", compute="_compute_is_hatched")
     is_striked = fields.Boolean("Striked", compute="_compute_is_hatched")
     has_mandatory_day = fields.Boolean(compute="_compute_has_mandatory_day")
@@ -376,7 +321,6 @@ class HrLeave(models.Model):
         compute="_compute_leave_type_increases_duration"
     )
 
-    # warning message
     dashboard_warning_message = fields.Char(
         compute="_compute_dashboard_warning_message"
     )
@@ -396,7 +340,6 @@ class HrLeave(models.Model):
 
     @api.onchange("request_hour_from", "request_hour_to")
     def _onchange_hours(self):
-        # avoid negative or after midnight
         self.request_hour_from = min(max(self.request_hour_from, 0.0), 23.99)
         self.request_hour_to = min(max(self.request_hour_to, 0.0), 24)
 
@@ -431,20 +374,24 @@ class HrLeave(models.Model):
         "request_date_to_period",
     )
     def _compute_dashboard_warning_message(self):
+        dated = self.filtered(lambda leave: leave.date_from and leave.date_to)
+        (self - dated).dashboard_warning_message = False
+        if not dated:
+            return
         all_leaves = self.search(
             [
-                ("date_from", "<", max(self.mapped("date_to"))),
-                ("date_to", ">", min(self.mapped("date_from"))),
+                ("date_from", "<", max(dated.mapped("date_to"))),
+                ("date_to", ">", min(dated.mapped("date_from"))),
                 ("employee_id", "in", self.employee_id.ids),
                 ("holiday_status_id.allow_request_on_top", "=", False),
                 ("state", "not in", ["cancel", "refuse"]),
             ]
         )
-        self.filtered(
-            lambda self: self.state in ["cancel", "refuse"]
+        dated.filtered(
+            lambda leave: leave.state in ["cancel", "refuse"]
         ).dashboard_warning_message = False
-        for holiday in self.filtered(
-            lambda self: self.state not in ["cancel", "refuse"]
+        for holiday in dated.filtered(
+            lambda leave: leave.state not in ["cancel", "refuse"]
         ):
             conflicting_holidays = all_leaves.filtered_domain(
                 [
@@ -459,7 +406,6 @@ class HrLeave(models.Model):
                 continue
 
             conflicting_holidays_list = []
-            # Do not display the name of the employee if the conflicting holidays have an employee_id.user_id equivalent to the user id
             holidays_only_have_uid = bool(holiday.employee_id)
             holiday_states = dict(
                 conflicting_holidays.fields_get(allfields=["state"])["state"][
@@ -582,11 +528,6 @@ class HrLeave(models.Model):
                 )
                 or self.env.company.resource_calendar_id
             )
-            # We use the request dates to find the contracts, because date_from
-            # and date_to are not set yet at this point. Since these dates are
-            # used to get the contracts for which these leaves apply and
-            # contract start- and end-dates are just dates (and not datetimes)
-            # these dates are comparable.
             contracts = contracts_by_employee.get(
                 leave.employee_id, self.env["hr.version"]
             ).filtered(
@@ -596,23 +537,12 @@ class HrLeave(models.Model):
                 )
             )
             if contracts:
-                # If there are more than one contract they should all have the
-                # same calendar, otherwise a constraint is violated.
                 calendar = contracts[:1].resource_calendar_id
             leave.resource_calendar_id = calendar
 
     def _get_overlapping_contracts(self):
         self.check_singleton()
-        # The employee's versions are already in cache by the time this runs, and
-        # the coarse domain below is refined in Python straight after, so a fresh
-        # search only re-reads what the cache holds -- twice per write, because
-        # the flush reaches _check_contracts once before and once after the UPDATE.
-        # Filtering version_ids in memory is the idiom the sibling helper
-        # _get_versions_with_contract_overlap_with_period already uses.
         if not self.date_from or not self.date_to:
-            # Both are computed and stored, so a leave can reach a constraint with
-            # neither set. The search this replaced returned nothing for a NULL
-            # bound; a leave with no dates overlaps no contract, so say so.
             return self.env["hr.version"]
         versions = self.employee_id.sudo().version_ids.filtered_domain(
             [
@@ -631,12 +561,6 @@ class HrLeave(models.Model):
 
     @api.constrains("date_from", "date_to")
     def _check_contracts(self):
-        """
-        A leave cannot be set across multiple contracts.
-        Note: a leave can be across multiple contracts despite this constraint.
-        It happens if a leave is correctly created (not across multiple contracts) but
-        contracts are later modifed/created in the middle of the leave.
-        """
         for holiday in self.filtered("employee_id"):
             versions = holiday._get_overlapping_contracts()
             if len(versions.resource_calendar_id) > 1:
@@ -777,14 +701,16 @@ Versions:
 
     @api.depends("date_from", "date_to", "holiday_status_id")
     def _compute_has_mandatory_day(self):
-        date_from, date_to = min(self.mapped("date_from")), max(self.mapped("date_to"))
-        if date_from and date_to:
-            # Sudo to get access to version fields on employee (job_id)
+        dated = self.filtered(lambda leave: leave.date_from and leave.date_to)
+        (self - dated).has_mandatory_day = False
+        if dated:
+            date_from = min(dated.mapped("date_from"))
+            date_to = max(dated.mapped("date_to"))
             mandatory_days = self.employee_id.sudo()._get_mandatory_days(
                 date_from.date(), date_to.date()
             )
 
-            for leave in self:
+            for leave in dated:
                 department_ids = leave.employee_id.department_id.ids
                 domain = [
                     ("start_date", "<=", leave.date_to.date()),
@@ -806,13 +732,7 @@ Versions:
                     domain += [
                         ("company_id", "=", leave.holiday_status_id.company_id.id)
                     ]
-                leave.has_mandatory_day = (
-                    leave.date_from
-                    and leave.date_to
-                    and mandatory_days.filtered_domain(domain)
-                )
-        else:
-            self.has_mandatory_day = False
+                leave.has_mandatory_day = bool(mandatory_days.filtered_domain(domain))
 
     @api.depends("leave_type_request_unit", "number_of_days")
     def _compute_leave_type_increases_duration(self):
@@ -836,12 +756,6 @@ Versions:
                 leave.leave_type_increases_duration = ""
 
     def _get_durations(self, check_leave_type=True, resource_calendar=None):
-        """
-        This method is factored out into a separate method from
-        _compute_duration so it can be hooked and called without necessarily
-        modifying the fields and triggering more computes of fields that
-        depend on number_of_hours or number_of_days.
-        """
         result = {}
         employee_leaves = self.filtered("employee_id")
         employees_by_dates_calendar = defaultdict(lambda: self.env["hr.employee"])
@@ -856,7 +770,6 @@ Versions:
                     resource_calendar or leave.resource_calendar_id,
                 )
             ] += leave.employee_id
-        # We force the company in the domain as we are more than likely in a compute_sudo
         domain = [
             ("time_type", "=", "leave"),
             (
@@ -865,13 +778,10 @@ Versions:
                 self.env.companies.ids
                 + self.env.context.get("allowed_company_ids", []),
             ),
-            # When searching for resource leave intervals, we exclude the one that
-            # is related to the leave we're currently trying to compute for.
             "|",
             ("holiday_id", "=", False),
             ("holiday_id", "not in", employee_leaves.ids),
         ]
-        # Precompute values in batch for performance purposes
         work_time_per_day_mapped = {
             (
                 date_from,
@@ -921,8 +831,6 @@ Versions:
                 continue
             hours, days = (0, 0)
             if leave.employee_id:
-                # For flexible employees, if it's a single day leave, we force it to the real duration since the virtual intervals might not match reality on that day, especially for custom hours
-                # sudo as is_flexible is on version model and employee does not have access to it.
                 if (
                     leave.employee_id.sudo().is_flexible
                     and leave.request_date_to == leave.request_date_from
@@ -962,7 +870,6 @@ Versions:
                     else:
                         days = hours / 24
                 elif leave.leave_type_request_unit == "day" and check_leave_type:
-                    # list of tuples (day, hours)
                     work_time_per_day_list = work_time_per_day_mapped[
                         leave.date_from,
                         leave.date_to,
@@ -1098,7 +1005,7 @@ Versions:
             holiday.is_striked = holiday.state == "refuse"
             holiday.is_hatched = holiday.state not in ["refuse", "validate"]
 
-    @api.depends("leave_type_support_document", "attachment_ids")
+    @api.depends("attachment_ids")
     def _compute_supported_attachment_ids(self):
         for holiday in self:
             holiday.supported_attachment_ids = holiday.attachment_ids
@@ -1220,10 +1127,6 @@ Versions:
                 _("You are not allowed to request time off on a Mandatory Day")
             )
 
-    ####################################################
-    # ORM Overrides methods
-    ####################################################
-
     @api.depends(
         "tz",
         "date_from",
@@ -1286,9 +1189,6 @@ Versions:
                     )
 
     def onchange(self, values, field_names, fields_spec):
-        # Try to force the leave_type display_name when creating new records
-        # This is called right after pressing create and returns the display_name for
-        # most fields in the view.
         if (
             values
             and "employee_id" in fields_spec
@@ -1322,46 +1222,23 @@ Versions:
                     )
                 )
         elif state == "validate" and not is_leave_user:
-            # Is probably handled via ir.rule
             raise AccessError(
                 _(
                     "You don't have the rights to apply second approval on a time off request"
                 )
             )
 
+    def _get_consumption_signature(self):
+        return {
+            leave.id: tuple(leave[fname] for fname in CONSUMPTION_FIELDS)
+            for leave in self
+        }
+
     def _invalidate_allocation_computes(self):
-        # hr.leave.allocation's leaves_taken/max_leaves computes read
-        # hr.leave without an @api.depends on it (the dependency isn't
-        # expressible from this side), so every ORM entry point that changes
-        # a leave's impact on an allocation must invalidate them by hand.
         self.env["hr.leave.allocation"].invalidate_model(["leaves_taken", "max_leaves"])
 
     @api.model_create_multi
     def create(self, vals_list):
-        # Override to avoid automatic logging of creation
-        if not self.env.context.get("leave_fast_create"):
-            leave_types = self.env["hr.leave.type"].browse(
-                [
-                    values.get("holiday_status_id")
-                    for values in vals_list
-                    if values.get("holiday_status_id")
-                ]
-            )
-            mapped_validation_type = {
-                leave_type.id: leave_type.leave_validation_type
-                for leave_type in leave_types
-            }
-
-            for values in vals_list:
-                employee_id = values.get("employee_id", False)
-                leave_type_id = values.get("holiday_status_id")
-
-                # Handle double validation
-                if mapped_validation_type[leave_type_id] == "both":
-                    self._check_double_validation_rules(
-                        employee_id, values.get("state", False)
-                    )
-
         if any(not vals.get("employee_id") for vals in vals_list):
             raise UserError(
                 _(
@@ -1371,15 +1248,18 @@ Versions:
         holidays = super(
             HrLeave, self.with_context(mail_create_nosubscribe=True)
         ).create(vals_list)
+        if not self.env.context.get("leave_fast_create"):
+            for holiday in holidays.filtered(
+                lambda leave: leave.validation_type == "both"
+            ):
+                holiday._check_double_validation_rules(
+                    holiday.employee_id, holiday.state
+                )
         holidays._check_validity()
         self._invalidate_allocation_computes()
 
         for holiday in holidays:
             if not self.env.context.get("leave_fast_create"):
-                # Everything that is done here must be done using sudo because we might
-                # have different create and write rights
-                # eg : holidays_user can create a leave request with validation_type = 'manager' for someone else
-                # but they can only write on it if they are leave_manager_id
                 holiday_sudo = holiday.sudo()
                 holiday_sudo.add_follower(holiday.employee_id.id)
                 if holiday.validation_type == "manager":
@@ -1387,7 +1267,6 @@ Versions:
                         partner_ids=holiday.employee_id.leave_manager_id.partner_id.ids
                     )
                 if holiday.validation_type == "no_validation":
-                    # Automatic validation should be done in sudo, because user might not have the rights to do it by himself
                     holiday_sudo.action_approve()
                     holiday_sudo.message_subscribe(
                         partner_ids=holiday._get_responsible_for_approval().partner_id.ids
@@ -1395,7 +1274,7 @@ Versions:
                     holiday_sudo.message_post(
                         body=_("The time off has been automatically approved"),
                         subtype_xmlid="mail.mt_comment",
-                    )  # Message from OdooBot (sudo)
+                    )
                 elif not self.env.context.get("import_file"):
                     holiday_sudo.activity_update()
         return holidays
@@ -1426,7 +1305,6 @@ Versions:
             if any(leave.state == "cancel" for leave in self):
                 raise UserError(_("Only a manager can modify a canceled leave."))
 
-        # Unlink existing resource.calendar.leaves for validated time off
         if "state" in values and values["state"] != "validate":
             validated_leaves = self.filtered(lambda l: l.state == "validate")
             validated_leaves._remove_resource_leave()
@@ -1443,22 +1321,17 @@ Versions:
                     else:
                         employees = self.mapped("employee_id")
                     self._check_double_validation_rules(employees, values["state"])
-            if "date_from" in values:
-                values["request_date_from"] = values["date_from"]
-            if "date_to" in values:
-                values["request_date_to"] = values["date_to"]
+            if "date_from" in values or "date_to" in values:
+                values = dict(values)
+                if "date_from" in values:
+                    values["request_date_from"] = Date.to_date(values["date_from"])
+                if "date_to" in values:
+                    values["request_date_to"] = Date.to_date(values["date_to"])
+        consumption_before = self._get_consumption_signature()
         result = super().write(values)
-        if any(
-            field in values
-            for field in [
-                "request_date_from",
-                "date_from",
-                "request_date_from",
-                "date_to",
-                "holiday_status_id",
-                "employee_id",
-                "state",
-            ]
+        if (
+            not VALIDITY_TRIGGER_FIELDS.isdisjoint(values)
+            or self._get_consumption_signature() != consumption_before
         ):
             if not values.get("state") or values.get("state") not in (
                 "refuse",
@@ -1489,7 +1362,7 @@ Versions:
                 if hol.state not in ["confirm", "validate1", "cancel"]:
                     raise UserError(
                         error_message
-                        % {"state": state_description_values.get(self[:1].state)}
+                        % {"state": state_description_values.get(hol.state)}
                     )
                 if hol.date_from.date() < now:
                     raise UserError(
@@ -1516,21 +1389,14 @@ Versions:
         vals_list = super().copy_data(default=default)
         if self.env.context.get("skip_copy_check"):
             return vals_list
-        if all(
-            leave.state in ["cancel", "refuse"] for leave in self
-        ):  # No overlap constraint in these cases
+        if all(leave.state in ["cancel", "refuse"] for leave in self):
             return vals_list
         raise UserError(_("A time off cannot be duplicated."))
 
     def _get_redirect_suggested_company(self):
         return self.holiday_status_id.company_id
 
-    ####################################################
-    # Business methods
-    ####################################################
-
     def _prepare_resource_leave_vals(self):
-        """Hook method for others to inject data"""
         self.check_singleton()
         return {
             "name": _("%s: Time Off", self.employee_id.name),
@@ -1544,14 +1410,10 @@ Versions:
         }
 
     def _create_resource_leave(self):
-        """This method will create entry in resource calendar time off object at the time of holidays validated
-        :returns: created `resource.calendar.leaves`
-        """
         vals_list = [leave._prepare_resource_leave_vals() for leave in self]
         return self.env["resource.calendar.leaves"].sudo().create(vals_list)
 
     def _remove_resource_leave(self):
-        """This method will create entry in resource calendar time off object at the time of holidays cancel/removed"""
         if self.has_access("write"):
             return (
                 self.env["resource.calendar.leaves"]
@@ -1566,8 +1428,6 @@ Versions:
         )
 
     def _apply_leave_request(self):
-        """Validate time off requests
-        by creating a calendar event and a resource time off."""
         holidays = self.filtered("employee_id")
         holidays._create_resource_leave()
         meeting_holidays = holidays.filtered(
@@ -1580,7 +1440,6 @@ Versions:
             meeting_values_for_user_id = (
                 meeting_holidays._prepare_holidays_meeting_values()
             )
-            Meeting = self.env["calendar.event"]
             for user_id, meeting_values in meeting_values_for_user_id.items():
                 meetings += (
                     Meeting.with_user(user_id or self.env.uid)
@@ -1621,7 +1480,7 @@ Versions:
             user = holiday.user_id
             meeting_name = _(
                 "%(employee)s on Time Off : %(duration)s",
-                employee=holiday.employee_id.name or holiday.category_id.name,
+                employee=holiday.employee_id.name,
                 duration=holiday.duration_display,
             )
             allday_value = not holiday.request_unit_half or (
@@ -1632,7 +1491,6 @@ Versions:
                 allday_value = float_compare(holiday.number_of_days, 1.0, 1) >= 0
 
             if allday_value:
-                # `start` and `stop` are not in UTC for allday events
                 leave_tz = timezone(holiday.tz) if holiday.tz else UTC
                 start_value = (
                     holiday.date_from.replace(tzinfo=UTC)
@@ -1662,7 +1520,6 @@ Versions:
                 "activity_ids": [(5, 0, 0)],
                 "res_id": holiday.id,
             }
-            # Add the partner_id (if exist) as an attendee
             partner_id = (user and user.partner_id) or (
                 holiday.employee_id and holiday.employee_id.work_contact_id
             )
@@ -1723,21 +1580,10 @@ Versions:
         return self.filtered(lambda l: l.employee_id and not l.number_of_days)
 
     def _split_leaves(self, split_date_from, split_date_to=False):
-        """
-        This method splits an original leave in two leaves and returns the new one for each leave in self.
-        E.g. (start, stop) -> (start, split_date_from - 1day), (split_date_to, stop)
-        :param split_date_from: The starting date of the splicing interval (includes)
-        :param split_date_to: The ending date of the splicing interval. (not includes)
-
-        If split_date_to is not set; the splicing interval will be equals to [split_date_form, split_date_from -1]
-        to avoid one day leave.
-        """
         new_leaves_vals = []
         if not split_date_to:
             split_date_to = split_date_from
 
-        # Only leaves that span a period outside of the split interval need
-        # to be split.
         multi_day_leaves = self.filtered(
             lambda l: (
                 l.request_date_from < split_date_from
@@ -1757,7 +1603,6 @@ Versions:
                     )[0]
                 )
 
-            # Do the same for the new leave after the split
             if leave.request_date_to >= split_date_to:
                 new_leave_vals.append(
                     leave.with_context(skip_copy_check=True).copy_data(
@@ -1765,7 +1610,6 @@ Versions:
                     )[0]
                 )
 
-            # For those two new leaves, only create them if they actually have a non-zero duration.
             for leave_vals in new_leave_vals:
                 new_leave = self.env["hr.leave"].new(leave_vals)
                 new_leave._compute_date_from_to()
@@ -1852,9 +1696,7 @@ Versions:
         (self - validated_holidays).write(
             {"state": "refuse", "second_approver_id": current_employee.id}
         )
-        # Delete the meeting
         self.mapped("meeting_id").write({"active": False})
-        # Post a second message, more verbose than the tracking message
         for holiday in self:
             if holiday.employee_id.user_id:
                 holiday.message_post(
@@ -1879,7 +1721,7 @@ Versions:
                 or (hol.validation_type == "manager" and hol.state == "validate")
             )
         )
-        model_description = self.env["ir.model"]._get("hr.holidays").name
+        model_description = self.env["ir.model"]._get(self._name).name
         for holiday in leaves:
             responsible = holiday.employee_id.leave_manager_id.partner_id.ids
             if responsible:
@@ -1907,7 +1749,7 @@ Versions:
     ):
         leaves = self.browse() if self.env.context.get(MODULE_UNINSTALL_FLAG) else self
         if reason:
-            model_description = self.env["ir.model"]._get("hr.holidays").display_name
+            model_description = self.env["ir.model"]._get(self._name).display_name
             for leave in leaves:
                 body = self.env._(
                     "The time off request has been cancelled for the following reason:%(reason)s",
@@ -1919,7 +1761,6 @@ Versions:
                     continue
 
                 responsibles = self.env["res.partner"]
-                # manager
                 if (
                     leave.holiday_status_id.leave_validation_type == "manager"
                     and leave.state == "validate"
@@ -1928,13 +1769,11 @@ Versions:
                     and leave.state == "validate1"
                 ):
                     responsibles = leave.employee_id.leave_manager_id.partner_id
-                # officer
                 elif (
                     leave.holiday_status_id.leave_validation_type == "hr"
                     and leave.state == "validate"
                 ):
                     responsibles = leave.holiday_status_id.responsible_ids.partner_id
-                # both
                 elif (
                     leave.holiday_status_id.leave_validation_type == "both"
                     and leave.state == "validate"
@@ -2025,18 +1864,14 @@ Versions:
         return state_result
 
     def _check_approval_update(self, state, raise_if_not_possible=True):
-        """Check if target state is achievable."""
         if self.env.is_superuser():
             return True
-
-        self.env.user.has_group("hr_holidays.group_hr_holidays_user")
 
         for holiday in self:
             is_time_off_manager = holiday.employee_id.leave_manager_id == self.env.user
             dict_all_possible_state = holiday._get_next_states_by_state()
             validation_type = holiday.validation_type
             error_message = ""
-            # Standard Check
             if holiday.state == state:
                 error_message = self.env._("You can't do the same action twice.")
             elif state == "validate1" and validation_type != "both":
@@ -2124,10 +1959,6 @@ is approved, validated or refused."
             "domain": domain,
             "context": context,
         }
-
-    # ------------------------------------------------------------
-    # Activity methods
-    # ------------------------------------------------------------
 
     def _get_responsible_for_approval(self):
         self.check_singleton()
@@ -2226,10 +2057,6 @@ is approved, validated or refused."
             )
         self.env["mail.activity"].with_context(short_name=False).create(activity_vals)
 
-    ####################################################
-    # Messaging methods
-    ####################################################
-
     def _notify_change(self, message, subtype_xmlid="mail.mt_note"):
         for leave in self:
             leave.message_post(body=message, subtype_xmlid=subtype_xmlid)
@@ -2254,7 +2081,6 @@ is approved, validated or refused."
         return super()._track_subtype(init_values)
 
     def message_subscribe(self, partner_ids=None, subtype_ids=None):
-        # due to record rule can not allow to add follower and mention on validated leave so subscribe through sudo
         if any(holiday.state in ["validate", "validate1"] for holiday in self):
             self.check_access("read")
             return super(HrLeave, self.sudo()).message_subscribe(
@@ -2285,13 +2111,6 @@ is approved, validated or refused."
         )
 
     def _get_hour_from_to(self, request_date_from, request_date_to, day_period=None):
-        """
-        Return the hour_from and hour_to for the given request dates, based on
-        the resource calendar.
-
-        If there are no attendances on the exact days of the request, return
-        the earliest hour_from and latest hour_to that exist in the schedule.
-        """
         calendar = self.resource_calendar_id
         if not calendar:
             return (0, 24)
@@ -2301,10 +2120,6 @@ is approved, validated or refused."
         _, hour_to = calendar._get_hours_for_date(request_date_to, day_period)
 
         return (hour_from, hour_to)
-
-    ####################################################
-    # Cron methods
-    ####################################################
 
     @api.model
     def _cancel_invalid_leaves(self):
@@ -2330,12 +2145,11 @@ is approved, validated or refused."
                 ("date_to", "=", False),
             ]
         )
-        # only take leaves linked to accruals
         concerned_leaves = concerned_leaves.filtered(
             lambda leave: (
                 leave.holiday_status_id in accrual_allocations.holiday_status_id
             )
-        ).sorted("date_from", reverse=True)
+        )
         reason = _("the accruated amount is insufficient for that duration.")
         for leave in concerned_leaves:
             leave_type = leave.holiday_status_id

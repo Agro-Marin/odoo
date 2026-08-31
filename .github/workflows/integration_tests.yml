@@ -254,6 +254,59 @@ env:
   # nothing here for `--no-http` to protect against and 25 of the 106 tests --
   # the only end-to-end coverage of the wire format -- are what it would skip.
   # Verified: the suite passes headless.
+  # hr_holidays, added 2026-08-30 -- the Time Off application, named in NO
+  # workflow in this directory. Not in a lane here, and `module_installability.yml`
+  # passes no --test-enable, so 310 tests ran nowhere and the whole module was
+  # graded on whether its graph assembles.
+  #
+  # What that cost, found in one audit: `hr.leave.report`'s two UNION branches
+  # listed leave_id/allocation_id in opposite order, and UNION ALL binds by
+  # POSITION -- so every leave row filed its id under allocation_id and clicking
+  # a row in "Time Off by Type" opened an unrelated allocation. `hr.leave.write`
+  # re-ran the allocation balance check from a hand-written field list that named
+  # request_date_from twice and request_date_to never, so an employee could
+  # overdraw an allocation by dragging the END of a request. `hr.leave.type`
+  # looked its balance up by NAME, so two types sharing one (one per company is
+  # the ordinary case) reported the same figure in the request dropdown.
+  # None of the three could ever have been caught here.
+  #
+  # `-i hr_holidays` pulls hr, calendar, mail and resource; the tests are its own.
+  #
+  # Runs under --no-http like the lanes above, which SKIPS the tour classes and
+  # reports them as skipped rather than as passes, so the count is 310 rather
+  # than 334 and the floor sits under it. One of those tours,
+  # TestHolidaysCalendar.test_hours_time_off_request_calendar_view, is red on
+  # this branch independently of this lane (CLAUDE.md section 4) -- fix it before
+  # dropping --no-http, or the lane goes red on a defect it did not introduce.
+  # hr_work_entry + hr_work_entry_holidays, added 2026-08-30 -- the same hole as
+  # hr_holidays below, found by asking the same question of a sibling module:
+  # `grep -rln hr_work_entry .github/workflows/` returns nothing. No lane here,
+  # and module_installability.yml passes --test-enable only for
+  # '/test_lint:TestBundlesAssemble', so it grades graph assembly. 71 tests ran
+  # nowhere.
+  #
+  # What that cost, each live on this branch and catchable by no existing lane:
+  # a validated ("In Payslip") work entry silently demoted to draft, so adding
+  # an entry to a day and removing it again destroyed an unrelated entry's
+  # payroll validation with no error and no log; create() not keeping state and
+  # active in step the way write() did, so a cancelled entry stayed active and
+  # kept feeding the SQL 24h cap and raising phantom conflicts on its
+  # neighbours; amount_rate landing at 0.0 whenever the work entry type came
+  # from the field default, which is what the calendar UI does, so a pay rate
+  # silently became zero; get_unusual_days being @api.model, so self.company_id
+  # was empty and the company domain was dropped entirely; and HR officers being
+  # unable to delete a work entry while the calendar offers deletion to exactly
+  # that group.
+  #
+  # The pair installs together because both live in odoo/addons; the three
+  # enterprise bridges cannot be in this lane. Neither module has a tour, so
+  # unlike hr_holidays below the --no-http run IS the whole suite.
+  HR_WORK_ENTRY_INSTALL: hr_work_entry,hr_work_entry_holidays
+  HR_WORK_ENTRY_TEST_TAGS: /hr_work_entry,/hr_work_entry_holidays
+
+  HR_HOLIDAYS_INSTALL: hr_holidays
+  HR_HOLIDAYS_TEST_TAGS: /hr_holidays
+
   RPC_INSTALL: rpc
   RPC_TEST_TAGS: /rpc
 
@@ -746,6 +799,71 @@ jobs:
           echo "crm tests run: $RAN (floor: 130)"
           if [ "$RAN" -lt 130 ]; then
             echo "::error::only $RAN crm tests ran, below the floor of 130 —"
+            echo "::error::something was skipped rather than failed."
+            exit 1
+          fi
+
+      - name: Run hr_work_entry suite
+        # Its own database (ci_hr_work_entry), same reasoning as the suites above.
+        run: |
+          set -o pipefail
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_hr_work_entry \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "${HR_WORK_ENTRY_INSTALL}" \
+            --test-enable --test-tags "${HR_WORK_ENTRY_TEST_TAGS}" \
+            --stop-after-init \
+            --max-cron-threads=0 --no-http \
+            --log-level=test --logfile=/dev/stdout | tee /tmp/hr-work-entry-suite.log
+
+      - name: Assert the hr_work_entry suite actually ran
+        # Same guard as the suites above. 71 tests, no tours in either module, so
+        # the floor sits just under the whole suite.
+        run: |
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/hr-work-entry-suite.log \
+                | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no test-result summary in the log — hr_work_entry did not report a count"
+            exit 1
+          fi
+          echo "hr_work_entry tests run: $RAN (floor: 65)"
+          if [ "$RAN" -lt 65 ]; then
+            echo "::error::only $RAN hr_work_entry tests ran, below the floor of 65 —"
+            echo "::error::something was skipped rather than failed."
+            exit 1
+          fi
+
+      - name: Run hr_holidays suite
+        # Its own database (ci_hr_holidays), same reasoning as the suites above.
+        run: |
+          set -o pipefail
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_hr_holidays \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "${HR_HOLIDAYS_INSTALL}" \
+            --test-enable --test-tags "${HR_HOLIDAYS_TEST_TAGS}" \
+            --stop-after-init \
+            --max-cron-threads=0 --no-http \
+            --log-level=test --logfile=/dev/stdout | tee /tmp/hr-holidays-suite.log
+
+      - name: Assert the hr_holidays suite actually ran
+        # Same guard as the suites above. 310 tests under --no-http, the tour
+        # classes skipping for want of a browser; the floor sits under that so a
+        # narrowed tag or a module that failed to install fails loudly.
+        run: |
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/hr-holidays-suite.log \
+                | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no test-result summary in the log — hr_holidays did not report a count"
+            exit 1
+          fi
+          echo "hr_holidays tests run: $RAN (floor: 300)"
+          if [ "$RAN" -lt 300 ]; then
+            echo "::error::only $RAN hr_holidays tests ran, below the floor of 300 —"
             echo "::error::something was skipped rather than failed."
             exit 1
           fi

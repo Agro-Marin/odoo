@@ -140,7 +140,6 @@ class HrLeaveGenerateMultiWizard(models.TransientModel):
         )
 
         if conflicting_leaves:
-            # YTI: More complex use cases could be managed later
             invalid_time_off = conflicting_leaves.filtered(
                 lambda leave: leave.leave_type_request_unit == "hour"
             )
@@ -170,10 +169,6 @@ class HrLeaveGenerateMultiWizard(models.TransientModel):
                 leave_fast_create=True,
                 no_calendar_sync=True,
                 leave_skip_state_check=True,
-                # date_from and date_to are computed based on the employee tz
-                # If _compute_date_from_to is used instead, it will trigger _compute_number_of_days
-                # and create a conflict on the number of days calculation between the different leaves
-                leave_compute_date_from_to=True,
             )
             .create(vals_list)
         )
