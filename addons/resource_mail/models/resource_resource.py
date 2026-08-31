@@ -6,5 +6,5 @@ class ResourceResource(models.Model):
 
     im_status = fields.Char(related="user_id.im_status")
 
-    def get_avatar_card_data(self, fields):
-        return self.read(fields)
+    def get_avatar_card_data(self, field_names):
+        return self.read(field_names)
