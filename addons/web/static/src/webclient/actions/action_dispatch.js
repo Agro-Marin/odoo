@@ -33,10 +33,6 @@ export class ActionDispatch {
         this.baseStack = baseStack ?? am.controllerStack;
         this.restoreStackOnError = restoreStackOnError;
         /**
-         * @type {import("./navigation_token.js").NavigationToken}
-         */
-        this.token = am.navigation.snapshot();
-        /**
          * @type {{ current?: Function }}
          */
         this.removeDialogRef = { current: undefined };

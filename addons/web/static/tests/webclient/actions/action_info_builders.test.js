@@ -109,6 +109,41 @@ test("updateActionState pushes a url only when the state actually changed", asyn
     expect(currentState.resId).toBe(4);
 });
 
+test("updateActionState counts a key the state did not carry as a change", async () => {
+    // The updater diffs the patch against the live state instead of cloning it.
+    // A key that is new counts as a change even when its value is `undefined`,
+    // which is what the key-count arm of the `shallowEqual` it replaced did;
+    // comparing values alone would call this a no-op and lose the url push.
+    const am = makeFakeAm();
+    const { props, currentState } = buildActionInfo(
+        /** @type {any} */ ({ id: 1 }),
+        {},
+        am,
+    );
+    const controller = { isMounted: true };
+
+    props.updateActionState(controller, { newKey: undefined });
+    expect(am.__calls.pushState).toBe(1);
+    expect(Object.hasOwn(currentState, "newKey")).toBe(true);
+
+    // Re-patching the same key with the same value is now a no-op.
+    props.updateActionState(controller, { newKey: undefined });
+    expect(am.__calls.pushState).toBe(1);
+});
+
+test("updateActionState treats NaN as equal to itself, as shallowEqual did", async () => {
+    const am = makeFakeAm();
+    const { props } = buildActionInfo(
+        /** @type {any} */ ({ id: 1 }),
+        { resId: NaN },
+        am,
+    );
+    const controller = { isMounted: true };
+
+    props.updateActionState(controller, { resId: NaN });
+    expect(am.__calls.pushState).toBe(0);
+});
+
 test("updateActionState never pushes for a dialog, or before the controller mounts", async () => {
     const am = makeFakeAm();
     const dialog = buildActionInfo({ id: 1, target: "new" }, {}, am);

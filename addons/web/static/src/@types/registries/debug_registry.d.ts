@@ -39,7 +39,7 @@ declare module "registries" {
 
     export interface DebugSectionRegistryItemShape {
         label: string;
-        sequence: number;
+        sequence?: number;
     };
 
     interface GlobalRegistryCategories {

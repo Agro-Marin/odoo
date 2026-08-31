@@ -12,6 +12,17 @@ function traverseMenuTree(tree, cb, parents = []) {
 }
 
 /**
+ * The url a menu entry navigates to. The action path is preferred over the id
+ * so the url survives a database in which ids differ.
+ *
+ * @param {{ actionPath?: string, actionID?: number|string }} menu
+ * @returns {string}
+ */
+export function menuHref(menu) {
+    return `/odoo/${menu.actionPath || `action-${menu.actionID}`}`;
+}
+
+/**
  * @param {Object} menuTree
  * @returns {Object}
  */
@@ -32,7 +43,7 @@ export function computeAppsAndMenuItems(menuTree) {
             id: menuItem.id,
             xmlid: menuItem.xmlid,
             actionID: menuItem.actionID,
-            href: `/odoo/${menuItem.actionPath || `action-${menuItem.actionID}`}`,
+            href: menuHref(menuItem),
             appID: menuItem.appID,
         };
         if (!isApp) {

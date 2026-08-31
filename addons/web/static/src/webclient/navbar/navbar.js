@@ -20,6 +20,7 @@ import { ErrorHandler } from "@web/core/utils/components";
 import { useService } from "@web/core/utils/hooks";
 import { debounce } from "@web/core/utils/timing";
 
+import { menuHref } from "../menus/menu_utils.js";
 import { SWIPE_LEFT, SwipeTracker } from "../swipe.js";
 const systrayRegistry = registry.category("systray");
 
@@ -180,11 +181,11 @@ export class NavBar extends Component {
             let width = moreMenu
                 ? getBoundingClientRect.call(moreMenu).width || MORE_MENU_FALLBACK_WIDTH
                 : MORE_MENU_FALLBACK_WIDTH;
+            const sectionsById = new Map(
+                this.currentAppSections.map((s) => [String(s.id), s]),
+            );
             for (let index = 0; index < sections.length; index++) {
                 if (sectionsAvailableWidth < width + sectionWidths[index]) {
-                    const sectionsById = new Map(
-                        this.currentAppSections.map((s) => [String(s.id), s]),
-                    );
                     for (const s of sections.slice(index)) {
                         s.classList.add("d-none");
                         const sectionNode = s.dataset.section
@@ -227,7 +228,7 @@ export class NavBar extends Component {
      * @returns {string}
      */
     getMenuItemHref(payload) {
-        return `/odoo/${payload.actionPath || `action-${payload.actionID}`}`;
+        return menuHref(payload);
     }
 
     _closeAppMenuSidebar() {

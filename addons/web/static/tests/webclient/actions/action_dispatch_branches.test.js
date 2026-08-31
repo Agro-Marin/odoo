@@ -403,7 +403,6 @@ test("the dispatch reaches only the documented manager members", async () => {
         "controllerStack",
         "dialog",
         "env",
-        "navigation",
         "nextDialog",
         "pushState",
         "restore",

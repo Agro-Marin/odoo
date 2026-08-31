@@ -51,50 +51,70 @@ export function watchServiceWorkerUpdates(registration) {
 }
 
 /**
+ * Hands back the disposer alongside the registration: `watchServiceWorkerUpdates`
+ * installs a repeating timer and a document listener, and until this returned
+ * one nothing could stop them — `env.destroy()` runs after every test that
+ * starts this service, so they accumulated across a suite.
+ *
+ * `settledDeferred` still settles on every exit path, including the early one
+ * where the browser has no service worker at all.
+ *
  * @param {Deferred} settledDeferred
- * @returns {Promise<ServiceWorkerRegistration | undefined>}
+ * @returns {Promise<{
+ *   registration: ServiceWorkerRegistration | undefined,
+ *   stopWatching: () => void,
+ * }>}
  */
 export async function registerServiceWorker(settledDeferred) {
     const { serviceWorker } = browser.navigator;
     let readyTimeoutId;
+    /** @type {() => void} */
+    let stopWatching = () => {};
+    /** @type {ServiceWorkerRegistration | undefined} */
+    let registration;
     try {
-        if (!serviceWorker) {
-            return;
-        }
-        const registration = await serviceWorker.register("/web/service-worker.js", {
-            scope: "/odoo",
-        });
-        watchServiceWorkerUpdates(registration);
-        if (registration.active && registration.active.state === "activated") {
-            settledDeferred.resolve();
-        } else {
-            const sw =
-                registration.installing || registration.waiting || registration.active;
-            sw?.addEventListener("statechange", (e) => {
-                if (/** @type {any} */ (e.target).state === "activated") {
-                    settledDeferred.resolve();
-                }
+        if (serviceWorker) {
+            registration = await serviceWorker.register("/web/service-worker.js", {
+                scope: "/odoo",
             });
+            stopWatching = watchServiceWorkerUpdates(registration);
+            if (registration.active && registration.active.state === "activated") {
+                settledDeferred.resolve();
+            } else {
+                const sw =
+                    registration.installing ||
+                    registration.waiting ||
+                    registration.active;
+                if (sw) {
+                    const onStateChange = (/** @type {Event} */ e) => {
+                        if (/** @type {any} */ (e.target).state === "activated") {
+                            sw.removeEventListener("statechange", onStateChange);
+                            settledDeferred.resolve();
+                        }
+                    };
+                    sw.addEventListener("statechange", onStateChange);
+                }
+            }
+            await Promise.race([
+                serviceWorker.ready,
+                new Promise((resolve) => {
+                    readyTimeoutId = browser.setTimeout(
+                        resolve,
+                        SERVICE_WORKER_READY_TIMEOUT,
+                    );
+                }),
+            ]);
+            if (!serviceWorker.controller) {
+                rpcBus.trigger(RpcEvent.CLEAR_CACHES);
+            }
         }
-        await Promise.race([
-            serviceWorker.ready,
-            new Promise((resolve) => {
-                readyTimeoutId = browser.setTimeout(
-                    resolve,
-                    SERVICE_WORKER_READY_TIMEOUT,
-                );
-            }),
-        ]);
-        if (!serviceWorker.controller) {
-            rpcBus.trigger(RpcEvent.CLEAR_CACHES);
-        }
-        return registration;
     } catch (error) {
         console.error("Service worker registration failed, error:", error);
     } finally {
         browser.clearTimeout(readyTimeoutId);
         settledDeferred.resolve();
     }
+    return { registration, stopWatching };
 }
 
 class ServiceWorkerService {
@@ -105,7 +125,23 @@ class ServiceWorkerService {
         const settledDeferred = new Deferred();
         /** @type {Promise<void>} */
         this.registrationSettled = settledDeferred;
-        registerServiceWorker(settledDeferred);
+        // `null` means "registration has not answered yet". `destroy()` writes a
+        // no-op over it instead, so a disposer that arrives after teardown can
+        // tell the two apart and stop itself.
+        /** @type {(() => void) | null} */
+        this.stopWatching = null;
+        registerServiceWorker(settledDeferred).then(({ stopWatching }) => {
+            if (this.stopWatching === null) {
+                this.stopWatching = stopWatching;
+            } else {
+                stopWatching();
+            }
+        });
+    }
+
+    destroy() {
+        this.stopWatching?.();
+        this.stopWatching = () => {};
     }
 }
 

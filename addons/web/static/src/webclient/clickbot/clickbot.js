@@ -8,9 +8,9 @@ import { AppEvent, RpcEvent } from "@web/core/events";
 import { rpcBus } from "@web/core/network/rpc";
 import { getPopoverForTarget } from "@web/ui/popover/popover";
 import {
-    CLICKBOT_RUNNING_KEY,
     clickbotHomeMenuSelectors,
     clickbotSkippedMenus,
+    writeClickbotRun,
 } from "@web/webclient/clickbot/clickbot_state";
 
 /**
@@ -172,7 +172,7 @@ class ClickBot {
         if (this._stopped) {
             return;
         }
-        browser.localStorage.setItem(CLICKBOT_RUNNING_KEY, JSON.stringify(this.state));
+        writeClickbotRun(JSON.stringify(this.state));
     }
 
     start() {
@@ -181,7 +181,7 @@ class ClickBot {
         stopButton.classList.add("btn", "btn-danger");
         stopButton.textContent = "Stop ClickAll!";
         stopButton.onclick = () => {
-            browser.localStorage.removeItem(CLICKBOT_RUNNING_KEY);
+            writeClickbotRun(null);
             browser.location.reload();
         };
         document.body.appendChild(stopButton);
@@ -202,7 +202,7 @@ class ClickBot {
 
     stop() {
         this._stopped = true;
-        browser.localStorage.removeItem(CLICKBOT_RUNNING_KEY);
+        writeClickbotRun(null);
         this.env.bus.removeEventListener(
             AppEvent.ACTION_MANAGER_UI_UPDATED,
             this.onUiUpdate,
@@ -239,14 +239,25 @@ class ClickBot {
      * @returns {Promise}
      */
     async waitForCondition(stopCondition) {
+        // The budget is spent per poll, not per millisecond: under the mocked
+        // timers the unit suites install, `Date.now()` does not advance with
+        // `setTimeout`, so a wall-clock deadline would never expire and a stuck
+        // step would hang instead of reporting. The cost is that a slow poll
+        // body stretches the real timeout past STEP_TIMEOUT, which is the safe
+        // direction for a bot driving a live UI.
         let timeLimit = STEP_TIMEOUT;
         const pending = () => Object.keys(this.calledRPC);
-        while (
-            this.checkForErrorDialog() ||
-            !stopCondition() ||
-            pending().length > 0 ||
-            scheduledTaskCount() > 0
-        ) {
+        for (;;) {
+            // Throws on an error dialog; it contributes no value to the wait,
+            // and reading it as one operand of the condition below hid that.
+            this.checkForErrorDialog();
+            if (
+                stopCondition() &&
+                pending().length === 0 &&
+                scheduledTaskCount() === 0
+            ) {
+                return;
+            }
             if (timeLimit <= 0) {
                 let msg = `Timeout, the clicked element took more than ${
                     STEP_TIMEOUT / 1000

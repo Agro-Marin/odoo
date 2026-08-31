@@ -11,11 +11,18 @@ export function useEnrichWithActionLinks(ref, selector = null) {
     const comp = useComponent();
     useEffect(
         (element) => {
-            if (element.matches("iframe")) {
-                element.onload = () => enrich(comp, element, selector, true);
-            } else {
-                enrich(comp, element, selector);
+            // The effect runs for every value the ref takes, `null` included:
+            // a target behind a `t-if` hands one over as soon as it is removed.
+            if (!element) {
+                return;
             }
+            if (!element.matches("iframe")) {
+                enrich(comp, element, selector);
+                return;
+            }
+            const onLoad = () => enrich(comp, element, selector, true);
+            element.addEventListener("load", onLoad);
+            return () => element.removeEventListener("load", onLoad);
         },
         () => [ref.el],
     );

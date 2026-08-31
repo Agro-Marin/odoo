@@ -20,6 +20,28 @@ import {
 } from "@web/webclient/switch_company_menu/company_selector";
 import { SwitchCompanyItem } from "@web/webclient/switch_company_menu/switch_company_item";
 
+/**
+ * @param {string} [value]
+ * @returns {string}
+ */
+function normalise(value) {
+    return (value || "").toLocaleLowerCase().replace(/\s/g, "");
+}
+
+/**
+ * `ir_http.py::_get_company_info` narrows every `child_ids` to the companies it
+ * also sends (`children_in_hierarchy`), so each id here resolves. That is the
+ * payload's promise, not something this side can check, and
+ * `company_selector.js` already declines to rely on it (`getCompany(...)?.`).
+ * Resolve and drop rather than dereference `undefined`.
+ *
+ * @param {{ child_ids?: number[] }} company
+ * @returns {Record<string, any>[]}
+ */
+function childrenOf(company) {
+    return (company.child_ids || []).map((id) => getCompany(id)).filter(Boolean);
+}
+
 export class SwitchCompanyMenu extends Component {
     static template = "web.SwitchCompanyMenu";
     static components = {
@@ -157,15 +179,18 @@ export class SwitchCompanyMenu extends Component {
     }
 
     computeVisibleCompanies() {
-        this._normalisedFilter = (this.state.searchFilter || "")
-            .toLocaleLowerCase()
-            .replace(/\s/g, "");
+        // The filter is a local, not an instance field: it is derived here and
+        // read only by the two closures below, so nothing outside this call can
+        // observe a stale one.
+        const filter = normalise(this.state.searchFilter);
+        const matches = (/** @type {string} */ name) =>
+            !filter || normalise(name).includes(filter);
         /** @type {Map<number, boolean>} */
         const inSubtree = new Map();
         const scanSubtree = (company) => {
-            let found = this.matchSearch(company.name);
-            for (const companyId of company.child_ids || []) {
-                if (scanSubtree(getCompany(companyId))) {
+            let found = matches(company.name);
+            for (const child of childrenOf(company)) {
+                if (scanSubtree(child)) {
                     found = true;
                 }
             }
@@ -179,8 +204,8 @@ export class SwitchCompanyMenu extends Component {
             if (shown) {
                 companies.push({ company, level });
             }
-            for (const companyId of company.child_ids || []) {
-                emit(getCompany(companyId), level + 1, shown);
+            for (const child of childrenOf(company)) {
+                emit(child, level + 1, shown);
             }
         };
 
@@ -203,16 +228,6 @@ export class SwitchCompanyMenu extends Component {
         this.state.searchFilter = ev.target.value;
         this.state.showFilter = true;
         this.state.visibleCompanies = this.computeVisibleCompanies();
-    }
-
-    matchSearch(companyName) {
-        if (!this._normalisedFilter) {
-            return true;
-        }
-        return companyName
-            .toLocaleLowerCase()
-            .replace(/\s/g, "")
-            .includes(this._normalisedFilter);
     }
 
     handleDropdownChange(isOpen) {

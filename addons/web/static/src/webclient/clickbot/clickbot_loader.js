@@ -2,11 +2,10 @@
 /** @odoo-module native */
 
 import { loadBundle } from "@web/core/assets";
-import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 
-import { CLICKBOT_RUNNING_KEY } from "./clickbot_state.js";
+import { readClickbotRun, writeClickbotRun } from "./clickbot_state.js";
 
 /**
  * @param {string} [xmlId]
@@ -62,12 +61,9 @@ export function decideClickbotResume(raw, now) {
  * @returns {{ verdict: string, state?: any }}
  */
 export function resumeClickbotRun({ now = Date.now() } = {}) {
-    const outcome = decideClickbotResume(
-        browser.localStorage.getItem(CLICKBOT_RUNNING_KEY),
-        now,
-    );
+    const outcome = decideClickbotResume(readClickbotRun(), now);
     if (outcome.verdict === "stale" || outcome.verdict === "corrupt") {
-        browser.localStorage.removeItem(CLICKBOT_RUNNING_KEY);
+        writeClickbotRun(null);
         console.warn(
             `[clickbot] Discarding a ${outcome.verdict} saved run instead of auto-resuming.`,
         );

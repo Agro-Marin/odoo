@@ -24,6 +24,19 @@ debugSectionRegistry
     .add("testing", { label: _t("Tours & Testing"), sequence: 40 })
     .add("tools", { label: _t("Tools"), sequence: 50 });
 
+const DEFAULT_SECTION_SEQUENCE = 50;
+
+/**
+ * @param {string} section
+ * @returns {number}
+ */
+function sectionSequence(section) {
+    return (
+        debugSectionRegistry.get(section, /** @type {any} */ ({})).sequence ??
+        DEFAULT_SECTION_SEQUENCE
+    );
+}
+
 export class DebugMenuBasic extends Component {
     static template = "web.DebugMenu";
     static components = {
@@ -43,11 +56,16 @@ export class DebugMenuBasic extends Component {
     async loadGroupedItems() {
         const items = await this.debugContext.getItems(this.env);
         const sections = groupBy(items, (item) => item.section || "");
-        this.sectionEntries = sortBy(
-            Object.entries(sections),
-            ([section]) =>
-                debugSectionRegistry.get(section, /** @type {any} */ ({ sequence: 50 }))
-                    .sequence,
+        this.sectionEntries = sortBy(Object.entries(sections), ([section]) =>
+            // `sequence` is optional in the schema above, so an entry that is
+            // registered without one needs the same default as one that is not
+            // registered at all. Left undefined it reaches `sortBy`'s
+            // non-numeric branch, where it compares equal to every number --
+            // an inconsistent comparator, so the damage is not confined to the
+            // offender. With the six sections registered here plus one lacking
+            // a sequence, one input order in four also lands `tools` (50)
+            // ahead of `testing` (40).
+            sectionSequence(section),
         );
     }
 

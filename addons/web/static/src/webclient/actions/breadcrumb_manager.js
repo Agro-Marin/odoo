@@ -21,29 +21,32 @@ export function isMenuController(action) {
 /**
  * @param {Record<string, any>[]} toFetch
  * @param {import("./breadcrumb_cache.js").BreadcrumbCache} breadcrumbCache
+ * @returns {Map<string, Promise<any>>} the in-flight answer per key
  */
 function fetchBreadcrumbs(toFetch, breadcrumbCache) {
     const req = rpc("/web/action/load_breadcrumbs", { actions: toFetch }, { retry: 1 });
+    /** @type {Map<string, Promise<any>>} */
+    const pending = new Map();
     for (const [i, info] of toFetch.entries()) {
         const key = JSON.stringify(info);
-        breadcrumbCache.set(
-            key,
-            req.then(
-                (res) => {
-                    if (res[i] && "display_name" in res[i]) {
-                        breadcrumbCache.set(key, res[i]);
-                    } else {
-                        breadcrumbCache.delete(key);
-                    }
-                    return res[i];
-                },
-                (error) => {
+        const answer = req.then(
+            (res) => {
+                if (res[i] && "display_name" in res[i]) {
+                    breadcrumbCache.set(key, res[i]);
+                } else {
                     breadcrumbCache.delete(key);
-                    throw error;
-                },
-            ),
+                }
+                return res[i];
+            },
+            (error) => {
+                breadcrumbCache.delete(key);
+                throw error;
+            },
         );
+        breadcrumbCache.set(key, answer);
+        pending.set(key, answer);
     }
+    return pending;
 }
 
 /**
@@ -71,26 +74,61 @@ function breadcrumbKey(controller) {
  */
 async function resolveBreadcrumbs(entries, breadcrumbCache) {
     const toFetch = [];
-    const queued = new Set();
+    /** @type {Map<string, any>} */
+    const answers = new Map();
     for (const { key, actionInfo } of entries) {
+        if (answers.has(key)) {
+            continue;
+        }
         if (breadcrumbCache.has(key)) {
             breadcrumbCache.touch(key);
-        } else if (!queued.has(key)) {
-            queued.add(key);
+            answers.set(key, breadcrumbCache.get(key));
+        } else {
+            answers.set(key, undefined);
             toFetch.push(actionInfo);
         }
     }
     if (toFetch.length) {
-        fetchBreadcrumbs(toFetch, breadcrumbCache);
+        for (const [key, answer] of fetchBreadcrumbs(toFetch, breadcrumbCache)) {
+            answers.set(key, answer);
+        }
     }
+    // Await what was captured above rather than reading the cache back. The
+    // cache is bounded, so a trail longer than its limit evicts its own entries
+    // between the write and the read, and an evicted one is indistinguishable
+    // from a crumb the server declined to name -- which drops it from the trail
+    // and from the url.
     const results = await Promise.all(
         entries.map((entry) =>
-            Promise.resolve(breadcrumbCache.get(entry.key)).catch((error) => ({
+            Promise.resolve(answers.get(entry.key)).catch((error) => ({
                 error,
             })),
         ),
     );
     return zip(entries, results);
+}
+
+/**
+ * Names each entry's controller from the server's answer. The two callers below
+ * differ only in which controllers they nominate and in what an unresolved one
+ * costs, so that is all they carry.
+ *
+ * @param {BreadcrumbEntry[]} entries
+ * @param {import("./breadcrumb_cache.js").BreadcrumbCache} breadcrumbCache
+ * @param {(controller: Controller, error?: any) => void} [onUnresolved]
+ * @returns {Promise<void>}
+ */
+async function applyDisplayNames(entries, breadcrumbCache, onUnresolved) {
+    for (const [{ controller }, res] of await resolveBreadcrumbs(
+        entries,
+        breadcrumbCache,
+    )) {
+        if (res && "display_name" in res) {
+            controller.displayName = res.display_name;
+            continue;
+        }
+        onUnresolved?.(controller, res && "error" in res ? res.error : undefined);
+    }
 }
 
 /**
@@ -162,25 +200,18 @@ async function loadBreadcrumbs(controllers, breadcrumbCache) {
     }
 
     const dropped = new Set();
-    for (const [{ controller }, res] of await resolveBreadcrumbs(
-        entries,
-        breadcrumbCache,
-    )) {
-        if (res && "display_name" in res) {
-            controller.displayName = res.display_name;
-            continue;
-        }
-        if (res && "error" in res) {
+    await applyDisplayNames(entries, breadcrumbCache, (controller, error) => {
+        if (error) {
             console.warn(
                 "A breadcrumb could not be loaded and was dropped from the trail " +
                     "and from the url. The server did not answer for:\n",
                 controller.state,
                 "\n",
-                res.error,
+                error,
             );
         }
         dropped.add(controller);
-    }
+    });
     return controllers.filter((c) => !dropped.has(c));
 }
 
@@ -198,14 +229,7 @@ export async function refreshBreadcrumbDisplayNames(controllers, breadcrumbCache
         }
         entries.push({ controller, ...breadcrumbKey(controller) });
     }
-    for (const [{ controller }, res] of await resolveBreadcrumbs(
-        entries,
-        breadcrumbCache,
-    )) {
-        if (res && "display_name" in res) {
-            controller.displayName = res.display_name;
-        }
-    }
+    await applyDisplayNames(entries, breadcrumbCache);
 }
 
 /**

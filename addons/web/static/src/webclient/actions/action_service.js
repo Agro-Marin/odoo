@@ -799,7 +799,6 @@ export class ActionManager {
      * @returns {Promise<any>}
      */
     async switchView(viewType, props = {}, { newWindow } = {}) {
-        await this.navigation.guard(Promise.resolve());
         if (this.dialog || this._pendingDispatch) {
             return;
         }
@@ -813,6 +812,10 @@ export class ActionManager {
                 ),
             );
         }
+        // Mint only once the switch is known to happen: minting supersedes every
+        // in-flight navigation, so a call that returns or throws above would
+        // silently cancel a load it never replaces.
+        await this.navigation.guard(Promise.resolve());
         const newController =
             controller.action.controllers[viewType] ||
             this._makeController({
@@ -853,7 +856,6 @@ export class ActionManager {
      * @param {string} jsId
      */
     async restore(jsId) {
-        await this.navigation.guard(Promise.resolve());
         let index;
         if (!jsId) {
             index = this.controllerStack.length - 2;
@@ -868,6 +870,8 @@ export class ActionManager {
                 : "No controller to restore";
             throw new ControllerNotFoundError(msg);
         }
+        // See switchView: the epoch is bumped only once the restore is certain.
+        await this.navigation.guard(Promise.resolve());
         if (!(await this._confirmLeave())) {
             return;
         }

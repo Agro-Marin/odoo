@@ -351,3 +351,35 @@ test("a form leaf marks its parent lazy so the name fetch can be skipped", async
     expect(controllers.at(-1).lazy).toBe(true);
     expect(fetched).toBe(1);
 });
+
+test("a trail longer than the cache limit still names every crumb", async () => {
+    // The answers used to be read back out of the bounded cache after being
+    // written into it. A batch bigger than the limit evicts its own earliest
+    // entries before the read, and an evicted crumb is indistinguishable from
+    // one the server declined to name — so it was dropped from the trail and
+    // from the url.
+    await makeMockServer();
+    const limit = 4;
+    const cache = new BreadcrumbCache(limit);
+    const controllers = [];
+    for (let i = 0; i < limit * 3; i++) {
+        controllers.push(
+            makeController({
+                jsId: `c${i}`,
+                displayName: undefined,
+                action: { id: i + 1, type: "ir.actions.act_window" },
+                state: { action: i + 1, model: "partner", resId: false },
+            }),
+        );
+    }
+    onRpc("/web/action/load_breadcrumbs", async (request) => {
+        const { params } = await request.json();
+        return params.actions.map((a) => ({ display_name: `name-${a.action}` }));
+    });
+
+    await refreshBreadcrumbDisplayNames(controllers, cache);
+
+    expect(controllers.map((c) => c.displayName)).toEqual(
+        controllers.map((_c, i) => `name-${i + 1}`),
+    );
+});

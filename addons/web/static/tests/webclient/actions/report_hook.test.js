@@ -1,7 +1,8 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
-import { Component, useRef, xml } from "@odoo/owl";
+import { animationFrame } from "@odoo/hoot-mock";
+import { Component, useRef, useState, xml } from "@odoo/owl";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 import {
     enrich,
@@ -67,4 +68,55 @@ test("enrich still wraps elements added after the first pass", async () => {
 
     expect("a > .tgt").toHaveCount(3);
     expect("a > a").toHaveCount(0);
+});
+
+class ConditionalEnrichHost extends Component {
+    static template = xml`
+        <div>
+            <div t-if="state.shown" t-ref="root">
+                <span res-id="1" res-model="partner" view-type="form" class="tgt">x</span>
+            </div>
+        </div>`;
+    static props = {};
+    setup() {
+        this.state = useState({ shown: true });
+        this.root = useRef("root");
+        useEnrichWithActionLinks(this.root);
+    }
+}
+
+test("a target removed from the DOM hands the hook a null ref, not a crash", async () => {
+    // The effect runs for every value the ref takes. A target behind a `t-if`
+    // yields `null` on removal, which used to reach `element.matches`.
+    const comp = await mountWithCleanup(ConditionalEnrichHost);
+    expect("a > .tgt").toHaveCount(1);
+
+    comp.state.shown = false;
+    await animationFrame();
+
+    expect(".tgt").toHaveCount(0);
+});
+
+class IframeEnrichHost extends Component {
+    static template = xml`<iframe t-ref="frame" t-att-srcdoc="doc"/>`;
+    static props = {};
+    doc = `<body><span res-id="7" res-model="partner" view-type="form" class="tgt">x</span></body>`;
+    setup() {
+        this.frame = useRef("frame");
+        useEnrichWithActionLinks(this.frame);
+    }
+}
+
+test("an iframe's document is enriched once it loads", async () => {
+    // The iframe branch of the hook had no coverage at all, so a change to it
+    // could not be told apart from a no-op by the suite.
+    const comp = await mountWithCleanup(IframeEnrichHost);
+    let anchor = null;
+    for (let i = 0; i < 50 && !anchor; i++) {
+        anchor = /** @type {HTMLIFrameElement | null} */ (
+            comp.frame.el
+        )?.contentDocument?.body?.querySelector("a > .tgt");
+        await animationFrame();
+    }
+    expect(!!anchor).toBe(true);
 });

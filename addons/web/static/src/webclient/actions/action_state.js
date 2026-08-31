@@ -169,10 +169,19 @@ function resolveActionFromModel(state, lastAction, options) {
 }
 
 /**
+ * Walks the url's action stack from the tip down, one level per leaf that could
+ * not be resolved.
+ *
+ * `lastAction` is threaded through rather than re-read per level: the two
+ * resolvers mutate it only on the paths that also *return* it, and the one
+ * `return null` that recurses happens before any of that, so every level below
+ * sees the same pristine object the top level normalised.
+ *
  * @param {Record<string, any>} state
+ * @param {Record<string, any>} lastAction
  * @returns {{ actionRequest: ActionRequest, options: ActionOptions } | null}
  */
-export function getActionParams(state) {
+function resolveActionParams(state, lastAction) {
     /**
      * @type {{
      * additionalContext?: Object,
@@ -183,11 +192,6 @@ export function getActionParams(state) {
      */
     const options = {};
     let actionRequest = null;
-    const lastAction = actionStorage.getCurrentAction();
-    delete lastAction.context?.allowed_company_ids;
-    if (lastAction.help) {
-        lastAction.help = markup(lastAction.help);
-    }
     if (state.action) {
         actionRequest = resolveActionFromKey(state, lastAction, options);
     } else if (state.model) {
@@ -201,7 +205,7 @@ export function getActionParams(state) {
         if (actionStack?.length > 1) {
             const nextState = { actionStack: actionStack.slice(0, -1) };
             Object.assign(nextState, nextState.actionStack.at(-1));
-            const params = getActionParams(nextState);
+            const params = resolveActionParams(nextState, lastAction);
             if (!params) {
                 return null;
             }
@@ -211,4 +215,18 @@ export function getActionParams(state) {
         actionRequest = user.homeActionId;
     }
     return actionRequest ? { actionRequest, options } : null;
+}
+
+/**
+ * @param {Record<string, any>} state
+ * @returns {{ actionRequest: ActionRequest, options: ActionOptions } | null}
+ */
+export function getActionParams(state) {
+    // One sessionStorage read and one parse per call, not per stack level.
+    const lastAction = actionStorage.getCurrentAction();
+    delete lastAction.context?.allowed_company_ids;
+    if (lastAction.help) {
+        lastAction.help = markup(lastAction.help);
+    }
+    return resolveActionParams(state, lastAction);
 }

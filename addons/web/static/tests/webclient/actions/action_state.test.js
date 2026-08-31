@@ -1,7 +1,7 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
-import { makeMockEnv } from "@web/../tests/web_test_helpers";
+import { makeMockEnv, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { getActionParams } from "@web/webclient/actions/action_state";
 
@@ -85,4 +85,29 @@ test("each further pop increments the count", async () => {
     });
     expect(params.actionRequest).toBe(3);
     expect(params.options.poppedLeaves).toBe(2);
+});
+
+test("a deep action stack reads the stored action once, not once per level", async () => {
+    // getActionParams recurses one level per leaf it cannot resolve. Re-reading
+    // and re-parsing the same sessionStorage blob at every level is work that
+    // grows with breadcrumb depth for no gain.
+    let reads = 0;
+    patchWithCleanup(browser.sessionStorage, {
+        getItem(key) {
+            if (key === "current_action") {
+                reads++;
+            }
+            return super.getItem(key);
+        },
+    });
+
+    const actionStack = [
+        { action: "unresolvable-1" },
+        { action: "unresolvable-2" },
+        { action: "unresolvable-3" },
+        { model: "no.such.model", view_type: "list" },
+    ];
+    getActionParams({ ...actionStack.at(-1), actionStack });
+
+    expect(reads).toBe(1);
 });

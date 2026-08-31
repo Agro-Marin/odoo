@@ -1,12 +1,23 @@
 // @ts-check
 /** @odoo-module native */
 
-import { shallowEqual } from "@web/core/utils/collections/objects";
 import { session } from "@web/session";
 
 /**
  * @import { Action, ActWindowAction, ActionManager, ActionProps, BaseView, Config, Controller } from "./action_service.js"
  */
+
+/**
+ * `shallowEqual`'s own comparison, so the patch-vs-clone rewrite below is
+ * value-for-value what the clone used to decide (`0`/`-0` equal, `NaN` equal).
+ *
+ * @param {any} a
+ * @param {any} b
+ * @returns {boolean}
+ */
+function sameValue(a, b) {
+    return a === b || (Number.isNaN(a) && Number.isNaN(b));
+}
 
 /**
  * @param {Record<string, any>} currentState
@@ -16,13 +27,49 @@ import { session } from "@web/session";
  */
 function makeActionStateUpdater(currentState, target, am) {
     return (controller, patchState) => {
-        const oldState = { ...currentState };
-        Object.assign(currentState, patchState);
-        const changed = !shallowEqual(currentState, oldState);
+        // Compare against the patch rather than cloning the state to diff it:
+        // this runs on every record navigation, and the overwhelmingly common
+        // patch is a no-op that used to allocate a copy to discover as much.
+        // A key the state does not carry yet counts as a change even when its
+        // value is `undefined`, matching the key-count arm of `shallowEqual`.
+        let changed = false;
+        for (const [key, value] of Object.entries(patchState)) {
+            if (
+                !Object.hasOwn(currentState, key) ||
+                !sameValue(currentState[key], value)
+            ) {
+                changed = true;
+            }
+            currentState[key] = value;
+        }
         if (changed && target !== "new" && controller.isMounted) {
             am.pushState();
         }
     };
+}
+
+/**
+ * The two builders below agree on what an action's state and name are; only
+ * where `resId` comes from differs.
+ *
+ * @param {Action} action
+ * @param {ActionProps} props mutated: gains `updateActionState`
+ * @param {any} resId
+ * @param {ActionManager} am
+ * @returns {Record<string, any>} the live `currentState` the updater patches
+ */
+function attachActionState(action, props, resId, am) {
+    const currentState = { resId, active_id: action.context?.active_id };
+    props.updateActionState = makeActionStateUpdater(currentState, action.target, am);
+    return currentState;
+}
+
+/**
+ * @param {Action} action
+ * @returns {string}
+ */
+function actionDisplayName(action) {
+    return action.display_name || action.name || "";
 }
 
 /**
@@ -34,13 +81,10 @@ function makeActionStateUpdater(currentState, target, am) {
 export function buildActionInfo(action, props, am) {
     /** @type {ActionProps} */
     const actionProps = { ...props, action, actionId: action.id };
-    const currentState = {
-        resId: actionProps.resId ?? false,
-        active_id: action.context?.active_id,
-    };
-    actionProps.updateActionState = makeActionStateUpdater(
-        currentState,
-        action.target,
+    const currentState = attachActionState(
+        action,
+        actionProps,
+        actionProps.resId ?? false,
         am,
     );
     return {
@@ -50,7 +94,7 @@ export function buildActionInfo(action, props, am) {
             actionId: action.id,
             actionType: "ir.actions.client",
         },
-        displayName: action.display_name || action.name || "",
+        displayName: actionDisplayName(action),
     };
 }
 
@@ -208,11 +252,7 @@ export function buildViewInfo(view, action, views, props, am) {
 
     applyActionOverrides(viewProps, action, context);
 
-    const currentState = {
-        resId: viewProps.resId,
-        active_id: action.context?.active_id,
-    };
-    viewProps.updateActionState = makeActionStateUpdater(currentState, target, am);
+    const currentState = attachActionState(action, viewProps, viewProps.resId, am);
 
     viewProps.noBreadcrumbs =
         "_noBreadcrumbs" in action ? action._noBreadcrumbs : target === "new";
@@ -221,7 +261,7 @@ export function buildViewInfo(view, action, views, props, am) {
         props: viewProps,
         currentState,
         config: buildViewConfig(view, action, context, viewSwitcherEntries),
-        displayName: action.display_name || action.name || "",
+        displayName: actionDisplayName(action),
     };
 }
 

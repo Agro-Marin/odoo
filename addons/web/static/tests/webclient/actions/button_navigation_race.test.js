@@ -1,6 +1,6 @@
 // @ts-check
 
-import { expect, test } from "@odoo/hoot";
+import { beforeEach, expect, test } from "@odoo/hoot";
 import { click } from "@odoo/hoot-dom";
 import { animationFrame, Deferred } from "@odoo/hoot-mock";
 import { Component, onWillStart, xml } from "@odoo/owl";
@@ -24,7 +24,6 @@ class DestinationAction extends Component {
     static template = xml`<div class="test_destination">Destination</div>`;
     static props = ["*"];
 }
-registry.category("actions").add("test_destination", DestinationAction);
 
 /** @type {any} */
 export let slowDestinationDef = null;
@@ -35,7 +34,17 @@ class SlowDestinationAction extends Component {
         onWillStart(() => slowDestinationDef);
     }
 }
-registry.category("actions").add("test_slow_destination", SlowDestinationAction);
+
+/**
+ * Registered per test, not at module scope: the framework snapshots the registry
+ * in a global `beforeEach` (tests/_framework/env_test_helpers.js), so a
+ * module-scope add is already present when the first snapshot is taken and
+ * survives every restore, leaking into every suite that runs after this file.
+ */
+beforeEach(() => {
+    registry.category("actions").add("test_destination", DestinationAction);
+    registry.category("actions").add("test_slow_destination", SlowDestinationAction);
+});
 
 class Partner extends models.Model {
     _rec_name = "display_name";

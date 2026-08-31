@@ -39,7 +39,7 @@ class ColorSchemeService {
     }
 
     destroy() {
-        this.systemScheme.removeEventListener?.("change", this._onSystemSchemeChange);
+        this.systemScheme.removeEventListener("change", this._onSystemSchemeChange);
     }
 }
 
