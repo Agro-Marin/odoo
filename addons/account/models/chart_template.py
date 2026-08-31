@@ -28,6 +28,14 @@ TEMPLATE_MODELS = (
     "account.reconcile.model",
 )
 
+REPARTITION_LINE_FIELDS = (
+    "repartition_line_ids",
+    "invoice_repartition_line_ids",
+    "refund_repartition_line_ids",
+)
+
+TEMPLATE_MODELS_REMOVAL_ORDER = ("account.move", *reversed(TEMPLATE_MODELS))
+
 TAX_TAG_DELIMITER = "||"
 
 SYSCOHADA_LIST = [
@@ -64,7 +72,7 @@ def get_python_translation(module, lang, value):
 
 def preserve_existing_tags_on_taxes(env, module):
     xml_records = env["ir.model.data"].search(
-        [("model", "=", "account.account.tag"), ("module", "like", module)]
+        [("model", "=", "account.account.tag"), ("module", "=", module)]
     )
     if xml_records:
         env.cr.execute(
@@ -115,7 +123,6 @@ class AccountChartTemplate(models.AbstractModel):
             self._name
         ]._template_register = AccountChartTemplate._template_register
 
-
     def _get_chart_template_mapping(self, get_all=False):
         chart_category = self.env.ref(
             "base.module_category_accounting_localizations_account_charts",
@@ -144,19 +151,15 @@ class AccountChartTemplate(models.AbstractModel):
             (template_code, template["name"])
             for template_code, template in sorted(
                 chart_template_mapping.items(),
-                key=(
-                    lambda t: (
-                        t[0] != "generic_coa"
-                        if not country
-                        else t[1]["country_id"] != country.id
-                    )
+                key=lambda t: (
+                    bool(country) and t[1]["country_id"] != country.id,
+                    t[0] != "generic_coa",
                 ),
             )
         ]
 
     def _guess_chart_template(self, country):
         return self._select_chart_template(country)[0][0]
-
 
     def try_loading(
         self, template_code, company, install_demo=False, force_create=True
@@ -173,12 +176,7 @@ class AccountChartTemplate(models.AbstractModel):
                 company.name,
                 template_code,
             )
-        if isinstance(company, int):
-            company = self.env["res.company"].browse([company])
-
-        template_code = template_code or (
-            company and self._guess_chart_template(company.country_id)
-        )
+        template_code = template_code or self._guess_chart_template(company.country_id)
 
         mapping = self._get_chart_template_mapping(get_all=True).get(template_code, {})
         if not mapping.get("visible", True) and template_code != company.chart_template:
@@ -203,7 +201,7 @@ class AccountChartTemplate(models.AbstractModel):
         children_companies = self.env["res.company"].search(
             [("id", "child_of", company.id)]
         )
-        for model in ("account.move",) + TEMPLATE_MODELS[::-1]:
+        for model in TEMPLATE_MODELS_REMOVAL_ORDER:
             company_field = self._template_company_field(model)
             records = self._get_company_records(model, company_field, company)
             if company_field == "company_ids":
@@ -221,9 +219,13 @@ class AccountChartTemplate(models.AbstractModel):
         if not self.env.is_system():
             raise AccessError(_("Only administrators can install chart templates"))
         self = self.sudo()
-        chart_template_mapping = self._get_chart_template_mapping(get_all=True)[
+        chart_template_mapping = self._get_chart_template_mapping(get_all=True).get(
             template_code
-        ]
+        )
+        if chart_template_mapping is None:
+            raise UserError(
+                _("No chart template is declared under the code %s.", template_code)
+            )
         if not company.country_id:
             company.country_id = chart_template_mapping.get("country_id")
 
@@ -412,10 +414,17 @@ class AccountChartTemplate(models.AbstractModel):
         )
 
     def _reload_xmlid_mapping(self, records):
-        return {
-            xml_id.split(".")[1].split("_", maxsplit=1)[1]: records.browse(record)
+        company_xmlid_re = re.compile(r"account\.\d+_(?P<template_xmlid>.+)")
+        matches = (
+            (record, company_xmlid_re.fullmatch(xml_id))
             for record, xml_id in records.get_external_id().items()
-            if xml_id.startswith("account.")
+        )
+        return {
+            match["template_xmlid"]: records.browse(record).with_prefetch(
+                records._prefetch_ids
+            )
+            for record, match in matches
+            if match
         }
 
     def _pre_reload_journals(self, company, data):
@@ -443,10 +452,10 @@ class AccountChartTemplate(models.AbstractModel):
                     journal_data, "name", lang
                 )
                 journal = existing_journals.filtered(
-                    lambda j,
-                    journal_data=journal_data,
-                    translated_name=translated_name: j.type == journal_data["type"]
-                    and j.name in (journal_data["name"], translated_name)
+                    lambda j, journal_data=journal_data, translated_name=translated_name: (
+                        j.type == journal_data["type"]
+                        and j.name in (journal_data["name"], translated_name)
+                    )
                 )[:1]
             if journal:
                 del data["account.journal"][xmlid]
@@ -551,7 +560,9 @@ class AccountChartTemplate(models.AbstractModel):
         return False
 
     def _reload_rename_superseded_taxes(self, oldtax, unique_tax_name_keys):
-        uniq_key = self._unique_tax_name_key(oldtax[0] if len(oldtax) > 1 else oldtax)
+        if not oldtax:
+            return
+        uniq_key = self._unique_tax_name_key(oldtax[:1])
         pattern = rf"^(?:\[old\d*\] |){re.escape(str(uniq_key[0]))}$"
         matching_names = sum(
             1
@@ -679,11 +690,7 @@ class AccountChartTemplate(models.AbstractModel):
     def _pre_load_company_vals(self, company, template_data, fiscal_country):
         def is_company_setting(key):
             return (
-                (
-                    not key.startswith("property_")
-                    or key.startswith("property_stock_")
-                    or key == "additional_properties"
-                )
+                (not key.startswith("property_") or key.startswith("property_stock_"))
                 and key != "name"
                 and key in company._fields
             )
@@ -861,7 +868,7 @@ class AccountChartTemplate(models.AbstractModel):
     def _load_clears_default_repartition(self, model, field_name, xml_id, field_val):
         return (
             model == "account.tax"
-            and "repartition_line_ids" in field_name
+            and field_name in REPARTITION_LINE_FIELDS
             and not self.ref(xml_id, raise_if_not_found=False)
             and all(
                 isinstance(x, tuple | list)
@@ -1035,8 +1042,8 @@ class AccountChartTemplate(models.AbstractModel):
         ):
             company.tax_exigibility = True
 
-    def _post_load_defaults(self, company, template_data, additional_properties):
-        for field, model in self._get_property_accounts(additional_properties).items():
+    def _post_load_defaults(self, company, template_data):
+        for field, model in self._get_property_accounts().items():
             value = template_data.get(field)
             if value and field in self.env[model]._fields:
                 self.env["ir.default"].set(
@@ -1062,13 +1069,12 @@ class AccountChartTemplate(models.AbstractModel):
 
     def _post_load_data(self, template_code, company, template_data):
         company = company or self.env.company
-        additional_properties = template_data.pop("additional_properties", {})
 
         self._setup_utility_bank_accounts(template_code, company, template_data)
         company.get_unaffected_earnings_account()
         self._post_load_journal_accounts(company)
         self._post_load_default_taxes(company)
-        self._post_load_defaults(company, template_data, additional_properties)
+        self._post_load_defaults(company, template_data)
         self._post_load_reconcile_models(company)
         company._initiate_account_onboardings()
 
@@ -1079,9 +1085,8 @@ class AccountChartTemplate(models.AbstractModel):
             [*domain, ("name", "like", "Bank Fees")], limit=1
         ) or AccountAccount.search([*domain, ("account_type", "=", "expense")], limit=1)
 
-    def _get_property_accounts(self, additional_properties):
+    def _get_property_accounts(self):
         return {
-            **additional_properties,
             "property_account_receivable_id": "res.partner",
             "property_account_payable_id": "res.partner",
             "property_stock_journal": "product.category",
@@ -1178,15 +1183,13 @@ class AccountChartTemplate(models.AbstractModel):
     def _setup_utility_bank_accounts(self, template_code, company, template_data):
         bank_prefix = company.bank_account_code_prefix
         code_digits = int(template_data.get("code_digits", 6))
-        accounts_data = self._get_accounts_data_values(
-            company, template_data, bank_prefix=bank_prefix, code_digits=code_digits
-        )
+        accounts_data = self._get_accounts_data_values(company, template_data)
         for fname in list(accounts_data):
             if company[fname]:
                 del accounts_data[fname]
         if company.parent_id:
             for company_attr_name in accounts_data:
-                company[company_attr_name] = company.parent_ids[0][company_attr_name]
+                company[company_attr_name] = company.root_id[company_attr_name]
         else:
             accounts = self.env["account.account"]._load_records(
                 [
@@ -1204,7 +1207,7 @@ class AccountChartTemplate(models.AbstractModel):
             self._create_outstanding_accounts(company, bank_prefix, code_digits)
 
     def _create_outstanding_accounts(self, company, bank_prefix, code_digits):
-        accounts_data_no_fields = {
+        accounts_by_xmlid = {
             "account_journal_payment_debit_account_id": {
                 "name": _("Outstanding Receipts"),
                 "prefix": bank_prefix,
@@ -1227,7 +1230,7 @@ class AccountChartTemplate(models.AbstractModel):
                     "values": values,
                     "noupdate": True,
                 }
-                for xml_id, values in accounts_data_no_fields.items()
+                for xml_id, values in accounts_by_xmlid.items()
             ]
         )
 
@@ -1480,7 +1483,6 @@ class AccountChartTemplate(models.AbstractModel):
             )
         )
 
-
     @template(model="account.account")
     def _get_account_account(self, template_code):
         return self._parse_csv(template_code, "account.account")
@@ -1580,7 +1582,6 @@ class AccountChartTemplate(models.AbstractModel):
             },
         }
 
-
     def company_xmlid(self, xmlid, company=None):
         if "." in xmlid:
             return xmlid
@@ -1588,11 +1589,11 @@ class AccountChartTemplate(models.AbstractModel):
         return f"account.{company.id}_{xmlid}"
 
     def ref(self, xmlid, raise_if_not_found=True):
-        return self.env.ref(
-            self.company_xmlid(xmlid), raise_if_not_found=False
-        ) or self.env.ref(
-            self.company_xmlid(xmlid, self.env.company.parent_ids[0]),
-            raise_if_not_found,
+        company_xmlid = self.company_xmlid(xmlid)
+        if "." in xmlid:
+            return self.env.ref(company_xmlid, raise_if_not_found)
+        return self.env.ref(company_xmlid, raise_if_not_found=False) or self.env.ref(
+            self.company_xmlid(xmlid, self.env.company.root_id), raise_if_not_found
         )
 
     def _get_parent_template(self, code):
@@ -1672,11 +1673,7 @@ class AccountChartTemplate(models.AbstractModel):
             self._get_chart_template_mapping(get_all=True)[template_code]["country_id"]
         )
         for tax_values in tax_data.values():
-            for field_name in (
-                "repartition_line_ids",
-                "invoice_repartition_line_ids",
-                "refund_repartition_line_ids",
-            ):
+            for field_name in REPARTITION_LINE_FIELDS:
                 for element in tax_values.get(field_name, []):
                     match element:
                         case int() as command, _, {
@@ -1738,10 +1735,11 @@ class AccountChartTemplate(models.AbstractModel):
                 )
                 continue
             sub = res[last_id]
-            path_str = "/".join(model_path)
+            prefix = ""
             for path_component in model_path:
-                if path_str not in create_added:
-                    create_added.add(path_str)
+                prefix = f"{prefix}/{path_component}" if prefix else path_component
+                if prefix not in create_added:
+                    create_added.add(prefix)
                     sub.setdefault(path_component, [])
                     sub[path_component].append(Command.create({}))
                 sub = sub[path_component][-1][2]
@@ -1769,7 +1767,7 @@ class AccountChartTemplate(models.AbstractModel):
                         )
             except FileNotFoundError:
                 _logger.debug("No file %s found for template '%s'", model, module)
-        return res
+        return dict(res)
 
     def _template_company_field(self, model):
         return (
@@ -1864,9 +1862,7 @@ class AccountChartTemplate(models.AbstractModel):
         return self.env.cr.fetchall()
 
     def _get_field_translation(self, record, fname, lang):
-        generic_lang = lang.split("_")[
-            0
-        ]
+        generic_lang = lang.split("_")[0]
         translation_module = record.get("__translation_module__", {}).get(
             fname, "account"
         )
@@ -1891,8 +1887,9 @@ class AccountChartTemplate(models.AbstractModel):
             ].with_context(ignore_missing_tags=True).with_company(
                 company
             ).sudo()._get_chart_template_data(company.chart_template)
-            chart_template_data.pop("template_data", None)
             for mname, data in chart_template_data.items():
+                if mname == "template_data":
+                    continue
                 for _xml_id, record in data.items():
                     fnames = {
                         fname.split("@")[0]

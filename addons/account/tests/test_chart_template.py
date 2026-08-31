@@ -1,4 +1,5 @@
 import io
+from collections import defaultdict
 from unittest.mock import patch
 
 from markupsafe import Markup
@@ -462,7 +463,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             )
 
         tax_1, tax_2, tax_3, tax_4 = self.env["account.tax"].search(
-            [('company_ids', 'in', [self.company.id])]
+            [("company_ids", "in", [self.company.id])]
         )
         self.assertRecordValues(
             tax_1 | tax_2 | tax_3 | tax_4,
@@ -623,7 +624,9 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 "test", company=self.company, install_demo=False
             )
 
-        taxes = self.env["account.tax"].search([("company_ids", "in", self.company.ids)])
+        taxes = self.env["account.tax"].search(
+            [("company_ids", "in", self.company.ids)]
+        )
         self.assertRecordValues(
             taxes,
             [
@@ -685,7 +688,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             )
 
         updated_tax = self.env["account.tax"].search(
-            [('company_ids', 'in', [self.company.id]), ("name", "like", "%Tax 1")]
+            [("company_ids", "in", [self.company.id]), ("name", "like", "%Tax 1")]
         )
         self.assertEqual(len(updated_tax), 1)
         self.assertEqual(
@@ -711,7 +714,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             )
 
         updated_tax = self.env["account.tax"].search(
-            [('company_ids', 'in', [self.company.id]), ("name", "like", "%Tax 1")]
+            [("company_ids", "in", [self.company.id]), ("name", "like", "%Tax 1")]
         )
         self.assertEqual(len(updated_tax), 1)
         self.assertEqual(
@@ -727,7 +730,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             return data
 
         tax_existing = self.env["account.tax"].search(
-            [('company_ids', 'in', [self.company.id]), ("name", "=", "Tax 1")]
+            [("company_ids", "in", [self.company.id]), ("name", "=", "Tax 1")]
         )
         with patch.object(
             AccountChartTemplate,
@@ -742,13 +745,15 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         self.assertRecordValues(tax_existing, [{"name": "[old] Tax 1", "amount": 15}])
 
         new_tax = self.env["account.tax"].search(
-            [('company_ids', 'in', [self.company.id]), ("name", "=", "Tax 1 modified")]
+            [("company_ids", "in", [self.company.id]), ("name", "=", "Tax 1 modified")]
         )
         self.assertEqual(new_tax.amount, tax_existing.amount + 1)
 
     def test_update_taxes_removed_from_templates(self):
         fiscal_position = self.env["account.fiscal.position"].search([])
-        self.env["account.tax"].search([("company_ids", "in", self.company.ids)]).unlink()
+        self.env["account.tax"].search(
+            [("company_ids", "in", self.company.ids)]
+        ).unlink()
 
         with patch.object(
             AccountChartTemplate,
@@ -761,7 +766,11 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             )
 
         self.assertEqual(
-            len(self.env["account.tax"].search([("company_ids", "in", self.company.ids)])),
+            len(
+                self.env["account.tax"].search(
+                    [("company_ids", "in", self.company.ids)]
+                )
+            ),
             2,
         )
         self.assertEqual(len(fiscal_position.tax_ids.original_tax_ids), 1)
@@ -791,7 +800,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             return data
 
         tax_1_existing = self.env["account.tax"].search(
-            [('company_ids', 'in', [self.company.id]), ("name", "=", "Tax 1")]
+            [("company_ids", "in", [self.company.id]), ("name", "=", "Tax 1")]
         )
         with patch.object(
             AccountChartTemplate,
@@ -803,10 +812,10 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 "test", company=self.company, install_demo=False
             )
         tax_1_old = self.env["account.tax"].search(
-            [('company_ids', 'in', [self.company.id]), ("name", "=", "[old] Tax 1")]
+            [("company_ids", "in", [self.company.id]), ("name", "=", "[old] Tax 1")]
         )
         tax_1_new = self.env["account.tax"].search(
-            [('company_ids', 'in', [self.company.id]), ("name", "=", "Tax 1")]
+            [("company_ids", "in", [self.company.id]), ("name", "=", "Tax 1")]
         )
         self.assertEqual(
             tax_1_old, tax_1_existing, "Old tax still exists but with a different name."
@@ -825,13 +834,13 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 "test", company=self.company, install_demo=False
             )
         tax_1_old_first = self.env["account.tax"].search(
-            [('company_ids', 'in', [self.company.id]), ("name", "=", "[old] Tax 1")]
+            [("company_ids", "in", [self.company.id]), ("name", "=", "[old] Tax 1")]
         )
         tax_1_old_second = self.env["account.tax"].search(
-            [('company_ids', 'in', [self.company.id]), ("name", "=", "[old1] Tax 1")]
+            [("company_ids", "in", [self.company.id]), ("name", "=", "[old1] Tax 1")]
         )
         tax_1_latest = self.env["account.tax"].search(
-            [('company_ids', 'in', [self.company.id]), ("name", "=", "Tax 1")]
+            [("company_ids", "in", [self.company.id]), ("name", "=", "Tax 1")]
         )
 
         self.assertEqual(
@@ -880,7 +889,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         taxes_1_companies = self.env["account.tax"].search(
             [
                 ("name", "=like", "%Tax 1"),
-                ('company_ids', 'in', [self.company.id, company_2.id]),
+                ("company_ids", "in", [self.company.id, company_2.id]),
             ]
         )
         self.assertEqual(len(taxes_1_companies), 4)
@@ -959,13 +968,13 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
         parent_tax = self.env["account.tax"].search(
             [
-                ('company_ids', 'in', [self.company.id]),
+                ("company_ids", "in", [self.company.id]),
                 ("name", "=", "Tax with children"),
             ]
         )
         children_taxes = self.env["account.tax"].search(
             [
-                ('company_ids', 'in', [self.company.id]),
+                ("company_ids", "in", [self.company.id]),
                 ("name", "in", ["Tax 3", "Tax 4"]),
             ]
         )
@@ -1037,7 +1046,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             .with_context(active_test=False)
             .search(
                 [
-                    ('company_ids', 'in', [self.company.id]),
+                    ("company_ids", "in", [self.company.id]),
                     ("name", "=", "Inactive Tax with children"),
                 ]
             )
@@ -1047,7 +1056,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             .with_context(active_test=False)
             .search(
                 [
-                    ('company_ids', 'in', [self.company.id]),
+                    ("company_ids", "in", [self.company.id]),
                     ("name", "in", ["Inactive Tax 3", "Inactive Tax 4"]),
                 ]
             )
@@ -1291,7 +1300,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
         company = self.company
 
-
         non_chart_data = {
             "account.group": {
                 "no_translation.test_chart_template_company_test_free_account_group": {
@@ -1331,7 +1339,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                         ]
                     )
 
-
         translation_update_for_test_get_data = {
             "account.journal": {
                 "bank": {
@@ -1370,7 +1377,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 for xmlid, data_update in record_info.items():
                     data[model][xmlid].update(data_update)
             return data
-
 
         company.partner_id.lang = self.env["res.lang"]._activate_lang("fr_BE").code
 
@@ -1649,9 +1655,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
         def local_get_data(self, template_code):
             data = test_get_data(self, template_code)
-            del data["res.company"][company.id][
-                "bank_account_code_prefix"
-            ]
+            del data["res.company"][company.id]["bank_account_code_prefix"]
             return data
 
         with patch.object(
@@ -1904,3 +1908,119 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 module._account_template_to_auto_install(),
                 "a module offering only base templates auto-installs nothing",
             )
+
+    def test_reload_xmlid_mapping_keeps_the_batch_prefetchable(self):
+        accounts = self.ChartTemplate._reload_existing_records(
+            self.company, "account.account"
+        )
+        self.assertGreater(
+            len(accounts), 1, "the fixture must hold more than one account"
+        )
+        mapping = self.ChartTemplate._reload_xmlid_mapping(accounts)
+        self.assertTrue(mapping, "the company's accounts must carry account.* xmlids")
+
+        for record in mapping.values():
+            self.assertEqual(len(record), 1, "each entry addresses exactly one record")
+            self.assertGreater(
+                len(list(record._prefetch_ids)),
+                1,
+                "a mapped record must keep the whole batch prefetchable; browsing it "
+                "alone turns every later field read into its own query",
+            )
+
+        self.env.invalidate_all()
+        before = self.cr.sql_log_count
+        for record in mapping.values():
+            record.code
+            record.account_type
+        queries = self.cr.sql_log_count - before
+        self.assertLess(
+            queries,
+            len(mapping),
+            "reading two fields across the mapping must batch, not cost a query per "
+            "record; %d records took %d queries" % (len(mapping), queries),
+        )
+
+    def test_guess_chart_template_falls_back_to_the_generic_chart(self):
+        mapping = {
+            "zz_first": {
+                "name": "First by module order",
+                "country_id": self.country_be.id,
+                "module": "account",
+                "parent": None,
+            },
+            "generic_coa": {
+                "name": "Generic",
+                "country_id": False,
+                "module": "account",
+                "parent": None,
+            },
+        }
+        country_without_template = self.env.ref("base.af")
+        with patch.object(
+            AccountChartTemplate,
+            "_get_chart_template_mapping",
+            lambda self, get_all=False: mapping,
+        ):
+            self.assertEqual(
+                self.ChartTemplate._guess_chart_template(country_without_template),
+                "generic_coa",
+                "a country no template declares must fall back to the generic chart, "
+                "not to whichever template the module order happened to yield first",
+            )
+            self.assertEqual(
+                self.ChartTemplate._guess_chart_template(self.country_be),
+                "zz_first",
+                "a country a template does declare still wins over the generic one",
+            )
+
+    def test_parse_csv_builds_sub_records_below_the_first_level(self):
+        res = defaultdict(dict)
+        self.ChartTemplate._parse_csv_apply_row(
+            self.env["account.tax"],
+            res,
+            {"id": "tax", "repartition_line_ids/tag_ids/name": "Tag"},
+            None,
+            "probe.csv",
+            2,
+        )
+        self.assertEqual(
+            dict(res),
+            {
+                "tax": {
+                    "repartition_line_ids": [
+                        Command.create({"tag_ids": [Command.create({"name": "Tag"})]})
+                    ]
+                }
+            },
+            "_parse_csv_resolve_comodel walks a path of any depth, so applying one "
+            "must too",
+        )
+
+    def test_reload_xmlid_mapping_only_reads_company_prefixed_xmlids(self):
+        probe = self.ChartTemplate._reload_existing_records(
+            self.company, "account.account"
+        )[:1]
+        self.assertTrue(probe, "the fixture must hold at least one account")
+
+        for xmlid, expected in (
+            (f"account.{self.company.id}_receivable", {"receivable"}),
+            ("account.account_tag_investing", set()),
+            ("account.nounderscore", set()),
+            ("l10n_be.1_receivable", set()),
+        ):
+            with (
+                self.subTest(xmlid=xmlid),
+                patch.object(
+                    type(probe),
+                    "get_external_id",
+                    lambda records, xmlid=xmlid: {records.id: xmlid},
+                ),
+            ):
+                self.assertEqual(
+                    set(self.ChartTemplate._reload_xmlid_mapping(probe)),
+                    expected,
+                    "only '<company_id>_<template_xmlid>' under the account module "
+                    "names a template record; anything else must be skipped rather "
+                    "than mis-keyed by splitting on the first underscore",
+                )
