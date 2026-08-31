@@ -6,7 +6,6 @@ from odoo.tools import float_compare, float_is_zero
 class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
 
-
     sale_line_ids = fields.Many2many(
         comodel_name="sale.order.line",
         relation="account_move_line_sale_order_line_rel",
@@ -19,7 +18,6 @@ class AccountMoveLine(models.Model):
         compute="_compute_sale_line_warn_msg",
         depends_context=("uid",),
     )
-
 
     @api.depends("product_id.sale_line_warn_msg")
     def _compute_sale_line_warn_msg(self):
@@ -38,7 +36,6 @@ class AccountMoveLine(models.Model):
                     and line.company_id.currency_id.compare_amounts(line.balance, 0.0)
                     > 0
                 )
-
 
     def _get_fields_order_line_link(self):
         return [*super()._get_fields_order_line_link(), "sale_line_ids"]
@@ -80,7 +77,6 @@ class AccountMoveLine(models.Model):
 
         return values_list
 
-
     def _get_discount_lines(self):
         lines = super()._get_discount_lines()
         discount_line_ids = []
@@ -117,7 +113,9 @@ class AccountMoveLine(models.Model):
             if not move_line._sale_reinvoice_is_mergeable():
                 sale_line_values_to_create.append(
                     move_line._sale_prepare_sale_line_values(
-                        sale_order, price, self._sale_take_sequence(sequences, sale_order)
+                        sale_order,
+                        price,
+                        self._sale_take_sequence(sequences, sale_order),
                     )
                 )
                 slot_by_move_line[move_line.id] = len(sale_line_values_to_create) - 1
@@ -272,7 +270,6 @@ class AccountMoveLine(models.Model):
                 order.date_order or fields.Date.today(),
             )
         return price_unit
-
 
     def _sale_can_be_reinvoice(self):
         self.ensure_one()
