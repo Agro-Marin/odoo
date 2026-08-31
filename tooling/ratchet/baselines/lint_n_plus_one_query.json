@@ -1,4 +1,5 @@
 {
-  "count": 305,
-  "note": "307 -> 305. The floor was wrong when it was committed, not repaid since.\n\n4f9e7bc4829 banked 307 while the tree it landed on measured 305 \u2014 probed directly at that commit. Its note is careful and correct about everything else it says (the base_import_module batching, and the warning that decomposition can drop the count without batching anything); the number is what missed.\n\nVerified by measuring /test_lint at the CI scope (--addons-path=odoo/addons,addons, -i test_lint alone) in a git-archive tree at each of 4f9e7bc4829, 1fcc3d5f7d2, 3e2cea4c580, d61d3cbf107, 5c4807329df, 2ae263169a4, f57cbefef48 and HEAD. All eight measure the same number, so nothing was repaid in between: the floor was never true of the tree it was committed to."
+  "count": 294,
+  "measured_at": "b7b596cd004b13ff0031a8f8a1ee850bfa02589a",
+  "note": "Re-measured after rebasing this branch onto origin/19.0-marin (214 upstream commits). Neither side's floor described the merged tree: both had driven counts down independently from a common base, so every one of these had to be re-derived rather than merged. Measured at HEAD in the workspace checkout; mypy per section 9.3 in a detached worktree with mypy==2.3.0 alone."
 }

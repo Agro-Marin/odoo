@@ -9,6 +9,15 @@ from collections.abc import Container, Sequence
 # Kept out of `strip_currency_symbol`, which runs once per cell of every
 # float column: the pattern is a compile-time constant and was being handed to
 # `re.compile` (and so to `re`'s internal cache) per value.
+
+__all__ = [
+    "infer_separators",
+    "normalize_number",
+    "strip_currency_symbol",
+    "to_date",
+    "to_datetime",
+    "to_float",
+]
 _FLOAT_RE = re.compile(r"([+-]?[0-9.,]+)")
 
 # Characters a number may carry that are not part of it: accountants write a

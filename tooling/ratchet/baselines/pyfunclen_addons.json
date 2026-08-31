@@ -1,4 +1,5 @@
 {
-  "count": 12977,
-  "note": "Raised, not lowered, and deliberately: ruff format over addons/*crm* adds back the 233 excess lines that removing the comments and docstrings took out, returning this floor to the 12977 it held before that change. 88-column wrapping trades one long line for several short ones and py_function_length counts lines. Accepted as the price of a ruff-format-clean crm tree; the alternative on the table was splitting the functions the wrap pushed over the 80-line budget, which is a refactor and not a formatting pass. 12977 is the isolated reading (detached worktree at HEAD with this change alone) rather than the 12867 the shared tree gives, because another session holds uncommitted addons work that would otherwise be banked here."
+  "count": 12954,
+  "measured_at": "b7b596cd004b13ff0031a8f8a1ee850bfa02589a",
+  "note": "Re-measured after rebasing this branch onto origin/19.0-marin (214 upstream commits). Neither side's floor described the merged tree: both had driven counts down independently from a common base, so every one of these had to be re-derived rather than merged. Measured at HEAD in the workspace checkout; mypy per section 9.3 in a detached worktree with mypy==2.3.0 alone."
 }

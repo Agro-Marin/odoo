@@ -6,6 +6,20 @@ import json
 from collections.abc import Callable
 from typing import Any, Protocol, runtime_checkable
 
+__all__ = [
+    "BARCODES",
+    "DATA",
+    "IMAGES",
+    "REPRESENTATIONS",
+    "ROWS",
+    "TEXT",
+    "TREE",
+    "BaseReader",
+    "get_readers",
+    "known_readers",
+    "register_reader",
+]
+
 ROWS = "rows"
 TEXT = "text"
 TREE = "tree"

@@ -22,7 +22,7 @@ import {
     NODE_WIDTH,
     nodeClasses,
     shortName,
-} from "./workflow_graph";
+} from "./workflow_graph.js";
 
 const PADDING = 32;
 const CHANNEL_PREFIX = "automation.workflow/";

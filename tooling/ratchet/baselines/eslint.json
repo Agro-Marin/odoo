@@ -1,4 +1,5 @@
 {
-  "count": 22247,
-  "note": "Two components, measured separately in a detached worktree at HEAD with node_modules symlinked. FOUR UNITS ARE THIS CHANGE: stripping comments and docstrings from the 21 addons/*crm* modules removed 4 lines that each carried a standing prettier/prettier finding, all in website_crm_partner_assign/static/tests/tours/publish.js (63 -> 59); the other 24 rewritten crm .js files moved the count by 0, every one AST-verified identical under acorn. THE OTHER TWENTY-TWO WERE ALREADY THERE: clean HEAD measures 22251 against a floor of 22273, so this exact lane has been failing in the FALLING direction on every PR, the same shape as the tsc and tsc_serviceworker lanes banked on 08-27 -- nobody put those 22 units back, the floor was simply never lowered when they went. 22273 -> 22247. The 32 @odoo-module native headers are preserved deliberately: esm_graph.is_odoo_module treats native as load-bearing, so removing them would reclassify the files, not tidy them."
+  "count": 22257,
+  "measured_at": "b7b596cd004b13ff0031a8f8a1ee850bfa02589a",
+  "note": "Re-measured after rebasing this branch onto origin/19.0-marin (214 upstream commits). Neither side's floor described the merged tree: both had driven counts down independently from a common base, so every one of these had to be re-derived rather than merged. Measured at HEAD in the workspace checkout; mypy per section 9.3 in a detached worktree with mypy==2.3.0 alone."
 }

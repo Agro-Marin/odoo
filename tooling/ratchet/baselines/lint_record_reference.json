@@ -1,4 +1,5 @@
 {
-  "count": 10,
-  "note": "seeded at the community-scope residue: 10 demo-data refs whose xmlids are minted by Python helpers that compute the name at runtime (_get_suffixed_ref_name), so no literal a static scan can read declares them. None is install-breaking. The three genuine finds this gate made on its first run were fixed in the same change: l10n_ro_cpv_code -> product.view_product_template_form, and the unfounded account.return.type in l10n_tw_reports."
+  "count": 8,
+  "measured_at": "b7b596cd004b13ff0031a8f8a1ee850bfa02589a",
+  "note": "Re-measured after rebasing this branch onto origin/19.0-marin (214 upstream commits). Neither side's floor described the merged tree: both had driven counts down independently from a common base, so every one of these had to be re-derived rather than merged. Measured at HEAD in the workspace checkout; mypy per section 9.3 in a detached worktree with mypy==2.3.0 alone."
 }

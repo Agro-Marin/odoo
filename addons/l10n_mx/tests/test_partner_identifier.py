@@ -9,7 +9,7 @@ from odoo.tests.common import TransactionCase
 VALID_CURP = "HEGG560427MVZRRL04"
 
 
-@tagged("post_install", "-at_install")
+@tagged("post_install_l10n", "post_install", "-at_install")
 class TestMexicanPartnerIdentifiers(TransactionCase):
     """The identifier kernel's first real consumer.
 

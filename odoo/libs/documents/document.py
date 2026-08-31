@@ -17,6 +17,11 @@ from .readers import (
 )
 from .writers import get_writers, known_writers
 
+__all__ = [
+    "TEXT_MAX_CHARS",
+    "Document",
+]
+
 _logger = logging.getLogger(__name__)
 
 # What one document may hold in memory as text, and hand to a strategy. The

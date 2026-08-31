@@ -10,6 +10,12 @@ from odoo.libs.filesystem import guess_mimetype as _guess_mimetype
 
 # Bytes handed to chardet per `feed` call. Only affects how often the detector
 # is asked whether it is done, not what it sees -- see `guess_encoding`.
+
+__all__ = [
+    "decode",
+    "guess_encoding",
+    "guess_mimetype",
+]
 _ENCODING_CHUNK = 1 << 16
 
 _BOM_MAP = {

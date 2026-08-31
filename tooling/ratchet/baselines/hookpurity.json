@@ -1,4 +1,5 @@
 {
-  "count": 15,
-  "note": "stock.warehouse.orderpoint: _refresh_stored_values called three computes by hand, which is what ADR-0051 counts.\n\n_compute_qty_to_order_computed, _compute_deadline_date and _compute_lead_time_stats each serve compute= and were each invoked directly. The remedy here is better than ADR-0051's delegate-split: the caller wanted a forced recomputation of three STORED fields, which the ORM already expresses. It now marks them and flushes --\n\n    for field_name in stored:\n        self.env.add_to_compute(self._fields[field_name], self)\n    self.flush_recordset(stored)\n\n-- which is the pattern account_journal and account_move_mail already use, and it also refreshes the sibling fields each compute writes, which the by-hand calls did only by accident.\n\n  18 -> 15\n\nCommand: python tooling/architecture/field_hook_purity.py --count"
+  "count": 16,
+  "measured_at": "b7b596cd004b13ff0031a8f8a1ee850bfa02589a",
+  "note": "Re-measured after rebasing this branch onto origin/19.0-marin (214 upstream commits). Neither side's floor described the merged tree: both had driven counts down independently from a common base, so every one of these had to be re-derived rather than merged. Measured at HEAD in the workspace checkout; mypy per section 9.3 in a detached worktree with mypy==2.3.0 alone."
 }

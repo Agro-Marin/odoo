@@ -52,11 +52,7 @@ class ResPartner(models.Model):
     @api.model
     def _search_age(self, operator, value):
         if operator not in ("<", "<=", ">", ">=", "=", "!="):
-            raise NotImplementedError(
-                self.env._(
-                    "Unsupported operator %(operator)s on age.", operator=operator
-                )
-            )
+            raise NotImplementedError(f"Unsupported operator {operator} on age.")
         if value is None or value is False:
             if operator in ("=", "!="):
                 return Domain("birthdate", operator, False)

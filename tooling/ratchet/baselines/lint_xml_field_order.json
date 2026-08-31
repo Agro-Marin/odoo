@@ -1,5 +1,5 @@
 {
-  "count": 712,
-  "measured_at": "8395c5e9be21ee97cea88eddb09e027d035e2fe0",
-  "note": "Core reaches zero: 714 -> 712, both in odoo/addons, and both a by-product of the attrib-order sweep in the same change -- `_sort_xml_records.py` orders the <field> children of a record and normalises the element attributes in one pass, so the two gates move together.\n\nVerified at the CI scope, `--addons-path=odoo/addons,addons -i test_lint`."
+  "count": 659,
+  "measured_at": "b7b596cd004b13ff0031a8f8a1ee850bfa02589a",
+  "note": "Re-measured after rebasing this branch onto origin/19.0-marin (214 upstream commits). Neither side's floor described the merged tree: both had driven counts down independently from a common base, so every one of these had to be re-derived rather than merged. Measured at HEAD in the workspace checkout; mypy per section 9.3 in a detached worktree with mypy==2.3.0 alone."
 }

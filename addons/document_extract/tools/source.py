@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from odoo.libs.documents import Document
 
-from . import readers  # noqa: F401
+from . import readers  # noqa: F401  registers the readers, not imported for a name
 
 
 def document_of(attachment, **options) -> Document:

@@ -4,6 +4,17 @@ from dataclasses import dataclass, field
 
 from .readers import REPRESENTATIONS
 
+__all__ = [
+    "Format",
+    "extension_for",
+    "get_format",
+    "get_format_of_extension",
+    "known_formats",
+    "mimetype_for",
+    "register_extension",
+    "register_format",
+]
+
 
 @dataclass(frozen=True, slots=True)
 class Format:

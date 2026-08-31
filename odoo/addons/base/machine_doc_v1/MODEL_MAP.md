@@ -1573,7 +1573,7 @@ of zero means open-ended.
 
 **Key Methods:**
 - `_is_band(record)` — Whether the record participates in banding
-- `_band_siblings()` — The bands this one must not overlap
+- `_band_scope_domain()` — Domain selecting the bands this one must not overlap
 - `_ranges_overlap(a, b)`, `_covers(value)` — Interval arithmetic
 - `_check_band()` — Constraint: non-negative lower bound, ordered bounds, no overlap
 

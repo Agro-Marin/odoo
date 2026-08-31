@@ -1,4 +1,5 @@
 {
-  "count": 37,
-  "note": "mixin_account_move_send._send_mail carried `# noqa: PIE804` over a `**{...}` of five literal keys. Passing them as keyword arguments removes the finding rather than explaining it -- duplicate-key behaviour is identical either way, since both spellings raise TypeError on a collision with **kwargs.\n\n38 -> 37, the floor plus this change s delta (52 -> 51 at 52a60efa3c0, measured in a detached worktree carrying only this change). The floor was already at 38 from the mail session, which owns 14 of this gate and absorbed HEAD s 52-against-48 overage.\n\nCommand: odoo-bin -d <db> -i test_lint --test-enable --test-tags /test_lint"
+  "count": 36,
+  "measured_at": "b7b596cd004b13ff0031a8f8a1ee850bfa02589a",
+  "note": "Re-measured after rebasing this branch onto origin/19.0-marin (214 upstream commits). Neither side's floor described the merged tree: both had driven counts down independently from a common base, so every one of these had to be re-derived rather than merged. Measured at HEAD in the workspace checkout; mypy per section 9.3 in a detached worktree with mypy==2.3.0 alone."
 }

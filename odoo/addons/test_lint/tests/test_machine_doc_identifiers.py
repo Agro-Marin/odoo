@@ -17,7 +17,6 @@ KNOWN_STALE = frozenset(
         "_get_locked_fields",
         "_get_request_trigger_fields",
         "_get_select_fields",
-        "_resume_waiting_executions",
         "_avatar_generate_svg",
         "_backend_for_key",
         "_filestore",
