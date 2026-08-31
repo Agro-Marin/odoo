@@ -1,8 +1,8 @@
 {
   "expected": {},
-  "note": "Green at 98, measured on a detached worktree of this commit's tree, so no other session's uncommitted work is in the reading; verified_at names the base commit it sits on, since a baseline cannot name the commit that carries it.",
+  "note": "Green at 99. HOOT is a separate gate this does not cover: ./hoot '@hr_skills' is 2 passed and must be run before anything under static/ is committed -- 98550e4e217 shipped it red while this baseline read green.",
   "run_spec": "-u hr_skills --test-enable --test-tags /hr_skills",
   "suite": "/hr_skills",
-  "tests_total": 98,
-  "verified_at": "ba391c0994d"
+  "tests_total": 99,
+  "verified_at": "f90ff50ed46"
 }
