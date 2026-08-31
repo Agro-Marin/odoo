@@ -1,5 +1,5 @@
 import { expect, test } from "@odoo/hoot";
-import { animationFrame, Deferred } from "@odoo/hoot-dom";
+import { animationFrame, Deferred, queryAll } from "@odoo/hoot-dom";
 import { xml } from "@odoo/owl";
 import { contains, defineModels, models, onRpc } from "@web/../tests/web_test_helpers";
 import {
@@ -157,4 +157,22 @@ test("BuilderColorPicker with action “customizeWebsiteColor” is correctly di
     const presetElStyles = window.getComputedStyle(colorPresetEl, "::before");
     expect(presetElStyles.backgroundImage).toInclude("transparent.png");
     expect(presetElStyles.backgroundSize).toBe("32px");
+});
+
+test("the button color swatches say which one is the fill and which the border", async () => {
+    // Each Buttons row holds two bare colour squares. Without a label there is
+    // nothing on screen telling them apart.
+    await setupWebsiteBuilder(`<div class="test-options-target">b</div>`, {
+        loadIframeBundles: true,
+    });
+    await contains('.o-snippets-tabs button[data-name="theme"]').click();
+    await contains('.o_theme_tab div[data-label="Color Presets"] button').click();
+    await contains('div[id^="builder_collapse_content_"] button').click();
+
+    const tooltipsOf = (label) =>
+        queryAll(`div[data-label="${label}"] button.o_we_color_preview`).map(
+            (el) => el.dataset.tooltip
+        );
+    expect(tooltipsOf("Primary Buttons")).toEqual(["Fill Color", "Border Color"]);
+    expect(tooltipsOf("Secondary Buttons")).toEqual(["Fill Color", "Border Color"]);
 });
