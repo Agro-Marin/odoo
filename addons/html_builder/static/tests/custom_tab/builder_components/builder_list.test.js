@@ -2,6 +2,7 @@ import { addBuilderOption, setupHTMLBuilder } from "@html_builder/../tests/helpe
 import { BuilderList } from "@html_builder/core/building_blocks/builder_list";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { expect, test, describe } from "@odoo/hoot";
+import { animationFrame, queryAll, queryOne } from "@odoo/hoot-dom";
 import { onError, xml } from "@odoo/owl";
 import { contains } from "@web/../tests/web_test_helpers";
 
@@ -402,4 +403,42 @@ test("focuses the input of the row that was just added", async () => {
 
     await contains(".we-bg-options-container .builder_list_add_item").click();
     expect(".we-bg-options-container .o_row_draggable:nth-of-type(2) input").toBeFocused();
+});
+
+test("renders a first batch of rows and grows it when scrolled to the end", async () => {
+    const manyItems = JSON.stringify(
+        Array.from({ length: 150 }, (_, i) => ({ value: `item ${i + 1}`, _id: String(i) }))
+    );
+    addBuilderOption(
+        class extends BaseOptionComponent {
+            static selector = ".test-options-target";
+            static template = xml`<BuilderList
+                          dataAttributeAction="'list'"
+                          itemShape="{ value: 'text' }"
+                          default="{'value': 'a thing'}"
+                      />`;
+        }
+    );
+    await setupHTMLBuilder(`<div class="test-options-target" data-list='${manyItems}'>b</div>`);
+    await contains(":iframe .test-options-target").click();
+
+    const rowCount = () => queryAll(".we-bg-options-container .o_row_draggable").length;
+    expect(rowCount()).toBe(50);
+
+    const scrollToEnd = async () => {
+        const wrapperEl = queryOne(".we-bg-options-container .o_we_table_wrapper");
+        wrapperEl.scrollTo({ top: wrapperEl.scrollHeight });
+        await animationFrame();
+        await animationFrame();
+    };
+
+    // One gesture can consume more than one batch -- the handler reads the
+    // pre-render scroll height -- so this asserts that the list grows, not how
+    // many rows a single scroll adds.
+    await scrollToEnd();
+    expect(rowCount()).toBeGreaterThan(50);
+
+    await scrollToEnd();
+    await scrollToEnd();
+    expect(rowCount()).toBe(150);
 });

@@ -6,7 +6,7 @@ import {
     useInputBuilderComponent,
 } from "@html_builder/core/utils";
 import { isSmallInteger } from "@html_builder/utils/utils";
-import { Component, onMounted, onPatched, onWillUpdateProps, useRef } from "@odoo/owl";
+import { Component, onMounted, onPatched, onWillUpdateProps, useRef, useState } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { _t } from "@web/core/translation";
 import { useSortable } from "@web/core/utils/dnd";
@@ -44,6 +44,10 @@ function useAutoFocusNewItem(ref) {
     });
 }
 
+// How close to the end of the rendered rows the scroll has to get, in pixels,
+// before the next batch is rendered.
+const BATCH_LOOKAHEAD = 100;
+
 export class BuilderList extends Component {
     static template = "html_builder.BuilderList";
     static props = {
@@ -71,6 +75,8 @@ export class BuilderList extends Component {
         columnWidth: { optional: true },
         forbidLastItemRemoval: { type: Boolean, optional: true },
         isInputDisabled: { type: Boolean, optional: true },
+        // Rows rendered at once, and the size of every batch added after.
+        limit: { type: Number, optional: true },
     };
     static defaultProps = {
         addItemTitle: _t("Add"),
@@ -83,6 +89,7 @@ export class BuilderList extends Component {
         columnWidth: {},
         forbidLastItemRemoval: false,
         isInputDisabled: false,
+        limit: 50,
     };
     static components = { BuilderComponent, Dropdown };
 
@@ -90,6 +97,7 @@ export class BuilderList extends Component {
         this.validateProps();
         this.dropdown = useDropdownState();
         this.tableRef = useRef("table");
+        this.visibleState = useState({ limit: this.props.limit });
         useBuilderComponent();
         useAutoFocusNewItem(this.tableRef);
         const { state, commit, preview } = useInputBuilderComponent({
@@ -121,6 +129,29 @@ export class BuilderList extends Component {
                 },
             });
         }
+    }
+
+    /**
+     * Renders the next batch of rows once the end of the rendered ones is in
+     * reach. A field whose options list holds every state of a country would
+     * otherwise be laid out in full before the panel could be used.
+     */
+    onTableScroll({ target }) {
+        if (!this.hasMoreItems) {
+            return;
+        }
+        const { scrollTop, clientHeight, scrollHeight } = target;
+        if (scrollTop + clientHeight >= scrollHeight - BATCH_LOOKAHEAD) {
+            this.visibleState.limit += this.props.limit;
+        }
+    }
+
+    get cappedItems() {
+        return this.formatRawValue(this.state.value).slice(0, this.visibleState.limit);
+    }
+
+    get hasMoreItems() {
+        return this.visibleState.limit < this.formatRawValue(this.state.value).length;
     }
 
     validateProps() {
