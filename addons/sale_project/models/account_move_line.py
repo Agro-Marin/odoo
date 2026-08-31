@@ -65,8 +65,11 @@ class AccountMoveLine(models.Model):
             if not analytic_distribution:
                 continue
 
+            project = None
             for accounts in analytic_distribution:
                 project = project_per_accounts.get(accounts)
+                if project:
+                    break
             if not project:
                 continue
 
