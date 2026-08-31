@@ -20,13 +20,16 @@ class SaleOrder(models.Model):
         "stock_reference_ids.production_ids",
         "stock_reference_ids.production_ids.state",
         "stock_reference_ids.production_ids.production_group_id.parent_ids",
+        "stock_reference_ids.production_ids.picking_type_id.active",
     )
     def _compute_mrp_production_ids(self):
         for sale in self:
             mos = sale.stock_reference_ids.production_ids
             sale.mrp_production_ids = mos.filtered(
                 lambda mo: (
-                    not mo.production_group_id.parent_ids and mo.state != "cancel"
+                    not mo.production_group_id.parent_ids
+                    and mo.state != "cancel"
+                    and mo.picking_type_id.active
                 )
             )
 
