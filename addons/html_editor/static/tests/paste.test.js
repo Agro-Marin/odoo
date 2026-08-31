@@ -3161,7 +3161,7 @@ describe("link", () => {
                     pasteText(editor, "abc www.odoo.com xyz");
                 },
                 contentAfter:
-                    '<p>abc <a href="http://www.odoo.com">www.odoo.com</a> xyz[]</p>',
+                    '<p>abc <a href="https://www.odoo.com">www.odoo.com</a> xyz[]</p>',
             });
         });
 
@@ -3172,8 +3172,8 @@ describe("link", () => {
                     pasteText(editor, "odoo.com\ngoogle.com");
                 },
                 contentAfter:
-                    '<div><a href="http://odoo.com">odoo.com</a></div>' +
-                    '<p><a href="http://google.com">google.com</a>[]</p>',
+                    '<div><a href="https://odoo.com">odoo.com</a></div>' +
+                    '<p><a href="https://google.com">google.com</a>[]</p>',
             });
         });
 
@@ -3494,7 +3494,7 @@ describe("link", () => {
                 stepFunction: async (editor) => {
                     pasteText(editor, "www.odoo.com");
                 },
-                contentAfter: '<p><a href="http://www.odoo.com">www.odoo.com</a>[]</p>',
+                contentAfter: '<p><a href="https://www.odoo.com">www.odoo.com</a>[]</p>',
             });
         });
 
@@ -3505,7 +3505,7 @@ describe("link", () => {
                     pasteText(editor, "abc www.odoo.com xyz");
                 },
                 contentAfter:
-                    '<p>abc <a href="http://www.odoo.com">www.odoo.com</a> xyz[]</p>',
+                    '<p>abc <a href="https://www.odoo.com">www.odoo.com</a> xyz[]</p>',
             });
         });
 

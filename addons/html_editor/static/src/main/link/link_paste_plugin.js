@@ -49,7 +49,7 @@ export class LinkPastePlugin extends Plugin {
      */
     handlePasteTextUrl(selection, text) {
         const selectionIsInsideALink = !!closestElement(selection.anchorNode, "a");
-        const url = /^https?:\/\//i.test(text) ? text : "http://" + text;
+        const url = /^https?:\/\//i.test(text) ? text : "https://" + text;
         if (selectionIsInsideALink) {
             this.handlePasteTextUrlInsideLink(text, url);
             return;
@@ -81,7 +81,7 @@ export class LinkPastePlugin extends Plugin {
         for (let i = 0; i < splitAroundUrl.length; i++) {
             const url = /^https?:\/\//gi.test(splitAroundUrl[i])
                 ? splitAroundUrl[i]
-                : "http://" + splitAroundUrl[i];
+                : "https://" + splitAroundUrl[i];
             if (i % 2 && !selectionIsInsideALink) {
                 this.dependencies.dom.insert(
                     this.dependencies.link.createLink(url, splitAroundUrl[i]),
