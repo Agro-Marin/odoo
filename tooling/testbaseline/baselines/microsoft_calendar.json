@@ -1,0 +1,11 @@
+{
+  "expected": {
+    "microsoft_calendar/TestCreateEvents.test_create_recurrent_event_from_outlook_attendee_calendar": "FAIL",
+    "microsoft_calendar/TestCreateEvents.test_create_recurrent_event_from_outlook_organizer_calendar": "FAIL"
+  },
+  "note": "2 recurrence failures predating the ADR-0081 vault migration; the 8 TestMicrosoftCredentials tests added with it all pass",
+  "run_spec": "-u microsoft_account,microsoft_calendar --test-enable --test-tags /microsoft_calendar,/microsoft_account",
+  "suite": "/microsoft_calendar",
+  "tests_total": 134,
+  "verified_at": "6137c6abfcf"
+}

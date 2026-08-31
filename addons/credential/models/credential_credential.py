@@ -60,8 +60,19 @@ CATEGORY_REQUIRED_FIELDS = {
         "message": "Basic Authentication requires username and password.",
     },
     "oauth2": {
-        "fields": [("oauth_access_token", "oauth_client_secret")],
-        "message": "OAuth 2.0 credentials require an access token or a client secret.",
+        # The refresh token counts. An access token expires -- often in an hour --
+        # and the refresh token is what survives to buy the next one, so a
+        # credential holding only that one is not a half-filled credential, it is
+        # an OAuth credential at rest. Demanding an access token made the steady
+        # state unrepresentable and pushed callers onto `bearer_token`, which has
+        # one value field and no place for the pair.
+        "fields": [
+            ("oauth_access_token", "oauth_refresh_token", "oauth_client_secret")
+        ],
+        "message": (
+            "OAuth 2.0 credentials require an access token, a refresh token or a "
+            "client secret."
+        ),
     },
     "aws_iam": {
         "fields": ["api_key", "api_secret"],

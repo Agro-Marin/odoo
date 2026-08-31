@@ -9,6 +9,7 @@ from odoo import fields
 from odoo.tests.common import HttpCase
 
 from odoo.addons.microsoft_calendar.models.mixin_microsoft_calendar_sync import MixinMicrosoftCalendarSync
+from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
 
 
 def mock_get_token(user):
@@ -33,7 +34,13 @@ def patch_api(func):
 # are not called because no commit is done.
 # To be able to manually call these postcommit hooks, we need to inherit from HttpCase.
 # Note: as postcommit hooks are called separately, do not forget to invalidate cache for records read during the test.
-class TestCommon(HttpCase):
+class TestCommon(EncryptionKeyCase, HttpCase):
+    """`EncryptionKeyCase` first: a user's Microsoft OAuth tokens rest in
+    `credential.credential` (ADR-0081), which refuses to store anything without
+    ODOO_API_ENCRYPTION_KEY. It supplies one per class rather than leaving a key
+    installed for the rest of the process.
+    """
+
 
     @patch_api
     def setUp(self):

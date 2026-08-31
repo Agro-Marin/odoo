@@ -1320,7 +1320,25 @@ class TestOAuthClientCredentials(TransactionCase):
                     "oauth_client_id": "id-without-secret",
                 }
             )
-        self.assertIn("access token or a client secret", str(cm.exception))
+        self.assertIn("refresh token", str(cm.exception))
+
+    def test_oauth2_with_only_a_refresh_token_is_accepted(self):
+        """An access token expires; the refresh token is what survives.
+
+        A credential holding only that one is an OAuth credential at rest, not a
+        half-filled one, and requiring an access token made the steady state
+        unrepresentable.
+        """
+        credential = self.env["credential.credential"].create(
+            {
+                "name": "Refresh Only",
+                "category_id": self.category_oauth2.id,
+                "oauth_refresh_token": "a-refresh-token",
+            }
+        )
+
+        self.assertTrue(credential.id)
+        self.assertEqual(credential.sudo().oauth_refresh_token, "a-refresh-token")
 
     def test_rotation_preserves_client_secret(self):
         old_key = Fernet.generate_key().decode()
