@@ -131,7 +131,7 @@ export class BlockTab extends Component {
                 });
 
                 if (snippetEl) {
-                    await scrollTo(snippetEl, { extraOffset: 50 });
+                    await this.scrollToDroppedSnippet(snippetEl);
                     await this.processDroppedSnippet(snippetEl);
                 }
                 this.state.ongoingInsertion = false;
@@ -189,7 +189,7 @@ export class BlockTab extends Component {
         });
 
         if (selectedSnippetEl) {
-            await scrollTo(selectedSnippetEl, { extraOffset: 50 });
+            await this.scrollToDroppedSnippet(selectedSnippetEl);
             await this.processDroppedSnippet(selectedSnippetEl);
         } else {
             this.cancelDragAndDrop();
@@ -489,6 +489,19 @@ export class BlockTab extends Component {
         };
 
         this.draggableComponent = useDragAndDrop(dragAndDropOptions);
+    }
+
+    /**
+     * Scrolls to a snippet that was just inserted, leaving 50px above it so
+     * the user can see what it landed under. A snippet that claims the whole
+     * screen height gets no such room: the gap would be the one thing proving
+     * it does not fill the screen.
+     *
+     * @param {HTMLElement} snippetEl
+     */
+    async scrollToDroppedSnippet(snippetEl) {
+        const isFullScreenHeight = snippetEl.matches(".o_full_screen_height");
+        await scrollTo(snippetEl, { extraOffset: isFullScreenHeight ? 0 : 50 });
     }
 
     /**

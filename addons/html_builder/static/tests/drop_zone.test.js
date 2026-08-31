@@ -1,9 +1,11 @@
 import {
+    getSnippetStructure,
     setupHTMLBuilder,
     waitForEndOfOperation,
     confirmAddSnippet,
 } from "@html_builder/../tests/helpers";
 import { describe, expect, test } from "@odoo/hoot";
+import { advanceTime, queryOne } from "@odoo/hoot-dom";
 import { contains } from "@web/../tests/web_test_helpers";
 
 describe.current.tags("desktop");
@@ -60,4 +62,37 @@ test("snippets cannot be dropped next to elements inside excluded parent", async
     expect(":iframe .first-div .oe_drop_zone").toHaveCount(3);
     // Should have no dropzones in second-div (excluded by excludeNearParent)
     expect(":iframe .second-div .oe_drop_zone").toHaveCount(0);
+});
+
+test("a dropped full screen height section is scrolled flush to the top", async () => {
+    // Every other snippet is scrolled to with 50px of room above, so the user
+    // can see what it landed under. A section whose whole point is to fill the
+    // screen must not be, or it demonstrates the opposite of what it claims.
+    const fullScreenSection = `<section class="s_test o_full_screen_height" data-snippet="s_test" data-name="Test"><div class="test_a"></div></section>`;
+    const { contentEl } = await setupHTMLBuilder(`<section class="filler">Text</section>`, {
+        snippets: {
+            snippet_groups: [
+                '<div name="A" data-oe-thumbnail="a.svg" data-oe-snippet-id="123" data-o-snippet-group="a"><section data-snippet="s_snippet_group"></section></div>',
+            ],
+            snippet_structure: [
+                getSnippetStructure({ name: "Test", groupName: "a", content: fullScreenSection }),
+            ],
+        },
+        // The iframe has to be able to scroll for the offset to be observable,
+        // and the body's default 8px margin has to go or it is indistinguishable
+        // from a leftover scroll offset.
+        styleContent: `body { margin: 0; } .filler { height: 2000px; } .o_full_screen_height { height: 100vh; }`,
+    });
+
+    const { moveTo, drop } = await contains(
+        ".o-snippets-menu #snippet_groups .o_snippet_thumbnail"
+    ).drag();
+    await moveTo(contentEl.ownerDocument.body);
+    await drop();
+    await confirmAddSnippet();
+    await waitForEndOfOperation();
+    // scrollTo animates over 600ms.
+    await advanceTime(700);
+
+    expect(queryOne(":iframe .o_full_screen_height").getBoundingClientRect().top).toBe(0);
 });
