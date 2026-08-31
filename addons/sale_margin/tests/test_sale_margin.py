@@ -165,3 +165,57 @@ class TestSaleMargin(SaleCommon):
         self.assertAlmostEqual(750.0, following_sale.line_ids.purchase_price)
         self.assertAlmostEqual(2500.0, following_sale.line_ids.margin)
         self.assertAlmostEqual(0.25, following_sale.line_ids.margin_percent)
+
+    def test_combo_master_line_has_no_phantom_margin(self):
+        """A combo master line prices at 0 by design; it must not pick up its
+        own product's cost as a phantom, revenue-less margin."""
+        order = self.empty_order
+
+        combo_item_product = self._create_product(name="Combo Item", standard_price=5.0)
+        combo = self.env["product.combo"].create(
+            {
+                "name": "Test Combo",
+                "combo_item_ids": [
+                    Command.create({"product_id": combo_item_product.id})
+                ],
+            }
+        )
+        combo_product = self._create_product(
+            name="Combo Master Product",
+            type="combo",
+            standard_price=12.0,
+            combo_ids=[Command.link(combo.id)],
+        )
+
+        combo_line = self.env["sale.order.line"].create(
+            {
+                "order_id": order.id,
+                "product_id": combo_product.id,
+                "product_qty": 1.0,
+            }
+        )
+        item_line = self.env["sale.order.line"].create(
+            {
+                "order_id": order.id,
+                "product_id": combo_item_product.id,
+                "product_qty": 1.0,
+                "combo_item_id": combo.combo_item_ids.id,
+                "linked_line_id": combo_line.id,
+            }
+        )
+
+        self.assertEqual(
+            combo_line.purchase_price,
+            0.0,
+            "The combo master line must not cost itself off its own product",
+        )
+        self.assertEqual(
+            combo_line.margin,
+            0.0,
+            "The combo master line has no revenue of its own, so no margin either",
+        )
+        self.assertEqual(
+            item_line.purchase_price,
+            5.0,
+            "The combo item line still costs off its own product as usual",
+        )
