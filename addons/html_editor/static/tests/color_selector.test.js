@@ -1406,3 +1406,24 @@ describe("color preview", () => {
         expect("p font").toHaveStyle({ backgroundImage: initialGradient });
     });
 });
+
+test.tags("desktop");
+test("should move focus to next element when pressing Tab after selecting custom gradient", async () => {
+    await setupEditor(`<p>This is a [test].</p>`);
+    await expectElementCount(".o-we-toolbar", 1);
+
+    // Open the color picker and select the gradient tab
+    await click(".o-we-toolbar .o-select-color-foreground");
+    await expectElementCount(".o_font_color_selector", 1);
+    await click(".btn:contains('Gradient')");
+    await expectElementCount(".o_custom_gradient_button", 1);
+
+    // Click on the custom gradient button and it should be focused
+    await click(".btn.o_custom_gradient_button");
+    await animationFrame();
+    expect(".btn.o_custom_gradient_button").toBeFocused();
+
+    // On Tab, the focus should move to the next focusable element
+    await press("Tab");
+    expect(queryAll(".o_type_row button")[0]).toBeFocused();
+});
