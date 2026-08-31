@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+from uuid import uuid4
 
 import psycopg
 
@@ -695,14 +696,33 @@ class DeliveryCarrier(models.Model):
     # the door reads correctly by the time the constraint runs.
     _CREDENTIAL_FIELDS: dict[str, str] = {}
 
+    def _credential_field_map(self):
+        """Every carrier's mapping, merged.
+
+        `_CREDENTIAL_FIELDS` is a plain class attribute, and six carrier modules
+        all extend `delivery.carrier` -- so reading it directly returns only the
+        LAST-loaded module's dict and silently drops the rest. Each carrier
+        passes its own tests alone and the combination fails, which is how this
+        was found: with `delivery_shiprocket` installed, `delivery_sendcloud`'s
+        secret stopped reaching the vault and its create-time constraint refused
+        every carrier.
+
+        Walking the MRO in reverse merges the contributions in load order.
+        """
+        mapping: dict[str, str] = {}
+        for cls in reversed(type(self).mro()):
+            mapping.update(getattr(cls, "_CREDENTIAL_FIELDS", None) or {})
+        return mapping
+
     @api.model_create_multi
     def create(self, vals_list):
-        if self._CREDENTIAL_FIELDS:
+        field_map = self._credential_field_map()
+        if field_map:
             for vals in vals_list:
                 secrets = {
-                    self._CREDENTIAL_FIELDS[name]: vals.pop(name)
+                    field_map[name]: vals.pop(name)
                     for name in list(vals)
-                    if name in self._CREDENTIAL_FIELDS
+                    if name in field_map
                 }
                 secrets = {k: v for k, v in secrets.items() if v}
                 if secrets:
@@ -716,10 +736,14 @@ class DeliveryCarrier(models.Model):
                         for k, v in secrets.items()
                         if k not in NATIVE_CREDENTIAL_FIELDS
                     }
+                    # A placeholder unique name: the carrier has no id yet, and
+                    # the UNIQUE index on (company_id, name) does not wait. It is
+                    # replaced with the real one below, once the carrier exists.
                     vals["carrier_credential_id"] = self.env[
                         "credential.credential"
                     ].sudo().create({
-                        "name": vals.get("name") or _("Carrier"),
+                        "name": f"{vals.get('name') or _('Carrier')} "
+                                f"[{uuid4().hex[:12]}]",
                         "category_id": self.env.ref(
                             "credential.credential_category_custom"
                         ).id,
@@ -730,7 +754,23 @@ class DeliveryCarrier(models.Model):
                             {"credential_data": json.dumps(extra)} if extra else {}
                         ),
                     }).id
-        return super().create(vals_list)
+        records = super().create(vals_list)
+        for record in records:
+            if record.carrier_credential_id:
+                record.carrier_credential_id.sudo().name = (
+                    record._carrier_credential_name()
+                )
+        return records
+
+    def _carrier_credential_name(self):
+        """A name no other carrier's credential can collide with.
+
+        `credential.credential` holds a UNIQUE index on (company_id, name) --
+        and on (name) alone for system-wide ones -- while two delivery carriers
+        may legitimately share a name. The carrier id is what separates them.
+        """
+        self.ensure_one()
+        return f"{self.name or _('Carrier')} [#{self.id}]"
 
     def _carrier_secret(self, field_name):
         """One secret out of this carrier's credential, or False."""
@@ -771,7 +811,11 @@ class DeliveryCarrier(models.Model):
             # which is the honest shape for a record whose contents differ per
             # carrier.
             credential = self.env["credential.credential"].sudo().create({
-                "name": self.name or str(self.id),
+                # The carrier id is part of the name because `credential.credential`
+                # holds a UNIQUE index on (company_id, name), and two carriers may
+                # legitimately share a name -- a production and a test Sendcloud,
+                # say. Without it the second one's first secret fails to store.
+                "name": self._carrier_credential_name(),
                 "category_id": self.env.ref("credential.credential_category_custom").id,
                 "company_id": self.company_id.id,
             })
