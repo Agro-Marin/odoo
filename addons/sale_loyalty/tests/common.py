@@ -267,12 +267,6 @@ class TestSaleCouponCommon(SaleCommon):
             }
         )
 
-    def _extract_rewards_from_claimable(self, status):
-        rewards = self.env["loyalty.reward"]
-        for info in status.values():
-            for reward_count in info["rewards"]:
-                rewards |= reward_count[0]
-
     def _apply_promo_code(self, order, code, no_reward_fail=True):
         status = order._try_apply_code(code)
         if "error" in status:
