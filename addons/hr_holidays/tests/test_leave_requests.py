@@ -3250,3 +3250,80 @@ class TestLeaveRequests(TestHrHolidaysCommon):
         )
 
         self.assertEqual(leave.number_of_hours, 13.0)
+
+    def test_validity_error_names_the_employee_and_the_type(self):
+        """A leave that overdraws its allocation must say whose it is.
+
+        The message is also what `resource.calendar.leaves._reevaluate_leaves`
+        surfaces when a new public holiday re-runs the check over every
+        overlapping leave at once, so a generic wording leaves nobody to look
+        at.
+        """
+        self.env["hr.leave.allocation"].with_user(self.user_hrmanager_id).create(
+            {
+                "name": "Two days",
+                "employee_id": self.employee_emp_id,
+                "holiday_status_id": self.holidays_type_2.id,
+                "number_of_days": 2,
+                "state": "confirm",
+                "date_from": "2025-01-01",
+                "date_to": "2025-12-31",
+            }
+        ).action_approve()
+
+        with self.assertRaises(ValidationError) as error:
+            self.env["hr.leave"].with_user(self.user_hrmanager_id).create(
+                {
+                    "name": "Five days out of an allocation of two",
+                    "employee_id": self.employee_emp_id,
+                    "holiday_status_id": self.holidays_type_2.id,
+                    "request_date_from": date(2025, 3, 3),
+                    "request_date_to": date(2025, 3, 7),
+                }
+            )
+        message = str(error.exception)
+        self.assertIn(self.employee_emp.name, message)
+        self.assertIn(self.holidays_type_2.name, message)
+
+    def test_validity_error_names_the_employee_past_the_negative_cap(self):
+        """Same message, other branch: a type that allows going negative up to
+        a cap must also say who blew through the cap.
+        """
+        leave_type = (
+            self.env["hr.leave.type"]
+            .with_user(self.user_hrmanager_id)
+            .create(
+                {
+                    "name": "Limited, one day of overdraft",
+                    "requires_allocation": True,
+                    "leave_validation_type": "hr",
+                    "allows_negative": True,
+                    "max_allowed_negative": 1,
+                }
+            )
+        )
+        self.env["hr.leave.allocation"].with_user(self.user_hrmanager_id).create(
+            {
+                "name": "Two days",
+                "employee_id": self.employee_emp_id,
+                "holiday_status_id": leave_type.id,
+                "number_of_days": 2,
+                "state": "confirm",
+                "date_from": "2025-01-01",
+                "date_to": "2025-12-31",
+            }
+        ).action_approve()
+
+        with self.assertRaises(ValidationError) as error:
+            self.env["hr.leave"].with_user(self.user_hrmanager_id).create(
+                {
+                    "name": "Five days out of an allocation of two",
+                    "employee_id": self.employee_emp_id,
+                    "holiday_status_id": leave_type.id,
+                    "request_date_from": date(2025, 3, 3),
+                    "request_date_to": date(2025, 3, 7),
+                }
+            )
+        message = str(error.exception)
+        self.assertIn(self.employee_emp.name, message)
+        self.assertIn(leave_type.name, message)

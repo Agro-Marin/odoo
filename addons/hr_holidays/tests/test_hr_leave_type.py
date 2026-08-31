@@ -1,6 +1,7 @@
 from freezegun import freeze_time
 
 from odoo.exceptions import AccessError, ValidationError
+from odoo.tests import Form
 
 from odoo.addons.hr_holidays.tests.common import TestHrHolidaysCommon
 
@@ -119,3 +120,19 @@ class TestHrLeaveType(TestHrHolidaysCommon):
         )
 
         self.assertFalse(leave_types, "Got valid leaves outside vaild period")
+
+    def test_create_calendar_meeting_is_settable_from_the_form(self):
+        """The Display Time Off in Calendar flag decides whether a leave of
+        this type shows up in the Calendar app
+        (`hr.leave._validate_leave_request`), so it needs a control on the
+        form: until now it only appeared in the search view, which filters but
+        never writes.
+        """
+        with Form(
+            self.env["hr.leave.type"], "hr_holidays.edit_holiday_status_form"
+        ) as leave_type:
+            leave_type.name = "Not on the calendar"
+            leave_type.create_calendar_meeting = False
+            record = leave_type.save()
+
+        self.assertFalse(record.create_calendar_meeting)

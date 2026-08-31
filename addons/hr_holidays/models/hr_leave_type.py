@@ -47,7 +47,11 @@ class HrLeaveType(models.Model):
         help="The type with the smallest sequence is the default value in time off request",
     )
     create_calendar_meeting = fields.Boolean(
-        string="Display Time Off in Calendar", default=True
+        string="Display Time Off in Calendar",
+        default=True,
+        help="Once approved, a time off of this type also shows up as an event "
+        "in the Calendar application. Uncheck to keep it out of everyone's "
+        "calendar.",
     )
     color = fields.Integer(
         string="Color",
