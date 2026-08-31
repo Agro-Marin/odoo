@@ -375,6 +375,9 @@ class HrLeave(models.Model):
     leave_type_increases_duration = fields.Char(
         compute="_compute_leave_type_increases_duration"
     )
+    leave_type_support_document_message = fields.Char(
+        compute="_compute_leave_type_support_document_message"
+    )
 
     # warning message
     dashboard_warning_message = fields.Char(
@@ -835,6 +838,20 @@ Versions:
             else:
                 leave.leave_type_increases_duration = ""
 
+    @api.depends("leave_type_support_document", "state")
+    def _compute_leave_type_support_document_message(self):
+        for leave in self:
+            if leave.leave_type_support_document and leave.state not in (
+                "validate",
+                "refuse",
+                "cancel",
+            ):
+                leave.leave_type_support_document_message = self.env._(
+                    "A supporting document is expected for this type of time off."
+                )
+            else:
+                leave.leave_type_support_document_message = ""
+
     def _get_durations(self, check_leave_type=True, resource_calendar=None):
         """
         This method is factored out into a separate method from
@@ -1149,9 +1166,13 @@ Versions:
             return
         for holiday in self:
             if holiday.state in ["validate1", "validate"]:
-                raise ValidationError(
-                    _("This modification is not allowed in the current state.")
+                message = _(
+                    "Approved time off cannot be modified (%(employee)s: %(date_from)s to %(date_to)s).",
+                    employee=holiday.employee_id.name,
+                    date_from=format_date(self.env, holiday.date_from),
+                    date_to=format_date(self.env, holiday.date_to),
                 )
+                raise ValidationError(message)
 
     def _check_validity(self):
         sorted_leaves = defaultdict(lambda: self.env["hr.leave"])
@@ -1183,7 +1204,11 @@ Versions:
                         < -max_excess
                     ):
                         raise ValidationError(
-                            _("There is no valid allocation to cover that request.")
+                            _(
+                                "%(employee)s has no valid allocation of %(leave_type)s to cover that request.",
+                                employee=employee.name,
+                                leave_type=leave_type.name,
+                            )
                         )
                 continue
 
@@ -1212,7 +1237,11 @@ Versions:
                     previous_emp_data
                 ):
                     raise ValidationError(
-                        _("There is no valid allocation to cover that request.")
+                        _(
+                            "%(employee)s has no valid allocation of %(leave_type)s to cover that request.",
+                            employee=employee.name,
+                            leave_type=leave_type.name,
+                        )
                     )
         is_leave_user = self.env.user.has_group("hr_holidays.group_hr_holidays_user")
         if not is_leave_user and any(leave.has_mandatory_day for leave in self):
@@ -1357,7 +1386,13 @@ Versions:
                 leave_type_id = values.get("holiday_status_id")
 
                 # Handle double validation
-                if mapped_validation_type[leave_type_id] == "both":
+                # A row that came back from a spreadsheet without its type is
+                # for the ORM's required-field check to report, not for this
+                # lookup to crash on.
+                if (
+                    leave_type_id
+                    and mapped_validation_type.get(leave_type_id) == "both"
+                ):
                     self._check_double_validation_rules(
                         employee_id, values.get("state", False)
                     )
