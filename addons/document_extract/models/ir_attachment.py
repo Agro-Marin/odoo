@@ -24,7 +24,7 @@ class IrAttachment(models.Model):
         return self.extract_document_type or ""
 
     def _get_extract_source(self) -> Document | None:
-        self.ensure_one()
+        self.check_singleton()
         if not self.raw:
             return None
         return document_of(self)

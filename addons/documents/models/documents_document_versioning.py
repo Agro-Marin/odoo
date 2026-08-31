@@ -6,7 +6,7 @@ class DocumentsDocument(models.Model):
     _inherit = "documents.document"
 
     def action_delete_from_history(self, attachment_id: int) -> None:
-        self.ensure_one()
+        self.check_singleton()
         self._check_access_or_raise(
             "write", _("You are not allowed to delete a version of this document.")
         )
@@ -39,7 +39,7 @@ class DocumentsDocument(models.Model):
         attachment.unlink()
 
     def action_restore_version(self, attachment_id: int) -> None:
-        self.ensure_one()
+        self.check_singleton()
         self._check_access_or_raise(
             "write", _("You are not allowed to restore a version of this document.")
         )

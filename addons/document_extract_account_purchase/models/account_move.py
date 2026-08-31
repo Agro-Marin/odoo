@@ -11,7 +11,7 @@ class AccountMove(models.Model):
     _inherit = "account.move"
 
     def _update_from_extraction(self, result) -> None:
-        self.ensure_one()
+        self.check_singleton()
         super()._update_from_extraction(result)
 
         if self.move_type != "in_invoice" or self.invoice_line_ids:

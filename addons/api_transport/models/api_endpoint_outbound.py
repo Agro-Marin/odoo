@@ -115,7 +115,7 @@ class ApiEndpointOutbound(models.Model):
     )
 
     def _api_key_headers(self, api_key):
-        self.ensure_one()
+        self.check_singleton()
         if not api_key:
             return {}
         if self.api_key_header:
@@ -370,7 +370,7 @@ class ApiEndpointOutbound(models.Model):
                 service.avg_response_time = 0.0
 
     def action_test_connection(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         credential = self.credential_ids.filtered("active")[:1]
         if not credential:
             raise ValidationError(self.env._("No active credentials configured"))
@@ -405,7 +405,7 @@ class ApiEndpointOutbound(models.Model):
         }
 
     def action_view_credentials(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": self.env._("Credentials"),
             "type": "ir.actions.act_window",
@@ -416,7 +416,7 @@ class ApiEndpointOutbound(models.Model):
         }
 
     def action_view_logs(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         channel_ref = f"{self._name},{self.id}"
         return {
             "name": self.env._("Request Logs"),
@@ -482,7 +482,7 @@ class ApiEndpointOutbound(models.Model):
                 _logger.error("Health check failed for %s: %s", service.code, e)
 
     def _perform_health_check(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.health_check_environment == "any":
             credential = self.credential_ids.filtered("active").sorted(
                 key=lambda c: (c.environment != "production", c.sequence),
@@ -537,7 +537,7 @@ class ApiEndpointOutbound(models.Model):
         )
 
     def _get_api_client(self, credential=None):
-        self.ensure_one()
+        self.check_singleton()
         from odoo.addons.api_transport.tools import (  # pylint: disable=import-outside-toplevel
             get_api_client,
         )

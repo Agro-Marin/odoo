@@ -23,7 +23,7 @@ class ResPartner(models.Model):
             record.document_count = document_count_dict.get(record, 0)
 
     def action_see_documents(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "documents.document_action_preference"
         )

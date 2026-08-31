@@ -94,11 +94,11 @@ class CredentialCredential(models.Model):
         )
 
     def _oauth_client_id(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         return self.endpoint_id.oauth_client_id or self.oauth_client_id
 
     def get_auth_headers(self):
-        self.ensure_one()
+        self.check_singleton()
         headers = {}
 
         if not self.endpoint_id:
@@ -297,7 +297,7 @@ class CredentialCredential(models.Model):
         )
 
     def action_validate_credentials(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.endpoint_id:
             return self._notify_not_linked()
@@ -332,7 +332,7 @@ class CredentialCredential(models.Model):
         )
 
     def action_view_usage_logs(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": self.env._("API Usage Logs"),
             "type": "ir.actions.act_window",
@@ -345,7 +345,7 @@ class CredentialCredential(models.Model):
         }
 
     def _expiry_warning_context(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         if not self.endpoint_id:
             return super()._expiry_warning_context()
         return f" on endpoint {self.endpoint_id.name}"
@@ -379,7 +379,7 @@ class CredentialCredential(models.Model):
             )
 
     def action_oauth_authorize(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.endpoint_id:
             return self._notify_not_linked()
@@ -401,7 +401,7 @@ class CredentialCredential(models.Model):
         }
 
     def action_oauth_reauthorize(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
 
         self.write(
             {

@@ -73,7 +73,7 @@ class MixinDataCleaningNotification(models.AbstractModel):
 
     def _send_notification(self):
         """Send one rule's notification. False when there was nothing to say."""
-        self.ensure_one()
+        self.check_singleton()
         records_count = self._get_count_pending()
         partner_ids = self.notify_user_ids.partner_id.ids
         if not records_count or not partner_ids:

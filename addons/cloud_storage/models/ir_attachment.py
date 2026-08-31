@@ -25,7 +25,7 @@ class IrAttachment(models.Model):
             self.type == "cloud_storage"
             and self.env["res.config.settings"]._get_cloud_storage_configuration()
         ):
-            self.ensure_one()
+            self.check_singleton()
             info = self._generate_cloud_storage_download_info()
             stream = Stream(type="url", url=info["url"])
             if "time_to_expiry" in info:

@@ -332,7 +332,7 @@ class DocumentsDocument(models.Model):
         return direct_domain
 
     def _is_download_allowed(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         target = self.shortcut_document_id or self
         return not target.is_download_blocked or target.user_permission == "edit"
 
@@ -641,7 +641,7 @@ class DocumentsDocument(models.Model):
         return created_or_updated_access, removed_access
 
     @api.model
-    def _ensure_user_role_without_propagation(
+    def _add_user_role_without_propagation(
         self, role: str, documents_per_user: dict
     ) -> None:
         existing_access = (
@@ -716,7 +716,7 @@ class DocumentsDocument(models.Model):
         )
 
     def _get_permission_without_token(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         return self._get_permission_without_token_multi()[self]
 
     def _get_permission_without_token_multi(self) -> dict:
@@ -754,7 +754,7 @@ class DocumentsDocument(models.Model):
         return self.mapped("owner_id").sudo().filtered("share")
 
     def _get_inherited_access_ids_vals(self) -> list[dict]:
-        self.ensure_one()
+        self.check_singleton()
         vals = [
             {
                 "partner_id": access.partner_id.id,
@@ -852,7 +852,7 @@ class DocumentsDocument(models.Model):
         return commands
 
     def _cannot_create_sibling(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         if self.env.su:
             return False
         if self.folder_id:
@@ -863,7 +863,7 @@ class DocumentsDocument(models.Model):
         )
 
     def _is_company_root_folder(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return self.type == "folder" and not self.folder_id and not self.owner_id
 
     @api.model

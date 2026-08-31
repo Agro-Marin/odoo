@@ -58,7 +58,7 @@ class DocumentsRequest_Wizard(models.TransientModel):
                 self.requestee_id = self.activity_type_id.default_user_id.partner_id
 
     def request_document(self) -> models.Model:
-        self.ensure_one()
+        self.check_singleton()
         if self.res_model and self.res_id:
             if self.res_model not in self.env:
                 raise UserError(_("Invalid model %s.", self.res_model))

@@ -5,7 +5,7 @@ scheduling columns themselves live on the consumer.  Exercising it therefore
 needs a real consumer model, and this addon is where such a model belongs.
 
 It used to be declared inline in ``resource``'s own test files and pushed into
-the registry with ``add_to_registry`` at ``setUpClass`` time.  That leaked: the
+the registry with ``add_model_to_registry`` at ``setUpClass`` time.  That leaked: the
 class stayed in the registry for the rest of the process while its table was
 rolled back with the test transaction, so any later ORM trigger that scans
 models with a ``resource_id`` field hit ``UndefinedTable`` — which is how three
@@ -59,7 +59,7 @@ class ResourceSchedulingTest(models.Model):
         # reservation-ledger aggregation of ``allocated_hours`` /
         # ``schedule_overlap_count`` are exercised end-to-end (rather than
         # re-implementing that logic inside the test model).
-        self.ensure_one()
+        self.check_singleton()
         if not self.date_start or not self.date_end:
             return []
         return [

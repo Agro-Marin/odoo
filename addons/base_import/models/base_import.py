@@ -398,7 +398,7 @@ class ResUsers(models.Model):
 
         :rtype: bool
         """
-        self.ensure_one()
+        self.check_singleton()
         return self._is_admin()
 
 
@@ -834,7 +834,7 @@ class Base_ImportImport(models.TransientModel):
         :returns: the file's non-empty rows
         :rtype: list[list]
         """
-        self.ensure_one()
+        self.check_singleton()
 
         key = self._parsed_file_key(options)
         hit = PARSED_FILE_CACHE.get(key)
@@ -1805,7 +1805,7 @@ class Base_ImportImport(models.TransientModel):
         :returns: ``{fields, matches, headers, preview} | {error, preview}``
         :rtype: {dict(str: dict(...)), dict(int, list(str)), list(str), list(list(str))} | {str, str}
         """
-        self.ensure_one()
+        self.check_singleton()
         self._check_model_name(self.res_model)
         fields_tree = self.get_fields_tree(self.res_model)
         try:
@@ -2524,7 +2524,7 @@ class Base_ImportImport(models.TransientModel):
                     isn't available or provided)
         :rtype: dict(ids: list(int), messages: list({type, message, record}))
         """
-        self.ensure_one()
+        self.check_singleton()
         self._check_model_name(self.res_model)
         import_savepoint = self.env.cr.savepoint(flush=False)
         # `try/finally`, not just the `except ImportValidationError` below: the

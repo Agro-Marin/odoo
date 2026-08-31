@@ -6,7 +6,7 @@ from . import readers  # noqa: F401  registers the readers, not imported for a n
 
 
 def document_of(attachment, **options) -> Document:
-    attachment.ensure_one()
+    attachment.check_singleton()
     return Document(
         attachment.raw, attachment.mimetype or "", attachment.name or "", **options
     )

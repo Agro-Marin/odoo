@@ -101,7 +101,7 @@ class TestOnUnlinkWarnsForActionsNeedingTheirRecord(TestServerActionsBase):
     The state is a necessary condition, not a sufficient one: `object_create`
     and `object_copy` reach for the record only to hang the new one off a
     `link_field_id`, so the question is asked of the ACTION through
-    `_needs_a_live_record()`. Each state is configured here so that it does.
+    `_is_live_record_required()`. Each state is configured here so that it does.
     """
 
     def _configured(self, state, model):
@@ -171,7 +171,7 @@ class TestOnUnlinkWarnsForActionsNeedingTheirRecord(TestServerActionsBase):
         )
         self.assertFalse(action.link_field_id, "precondition: nothing to link to")
         self.assertIn("object_create", action._get_states_needing_a_live_record())
-        self.assertFalse(action._needs_a_live_record())
+        self.assertFalse(action._is_live_record_required())
 
         rule = self.env["automation.rule"].new(
             {
@@ -238,7 +238,7 @@ class TestAutomationBatchesWhatItCan(TransactionCase):
         origin = getattr(cls, method_name)
 
         def spy(action, eval_context=None):
-            seen.append(len(action._get_target_records()))
+            seen.append(len(action._get_records_targeted()))
             return origin(action, eval_context=eval_context)
 
         self.patch(cls, method_name, spy)
@@ -321,7 +321,7 @@ class TestAvailableModelsNeverWiden(TransactionCase):
 
     def test_no_state_offers_a_model_base_would_not(self):
         Action = self.env["ir.actions.server"]
-        allowed = set(self.env["ir.model.access"]._get_allowed_models())
+        allowed = set(self.env["ir.model.access"]._get_models_allowed())
         model = self.env["ir.model"]._get("mail.test.lead")
 
         for state, _label in Action._fields["state"].selection:

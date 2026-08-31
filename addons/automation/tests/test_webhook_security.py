@@ -37,37 +37,33 @@ class TestWebhookSecurity(EncryptionKeyCase, TransactionCase):
         return "sha256=" + hmac.new(key.encode(), self.body, hashlib.sha256).hexdigest()
 
     def test_hmac_valid(self):
-        ok, status, _msg = self.rule._verify_webhook_request(
+        ok, status, _msg = self.rule._check_webhook_request(
             {"X-Hub-Signature-256": self._sig(self.secret)}, self.body, "1.2.3.4"
         )
         self.assertTrue(ok)
         self.assertEqual(status, 200)
 
     def test_hmac_invalid_and_missing(self):
-        bad, status, _m = self.rule._verify_webhook_request(
+        bad, status, _m = self.rule._check_webhook_request(
             {"X-Hub-Signature-256": self._sig("wrong")}, self.body, "1.2.3.4"
         )
         self.assertFalse(bad)
         self.assertEqual(status, 401)
-        missing, status, _m = self.rule._verify_webhook_request(
-            {}, self.body, "1.2.3.4"
-        )
+        missing, status, _m = self.rule._check_webhook_request({}, self.body, "1.2.3.4")
         self.assertFalse(missing)
         self.assertEqual(status, 401)
 
     def test_ip_allowlist(self):
         self.rule.ip_whitelist = "10.0.0.0/8, 192.168.1.5"
         sig = {"X-Hub-Signature-256": self._sig(self.secret)}
-        self.assertTrue(
-            self.rule._verify_webhook_request(sig, self.body, "10.5.5.5")[0]
-        )
-        blocked = self.rule._verify_webhook_request(sig, self.body, "1.2.3.4")
+        self.assertTrue(self.rule._check_webhook_request(sig, self.body, "10.5.5.5")[0])
+        blocked = self.rule._check_webhook_request(sig, self.body, "1.2.3.4")
         self.assertFalse(blocked[0])
         self.assertEqual(blocked[1], 403)
 
     def test_payload_size_limit(self):
         self.rule.max_payload_size = 5
-        res = self.rule._verify_webhook_request(
+        res = self.rule._check_webhook_request(
             {"X-Hub-Signature-256": self._sig(self.secret)}, self.body, "1.2.3.4"
         )
         self.assertFalse(res[0])
@@ -81,4 +77,4 @@ class TestWebhookSecurity(EncryptionKeyCase, TransactionCase):
                 "trigger": "on_webhook",
             }
         )
-        self.assertTrue(rule._verify_webhook_request({}, self.body, "1.2.3.4")[0])
+        self.assertTrue(rule._check_webhook_request({}, self.body, "1.2.3.4")[0])

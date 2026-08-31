@@ -81,7 +81,7 @@ class DocumentsAccessTracking(models.Model):
         Cron._commit_progress(remaining=0)
 
     def _create_message_track(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         document_ids = self.env["documents.document"].browse(self.documents)
         if initial_values := self._get_initial_values():
             if "members" in self.changes:
@@ -101,7 +101,7 @@ class DocumentsAccessTracking(models.Model):
             )
 
     def _get_initial_values(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         fields_list = [
             "access_internal",
             "access_via_link",
@@ -113,7 +113,7 @@ class DocumentsAccessTracking(models.Model):
         return {doc_id: common_values for doc_id in self.documents if common_values}
 
     def _add_pre_commit_members_data(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         common_body = self._get_members_change_template_body()
         self.env.cr.precommit.data.setdefault(
             "mail.tracking.message.documents.document",
@@ -121,7 +121,7 @@ class DocumentsAccessTracking(models.Model):
         )
 
     def _get_members_change_template_body(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         members = self.changes["members"]
         partner_map = self._get_partners_mapping()
         return self.env["ir.qweb"]._render(
@@ -147,7 +147,7 @@ class DocumentsAccessTracking(models.Model):
         )
 
     def _get_partners_mapping(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         members_dict = self.changes["members"]
         keys = [
             *members_dict["added"],

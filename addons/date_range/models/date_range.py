@@ -352,7 +352,7 @@ class DateRange(models.Model):
         :return: domain [(field, '>=', start), (field, '<=', end)]
         :rtype: list
         """
-        self.ensure_one()
+        self.check_singleton()
         return [
             (field_name, ">=", self.date_start),
             (field_name, "<=", self.date_end),
@@ -380,7 +380,7 @@ class DateRange(models.Model):
         :return: next range or empty recordset
         :rtype: date.range
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.search(
             [
                 ("type_id", "=", self.type_id.id),
@@ -398,7 +398,7 @@ class DateRange(models.Model):
         :return: previous range or empty recordset
         :rtype: date.range
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.search(
             [
                 ("type_id", "=", self.type_id.id),
@@ -442,7 +442,7 @@ class DateRange(models.Model):
         :rtype: list
         :raises ValueError: for an unknown unit
         """
-        self.ensure_one()
+        self.check_singleton()
         if unit not in ("week", "month"):
             raise ValueError(f"Unknown split unit {unit!r}")
         vals = []

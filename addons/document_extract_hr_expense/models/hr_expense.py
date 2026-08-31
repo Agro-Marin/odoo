@@ -21,7 +21,7 @@ class HrExpense(models.Model):
             )
 
     def _update_from_extraction(self, result) -> None:
-        self.ensure_one()
+        self.check_singleton()
         super()._update_from_extraction(result)
 
         values = result.flat()
@@ -41,19 +41,19 @@ class HrExpense(models.Model):
             self.write(writes)
 
     def _extract_name_is_untouched(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         user = self.employee_id.user_id or self.env.user
         untitled = self.with_user(user)._get_untitled_expense_name("").strip()
         return untitled in (self.name or "")
 
     def _extract_date_is_untouched(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return not self.date or self.date == fields.Date.context_today(
             self, self.create_date
         )
 
     def _get_extract_amount_values(self, values, date=None) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         total = values.get("total")
         if not total:
             return {}
@@ -78,7 +78,7 @@ class HrExpense(models.Model):
         return writes
 
     def _extract_currency_is_untouched(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return not self.currency_id or self.currency_id == self.company_currency_id
 
     def _get_extract_currency(self, name: str | None):
@@ -101,7 +101,7 @@ class HrExpense(models.Model):
         return None
 
     def action_extract_document(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.extract_can_be_read:
             raise UserError(_("A receipt is read while the expense is still a draft."))
         result = self._extract_document()

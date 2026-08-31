@@ -5,7 +5,7 @@ class IrModuleModule(models.Model):
     _inherit = "ir.module.module"
 
     def action_view_install_request(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "target": "new",

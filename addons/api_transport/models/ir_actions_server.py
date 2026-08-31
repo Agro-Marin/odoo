@@ -52,7 +52,7 @@ class IrActionsServer(models.Model):
                 )
 
     def _prepare_webhook_delivery(self, url, timeout, action_label, target):
-        self.ensure_one()
+        self.check_singleton()
         if not self.webhook_endpoint_id:
             return super()._prepare_webhook_delivery(url, timeout, action_label, target)
 

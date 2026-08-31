@@ -71,7 +71,7 @@ class DocController(http.Controller):
         unique = self._doc_cache_key('/doc/index.json', generation)
         use_cache = self._client_accepts_cache()
         if use_cache and not is_resource_modified(request.httprequest.environ, etag=unique):
-            return request.make_response('', status=HTTPStatus.NOT_MODIFIED)
+            return request.prepare_response('', status=HTTPStatus.NOT_MODIFIED)
 
         # Server cache: an attachment rather than an ormcache entry, because
         # the index runs to megabytes once many modules are installed.
@@ -124,7 +124,7 @@ class DocController(http.Controller):
             '/doc/<model_name>.json', doc_cache_generation(self.env))
         use_cache = self._client_accepts_cache()
         if use_cache and not is_resource_modified(request.httprequest.environ, etag=unique):
-            return request.make_response('', status=HTTPStatus.NOT_MODIFIED)
+            return request.prepare_response('', status=HTTPStatus.NOT_MODIFIED)
 
         result = {
             'model': model_name,
@@ -143,7 +143,7 @@ class DocController(http.Controller):
             },
         }
 
-        response = request.make_json_response(result)
+        response = request.prepare_json_response(result)
         response.set_etag(unique)
         response.headers['Cache-Control'] = 'no-cache, private'  # no-cache != no-store
         response.headers['Content-Language'] = py_to_js_locale(self.env.lang)

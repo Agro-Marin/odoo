@@ -426,7 +426,7 @@ class TestRuntimeWorkflows(common.TransactionCase):
         _logger.info("Testing context propagation")
 
         # `runtime` is exposed to code actions by
-        # automation's ir.actions.server._get_eval_context, so a step can
+        # automation's ir.actions.server._prepare_eval_context, so a step can
         # read the execution instance it belongs to. The result is written to a
         # real record: assigning to env.context is both a forbidden opcode
         # (STORE_ATTR) and meaningless, since the context is frozen.

@@ -205,7 +205,7 @@ POST /web/hook/<webhook_uuid>
 - Returns HTTP 200 with JSON result or raises on error
 
 Payload is available in `record_getter` and in code actions as the `payload`
-variable via `_get_eval_context()`.
+variable via `_prepare_eval_context()`.
 
 ---
 

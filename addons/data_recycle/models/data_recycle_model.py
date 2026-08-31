@@ -113,13 +113,13 @@ class Data_RecycleModel(models.Model):
         module: reading `self.env[name]` unguarded turns that into a `KeyError`
         in the middle of a cron run.
         """
-        self.ensure_one()
+        self.check_singleton()
         name = self.res_model_name
         return self.env[name] if name and name in self.env else None
 
     def _get_domain_candidates(self):
         """The domain selecting the records this rule proposes for recycling."""
-        self.ensure_one()
+        self.check_singleton()
         return Domain(ast.literal_eval(self.domain or '[]'))
 
     def _cron_recycle_records(self):
@@ -210,13 +210,13 @@ class Data_RecycleModel(models.Model):
                     self.env.cr.commit()
 
     def _get_count_pending(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.env['data_recycle.record'].search_count([
             ('recycle_model_id', '=', self.id),
         ])
 
     def _get_notification_body(self, records_count):
-        self.ensure_one()
+        self.check_singleton()
         return self.env['ir.qweb']._render('data_recycle.notification', {
             'records_count': records_count,
             'res_model_label': self.res_model_id.name,
@@ -246,7 +246,7 @@ class Data_RecycleModel(models.Model):
         return super().write(vals)
 
     def open_records(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("data_recycle.action_data_recycle_record")
         action['context'] = dict(
             self.env["ir.actions.actions"]._eval_action_context(action.get('context')),
@@ -254,7 +254,7 @@ class Data_RecycleModel(models.Model):
         return action
 
     def action_recycle_records(self):
-        self.ensure_one()
+        self.check_singleton()
         self.sudo()._recycle_records()
         if self.recycle_mode == 'manual':
             return self.open_records()

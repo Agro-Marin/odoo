@@ -34,7 +34,7 @@ class ProductTemplate(models.Model):
             template.product_document_count = count
 
     def _get_product_document_domain(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             Domain("res_model", "=", "product.template")
             & Domain("res_id", "in", self.ids)
@@ -45,7 +45,7 @@ class ProductTemplate(models.Model):
 
     @api.readonly
     def action_view_documents(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Documents"),
             "type": "ir.actions.act_window",

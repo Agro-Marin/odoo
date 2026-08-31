@@ -833,7 +833,7 @@ class TestCaseDocuments(TransactionCaseDocuments):
                 copy = self.document_txt.copy()
             self.assertEqual(copy.name, "file.txt (copy)")
             self.assertNotEqual(
-                copy.attachment_id.ensure_one().id,
+                copy.attachment_id.check_singleton().id,
                 self.document_txt.attachment_id.id,
                 "There must be a new attachment",
             )
@@ -849,7 +849,7 @@ class TestCaseDocuments(TransactionCaseDocuments):
             copy_with_default = self.document_txt.copy({"name": "test"})
         self.assertEqual(copy_with_default.name, "test")
         self.assertNotEqual(
-            copy.attachment_id.ensure_one().id,
+            copy.attachment_id.check_singleton().id,
             self.document_txt.attachment_id.id,
             "There must be a new attachment",
         )

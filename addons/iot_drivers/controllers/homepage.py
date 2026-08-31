@@ -67,7 +67,7 @@ def _render_page(view):
     import_map = _import_map()
     with file_open(f"iot_drivers/views/{view}", "r") as fd:
         page = fd.read().replace(IMPORT_MAP_PLACEHOLDER, import_map.script_tag)
-    return http.request.make_response(page, headers=[
+    return http.request.prepare_response(page, headers=[
         ('Content-Type', 'text/html; charset=utf-8'),
         ('Content-Security-Policy', CONTENT_SECURITY_POLICY.format(
             import_map_hash=import_map.csp_hash,

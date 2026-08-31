@@ -499,7 +499,7 @@ class TestPropertiesExportImport(HttpCase):
             ],
         )
 
-        records_created._ensure_xml_ids()
+        records_created._get_or_create_xml_ids()
         external_ids = [meta["xmlid"] for meta in records_created.get_metadata()]
 
         # Test the update flow

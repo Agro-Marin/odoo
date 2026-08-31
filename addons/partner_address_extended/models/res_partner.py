@@ -51,7 +51,7 @@ class ResPartner(models.Model):
             partner.update(tools.street_split(partner.street))
 
     def _get_street_split(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "street_name": self.street_name,
             "street_number": self.street_number,

@@ -55,11 +55,11 @@ class AccountMove(models.Model):
         return (self.extract_result or {}).get("lines") or {}
 
     def _get_extract_document_type(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         return self._extract_document_type if self.is_purchase_document() else ""
 
     def _update_from_extraction(self, result) -> None:
-        self.ensure_one()
+        self.check_singleton()
         super()._update_from_extraction(result)
 
         values = result.flat()
@@ -127,7 +127,7 @@ class AccountMove(models.Model):
         return companies
 
     def _extract_may_set_currency(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         default = self.journal_id.currency_id or self.company_id.currency_id
         return self.currency_id == default and not self.invoice_line_ids
 
@@ -165,7 +165,7 @@ class AccountMove(models.Model):
         return proposal.description != seed["description"]
 
     def action_review_extracted_lines(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.state != "draft":
             raise UserError(
                 self.env._("Only a draft bill can take lines read from its document.")
@@ -187,7 +187,7 @@ class AccountMove(models.Model):
         }
 
     def _add_extraction_correction_for_lines(self, proposals) -> None:
-        self.ensure_one()
+        self.check_singleton()
         read = self._extract_read_lines().get("value") or []
         changed = []
         for proposal in proposals:
@@ -220,7 +220,7 @@ class AccountMove(models.Model):
         self.with_context(extracting=True).write({"extract_corrections": stored})
 
     def action_extract_document(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self._get_extract_document_type():
             raise UserError(
                 self.env._(

@@ -12,7 +12,7 @@ class HrApplicant(models.Model):
     _inherit = "hr.applicant"
 
     def _update_from_extraction(self, result) -> None:
-        self.ensure_one()
+        self.check_singleton()
         super()._update_from_extraction(result)
 
         names = self._get_extract_skill_names(result.flat().get("skills"))
@@ -26,7 +26,7 @@ class HrApplicant(models.Model):
         return [name for skill in skills or () if (name := skill["name"].strip())]
 
     def _add_extracted_skills(self, names: list[str]) -> None:
-        self.ensure_one()
+        self.check_singleton()
         catalogue = self.env["hr.skill"].search(
             Domain.OR([Domain("name", "=ilike", name) for name in names])
         )

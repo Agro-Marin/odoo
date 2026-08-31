@@ -84,7 +84,7 @@ class DocumentsAccess(models.Model):
         )
 
     def _get_member_signup_token(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         if not self._is_signup_available():
             raise UserError(_("Cannot invite this member."))
 

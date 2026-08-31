@@ -498,7 +498,7 @@ class MixinEncryption(models.AbstractModel):
         return sorted(names)
 
     def _reencrypt_with_current_key(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         touched = False
         for plain_field, enc_field, is_binary in self._ENCRYPTED_FIELD_PAIRS:
             encrypted = self.with_context(bin_size=False)[enc_field]

@@ -128,7 +128,7 @@ class TestDocumentsUploadRoute(HttpCase, TransactionCaseDocuments):
         with RecordCapturer(self.env["documents.document"], []) as capture:
             response = self._upload(user_folder_id="MY")
             response.raise_for_status()
-        document = capture.records.ensure_one()
+        document = capture.records.check_singleton()
         self.assertEqual(document.owner_id, self.plain_internal)
         self.assertFalse(document.res_model)
 
@@ -144,7 +144,7 @@ class TestDocumentsUploadRoute(HttpCase, TransactionCaseDocuments):
                 res_id=str(partner.id),
             )
             response.raise_for_status()
-        document = capture.records.ensure_one()
+        document = capture.records.check_singleton()
         self.assertEqual(document.res_model, "res.partner")
         self.assertEqual(document.res_id, partner.id)
 

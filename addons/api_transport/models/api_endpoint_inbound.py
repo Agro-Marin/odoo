@@ -45,7 +45,7 @@ class ApiEndpointInbound(models.AbstractModel):
                 )
 
     def _payload_log_limit(self) -> int:
-        self.ensure_one()
+        self.check_singleton()
         if self.processing_mode == "async":
             return 0
         return max(0, self.log_request_payload_max_bytes)
@@ -208,7 +208,7 @@ class ApiEndpointInbound(models.AbstractModel):
         headers: dict[str, Any],
         body: str | bytes | None = None,
     ) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         is_valid = self._authenticate_by_scheme(headers, body)
         if is_valid and self.credential_id:
             self.credential_id.mark_as_used()
@@ -241,7 +241,7 @@ class ApiEndpointInbound(models.AbstractModel):
         mode: str = "enforce",
         body: str | bytes | None = None,
     ) -> tuple[bool, str]:
-        self.ensure_one()
+        self.check_singleton()
         allowed, _status, reason = self._check_inbound_request(
             headers, body=body, remote_addr=remote_addr, mode=mode
         )
@@ -249,7 +249,7 @@ class ApiEndpointInbound(models.AbstractModel):
 
     @api.job(channel="api_transport_inbound", max_retries=0)
     def _run_queued_event(self, event_id):
-        self.ensure_one()
+        self.check_singleton()
         event = self.env["api.event.log"].browse(event_id).exists()
         if not event:
             _logger.warning("Queued event %s no longer exists", event_id)
@@ -269,7 +269,7 @@ class ApiEndpointInbound(models.AbstractModel):
         metadata: dict[str, Any] | None = None,
         event_log: models.Model | None = None,
     ) -> models.Model:
-        self.ensure_one()
+        self.check_singleton()
 
         if event_log:
             event = event_log
@@ -304,7 +304,7 @@ class ApiEndpointInbound(models.AbstractModel):
         payload_hash: str,
         exclude_event_id: int | None = None,
     ) -> bool:
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.duplicate_detection_enabled:
             return False

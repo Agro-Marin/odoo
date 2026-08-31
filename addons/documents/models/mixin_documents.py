@@ -8,7 +8,7 @@ class MixinDocuments(models.AbstractModel):
     _description = "Documents creation mixin"
 
     def _get_document_vals(self, attachment: models.Model) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         document_vals = {}
         if self._check_create_documents():
             access_rights_vals = self._get_document_vals_access_rights()

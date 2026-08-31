@@ -73,7 +73,7 @@ class RateLimitBucket(models.Model):
             ) from exc
 
     def _get_endpoint_config(self) -> tuple[int, int, float]:
-        self.ensure_one()
+        self.check_singleton()
 
         if self.endpoint_model not in self.env:
             raise ValueError(
@@ -293,7 +293,7 @@ class RateLimitBucket(models.Model):
         capacity: float | None = None,
         refill_rate: float | None = None,
     ) -> bool:
-        self.ensure_one()
+        self.check_singleton()
 
         savepoint_name = f"rate_limit_lock_{self.id}"
         self.env.cr.execute(f"SAVEPOINT {savepoint_name}")

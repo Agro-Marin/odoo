@@ -106,7 +106,7 @@ class ExtractLineWizard(models.TransientModel):
         }
 
     def action_apply(self):
-        self.ensure_one()
+        self.check_singleton()
         move = self.move_id
         if move.state != "draft":
             raise UserError(

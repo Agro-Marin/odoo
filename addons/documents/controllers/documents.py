@@ -282,7 +282,7 @@ class ShareRoute(http.Controller):
             ("X-Content-Type-Options", "nosniff"),
             ("Content-Disposition", content_disposition(name)),
         ]
-        return request.make_response(self._stream_zip(name, entries), headers)
+        return request.prepare_response(self._stream_zip(name, entries), headers)
 
     def _plan_zip_entries(self, name: str, documents: Any) -> list:
         seen_folders = set()
@@ -506,7 +506,7 @@ class ShareRoute(http.Controller):
         if str2bool(archive, default=False):
             documents.write({"active": False})
 
-        return request.make_response(
+        return request.prepare_response(
             json.dumps(new_documents.ids), [("Content-Type", "application/json")]
         )
 
@@ -623,7 +623,7 @@ class ShareRoute(http.Controller):
         if not document or not user:
             return {}
 
-        document.ensure_one()
+        document.check_singleton()
         documents_init = {
             "user_folder_id": document.user_folder_id,
             "document_id": document.id,
@@ -988,7 +988,7 @@ class ShareRoute(http.Controller):
                 return request.redirect(document_sudo.access_url)
             return request.redirect("/documents/upload/success")
         else:
-            return request.make_json_response(document_ids)
+            return request.prepare_json_response(document_ids)
 
     def _documents_upload(
         self,
@@ -1118,7 +1118,7 @@ class ShareRoute(http.Controller):
             },
         )
 
-        return request.make_json_response([traceback_sudo.access_url])
+        return request.prepare_json_response([traceback_sudo.access_url])
 
 
 class DocumentsAttachmentController(AttachmentController):

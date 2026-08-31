@@ -95,5 +95,5 @@ class MixinRecurrenceRule(models.AbstractModel):
         every unit here, so the two consumers' hand-rolled versions were
         already the same function under different names.
         """
-        self.ensure_one()
+        self.check_singleton()
         return get_timedelta(self.repeat_interval, self.repeat_unit)

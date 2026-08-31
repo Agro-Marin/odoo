@@ -11,7 +11,7 @@ class CloudAttachmentController(AttachmentController):
     def mail_attachment_upload(self, ufile, thread_id, thread_model, is_pending=False, **kwargs):
         is_cloud_storage = kwargs.get('cloud_storage')
         if (is_cloud_storage and not request.env['ir.config_parameter'].sudo().get_param('cloud_storage_provider')):
-            return request.make_json_response({
+            return request.prepare_json_response({
                 'error': _('Cloud storage configuration has been changed. Please refresh the page.')
             })
 
@@ -28,4 +28,4 @@ class CloudAttachmentController(AttachmentController):
         # upload files to the cloud storage
         attachment = request.env["ir.attachment"].browse(data["data"]["attachment_id"]).sudo()
         data["upload_info"] = attachment._generate_cloud_storage_upload_info()
-        return request.make_json_response(data)
+        return request.prepare_json_response(data)

@@ -70,7 +70,7 @@ class MixinDocumentExtract(models.AbstractModel):
         return self._extract_document_type
 
     def _get_extract_source(self) -> Document | None:
-        self.ensure_one()
+        self.check_singleton()
         attachment = None
         if "message_main_attachment_id" in self._fields:
             attachment = self.message_main_attachment_id
@@ -85,7 +85,7 @@ class MixinDocumentExtract(models.AbstractModel):
         return document_of(attachment)
 
     def _update_from_extraction(self, result) -> None:
-        self.ensure_one()
+        self.check_singleton()
         values = {}
         for schema_field, model_field in self._extract_target.items():
             if model_field not in self._fields:
@@ -113,7 +113,7 @@ class MixinDocumentExtract(models.AbstractModel):
         return True
 
     def _extract_later(self, delay: int = 0):
-        self.ensure_one()
+        self.check_singleton()
         job = self.delayed(
             channel=JOB_CHANNEL,
             eta=delay or None,
@@ -125,7 +125,7 @@ class MixinDocumentExtract(models.AbstractModel):
 
     @api.job(channel=JOB_CHANNEL, max_retries=3, max_defers=WAIT_ATTEMPTS)
     def _job_extract(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         result = self._extract_document(up_to=GENERATIVE, allow_pending=True)
         if result is not None and result.waiting:
             self.env["ir.job"]._defer(
@@ -134,7 +134,7 @@ class MixinDocumentExtract(models.AbstractModel):
             )
 
     def _extract_document(self, up_to: int = GENERATIVE, allow_pending: bool = False):
-        self.ensure_one()
+        self.check_singleton()
         doc_type = self._get_extract_document_type()
         if not doc_type:
             raise ValueError(
@@ -215,7 +215,7 @@ class MixinDocumentExtract(models.AbstractModel):
         return result
 
     def _corrections_in(self, vals: dict[str, Any]) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         if not self.extract_result or not self._extract_target:
             return {}
         found = {}

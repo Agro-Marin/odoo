@@ -93,7 +93,7 @@ class BaseOrderTestLine(models.Model):
         return self.product_id.display_name or "/"
 
     def _get_auto_price_and_discount(self):
-        self.ensure_one()
+        self.check_singleton()
         return (self.product_id.list_price, 0.0)
 
     def _price_update_blocked(self):

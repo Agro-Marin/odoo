@@ -298,7 +298,7 @@ class TestDocumentsControllers(HttpCaseWithUserDemo, MockEmail):
         self.authenticate("portal_test", "portal_test")
         access_portal = self.internal_file.access_ids.filtered(
             lambda access: access.partner_id == self.user_portal.partner_id
-        ).ensure_one()
+        ).check_singleton()
         access_portal.role = "view"
 
         access_portal.expiration_date = fields.Datetime.now() + timedelta(hours=1)
@@ -394,7 +394,7 @@ class TestDocumentsControllers(HttpCaseWithUserDemo, MockEmail):
         self.authenticate("portal_test", "portal_test")
         access_portal = self.internal_file.access_ids.filtered(
             lambda access: access.partner_id == self.user_portal.partner_id
-        ).ensure_one()
+        ).check_singleton()
         access_portal.role = "view"
 
         access_portal.expiration_date = fields.Datetime.now() + timedelta(hours=1)
@@ -790,7 +790,7 @@ class TestDocumentsControllers(HttpCaseWithUserDemo, MockEmail):
                 allow_redirects=False,
             )
             res.raise_for_status()
-        document = capture.records.ensure_one()
+        document = capture.records.check_singleton()
         self.assertEqual(document.name, "hello.txt")
         self.assertEqual(document.mimetype, "text/plain")
         self.assertEqual(document.access_internal, "edit")
@@ -823,7 +823,7 @@ class TestDocumentsControllers(HttpCaseWithUserDemo, MockEmail):
                 allow_redirects=False,
             )
             res.raise_for_status()
-        document = record_capture.records.ensure_one()
+        document = record_capture.records.check_singleton()
         self.assertEqual(
             document.name, "hello.txt.png", "the filename must have been neutralized"
         )
@@ -953,7 +953,7 @@ class TestDocumentsControllers(HttpCaseWithUserDemo, MockEmail):
             )
             res.raise_for_status()
 
-        document = capture.records.ensure_one()
+        document = capture.records.check_singleton()
         self.assertEqual(document.name, "hello.txt")
         self.assertEqual(document.mimetype, "text/plain")
         self.assertEqual(document.owner_id, self.user_demo)
@@ -992,7 +992,7 @@ class TestDocumentsControllers(HttpCaseWithUserDemo, MockEmail):
             res.raise_for_status()
 
         self.assertFalse(capture_activity.records)
-        document = capture.records.ensure_one()
+        document = capture.records.check_singleton()
         self.assertEqual(
             document.name, "hello.txt", "the filename must not have been neutralized"
         )
@@ -1564,7 +1564,7 @@ class TestDocumentsControllers(HttpCaseWithUserDemo, MockEmail):
                 allow_redirects=False,
             )
             res.raise_for_status()
-        document1 = record_capture.records.ensure_one()
+        document1 = record_capture.records.check_singleton()
         self.assertEqual(document1.company_id, comp)
 
         with RecordCapturer(self.env["documents.document"], []) as record_capture:
@@ -1579,7 +1579,7 @@ class TestDocumentsControllers(HttpCaseWithUserDemo, MockEmail):
                 allow_redirects=False,
             )
             res.raise_for_status()
-        document2 = record_capture.records.ensure_one()
+        document2 = record_capture.records.check_singleton()
         self.assertEqual(document2.company_id, main_company)
 
     def test_custom_mimetype_content_routes(self):

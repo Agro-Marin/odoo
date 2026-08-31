@@ -30,7 +30,7 @@ class HrApplicant(models.Model):
             ] and applicant.extract_state in ("none", "failed", "partial")
 
     def _get_first_recruitment_stage(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.env["hr.recruitment.stage"].search(
             [
                 "|",
@@ -43,7 +43,7 @@ class HrApplicant(models.Model):
         )
 
     def action_extract_document(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.extract_can_be_read:
             raise UserError(
                 _(

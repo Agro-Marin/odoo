@@ -27,7 +27,7 @@ class CredentialAccessLog(models.Model):
     )
 
     def action_view_related_logs(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": "Related Access Logs",
             "type": "ir.actions.act_window",

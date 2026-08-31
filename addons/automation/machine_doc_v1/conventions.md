@@ -39,7 +39,7 @@ complete it. Correspondingly, `_create_action_lines` decides readiness from the
 
 ## Webhook Checks Are Ordered: Authenticate, Then Rate-Limit
 
-`_verify_webhook_request` runs the cheap guards (IP allowlist, payload size),
+`_check_webhook_request` runs the cheap guards (IP allowlist, payload size),
 then authentication (timestamp, signature), and only then the rate limit. The
 bucket is shared with the legitimate sender, so spending a token on an
 unauthenticated request let anyone holding just the URL lock that sender out.
@@ -87,7 +87,7 @@ Rules:
 ## safe_eval Usage
 
 All domain evaluation (`filter_domain`, `filter_pre_domain`, `record_getter`)
-uses `safe_eval.safe_eval()` with a restricted context from `_get_eval_context()`.
+uses `safe_eval.safe_eval()` with a restricted context from `_prepare_eval_context()`.
 Never pass user-controlled strings to Python `eval()`.
 
 The `DOMAIN_FIELDS_RE` regex (not `safe_eval`) is used to extract field names
@@ -150,7 +150,7 @@ Two model-side things gate the canvas regardless of library:
 - `test_triggers.py`: no `@tagged` — runs at-install, correct for basic model tests
 - `test_workflow_dag.py`: no `@tagged` — runs at-install, correct
 - `test_webhook_security.py`: `@tagged("post_install", "-at_install")` — calls
-  `_verify_webhook_request` directly with plain dicts
+  `_check_webhook_request` directly with plain dicts
 - `test_audit_regressions.py`: `@tagged("post_install", "-at_install")`; its
   webhook cases are `HttpCase` **on purpose**. The dict-based tests above cannot
   see a case-sensitive header lookup or a rate limiter placed before

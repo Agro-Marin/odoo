@@ -53,7 +53,7 @@ class ImportController(http.Controller):
             }
         )
 
-        # make_json_response, not a bare str: a str body from an http route
+        # prepare_json_response, not a bare str: a str body from an http route
         # defaults to text/html, which the uploader (rejectHtml) reads as the
         # login page and turns into a spurious session-expired dialog.
-        return request.make_json_response({"result": written})
+        return request.prepare_json_response({"result": written})

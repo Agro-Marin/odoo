@@ -1179,7 +1179,7 @@ action = {
                 self.assertEqual(automation.last_run, self.env.cr.now())
                 # test triggering using a calendar
                 automation.trg_date_calendar_id = (
-                    self.env["resource.calendar"].search([], limit=1).ensure_one()
+                    self.env["resource.calendar"].search([], limit=1).check_singleton()
                 )
                 automation.trg_date_range_type = "day"
                 self.env["automation.lead.test"].create(

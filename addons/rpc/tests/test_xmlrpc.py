@@ -288,7 +288,7 @@ class TestAPIKeys(common.HttpCase):
                     "name": "a",
                 }
             )
-            .make_key()
+            .action_generate_key()
         )
         k = r["context"]["default_key"]
 
@@ -319,17 +319,17 @@ class TestAPIKeys(common.HttpCase):
             {
                 "name": "b",
             }
-        ).make_key()
+        ).action_generate_key()
         env["res.users.apikeys.description"].create(
             {
                 "name": "b",
             }
-        ).make_key()
+        ).action_generate_key()
         env["res.users.apikeys.description"].create(
             {
                 "name": "b",
             }
-        ).make_key()
+        ).action_generate_key()
         k0, k1, k2 = env["res.users.apikeys"].search([])
 
         k0.remove()
@@ -357,7 +357,7 @@ class TestAPIKeys(common.HttpCase):
                     "name": "b",
                 }
             )
-            .make_key()["context"]["default_key"]
+            .action_generate_key()["context"]["default_key"]
         )
 
         self._user.active = False

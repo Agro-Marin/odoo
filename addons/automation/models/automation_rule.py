@@ -546,7 +546,7 @@ class AutomationRule(models.Model):
         return new_automations
 
     def _is_runtime_backed(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.create_runtime_instance or self.trigger == "on_hand"
 
     @api.constrains("trigger", "create_runtime_instance")
@@ -572,7 +572,7 @@ class AutomationRule(models.Model):
 
     @api.readonly
     def get_workflow_graph(self, runtime_id=None):
-        self.ensure_one()
+        self.check_singleton()
         nodes = self.action_server_ids.sorted("sequence")
         state_per_action = {}
         runtime = self.env["automation.runtime"]
@@ -619,8 +619,8 @@ class AutomationRule(models.Model):
         }
 
     def _copy_actions_to(self, target):
-        self.ensure_one()
-        target.ensure_one()
+        self.check_singleton()
+        target.check_singleton()
         new_by_old = {
             action.id: action.copy({"automation_rule_id": target.id})
             for action in self.action_server_ids
@@ -797,7 +797,7 @@ class AutomationRule(models.Model):
 
     @api.onchange("trigger")
     def _onchange_trigger(self):
-        self.ensure_one()
+        self.check_singleton()
         field = (
             self._get_trigger_specific_field()
             if self.trigger not in TIME_TRIGGERS
@@ -831,7 +831,7 @@ class AutomationRule(models.Model):
             }
 
         doomed = self.action_server_ids.filtered(
-            lambda action: action._needs_a_live_record()
+            lambda action: action._is_live_record_required()
         )
         if self.trigger == "on_unlink" and doomed:
             action_states = dict(
@@ -905,7 +905,7 @@ class AutomationRule(models.Model):
             automation.webhook_uuid = str(uuid4())
 
     def action_view_webhook_logs(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "name": _("Webhook Logs"),
@@ -915,7 +915,7 @@ class AutomationRule(models.Model):
         }
 
     def action_manual_trigger(self):
-        self.ensure_one()
+        self.check_singleton()
 
         if self.trigger != "on_hand":
             raise exceptions.ValidationError(
@@ -1076,8 +1076,8 @@ class AutomationRule(models.Model):
         if final_exception is not None:
             raise final_exception
 
-    def _verify_webhook_request(self, headers, body, remote_addr):
-        self.ensure_one()
+    def _check_webhook_request(self, headers, body, remote_addr):
+        self.check_singleton()
         return self._check_inbound_request(headers, body=body, remote_addr=remote_addr)
 
     def _webhook_ip_allowed(self, remote_addr):
@@ -1087,7 +1087,7 @@ class AutomationRule(models.Model):
         return self.check_rate_limit()
 
     def _execute_webhook(self, payload):
-        self.ensure_one()
+        self.check_singleton()
 
         if self.trigger != "on_webhook":
             _logger.warning(
@@ -1112,7 +1112,7 @@ class AutomationRule(models.Model):
             try:
                 record = safe_eval.safe_eval(
                     self.record_getter,
-                    self._get_eval_context(payload=payload),
+                    self._prepare_eval_context(payload=payload),
                 )
             except Exception:
                 msg = "Webhook #%s could not be triggered because the record_getter failed:\n%s"
@@ -1154,7 +1154,7 @@ class AutomationRule(models.Model):
             raise
 
     def _run_webhook_recordless(self, payload):
-        self.ensure_one()
+        self.check_singleton()
         for action in self.sudo().action_server_ids._sorted_by_dependency():
             action.with_context(
                 active_model=self.model_name,
@@ -1171,7 +1171,7 @@ class AutomationRule(models.Model):
                 records = records.with_context(__action_feedback=True)
             domain = safe_eval.safe_eval(
                 self_sudo.filter_pre_domain,
-                self._get_eval_context(),
+                self._prepare_eval_context(),
             )
             changed_fields = self.env.context.get("changed_fields", ())
             to_compute = {
@@ -1200,7 +1200,7 @@ class AutomationRule(models.Model):
                 records = records.with_context(__action_feedback=True)
             domain = safe_eval.safe_eval(
                 self_sudo.filter_domain,
-                self._get_eval_context(),
+                self._prepare_eval_context(),
             )
             return records.sudo().filtered_domain(domain).with_env(records.env), domain
         else:
@@ -1249,8 +1249,8 @@ class AutomationRule(models.Model):
             interval_type = "hours"
         return interval, interval_type
 
-    def _get_eval_context(self, payload=None):
-        self.ensure_one()
+    def _prepare_eval_context(self, payload=None):
+        self.check_singleton()
         model = self.env[self.model_name]
         eval_context = {
             "datetime": safe_eval.datetime,
@@ -1265,7 +1265,7 @@ class AutomationRule(models.Model):
         return eval_context
 
     def _get_trigger_specific_field(self):
-        self.ensure_one()
+        self.check_singleton()
         match self.trigger:
             case "on_create_or_write":
                 return _get_domain_fields(
@@ -1323,7 +1323,7 @@ class AutomationRule(models.Model):
         return self.env["ir.model.fields"].search(domain, limit=1)
 
     def _prepare_logging_values(self, **values):
-        self.ensure_one()
+        self.check_singleton()
         defaults = {
             "name": _("Webhook Log"),
             "type": "server",
@@ -1337,7 +1337,7 @@ class AutomationRule(models.Model):
         return defaults
 
     def _run_through_runtimes(self, records):
-        self.ensure_one()
+        self.check_singleton()
         runtimes = self.env["automation.runtime"]
         for record in records:
             runtime = self.env["automation.runtime"].create(
@@ -1668,11 +1668,11 @@ class AutomationRule(models.Model):
                 patch(Model, "message_post", make_message_post())
 
     def _search_time_based_automation_records(self, *, until):
-        automation = self.ensure_one()
+        automation = self.check_singleton()
 
         domain = Domain.TRUE
         if automation.filter_domain:
-            eval_context = automation._get_eval_context()
+            eval_context = automation._prepare_eval_context()
             domain = Domain(safe_eval.safe_eval(automation.filter_domain, eval_context))
         Model = self.env[automation.model_name]
         date_field = Model._fields.get(automation.trg_date_id.name)

@@ -78,7 +78,7 @@ class MixinCredentialAuth(models.AbstractModel):
             )
 
     def _secret_slot_for_auth_type(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "bearer": "bearer_token",
             "api_key": "api_key",
@@ -89,7 +89,7 @@ class MixinCredentialAuth(models.AbstractModel):
         return hashlib.sha256(token.encode()).hexdigest() if token else False
 
     def is_valid_token(self, token):
-        self.ensure_one()
+        self.check_singleton()
         stored = self.sudo().credential_fingerprint
         if not stored or not token:
             return False
@@ -108,7 +108,7 @@ class MixinCredentialAuth(models.AbstractModel):
         return
 
     def check_rate_limit(self, company_id=None):
-        self.ensure_one()
+        self.check_singleton()
         if company_id is None:
             company_id = self._rate_limit_company_id()
         return EndpointRateLimiter(self.env, self, company_id).check_limit()

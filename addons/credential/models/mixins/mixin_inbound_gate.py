@@ -102,7 +102,7 @@ class MixinInboundGate(models.AbstractModel):
         mode: str = AUTH_MODE_ENFORCE,
         caller_already_checked: bool = False,
     ) -> tuple[bool, int, str, str]:
-        self.ensure_one()
+        self.check_singleton()
         if mode == self.AUTH_MODE_OFF:
             return True, 200, "", "allowed"
 
@@ -164,7 +164,7 @@ class MixinInboundGate(models.AbstractModel):
         headers: dict[str, Any],
         body: str | bytes | None,
     ) -> tuple[bool, str]:
-        self.ensure_one()
+        self.check_singleton()
 
         if body is None and self.auth_type in self._BODY_DEPENDENT_AUTH_TYPES:
             return False, (
@@ -182,7 +182,7 @@ class MixinInboundGate(models.AbstractModel):
         headers: dict[str, Any],
         body: str | bytes | None = None,
     ) -> bool:
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.credential_id and self.auth_type not in ("none", "custom"):
             raise ValidationError(
@@ -379,7 +379,7 @@ class MixinInboundGate(models.AbstractModel):
         return company.id if company else False
 
     def _check_inbound_caller(self, remote_addr) -> tuple[bool, int, str]:
-        self.ensure_one()
+        self.check_singleton()
         if self.ip_whitelist and not ip_in_allowlist(remote_addr, self.ip_whitelist):
             return False, 403, f"IP {remote_addr} not allowed for {self.display_name}"
 
@@ -392,7 +392,7 @@ class MixinInboundGate(models.AbstractModel):
     PREAUTH_MULTIPLIER_DEFAULT = 10
 
     def _consume_caller_allowance(self, remote_addr) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         if not remote_addr:
             return True
 
@@ -429,5 +429,5 @@ class MixinInboundGate(models.AbstractModel):
         return self._inbound_company_id()
 
     def is_ip_allowed(self, source_ip: str) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return ip_in_allowlist(source_ip, self.ip_whitelist)

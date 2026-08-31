@@ -105,7 +105,7 @@ class BaseModuleInstallReview(models.TransientModel):
         return apps
 
     def action_install_module(self):
-        self.ensure_one()
+        self.check_singleton()
         self.module_id.button_immediate_install()
         return {
             "type": "ir.actions.client",

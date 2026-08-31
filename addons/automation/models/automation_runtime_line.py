@@ -97,7 +97,7 @@ class AutomationRuntimeLine(models.Model):
         ]
 
     def _predecessors_satisfied(self):
-        self.ensure_one()
+        self.check_singleton()
         return all(edge._is_satisfied() for edge in self.edge_in_ids)
 
     def _get_predecessors(self):
@@ -123,7 +123,7 @@ class AutomationRuntimeLine(models.Model):
                 line.created_record_ref.action_cancel()
 
     def _activate_successors(self):
-        self.ensure_one()
+        self.check_singleton()
         for successor in self._get_successors():
             if successor.state == "waiting" and successor._predecessors_satisfied():
                 successor.action_mark_ready()
@@ -134,7 +134,7 @@ class AutomationRuntimeLine(models.Model):
                 )
 
     def _has_error_handler(self):
-        self.ensure_one()
+        self.check_singleton()
         return any(
             edge.condition in ("on_error", "always") for edge in self.edge_out_ids
         )
@@ -153,7 +153,7 @@ class AutomationRuntimeLine(models.Model):
         return True
 
     def action_request_approval(self):
-        self.ensure_one()
+        self.check_singleton()
         record = self.runtime_id._get_target_record()
         if not record:
             self.action_mark_error(
@@ -181,7 +181,7 @@ class AutomationRuntimeLine(models.Model):
         return True
 
     def action_start_subflow(self):
-        self.ensure_one()
+        self.check_singleton()
         parent = self.runtime_id
         child = self.env["automation.runtime"].create(
             {
@@ -272,7 +272,7 @@ class AutomationRuntimeLine(models.Model):
             line._activate_successors()
 
     def action_execute(self):
-        self.ensure_one()
+        self.check_singleton()
 
         if self.state not in ("ready", "in_progress"):
             raise UserError(_("Action is not ready to execute"))
@@ -342,7 +342,7 @@ class AutomationRuntimeLine(models.Model):
             return False
 
     def action_view_document(self):
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.created_record_ref:
             raise UserError(_("No document created by this action"))

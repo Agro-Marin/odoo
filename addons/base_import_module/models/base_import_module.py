@@ -31,7 +31,7 @@ class BaseImportModule(models.TransientModel):
     modules_dependencies = fields.Text()
 
     def import_module(self):
-        self.ensure_one()
+        self.check_singleton()
         IrModule = self.env["ir.module.module"]
         zip_data = base64.decodebytes(self.module_file)
         fp = BytesIO()
@@ -60,7 +60,7 @@ class BaseImportModule(models.TransientModel):
         return module_ids.mapped("name")
 
     def action_module_open(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "domain": [("name", "in", self.env.context.get("module_name", []))],
             "name": "Modules",

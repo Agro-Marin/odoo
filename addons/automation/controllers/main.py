@@ -27,15 +27,15 @@ class AutomationRuleController(Controller):
             )
         )
         if not rule:
-            return request.make_json_response({"status": "error"}, status=404)
+            return request.prepare_json_response({"status": "error"}, status=404)
 
-        ok, status, message = rule._verify_webhook_request(
+        ok, status, message = rule._check_webhook_request(
             headers=dict(request.httprequest.headers),
             body=request.httprequest.get_data(as_text=False),
             remote_addr=request.httprequest.remote_addr,
         )
         if not ok:
-            return request.make_json_response(
+            return request.prepare_json_response(
                 {"status": "error", "message": message}, status=status
             )
 
@@ -43,5 +43,5 @@ class AutomationRuleController(Controller):
         try:
             rule._execute_webhook(data)
         except Exception:
-            return request.make_json_response({"status": "error"}, status=500)
-        return request.make_json_response({"status": "ok"}, status=200)
+            return request.prepare_json_response({"status": "error"}, status=500)
+        return request.prepare_json_response({"status": "ok"}, status=200)

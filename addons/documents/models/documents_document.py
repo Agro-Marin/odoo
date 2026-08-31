@@ -713,7 +713,7 @@ class DocumentsDocument(models.Model):
 
         attachment_id = vals.get("attachment_id")
         if attachment_id:
-            self.ensure_one()
+            self.check_singleton()
 
         attachments_was_present = []
         versioned = self.browse()
@@ -898,7 +898,7 @@ class DocumentsDocument(models.Model):
         ) and self.shortcut_ids | self.children_ids:
             self._update_company(company_id)
 
-        self._ensure_user_role_without_propagation(
+        self._add_user_role_without_propagation(
             "edit", previous_owner_access_to_keep
         )
 
@@ -1399,7 +1399,7 @@ class DocumentsDocument(models.Model):
     def action_move_folder(
         self, target: str, before_folder_id: int | bool = False
     ) -> bool | None:
-        self.ensure_one()
+        self.check_singleton()
         if self.type != "folder" or not self.active:
             return None
 
@@ -1536,7 +1536,7 @@ class DocumentsDocument(models.Model):
         )
 
     def action_view_access_log(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "documents.documents_access_log_action"
         )
@@ -1547,7 +1547,7 @@ class DocumentsDocument(models.Model):
         }
 
     def toggle_lock(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if self.lock_uid:
             self.lock_uid = False
         else:
@@ -1680,7 +1680,7 @@ class DocumentsDocument(models.Model):
         return super(DocumentsDocument, to_unarchive_documents).action_unarchive()
 
     def access_content(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         action = {
             "type": "ir.actions.act_url",
             "target": "new",
@@ -1692,7 +1692,7 @@ class DocumentsDocument(models.Model):
         return action
 
     def open_resource(self) -> dict | bool:
-        self.ensure_one()
+        self.check_singleton()
         if self.res_model and self.res_id:
             view_id = self.env[self.res_model].get_formview_id(self.res_id)
             return {
@@ -1755,7 +1755,7 @@ class DocumentsDocument(models.Model):
         )
 
     def is_folder_containing_document(self) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return bool(
             self.env["documents.document"]
             .sudo()
@@ -1897,7 +1897,7 @@ class DocumentsDocument(models.Model):
     def _get_access_action(
         self, access_uid: int | None = None, force_website: bool = False
     ) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         if (
             access_uid
             and not force_website

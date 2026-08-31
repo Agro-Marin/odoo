@@ -237,7 +237,7 @@ class DateRangeGenerator(models.TransientModel):
         :rtype: bool
         :raises ValidationError: outside batch mode, naming the missing setting
         """
-        self.ensure_one()
+        self.check_singleton()
         missing = [
             label
             for value, label in (
@@ -312,7 +312,7 @@ class DateRangeGenerator(models.TransientModel):
         :rtype: list
         :raises UserError: if the settings would generate no ranges
         """
-        self.ensure_one()
+        self.check_singleton()
         kwargs = {
             "freq": int(self.unit_of_time),
             "interval": self.duration_count,
@@ -353,7 +353,7 @@ class DateRangeGenerator(models.TransientModel):
         :rtype: list
         :raises ValidationError: on expression errors or when no naming method is set
         """
-        self.ensure_one()
+        self.check_singleton()
         return self._generate_names(vals, self.name_expr, self.name_prefix)
 
     @api.model
@@ -412,7 +412,7 @@ class DateRangeGenerator(models.TransientModel):
         :return: list of date.range create-vals
         :rtype: list
         """
-        self.ensure_one()
+        self.check_singleton()
         if not self._check_settings_complete(batch=batch):
             return []
         vals = self._generate_intervals()
@@ -441,7 +441,7 @@ class DateRangeGenerator(models.TransientModel):
         :rtype: dict or None
         :raises UserError: in interactive mode if generation or creation fails
         """
-        self.ensure_one()
+        self.check_singleton()
         DateRange = self.env["date.range"]
         try:
             date_ranges = self._generate_date_ranges(batch=batch)

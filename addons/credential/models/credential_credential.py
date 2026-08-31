@@ -883,7 +883,7 @@ class CredentialCredential(models.Model):
             )
 
     def _seal_storage_method(self, target_mode: str) -> None:
-        self.ensure_one()
+        self.check_singleton()
         current = self.storage_method or "none"
         if current == target_mode:
             return
@@ -981,7 +981,7 @@ class CredentialCredential(models.Model):
             record.set_credential_dict(data)
 
     def _read_credential_dict_raw(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         if self.storage_method != "json":
             return {}
         if self.id:
@@ -1215,7 +1215,7 @@ class CredentialCredential(models.Model):
         return results
 
     def action_validate_credential(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
 
         _logger.info(
             "Validating credential %s (category: %s)",
@@ -1295,7 +1295,7 @@ class CredentialCredential(models.Model):
         }
 
     def _expiry_warning_context(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         return ""
 
     @api.model
@@ -1362,7 +1362,7 @@ class CredentialCredential(models.Model):
         )
 
     def get_credential_dict(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
 
         if self.storage_method != "json":
             return {}
@@ -1388,7 +1388,7 @@ class CredentialCredential(models.Model):
     )
 
     def _get_secret(self, prefer: str | None = None) -> str | bool:
-        self.ensure_one()
+        self.check_singleton()
         candidates = self._SECRET_ACCESSOR_PRIORITY
         if prefer:
             candidates = (prefer, *(f for f in candidates if f != prefer))
@@ -1399,7 +1399,7 @@ class CredentialCredential(models.Model):
         return self.credential_value or False
 
     def _get_verification_secret(self, prefer: str | None = None) -> str | bool:
-        self.ensure_one()
+        self.check_singleton()
         encrypted = self.with_context(bin_size=False).credential_value_encrypted
         if not encrypted:
             return False
@@ -1429,13 +1429,13 @@ class CredentialCredential(models.Model):
         return False
 
     def get_basic_auth(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.username and self.password:
             return (self.username, self.password)
         return None
 
     def increment_usage(self, success: bool = True):
-        self.ensure_one()
+        self.check_singleton()
         vals = {
             "usage_count": self.usage_count + 1,
             "last_used_at": fields.Datetime.now(),
@@ -1466,11 +1466,11 @@ class CredentialCredential(models.Model):
         return False
 
     def _access_log_extras(self, operation: str) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         return {}
 
     def _prepare_access_log_vals(self, operation: str, source_ip) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "credential_id": self.id,
             "credential_name": self.name,
@@ -1484,21 +1484,21 @@ class CredentialCredential(models.Model):
         }
 
     def _log_access(self, operation: str = "read"):
-        self.ensure_one()
+        self.check_singleton()
         source_ip = self._get_request_source_ip()
         self.env["credential.access.log"].sudo().create(
             self._prepare_access_log_vals(operation, source_ip),
         )
 
     def _log_access_guarded(self, operation: str = "read") -> None:
-        self.ensure_one()
+        self.check_singleton()
         if self.env.cr.readonly:
             self._log_access_out_of_band(operation)
         else:
             self._log_access(operation)
 
     def _enforce_access_rate_limit(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if not self.id:
             return
         config = self.sudo()
@@ -1536,7 +1536,7 @@ class CredentialCredential(models.Model):
     _DECRYPT_WINDOW_SECONDS = 3600
 
     def _consume_decryption_allowance(self, cap: int) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         subject = SimpleNamespace(
             _name=self._DECRYPT_BUCKET_MODEL,
             id=self.id,
@@ -1586,14 +1586,14 @@ class CredentialCredential(models.Model):
                     )
 
     def mark_as_used(self):
-        self.ensure_one()
+        self.check_singleton()
         self.with_context(**{self._INTERNAL_STATS_UPDATE_KEY: True}).write(
             {"last_used_at": fields.Datetime.now()}
         )
         self._log_access("use")
 
     def set_credential_dict(self, data_dict: dict[str, Any]):
-        self.ensure_one()
+        self.check_singleton()
 
         if not isinstance(data_dict, dict):
             raise ValidationError(self.env._("Credential data must be a dictionary"))

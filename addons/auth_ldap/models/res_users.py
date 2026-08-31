@@ -55,6 +55,6 @@ class ResUsers(models.Model):
                     conf, self.env.user.login, old_passwd, new_passwd
                 )
                 if changed:
-                    self.env.user._set_empty_password()
+                    self.env.user._clear_password()
                     return True
         return super().change_password(old_passwd, new_passwd)

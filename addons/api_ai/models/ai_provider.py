@@ -92,7 +92,7 @@ class AIProvider(models.Model):
             record.display_name = " ".join(parts)
 
     def _get_ai_client(self, company_id=None):
-        self.ensure_one()
+        self.check_singleton()
         from ..tools.ai_clients import AI_CLIENT_REGISTRY, get_ai_client
 
         client = get_ai_client(
@@ -112,7 +112,7 @@ class AIProvider(models.Model):
         return client
 
     def action_view_request_logs(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         channel_ref = (
             f"api.endpoint.outbound,{self.endpoint_id.id}"
             if self.endpoint_id

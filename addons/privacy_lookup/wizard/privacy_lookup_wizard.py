@@ -154,7 +154,7 @@ class PrivacyLookupWizard(models.TransientModel):
         return query
 
     def action_lookup(self):
-        self.ensure_one()
+        self.check_singleton()
         query = self._get_query()
         self.env.flush_all()
         self.env.cr.execute(query)
@@ -163,7 +163,7 @@ class PrivacyLookupWizard(models.TransientModel):
         return self.action_view_lines()
 
     def _post_log(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.log_id and self.execution_details:
             self.log_id = self.env['privacy.log'].create({
                 'anonymized_name': self.name,
@@ -197,7 +197,7 @@ class PrivacyLookupWizard(models.TransientModel):
             ) for model, ids in records_by_model.items())
 
     def action_view_lines(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self.env['ir.actions.act_window']._get_action_dict_by_xml_id('privacy_lookup.action_privacy_lookup_wizard_line')
         action['domain'] = [('wizard_id', '=', self.id)]
         return action
@@ -287,7 +287,7 @@ class PrivacyLookupWizardLine(models.TransientModel):
             self.env[line.res_model].sudo().browse(line.res_id).write({'active': line.is_active})
 
     def action_unlink(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.is_unlinked:
             raise UserError(_('The record is already unlinked.'))
         self.env[self.res_model].sudo().browse(self.res_id).unlink()
@@ -308,7 +308,7 @@ class PrivacyLookupWizardLine(models.TransientModel):
             line.action_unlink()
 
     def action_view_record(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             'type': 'ir.actions.act_window',
             'view_mode': 'form',

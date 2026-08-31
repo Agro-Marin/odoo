@@ -23,7 +23,7 @@ class IrAttachment(models.Model):
         return None
 
     def get_documents_operation_add_destination(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "destination": UserFolder.MY,
             "display_name": self.env._("My Drive"),

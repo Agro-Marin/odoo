@@ -149,7 +149,7 @@ class TestEncryptionMixin(TransactionCase):
                 self._data = {"content_encrypted": b"cipher"}
                 self.stamped_with = None
 
-            def ensure_one(self):
+            def check_singleton(self):
                 pass
 
             def with_context(self, **kwargs):
@@ -191,7 +191,7 @@ class TestEncryptionMixin(TransactionCase):
                 self._data = {"content_encrypted": None}
                 self.stamped_with = "untouched"
 
-            def ensure_one(self):
+            def check_singleton(self):
                 pass
 
             def with_context(self, **kwargs):

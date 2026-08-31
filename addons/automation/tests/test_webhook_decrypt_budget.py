@@ -44,7 +44,7 @@ class TestWebhookAuthDoesNotExhaustTheDecryptionCap(EncryptionKeyCase, Transacti
         self.credential.invalidate_recordset()
 
     def _verify(self):
-        return self.rule._verify_webhook_request(
+        return self.rule._check_webhook_request(
             headers={"Authorization": "Bearer HOOKSECRET"},
             body=b'{"ping": 1}',
             remote_addr="10.0.0.1",
@@ -66,7 +66,7 @@ class TestWebhookAuthDoesNotExhaustTheDecryptionCap(EncryptionKeyCase, Transacti
             )
 
     def test_a_wrong_secret_is_still_refused(self):
-        ok, status, _ = self.rule._verify_webhook_request(
+        ok, status, _ = self.rule._check_webhook_request(
             headers={"Authorization": "Bearer WRONG"},
             body=b'{"ping": 1}',
             remote_addr="10.0.0.1",
@@ -113,7 +113,7 @@ class TestWebhookAuthDoesNotExhaustTheDecryptionCap(EncryptionKeyCase, Transacti
         digest = hmac_mod.new(b"HOOKSECRET", body, hashlib.sha256).hexdigest()
         for attempt in range(1, 16):
             self._fresh_request()
-            ok, status, message = self.rule._verify_webhook_request(
+            ok, status, message = self.rule._check_webhook_request(
                 headers={"X-Hub-Signature-256": f"sha256={digest}"},
                 body=body,
                 remote_addr="10.0.0.1",

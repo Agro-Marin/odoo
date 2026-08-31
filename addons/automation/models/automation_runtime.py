@@ -199,7 +199,7 @@ class AutomationRuntime(models.Model):
             runtime.progress_display = f"{settled}/{total} steps"
 
     def action_start(self):
-        self.ensure_one()
+        self.check_singleton()
 
         if self.state != "draft":
             return
@@ -229,7 +229,7 @@ class AutomationRuntime(models.Model):
             )
 
     def action_run_all(self):
-        self.ensure_one()
+        self.check_singleton()
 
         while self.state == "in_progress":
             ready_lines = self.line_ids.filtered(lambda l: l.state == "ready")
@@ -269,7 +269,7 @@ class AutomationRuntime(models.Model):
         return self.state
 
     def action_cancel(self):
-        self.ensure_one()
+        self.check_singleton()
 
         if self.state in ["done", "cancel", "error"]:
             return
@@ -300,7 +300,7 @@ class AutomationRuntime(models.Model):
             parent.action_run_all()
 
     def action_wait(self):
-        self.ensure_one()
+        self.check_singleton()
 
         if self.state != "in_progress":
             return
@@ -338,7 +338,7 @@ class AutomationRuntime(models.Model):
         return len(waiting)
 
     def action_done(self):
-        self.ensure_one()
+        self.check_singleton()
 
         if self.state not in ("in_progress", "waiting_resume"):
             return
@@ -351,7 +351,7 @@ class AutomationRuntime(models.Model):
         self._release_parent_line()
 
     def action_error(self):
-        self.ensure_one()
+        self.check_singleton()
 
         if self.state not in ("in_progress", "waiting_resume"):
             return
@@ -368,7 +368,7 @@ class AutomationRuntime(models.Model):
         )
 
     def action_next_step(self):
-        self.ensure_one()
+        self.check_singleton()
 
         if self.state != "in_progress":
             raise UserError(_("Workflow is not in progress"))
@@ -405,7 +405,7 @@ class AutomationRuntime(models.Model):
         return next_line.with_context(**context).action_execute()
 
     def _create_action_lines(self):
-        self.ensure_one()
+        self.check_singleton()
 
         actions = self.automation_id.action_server_ids.sorted("sequence")
         if not actions:
@@ -456,13 +456,13 @@ class AutomationRuntime(models.Model):
         )
 
     def _get_target_record(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.res_model:
             return self.env["automation.runtime"].browse(self.id)
         return self.env[self.res_model].browse(self.res_id or [])
 
     def _get_execution_context(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "default_partner_id": self.partner_id.id if self.partner_id else False,
             "default_diff_partner_id": (
@@ -478,7 +478,7 @@ class AutomationRuntime(models.Model):
         }
 
     def action_view_automation(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Automation Workflow"),
             "type": "ir.actions.act_window",

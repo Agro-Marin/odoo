@@ -125,7 +125,7 @@ class TestDocumentsDocumentFolder(TransactionCase):
         self.assertEqual(new_folder.access_internal, "view")
         self.assertEqual(new_folder.access_via_link, "edit")
         self.assertFalse(new_folder.is_access_via_link_hidden)
-        acl = new_folder.access_ids.ensure_one()
+        acl = new_folder.access_ids.check_singleton()
         self.assertEqual(acl.partner_id, self.user_portal.partner_id)
         self.assertEqual(acl.role, "view")
 
@@ -150,21 +150,21 @@ class TestDocumentsDocumentFolder(TransactionCase):
         self.assertNotEqual(folder_shortcut_copy.id, folder_shortcut.id)
         self.assertEqual(folder_shortcut_copy.name, f"{folder_shortcut.name} (copy)")
 
-        child_copy = folder_copy.children_ids.ensure_one()
+        child_copy = folder_copy.children_ids.check_singleton()
         self.assertNotEqual(child_copy.id, self.child_folder.id)
         self.assertEqual(child_copy.name, self.child_folder.name)
         self.assertEqual(child_copy.type, "folder")
         self.assertEqual(child_copy.folder_id, folder_copy)
         self.assertFalse(child_copy.owner_id)
 
-        document_copy = child_copy.children_ids.ensure_one()
+        document_copy = child_copy.children_ids.check_singleton()
         self.assertNotEqual(document_copy.id, self.document.id)
         self.assertEqual(document_copy.name, self.document.name)
         self.assertEqual(document_copy.type, "binary")
         self.assertEqual(document_copy.folder_id, child_copy)
         self.assertFalse(child_copy.owner_id)
 
-        attachment = document_copy.attachment_id.ensure_one()
+        attachment = document_copy.attachment_id.check_singleton()
         self.assertNotEqual(attachment.id, self.document.attachment_id.id)
         self.assertEqual(document_copy.raw, self.document.raw)
 

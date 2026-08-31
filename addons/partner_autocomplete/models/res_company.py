@@ -51,7 +51,7 @@ class ResCompany(models.Model):
     def _enrich(self):
         """This method calls the partner autocomplete service from IAP to enrich
         partner related fields of the company."""
-        self.ensure_one()
+        self.check_singleton()
         _logger.info("Starting enrich of company %s (%s)", self.name, self.id)
 
         company_domain = self._get_company_domain()
@@ -99,7 +99,7 @@ class ResCompany(models.Model):
         >>> company.website, company._get_company_domain()
         ("https://www.info.proximus.be", "proximus.be")
         """
-        self.ensure_one()
+        self.check_singleton()
 
         company_domain = email_domain_extract(self.email) if self.email else False
         if company_domain and company_domain not in iap_tools._MAIL_PROVIDERS:

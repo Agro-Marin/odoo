@@ -68,7 +68,7 @@ class FetchmailServer(models.Model):
 
         If the mail server is Outlook, we use the OAuth2 authentication protocol.
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.server_type == 'outlook':
             auth_string = self._generate_outlook_oauth2_string(self.user)
             connection.authenticate('XOAUTH2', lambda x: auth_string)
@@ -80,5 +80,5 @@ class FetchmailServer(models.Model):
 
         The Outlook mail server uses an IMAP connection.
         """
-        self.ensure_one()
+        self.check_singleton()
         return 'imap' if self.server_type == 'outlook' else super()._get_connection_type()

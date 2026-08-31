@@ -204,8 +204,8 @@ class IrActionsServer(models.Model):
     def _get_domain_children(self):
         return super()._get_domain_children() & Domain("automation_rule_id", "=", False)
 
-    def _get_eval_context(self, action):
-        eval_context = super()._get_eval_context(action)
+    def _prepare_eval_context(self, action):
+        eval_context = super()._prepare_eval_context(action)
         if action.state == "code":
             eval_context["json"] = json_scriptsafe
             payload = self.env.context.get("webhook_payload")
@@ -226,7 +226,7 @@ class IrActionsServer(models.Model):
         return eval_context
 
     def _get_warning_messages(self):
-        self.ensure_one()
+        self.check_singleton()
         warnings = super()._get_warning_messages()
 
         if (

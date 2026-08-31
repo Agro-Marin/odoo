@@ -431,7 +431,7 @@ class ApiEventLog(models.Model):
         )
 
     def mark_failed(self, error_message, error_type="other", schedule_retry=True):
-        self.ensure_one()
+        self.check_singleton()
 
         values = {
             "state": "failed",
@@ -484,7 +484,7 @@ class ApiEventLog(models.Model):
         )
 
     def action_retry_now(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
 
         if self.state not in ["failed", "pending", "retry"]:
             raise ValidationError(
@@ -521,7 +521,7 @@ class ApiEventLog(models.Model):
         }
 
     def action_view_channel(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.channel_id:
             raise ValidationError(self.env._("No channel associated with this event"))
@@ -536,7 +536,7 @@ class ApiEventLog(models.Model):
         }
 
     def action_view_related_events(self) -> dict[str, Any] | None:
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.trace_id:
             return None
@@ -684,7 +684,7 @@ class ApiEventLog(models.Model):
             )
 
     def get_payload_dict(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         try:
             return json.loads(self.request_payload) if self.request_payload else {}
         except (json.JSONDecodeError, ValueError) as e:

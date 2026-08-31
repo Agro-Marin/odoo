@@ -90,7 +90,7 @@ class MixinApiChannel(models.AbstractModel):
                 )
 
     def calculate_retry_delay(self, attempt_number):
-        self.ensure_one()
+        self.check_singleton()
 
         base_delay = self.retry_initial_delay
 
@@ -101,7 +101,7 @@ class MixinApiChannel(models.AbstractModel):
         return base_delay * (2 ** (attempt_number - 1))
 
     def should_retry(self, attempt_number):
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.retry_enabled:
             return False
