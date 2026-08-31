@@ -1,4 +1,5 @@
-import { addBuilderOption, setupHTMLBuilder } from "@html_builder/../tests/helpers";
+import { addBuilderOption, addBuilderPlugin, setupHTMLBuilder } from "@html_builder/../tests/helpers";
+import { Plugin } from "@html_editor/plugin";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { expect, test, describe } from "@odoo/hoot";
 import { xml } from "@odoo/owl";
@@ -77,4 +78,30 @@ test("click on BuilderCheckbox with inverseAction", async () => {
     await contains(".o-checkbox").click();
     expect(":iframe .test-options-target").toHaveClass("my-custom-class");
     expect(".o-checkbox .form-check-input:checked").toHaveCount(0);
+});
+
+test("Toggling a checkbox does not pull the selection out of the page", async () => {
+    // `selection_leave_handlers` is what closes the floating toolbar and drops
+    // the selection when a pointerdown lands outside the editable document.
+    addBuilderPlugin(
+        class extends Plugin {
+            static id = "testSelectionLeave";
+            resources = {
+                selection_leave_handlers: () => expect.step("selection leave"),
+            };
+        }
+    );
+    addBuilderOption(
+        class extends BaseOptionComponent {
+            static selector = ".test-options-target";
+            static template = xml`<BuilderCheckbox classAction="'checkbox-action'"/>`;
+        }
+    );
+    await setupHTMLBuilder(`<p class="test-options-target">b</p>`);
+    await contains(":iframe .test-options-target").click();
+    expect.verifySteps([]);
+
+    await contains(".o-checkbox").click();
+    expect(".o-checkbox .form-check-input:checked").toHaveCount(1);
+    expect.verifySteps([]);
 });
