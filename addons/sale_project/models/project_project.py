@@ -927,7 +927,6 @@ class ProjectProject(models.Model):
                     if len(sale_order_items) == 1:
                         action_params["res_id"] = sale_order_items.id
                     materials["action"] = action_params
-        sequence_per_invoice_type = self._get_profitability_sequence_per_invoice_type()
         data += [
             {
                 "id": invoice_type,
