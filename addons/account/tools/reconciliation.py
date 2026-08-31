@@ -26,6 +26,121 @@ def pick_reconciliation_currency(
     return company_currency
 
 
+def prepare_partial_amounts(context):
+    """How much of each side one partial settles, in company and foreign currency.
+
+    The two branches are the same question asked at one rate or at two: when the
+    reconciliation currency IS the company currency both sides are already
+    comparable, and when it is not each side has to be brought back through its
+    own rate and the two rounding windows compared.
+    """
+    if context["recon_currency"] == context["company_currency"]:
+        return _partial_amounts_at_par(context)
+    return _partial_amounts_across_rates(context)
+
+
+def _partial_amounts_at_par(context):
+    min_recon_amount = context["min_recon_amount"]
+    debit_currency = context["debit_currency"]
+    credit_currency = context["credit_currency"]
+
+    if context["exchange_line_mode"]:
+        debit_rate = credit_rate = None
+    else:
+        debit_rate = context["debit_available"].get(debit_currency, {}).get("rate")
+        credit_rate = context["credit_available"].get(credit_currency, {}).get("rate")
+
+    if debit_rate:
+        partial_debit_amount_currency = min(
+            debit_currency.round(debit_rate * min_recon_amount),
+            context["remaining_debit_amount_curr"],
+        )
+    else:
+        partial_debit_amount_currency = 0.0
+    if credit_rate:
+        partial_credit_amount_currency = min(
+            credit_currency.round(credit_rate * min_recon_amount),
+            -context["remaining_credit_amount_curr"],
+        )
+    else:
+        partial_credit_amount_currency = 0.0
+
+    return {
+        "partial_amount": min_recon_amount,
+        "partial_debit_amount_currency": partial_debit_amount_currency,
+        "partial_credit_amount_currency": partial_credit_amount_currency,
+        "partial_debit_amount": None,
+        "partial_credit_amount": None,
+    }
+
+
+def _partial_amounts_across_rates(context):
+    company_currency = context["company_currency"]
+    debit_currency = context["debit_currency"]
+    credit_currency = context["credit_currency"]
+    min_recon_amount = context["min_recon_amount"]
+    debit_rate = context["debit_recon_values"]["rate"]
+    credit_rate = context["credit_recon_values"]["rate"]
+
+    debit_range = amount_range_after_rate(
+        currency_from=debit_currency,
+        currency_to=company_currency,
+        amount=min_recon_amount,
+        rate=(1 / debit_rate) if debit_rate else 0.0,
+    )
+    credit_range = amount_range_after_rate(
+        currency_from=credit_currency,
+        currency_to=company_currency,
+        amount=min_recon_amount,
+        rate=(1 / credit_rate) if credit_rate else 0.0,
+    )
+    partial_debit_amount = min(debit_range[1], context["remaining_debit_amount"])
+    partial_credit_amount = min(credit_range[1], -context["remaining_credit_amount"])
+    partial_amount = min(partial_debit_amount, partial_credit_amount)
+
+    # Each side converted at its own rate lands inside the other side's rounding
+    # window, so the two are the same amount seen twice: settle the whole residual
+    # instead of leaving a cent behind as a fake difference.
+    if _ranges_overlap(
+        company_currency,
+        partial_debit_amount,
+        partial_credit_amount,
+        debit_range,
+        credit_range,
+    ):
+        partial_amount = min(
+            context["remaining_debit_amount"], -context["remaining_credit_amount"]
+        )
+        partial_debit_amount = partial_amount
+        partial_credit_amount = partial_amount
+
+    return {
+        "partial_amount": partial_amount,
+        "partial_debit_amount_currency": (
+            partial_amount if debit_currency == company_currency else min_recon_amount
+        ),
+        "partial_credit_amount_currency": (
+            partial_amount if credit_currency == company_currency else min_recon_amount
+        ),
+        "partial_debit_amount": partial_debit_amount,
+        "partial_credit_amount": partial_credit_amount,
+    }
+
+
+def _ranges_overlap(
+    company_currency, debit_amount, credit_amount, debit_range, credit_range
+):
+    def within(amount, low, high):
+        return (
+            company_currency.compare_amounts(amount, high) <= 0
+            and company_currency.compare_amounts(amount, low) >= 0
+        )
+
+    return within(debit_amount, credit_range[0], credit_range[2]) and within(
+        credit_amount, debit_range[0], debit_range[2]
+    )
+
+
 def group_lines_by_matching_number(partial_edges):
     """Map each connected component of reconciled lines to its oldest partial id.
 

@@ -2,17 +2,21 @@ import ast
 import collections
 import inspect
 import textwrap
-from datetime import date
+from datetime import date, timedelta
 
 from freezegun import freeze_time
 
-from odoo import Command
+from odoo import Command, fields
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests import Form, tagged
 from odoo.tools import SQL
 
 from odoo.addons.account.models.account_move_line import AccountMoveLine
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
+from odoo.addons.account.tools.display_types import (
+    NON_ACCOUNTABLE_DISPLAY_TYPES,
+)
+from odoo.addons.account.tools.reconciliation import prepare_partial_amounts
 
 
 @tagged("post_install", "-at_install")
@@ -206,6 +210,75 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
                 line, found, "search filter must agree with the computed payment_date"
             )
 
+    def test_payment_date_equality_means_due_by(self):
+        # `=` on payment_date is "due by", not "due on" -- account payment runs ask
+        # for the items payable as of a date. The consequence, which is what this
+        # pins, is that `!=` is the complement of `<=` and so means `>`: a line due
+        # EARLIER than the value is excluded. Both halves are measured here because
+        # the negative one is emergent -- _search_payment_date returns NotImplemented
+        # and the domain layer negates the positive search -- and would change
+        # silently if that negation ever did.
+        journal = self.company_data["default_journal_misc"]
+        debit_account = self.company_data["default_account_expense"]
+        credit_account = self.company_data["default_account_revenue"]
+        today = fields.Date.context_today(self.env["account.move.line"])
+
+        def line_due(days):
+            move = self.env["account.move"].create(
+                {
+                    "move_type": "entry",
+                    "journal_id": journal.id,
+                    "date": "2026-01-01",
+                    "line_ids": [
+                        Command.create(
+                            {
+                                "account_id": debit_account.id,
+                                "balance": 10.0,
+                                "name": "d",
+                                "date_maturity": today + timedelta(days=days),
+                            }
+                        ),
+                        Command.create(
+                            {
+                                "account_id": credit_account.id,
+                                "balance": -10.0,
+                                "name": "c",
+                            }
+                        ),
+                    ],
+                }
+            )
+            return move.line_ids.filtered(lambda l: l.account_id == debit_account)
+
+        early, on_target, late = line_due(-30), line_due(10), line_due(40)
+        pool = early + on_target + late
+        target = today + timedelta(days=10)
+
+        def search(operator):
+            return self.env["account.move.line"].search(
+                [("id", "in", pool.ids), ("payment_date", operator, target)]
+            )
+
+        self.assertEqual(
+            search("="),
+            early + on_target,
+            "'=' on payment_date means due BY the date, so it includes earlier lines",
+        )
+        self.assertEqual(
+            search("!="),
+            late,
+            "'!=' is the complement of that, so it means due AFTER the date -- it "
+            "does NOT mean 'payment date is not this date', and the earlier line "
+            "is deliberately absent",
+        )
+        self.assertNotEqual(
+            search("!="),
+            pool.filtered(lambda line: line.payment_date != target),
+            "the domain and the Python attribute disagree here on purpose; if this "
+            "ever starts holding, the remap above was removed and the comment on "
+            "_search_payment_date is stale",
+        )
+
     def test_name_retranslates_on_partner_language_change(self):
         self.env["res.lang"]._activate_lang("fr_FR")
         partner_en = self.env["res.partner"].create(
@@ -253,6 +326,138 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
         self.assertTrue(
             self.env.registry.field_depends.get(parent_field),
             "parent_id must declare dependencies",
+        )
+
+    def test_every_computed_line_field_declares_dependencies(self):
+        # The generalisation of the parent_id assertion above. A compute whose
+        # declared set is empty is never invalidated, so it answers with whatever
+        # it computed first -- the failure mode that left discount_allocation_needed
+        # frozen when its @api.depends was moved onto a helper that is no field's
+        # compute. Each exemption below is a compute that is deliberately driven by
+        # something other than a dependency; anything else must declare one.
+        deliberately_undeclared = {
+            # precompute + _conditional_add_to_compute drive these two; depending on
+            # move_id.partner_id would fight _inverse_partner_id.
+            "account_id",
+            "partner_id",
+            # mixin computes with no dependency of their own.
+            "analytic_coverage",
+            "move_attachment_ids",
+        }
+        model = self.env["account.move.line"]
+        undeclared = {
+            name
+            for name, field in model._fields.items()
+            if field.compute
+            and not field.related
+            and not self.env.registry.field_depends.get(field)
+            and not self.env.registry.field_depends_context.get(field)
+        }
+        self.assertEqual(
+            undeclared,
+            deliberately_undeclared,
+            "a computed field with no @api.depends and no @api.depends_context is "
+            "never invalidated; add the dependency, or add the field here with the "
+            "reason it does not need one",
+        )
+
+    def test_discount_allocation_follows_a_discount_change(self):
+        discount_account = self.company_data["default_account_expense"].copy()
+        self.company_data[
+            "company"
+        ].account_discount_expense_allocation_id = discount_account
+        invoice = self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "partner_id": self.partner_a.id,
+                "invoice_date": "2026-01-01",
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.product_a.id,
+                            "quantity": 1,
+                            "price_unit": 100.0,
+                            "discount": 10.0,
+                        }
+                    ),
+                ],
+            }
+        )
+        product_line = invoice.invoice_line_ids.filtered(
+            lambda l: l.display_type == "product"
+        )
+
+        def allocated():
+            return sorted(
+                invoice.line_ids.filtered(
+                    lambda l: l.display_type == "discount"
+                ).mapped("balance")
+            )
+
+        self.assertEqual(allocated(), [-10.0, 10.0])
+        product_line.discount = 40.0
+        self.assertEqual(
+            allocated(),
+            [-40.0, 40.0],
+            "the discount allocation lines must follow the discount they book",
+        )
+        product_line.discount = 25.0
+        self.assertEqual(allocated(), [-25.0, 25.0])
+        self.env.invalidate_all()
+        self.assertEqual(
+            allocated(),
+            [-25.0, 25.0],
+            "and the stored lines, not merely the cache, must carry the new amount",
+        )
+
+    def test_price_subtotal_follows_amount_currency_on_an_entry(self):
+        # On an entry, _prepare_product_base_line_for_taxes_computation reads
+        # amount_currency in place of price_unit, so price_subtotal is a function of
+        # it. price_subtotal is stored: an undeclared dependency here persists the
+        # stale figure to the column, it does not merely stale the cache.
+        journal = self.company_data["default_journal_misc"]
+        debit_account = self.company_data["default_account_expense"]
+        credit_account = self.company_data["default_account_revenue"]
+        entry = self.env["account.move"].create(
+            {
+                "move_type": "entry",
+                "journal_id": journal.id,
+                "date": "2026-01-01",
+                "line_ids": [
+                    Command.create(
+                        {"account_id": debit_account.id, "balance": 100.0, "name": "d"}
+                    ),
+                    Command.create(
+                        {
+                            "account_id": credit_account.id,
+                            "balance": -100.0,
+                            "name": "c",
+                        }
+                    ),
+                ],
+            }
+        )
+        debit_line, credit_line = entry.line_ids
+        self.assertEqual(debit_line.price_subtotal, 100.0)
+
+        entry.write(
+            {
+                "line_ids": [
+                    Command.update(
+                        debit_line.id, {"balance": 250.0, "amount_currency": 250.0}
+                    ),
+                    Command.update(
+                        credit_line.id, {"balance": -250.0, "amount_currency": -250.0}
+                    ),
+                ]
+            }
+        )
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.assertEqual(
+            debit_line.price_subtotal,
+            250.0,
+            "price_subtotal must follow amount_currency on a non-invoice move",
         )
 
     def test_exchange_move_is_linked_to_the_partial_that_produced_it(self):
@@ -432,23 +637,42 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
                 % (compute, resolved),
             )
 
+    def _parse_method_source(self, method):
+        # inspect.getsource takes its line span from the IMPORTED code object and
+        # re-reads those lines from disk, so an edit to account_move_line.py while
+        # this server is up hands back a block starting mid-statement. What that
+        # produces downstream names neither the file nor the reason -- a TypeError
+        # out of ast.get_docstring, a StopIteration out of a node search -- so the
+        # shape is checked here, once, for every test that introspects source.
+        # A shifted block fails two different ways depending on where it lands --
+        # it may not parse at all, or it may parse into something that is not a
+        # def -- so both are caught, not just the second.
+        try:
+            tree = ast.parse(textwrap.dedent(inspect.getsource(method)))
+        except SyntaxError:
+            tree = None
+        node = tree.body[0] if tree and tree.body else None
+        if not isinstance(node, ast.FunctionDef) or node.name != method.__name__:
+            self.fail(
+                "inspect.getsource did not return the body of %s; the module on "
+                "disk has moved under the imported code object, which happens when "
+                "another session edits account_move_line.py mid-run" % method.__name__
+            )
+        return tree, node
+
     def test_tax_ids_skip_list_derives_from_the_display_type_tuple(self):
-        tree = ast.parse(
-            textwrap.dedent(inspect.getsource(AccountMoveLine._compute_tax_ids))
-        )
+        tree, definition = self._parse_method_source(AccountMoveLine._compute_tax_ids)
         literals = {
             node.value
             for node in ast.walk(tree)
             if isinstance(node, ast.Constant) and isinstance(node.value, str)
         }
-        docstring = ast.get_docstring(tree.body[0]) or ""
+        docstring = ast.get_docstring(definition) or ""
         literals.discard(docstring)
-        restated = literals & set(
-            self.env["account.move.line"]._NON_ACCOUNTABLE_DISPLAY_TYPES
-        )
+        restated = literals & set(NON_ACCOUNTABLE_DISPLAY_TYPES)
         self.assertFalse(
             restated,
-            "derive the skip list from _NON_ACCOUNTABLE_DISPLAY_TYPES instead of "
+            "derive the skip list from NON_ACCOUNTABLE_DISPLAY_TYPES instead of "
             "restating %s" % sorted(restated),
         )
 
@@ -507,6 +731,59 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
             1,
             "one batch, one account.full.reconcile -- surplus batches leave orphans",
         )
+
+    def test_partial_amounts_at_par_clamps_to_what_is_left(self):
+        # Extracted arithmetic, called directly: at par the partial in each foreign
+        # currency is the rate applied to the reconciliation amount, but never more
+        # than the side actually still has outstanding.
+        company_currency = self.company_data["currency"]
+        foreign = self.setup_other_currency("EUR", rates=[("2024-01-01", 0.5)])
+        context = {
+            "recon_currency": company_currency,
+            "company_currency": company_currency,
+            "debit_currency": foreign,
+            "credit_currency": foreign,
+            "exchange_line_mode": False,
+            "min_recon_amount": 100.0,
+            "debit_available": {foreign: {"rate": 0.5}},
+            "credit_available": {foreign: {"rate": 0.5}},
+            "remaining_debit_amount_curr": 40.0,
+            "remaining_credit_amount_curr": -1000.0,
+        }
+        partials = prepare_partial_amounts(context)
+        self.assertEqual(partials["partial_amount"], 100.0)
+        self.assertEqual(
+            partials["partial_debit_amount_currency"],
+            40.0,
+            "0.5 * 100 is 50, but only 40 is left on the debit side",
+        )
+        self.assertEqual(
+            partials["partial_credit_amount_currency"],
+            50.0,
+            "the credit side has room, so the rate result stands",
+        )
+
+    def test_partial_amounts_at_par_ignores_rates_in_exchange_line_mode(self):
+        # exchange_line_mode says the only thing left between the two lines is the
+        # exchange difference, so neither rate may be applied a second time.
+        company_currency = self.company_data["currency"]
+        foreign = self.setup_other_currency("EUR", rates=[("2024-01-01", 0.5)])
+        context = {
+            "recon_currency": company_currency,
+            "company_currency": company_currency,
+            "debit_currency": foreign,
+            "credit_currency": foreign,
+            "exchange_line_mode": True,
+            "min_recon_amount": 100.0,
+            "debit_available": {foreign: {"rate": 0.5}},
+            "credit_available": {foreign: {"rate": 0.5}},
+            "remaining_debit_amount_curr": 1000.0,
+            "remaining_credit_amount_curr": -1000.0,
+        }
+        partials = prepare_partial_amounts(context)
+        self.assertEqual(partials["partial_amount"], 100.0)
+        self.assertEqual(partials["partial_debit_amount_currency"], 0.0)
+        self.assertEqual(partials["partial_credit_amount_currency"], 0.0)
 
     def test_reconciling_a_shape_and_its_mirror_agree(self):
         company = self.company_data["company"]
@@ -570,9 +847,7 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
         )
 
     def test_sync_invoice_snapshots_only_what_it_compares(self):
-        tree = ast.parse(
-            textwrap.dedent(inspect.getsource(AccountMoveLine._sync_invoice))
-        )
+        tree, _definition = self._parse_method_source(AccountMoveLine._sync_invoice)
         snapshot = next(
             node
             for node in ast.walk(tree)

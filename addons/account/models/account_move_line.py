@@ -21,8 +21,8 @@ from odoo.addons.account.tools.display_types import (
     NON_ACCOUNTABLE_DISPLAY_TYPES,
 )
 from odoo.addons.account.tools.reconciliation import (
-    amount_range_after_rate,
     pick_reconciliation_currency,
+    prepare_partial_amounts,
 )
 from odoo.addons.web.controllers.utils import clean_action
 
@@ -40,9 +40,6 @@ class AccountMoveLine(models.Model):
     _order = "date desc, move_name desc, id"
     _check_company_auto = True
     _rec_names_search = ["name", "move_id", "product_id"]
-
-    _NON_ACCOUNTABLE_DISPLAY_TYPES = NON_ACCOUNTABLE_DISPLAY_TYPES
-
 
     move_id = fields.Many2one(
         comodel_name="account.move",
@@ -136,12 +133,8 @@ class AccountMoveLine(models.Model):
         check_company=True,
         tracking=True,
     )
-    account_name = fields.Char(
-        related="account_id.name"
-    )
-    account_code = fields.Char(
-        related="account_id.code"
-    )
+    account_name = fields.Char(related="account_id.name")
+    account_code = fields.Char(related="account_id.code")
     account_lookup_id = fields.Many2one(
         "account.account", search="_search_account_lookup_id", store=False
     )
@@ -385,7 +378,6 @@ class AccountMoveLine(models.Model):
     )
     product_category_id = fields.Many2one(related="product_id.product_tmpl_id.categ_id")
 
-
     display_type = fields.Selection(
         selection=[
             ("product", "Product"),
@@ -593,7 +585,6 @@ class AccountMoveLine(models.Model):
                 toolbar["action"] = []
         return res
 
-
     @api.depends("move_id")
     def _compute_display_type(self):
         for line in self.filtered(lambda l: not l.display_type):
@@ -613,6 +604,9 @@ class AccountMoveLine(models.Model):
                 else "product"
             )
 
+    # No @api.depends on move_id.partner_id on purpose: account.move's own
+    # _sync_invoice writes the commercial partner down onto the lines when it
+    # changes, and a dependency here would fight that inverse.
     def _compute_partner_id(self):
         for line in self:
             line.partner_id = line.move_id.partner_id.commercial_partner_id
@@ -703,7 +697,7 @@ class AccountMoveLine(models.Model):
                     line.name = name
             if (
                 not line.product_id
-                or line.display_type in self._NON_ACCOUNTABLE_DISPLAY_TYPES
+                or line.display_type in NON_ACCOUNTABLE_DISPLAY_TYPES
             ):
                 continue
 
@@ -734,9 +728,7 @@ class AccountMoveLine(models.Model):
         for line in term_lines:
             move = line.move_id
             is_receivable = move.is_sale_document(include_receipts=True)
-            account_type = (
-                "asset_receivable" if is_receivable else "liability_payable"
-            )
+            account_type = "asset_receivable" if is_receivable else "liability_payable"
             property_fname = (
                 "property_account_receivable_id"
                 if is_receivable
@@ -760,7 +752,7 @@ class AccountMoveLine(models.Model):
     def _get_term_default_accounts(self):
         moves = self.move_id
         self.env.cr.execute(
-                """
+            """
                 WITH previous AS (
                     SELECT DISTINCT ON (line.move_id)
                            'account.move' AS model,
@@ -810,27 +802,40 @@ class AccountMoveLine(models.Model):
                 line.display_type == "product" and line.move_id.is_invoice(True)
             )
         )
+        # Both lookups below are pure in their key and were being repeated once per
+        # line: an invoice that lists the same product, or any two lines sharing a
+        # partner, asked the same question as many times as it had lines.
+        accounts_per_key = {}
+        partner_account_per_key = {}
         for line in product_lines:
             if line.product_id:
-                accounts = line.with_company(
-                    line.company_id
-                ).product_id.product_tmpl_id._get_product_accounts(
-                    fiscal_pos=line.move_id.fiscal_position_id
+                template = line.product_id.product_tmpl_id
+                key = (
+                    line.company_id.id,
+                    template.id,
+                    line.move_id.fiscal_position_id.id,
                 )
+                if key not in accounts_per_key:
+                    accounts_per_key[key] = line.with_company(
+                        line.company_id
+                    ).product_id.product_tmpl_id._get_product_accounts(
+                        fiscal_pos=line.move_id.fiscal_position_id
+                    )
+                accounts = accounts_per_key[key]
                 if line.move_id.is_sale_document(include_receipts=True):
                     line.account_id = accounts["income"] or line.account_id
                 elif line.move_id.is_purchase_document(include_receipts=True):
                     line.account_id = accounts["expense"] or line.account_id
             elif line.partner_id:
-                account_id = self.env[
-                    "account.account"
-                ]._get_most_frequent_account_for_partner(
-                    company_id=line.company_id.id,
-                    partner_id=line.partner_id.id,
-                    move_type=line.move_id.move_type,
-                )
-                if account_id:
-                    line.account_id = account_id
+                key = (line.company_id.id, line.partner_id.id, line.move_id.move_type)
+                if key not in partner_account_per_key:
+                    partner_account_per_key[key] = self.env[
+                        "account.account"
+                    ]._get_most_frequent_account_for_partner(
+                        company_id=key[0], partner_id=key[1], move_type=key[2]
+                    )
+                if partner_account_per_key[key]:
+                    line.account_id = partner_account_per_key[key]
 
     def _compute_account_id_fallback(self):
         for line in self:
@@ -851,6 +856,10 @@ class AccountMoveLine(models.Model):
 
     @api.model
     def _search_account_lookup_id(self, operator, value):
+        # A drop-in for searching account_id that resolves the sub-domain here and
+        # inlines the ids, so the final query does not join account.account. Worth
+        # it while that table stays small (<10k rows). sudo: account_id carries
+        # bypass_search_access=True, so the ids must not be narrowed by ir.rule.
         if operator in ("in", "not in", "any", "not any") and not isinstance(
             value, (tuple, list, OrderedSet)
         ):
@@ -886,7 +895,7 @@ class AccountMoveLine(models.Model):
     @api.depends("move_id")
     def _compute_balance(self):
         for line in self:
-            if line.display_type in self._NON_ACCOUNTABLE_DISPLAY_TYPES:
+            if line.display_type in NON_ACCOUNTABLE_DISPLAY_TYPES:
                 line.balance = False
             elif not line.move_id.is_invoice(include_receipts=True):
                 other_lines = line.move_id.line_ids - line
@@ -997,6 +1006,8 @@ class AccountMoveLine(models.Model):
                 or x.account_id.account_type in ("asset_cash", "liability_credit_card")
             )
         )
+        # _origin drops the NewIds, so the query below runs on rows that exist and
+        # the onchange (virtual) records fall through to the zero default.
         stored_lines = need_residual_lines._origin
 
         if stored_lines:
@@ -1115,7 +1126,14 @@ class AccountMoveLine(models.Model):
         for line in self:
             line.sequence = seq_map.get(line.display_type, 100)
 
-    @api.depends("quantity", "discount", "price_unit", "tax_ids", "currency_id")
+    @api.depends(
+        "quantity",
+        "discount",
+        "price_unit",
+        "amount_currency",
+        "tax_ids",
+        "currency_id",
+    )
     def _compute_totals(self):
         AccountTax = self.env["account.tax"]
         for line in self:
@@ -1146,7 +1164,7 @@ class AccountMoveLine(models.Model):
         for line in self:
             if (
                 not line.product_id
-                or line.display_type in self._NON_ACCOUNTABLE_DISPLAY_TYPES
+                or line.display_type in NON_ACCOUNTABLE_DISPLAY_TYPES
                 or line.is_imported
             ):
                 continue
@@ -1170,7 +1188,7 @@ class AccountMoveLine(models.Model):
         for line in self:
             if (
                 line.display_type
-                in (*self._NON_ACCOUNTABLE_DISPLAY_TYPES, "payment_term", "cogs")
+                in (*NON_ACCOUNTABLE_DISPLAY_TYPES, "payment_term", "cogs")
                 or line.is_imported
             ):
                 continue
@@ -1235,15 +1253,6 @@ class AccountMoveLine(models.Model):
             else:
                 line.discount_allocation_key = False
 
-    @api.depends(
-        "account_id",
-        "company_id",
-        "discount",
-        "price_unit",
-        "quantity",
-        "currency_rate",
-        "analytic_distribution",
-    )
     def _prepare_discount_allocation_amounts(self):
         # Each discounted product line books its discount twice: off its own account
         # and onto the allocation account. Lines with no discount, no allocation
@@ -1273,6 +1282,18 @@ class AccountMoveLine(models.Model):
             ]
         return amounts_per_line
 
+    @api.depends(
+        "company_id",
+        "move_id.move_type",
+        "move_id.line_ids.display_type",
+        "move_id.line_ids.account_id",
+        "move_id.line_ids.discount",
+        "move_id.line_ids.price_unit",
+        "move_id.line_ids.quantity",
+        "move_id.line_ids.currency_id",
+        "move_id.line_ids.currency_rate",
+        "move_id.line_ids.analytic_distribution",
+    )
     def _compute_discount_allocation(self):
         line2discounted_amount = self._prepare_discount_allocation_amounts()
 
@@ -1576,6 +1597,15 @@ class AccountMoveLine(models.Model):
                 move.no_followup = aml.no_followup
 
     def _search_payment_date(self, operator, value):
+        # `=` means "due by", not "due on". A payment run asks for the items
+        # payable as of a date, so ("payment_date", "=", d) is deliberately
+        # `<= d`; test_account_payment_items depends on exactly that. The
+        # consequence is that `!=` is the complement of `<=`, which is `>` --
+        # NOT true inequality. A line whose payment date is EARLIER than the
+        # value is excluded by `!=`, which surprises anyone reading the domain
+        # as ordinary field equality. Left as it is because the "due by" reading
+        # is the one the field exists for; pinned by
+        # test_payment_date_equality_means_due_by so it cannot drift silently.
         if operator == "in":
             return Domain.OR(self._search_payment_date("=", v) for v in value)
         if operator in Domain.NEGATIVE_OPERATORS:
@@ -1617,18 +1647,14 @@ class AccountMoveLine(models.Model):
             "type": "ir.actions.act_window",
         }
 
-
     def _search_journal_group_id(self, operator, value):
         return self.env["account.move"]._search_journal_group_id(operator, value)
-
 
     @api.onchange("partner_id")
     def _inverse_partner_id(self):
         self._conditional_add_to_compute(
             "account_id",
-            lambda line: (
-                line.display_type == "payment_term"
-            ),
+            lambda line: line.display_type == "payment_term",
         )
 
     @api.onchange("product_id")
@@ -1725,7 +1751,6 @@ class AccountMoveLine(models.Model):
     def _inverse_reconciled_lines_ids(self):
         self._reconcile_plan([line + line.reconciled_lines_ids for line in self])
 
-
     def _check_account_is_usable(self):
         # Deliberately NOT an @api.constrains: when a move and its lines are written
         # in the same operation the constraint fires before every write has landed,
@@ -1734,7 +1759,7 @@ class AccountMoveLine(models.Model):
         # referencing a since-archived account can still be duplicated and corrected
         # in draft (47d28b568be).
         for line in self.filtered(
-            lambda x: x.display_type not in self._NON_ACCOUNTABLE_DISPLAY_TYPES
+            lambda x: x.display_type not in NON_ACCOUNTABLE_DISPLAY_TYPES
         ):
             account = line.account_id
             if not account:
@@ -1995,7 +2020,6 @@ class AccountMoveLine(models.Model):
                     _("The deductibility must be a value between 0 and 100.")
                 )
 
-
     @api.model
     def _get_tracked_fnames(self):
         return [
@@ -2022,11 +2046,19 @@ class AccountMoveLine(models.Model):
         # deletion compares a blank line against the values it used to hold.
         if self.env.context.get("tracking_disable"):
             return
+        # fields_get() builds a full description per field and is the cost of this
+        # method; on a draft move there is nothing to log, so it is paid only once
+        # the loggable lines are known to exist.
+        loggable = {
+            move: lines
+            for move, lines in self.grouped("move_id").items()
+            if move.posted_before
+        }
+        if not loggable:
+            return
         tracked_fnames = self._get_tracked_fnames()
         ref_fields = self.fields_get(tracked_fnames)
-        for move, lines in self.grouped("move_id").items():
-            if not move.posted_before:
-                continue
+        for move, lines in loggable.items():
             for line in lines:
                 record, initial_values = tracked_pair(line, tracked_fnames)
                 tracking_value_ids = record._mail_track(ref_fields, initial_values)[1]
@@ -2079,7 +2111,7 @@ class AccountMoveLine(models.Model):
         if (
             quick_encode_suggestion
             and self.env.context.get("default_display_type")
-            not in self._NON_ACCOUNTABLE_DISPLAY_TYPES
+            not in NON_ACCOUNTABLE_DISPLAY_TYPES
         ):
             defaults["account_id"] = quick_encode_suggestion["account_id"]
             defaults["price_unit"] = quick_encode_suggestion["price_unit"]
@@ -2132,7 +2164,7 @@ class AccountMoveLine(models.Model):
                 res_vals.pop("debit", 0)
                 res_vals.pop("credit", 0)
 
-            if res_vals.get("display_type") in self._NON_ACCOUNTABLE_DISPLAY_TYPES:
+            if res_vals.get("display_type") in NON_ACCOUNTABLE_DISPLAY_TYPES:
                 res_vals.pop("account_id", None)
 
         return result_vals_list
@@ -2260,9 +2292,7 @@ class AccountMoveLine(models.Model):
             _(
                 "You cannot edit the following fields: %(fields)s.\n"
                 "The following entries are already hashed:\n%(entries)s",
-                fields=[
-                    f["string"] for f in self.fields_get(violated_fields).values()
-                ],
+                fields=[f["string"] for f in self.fields_get(violated_fields).values()],
                 entries="\n".join(hashed_moves.mapped("name")),
             )
         )
@@ -2381,6 +2411,9 @@ class AccountMoveLine(models.Model):
             if any(field in vals for field in ["account_id", "currency_id"]):
                 self._check_account_is_usable()
 
+            # Deliberately the second call: a line that did not affect the tax
+            # report before the write may affect it after, and only the values
+            # now stored can say so.
             self.browse(tax_lock_check_ids)._check_tax_lock_date()
 
             self._log_tracked_change(
@@ -2438,9 +2471,7 @@ class AccountMoveLine(models.Model):
                         )
                     )
 
-    @api.ondelete(
-        at_uninstall=False
-    )
+    @api.ondelete(at_uninstall=False)
     def _except_hashed_entry_lines(self):
         for line in self:
             if line.move_id.inalterable_hash:
@@ -2542,7 +2573,7 @@ class AccountMoveLine(models.Model):
         for line, vals in zip(self, vals_list, strict=True):
             if line.display_type == "payment_term" and line.move_id.is_invoice(True):
                 vals.pop("name", None)
-            if line.display_type in self._NON_ACCOUNTABLE_DISPLAY_TYPES:
+            if line.display_type in NON_ACCOUNTABLE_DISPLAY_TYPES:
                 vals.pop("balance", None)
                 vals.pop("account_id", None)
             if line.display_type == "product" and line.move_id.is_invoice(True):
@@ -2616,7 +2647,6 @@ class AccountMoveLine(models.Model):
             }
             for (code,) in account_codes
         }
-
 
     def _get_reconciliation_aml_field_value(self, field, shadowed_aml_values):
         self.check_singleton()
@@ -2824,121 +2854,6 @@ class AccountMoveLine(models.Model):
         return context
 
     @api.model
-    def _prepare_reconciliation_partial_amounts(self, context):
-        if context["recon_currency"] == context["company_currency"]:
-            return self._prepare_reconciliation_partial_amounts_at_par(context)
-        return self._prepare_reconciliation_partial_amounts_across_rates(context)
-
-    @api.model
-    def _prepare_reconciliation_partial_amounts_at_par(self, context):
-        min_recon_amount = context["min_recon_amount"]
-        debit_currency = context["debit_currency"]
-        credit_currency = context["credit_currency"]
-
-        if context["exchange_line_mode"]:
-            debit_rate = credit_rate = None
-        else:
-            debit_rate = context["debit_available"].get(debit_currency, {}).get("rate")
-            credit_rate = (
-                context["credit_available"].get(credit_currency, {}).get("rate")
-            )
-
-        if debit_rate:
-            partial_debit_amount_currency = min(
-                debit_currency.round(debit_rate * min_recon_amount),
-                context["remaining_debit_amount_curr"],
-            )
-        else:
-            partial_debit_amount_currency = 0.0
-        if credit_rate:
-            partial_credit_amount_currency = min(
-                credit_currency.round(credit_rate * min_recon_amount),
-                -context["remaining_credit_amount_curr"],
-            )
-        else:
-            partial_credit_amount_currency = 0.0
-
-        return {
-            "partial_amount": min_recon_amount,
-            "partial_debit_amount_currency": partial_debit_amount_currency,
-            "partial_credit_amount_currency": partial_credit_amount_currency,
-            "partial_debit_amount": None,
-            "partial_credit_amount": None,
-        }
-
-    @api.model
-    def _prepare_reconciliation_partial_amounts_across_rates(self, context):
-        company_currency = context["company_currency"]
-        debit_currency = context["debit_currency"]
-        credit_currency = context["credit_currency"]
-        min_recon_amount = context["min_recon_amount"]
-        debit_rate = context["debit_recon_values"]["rate"]
-        credit_rate = context["credit_recon_values"]["rate"]
-
-        debit_range = amount_range_after_rate(
-            currency_from=debit_currency,
-            currency_to=company_currency,
-            amount=min_recon_amount,
-            rate=(1 / debit_rate) if debit_rate else 0.0,
-        )
-        credit_range = amount_range_after_rate(
-            currency_from=credit_currency,
-            currency_to=company_currency,
-            amount=min_recon_amount,
-            rate=(1 / credit_rate) if credit_rate else 0.0,
-        )
-        partial_debit_amount = min(
-            debit_range[1], context["remaining_debit_amount"]
-        )
-        partial_credit_amount = min(
-            credit_range[1], -context["remaining_credit_amount"]
-        )
-        partial_amount = min(partial_debit_amount, partial_credit_amount)
-
-        # Each side converted at its own rate lands inside the other side's
-        # rounding window, so the two are the same amount seen twice: settle the
-        # whole residual instead of leaving a cent behind as a fake difference.
-        if self._reconciliation_ranges_overlap(
-            company_currency,
-            partial_debit_amount,
-            partial_credit_amount,
-            debit_range,
-            credit_range,
-        ):
-            partial_amount = min(
-                context["remaining_debit_amount"], -context["remaining_credit_amount"]
-            )
-            partial_debit_amount = partial_amount
-            partial_credit_amount = partial_amount
-
-        return {
-            "partial_amount": partial_amount,
-            "partial_debit_amount_currency": (
-                partial_amount if debit_currency == company_currency
-                else min_recon_amount
-            ),
-            "partial_credit_amount_currency": (
-                partial_amount if credit_currency == company_currency
-                else min_recon_amount
-            ),
-            "partial_debit_amount": partial_debit_amount,
-            "partial_credit_amount": partial_credit_amount,
-        }
-
-    @api.model
-    def _reconciliation_ranges_overlap(
-        self, company_currency, debit_amount, credit_amount, debit_range, credit_range
-    ):
-        def within(amount, low, high):
-            return (
-                company_currency.compare_amounts(amount, high) <= 0
-                and company_currency.compare_amounts(amount, low) >= 0
-            )
-
-        return within(debit_amount, credit_range[0], credit_range[2]) and within(
-            credit_amount, debit_range[0], debit_range[2]
-        )
-
     @api.model
     def _prepare_reconciliation_exchange_difference(self, context, partials):
         exchange_lines_to_fix = self.env["account.move.line"]
@@ -3007,8 +2922,7 @@ class AccountMoveLine(models.Model):
             ),
         )
         exchange_values["to_post"] = (
-            debit_aml.parent_state == "posted"
-            and credit_aml.parent_state == "posted"
+            debit_aml.parent_state == "posted" and credit_aml.parent_state == "posted"
         )
         return exchange_values
 
@@ -3027,7 +2941,7 @@ class AccountMoveLine(models.Model):
         if res["debit_values"] is None or res["credit_values"] is None:
             return res
 
-        partials = self._prepare_reconciliation_partial_amounts(context)
+        partials = prepare_partial_amounts(context)
 
         if not self.env.context.get(
             "no_exchange_difference"
@@ -3116,7 +3030,6 @@ class AccountMoveLine(models.Model):
                 credit_values = next(credit_values_list, None)
                 if not credit_values:
                     break
-
 
             results = self._prepare_reconciliation_single_partial(
                 debit_values,
@@ -3349,7 +3262,9 @@ class AccountMoveLine(models.Model):
         }
         self._create_reconciliation_partials(plan_list, aml_values_map)
         self._create_reconciliation_cash_basis_moves(plan_list)
-        involved_amls = self._create_full_reconciles(plan_list, all_amls, aml_values_map)
+        involved_amls = self._create_full_reconciles(
+            plan_list, all_amls, aml_values_map
+        )
         involved_amls._reconcile_post_hook(pre_hook_data)
 
     def _create_reconciliation_partials(self, plan_list, aml_values_map):
@@ -3689,7 +3604,6 @@ class AccountMoveLine(models.Model):
     def _get_matched_move_ids(self):
         return self.matched_debit_ids | self.matched_credit_ids
 
-
     def _get_analytic_business_domain(self):
         self.check_singleton()
         move = self.move_id
@@ -3862,7 +3776,6 @@ class AccountMoveLine(models.Model):
                 line["amount"] -= amt
                 rounding_error -= amt
 
-
     def _get_installments_data(
         self, payment_currency=None, payment_date=None, next_payment_date=None
     ):
@@ -3930,7 +3843,6 @@ class AccountMoveLine(models.Model):
                 installment["type"] = current_installment_mode
 
         return installments
-
 
     def _get_fields_integrity_hash(self):
         hash_version = self.env.context.get("hash_version", MAX_HASH_VERSION)
@@ -4083,7 +3995,6 @@ class AccountMoveLine(models.Model):
 
     def _prepare_edi_vals_to_export(self):
         self.check_singleton()
-
 
         if float_compare(self.discount, 100.0, precision_digits=2) == 0:
             gross_price_subtotal = self.currency_id.round(
@@ -4255,7 +4166,6 @@ class AccountMoveLine(models.Model):
         )
         return is_direct_child or is_indirect_child
 
-
     def open_reconcile_view(self):
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "account.action_account_moves_all_grouped_matching"
@@ -4310,7 +4220,6 @@ class AccountMoveLine(models.Model):
             "quantity": 0,
         }
 
-
     def _conditional_add_to_compute(self, fname, condition):
         field = self._fields[fname]
         to_reset = self.filtered(
@@ -4318,7 +4227,6 @@ class AccountMoveLine(models.Model):
         )
         to_reset.invalidate_recordset([fname])
         self.env.add_to_compute(field, to_reset)
-
 
     def _copy_data_extend_business_fields(self, values):
         self.check_singleton()
