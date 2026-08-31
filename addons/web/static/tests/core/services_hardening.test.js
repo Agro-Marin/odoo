@@ -352,7 +352,7 @@ describe("connection recovery is per env", () => {
 
         const makeError = () => {
             const error = new UncaughtPromiseError();
-            error.unhandledRejectionEvent = { preventDefault: () => {} };
+            error.event = /** @type {any} */ ({ preventDefault: () => {} });
             return error;
         };
         const makeEnv = (opened) => {
@@ -511,7 +511,7 @@ describe("reconnect poll stops with its env", () => {
         });
 
         const error = new UncaughtPromiseError();
-        error.unhandledRejectionEvent = { preventDefault: () => {} };
+        error.event = /** @type {any} */ ({ preventDefault: () => {} });
         const notifications = [];
         const env = {
             services: {

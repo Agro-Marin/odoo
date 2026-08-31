@@ -13,7 +13,20 @@ import {
     pyTypeName,
 } from "./py_builtin.js";
 import { isEqual, isIn, isLess } from "./py_compare.js";
-import { PyDate, PyDateTime, PyRelativeDelta, PyTime, PyTimeDelta } from "./py_date.js";
+import {
+    NotSupportedError,
+    PyDate,
+    PyDateTime,
+    PyRelativeDelta,
+    PyTime,
+    PyTimeDelta,
+} from "./py_date.js";
+import {
+    pyDifference,
+    pyIntersection,
+    pySymmetricDifference,
+    pyUnion,
+} from "./py_set.js";
 import { isPyTuple, markPyTuple } from "./py_tuple.js";
 import { isPyDict, isPyMapping, toPyDict } from "./py_utils.js";
 
@@ -316,6 +329,7 @@ const STRING = {
  */
 function applyFunc(key, func, set, ...args) {
     if (args.length === 1) {
+        // A copy of a set that is already folded; nothing to re-check.
         return new Set(set);
     }
     if (args.length > 2) {
@@ -334,15 +348,7 @@ const SET = {
     intersection(...args) {
         return applyFunc(
             "intersection",
-            (/** @type {Iterable<any>} */ iterable) => {
-                const intersection = new Set();
-                for (const i of iterable) {
-                    if (this.has(i)) {
-                        intersection.add(i);
-                    }
-                }
-                return intersection;
-            },
+            (/** @type {Iterable<any>} */ iterable) => pyIntersection(this, iterable),
             this,
             ...args,
         );
@@ -354,16 +360,7 @@ const SET = {
     difference(...args) {
         return applyFunc(
             "difference",
-            (/** @type {any} */ iterable) => {
-                iterable = new Set(iterable);
-                const difference = new Set();
-                for (const e of this) {
-                    if (!iterable.has(e)) {
-                        difference.add(e);
-                    }
-                }
-                return difference;
-            },
+            (/** @type {Iterable<any>} */ iterable) => pyDifference(this, iterable),
             this,
             ...args,
         );
@@ -375,7 +372,7 @@ const SET = {
     union(...args) {
         return applyFunc(
             "union",
-            (/** @type {Iterable<any>} */ iterable) => new Set([...this, ...iterable]),
+            (/** @type {Iterable<any>} */ iterable) => pyUnion(this, iterable),
             this,
             ...args,
         );
@@ -796,16 +793,46 @@ function pyStringFormat(fmt, value) {
 }
 
 /**
+ * CPython names the operator and both operands in SOURCE order:
+ * `2 > set([1])` reports "'>' ... between instances of 'int' and 'set'".
+ * isLess() can report neither -- `a > b` is dispatched as isLess(b, a), and it
+ * never sees the operator at all -- so it raises a bare "not supported between
+ * instances of X and Y" and this table, the only place holding both, puts the
+ * operator and the original order back.
+ *
+ * @param {string} op
+ * @param {any} left
+ * @param {any} right
+ * @param {() => boolean} compare
+ * @returns {boolean}
+ */
+function comparing(op, left, right, compare) {
+    try {
+        return compare();
+    } catch (error) {
+        if (error instanceof NotSupportedError) {
+            throw new NotSupportedError(
+                `'${op}' not supported between instances of ` +
+                    `'${pyTypeName(left)}' and '${pyTypeName(right)}'`,
+            );
+        }
+        throw error;
+    }
+}
+
+/**
  * @type {Record<string, (left: any, right: any) => boolean>}
  */
 const COMPARISONS = {
     "==": (left, right) => isEqual(left, right),
     "<>": (left, right) => !isEqual(left, right),
     "!=": (left, right) => !isEqual(left, right),
-    "<": (left, right) => isLess(left, right),
-    ">": (left, right) => isLess(right, left),
-    ">=": (left, right) => isEqual(left, right) || isLess(right, left),
-    "<=": (left, right) => isEqual(left, right) || isLess(left, right),
+    "<": (left, right) => comparing("<", left, right, () => isLess(left, right)),
+    ">": (left, right) => comparing(">", left, right, () => isLess(right, left)),
+    ">=": (left, right) =>
+        comparing(">=", left, right, () => isEqual(left, right) || isLess(right, left)),
+    "<=": (left, right) =>
+        comparing("<=", left, right, () => isEqual(left, right) || isLess(left, right)),
     in: (left, right) => isIn(left, right),
     "not in": (left, right) => !isIn(left, right),
     is: (left, right) => (left === null ? right === null : left === right),
@@ -901,7 +928,7 @@ function _applyBinaryOp(ast, recurse) {
                 return left.subtract(right);
             }
             if (left instanceof Set && right instanceof Set) {
-                return left.difference(right);
+                return pyDifference(left, right);
             }
             assertNumericOperands("-", left, right);
             return left - right;
@@ -1034,11 +1061,11 @@ function _applyBinaryOp(ast, recurse) {
             if (left instanceof Set && right instanceof Set) {
                 switch (ast.op) {
                     case "|":
-                        return left.union(right);
+                        return pyUnion(left, right);
                     case "&":
-                        return left.intersection(right);
+                        return pyIntersection(left, right);
                     case "^":
-                        return left.symmetricDifference(right);
+                        return pySymmetricDifference(left, right);
                     default:
                         throw new EvaluationError(
                             `unsupported operand type(s) for ${ast.op}: 'set' and 'set'`,

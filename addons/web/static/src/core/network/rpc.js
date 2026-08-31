@@ -485,136 +485,19 @@ export function rpc(url, params = {}, settings = {}) {
  * @param {{[key: string]: any}} settings
  * @returns {Promise<any>}
  */
+/**
+ * @param {string} url
+ * @param {{[key: string]: any}} params
+ * @param {{[key: string]: any}} settings
+ * @returns {Promise<any>}
+ */
 rpc._rpc = function (url, params, settings) {
     validateRPCSettings(settings);
     if (settings.dedup) {
-        const key = `${buildKey(url, params)}|${dedupSettingsFingerprint(settings)}`;
-        let entry = inflightDedup.get(key);
-        if (!entry) {
-            const shared = /** @type {any} */ (
-                rpc._rpc(url, params, omit(settings, "dedup", "signal"))
-            );
-            const created = {
-                shared,
-                subscribers: 0,
-                lastOut: () => {
-                    if (inflightDedup.get(key) === created) {
-                        inflightDedup.delete(key);
-                    }
-                    shared.abort?.(false);
-                },
-            };
-            const onSettle = () => {
-                if (inflightDedup.get(key) === created) {
-                    inflightDedup.delete(key);
-                }
-            };
-            shared.then(onSettle, onSettle);
-            inflightDedup.set(key, created);
-            entry = created;
-        }
-        return attachCallerSignal(
-            joinInflight(entry, entry.shared, url),
-            settings.signal,
-        );
+        return _rpcDeduped(url, params, settings);
     }
     if (settings.cache && _rpcState.rpcCache) {
-        const rpcCache = _rpcState.rpcCache;
-        const cacheSettings =
-            typeof settings.cache === "boolean" ? {} : { ...settings.cache };
-        if (params?.model && cacheSettings.model === undefined) {
-            cacheSettings.model = params.model;
-        }
-        cacheSettings.silent = settings.silent;
-        let callerAborted = false;
-        if (typeof cacheSettings.callback === "function") {
-            const userCallback = cacheSettings.callback;
-            cacheSettings.callback = (/** @type {any[]} */ ...args) => {
-                if (!callerAborted) {
-                    userCallback(...args);
-                }
-            };
-        }
-        /** @type {((rejectError?: boolean) => void) | null} */
-        let innerAbort = null;
-        /** @type {Promise<any> | null} */
-        let innerProm = null;
-        /** @type {object | null} */
-        let ownRequest = null;
-        const fallback = (/** @type {object} */ request) => {
-            ownRequest = request ?? null;
-            const inner = /** @type {any} */ (
-                rpc._rpc(url, params, omit(settings, "cache", "signal"))
-            );
-            innerProm = inner;
-            if (typeof inner.abort === "function") {
-                innerAbort = inner.abort.bind(inner);
-            }
-            return inner;
-        };
-        let issuedOwnRequest = false;
-        cacheSettings.onRequestIssued = () => {
-            issuedOwnRequest = true;
-        };
-        const cacheTable = params?.method || url;
-        const cacheKey = buildKey(url, params);
-        const requestKey = `${cacheTable}/${cacheKey}`;
-        const cacheProm = _rpcState.rpcCache.read(
-            cacheTable,
-            cacheKey,
-            fallback,
-            cacheSettings,
-        );
-        const onDetach = () => {
-            callerAborted = true;
-        };
-        if (issuedOwnRequest) {
-            const entry = {
-                subscribers: 0,
-                lastOut: () => {
-                    if (inflightCacheJoin.get(requestKey) === entry) {
-                        inflightCacheJoin.delete(requestKey);
-                    }
-                    rpcCache.abortPending(cacheTable, cacheKey, ownRequest);
-                    innerAbort?.(false);
-                },
-            };
-            const onSettle = () => {
-                if (inflightCacheJoin.get(requestKey) === entry) {
-                    inflightCacheJoin.delete(requestKey);
-                }
-            };
-            (innerProm ?? cacheProm).then(onSettle, onSettle);
-            inflightCacheJoin.set(requestKey, entry);
-            return attachCallerSignal(
-                joinInflight(entry, cacheProm, url, onDetach),
-                settings.signal,
-            );
-        }
-        const joined = inflightCacheJoin.get(requestKey);
-        if (joined) {
-            return attachCallerSignal(
-                joinInflight(joined, cacheProm, url, onDetach),
-                settings.signal,
-            );
-        }
-        /** @type {(reason?: any) => void} */
-        let abortReject = () => {};
-        const joinerProm = new Promise((resolve, reject) => {
-            abortReject = reject;
-            cacheProm.then(resolve, (/** @type {any} */ error) => {
-                if (!callerAborted) {
-                    reject(error);
-                }
-            });
-        });
-        /** @type {any} */ (joinerProm).abort = function (rejectError = true) {
-            callerAborted = true;
-            if (rejectError) {
-                abortReject(new ConnectionAbortedError(url));
-            }
-        };
-        return attachCallerSignal(joinerProm, settings.signal);
+        return _rpcCached(url, params, settings, _rpcState.rpcCache);
     }
     if (settings.retry) {
         return _rpcWithRetry(url, params, settings);
@@ -628,6 +511,193 @@ rpc._rpc = function (url, params, settings) {
  * @param {{[key: string]: any}} settings
  * @returns {Promise<any>}
  */
+function _rpcDeduped(url, params, settings) {
+    const key = `${buildKey(url, params)}|${dedupSettingsFingerprint(settings)}`;
+    let entry = inflightDedup.get(key);
+    if (!entry) {
+        const shared = /** @type {any} */ (
+            rpc._rpc(url, params, omit(settings, "dedup", "signal"))
+        );
+        const created = {
+            shared,
+            subscribers: 0,
+            lastOut: () => {
+                if (inflightDedup.get(key) === created) {
+                    inflightDedup.delete(key);
+                }
+                shared.abort?.(false);
+            },
+        };
+        const onSettle = () => {
+            if (inflightDedup.get(key) === created) {
+                inflightDedup.delete(key);
+            }
+        };
+        shared.then(onSettle, onSettle);
+        inflightDedup.set(key, created);
+        entry = created;
+    }
+    return attachCallerSignal(joinInflight(entry, entry.shared, url), settings.signal);
+}
+
+/**
+ * @param {string} url
+ * @param {{[key: string]: any}} params
+ * @param {{[key: string]: any}} settings
+ * @param {RPCCache} rpcCache
+ * @returns {Promise<any>}
+ */
+function _rpcCached(url, params, settings, rpcCache) {
+    const cacheSettings =
+        typeof settings.cache === "boolean" ? {} : { ...settings.cache };
+    if (params?.model && cacheSettings.model === undefined) {
+        cacheSettings.model = params.model;
+    }
+    cacheSettings.silent = settings.silent;
+    let callerAborted = false;
+    if (typeof cacheSettings.callback === "function") {
+        const userCallback = cacheSettings.callback;
+        cacheSettings.callback = (/** @type {any[]} */ ...args) => {
+            if (!callerAborted) {
+                userCallback(...args);
+            }
+        };
+    }
+    /** @type {((rejectError?: boolean) => void) | null} */
+    let innerAbort = null;
+    /** @type {Promise<any> | null} */
+    let innerProm = null;
+    /** @type {object | null} */
+    let ownRequest = null;
+    const fallback = (/** @type {object} */ request) => {
+        ownRequest = request ?? null;
+        const inner = /** @type {any} */ (
+            rpc._rpc(url, params, omit(settings, "cache", "signal"))
+        );
+        innerProm = inner;
+        if (typeof inner.abort === "function") {
+            innerAbort = inner.abort.bind(inner);
+        }
+        return inner;
+    };
+    let issuedOwnRequest = false;
+    cacheSettings.onRequestIssued = () => {
+        issuedOwnRequest = true;
+    };
+    const cacheTable = params?.method || url;
+    const cacheKey = buildKey(url, params);
+    const requestKey = `${cacheTable}/${cacheKey}`;
+    const cacheProm = rpcCache.read(cacheTable, cacheKey, fallback, cacheSettings);
+    const onDetach = () => {
+        callerAborted = true;
+    };
+    if (issuedOwnRequest) {
+        const entry = {
+            subscribers: 0,
+            lastOut: () => {
+                if (inflightCacheJoin.get(requestKey) === entry) {
+                    inflightCacheJoin.delete(requestKey);
+                }
+                rpcCache.abortPending(cacheTable, cacheKey, ownRequest);
+                innerAbort?.(false);
+            },
+        };
+        const onSettle = () => {
+            if (inflightCacheJoin.get(requestKey) === entry) {
+                inflightCacheJoin.delete(requestKey);
+            }
+        };
+        (innerProm ?? cacheProm).then(onSettle, onSettle);
+        inflightCacheJoin.set(requestKey, entry);
+        return attachCallerSignal(
+            joinInflight(entry, cacheProm, url, onDetach),
+            settings.signal,
+        );
+    }
+    const joined = inflightCacheJoin.get(requestKey);
+    if (joined) {
+        return attachCallerSignal(
+            joinInflight(joined, cacheProm, url, onDetach),
+            settings.signal,
+        );
+    }
+    /** @type {(reason?: any) => void} */
+    let abortReject = () => {};
+    const joinerProm = new Promise((resolve, reject) => {
+        abortReject = reject;
+        cacheProm.then(resolve, (/** @type {any} */ error) => {
+            if (!callerAborted) {
+                reject(error);
+            }
+        });
+    });
+    /** @type {any} */ (joinerProm).abort = function (rejectError = true) {
+        callerAborted = true;
+        if (rejectError) {
+            abortReject(new ConnectionAbortedError(url));
+        }
+    };
+    return attachCallerSignal(joinerProm, settings.signal);
+}
+
+/**
+ * @param {string} url
+ * @param {{[key: string]: any}} params
+ * @param {{[key: string]: any}} settings
+ * @returns {Promise<any>}
+ */
+/**
+ * The fetch options for one JSON-RPC call, and the handles needed to cancel it.
+ *
+ * Three signals can end this request -- our own abort, an optional timeout, and
+ * the caller's -- and `AbortSignal.any` is what folds them into the one the
+ * fetch actually watches. `timeoutSignal` comes back out because
+ * classifyTransportFailure needs it to tell a timeout from a plain abort.
+ *
+ * @param {string} url
+ * @param {object} data
+ * @param {{[key: string]: any}} settings
+ * @returns {{ controller: AbortController, timeoutSignal: AbortSignal | null, init: RequestInit }}
+ */
+function buildFetchRequest(url, data, settings) {
+    const headers = new Headers(settings.headers || {});
+    headers.set("Content-Type", "application/json");
+    const controller = new AbortController();
+    /** @type {AbortSignal | null} */
+    const timeoutSignal = settings.timeout
+        ? AbortSignal.timeout(settings.timeout)
+        : null;
+    const extraSignals = [timeoutSignal, settings.signal || null].filter(Boolean);
+    const signal = extraSignals.length
+        ? AbortSignal.any([
+              controller.signal,
+              .../** @type {AbortSignal[]} */ (extraSignals),
+          ])
+        : controller.signal;
+    return {
+        controller,
+        timeoutSignal,
+        init: { method: "POST", headers, body: JSON.stringify(data), signal },
+    };
+}
+
+/**
+ * @param {{ result: any, version?: any }} parsed
+ * @returns {any}
+ */
+function stampVersion(parsed) {
+    const result = parsed.result;
+    if (
+        parsed.version !== undefined &&
+        result &&
+        typeof result === "object" &&
+        result.__version === undefined
+    ) {
+        result.__version = parsed.version;
+    }
+    return result;
+}
+
 function _rpcOnce(url, params, settings) {
     const data = {
         id: _rpcState.rpcId++,
@@ -635,26 +705,10 @@ function _rpcOnce(url, params, settings) {
         method: "call",
         params,
     };
-    const requestHeaders = new Headers(settings.headers || {});
-    requestHeaders.set("Content-Type", "application/json");
-    const controller = new AbortController();
+    const { controller, timeoutSignal, init } = buildFetchRequest(url, data, settings);
     let aborted = false;
-    /** @type {AbortSignal | null} */
-    const timeoutSignal = settings.timeout
-        ? AbortSignal.timeout(settings.timeout)
-        : null;
-    /**
-     * @type {AbortSignal | null}
-     */
-    const callerSignal = settings.signal || null;
-    const extraSignals = [timeoutSignal, callerSignal].filter(Boolean);
-    const fetchSignal = extraSignals.length
-        ? AbortSignal.any([
-              controller.signal,
-              .../** @type {AbortSignal[]} */ (extraSignals),
-          ])
-        : controller.signal;
-    const busSettings = callerSignal ? omit(settings, "signal") : settings;
+    // The caller's signal is theirs, not ours to re-broadcast on the bus.
+    const busSettings = settings.signal ? omit(settings, "signal") : settings;
     const { promise, resolve, reject } = Promise.withResolvers();
     let settled = false;
     const settleResolve = (/** @type {any} */ value) => {
@@ -665,55 +719,46 @@ function _rpcOnce(url, params, settings) {
         settled = true;
         reject(error);
     };
+    /**
+     * Announce a failure and settle. Every branch below did these two steps as
+     * its own seven-line copy; the bus event and the rejection must always agree
+     * on the error, which is exactly the invariant six copies cannot hold.
+     *
+     * @param {Error} error
+     */
+    const fail = (error) => {
+        rpcBus.trigger(RpcEvent.RESPONSE, { data, url, settings: busSettings, error });
+        settleReject(error);
+    };
+    /**
+     * The error a non-JSON-RPC response deserves: a 5xx is the server buckling,
+     * anything else is a response we cannot read.
+     *
+     * @param {Response} response
+     * @returns {NetworkError}
+     */
+    const responseError = (response) =>
+        response.status >= 500
+            ? new ServerOverloadError(url, response.status)
+            : new InvalidResponseError(url, response.status);
+
     rpcBus.trigger(RpcEvent.REQUEST, { data, url, settings: busSettings });
 
     browser
-        .fetch(url, {
-            method: "POST",
-            headers: requestHeaders,
-            body: JSON.stringify(data),
-            signal: fetchSignal,
-        })
+        .fetch(url, init)
         .then(async (response) => {
             if (aborted) {
                 return;
             }
             if (response.status >= 502 && response.status <= 504) {
-                const error = new ServerOverloadError(url, response.status);
-                rpcBus.trigger(RpcEvent.RESPONSE, {
-                    data,
-                    url,
-                    settings: busSettings,
-                    error,
-                });
-                settleReject(error);
-                return;
+                return fail(new ServerOverloadError(url, response.status));
             }
             if (response.status === 413) {
-                const error = new RequestEntityTooLargeError();
-                rpcBus.trigger(RpcEvent.RESPONSE, {
-                    data,
-                    url,
-                    settings: busSettings,
-                    error,
-                });
-                settleReject(error);
-                return;
+                return fail(new RequestEntityTooLargeError());
             }
             const contentType = response.headers.get("content-type") || "";
             if (contentType && !/application\/json/i.test(contentType)) {
-                const error =
-                    response.status >= 500
-                        ? new ServerOverloadError(url, response.status)
-                        : new InvalidResponseError(url, response.status);
-                rpcBus.trigger(RpcEvent.RESPONSE, {
-                    data,
-                    url,
-                    settings: busSettings,
-                    error,
-                });
-                settleReject(error);
-                return;
+                return fail(responseError(response));
             }
             let parsed;
             try {
@@ -722,49 +767,24 @@ function _rpcOnce(url, params, settings) {
                 if (aborted) {
                     return;
                 }
-                const error = classifyTransportFailure(
-                    err,
-                    url,
-                    settings,
-                    timeoutSignal,
-                    response,
+                return fail(
+                    classifyTransportFailure(
+                        err,
+                        url,
+                        settings,
+                        timeoutSignal,
+                        response,
+                    ),
                 );
-                rpcBus.trigger(RpcEvent.RESPONSE, {
-                    data,
-                    url,
-                    settings: busSettings,
-                    error,
-                });
-                settleReject(error);
-                return;
             }
             if (aborted) {
                 return;
             }
             if (!parsed.error && !response.ok) {
-                const error =
-                    response.status >= 500
-                        ? new ServerOverloadError(url, response.status)
-                        : new InvalidResponseError(url, response.status);
-                rpcBus.trigger(RpcEvent.RESPONSE, {
-                    data,
-                    url,
-                    settings: busSettings,
-                    error,
-                });
-                settleReject(error);
-                return;
+                return fail(responseError(response));
             }
             if (!parsed.error) {
-                const result = parsed.result;
-                if (
-                    parsed.version !== undefined &&
-                    result &&
-                    typeof result === "object" &&
-                    result.__version === undefined
-                ) {
-                    result.__version = parsed.version;
-                }
+                const result = stampVersion(parsed);
                 rpcBus.trigger(RpcEvent.RESPONSE, {
                     data,
                     url,
@@ -776,26 +796,13 @@ function _rpcOnce(url, params, settings) {
             }
             const error = makeErrorFromResponse(parsed.error);
             error.model = data.params.model;
-            rpcBus.trigger(RpcEvent.RESPONSE, {
-                data,
-                url,
-                settings: busSettings,
-                error,
-            });
-            settleReject(error);
+            fail(error);
         })
         .catch((err) => {
             if (aborted) {
                 return;
             }
-            const error = classifyTransportFailure(err, url, settings, timeoutSignal);
-            rpcBus.trigger(RpcEvent.RESPONSE, {
-                data,
-                url,
-                settings: busSettings,
-                error,
-            });
-            settleReject(error);
+            fail(classifyTransportFailure(err, url, settings, timeoutSignal));
         });
 
     /** @type {RpcPromise<any>} */ (promise).abort = function (rejectError = true) {
@@ -805,12 +812,9 @@ function _rpcOnce(url, params, settings) {
         aborted = true;
         controller.abort();
         const error = new ConnectionAbortedError("fetch abort");
-        rpcBus.trigger(RpcEvent.RESPONSE, {
-            data,
-            url,
-            settings: busSettings,
-            error,
-        });
+        // Always announced on the bus -- a listener counting requests must see
+        // this one close -- but only rejected when the caller asked for it.
+        rpcBus.trigger(RpcEvent.RESPONSE, { data, url, settings: busSettings, error });
         if (rejectError) {
             settleReject(error);
         }

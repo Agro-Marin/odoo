@@ -40,6 +40,39 @@ function pyDateKind(value) {
 }
 
 /**
+ * Every member of `subset` has a distinct `isEqual` counterpart in `superset`.
+ *
+ * A plain "some member of superset matches" loop is not enough: `isEqual`
+ * equates values a JS `Set` keeps apart (`1` and `True`), so two distinct
+ * members of `subset` could otherwise both claim the same member of
+ * `superset` and a genuinely unmatched member would go unnoticed.
+ *
+ * @param {Set<any>} subset
+ * @param {Set<any>} superset
+ * @returns {boolean}
+ */
+function coversSet(subset, superset) {
+    const unmatched = new Set(superset);
+    for (const value of subset) {
+        if (unmatched.delete(value)) {
+            continue;
+        }
+        let matched = false;
+        for (const candidate of unmatched) {
+            if (isEqual(value, candidate)) {
+                unmatched.delete(candidate);
+                matched = true;
+                break;
+            }
+        }
+        if (!matched) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
  * @param {any} left
  * @param {any} right
  * @returns {boolean}
@@ -47,6 +80,20 @@ function pyDateKind(value) {
 export function isLess(left, right) {
     if (typeof left === "number" && typeof right === "number") {
         return left < right;
+    }
+    if (left instanceof Set || right instanceof Set) {
+        // `<` over sets is proper inclusion, not an ordering: `{1} < {2}` and
+        // `{2} < {1}` are both false. `<=`, `>` and `>=` are derived from this
+        // and from isEqual by the interpreter's comparison table.
+        if (!(left instanceof Set) || !(right instanceof Set)) {
+            // Phrased without an operator or an order on purpose: `a > b` reaches
+            // here as isLess(b, a), so neither is knowable. COMPARISONS in
+            // py_interpreter re-raises this with both, the way CPython words it.
+            throw new NotSupportedError(
+                `not supported between instances of '${pyTypeName(left)}' and '${pyTypeName(right)}'`,
+            );
+        }
+        return left.size < right.size && coversSet(left, right);
     }
     if (typeof left === "boolean") {
         left = left ? 1 : 0;
@@ -118,19 +165,7 @@ export function isEqual(left, right) {
         ) {
             return false;
         }
-        for (const v of left) {
-            let found = false;
-            for (const w of right) {
-                if (isEqual(v, w)) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                return false;
-            }
-        }
-        return true;
+        return coversSet(left, right);
     }
     if (
         left !== null &&

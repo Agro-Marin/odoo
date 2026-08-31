@@ -49,7 +49,7 @@ describe("connection recovery outlives nothing", () => {
         });
 
         const error = new UncaughtPromiseError();
-        error.unhandledRejectionEvent = /** @type {any} */ ({
+        error.event = /** @type {any} */ ({
             preventDefault: () => {},
         });
         /** @type {string[]} */
@@ -397,7 +397,7 @@ describe("connection recovery releases what it took", () => {
         const recovery = connectionRecoveryService.start(/** @type {any} */ (env));
         /** @type {any} */ (env).services.connection_recovery = recovery;
         const error = new UncaughtPromiseError();
-        error.unhandledRejectionEvent = /** @type {any} */ ({
+        error.event = /** @type {any} */ ({
             preventDefault: () => {},
         });
         lostConnectionHandler(

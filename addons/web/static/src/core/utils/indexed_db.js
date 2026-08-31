@@ -37,7 +37,19 @@ export class IndexedDB {
         this._db = null;
         this._degraded = false;
         this.mutex = new Mutex();
-        this.mutex.exec(() => this._checkVersion(version)).catch(() => {});
+        this.mutex
+            .exec(() => this._checkVersion(version))
+            .catch((error) => {
+                // Proceeding here means serving a cache whose version marker may be
+                // stale -- the exact condition _checkVersion exists to catch. Every
+                // other failure path in this file degrades loudly; so does this one.
+                this._degraded = true;
+                console.warn(
+                    `IndexedDB: version check for "${this.name}" failed; ` +
+                        `continuing without the disk cache for this session.`,
+                    error,
+                );
+            });
     }
 
     /**

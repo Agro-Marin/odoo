@@ -66,7 +66,11 @@ afterEach(async () => {
 });
 
 test("loadJS: load invalid JS lib", async () => {
-    expect.assertions(4);
+    // 3 assertions per attempt, and a script is retried on the same schedule as
+    // a stylesheet: one initial mount plus assets.retries.count.
+    expect.assertions(3 * 4 + 1);
+
+    patchWithCleanup(assets, { retries: { count: 3, delay: 1, extraDelay: 1 } });
 
     mockHeadAppendChild((node) => {
         expect(node).toBeInstanceOf(HTMLScriptElement);
@@ -80,6 +84,36 @@ test("loadJS: load invalid JS lib", async () => {
         /The loading of \/some\/invalid\/file.js failed/,
         { message: "Trying to load an invalid file rejects the promise" },
     );
+});
+
+test("loadJS: a bundle URL fails fast, the way a stylesheet bundle does", async () => {
+    patchWithCleanup(assets, { retries: { count: 3, delay: 1, extraDelay: 1 } });
+    let appended = 0;
+    mockHeadAppendChild((node) => {
+        appended++;
+        manuallyDispatchProgrammaticEvent(node, "error");
+    });
+
+    await expect(loadJS("/web/assets/1/bundle.js")).rejects.toThrow(
+        /The loading of \/web\/assets\/1\/bundle.js failed/,
+    );
+    expect(appended).toBe(1);
+});
+
+test("loadJS: concurrent loads of the same url share one script + retry chain", async () => {
+    patchWithCleanup(assets, { retries: { count: 3, delay: 1, extraDelay: 1 } });
+    let appended = 0;
+    mockHeadAppendChild((node) => {
+        appended++;
+        manuallyDispatchProgrammaticEvent(node, "error");
+    });
+
+    const first = loadJS("/dedupe/file.js");
+    const second = loadJS("/dedupe/file.js");
+    expect(second).toBe(first);
+
+    await expect(first).rejects.toThrow(/The loading of \/dedupe\/file.js failed/);
+    expect(appended).toBe(4);
 });
 
 test("loadJS: inserted scripts opt out of async execution", async () => {
@@ -671,5 +705,66 @@ describe("a target document that cannot take the element", () => {
         const targetDoc = headlessDocument();
         await expect(assets.loadJS("/twice.js", { targetDoc })).rejects.toThrow();
         await expect(assets.loadJS("/twice.js", { targetDoc })).rejects.toThrow();
+    });
+});
+
+describe("the whenReady re-seed", () => {
+    /** @returns {Document} */
+    function parsedDocument() {
+        return new DOMParser().parseFromString(
+            `<!doctype html><html><head></head><body></body></html>`,
+            "text/html",
+        );
+    }
+
+    /**
+     * @param {Document} doc
+     * @param {string} src
+     */
+    function appendScript(doc, src) {
+        const el = doc.createElement("script");
+        el.setAttribute("src", src);
+        doc.head.appendChild(el);
+    }
+
+    test("creating the cache seeds it from whatever head already holds", () => {
+        const doc = parsedDocument();
+        appendScript(doc, "/early.js");
+        loadJS("/early.js", { targetDoc: doc });
+        expect([...(assetCacheByDocument.get(doc)?.keys() ?? [])]).toEqual([
+            "/early.js",
+        ]);
+        // seeded, not loaded: no second <script> was appended
+        expect(doc.head.querySelectorAll("script[src]")).toHaveLength(1);
+    });
+
+    test("a script that enters head after the cache exists is re-injected without a re-seed", () => {
+        const doc = parsedDocument();
+        appendScript(doc, "/early.js");
+        loadJS("/early.js", { targetDoc: doc });
+
+        // the rest of the page parses in
+        appendScript(doc, "/late.js");
+        expect(assetCacheByDocument.get(doc)?.has("/late.js")).toBe(false);
+
+        // without the re-seed the loader does not know about it and appends a copy.
+        // That copy never loads in a detached document, so the promise is expected
+        // to reject at teardown -- what is under test is the extra <script>.
+        loadJS("/late.js", { targetDoc: doc }).catch(() => {});
+        expect(doc.head.querySelectorAll('script[src="/late.js"]')).toHaveLength(2);
+    });
+
+    test("re-seeding an existing cache makes the later script known", () => {
+        const doc = parsedDocument();
+        appendScript(doc, "/early.js");
+        loadJS("/early.js", { targetDoc: doc });
+
+        appendScript(doc, "/late.js");
+        // what whenReady does for `document`: re-scan into the existing map
+        assets.reseedFromDocument(doc);
+        expect(assetCacheByDocument.get(doc)?.has("/late.js")).toBe(true);
+
+        loadJS("/late.js", { targetDoc: doc });
+        expect(doc.head.querySelectorAll('script[src="/late.js"]')).toHaveLength(1);
     });
 });

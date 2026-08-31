@@ -2,37 +2,23 @@
 /** @odoo-module native */
 
 import { loadCSS } from "@web/core/assets";
-import { makeLazyFacade } from "@web/core/module_bridge";
+import { makeLazyLib } from "@web/core/lib/lazy_lib";
+
+const fullCalendar = makeLazyLib(async () => {
+    const [coreModule] = await Promise.all([
+        import("@fullcalendar/core"),
+        import("@fullcalendar/core/locales-all"),
+        loadCSS("/web/static/lib/fullcalendar/skeleton.css"),
+    ]);
+    return coreModule;
+});
 
 /** @type {any} */
-let _fullCalendar = null;
-
-/**
- * @type {any}
- */
-export const FullCalendar = makeLazyFacade(() => _fullCalendar);
-
-/** @type {Promise<any> | null} */
-let loadPromise = null;
+export const FullCalendar = fullCalendar.facade;
 
 /**
  * @returns {Promise<any>}
  */
-export async function loadFullCalendar() {
-    if (!_fullCalendar) {
-        loadPromise ??= (async () => {
-            const [coreModule] = await Promise.all([
-                import("@fullcalendar/core"),
-                import("@fullcalendar/core/locales-all"),
-                loadCSS("/web/static/lib/fullcalendar/skeleton.css"),
-            ]);
-            _fullCalendar = coreModule;
-            return FullCalendar;
-        })().catch((error) => {
-            loadPromise = null;
-            throw error;
-        });
-        await loadPromise;
-    }
-    return FullCalendar;
+export function loadFullCalendar() {
+    return fullCalendar.load();
 }

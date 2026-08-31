@@ -142,13 +142,14 @@ class ErrorService {
         let uncaughtError;
         if (isRedactedError) {
             uncaughtError = new ThirdPartyScriptError();
+            uncaughtError.event = ev;
             uncaughtError.traceback =
                 `An error whose details cannot be accessed by the Odoo framework has occurred.\n` +
                 `The error probably originates from a JavaScript file served from a different origin.\n` +
                 `The full error is available in the browser console.`;
         } else {
             uncaughtError = new UncaughtClientError();
-            /** @type {any} */ (uncaughtError).event = ev;
+            uncaughtError.event = ev;
             if (error instanceof Error) {
                 /** @type {any} */ (error).errorEvent = ev;
                 assumeBrowserLogging(ev, uncaughtError);
@@ -186,8 +187,7 @@ class ErrorService {
                 `(Opening your browser console might give you a hint on the error.)`;
         }
         const uncaughtError = new UncaughtPromiseError();
-        uncaughtError.unhandledRejectionEvent = ev;
-        /** @type {any} */ (uncaughtError).event = ev;
+        uncaughtError.event = ev;
         uncaughtError.traceback = traceback ?? null;
         const willReportTraceback = error instanceof Error || Boolean(traceback);
         if (willReportTraceback) {

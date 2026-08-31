@@ -124,11 +124,6 @@ function resolveSpecifierTarget(specifier, importMap, injected, targetDoc) {
     return { target: wantedAbs, conflict: true };
 }
 
-/** @returns {Map<string, Promise<any>>} */
-function getGlobalBundleCache() {
-    return globalBundleCache;
-}
-
 /**
  * @param {Document} targetDoc
  * @returns {Map<string, Promise<any>>}
@@ -166,14 +161,30 @@ function seedFromDocument(targetDoc, cacheMap) {
 }
 
 /**
+ * Re-seed the document's asset cache once the page has finished parsing.
+ *
+ * This is NOT redundant with the seeding getAssetCache() does when it creates
+ * the map: the map is usually created earlier, by the first loadJS/loadCSS
+ * during bundle evaluation, and at that point `head` holds only what the parser
+ * has reached. Without this second pass, a <script src> or <link rel=stylesheet>
+ * that entered `head` afterwards is unknown to the cache and loadJS/loadCSS
+ * re-injects it. Pinned by "the whenReady re-seed picks up scripts added after
+ * the cache was created" in tests/core/utils/assets.test.js.
+ *
  * @param {Document} targetDoc
  */
-function computeBundleCacheMap(targetDoc) {
-    seedFromDocument(targetDoc, getAssetCache(targetDoc));
+function reseedFromDocument(targetDoc) {
+    const cacheMap = assetCacheByDocument.get(targetDoc);
+    if (cacheMap) {
+        seedFromDocument(targetDoc, cacheMap);
+    } else {
+        // Creating it seeds it; scanning again here would just repeat that.
+        getAssetCache(targetDoc);
+    }
 }
 
 whenReady(() => {
-    computeBundleCacheMap(document);
+    reseedFromDocument(document);
     const seeded = seedInjectedImportMapKeys(document);
     log("whenReady:seeded-import-map-keys", seeded);
 });
@@ -255,6 +266,354 @@ export function loadCSS(url, options) {
 }
 
 export class AssetsLoadingError extends Error {}
+
+/**
+ * Load ESM specifiers into THIS document and register them with odoo.loader.
+ *
+ * @param {string[]} specifiers
+ * @param {Record<string, string> | null} importMap
+ * @returns {Promise<void>}
+ */
+async function loadESMBundleHere(specifiers, importMap) {
+    if (importMap) {
+        seedInjectedImportMapKeys(document);
+        /** @type {Record<string, any>} */
+        const freshEntries = {};
+        let nDup = 0;
+        /** @type {string[]} */
+        const conflicts = [];
+        for (const [spec, url] of Object.entries(importMap)) {
+            const claimed = injectedImportMapKeys.get(spec);
+            const wanted = absoluteTarget(url, document);
+            if (claimed === undefined) {
+                freshEntries[spec] = url;
+                injectedImportMapKeys.set(spec, wanted);
+            } else if (claimed === wanted) {
+                nDup++;
+            } else {
+                conflicts.push(spec);
+            }
+        }
+        const nFresh = Object.keys(freshEntries).length;
+        log(
+            "loadESMBundle:importMap filter",
+            "fresh=",
+            nFresh,
+            "dup=",
+            nDup,
+            "conflict=",
+            conflicts.length,
+            "total=",
+            nFresh + nDup + conflicts.length,
+        );
+        if (conflicts.length) {
+            log("loadESMBundle:specifier already claimed elsewhere", conflicts);
+        }
+        if (nFresh) {
+            const mapEl = document.createElement("script");
+            mapEl.type = "importmap";
+            mapEl.textContent = JSON.stringify({ imports: freshEntries });
+            (document.head || document.documentElement).appendChild(mapEl);
+            log("loadESMBundle:injected fresh import map entries=", nFresh);
+        }
+    }
+    const results = await runInBundleTransaction(() =>
+        Promise.all(
+            specifiers.map(async (specifier) => {
+                const { target } = resolveSpecifierTarget(
+                    specifier,
+                    importMap,
+                    injectedImportMapKeys,
+                    document,
+                );
+                const mod = await import(target);
+                const mappedUrl = importMap?.[specifier];
+                if (mappedUrl && typeof mod.__setImplUrl === "function") {
+                    await mod.__setImplUrl(new URL(mappedUrl, document.baseURI).href);
+                }
+                return [specifier, mod];
+            }),
+        ),
+    );
+    const modules = Object.fromEntries(results);
+    if (/** @type {any} */ (globalThis).odoo?.loader?.registerNativeModules) {
+        odoo.loader.registerNativeModules(modules);
+        log("loadESMBundle:registered", specifiers.length, "modules into odoo.loader");
+    } else {
+        log("loadESMBundle:warn no odoo.loader.registerNativeModules");
+    }
+}
+
+/**
+ * Load ESM specifiers into ANOTHER document, by injecting a module script that
+ * imports them there and reports back through a one-shot event pair.
+ *
+ * @param {Document} targetDoc
+ * @param {string[]} specifiers
+ * @param {Record<string, string> | null} importMap
+ * @returns {Promise<any>}
+ */
+/**
+ * The import map another document needs in order to resolve the specifiers this
+ * one has already loaded.
+ *
+ * Every module the target's loader does NOT have is pointed either at the URL
+ * the server named or at a generated data: module that re-exports this
+ * document's copy (`module_bridge`). Server entries always win, so a bridge is
+ * only ever a fallback.
+ *
+ * @param {Document} targetDoc
+ * @param {Record<string, string> | null} importMap
+ * @returns {Record<string, any>}
+ */
+function buildBridgeImportMap(targetDoc, importMap) {
+    const targetWin = /** @type {any} */ (targetDoc.defaultView);
+    const serverMap = importMap || {};
+    /** @type {Record<string, any>} */
+    const extraMap = {};
+    const loadedModules = targetWin.odoo?.loader?.modules;
+    if (loadedModules && typeof loadedModules.get === "function") {
+        const specs =
+            typeof loadedModules.keys === "function"
+                ? Array.from(loadedModules.keys())
+                : [];
+        for (const spec of specs) {
+            if (!spec || typeof spec !== "string" || spec.startsWith("@odoo/")) {
+                continue;
+            }
+            const mod = loadedModules.get(spec);
+            if (!mod || typeof mod !== "object") {
+                continue;
+            }
+            const bridgeTarget = isLoaderBridgeUrl(serverMap[spec])
+                ? serverMap[spec]
+                : toDataModuleUrl(buildBridgeModuleSource(spec, Object.keys(mod)));
+            if (serverMap[spec] === undefined) {
+                extraMap[spec] = bridgeTarget;
+            }
+            const url = specToModuleUrl(spec);
+            if (url && serverMap[url] === undefined) {
+                extraMap[url] = bridgeTarget;
+            }
+        }
+    }
+    Object.assign(extraMap, serverMap);
+    return extraMap;
+}
+
+/**
+ * Inject a module script that imports `specifiers` in `targetDoc` and resolve
+ * when it reports back.
+ *
+ * `import()` here would resolve against THIS document, so the import has to run
+ * over there; a one-shot event pair carries the outcome back. The watch also
+ * ends on the script element's own error and on the target unloading, so a
+ * caller is never left awaiting a document that has gone.
+ *
+ * @param {Document} targetDoc
+ * @param {string[]} specifiers
+ * @param {Record<string, any>} extraMap
+ * @param {Map<string, string>} injected
+ * @returns {Promise<any>}
+ */
+function runESMBundleScript(targetDoc, specifiers, extraMap, injected) {
+    const token = ++__odoo_assets_state__.crossDocLoadSeq;
+    const doneEvent = `__odoo_esm_bundle_loaded_${token}`;
+    const errorEvent = `__odoo_esm_bundle_error_${token}`;
+    const importPairs = specifiers.map((specifier) => [
+        specifier,
+        resolveSpecifierTarget(specifier, extraMap, injected, targetDoc).target,
+    ]);
+    const scriptText = `
+            (async () => {
+                try {
+                    const specs = ${JSON.stringify(importPairs)};
+                    const pairs = await Promise.all(
+                        specs.map(async ([s, t]) => [s, await import(t)])
+                    );
+                    const modules = Object.fromEntries(pairs);
+                    if (window.odoo?.loader?.registerNativeModules) {
+                        window.odoo.loader.registerNativeModules(modules);
+                    }
+                    window.dispatchEvent(new Event(${JSON.stringify(doneEvent)}));
+                } catch (err) {
+                    window.dispatchEvent(new CustomEvent(${JSON.stringify(errorEvent)}, { detail: err }));
+                }
+            })();
+        `;
+    const scriptEl = targetDoc.createElement("script");
+    scriptEl.type = "module";
+    scriptEl.textContent = scriptText;
+    const win = /** @type {Window} */ (targetDoc.defaultView);
+    return new Promise((resolve, reject) => {
+        const settle = (/** @type {() => void} */ fn) => {
+            win.removeEventListener(doneEvent, onDone);
+            win.removeEventListener(errorEvent, onError);
+            win.removeEventListener("pagehide", onPageHide);
+            scriptEl.removeEventListener("error", onScriptError);
+            fn();
+        };
+        const onDone = () => settle(() => resolve(undefined));
+        const onError = (/** @type {Event} */ e) =>
+            settle(() =>
+                reject(
+                    /** @type {CustomEvent} */ (e).detail ||
+                        new Error(`loadESMBundle failed`),
+                ),
+            );
+        const onScriptError = (/** @type {Event} */ error) =>
+            settle(() =>
+                reject(
+                    new AssetsLoadingError(`The loading of an ESM bundle failed`, {
+                        cause: error,
+                    }),
+                ),
+            );
+        const onPageHide = () =>
+            settle(() =>
+                reject(
+                    new AssetsLoadingError(
+                        `The loading of an ESM bundle was interrupted: the target document was unloaded`,
+                    ),
+                ),
+            );
+        win.addEventListener(doneEvent, onDone);
+        win.addEventListener(errorEvent, onError);
+        win.addEventListener("pagehide", onPageHide);
+        scriptEl.addEventListener("error", onScriptError);
+        (targetDoc.head || targetDoc.documentElement).appendChild(scriptEl);
+    });
+}
+
+async function loadESMBundleInto(targetDoc, specifiers, importMap) {
+    const cacheKey = JSON.stringify(specifiers);
+    if (!crossDocESMBundleCache.has(targetDoc)) {
+        crossDocESMBundleCache.set(targetDoc, new Map());
+    }
+    const bundleCache = crossDocESMBundleCache.get(targetDoc);
+    if (bundleCache.has(cacheKey)) {
+        log("loadESMBundle:crossDoc cache-hit", "specs=", specifiers.length);
+        return bundleCache.get(cacheKey);
+    }
+    const extraMap = buildBridgeImportMap(targetDoc, importMap);
+    const injected = getInjectedImportMapKeys(targetDoc);
+    seedInjectedImportMapKeys(targetDoc, injected);
+    /** @type {Record<string, any>} */
+    const freshEntries = {};
+    let nDup = 0;
+    /** @type {string[]} */
+    const conflicts = [];
+    for (const [spec, url] of Object.entries(extraMap)) {
+        const claimed = injected.get(spec);
+        const wanted = absoluteTarget(url, targetDoc);
+        if (claimed === undefined) {
+            freshEntries[spec] = url;
+            injected.set(spec, wanted);
+        } else if (claimed === wanted) {
+            nDup++;
+        } else {
+            conflicts.push(spec);
+        }
+    }
+    if (conflicts.length) {
+        log("loadESMBundle:crossDoc specifier already claimed", conflicts);
+    }
+    const nFresh = Object.keys(freshEntries).length;
+    if (nFresh) {
+        log(
+            "loadESMBundle:crossDoc injecting extra import map entries=",
+            nFresh,
+            "dup=",
+            nDup,
+        );
+        const mapEl = targetDoc.createElement("script");
+        mapEl.type = "importmap";
+        mapEl.textContent = JSON.stringify({ imports: freshEntries });
+        (targetDoc.head || targetDoc.documentElement).appendChild(mapEl);
+    }
+    const settlePromise = runESMBundleScript(targetDoc, specifiers, extraMap, injected);
+    bundleCache.set(cacheKey, settlePromise);
+    settlePromise.catch(() =>
+        evictIfCurrent(bundleCache, cacheKey, () => settlePromise),
+    );
+    return settlePromise;
+}
+
+/**
+ * Mount an asset element, wait for it, and retry a transient failure.
+ *
+ * loadCSS and loadJS differ only in the element they build. They used to differ
+ * in one more thing that nothing explained: a stylesheet that failed to load was
+ * retried three times, a script was not, so one transient network blip made a
+ * third-party library unavailable for the rest of the session while the same
+ * blip on a stylesheet cost nothing. An `error` event means the resource never
+ * ran, so re-mounting is safe for both.
+ *
+ * Bundles under `/web/assets/` are still not retried: those come from this
+ * server, and a failure there is a deploy problem a retry only prolongs.
+ *
+ * @param {"loadCSS" | "loadJS"} what
+ * @param {string} url
+ * @param {Document} targetDoc
+ * @param {number} retryCount
+ * @param {(doc: Document) => HTMLLinkElement | HTMLScriptElement} build
+ * @returns {Promise<void>}
+ */
+function loadElement(what, url, targetDoc, retryCount, build) {
+    const cacheMap = getAssetCache(targetDoc);
+    if (cacheMap.has(url)) {
+        return /** @type {Promise<void>} */ (cacheMap.get(url));
+    }
+    /**
+     * @param {number} attempt
+     * @returns {Promise<void>}
+     */
+    const runAttempt = (attempt) => {
+        log(
+            attempt === 0 ? what : `${what}:retry`,
+            url,
+            ...(attempt ? ["attempt=", attempt] : []),
+        );
+        const el = build(targetDoc);
+        /** @type {(reason?: any) => void} */
+        let reject = () => {};
+        const attemptPromise = new Promise((res, rej) => {
+            reject = rej;
+            return onLoadAndError(
+                el,
+                res,
+                async (error) => {
+                    el.remove();
+                    const retryable = !url.includes("/web/assets/");
+                    if (retryable && attempt < assets.retries.count) {
+                        const delay =
+                            assets.retries.delay + assets.retries.extraDelay * attempt;
+                        await new Promise((r) => browser.setTimeout(r, delay));
+                        runAttempt(attempt + 1).then(res, rej);
+                    } else {
+                        rej(
+                            new AssetsLoadingError(`The loading of ${url} failed`, {
+                                cause: error,
+                            }),
+                        );
+                    }
+                },
+                () => evictIfCurrent(cacheMap, url, () => promise),
+                rej,
+            );
+        });
+        mountAsset(targetDoc, el, url, reject);
+        return attemptPromise;
+    };
+    const promise = /** @type {Promise<void>} */ (
+        runAttempt(retryCount).catch((reason) => {
+            evictIfCurrent(cacheMap, url, () => promise);
+            throw reason;
+        })
+    );
+    cacheMap.set(url, promise);
+    return promise;
+}
 
 /**
  * @param {Document} targetDoc
@@ -361,6 +720,8 @@ export class LazyComponent extends Component {
 }
 
 export const assets = {
+    reseedFromDocument,
+
     retries: {
         count: 3,
         delay: 5000,
@@ -372,7 +733,7 @@ export const assets = {
      * @returns {Promise<BundleFileNames>}
      */
     getBundle(bundleName) {
-        const cacheMap = getGlobalBundleCache();
+        const cacheMap = globalBundleCache;
         if (cacheMap.has(bundleName)) {
             log("getBundle:cache-hit", bundleName);
             return /** @type {Promise<BundleFileNames>} */ (cacheMap.get(bundleName));
@@ -466,7 +827,19 @@ export const assets = {
      * @param {{ targetDoc?: Document, importMap?: Record<string, string> | null }} [options]
      * @returns {Promise<void>}
      */
+    /**
+     * Two loaders, one entry point. The same-document branch injects into this
+     * page's import map and `import()`s directly; the cross-document branch has
+     * to build a bridge map and hand a <script type="module"> to another window,
+     * because `import()` here resolves against the wrong document. They share a
+     * signature and nothing else, which is why they are two functions.
+     *
+     * @param {string[]} specifiers
+     * @param {{ targetDoc?: Document, importMap?: Record<string, string> | null }} [options]
+     * @returns {Promise<void>}
+     */
     async loadESMBundle(specifiers, { targetDoc = document, importMap = null } = {}) {
+        const here = targetDoc === document || targetDoc.defaultView === window;
         log(
             "loadESMBundle:start",
             "specs=",
@@ -474,230 +847,11 @@ export const assets = {
             "importMap=",
             importMap ? Object.keys(importMap).length : 0,
             "crossDoc=",
-            !(targetDoc === document || targetDoc.defaultView === window),
+            !here,
         );
-        if (targetDoc === document || targetDoc.defaultView === window) {
-            if (importMap) {
-                seedInjectedImportMapKeys(document);
-                /** @type {Record<string, any>} */
-                const freshEntries = {};
-                let nDup = 0;
-                /** @type {string[]} */
-                const conflicts = [];
-                for (const [spec, url] of Object.entries(importMap)) {
-                    const claimed = injectedImportMapKeys.get(spec);
-                    const wanted = absoluteTarget(url, document);
-                    if (claimed === undefined) {
-                        freshEntries[spec] = url;
-                        injectedImportMapKeys.set(spec, wanted);
-                    } else if (claimed === wanted) {
-                        nDup++;
-                    } else {
-                        conflicts.push(spec);
-                    }
-                }
-                const nFresh = Object.keys(freshEntries).length;
-                log(
-                    "loadESMBundle:importMap filter",
-                    "fresh=",
-                    nFresh,
-                    "dup=",
-                    nDup,
-                    "conflict=",
-                    conflicts.length,
-                    "total=",
-                    nFresh + nDup + conflicts.length,
-                );
-                if (conflicts.length) {
-                    log("loadESMBundle:specifier already claimed elsewhere", conflicts);
-                }
-                if (nFresh) {
-                    const mapEl = document.createElement("script");
-                    mapEl.type = "importmap";
-                    mapEl.textContent = JSON.stringify({ imports: freshEntries });
-                    (document.head || document.documentElement).appendChild(mapEl);
-                    log("loadESMBundle:injected fresh import map entries=", nFresh);
-                }
-            }
-            const results = await runInBundleTransaction(() =>
-                Promise.all(
-                    specifiers.map(async (specifier) => {
-                        const { target } = resolveSpecifierTarget(
-                            specifier,
-                            importMap,
-                            injectedImportMapKeys,
-                            document,
-                        );
-                        const mod = await import(target);
-                        const mappedUrl = importMap?.[specifier];
-                        if (mappedUrl && typeof mod.__setImplUrl === "function") {
-                            await mod.__setImplUrl(
-                                new URL(mappedUrl, document.baseURI).href,
-                            );
-                        }
-                        return [specifier, mod];
-                    }),
-                ),
-            );
-            const modules = Object.fromEntries(results);
-            if (/** @type {any} */ (globalThis).odoo?.loader?.registerNativeModules) {
-                odoo.loader.registerNativeModules(modules);
-                log(
-                    "loadESMBundle:registered",
-                    specifiers.length,
-                    "modules into odoo.loader",
-                );
-            } else {
-                log("loadESMBundle:warn no odoo.loader.registerNativeModules");
-            }
-            return;
-        }
-        const cacheKey = JSON.stringify(specifiers);
-        if (!crossDocESMBundleCache.has(targetDoc)) {
-            crossDocESMBundleCache.set(targetDoc, new Map());
-        }
-        const bundleCache = crossDocESMBundleCache.get(targetDoc);
-        if (bundleCache.has(cacheKey)) {
-            log("loadESMBundle:crossDoc cache-hit", "specs=", specifiers.length);
-            return bundleCache.get(cacheKey);
-        }
-        const targetWin = /** @type {any} */ (targetDoc.defaultView);
-        const serverMap = importMap || {};
-        /** @type {Record<string, any>} */
-        const extraMap = {};
-        const loadedModules = targetWin.odoo?.loader?.modules;
-        if (loadedModules && typeof loadedModules.get === "function") {
-            const specs =
-                typeof loadedModules.keys === "function"
-                    ? Array.from(loadedModules.keys())
-                    : [];
-            for (const spec of specs) {
-                if (!spec || typeof spec !== "string" || spec.startsWith("@odoo/")) {
-                    continue;
-                }
-                const mod = loadedModules.get(spec);
-                if (!mod || typeof mod !== "object") {
-                    continue;
-                }
-                const bridgeTarget = isLoaderBridgeUrl(serverMap[spec])
-                    ? serverMap[spec]
-                    : toDataModuleUrl(buildBridgeModuleSource(spec, Object.keys(mod)));
-                if (serverMap[spec] === undefined) {
-                    extraMap[spec] = bridgeTarget;
-                }
-                const url = specToModuleUrl(spec);
-                if (url && serverMap[url] === undefined) {
-                    extraMap[url] = bridgeTarget;
-                }
-            }
-        }
-        Object.assign(extraMap, serverMap);
-        const injected = getInjectedImportMapKeys(targetDoc);
-        seedInjectedImportMapKeys(targetDoc, injected);
-        /** @type {Record<string, any>} */
-        const freshEntries = {};
-        let nDup = 0;
-        /** @type {string[]} */
-        const conflicts = [];
-        for (const [spec, url] of Object.entries(extraMap)) {
-            const claimed = injected.get(spec);
-            const wanted = absoluteTarget(url, targetDoc);
-            if (claimed === undefined) {
-                freshEntries[spec] = url;
-                injected.set(spec, wanted);
-            } else if (claimed === wanted) {
-                nDup++;
-            } else {
-                conflicts.push(spec);
-            }
-        }
-        if (conflicts.length) {
-            log("loadESMBundle:crossDoc specifier already claimed", conflicts);
-        }
-        const nFresh = Object.keys(freshEntries).length;
-        if (nFresh) {
-            log(
-                "loadESMBundle:crossDoc injecting extra import map entries=",
-                nFresh,
-                "dup=",
-                nDup,
-            );
-            const mapEl = targetDoc.createElement("script");
-            mapEl.type = "importmap";
-            mapEl.textContent = JSON.stringify({ imports: freshEntries });
-            (targetDoc.head || targetDoc.documentElement).appendChild(mapEl);
-        }
-        const token = ++__odoo_assets_state__.crossDocLoadSeq;
-        const doneEvent = `__odoo_esm_bundle_loaded_${token}`;
-        const errorEvent = `__odoo_esm_bundle_error_${token}`;
-        const importPairs = specifiers.map((specifier) => [
-            specifier,
-            resolveSpecifierTarget(specifier, extraMap, injected, targetDoc).target,
-        ]);
-        const scriptText = `
-            (async () => {
-                try {
-                    const specs = ${JSON.stringify(importPairs)};
-                    const pairs = await Promise.all(
-                        specs.map(async ([s, t]) => [s, await import(t)])
-                    );
-                    const modules = Object.fromEntries(pairs);
-                    if (window.odoo?.loader?.registerNativeModules) {
-                        window.odoo.loader.registerNativeModules(modules);
-                    }
-                    window.dispatchEvent(new Event(${JSON.stringify(doneEvent)}));
-                } catch (err) {
-                    window.dispatchEvent(new CustomEvent(${JSON.stringify(errorEvent)}, { detail: err }));
-                }
-            })();
-        `;
-        const scriptEl = targetDoc.createElement("script");
-        scriptEl.type = "module";
-        scriptEl.textContent = scriptText;
-        const win = /** @type {Window} */ (targetDoc.defaultView);
-        const settlePromise = new Promise((resolve, reject) => {
-            const settle = (/** @type {() => void} */ fn) => {
-                win.removeEventListener(doneEvent, onDone);
-                win.removeEventListener(errorEvent, onError);
-                win.removeEventListener("pagehide", onPageHide);
-                scriptEl.removeEventListener("error", onScriptError);
-                fn();
-            };
-            const onDone = () => settle(() => resolve(undefined));
-            const onError = (/** @type {Event} */ e) =>
-                settle(() =>
-                    reject(
-                        /** @type {CustomEvent} */ (e).detail ||
-                            new Error(`loadESMBundle failed`),
-                    ),
-                );
-            const onScriptError = (/** @type {Event} */ error) =>
-                settle(() =>
-                    reject(
-                        new AssetsLoadingError(`The loading of an ESM bundle failed`, {
-                            cause: error,
-                        }),
-                    ),
-                );
-            const onPageHide = () =>
-                settle(() =>
-                    reject(
-                        new AssetsLoadingError(
-                            `The loading of an ESM bundle was interrupted: the target document was unloaded`,
-                        ),
-                    ),
-                );
-            win.addEventListener(doneEvent, onDone);
-            win.addEventListener(errorEvent, onError);
-            win.addEventListener("pagehide", onPageHide);
-            scriptEl.addEventListener("error", onScriptError);
-            (targetDoc.head || targetDoc.documentElement).appendChild(scriptEl);
-        });
-        bundleCache.set(cacheKey, settlePromise);
-        settlePromise.catch(() =>
-            evictIfCurrent(bundleCache, cacheKey, () => settlePromise),
-        );
-        return settlePromise;
+        return here
+            ? loadESMBundleHere(specifiers, importMap)
+            : loadESMBundleInto(targetDoc, specifiers, importMap);
     },
 
     /**
@@ -706,101 +860,27 @@ export const assets = {
      * @returns {Promise<void>}
      */
     loadCSS(url, { retryCount = 0, targetDoc = document } = {}) {
-        const cacheMap = getAssetCache(targetDoc);
-        if (cacheMap.has(url)) {
-            return /** @type {Promise<void>} */ (cacheMap.get(url));
-        }
-        /**
-         * @param {number} attempt
-         * @returns {Promise<void>}
-         */
-        const runAttempt = (attempt) => {
-            if (attempt === 0) {
-                log("loadCSS", url);
-            } else {
-                log("loadCSS:retry", url, "attempt=", attempt);
-            }
-            const linkEl = targetDoc.createElement("link");
+        return loadElement("loadCSS", url, targetDoc, retryCount, (doc) => {
+            const linkEl = doc.createElement("link");
             linkEl.setAttribute("href", url);
             linkEl.type = "text/css";
             linkEl.rel = "stylesheet";
-            /** @type {(reason?: any) => void} */
-            let reject = () => {};
-            const attemptPromise = new Promise((res, rej) => {
-                reject = rej;
-                return onLoadAndError(
-                    linkEl,
-                    res,
-                    async (error) => {
-                        linkEl.remove();
-                        const retryable = !url.includes("/web/assets/");
-                        if (retryable && attempt < assets.retries.count) {
-                            const delay =
-                                assets.retries.delay +
-                                assets.retries.extraDelay * attempt;
-                            await new Promise((res) => browser.setTimeout(res, delay));
-                            runAttempt(attempt + 1).then(res, rej);
-                        } else {
-                            rej(
-                                new AssetsLoadingError(`The loading of ${url} failed`, {
-                                    cause: error,
-                                }),
-                            );
-                        }
-                    },
-                    () => evictIfCurrent(cacheMap, url, () => promise),
-                    rej,
-                );
-            });
-            mountAsset(targetDoc, linkEl, url, reject);
-            return attemptPromise;
-        };
-        const promise = /** @type {Promise<void>} */ (
-            runAttempt(retryCount).catch((reason) => {
-                evictIfCurrent(cacheMap, url, () => promise);
-                throw reason;
-            })
-        );
-        cacheMap.set(url, promise);
-        return promise;
+            return linkEl;
+        });
     },
 
     /**
      * @param {string} url
-     * @param {{ targetDoc?: Document }} [options]
+     * @param {{ retryCount?: number, targetDoc?: Document }} [options]
      * @returns {Promise<void>}
      */
-    loadJS(url, { targetDoc = document } = {}) {
-        const cacheMap = getAssetCache(targetDoc);
-        if (cacheMap.has(url)) {
-            return /** @type {Promise<void>} */ (cacheMap.get(url));
-        }
-        log("loadJS", url);
-        const scriptEl = targetDoc.createElement("script");
-        scriptEl.setAttribute("src", url);
-        scriptEl.type = "text/javascript";
-        scriptEl.async = false;
-        const { promise, resolve, reject } = Promise.withResolvers();
-        onLoadAndError(
-            scriptEl,
-            resolve,
-            (error) => {
-                scriptEl.remove();
-                evictIfCurrent(cacheMap, url, () => promise);
-                reject(
-                    new AssetsLoadingError(`The loading of ${url} failed`, {
-                        cause: error,
-                    }),
-                );
-            },
-            () => evictIfCurrent(cacheMap, url, () => promise),
-            reject,
-        );
-        cacheMap.set(url, promise);
-        mountAsset(targetDoc, scriptEl, url, (reason) => {
-            evictIfCurrent(cacheMap, url, () => promise);
-            reject(reason);
+    loadJS(url, { retryCount = 0, targetDoc = document } = {}) {
+        return loadElement("loadJS", url, targetDoc, retryCount, (doc) => {
+            const scriptEl = doc.createElement("script");
+            scriptEl.setAttribute("src", url);
+            scriptEl.type = "text/javascript";
+            scriptEl.async = false;
+            return scriptEl;
         });
-        return /** @type {Promise<void>} */ (promise);
     },
 };

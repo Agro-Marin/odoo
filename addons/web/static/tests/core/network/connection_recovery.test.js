@@ -12,7 +12,7 @@ import { registry } from "@web/core/registry";
 /** @returns {any} */
 function uncaught() {
     const error = /** @type {any} */ (new UncaughtPromiseError("boom"));
-    error.unhandledRejectionEvent = { preventDefault: () => {} };
+    error.event = /** @type {any} */ ({ preventDefault: () => {} });
     return error;
 }
 

@@ -494,3 +494,53 @@ test("loadPath rejects an invalid path before issuing any RPC", async () => {
     );
     expect.verifySteps([]);
 });
+
+test("a properties field whose definition_record_field the server cannot serve fails by name", async () => {
+    await makeMockEnv();
+    onRpc("fields_get", () => ({
+        my_props: {
+            type: "properties",
+            definition_record: "holder_id",
+            definition_record_field: "custom_defs",
+        },
+        holder_id: { type: "many2one", relation: "properties.base.definition" },
+    }));
+    // get_properties_base_definition hardcodes its specification, so a field
+    // named anything else can never be answered. Before, this read `undefined`
+    // and died in a for..of two lines later.
+    await expect(
+        getService("field").loadPropertyDefinitions("holder", "my_props"),
+    ).rejects.toThrow(
+        /names "custom_defs" as its definition_record_field, but properties\.base\.definition only serves "properties_definition"/,
+    );
+});
+
+test("the same field named properties_definition resolves normally", async () => {
+    await makeMockEnv();
+    onRpc("fields_get", () => ({
+        my_props: {
+            type: "properties",
+            definition_record: "holder_id",
+            definition_record_field: "properties_definition",
+        },
+        holder_id: { type: "many2one", relation: "properties.base.definition" },
+    }));
+    onRpc(
+        "/web/dataset/call_kw/properties.base.definition/get_properties_base_definition",
+        () => ({
+            records: [
+                {
+                    id: 1,
+                    display_name: "h",
+                    properties_definition: [{ name: "p", type: "char" }],
+                },
+            ],
+            length: 1,
+        }),
+    );
+    const defs = await getService("field").loadPropertyDefinitions(
+        "holder",
+        "my_props",
+    );
+    expect(Object.keys(defs)).toEqual(["p"]);
+});

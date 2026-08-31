@@ -231,3 +231,86 @@ test("_makeUser does not mutate the session it is given", () => {
     expect(second.userId).toBe(first.userId);
     expect(second.name).toBe(first.name);
 });
+
+test("a cookie naming no allowed company falls back to the default company", async () => {
+    await makeMockEnv();
+    cookie.set("cids", "99-98");
+    const u = _makeUser({
+        uid: 7,
+        user_companies: {
+            current_company: 2,
+            allowed_companies: {
+                1: { id: 1, name: "One" },
+                2: { id: 2, name: "Two" },
+            },
+        },
+        user_context: {},
+    });
+    expect(u.activeCompanies.map((c) => c.id)).toEqual([2]);
+    expect(u.activeCompany.id).toBe(2);
+    expect(cookie.get("cids")).toBe("2");
+});
+
+test("with neither a valid cookie nor a current_company, the first allowed one wins", async () => {
+    await makeMockEnv();
+    cookie.set("cids", "99");
+    const u = _makeUser({
+        uid: 7,
+        user_companies: {
+            current_company: 99,
+            allowed_companies: {
+                3: { id: 3, name: "Three" },
+                1: { id: 1, name: "One" },
+            },
+        },
+        user_context: {},
+    });
+    // Object.values order, not id order: the fallback is "the first allowed",
+    // and only the companies AFTER the main one get sorted.
+    expect(u.activeCompanies).toHaveLength(1);
+    expect(u.allowedCompanies.map((c) => c.id)).toEqual([1, 3]);
+});
+
+test("activating a company pulls its children in transitively", async () => {
+    await makeMockEnv();
+    cookie.set("cids", "1");
+    const u = _makeUser({
+        uid: 7,
+        user_companies: {
+            current_company: 1,
+            allowed_companies: {
+                1: { id: 1, name: "One", child_ids: [2] },
+                2: { id: 2, name: "Two", child_ids: [3] },
+                3: { id: 3, name: "Three", child_ids: [] },
+            },
+        },
+        user_context: {},
+    });
+    u.activateCompanies([1], { reload: false });
+    expect(u.activeCompanies.map((c) => c.id)).toEqual([1, 2, 3]);
+
+    u.activateCompanies([1], { includeChildCompanies: false, reload: false });
+    expect(u.activeCompanies.map((c) => c.id)).toEqual([1]);
+});
+
+test("the active set is mirrored into the user context and the cookie", async () => {
+    await makeMockEnv();
+    cookie.set("cids", "1");
+    const u = _makeUser({
+        uid: 7,
+        user_companies: {
+            current_company: 1,
+            allowed_companies: {
+                1: { id: 1, name: "One" },
+                2: { id: 2, name: "Two" },
+                3: { id: 3, name: "Three" },
+            },
+        },
+        user_context: {},
+    });
+    u.activateCompanies([3, 2], { reload: false });
+    // the first stays first, the rest are id-sorted
+    expect(u.activeCompanies.map((c) => c.id)).toEqual([3, 2]);
+    expect(u.context.allowed_company_ids).toEqual([3, 2]);
+    expect(cookie.get("cids")).toBe("3-2");
+});

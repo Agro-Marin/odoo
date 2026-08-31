@@ -341,7 +341,12 @@ export class RPCCache {
         this.diskGenerations = Object.create(null);
         this.globalDiskGeneration = 0;
         if (this.diskEnabled) {
-            this.checkSize();
+            // Fire-and-forget by design -- nothing waits on a size probe -- but
+            // its deleteDatabase() branch returns a promise, and dropping that
+            // on the floor turns a storage failure into an unhandled rejection.
+            this.checkSize().catch((error) => {
+                console.warn("RPC cache: storage size check failed", error);
+            });
         }
     }
 
@@ -395,6 +400,58 @@ export class RPCCache {
                     "IndexedDB cache.",
             );
         }
+    }
+
+    /**
+     * Persist one result, if it is still the current answer by the time it has
+     * been encrypted.
+     *
+     * Encryption is asynchronous, so between reading the result and having
+     * ciphertext to store, an invalidation can land. Two guards cover that: the
+     * request's own `invalidated` flag, and the table's disk generation, which
+     * `bumpDiskGeneration` moves on every invalidate. Writing past either would
+     * put a value on disk that the RAM cache has already thrown away.
+     *
+     * Failures here are never propagated -- a cache that cannot write is still a
+     * working cache -- except that a quota error drops the database rather than
+     * leaving it wedged.
+     *
+     * @param {{ crypto: Crypto, indexedDB: IndexedDB }} useDisk
+     * @param {string} table
+     * @param {string} key
+     * @param {any} result
+     * @param {{ model?: string, request: { invalidated: boolean } }} context
+     */
+    _writeToDisk(useDisk, table, key, result, { model, request }) {
+        const { crypto, indexedDB } = useDisk;
+        const generation = this.diskGenerationOf(table);
+        const version = result?.[VERSION_FIELD];
+        crypto
+            .encrypt(result)
+            .then((encryptedResult) => {
+                if (
+                    request.invalidated ||
+                    generation !== this.diskGenerationOf(table)
+                ) {
+                    return;
+                }
+                /** @type {Record<string, any>} */
+                const stored = { ...encryptedResult };
+                if (model) {
+                    stored.model = model;
+                }
+                if (version !== undefined) {
+                    stored.version = version;
+                }
+                indexedDB.write(table, key, stored).catch((e) => {
+                    if (e instanceof IDBQuotaExceededError) {
+                        indexedDB.deleteDatabase();
+                    } else {
+                        console.warn("RPC cache: disk write failed", e);
+                    }
+                });
+            })
+            .catch(() => {});
     }
 
     /**
@@ -467,38 +524,10 @@ export class RPCCache {
                         delete this.pendingRequests[requestKey];
                         this.ramCache.write(table, key, Promise.resolve(result), model);
                         if (useDisk) {
-                            const { crypto, indexedDB } = useDisk;
-                            const generation = this.diskGenerationOf(table);
-                            const version = result?.[VERSION_FIELD];
-                            crypto
-                                .encrypt(result)
-                                .then((encryptedResult) => {
-                                    if (
-                                        request.invalidated ||
-                                        generation !== this.diskGenerationOf(table)
-                                    ) {
-                                        return;
-                                    }
-                                    /** @type {Record<string, any>} */
-                                    const stored = { ...encryptedResult };
-                                    if (model) {
-                                        stored.model = model;
-                                    }
-                                    if (version !== undefined) {
-                                        stored.version = version;
-                                    }
-                                    indexedDB.write(table, key, stored).catch((e) => {
-                                        if (e instanceof IDBQuotaExceededError) {
-                                            indexedDB.deleteDatabase();
-                                        } else {
-                                            console.warn(
-                                                "RPC cache: disk write failed",
-                                                e,
-                                            );
-                                        }
-                                    });
-                                })
-                                .catch(() => {});
+                            this._writeToDisk(useDisk, table, key, result, {
+                                model,
+                                request,
+                            });
                         }
                     }
                     for (const subscriber of request.callbacks) {

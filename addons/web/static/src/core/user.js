@@ -86,6 +86,230 @@ const USER_KEYS_OWNED_BY_USER = [
 ];
 
 /**
+ * The user's company set: which are allowed, which are active, and how
+ * activating one pulls its children in.
+ *
+ * Extracted from _makeUser because it is the one part of the user object with
+ * rules of its own -- an ordering (the main company first, the rest by id), a
+ * fallback when the cookie names nothing valid, a cookie to keep in step, and an
+ * event other services listen for. None of that has anything to do with groups,
+ * settings or access rights; it only shared a closure with them.
+ *
+ * @param {any} userCompanies session.user_companies
+ * @param {Record<string, any>} context the user context, whose allowed_company_ids this owns
+ */
+function makeCompanies(userCompanies, context) {
+    /** @type {any[]} */
+    let allowedCompanies = [];
+    /** @type {any[]} */
+    const allowedCompaniesWithAncestors = [];
+    /** @type {any[]} */
+    let activeCompanies = [];
+    /** @type {any} */
+    let defaultCompany;
+
+    /**
+     * @param {number[]} cids
+     */
+    function setActive(cids) {
+        const previousIds = activeCompanies.map((c) => c.id).join("-");
+        activeCompanies = cids
+            .map((cid) => allowedCompanies.find((c) => c.id === cid))
+            .filter((c) => c !== undefined);
+        if (!activeCompanies.length) {
+            const fallback = defaultCompany || allowedCompanies[0];
+            activeCompanies = fallback ? [fallback] : [];
+        }
+        if (activeCompanies.length) {
+            // The main company keeps its place; the rest are ordered by id so
+            // that the same selection always produces the same cookie.
+            activeCompanies = [
+                activeCompanies[0],
+                ...sortBy(activeCompanies.slice(1), (c) => c.id),
+            ];
+        }
+
+        const activeIds = activeCompanies.map((c) => c.id);
+        cookie.set("cids", activeIds.join("-"));
+        Object.assign(context, { allowed_company_ids: activeIds });
+
+        if (activeIds.join("-") !== previousIds) {
+            userBus.trigger(UserEvent.ACTIVE_COMPANIES_CHANGED);
+        }
+    }
+
+    if (userCompanies) {
+        allowedCompanies = Object.values(userCompanies.allowed_companies);
+        allowedCompaniesWithAncestors.push(
+            ...Object.values(userCompanies.allowed_companies),
+        );
+        if (userCompanies.disallowed_ancestor_companies) {
+            allowedCompaniesWithAncestors.push(
+                ...Object.values(userCompanies.disallowed_ancestor_companies),
+            );
+        }
+        defaultCompany = allowedCompanies.find(
+            (c) => c.id === userCompanies.current_company,
+        );
+        setActive(getCookieCompanyIds());
+    }
+
+    /**
+     * @param {number} companyId
+     * @returns {number[]}
+     */
+    function childIdsOf(companyId) {
+        return allowedCompanies.find((c) => c.id === companyId)?.child_ids ?? [];
+    }
+
+    return {
+        get allowedCompanies() {
+            return allowedCompanies;
+        },
+        get allowedCompaniesWithAncestors() {
+            return allowedCompaniesWithAncestors;
+        },
+        get activeCompanies() {
+            return activeCompanies;
+        },
+        get defaultCompany() {
+            return defaultCompany;
+        },
+        /**
+         * @param {number[]} companyIds
+         * @param {{ includeChildCompanies?: boolean }} [options]
+         */
+        activate(companyIds, { includeChildCompanies = true } = {}) {
+            const newCompanyIds = companyIds.length
+                ? [...companyIds]
+                : activeCompanies[0]
+                  ? [activeCompanies[0].id]
+                  : [];
+
+            const addCompanies = (/** @type {number[]} */ ids) => {
+                for (const companyId of ids) {
+                    if (!newCompanyIds.includes(companyId)) {
+                        newCompanyIds.push(companyId);
+                        addCompanies(childIdsOf(companyId));
+                    }
+                }
+            };
+            if (includeChildCompanies) {
+                addCompanies(companyIds.flatMap(childIdsOf));
+            }
+            setActive(newCompanyIds);
+        },
+    };
+}
+
+/**
+ * `hasGroup`, memoised, and pre-seeded with what the session already told us.
+ *
+ * @param {number | false} userId
+ * @param {Record<string, any>} groups session.groups
+ * @param {{ isInternalUser?: boolean, isSystem?: boolean, isAdmin?: boolean, isPublic?: boolean }} flags
+ */
+function makeGroupCache(userId, groups, flags) {
+    const cache = new Cache(
+        (/** @type {string} */ group, /** @type {object} */ context) => {
+            if (!userId) {
+                return Promise.resolve(false);
+            }
+            return rpc("/web/dataset/call_kw/res.users/has_group", {
+                model: "res.users",
+                method: "has_group",
+                args: [userId, group],
+                kwargs: { context },
+            });
+        },
+        // Keyed on the group alone: the context is an argument to the RPC, not
+        // part of the question being cached.
+        (/** @type {string} */ group) => group,
+    );
+
+    function seed() {
+        /** @type {[string, boolean | undefined][]} */
+        const seeded = [
+            ["base.group_user", flags.isInternalUser],
+            ["base.group_system", flags.isSystem],
+            ["base.group_erp_manager", flags.isAdmin],
+            ["base.group_public", flags.isPublic],
+        ];
+        for (const [group, value] of seeded) {
+            if (value !== undefined) {
+                cache.set(Promise.resolve(value), group);
+            }
+        }
+        for (const [group, value] of Object.entries(groups)) {
+            cache.set(Promise.resolve(!!value), group);
+        }
+    }
+    seed();
+
+    return {
+        /**
+         * @param {string} group
+         * @param {object} context
+         * @returns {Promise<boolean>}
+         */
+        has(group, context) {
+            return cache.read(group, context);
+        },
+        /** Drop every answer and put the session's own back. */
+        reseed() {
+            cache.invalidate();
+            seed();
+        },
+    };
+}
+
+/**
+ * `has_access`, memoised on (model, operation, id SET) -- so the same question
+ * asked with the ids in another order, or with duplicates, is one RPC.
+ */
+function makeAccessRightCache() {
+    const fetch = (
+        /** @type {string} */ model,
+        /** @type {string} */ operation,
+        /** @type {number[]} */ ids,
+        /** @type {object} */ context,
+    ) =>
+        rpc(`/web/dataset/call_kw/${model}/has_access`, {
+            model,
+            method: "has_access",
+            args: [ids, operation],
+            kwargs: { context },
+        });
+
+    const cache = new Cache(fetch, (model, operation, ids) =>
+        JSON.stringify([
+            model,
+            operation,
+            unique([...ids]).sort((a, b) => (a > b ? 1 : a < b ? -1 : 0)),
+        ]),
+    );
+
+    return {
+        /**
+         * @param {string} model
+         * @param {string} operation
+         * @param {number[]} ids
+         * @param {object} context
+         * @param {{ cached?: boolean }} [options]
+         * @returns {Promise<boolean>}
+         */
+        check(model, operation, ids, context, { cached = true } = {}) {
+            return cached
+                ? cache.read(model, operation, ids, context)
+                : fetch(model, operation, ids, context);
+        },
+        invalidate() {
+            cache.invalidate();
+        },
+    };
+}
+
+/**
  * @param {Record<string, any>} session
  * @returns {UserObject}
  */
@@ -109,126 +333,21 @@ export function _makeUser(session) {
     } = session;
     const settings = user_settings || {};
 
-    /**
-     * @param {number[]} cids
-     * @param {Array<{id: number, child_ids: number[]}>} allowedCompanies
-     * @param {{id: number} | undefined} defaultCompany
-     */
-    function updateActiveCompanies(cids, allowedCompanies, defaultCompany) {
-        const previousIds = activeCompanies.map((c) => c.id).join("-");
-        activeCompanies = cids
-            .map((cid) => allowedCompanies.find((c) => c.id === cid))
-            .filter((c) => c !== undefined);
-        if (!activeCompanies.length) {
-            const fallback = defaultCompany || allowedCompanies[0];
-            activeCompanies = fallback ? [fallback] : [];
-        }
-        if (activeCompanies.length) {
-            activeCompanies = [
-                activeCompanies[0],
-                ...sortBy(activeCompanies.slice(1), (c) => c.id),
-            ];
-        }
+    const companies = makeCompanies(userCompanies, context);
 
-        const activeIds = activeCompanies.map((c) => c.id);
-        cookie.set("cids", activeIds.join("-"));
-        Object.assign(context, { allowed_company_ids: activeIds });
-
-        if (activeIds.join("-") !== previousIds) {
-            userBus.trigger(UserEvent.ACTIVE_COMPANIES_CHANGED);
-        }
-    }
-
-    /** @type {any[]} */
-    let allowedCompanies = [];
-    /** @type {any[]} */
-    const allowedCompaniesWithAncestors = [];
-    /** @type {any[]} */
-    let activeCompanies = [];
-    /** @type {any} */
-    let defaultCompany;
-
-    if (userCompanies) {
-        allowedCompanies = Object.values(userCompanies.allowed_companies);
-        allowedCompaniesWithAncestors.push(
-            ...Object.values(userCompanies.allowed_companies),
-        );
-        if (userCompanies.disallowed_ancestor_companies) {
-            allowedCompaniesWithAncestors.push(
-                ...Object.values(userCompanies.disallowed_ancestor_companies),
-            );
-        }
-        defaultCompany = allowedCompanies.find(
-            (c) => c.id === userCompanies.current_company,
-        );
-        updateActiveCompanies(getCookieCompanyIds(), allowedCompanies, defaultCompany);
-    }
-
-    /** @type {(group: string, context: Object) => Promise<boolean>} */
-    const getGroupCacheValue = (group, context) => {
-        if (!userId) {
-            return Promise.resolve(false);
-        }
-        return rpc("/web/dataset/call_kw/res.users/has_group", {
-            model: "res.users",
-            method: "has_group",
-            args: [userId, group],
-            kwargs: { context },
-        });
-    };
-    const getGroupCacheKey = (/** @type {string} */ group) => group;
-    const groupCache = new Cache(getGroupCacheValue, getGroupCacheKey);
-    const seedGroupCache = () => {
-        /** @type {[string, boolean | undefined][]} */
-        const seeded = [
-            ["base.group_user", isInternalUser],
-            ["base.group_system", isSystem],
-            ["base.group_erp_manager", isAdmin],
-            ["base.group_public", isPublic],
-        ];
-        for (const [group, value] of seeded) {
-            if (value !== undefined) {
-                groupCache.set(Promise.resolve(value), group);
-            }
-        }
-        for (const [group, value] of Object.entries(groups)) {
-            groupCache.set(Promise.resolve(!!value), group);
-        }
-    };
-    seedGroupCache();
-    /**
-     * @type {(model: string, operation: string, ids: number[], context: Object) => Promise<boolean>}
-     */
-    const getAccessRightCacheValue = (model, operation, ids, context) => {
-        const url = `/web/dataset/call_kw/${model}/has_access`;
-        return rpc(url, {
-            model,
-            method: "has_access",
-            args: [ids, operation],
-            kwargs: { context },
-        });
-    };
-    const getAccessRightCacheKey = (
-        /** @type {string} */ model,
-        /** @type {string} */ operation,
-        /** @type {number[]} */ ids,
-    ) =>
-        JSON.stringify([
-            model,
-            operation,
-            unique([...ids]).sort((a, b) => (a > b ? 1 : a < b ? -1 : 0)),
-        ]);
-    const accessRightCache = new Cache(
-        getAccessRightCacheValue,
-        getAccessRightCacheKey,
-    );
+    const groups_ = makeGroupCache(userId, groups, {
+        isInternalUser,
+        isSystem,
+        isAdmin,
+        isPublic,
+    });
+    const accessRights = makeAccessRightCache();
     const lang = pyToJsLocale(context?.lang);
 
     return {
         _onActiveCompaniesChanged() {
-            groupCache.invalidate();
-            seedGroupCache();
-            accessRightCache.invalidate();
+            groups_.reseed();
+            accessRights.invalidate();
         },
         name,
         login,
@@ -256,7 +375,7 @@ export function _makeUser(session) {
             Object.assign(context, update);
         },
         hasGroup(group) {
-            return groupCache.read(group, this.context);
+            return groups_.has(group, this.context);
         },
         checkAccessRight(
             model,
@@ -264,19 +383,14 @@ export function _makeUser(session) {
             ids = [],
             { context } = /** @type {{ context?: object }} */ ({}),
         ) {
-            if (context) {
-                return getAccessRightCacheValue(
-                    model,
-                    operation,
-                    ensureArray(ids),
-                    context,
-                );
-            }
-            return accessRightCache.read(
+            // An explicit context is not part of the cache key, so it must not
+            // be answered from the cache either.
+            return accessRights.check(
                 model,
                 operation,
                 ensureArray(ids),
-                this.context,
+                context ?? this.context,
+                { cached: !context },
             );
         },
         async setUserSettings(key, value) {
@@ -301,51 +415,24 @@ export function _makeUser(session) {
         updateUserSettings(key, value) {
             settings[key] = value;
         },
-        defaultCompany,
-        allowedCompanies,
-        allowedCompaniesWithAncestors,
+        get defaultCompany() {
+            return companies.defaultCompany;
+        },
+        get allowedCompanies() {
+            return companies.allowedCompanies;
+        },
+        get allowedCompaniesWithAncestors() {
+            return companies.allowedCompaniesWithAncestors;
+        },
         get activeCompanies() {
-            return activeCompanies;
+            return companies.activeCompanies;
         },
         get activeCompany() {
-            return activeCompanies?.[0];
+            return companies.activeCompanies?.[0];
         },
-        async activateCompanies(
-            companyIds,
-            { includeChildCompanies = true, reload = true } = {},
-        ) {
-            const newCompanyIds = companyIds.length
-                ? [...companyIds]
-                : activeCompanies[0]
-                  ? [activeCompanies[0].id]
-                  : [];
-
-            /**
-             * @param {number} companyId
-             * @returns {number[]}
-             */
-            function childIdsOf(companyId) {
-                return (
-                    allowedCompanies.find((c) => c.id === companyId)?.child_ids ?? []
-                );
-            }
-
-            function addCompanies(/** @type {number[]} */ companyIds) {
-                for (const companyId of companyIds) {
-                    if (!newCompanyIds.includes(companyId)) {
-                        newCompanyIds.push(companyId);
-                        addCompanies(childIdsOf(companyId));
-                    }
-                }
-            }
-
-            if (includeChildCompanies) {
-                addCompanies(companyIds.flatMap(childIdsOf));
-            }
-
-            updateActiveCompanies(newCompanyIds, allowedCompanies, defaultCompany);
-
-            if (reload) {
+        async activateCompanies(companyIds, options = {}) {
+            companies.activate(companyIds, options);
+            if (options.reload ?? true) {
                 browser.location.reload();
             }
         },

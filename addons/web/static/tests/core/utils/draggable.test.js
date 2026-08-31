@@ -786,6 +786,12 @@ test("starting a drag blurs what was focused outside the dragged element", async
     expectNoDragResidue();
 });
 
+// `contains().drag()` cannot stage this on a touch device: its touch path burns
+// hoot's 500ms LONG_TAP_DELAY of simulated time before it hands control back, so
+// a 100ms delay has already elapsed and the press has legitimately armed. The
+// touch counterpart below presses by hand instead, so both paths cover the
+// cancellation rather than one of them reporting a premise it never staged.
+test.tags("desktop");
 test("a delayed drag is cancelled when the pointer left the element before it fires", async () => {
     await mountWithCleanup(
         makeDraggableList({ delay: 100, onDragStart: () => expect.step("start") }),
@@ -829,6 +835,26 @@ test("a delayed press that drifted off the element never arms the drag", async (
     });
 
     await drop();
+    expectNoDragResidue();
+});
+
+test.tags("mobile");
+test("a delayed touch drag is cancelled when the finger left the element too", async () => {
+    await mountWithCleanup(
+        makeDraggableList({ delay: 100, onDragStart: () => expect.step("start") }),
+    );
+
+    await pointerDown(".item:first-child");
+    await hover(".item:last-child");
+    await advanceTime(200);
+
+    expect.verifySteps([], { message: "the press was abandoned before it armed" });
+    expect(".o_dragged").toHaveCount(0);
+
+    await hover(".item:nth-child(2)");
+    expect.verifySteps([], { message: "and it stays abandoned" });
+
+    await pointerUp(".item:nth-child(2)");
     expectNoDragResidue();
 });
 

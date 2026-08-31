@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
+import { browser } from "@web/core/browser/browser";
 import { isObject } from "@web/core/utils/collections/objects";
 
 /**
@@ -220,7 +221,7 @@ export function sprintf(str, ...substitutions) {
  */
 export function uuid() {
     let id = "";
-    for (const b of crypto.getRandomValues(new Uint8Array(8))) {
+    for (const b of browser.crypto.getRandomValues(new Uint8Array(8))) {
         id += b.toString(16).padStart(2, "0");
     }
     return id;

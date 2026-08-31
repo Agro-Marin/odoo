@@ -200,3 +200,67 @@ test("non-fetchable frame origins are skipped without a fetch", async () => {
     ];
     expect(await mapFramesToSource(frames)).toEqual(frames);
 });
+
+describe("reading the sourceMappingURL directive", () => {
+    /** @param {string} body @param {(url: string, init: any) => void} onFetch */
+    function serve(body, onFetch) {
+        mockFetch(async (input, init) => {
+            const url = String(input);
+            onFetch(url, init);
+            if (url.endsWith(".map")) {
+                return new Response(
+                    JSON.stringify({
+                        version: 3,
+                        sources: ["src.js"],
+                        mappings: "AAAA",
+                    }),
+                );
+            }
+            return new Response(body);
+        });
+    }
+
+    test("a suffix Range is asked for, not the whole file", async () => {
+        clearSourceMapCache();
+        const body = "x".repeat(200_000) + "\n//# sourceMappingURL=b.js.map\n";
+        /** @type {(string | null)[]} */
+        const ranges = [];
+        serve(body, (url, init) => {
+            if (!url.endsWith(".map")) {
+                ranges.push(new Headers(init?.headers || {}).get("range"));
+            }
+        });
+
+        const frames = await mapFramesToSource(
+            parseStackFrames("    at fn (/web/assets/b.js:1:5)"),
+        );
+
+        expect(ranges).toEqual(["bytes=-1024"]);
+        expect(frames[0].fileName).toBe("src.js");
+        clearSourceMapCache();
+    });
+
+    test("a server that ignores Range and sends the whole body still works", async () => {
+        clearSourceMapCache();
+        // 200 with the full file: the directive is found by cutting the tail off
+        const body = "y".repeat(50_000) + "\n//# sourceMappingURL=c.js.map\n";
+        serve(body, () => {});
+
+        const frames = await mapFramesToSource(
+            parseStackFrames("    at fn (/web/assets/c.js:1:5)"),
+        );
+        expect(frames[0].fileName).toBe("src.js");
+        clearSourceMapCache();
+    });
+
+    test("a script with no directive maps nothing and does not throw", async () => {
+        clearSourceMapCache();
+        serve("z".repeat(1000), () => {});
+        const frames = await mapFramesToSource(
+            parseStackFrames("    at fn (/web/assets/d.js:9:5)"),
+        );
+        expect(frames[0].fileName).toBe("/web/assets/d.js");
+        expect(frames[0].lineNumber).toBe(9);
+        clearSourceMapCache();
+    });
+});

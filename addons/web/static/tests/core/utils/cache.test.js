@@ -1,6 +1,7 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
+import { Deferred } from "@odoo/hoot-mock";
 import { Cache } from "@web/core/utils/collections/cache";
 
 describe.current.tags("headless");
@@ -165,4 +166,84 @@ describe("Cache", () => {
         expect(await cache.read("k")).toBe("v");
         expect(calls).toBe(1);
     });
+});
+
+/* --- merged from tests/core/cache.test.js: one module, one suite --- */
+test("do not call getValue if already cached", () => {
+    const cache = new Cache((key) => {
+        expect.step(key);
+        return key.toUpperCase();
+    });
+
+    expect(cache.read("a")).toBe("A");
+    expect(cache.read("b")).toBe("B");
+    expect(cache.read("a")).toBe("A");
+
+    expect.verifySteps(["a", "b"]);
+});
+
+test("multiple cache key", async () => {
+    const cache = new Cache((...keys) => expect.step(keys.join("-")));
+
+    cache.read("a", 1);
+    cache.read("a", 2);
+    cache.read("a", 1);
+
+    expect.verifySteps(["a-1", "a-2"]);
+});
+
+test("compute key", async () => {
+    const cache = new Cache(
+        (key) => expect.step(key),
+        (key) => key.toLowerCase(),
+    );
+
+    cache.read("a");
+    cache.read("A");
+
+    expect.verifySteps(["a"]);
+});
+
+test("cache promise", async () => {
+    const cache = new Cache((key) => {
+        expect.step(`read ${key}`);
+        return new Deferred();
+    });
+
+    cache.read("a").then((/** @type {any} */ k) => expect.step(`then ${k}`));
+    cache.read("b").then((/** @type {any} */ k) => expect.step(`then ${k}`));
+    cache.read("a").then((/** @type {any} */ k) => expect.step(`then ${k}`));
+    cache.read("a").resolve("a");
+    cache.read("b").resolve("b");
+
+    await Promise.resolve();
+
+    expect.verifySteps(["read a", "read b", "then a", "then a", "then b"]);
+});
+
+test("clear cache", async () => {
+    const cache = new Cache((key) => expect.step(key));
+
+    cache.read("a");
+    cache.read("b");
+    expect.verifySteps(["a", "b"]);
+
+    cache.read("a");
+    cache.read("b");
+    expect.verifySteps([]);
+
+    cache.clear("a");
+    cache.read("a");
+    cache.read("b");
+    expect.verifySteps(["a"]);
+
+    expect(() => cache.clear()).toThrow(TypeError);
+    cache.read("a");
+    cache.read("b");
+    expect.verifySteps([]);
+
+    cache.invalidate();
+    cache.read("a");
+    cache.read("b");
+    expect.verifySteps(["a", "b"]);
 });

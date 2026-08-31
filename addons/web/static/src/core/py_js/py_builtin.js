@@ -4,6 +4,7 @@
 import { isLess } from "./py_compare.js";
 import { PyDate, PyDateTime, PyRelativeDelta, PyTime, PyTimeDelta } from "./py_date.js";
 import { EvaluationError } from "./py_errors.js";
+import { pySet } from "./py_set.js";
 import { pyTypeName } from "./py_type_name.js";
 import { isPyMapping } from "./py_utils.js";
 
@@ -340,9 +341,8 @@ export const BUILTINS = {
                 `set expected at most 1 argument, got (${arguments.length - 1})`,
             );
         }
-        return execOnIterable(
-            iterable,
-            (/** @type {any} */ iterable) => new Set(iterable),
+        return execOnIterable(iterable, (/** @type {any} */ iterable) =>
+            pySet(iterable),
         );
     },
 

@@ -18,6 +18,15 @@ import { Domain } from "@web/core/domain";
 import { registry } from "@web/core/registry";
 
 /**
+ * The model and field `get_properties_base_definition` is written against.
+ * Both halves of that contract live in
+ * `addons/web/models/properties_base_definition.py`; naming them here is what
+ * lets a mismatch fail with a sentence instead of a TypeError.
+ */
+const BASE_DEFINITION_MODEL = "properties.base.definition";
+const BASE_DEFINITION_FIELD = "properties_definition";
+
+/**
  * @param {Record<string, any> | null | undefined} fieldDefs
  * @param {string} name
  * @returns {Record<string, any> | undefined}
@@ -90,10 +99,23 @@ class FieldService {
         const definitionRecordModel = definitionRecordDef.relation;
 
         let result;
-        if (definitionRecordModel === "properties.base.definition") {
+        if (definitionRecordModel === BASE_DEFINITION_MODEL) {
+            // The server's get_properties_base_definition hardcodes its
+            // specification (addons/web/models/properties_base_definition.py), so
+            // the definitions come back under BASE_DEFINITION_FIELD whatever the
+            // field is called here. Say so, rather than reading `undefined` and
+            // dying two lines later in a for..of.
+            if (definitionRecordField !== BASE_DEFINITION_FIELD) {
+                throw new Error(
+                    `Field "${resModel}.${name}" names ` +
+                        `"${definitionRecordField}" as its definition_record_field, ` +
+                        `but ${BASE_DEFINITION_MODEL} only serves ` +
+                        `"${BASE_DEFINITION_FIELD}"`,
+                );
+            }
             result = await this.orm
                 .retry(1)
-                .call("properties.base.definition", "get_properties_base_definition", [
+                .call(BASE_DEFINITION_MODEL, "get_properties_base_definition", [
                     resModel,
                     name,
                 ]);

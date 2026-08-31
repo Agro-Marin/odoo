@@ -12,7 +12,14 @@ export const DEFAULT_ACCEPTED_PARAMS = {
     enable: [Boolean, Function],
     preventDrag: [Function],
     ref: [Object],
-    elements: [String],
+    // [String, Function] like every other selector here: `computeParamValues`
+    // already routes each param through `getReturnValue`, and the effect that
+    // applies them lists those values as its dependencies, so a function-valued
+    // selector is re-read and re-applied per render. Accepting only a string
+    // meant a caller computing `elements` from reactive state -- the properties
+    // field derives it from its rendered column count -- silently froze it at
+    // setup, for the drop-target resolution `elements` also drives.
+    elements: [String, Function],
     handle: [String, Function],
     ignore: [String, Function],
     cursor: [String],

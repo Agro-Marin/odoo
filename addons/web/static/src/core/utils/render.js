@@ -57,7 +57,25 @@ Object.defineProperty(renderToString, "app", {
         }
         return app;
     },
+    /**
+     * Owl's App memoises every template it compiles, and this one lives for the
+     * page. Assigning here is how a caller drops that memo -- after a bundle
+     * registers a template extension, or between tests. It was previously
+     * get-only AND non-configurable, so neither was possible.
+     */
+    set: (value) => {
+        app = value ?? undefined;
+    },
+    configurable: true,
 });
+
+/**
+ * Forget every template `renderToString` has compiled. The next render rebuilds
+ * from the current registry.
+ */
+export function invalidateRenderToStringApp() {
+    app = undefined;
+}
 
 /**
  * @param {string} template

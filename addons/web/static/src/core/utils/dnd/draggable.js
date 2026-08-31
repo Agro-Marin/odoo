@@ -9,7 +9,7 @@ import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_ow
 /**
  * @typedef DraggableParams
  * @property {{ el: HTMLElement | null }} ref
- * @property {string} elements
+ * @property {string | (() => string)} elements
  * @property {boolean | (() => boolean)} [enable]
  * @property {string | (() => string)} [handle]
  * @property {string | (() => string)} [ignore]

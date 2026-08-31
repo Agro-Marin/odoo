@@ -46,9 +46,31 @@ export function fullTraceback(error) {
 }
 
 /**
+ * The annotated traceback for `error` -- and, the first time, a THROW rather
+ * than a return.
+ *
+ * Annotating needs the source maps, which means a fetch, which means this cannot
+ * finish before `window.onerror` returns. By then the browser has already
+ * decided what to do with the event. The way out is to let the annotation
+ * finish, memoise it on the error, and then re-throw: the throw becomes an
+ * unhandled rejection, `ErrorService.onUnhandledRejection` picks the same error
+ * up a turn later, calls back in here, and this time the memo is warm and it
+ * returns normally.
+ *
+ * Two consequences worth knowing before changing anything here:
+ *
+ *  - it only behaves this way when the error carries an `errorEvent`, i.e. when
+ *    it came from a real browser event rather than from code asking politely;
+ *  - the re-entry is through the REJECTION path, so under `debug=assets` an
+ *    uncaught error reaches the `error_handlers` registry as an
+ *    `UncaughtPromiseError` where the same failure is an `UncaughtClientError`
+ *    otherwise. Three handlers in `components/errors/error_handlers.js` gate on
+ *    exactly that class. Pinned by "the reported class depends on the debug
+ *    mode" in tests/core/errors/error_service.test.js.
+ *
  * @param {AnnotatedError} error
  * @returns {Promise<string>}
- * @throws {AnnotatedError}
+ * @throws {AnnotatedError} on the first call for an error carrying an errorEvent
  */
 export async function fullAnnotatedTraceback(error) {
     if (error.annotatedTraceback) {
@@ -80,6 +102,8 @@ export async function fullAnnotatedTraceback(error) {
     }
     error.annotatedTraceback = traceback;
     if (error.errorEvent) {
+        // Not a failure: the memo above is the result. See the note on this
+        // function for why the caller is made to come back for it.
         throw error;
     }
     return traceback;

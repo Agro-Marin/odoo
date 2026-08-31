@@ -184,15 +184,28 @@ export class Registry extends EventBus {
     }
 
     /**
+     * Registration order: by sequence, then by insertion index. The only place
+     * that order is spelled out -- getAll() and getEntries() are two
+     * projections of this one list, not two sorts that must be kept in step.
+     *
+     * @private
+     * @returns {[string, [number, GetRegistryItemShape<T>, number]][]}
+     */
+    _sortedContent() {
+        const raw = Object.entries(this.content);
+        raw.sort((a, b) => a[1][0] - b[1][0] || a[1][2] - b[1][2]);
+        return raw;
+    }
+
+    /**
      * @returns {ReadonlyArray<GetRegistryItemShape<T>>}
      */
     getAll() {
         if (!this.elements) {
-            const tuples = Object.values(this.content);
-            tuples.sort((a, b) => a[0] - b[0] || a[2] - b[2]);
-            const elements = new Array(tuples.length);
-            for (let i = 0; i < tuples.length; i++) {
-                elements[i] = tuples[i][1];
+            const raw = this._sortedContent();
+            const elements = new Array(raw.length);
+            for (let i = 0; i < raw.length; i++) {
+                elements[i] = raw[i][1][1];
             }
             this.elements = /** @type {any} */ (Object.freeze(elements));
         }
@@ -204,8 +217,7 @@ export class Registry extends EventBus {
      */
     getEntries() {
         if (!this.entries) {
-            const raw = Object.entries(this.content);
-            raw.sort((a, b) => a[1][0] - b[1][0] || a[1][2] - b[1][2]);
+            const raw = this._sortedContent();
             const entries = new Array(raw.length);
             for (let i = 0; i < raw.length; i++) {
                 entries[i] = [raw[i][0], raw[i][1][1]];

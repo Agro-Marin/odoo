@@ -28,13 +28,3 @@ export function effect(cb, deps) {
         disposed = true;
     };
 }
-
-/**
- * @template {object[]} T
- * @param {(...args: [...T]) => any} cb
- * @param {[...T]} deps
- * @returns {() => void}
- */
-export function disposableEffect(cb, deps) {
-    return effect(cb, deps);
-}

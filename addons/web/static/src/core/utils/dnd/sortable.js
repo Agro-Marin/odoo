@@ -14,7 +14,7 @@ import { applyGroupParams } from "@web/core/utils/dnd/draggable_hook_builder_uti
 /**
  * @typedef SortableParams
  * @property {{ el: HTMLElement | null }} ref
- * @property {string} elements
+ * @property {string | (() => string)} elements
  * @property {boolean | (() => boolean)} [enable]
  * @property {number} [delay]
  * @property {number} [touchDelay]

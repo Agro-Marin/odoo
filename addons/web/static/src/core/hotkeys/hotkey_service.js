@@ -237,7 +237,7 @@ export class HotkeyService {
             callback: () => {
                 /** @type {HTMLElement | null} */ (getDeepActiveElement(el))?.blur();
                 el.focus();
-                setTimeout(() => el.click());
+                browser.setTimeout(() => el.click());
             },
         }));
     }

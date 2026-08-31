@@ -3,8 +3,11 @@
 import { describe, expect, mockSendBeacon, test } from "@odoo/hoot";
 import { Component, xml } from "@odoo/owl";
 import {
+    clearRegistry,
     mountWithCleanup,
     patchWithCleanup,
+    registerRegistryForCleanup,
+    restoreRegistry,
     serverState,
 } from "@web/../tests/web_test_helpers";
 import { Registry, useRegistry } from "@web/core/registry";
@@ -446,4 +449,50 @@ test("tests see production first-registration-wins semantics", () => {
 
     registry.add("k", "third", { force: true });
     expect(registry.get("k")).toBe("third");
+});
+
+describe("keys are data, never property names", () => {
+    /** @param {import("@web/core/registry").Registry<any>} reg */
+    function expectNoPrototypeLeak(reg) {
+        for (const member of [
+            "toString",
+            "constructor",
+            "valueOf",
+            "hasOwnProperty",
+            "isPrototypeOf",
+            "propertyIsEnumerable",
+            "toLocaleString",
+        ]) {
+            expect(reg.contains(member)).toBe(false, { message: member });
+            expect(() => reg.get(member)).toThrow(
+                new RegExp(`Cannot find key "${member}"`),
+            );
+        }
+        expect(reg.getEntries()).toHaveLength(reg.contains("real") ? 1 : 0);
+    }
+
+    test("a fresh registry answers for none of Object.prototype", () => {
+        expectNoPrototypeLeak(new Registry("probe"));
+    });
+
+    test("nor does one the test harness has cleared", () => {
+        // clearRegistry used to hand back a plain `{}`, and Registry looks keys
+        // up with `key in content` -- so every Object.prototype member became a
+        // registered key, under test only.
+        const reg = new Registry("probe");
+        reg.add("real", 1);
+        clearRegistry(reg);
+        expectNoPrototypeLeak(reg);
+    });
+
+    test("nor one restored from a snapshot", () => {
+        const reg = new Registry("probe");
+        reg.add("real", 1);
+        registerRegistryForCleanup(reg);
+        reg.add("scratch", 2);
+        restoreRegistry(reg);
+        expect(reg.get("real")).toBe(1);
+        expect(reg.contains("scratch")).toBe(false);
+        expectNoPrototypeLeak(reg);
+    });
 });

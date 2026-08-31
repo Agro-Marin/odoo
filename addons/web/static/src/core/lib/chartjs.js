@@ -1,45 +1,32 @@
 // @ts-check
 /** @odoo-module native */
 
-import { makeLazyFacade } from "@web/core/module_bridge";
+import { makeLazyLib } from "@web/core/lib/lazy_lib";
+
+const chartjs = makeLazyLib(
+    async () => {
+        const [chartModule] = await Promise.all([
+            import("chart.js"),
+            import("chartjs-adapter-luxon"),
+        ]);
+        return chartModule;
+    },
+    {
+        pick: (/** @type {any} */ module) => module.Chart,
+        extra: (/** @type {any} */ module) => module.Tooltip,
+        constructable: true,
+    },
+);
 
 /** @type {any} */
-let _chart = null;
-
-/**
- * @type {any}
- */
-export const Chart = makeLazyFacade(() => _chart, { constructable: true });
+export const Chart = chartjs.facade;
 
 /** @type {any} */
-let _tooltip = null;
-
-/**
- * @type {any}
- */
-export const Tooltip = makeLazyFacade(() => _tooltip);
-
-/** @type {Promise<any> | null} */
-let loadPromise = null;
+export const Tooltip = chartjs.extraFacade;
 
 /**
  * @returns {Promise<any>}
  */
-export async function loadChartJS() {
-    if (!_chart) {
-        loadPromise ??= (async () => {
-            const [chartModule] = await Promise.all([
-                import("chart.js"),
-                import("chartjs-adapter-luxon"),
-            ]);
-            _chart = chartModule.Chart;
-            _tooltip = chartModule.Tooltip;
-            return Chart;
-        })().catch((error) => {
-            loadPromise = null;
-            throw error;
-        });
-        await loadPromise;
-    }
-    return Chart;
+export function loadChartJS() {
+    return chartjs.load();
 }

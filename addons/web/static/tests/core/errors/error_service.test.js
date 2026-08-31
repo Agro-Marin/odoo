@@ -776,3 +776,57 @@ test("a 403 Forbidden routes to WarningDialog, not the session-expired dialog", 
     await animationFrame();
     expect.verifyErrors(["RPC_ERROR: Odoo Server Error"]);
 });
+
+describe("the reported class depends on the debug mode", () => {
+    /**
+     * Drive ErrorService.onError directly and report what the error_handlers
+     * registry was handed. Under `debug=assets` the answer is nothing: the
+     * annotation path re-throws so the report arrives a turn later through
+     * onUnhandledRejection instead. See fullAnnotatedTraceback in error_utils.
+     *
+     * @param {string} debug
+     * @returns {Promise<string[]>}
+     */
+    async function reportedFor(debug) {
+        /** @type {string[]} */
+        const seen = [];
+        registry.category("error_handlers").add(
+            "class_probe",
+            (_env, uncaught) => {
+                seen.push(uncaught.constructor.name);
+                return true;
+            },
+            { sequence: 1 },
+        );
+        const env = await makeMockEnv();
+        patchWithCleanup(env, { debug });
+        const service = registry.category("services").get("error").start(env);
+        const error = new Error("boom");
+        await service
+            .onError({
+                error,
+                filename: "/a.js",
+                lineno: 1,
+                colno: 1,
+                message: "boom",
+                type: "error",
+                defaultPrevented: false,
+                preventDefault() {},
+            })
+            .catch((e) => seen.push(e === error ? "RETHROWN" : `THREW:${e}`));
+        service.destroy();
+        return seen;
+    }
+
+    test("without debug=assets the handlers see an UncaughtClientError", async () => {
+        expect(await reportedFor("1")).toEqual(["UncaughtClientError"]);
+    });
+
+    test("with debug=assets onError re-throws instead, and reports on re-entry", async () => {
+        // Nothing reaches the handlers on this pass; the rejection does, later,
+        // as an UncaughtPromiseError. Three handlers in
+        // components/errors/error_handlers.js gate on exactly that class, which
+        // is why this difference is worth pinning rather than leaving implicit.
+        expect(await reportedFor("assets")).toEqual(["RETHROWN"]);
+    });
+});

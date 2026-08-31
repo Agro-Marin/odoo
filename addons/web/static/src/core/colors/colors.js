@@ -2,6 +2,10 @@
 /** @odoo-module native */
 
 import { colorScheme } from "@web/core/color_scheme";
+import {
+    convertCSSColorToRgba,
+    convertRgbaToCSSColor,
+} from "@web/core/utils/format/colors";
 import { clamp } from "@web/core/utils/format/numbers";
 
 const COLORS_ENT_BRIGHT = ["#875A7B", "#A5D8D7", "#DCD0D9"];
@@ -130,41 +134,33 @@ export function getBorderWhite() {
     return colorScheme.isDark ? "rgba(38, 42, 54, .2)" : "rgba(249,250,251, .2)";
 }
 
-const HEX6_REGEX = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i;
-const HEX3_REGEX = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
+const BARE_HEX_REGEX = /^(?:[a-f\d]{3}|[a-f\d]{6})$/i;
 
 /**
- * @param {string} hex
+ * Hex parsing lives once, in `utils/format/colors`. This wrapper only adds what
+ * the chart palettes have always accepted and CSS does not: a hex with no `#`.
+ *
+ * @param {string} color
  * @returns {[number, number, number] | null}
  */
-function parseHex(hex) {
-    let m = HEX6_REGEX.exec(hex);
-    if (m) {
-        return [
-            Number.parseInt(m[1], 16),
-            Number.parseInt(m[2], 16),
-            Number.parseInt(m[3], 16),
-        ];
-    }
-    m = HEX3_REGEX.exec(hex);
-    if (m) {
-        return [
-            Number.parseInt(m[1] + m[1], 16),
-            Number.parseInt(m[2] + m[2], 16),
-            Number.parseInt(m[3] + m[3], 16),
-        ];
-    }
-    return null;
+function toRgbTriplet(color) {
+    const css = BARE_HEX_REGEX.test(color) ? `#${color}` : color;
+    const rgba = convertCSSColorToRgba(css);
+    return rgba ? [rgba.red, rgba.green, rgba.blue] : null;
 }
 
 /**
+ * Lowercase on purpose: `convertRgbaToCSSColor` upper-cases, and
+ * `views/graph/graph_view.test.js` asserts literals like `#a7d3f9` that this
+ * function produced. The case is pinned behaviour, not an accident.
+ *
  * @param {number} r
  * @param {number} g
  * @param {number} b
  * @returns {string}
  */
-function rgbToHex(r, g, b) {
-    return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+function toHex(r, g, b) {
+    return String(convertRgbaToCSSColor(r, g, b)).toLowerCase();
 }
 
 /**
@@ -175,11 +171,11 @@ function rgbToHex(r, g, b) {
  */
 function adjustColor(hex, factor, target) {
     factor = clamp(factor, 0, 1);
-    const rgb = parseHex(hex);
+    const rgb = toRgbTriplet(hex);
     if (!rgb) {
         return hex;
     }
-    return rgbToHex(
+    return toHex(
         Math.round(rgb[0] + (target - rgb[0]) * factor),
         Math.round(rgb[1] + (target - rgb[1]) * factor),
         Math.round(rgb[2] + (target - rgb[2]) * factor),
@@ -192,7 +188,7 @@ function adjustColor(hex, factor, target) {
  * @returns {string}
  */
 export function hexToRGBA(hex, opacity) {
-    const rgb = parseHex(hex);
+    const rgb = toRgbTriplet(hex);
     if (!rgb) {
         return `rgba(0,0,0,${opacity})`;
     }
