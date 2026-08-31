@@ -6,10 +6,47 @@ import {
     useInputBuilderComponent,
 } from "@html_builder/core/utils";
 import { isSmallInteger } from "@html_builder/utils/utils";
-import { Component, onWillUpdateProps, useRef } from "@odoo/owl";
+import { Component, onMounted, onPatched, onWillUpdateProps, useRef, useState } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { _t } from "@web/core/translation";
 import { useSortable } from "@web/core/utils/dnd";
+
+/**
+ * Moves the focus into the input of the row that was just appended, caret at
+ * the end of its value, so the user can type without clicking first.
+ *
+ * The count is seeded on mount rather than at zero: a list that already has
+ * rows must not have its last input grabbed by the first unrelated re-render.
+ *
+ * @param {{ el: HTMLElement | null }} ref a ref on the element holding the rows
+ */
+function useAutoFocusNewItem(ref) {
+    const countRows = () => ref.el?.querySelectorAll(".o_row_draggable").length || 0;
+    let rowCount = 0;
+    onMounted(() => {
+        rowCount = countRows();
+    });
+    onPatched(() => {
+        const previousRowCount = rowCount;
+        rowCount = countRows();
+        if (rowCount <= previousRowCount) {
+            return;
+        }
+        const newRowEl = ref.el.querySelectorAll(".o_row_draggable")[rowCount - 1];
+        const inputEl = newRowEl?.querySelector("input, textarea");
+        if (!inputEl) {
+            return;
+        }
+        inputEl.focus();
+        if (!["checkbox", "number"].includes(inputEl.type)) {
+            inputEl.selectionStart = inputEl.selectionEnd = inputEl.value.length;
+        }
+    });
+}
+
+// How close to the end of the rendered rows the scroll has to get, in pixels,
+// before the next batch is rendered.
+const BATCH_LOOKAHEAD = 100;
 
 export class BuilderList extends Component {
     static template = "html_builder.BuilderList";
@@ -38,6 +75,8 @@ export class BuilderList extends Component {
         columnWidth: { optional: true },
         forbidLastItemRemoval: { type: Boolean, optional: true },
         isInputDisabled: { type: Boolean, optional: true },
+        // Rows rendered at once, and the size of every batch added after.
+        limit: { type: Number, optional: true },
     };
     static defaultProps = {
         addItemTitle: _t("Add"),
@@ -50,13 +89,17 @@ export class BuilderList extends Component {
         columnWidth: {},
         forbidLastItemRemoval: false,
         isInputDisabled: false,
+        limit: 50,
     };
     static components = { BuilderComponent, Dropdown };
 
     setup() {
         this.validateProps();
         this.dropdown = useDropdownState();
+        this.tableRef = useRef("table");
+        this.visibleState = useState({ limit: this.props.limit });
         useBuilderComponent();
+        useAutoFocusNewItem(this.tableRef);
         const { state, commit, preview } = useInputBuilderComponent({
             id: this.props.id,
             defaultValue: this.parseDisplayValue([]),
@@ -75,7 +118,7 @@ export class BuilderList extends Component {
         if (this.props.sortable) {
             useSortable({
                 enable: () => this.props.sortable,
-                ref: useRef("table"),
+                ref: this.tableRef,
                 elements: ".o_row_draggable",
                 handle: ".o_handle_cell",
                 cursor: "grabbing",
@@ -86,6 +129,29 @@ export class BuilderList extends Component {
                 },
             });
         }
+    }
+
+    /**
+     * Renders the next batch of rows once the end of the rendered ones is in
+     * reach. A field whose options list holds every state of a country would
+     * otherwise be laid out in full before the panel could be used.
+     */
+    onTableScroll({ target }) {
+        if (!this.hasMoreItems) {
+            return;
+        }
+        const { scrollTop, clientHeight, scrollHeight } = target;
+        if (scrollTop + clientHeight >= scrollHeight - BATCH_LOOKAHEAD) {
+            this.visibleState.limit += this.props.limit;
+        }
+    }
+
+    get cappedItems() {
+        return this.formatRawValue(this.state.value).slice(0, this.visibleState.limit);
+    }
+
+    get hasMoreItems() {
+        return this.visibleState.limit < this.formatRawValue(this.state.value).length;
     }
 
     validateProps() {

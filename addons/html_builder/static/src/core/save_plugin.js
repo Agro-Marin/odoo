@@ -2,6 +2,7 @@
 import { escapeTextNodes } from "@html_builder/utils/escaping";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { _t } from "@web/core/translation";
 import { groupBy } from "@web/core/utils/collections/arrays";
 import { uniqueId } from "@web/core/utils/functions";
 
@@ -92,6 +93,20 @@ export class SavePlugin extends Plugin {
             await Promise.all(this.getResource("before_save_handlers").map((handler) => handler()));
             await this._save();
             skipAfterSaveHandlers = await shouldSkipAfterSaveHandlers();
+        } catch (error) {
+            if (error.exceptionName !== "odoo.exceptions.ValidationError") {
+                throw error;
+            }
+            // A field the server refuses will keep refusing, so there is
+            // nothing to retry automatically -- but the elements that failed
+            // are still `o_dirty`, so the user can fix them and save again.
+            this.services.notification.add(
+                _t("Your changes were not saved. Correct them and save again."),
+                {
+                    title: _t("One or more fields were not valid"),
+                    type: "warning",
+                }
+            );
         } finally {
             if (!skipAfterSaveHandlers) {
                 this.getResource("after_save_handlers").forEach((handler) => handler());

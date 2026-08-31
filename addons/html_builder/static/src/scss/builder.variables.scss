@@ -22,6 +22,9 @@ $o-we-colors: (
 $o-we-handles-offset-to-hide: 100000px !default;
 $o-we-handles-btn-size: 14px !default;
 $o-we-handles-accent-color: $o-we-color-accent !default;
+// Outline drawn on the block under the pointer.
+$o-we-hover-overlay-color: $o-we-color-accent !default;
+$o-we-hover-overlay-opacity: 0.3 !default;
 $o-we-handles-accent-color-preview: $o-enterprise-color !default;
 $o-we-handle-edge-size: $o-we-handles-btn-size !default;
 $o-we-handle-border-width: 2px !default;

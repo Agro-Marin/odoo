@@ -1,3 +1,12 @@
+@keyframes o_hover_overlay_fade_in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: $o-we-hover-overlay-opacity;
+    }
+}
+
 div[data-oe-local-overlay-id="builder-overlay-container"] {
     position: absolute;
     pointer-events: none;
@@ -17,13 +26,35 @@ div[data-oe-local-overlay-id="builder-overlay-container"] {
         }
 
         &.oe_active,
+        &.o_hover_overlay,
         &.o_we_overlay_preview {
             display: block;
             z-index: 1;
         }
 
+        &.o_hover_overlay,
         &.o_we_overlay_preview {
             transition: none;
+        }
+
+        // A hint under the pointer: the sides are drawn faintly and none of the
+        // resize affordances are shown, so it cannot be mistaken for the
+        // overlay of the selected block.
+        &.o_hover_overlay {
+            opacity: $o-we-hover-overlay-opacity;
+            animation: o_hover_overlay_fade_in 0.1s ease-in-out forwards;
+
+            .o_side {
+                background-color: transparent !important;
+                border: none !important;
+
+                &::before {
+                    background: $o-we-hover-overlay-color !important;
+                }
+            }
+            .o_handle_indicator {
+                display: none !important;
+            }
         }
 
         // HANDLES

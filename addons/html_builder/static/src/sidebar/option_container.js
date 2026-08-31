@@ -49,6 +49,7 @@ export class OptionsContainer extends BaseOptionComponent {
         this.getItemValue = useGetItemValue();
         useVisibilityObserver("content", useApplyVisibility("root"));
 
+        this.previewTriggers = { hovered: false, focused: false };
         this.callOperation = useOperation();
 
         this.domState = useDomState((editingElement) => ({
@@ -109,8 +110,24 @@ export class OptionsContainer extends BaseOptionComponent {
         this.dependencies.builderOptions.updateContainers(this.props.editingElement);
     }
 
-    toggleOverlayPreview(el, show) {
-        if (show) {
+    /**
+     * The block is previewed while the pointer OR the focus is inside this
+     * container, so tabbing through the options highlights the block the same
+     * way hovering it does. Two independent triggers rather than one boolean:
+     * the pointer leaving while an input is still focused must not drop the
+     * preview of the block being edited.
+     *
+     * @param {"hovered" | "focused"} trigger
+     * @param {boolean} isActive
+     */
+    toggleOverlayPreview(trigger, isActive) {
+        const wasPreviewing = this.isPreviewingOverlay;
+        this.previewTriggers[trigger] = isActive;
+        if (this.isPreviewingOverlay === wasPreviewing) {
+            return;
+        }
+        const el = this.props.editingElement;
+        if (this.isPreviewingOverlay) {
             this.dependencies.overlayButtons.hideOverlayButtons();
             this.dependencies.builderOverlay.showOverlayPreview(el);
         } else {
@@ -119,12 +136,30 @@ export class OptionsContainer extends BaseOptionComponent {
         }
     }
 
+    get isPreviewingOverlay() {
+        return this.previewTriggers.hovered || this.previewTriggers.focused;
+    }
+
     onPointerEnter() {
-        this.toggleOverlayPreview(this.props.editingElement, true);
+        this.toggleOverlayPreview("hovered", true);
     }
 
     onPointerLeave() {
-        this.toggleOverlayPreview(this.props.editingElement, false);
+        this.toggleOverlayPreview("hovered", false);
+    }
+
+    onFocusIn() {
+        this.toggleOverlayPreview("focused", true);
+    }
+
+    /** @param {FocusEvent} ev */
+    onFocusOut(ev) {
+        // `focusout` also fires when the focus moves between two inputs of this
+        // same container; the preview should not blink off and on again.
+        if (ev.currentTarget.contains(ev.relatedTarget)) {
+            return;
+        }
+        this.toggleOverlayPreview("focused", false);
     }
 
     // Actions of the buttons in the title bar.

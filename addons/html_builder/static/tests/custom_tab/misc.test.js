@@ -775,3 +775,30 @@ describe("isActiveItem", () => {
         expect("[data-class-action='my-class3']").not.toHaveCount();
     });
 });
+
+test("the options container previews its block while hovered or focused", async () => {
+    addBuilderOption(
+        class extends BaseOptionComponent {
+            static selector = ".test-options-target";
+            static template = xml`<BuilderRow label="'Row 1'">
+                <BuilderTextInput classAction="'x'"/>
+            </BuilderRow>`;
+        }
+    );
+    await setupHTMLBuilder(`<div class="test-options-target">b</div>`);
+    await contains(":iframe .test-options-target").click();
+    expect(".oe_overlay.o_we_overlay_preview").toHaveCount(0);
+
+    // Focus alone is enough, so tabbing through the options highlights the
+    // block the same way hovering it does.
+    queryFirst(".options-container input").focus();
+    await animationFrame();
+    expect(".oe_overlay.o_we_overlay_preview").toHaveCount(1);
+
+    // And the pointer moving away does not drop the preview of the block whose
+    // option still holds the focus.
+    await contains(".options-container").hover();
+    await contains(":iframe .test-options-target").hover();
+    await animationFrame();
+    expect(".oe_overlay.o_we_overlay_preview").toHaveCount(1);
+});

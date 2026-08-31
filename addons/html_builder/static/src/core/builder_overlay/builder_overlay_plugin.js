@@ -18,12 +18,20 @@ function isResizable(el) {
  * @property { BuilderOverlayPlugin['showOverlayPreview'] } showOverlayPreview
  * @property { BuilderOverlayPlugin['hideOverlayPreview'] } hideOverlayPreview
  * @property { BuilderOverlayPlugin['refreshOverlays'] } refreshOverlays
+ * @property { BuilderOverlayPlugin['showHoverOverlay'] } showHoverOverlay
+ * @property { BuilderOverlayPlugin['removeHoverOverlay'] } removeHoverOverlay
  */
 
 export class BuilderOverlayPlugin extends Plugin {
     static id = "builderOverlay";
     static dependencies = ["localOverlay", "history", "operation"];
-    static shared = ["showOverlayPreview", "hideOverlayPreview", "refreshOverlays"];
+    static shared = [
+        "showOverlayPreview",
+        "hideOverlayPreview",
+        "refreshOverlays",
+        "showHoverOverlay",
+        "removeHoverOverlay",
+    ];
     /** @type {import("plugins").BuilderResources} */
     resources = {
         step_added_handlers: this.refreshOverlays.bind(this),
@@ -33,6 +41,8 @@ export class BuilderOverlayPlugin extends Plugin {
     };
 
     setup() {
+        /** @type {BuilderOverlay | null} */
+        this.hoverOverlay = null;
         // TODO find how to not overflow the mobile preview.
         this.iframe = this.editable.ownerDocument.defaultView.frameElement;
         this.overlayContainer = this.dependencies.localOverlay.makeLocalOverlay(
@@ -132,7 +142,46 @@ export class BuilderOverlayPlugin extends Plugin {
         }
     }
 
+    /**
+     * Outlines the given element under the pointer. Only one hover outline
+     * exists at a time, and it is not one of `this.overlays`: those follow the
+     * selection, this one follows the mouse.
+     *
+     * @param {HTMLElement} el
+     */
+    showHoverOverlay(el) {
+        if (this.hoverOverlay?.overlayTarget === el) {
+            return;
+        }
+        this.removeHoverOverlay();
+        const overlay = new BuilderOverlay(el, {
+            iframe: this.iframe,
+            overlayContainer: this.overlayContainer,
+            history: this.dependencies.history,
+            hasOverlayOptions: false,
+            next: this.dependencies.operation.next,
+            isMobileView: this.config.isMobileView,
+            mobileBreakpoint: this.config.mobileBreakpoint,
+            isRtl: this.config.isEditableRTL,
+            isHoverOverlay: true,
+        });
+        this.hoverOverlay = overlay;
+        this.overlayContainer.append(overlay.overlayElement);
+        this.resizeObserver.observe(overlay.overlayTarget, { box: "border-box" });
+    }
+
+    removeHoverOverlay() {
+        if (!this.hoverOverlay) {
+            return;
+        }
+        this.hoverOverlay.destroy();
+        this.hoverOverlay.overlayElement.remove();
+        this.resizeObserver.unobserve(this.hoverOverlay.overlayTarget);
+        this.hoverOverlay = null;
+    }
+
     removeBuilderOverlays() {
+        this.removeHoverOverlay();
         this.overlays.forEach((overlay) => {
             overlay.destroy();
             overlay.overlayElement.remove();
@@ -149,12 +198,18 @@ export class BuilderOverlayPlugin extends Plugin {
     }
 
     refreshPositions() {
+        this.hoverOverlay?.refreshPosition();
         this.overlays.forEach((overlay) => {
             overlay.refreshPosition();
         });
     }
 
     toggleOverlaysVisibility(show) {
+        if (!show) {
+            // Whatever hides the overlays -- scrolling, typing -- means the
+            // pointer is no longer what the user is aiming with.
+            this.removeHoverOverlay();
+        }
         this.overlays.forEach((overlay) => {
             overlay.toggleOverlayVisibility(show);
         });

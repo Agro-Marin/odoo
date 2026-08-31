@@ -26,6 +26,7 @@ import { loadBundle } from "@web/core/assets";
 import { isBrowserFirefox } from "@web/core/browser/feature_detection";
 import { registry } from "@web/core/registry";
 import { uniqueId } from "@web/core/utils/functions";
+import { useChildRef } from "@web/core/utils/hooks";
 import { delay } from "@web/core/utils/concurrency";
 
 export function patchWithCleanupImg() {
@@ -141,6 +142,10 @@ class BuilderContainer extends Component {
                 resolve(el);
             });
         });
+        // A real ref, not a stub: the builder overlays are appended into it, so
+        // without it nothing the overlay plugin renders reaches the DOM and a
+        // test asserting on `.oe_overlay` can only ever fail.
+        this.overlayRef = useChildRef();
         useSubEnv({
             builderRef: useRef("container"),
         });
@@ -158,7 +163,7 @@ class BuilderContainer extends Component {
             toggleMobile: () => {
                 this.state.isMobile = !this.state.isMobile;
             },
-            overlayRef: () => {},
+            overlayRef: this.overlayRef,
             editableSelector: this.props.editableSelector,
             iframeLoaded: this.iframeLoaded,
             isMobile: this.state.isMobile,
