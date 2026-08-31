@@ -1,6 +1,9 @@
+from lxml import etree
+
 from odoo.exceptions import AccessError
 from odoo.tests import Form, common, tagged
 from odoo.tools import mute_logger
+from odoo.tools.safe_eval import safe_eval
 
 from odoo.addons.mail.tests.common import mail_new_test_user
 
@@ -132,3 +135,98 @@ class TestRecruitmentSurvey(common.TransactionCase):
     def _prepare_invite(self, survey, applicant):
         survey.write({"access_mode": "public", "users_login_required": False})
         return Form.from_action(self.env, applicant.action_send_survey()).save()
+
+
+@tagged("post_install", "-at_install")
+class TestRecruitmentSurveyConfig(common.TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.interviewer = mail_new_test_user(
+            cls.env,
+            name="Eglantine Ask",
+            login="hr_recruitment_survey_config_interviewer",
+            email="hr_recruitment_survey.config.interviewer@example.com",
+            groups="hr_recruitment.group_hr_recruitment_interviewer",
+        )
+        cls.job = cls.env["hr.job"].create(
+            {"name": "Technical worker", "description": None}
+        )
+
+    def _job_form_survey_context(self):
+        arch = etree.fromstring(
+            self.env["hr.job"].get_view(
+                self.env.ref("hr_recruitment.hr_job_survey").id
+            )["arch"]
+        )
+        node = arch.xpath("//field[@name='survey_id']")[0]
+        return safe_eval(node.get("context") or "{}")
+
+    @mute_logger("odoo.addons.base.models.ir_rule")
+    def test_interview_created_from_job_is_recruitment(self):
+        survey = (
+            self.env["survey.survey"]
+            .with_context(**self._job_form_survey_context())
+            .create({"title": "Interview Form: Technical worker"})
+        )
+        self.assertEqual(survey.survey_type, "recruitment")
+
+        self.job.survey_id = survey
+        self.job.interviewer_ids = self.interviewer
+        survey.invalidate_recordset()
+        self.assertEqual(
+            survey.with_user(self.interviewer).read(["title"])[0]["title"],
+            "Interview Form: Technical worker",
+        )
+
+    @mute_logger("odoo.addons.base.models.ir_rule")
+    def test_interview_created_from_job_kanban_is_recruitment(self):
+        self.job.action_new_survey()
+        self.assertEqual(self.job.survey_id.survey_type, "recruitment")
+
+        self.job.interviewer_ids = self.interviewer
+        self.job.survey_id.invalidate_recordset()
+        self.job.survey_id.with_user(self.interviewer).read(["title"])
+
+    def test_survey_job_count(self):
+        survey = self.env["survey.survey"].create(
+            {"title": "Sysadmin interview", "survey_type": "recruitment"}
+        )
+        self.assertEqual(survey.job_count, 0)
+
+        self.job.survey_id = survey
+        survey.invalidate_recordset()
+        self.assertEqual(survey.job_count, 1)
+        action = survey.action_open_jobs()
+        self.assertEqual(action["res_model"], "hr.job")
+        self.assertEqual(action["res_id"], self.job.id)
+
+        second_job = self.env["hr.job"].create(
+            {"name": "Technical worker II", "survey_id": survey.id, "description": None}
+        )
+        survey.invalidate_recordset()
+        self.assertEqual(survey.job_count, 2)
+        action = survey.action_open_jobs()
+        self.assertEqual(action["res_model"], "hr.job")
+        self.assertEqual(set(action["domain"][0][2]), set((self.job + second_job).ids))
+
+    def test_survey_job_button_is_on_the_interview_form(self):
+        arch = etree.fromstring(
+            self.env["survey.survey"].get_view(
+                self.env.ref("hr_recruitment_survey.survey_survey_view_form").id
+            )["arch"]
+        )
+        self.assertTrue(arch.xpath("//button[@name='action_open_jobs']"))
+
+    def test_settings_button_opens_the_interviews(self):
+        arch = etree.fromstring(
+            self.env["res.config.settings"].get_view(
+                self.env.ref("hr_recruitment.res_config_settings_view_form").id
+            )["arch"]
+        )
+        buttons = arch.xpath("//button[@string='Interview Survey']")
+        self.assertEqual(len(buttons), 1)
+        self.assertEqual(
+            int(buttons[0].get("name")),
+            self.env.ref("hr_recruitment_survey.survey_survey_action_recruitment").id,
+        )

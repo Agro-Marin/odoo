@@ -9,6 +9,7 @@ class SurveySurvey(models.Model):
         ondelete={"recruitment": "set default"},
     )
     hr_job_ids = fields.One2many("hr.job", "survey_id", string="Job Position")
+    job_count = fields.Integer(string="Job Count", compute="_compute_job_count")
 
     @api.depends_context("uid")
     def _compute_allowed_survey_types(self):
@@ -19,6 +20,16 @@ class SurveySurvey(models.Model):
             self.allowed_survey_types = (self.allowed_survey_types or []) + [
                 "recruitment"
             ]
+
+    def _compute_job_count(self):
+        job_data = self.env["hr.job"]._read_group(
+            [("survey_id", "in", self.ids)],
+            ["survey_id"],
+            ["__count"],
+        )
+        result = {survey.id: count for survey, count in job_data}
+        for survey in self:
+            survey.job_count = result.get(survey.id, 0)
 
     def get_formview_id(self, access_uid=None):
         if self.survey_type == "recruitment":
@@ -40,3 +51,21 @@ class SurveySurvey(models.Model):
         if self.survey_type == "recruitment":
             action.update({"domain": [("survey_id.survey_type", "=", "recruitment")]})
         return action
+
+    def action_open_jobs(self):
+        self.ensure_one()
+        if self.job_count == 1:
+            return {
+                "name": self.env._("Job Position"),
+                "type": "ir.actions.act_window",
+                "res_model": "hr.job",
+                "view_mode": "form",
+                "res_id": self.hr_job_ids.id,
+            }
+        return {
+            "name": self.env._("Job Positions"),
+            "type": "ir.actions.act_window",
+            "res_model": "hr.job",
+            "view_mode": "list,kanban,form",
+            "domain": [("id", "in", self.hr_job_ids.ids)],
+        }

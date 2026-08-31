@@ -20,6 +20,7 @@ class HrJob(models.Model):
         survey = self.env["survey.survey"].create(
             {
                 "title": _("Interview Form: %s", self.name),
+                "survey_type": "recruitment",
             }
         )
         self.write({"survey_id": survey.id})
