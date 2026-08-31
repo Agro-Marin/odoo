@@ -246,7 +246,7 @@ class AccountTax(models.Model):
             )
 
     @api.model
-    def _import_retrieve_tax_from_invoice_predictive(self, tax_values):
+    def _get_import_criteria_from_invoice_predictive(self, tax_values):
         if "payment_state_before_switch" not in self.env["account.move"]._fields:
             return None
 
@@ -280,7 +280,7 @@ class AccountTax(models.Model):
         }
 
     @api.model
-    def _import_retrieve_tax_from_price_include_exclude(self, tax_values):
+    def _get_import_criteria_from_price_include_exclude(self, tax_values):
         price_include = tax_values.get("price_include")
         fiscal_position = tax_values.get("fiscal_position")
 
@@ -302,7 +302,9 @@ class AccountTax(models.Model):
         return {"criteria": criteria}
 
     @api.model
-    def _import_retrieve_tax(self, search_plan, company, tax_values_list):
+    def _update_tax_values_from_search_plan(
+        self, search_plan, company, tax_values_list
+    ):
         cache = self.env.cr.cache.setdefault("retrieved_tax_map", {}).setdefault(
             company.id, {}
         )

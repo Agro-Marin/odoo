@@ -869,7 +869,7 @@
                         nb_records_shown="1"
                         context="{'name_as_amount_total': True}" />
                     <button
-                        name="action_delete_duplicates"
+                        name="action_remove_duplicates"
                         type="object"
                         class="btn btn-link text-danger ms-auto d-flex align-items-center gap-1"
                         invisible="not is_draft_duplicated_ref_ids">
@@ -892,7 +892,7 @@
                         nb_records_shown="1"
                         context="{'name_as_amount_total': True}" />
                     <button
-                        name="action_delete_duplicates"
+                        name="action_remove_duplicates"
                         type="object"
                         class="btn btn-link text-danger ms-auto d-flex align-items-center gap-1"
                         invisible="not is_draft_duplicated_ref_ids">

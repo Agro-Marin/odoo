@@ -16,7 +16,7 @@ def _get_headers(filename, filetype, content):
     ]
 
 
-def _build_zip_from_data(docs_data):
+def _prepare_zip_from_data(docs_data):
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as zipfile_obj:
         for doc_data in docs_data:
@@ -86,7 +86,7 @@ class AccountDocumentDownloadController(http.Controller):
             )
             return request.prepare_response(doc_data["content"], headers)
         if len(docs_data) > 1:
-            zip_content = _build_zip_from_data(docs_data)
+            zip_content = _prepare_zip_from_data(docs_data)
             headers = _get_headers(
                 _("invoices") + ".zip", "application/zip", zip_content
             )
@@ -119,7 +119,7 @@ class AccountDocumentDownloadController(http.Controller):
             chain.from_iterable(move._get_move_zip_export_docs() for move in moves)
         ):
             docs_data = rename_duplicates(docs_data)
-            zip_content = _build_zip_from_data(docs_data)
+            zip_content = _prepare_zip_from_data(docs_data)
             headers = _get_headers(
                 request.env._("Invoices") + ".zip", "application/zip", zip_content
             )

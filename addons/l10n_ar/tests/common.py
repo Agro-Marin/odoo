@@ -69,7 +69,7 @@ class TestAr(AccountTestInvoicingCommon):
             'partner_id': cls.company_ri.partner_id.id,
             'company_id': cls.company_ri.id,
             # Every test here posts customer invoices carrying this account, and
-            # account._post_validate_invoices refuses an inbound move whose
+            # account._check_post_invoices refuses an inbound move whose
             # company bank account is untrusted. Without this the fixture takes
             # out most of the suite with a RedirectWarning about Bank Settings.
             'allow_out_payment': True,

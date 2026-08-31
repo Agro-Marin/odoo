@@ -287,7 +287,7 @@ class AccountJournal(models.Model):
         return ["", ""]
 
     def _get_bank_cash_graph_data(self):
-        def build_graph_data(date, amount, currency):
+        def prepare_graph_point(date, amount, currency):
             name = format_date(date, "d LLLL Y", locale=locale)
             short_name = format_date(date, "d MMM", locale=locale)
             return {"x": short_name, "y": currency.round(amount), "name": name}
@@ -327,21 +327,23 @@ class AccountJournal(models.Model):
                 for i in range(30, 0, -5):
                     current_date = today + timedelta(days=-i)
                     data.append(
-                        build_graph_data(current_date, sample.randint(-5, 15), currency)
+                        prepare_graph_point(
+                            current_date, sample.randint(-5, 15), currency
+                        )
                     )
             else:
                 last_balance = journal.current_statement_balance
                 if not journal_result or journal_result[0]["date"] < today:
-                    data.append(build_graph_data(today, last_balance, currency))
+                    data.append(prepare_graph_point(today, last_balance, currency))
                 date = today
                 amount = last_balance
                 for val in journal_result:
                     date = val["date"]
-                    data[:0] = [build_graph_data(date, amount, currency)]
+                    data[:0] = [prepare_graph_point(date, amount, currency)]
                     amount -= val["amount"]
 
                 if date.strftime(DF) != last_month.strftime(DF):
-                    data[:0] = [build_graph_data(last_month, amount, currency)]
+                    data[:0] = [prepare_graph_point(last_month, amount, currency)]
 
             result[journal.id] = [
                 {
@@ -1180,9 +1182,7 @@ class AccountJournal(models.Model):
         moves_to_validate = self.env["account.move"].search(
             [("journal_id", "=", self.id)]
         )
-        return moves_to_validate.with_context(
-            ctx
-        ).action_validate_moves_with_confirmation()
+        return moves_to_validate.with_context(ctx).action_post_moves_with_confirmation()
 
     def open_action_with_context(self):
         action_name = self.env.context.get("action_name", False)

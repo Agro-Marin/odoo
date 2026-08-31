@@ -712,7 +712,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             )
         )
 
-        invoice.js_assign_outstanding_line(credit_line.id)
+        invoice.js_add_outstanding_line(credit_line.id)
         self.assertTrue(
             invoice.payment_state in ("in_payment", "paid"), "Invoice should be paid"
         )

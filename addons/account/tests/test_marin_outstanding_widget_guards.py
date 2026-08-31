@@ -56,17 +56,17 @@ class TestOutstandingWidgetGuards(AccountTestInvoicingCommon):
         return line
 
 
-    def test_assign_accepts_a_genuine_outstanding_line(self):
+    def test_add_accepts_a_genuine_outstanding_line(self):
         invoice = self._posted_invoice()
-        invoice.js_assign_outstanding_line(self._outstanding_credit(300.0).id)
+        invoice.js_add_outstanding_line(self._outstanding_credit(300.0).id)
         self.assertEqual(invoice.payment_state, "partial")
 
-    def test_assign_refuses_an_id_that_is_not_a_line(self):
+    def test_add_refuses_an_id_that_is_not_a_line(self):
         invoice = self._posted_invoice()
         with self.assertRaisesRegex(UserError, "cannot be reconciled"):
-            invoice.js_assign_outstanding_line(0)
+            invoice.js_add_outstanding_line(0)
 
-    def test_assign_refuses_a_draft_line(self):
+    def test_add_refuses_a_draft_line(self):
         invoice = self._posted_invoice()
         draft = self.env["account.move"].create(
             {
@@ -86,29 +86,29 @@ class TestOutstandingWidgetGuards(AccountTestInvoicingCommon):
         )
         self.assertEqual(draft.state, "draft")
         with self.assertRaisesRegex(UserError, "cannot be reconciled"):
-            invoice.js_assign_outstanding_line(self._receivable_line(draft).id)
+            invoice.js_add_outstanding_line(self._receivable_line(draft).id)
 
-    def test_assign_refuses_an_already_reconciled_line(self):
+    def test_add_refuses_an_already_reconciled_line(self):
         invoice = self._posted_invoice(amount=300.0)
         credit_line = self._outstanding_credit(300.0)
-        invoice.js_assign_outstanding_line(credit_line.id)
+        invoice.js_add_outstanding_line(credit_line.id)
         self.assertTrue(credit_line.reconciled, "fixture: it is settled now")
         with self.assertRaisesRegex(UserError, "cannot be reconciled"):
-            self._posted_invoice().js_assign_outstanding_line(credit_line.id)
+            self._posted_invoice().js_add_outstanding_line(credit_line.id)
 
-    def test_assign_refuses_a_line_from_another_company(self):
+    def test_add_refuses_a_line_from_another_company(self):
         invoice = self._posted_invoice()
         foreign_line = self._receivable_line(
             self._posted_invoice(company_data=self.company_data_2)
         )
         self.assertNotEqual(foreign_line.company_id, invoice.company_id)
         with self.assertRaisesRegex(UserError, "cannot be reconciled"):
-            invoice.js_assign_outstanding_line(foreign_line.id)
+            invoice.js_add_outstanding_line(foreign_line.id)
 
 
     def test_remove_accepts_a_partial_of_this_move(self):
         invoice = self._posted_invoice(amount=500.0)
-        invoice.js_assign_outstanding_line(self._outstanding_credit(200.0).id)
+        invoice.js_add_outstanding_line(self._outstanding_credit(200.0).id)
         partial = self._receivable_line(invoice).matched_credit_ids
         self.assertTrue(partial)
         invoice.js_remove_outstanding_partial(partial.id)
@@ -117,7 +117,7 @@ class TestOutstandingWidgetGuards(AccountTestInvoicingCommon):
     def test_remove_refuses_a_partial_of_another_move(self):
         mine = self._posted_invoice(amount=500.0)
         theirs = self._posted_invoice(amount=500.0)
-        theirs.js_assign_outstanding_line(self._outstanding_credit(200.0).id)
+        theirs.js_add_outstanding_line(self._outstanding_credit(200.0).id)
         foreign_partial = self._receivable_line(theirs).matched_credit_ids
         self.assertTrue(foreign_partial)
         with self.assertRaisesRegex(UserError, "does not concern this document"):

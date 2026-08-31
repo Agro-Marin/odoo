@@ -116,7 +116,7 @@ class TestPostContract(AccountTestInvoicingCommon):
             self._invoice(today).action_post()
             self.assertEqual(len(calls), 1, "the Post button skipped the rules")
 
-            self._invoice(today).action_validate_moves_with_confirmation()
+            self._invoice(today).action_post_moves_with_confirmation()
             self.assertEqual(len(calls), 2, "the list-view action skipped the rules")
 
             wizard = self.env["validate.account.move"].create(

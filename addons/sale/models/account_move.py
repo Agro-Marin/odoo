@@ -327,7 +327,7 @@ class AccountMove(models.Model):
                 ),
             )
             for line in move_lines:
-                invoice.js_assign_outstanding_line(line.id)
+                invoice.js_add_outstanding_line(line.id)
         return posted
 
     def _reverse_moves(self, default_values_list=None, cancel=False):

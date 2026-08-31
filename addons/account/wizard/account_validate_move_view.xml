@@ -65,7 +65,7 @@
         <field name="binding_view_types">list,kanban</field>
         <field name="state">code</field>
         <field
-            name="code">action = records.action_validate_moves_with_confirmation()</field>
+            name="code">action = records.action_post_moves_with_confirmation()</field>
         <field name="group_ids" eval="[(4, ref('account.group_account_invoice'))]" />
     </record>
 

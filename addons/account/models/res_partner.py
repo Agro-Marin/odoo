@@ -850,7 +850,7 @@ class ResPartner(models.Model):
         return []
 
     @api.model
-    def _import_retrieve_customer_from_vat(self, customer_values):
+    def _get_import_criteria_from_vat(self, customer_values):
         vat = customer_values.get("vat")
         if not vat:
             return None
@@ -929,7 +929,7 @@ class ResPartner(models.Model):
         return []
 
     @api.model
-    def _import_retrieve_customer_from_bank_account_number(self, customer_values):
+    def _get_import_criteria_from_bank_account_number(self, customer_values):
         account_numbers = customer_values.get("account_numbers")
         if not account_numbers:
             return None
@@ -953,7 +953,7 @@ class ResPartner(models.Model):
         }
 
     @api.model
-    def _import_retrieve_customer_from_phone(self, customer_values):
+    def _get_import_criteria_from_phone(self, customer_values):
         phone = customer_values.get("phone")
         if not phone:
             return None
@@ -967,7 +967,7 @@ class ResPartner(models.Model):
         }
 
     @api.model
-    def _import_retrieve_customer_from_email(self, customer_values):
+    def _get_import_criteria_from_email(self, customer_values):
         email = customer_values.get("email")
         if not email:
             return None
@@ -981,7 +981,7 @@ class ResPartner(models.Model):
         }
 
     @api.model
-    def _import_retrieve_customer_from_name(self, customer_values):
+    def _get_import_criteria_from_name(self, customer_values):
         name = customer_values.get("name")
         if not name:
             return None
@@ -1002,7 +1002,9 @@ class ResPartner(models.Model):
         )
 
     @api.model
-    def _import_retrieve_customer(self, search_plan, company, customer_values_list):
+    def _update_customer_values_from_search_plan(
+        self, search_plan, company, customer_values_list
+    ):
         cache = {}
 
         static_domain = Domain.OR(
@@ -1048,19 +1050,19 @@ class ResPartner(models.Model):
                 if partner:
                     break
 
-    def _get_retrieval_customer_search_plan(self, domain=None):
+    def _get_import_customer_search_plan(self, domain=None):
         return [
-            (5, self._import_retrieve_customer_from_vat),
+            (5, self._get_import_criteria_from_vat),
             (
                 10,
                 lambda customer_values: (
                     {"criteria": [{"domain": domain}]} if domain else None
                 ),
             ),
-            (15, self._import_retrieve_customer_from_bank_account_number),
-            (20, self._import_retrieve_customer_from_email),
-            (25, self._import_retrieve_customer_from_phone),
-            (30, self._import_retrieve_customer_from_name),
+            (15, self._get_import_criteria_from_bank_account_number),
+            (20, self._get_import_criteria_from_email),
+            (25, self._get_import_criteria_from_phone),
+            (30, self._get_import_criteria_from_name),
         ]
 
     def _get_matching_partner(
@@ -1080,11 +1082,11 @@ class ResPartner(models.Model):
             "name": name,
             "account_numbers": account_numbers,
         }
-        self._import_retrieve_customer(
+        self._update_customer_values_from_search_plan(
             search_plan=[
                 method
                 for _priority, method in sorted(
-                    self._get_retrieval_customer_search_plan(domain=domain),
+                    self._get_import_customer_search_plan(domain=domain),
                     key=lambda plan: plan[0],
                 )
             ],

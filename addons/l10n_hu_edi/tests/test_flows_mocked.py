@@ -295,7 +295,7 @@ class L10nHuEdiTestFlowsMocked(L10nHuEdiTestCommon, TestAccountMoveSendCommon):
         })
         mod2.action_post()
         # Reconcile the outstanding payment line from mod1 with the invoice
-        inv.js_assign_outstanding_line(mod1.line_ids.filtered(lambda l: l.debit == 0).id)
+        inv.js_add_outstanding_line(mod1.line_ids.filtered(lambda l: l.debit == 0).id)
         operation = mod2._l10n_hu_edi_get_operation_type()
         self.assertEqual(operation, 'STORNO')
 
@@ -311,7 +311,7 @@ class L10nHuEdiTestFlowsMocked(L10nHuEdiTestCommon, TestAccountMoveSendCommon):
         storno = self.create_reversal(inv, amount=1100)
         storno.action_post()
         # Reconcile the outstanding payment line from dn with the storno
-        storno.js_assign_outstanding_line(dn.line_ids.filtered(lambda l: l.credit == 0).id)
+        storno.js_add_outstanding_line(dn.line_ids.filtered(lambda l: l.credit == 0).id)
         operation = storno._l10n_hu_edi_get_operation_type()
         self.assertEqual(operation, 'STORNO')
 

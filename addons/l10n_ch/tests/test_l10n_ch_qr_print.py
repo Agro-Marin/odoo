@@ -25,7 +25,7 @@ class QRPrintTest(AccountTestInvoicingCommon):
             'partner_id': cls.env.company.partner_id.id,
             # The account is the company's own, printed on an outbound
             # invoice for the customer to pay into. account's
-            # `_post_validate_invoices` refuses to post an inbound invoice
+            # `_check_post_invoices` refuses to post an inbound invoice
             # carrying one that has not been verified, and
             # `allow_out_payment` is the flag Odoo overloads for "this
             # account has been confirmed as ours". Omitting it does not

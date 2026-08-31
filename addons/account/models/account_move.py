@@ -5344,7 +5344,7 @@ class AccountMove(models.Model):
                 _("The Bill/Refund date is required to validate this document.")
             )
 
-    def _post_validate_invoices(self, validation_msgs):
+    def _check_post_invoices(self, validation_msgs):
         for invoice in self.filtered(
             lambda move: move.is_invoice(include_receipts=True)
         ):
@@ -5406,7 +5406,7 @@ class AccountMove(models.Model):
 
             self._check_post_invoice_date(invoice, validation_msgs)
 
-    def _post_validate_moves(self, validation_msgs, posting_now=True):
+    def _check_post_moves(self, validation_msgs, posting_now=True):
         for move in self:
             if move.state in ["posted", "cancel"]:
                 validation_msgs.add(
@@ -5478,10 +5478,10 @@ class AccountMove(models.Model):
     def _post_validate(self, posting_now=True):
         validation_msgs = set()
 
-        self._post_validate_invoices(validation_msgs)
+        self._check_post_invoices(validation_msgs)
 
         self.line_ids._check_account_is_usable()
-        self._post_validate_moves(validation_msgs, posting_now)
+        self._check_post_moves(validation_msgs, posting_now)
 
         if validation_msgs:
             msg = "\n".join(sorted(validation_msgs))
@@ -6212,7 +6212,7 @@ class AccountMove(models.Model):
             ),
         )
 
-    def action_validate_moves_with_confirmation(self):
+    def action_post_moves_with_confirmation(self):
         draft_moves = self.filtered(lambda m: m.state == "draft" and m.line_ids)
         if not draft_moves:
             raise UserError(_("There are no journal items in the draft state to post."))
@@ -6222,7 +6222,7 @@ class AccountMove(models.Model):
             view_id=self.env.ref("account.validate_account_move_view").id,
         )
 
-    def js_assign_outstanding_line(self, line_id):
+    def js_add_outstanding_line(self, line_id):
         self.check_singleton()
         counterpart_line = self.env["account.move.line"].browse(line_id).exists()
         if (
@@ -6379,7 +6379,7 @@ class AccountMove(models.Model):
             {"active": True}
         )
 
-    def action_delete_duplicates(self):
+    def action_remove_duplicates(self):
         for move in self:
             move.duplicated_ref_ids.unlink()
 

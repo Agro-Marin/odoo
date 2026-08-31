@@ -61,7 +61,7 @@ export class AccountPaymentField extends Component {
     async assignOutstandingCredit(moveId, id) {
         await this.orm.call(
             this.props.record.resModel,
-            "js_assign_outstanding_line",
+            "js_add_outstanding_line",
             [moveId, id],
             {},
         );
