@@ -63,11 +63,6 @@ class HrDepartureWizard(models.TransientModel):
 
     @api.depends("employee_ids.user_id")
     def _compute_is_user_employee(self):
-        # Only "does any selected employee have a user" -- it gates the
-        # ``remove_related_user`` checkbox's visibility. Whether a user may
-        # actually be archived (i.e. no employee of theirs is left behind) is
-        # decided in ``action_register_departure``; the comment that used to sit
-        # here described that check instead of this one.
         for wizard in self:
             wizard.is_user_employee = bool(wizard.employee_ids.user_id)
 
@@ -84,12 +79,6 @@ class HrDepartureWizard(models.TransientModel):
         }
 
     def _split_users_by_archivability(self):
-        """Return ``(archivable, kept)`` users of the departing employees.
-
-        A user may only be archived when EVERY employee of theirs is departing --
-        counted over all companies and including archived employees, since an
-        employee this wizard cannot see still holds the user.
-        """
         archivable = kept = self.env["res.users"]
         if not self.remove_related_user:
             return archivable, kept
@@ -134,17 +123,12 @@ class HrDepartureWizard(models.TransientModel):
 
         archived_employees = self.env["hr.employee"]
         archived_users = self.env["res.users"]
-        # Loop-invariant: the caller either asked for a termination (the archive
-        # hook and hr_timesheet's delete wizard set it) or did not. Read once.
         if self.env.context.get("employee_termination", False):
             archived_employees = employee_ids.filtered("active")
             if self.remove_related_user:
                 archived_users = archived_employees.user_id & allow_archived_users
 
         archived_employees.with_context(no_wizard=True).action_archive()
-        # Never archive the acting user or the root/superuser account, even if
-        # they happen to be linked to a departing employee. Use sudo() so an HR
-        # officer without ERP-manager rights can still write active=False.
         archived_users = archived_users.filtered(
             lambda u: u.id not in (self.env.uid, SUPERUSER_ID)
         )
@@ -159,7 +143,6 @@ class HrDepartureWizard(models.TransientModel):
         )
 
         if self.set_date_end:
-            # Write date and update state of current contracts
             active_versions.filtered(lambda v: v.contract_date_start).write(
                 {"contract_date_end": self.departure_date}
             )

@@ -4,10 +4,6 @@ from odoo.db.schema import column_exists
 
 _logger = logging.getLogger(__name__)
 
-# Personal attributes that moved from hr.version (per-version, duplicated by
-# create_version) to hr.employee (one value per person). Every one of them is a
-# plain stored column on both tables, so the harvest is a single UPDATE ... FROM.
-# allowed_country_state_ids is absent on purpose: it is a non-stored compute.
 MOVED_COLUMNS = (
     "country_id",
     "identification_id",
@@ -32,20 +28,6 @@ MOVED_COLUMNS = (
 
 
 def migrate(cr, version):
-    """Harvest the personal attributes off each employee's current version.
-
-    post-migrate is the last stage in which the hr_version columns can be read:
-    ir.model.data._process_end drops them right after, because the fields are no
-    longer declared. See coding_guidelines.rst 12.2.
-
-    An employee whose versions disagree loses the historical values -- that
-    divergence is the corruption this move exists to end, and the current
-    version is the only reading the UI ever showed. The count is logged rather
-    than resolved, so an operator can audit it against a pre-upgrade dump.
-
-    :param cr: database cursor
-    :param version: module version being upgraded from
-    """
     if not version:
         return
 

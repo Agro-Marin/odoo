@@ -290,9 +290,6 @@ class TestResource(TestHrCommon):
         )
 
     def test_availability_hr_infos_resource(self):
-        """Ensure that all the hr infos needed to display the avatar popover card
-        are available on the model resource.resource, even if the employee is archived
-        """
         user = self.env["res.users"].create(
             [
                 {
@@ -449,10 +446,6 @@ class TestResource(TestHrCommon):
         )
 
     def test_multi_contract_attendance(self):
-        """Verify whether retrieving an employee's calendar attendances can
-        handle multiple contracts with different calendars.
-        """
-
         date_from = datetime(2021, 10, 1, 0, 0, 0).replace(tzinfo=UTC)
         date_to = datetime(2021, 11, 30, 0, 0, 0).replace(tzinfo=UTC)
 

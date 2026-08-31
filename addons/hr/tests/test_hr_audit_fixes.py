@@ -1,8 +1,3 @@
-"""Regression tests for the hr full-module audit fixes.
-
-Each test pins down a bug found during the audit so it cannot silently return.
-"""
-
 from datetime import UTC, date, datetime, time, timedelta
 
 from dateutil.relativedelta import relativedelta
@@ -30,13 +25,6 @@ class TestHrAuditFixes(TestHrCommon):
         )
 
     def test_version_id_context_is_per_record(self):
-        """A pinned ``version_id`` in context must resolve per employee, even when
-        ``version_id`` is computed over a multi-record recordset.
-
-        Regression: the compute compared ``context_version.employee_id`` against
-        the whole recordset (``self``) instead of the loop's current record, so
-        the pin was silently dropped for every batch of size > 1.
-        """
         emp1 = self._new_employee("E1")
         emp2 = self._new_employee("E2")
         old_version = emp1.create_version({"date_version": "2019-01-01"})
@@ -59,7 +47,6 @@ class TestHrAuditFixes(TestHrCommon):
         )
 
     def test_salary_distribution_autosync_and_constraint(self):
-        """Adding accounts auto-splits to 100%; the constraint rejects a bad total."""
         emp = self._new_employee("Bank Guy")
         ba1 = self._add_bank_account(emp, "BE000001")
         ba2 = self._add_bank_account(emp, "BE000002")
@@ -85,8 +72,6 @@ class TestHrAuditFixes(TestHrCommon):
             }
 
     def test_primary_bank_account_and_trust_toggle(self):
-        """primary account = lowest sequence; the trust toggle flips it and the
-        mirrored ``is_trusted_bank_account`` flag follows."""
         emp = self._new_employee("Primary Guy")
         ba1 = self._add_bank_account(emp, "BE000011")
         ba2 = self._add_bank_account(emp, "BE000012")
@@ -106,14 +91,10 @@ class TestHrAuditFixes(TestHrCommon):
         self.assertTrue(emp.is_trusted_bank_account)
 
     def test_bank_salary_amount_remaining_for_unallocated_account(self):
-        """An account not in the distribution reports the still-allocatable
-        percentage (regression: the ``get_remaining_percentage`` branch was dead
-        and every such account showed 0)."""
         emp = self._new_employee("Fixed Guy")
         ba1 = self._add_bank_account(emp, "BE000021")
         ba2 = self._add_bank_account(emp, "BE000022")
         emp.bank_account_ids = [(4, ba1.id)]
-        # ba1 is a fixed-amount allocation -> 0% of salary is percentage-allocated.
         emp.salary_distribution = {
             str(ba1.id): {
                 "amount": 500.0,
@@ -122,22 +103,17 @@ class TestHrAuditFixes(TestHrCommon):
             },
         }
 
-        # ba1 participates -> reports its own (fixed) amount.
         self.assertEqual(ba1.employee_salary_amount, 500.0)
         self.assertFalse(ba1.employee_salary_amount_is_percentage)
-        # ba2 is not in the distribution -> 100% still allocatable.
         self.assertEqual(ba2.employee_salary_amount, 100.0)
         self.assertTrue(ba2.employee_salary_amount_is_percentage)
 
     def test_get_unusual_days_without_date_to(self):
-        """``_get_unusual_days`` must not crash when ``date_to`` is omitted."""
         emp = self._new_employee("Calendar Guy")
         result = emp._get_unusual_days("2020-06-01 00:00:00")
         self.assertIsInstance(result, dict)
 
     def test_job_title_cleared_when_job_removed(self):
-        """Clearing ``job_id`` drops a non-custom job title instead of leaving a
-        stale one (the compute previously skipped records with no job)."""
         job = self.env["hr.job"].create({"name": "Developer"})
         emp = self._new_employee("Titled Guy", job_id=job.id)
         version = emp.version_id
@@ -150,7 +126,6 @@ class TestHrAuditFixes(TestHrCommon):
         )
 
     def test_job_title_custom_survives_job_removal(self):
-        """A user-typed (custom) title is kept when the job is cleared."""
         job = self.env["hr.job"].create({"name": "Developer"})
         emp = self._new_employee("Custom Guy", job_id=job.id)
         version = emp.version_id
@@ -161,12 +136,9 @@ class TestHrAuditFixes(TestHrCommon):
         self.assertEqual(version.job_title, "Lead Engineer")
 
     def test_employees_count_batched(self):
-        """The batched ``_compute_employees_count`` returns the right per-partner
-        count (guards the N+1 refactor)."""
         emp = self._new_employee("Counted Guy")
         partner = emp.work_contact_id
         self.assertEqual(partner.employees_count, 1)
-        # A second employee on the same work contact.
         self.env["hr.employee"].create(
             {
                 "name": "Counted Guy 2",
@@ -180,16 +152,12 @@ class TestHrAuditFixes(TestHrCommon):
 
 @tagged("post_install", "-at_install")
 class TestHrAuditCoverage(TestHrCommon):
-    """New coverage for business-critical paths that had no Python tests."""
-
     def _new_employee(self, name, **vals):
         return self.env["hr.employee"].create(
             {"name": name, "date_version": "2020-01-01", **vals}
         )
 
     def test_department_manager_propagation(self):
-        """Changing a department's manager re-parents exactly the employees who
-        reported to the *old* manager, and leaves others untouched."""
         m1 = self._new_employee("Manager 1")
         m2 = self._new_employee("Manager 2")
         other = self._new_employee("Other Manager")
@@ -209,8 +177,6 @@ class TestHrAuditCoverage(TestHrCommon):
 
     @freeze_time("2026-07-13")
     def test_notify_expiring_contract_and_work_permit(self):
-        """The expiry cron schedules an activity for contracts/permits landing
-        exactly on the company's notice window, and nothing for those outside it."""
         company = self.env.company
         today = fields.Date.from_string("2026-07-13")
         contract_notice = company.contract_expiration_notice_period
@@ -259,23 +225,12 @@ class TestHrAuditCoverage(TestHrCommon):
 
 @tagged("post_install", "-at_install")
 class TestHrAuditRound2(TestHrCommon):
-    """Regression tests for the round-2 audit (empirically reproduced bugs)."""
-
     def _new_employee(self, name, **vals):
         return self.env["hr.employee"].create(
             {"name": name, "date_version": "2020-01-01", **vals}
         )
 
     def test_self_write_cannot_mint_trusted_bank_account(self):
-        """An ordinary employee must NOT be able to create/trust a bank account by
-        self-writing ``employee_bank_account_ids`` on their own user record.
-
-        Regression: that field sat in HR_WRITABLE_FIELDS, and res.users.write
-        elevates a self-write to superuser when every key is self-writable
-        (gating only on top-level key names). So `[(0, 0, {...})]` created a
-        *trusted* res.partner.bank on an arbitrary partner under sudo — a
-        vendor-payment fraud vector.
-        """
         user = mail_new_test_user(
             self.env, login="plainuser", groups="base.group_user", name="Plain User"
         )
@@ -284,7 +239,6 @@ class TestHrAuditRound2(TestHrCommon):
             {"name": "Vendor X", "is_company": True}
         )
 
-        # The field must not be in the self-writable set.
         self.assertNotIn(
             "employee_bank_account_ids",
             self.env["res.users"].SELF_WRITEABLE_FIELDS,
@@ -315,25 +269,18 @@ class TestHrAuditRound2(TestHrCommon):
         )
 
     def test_bank_account_number_masking(self):
-        """Masking never reveals more than the last 4 chars and never corrupts.
-
-        Regression: the old slice showed the full number for length 6 and
-        produced a duplicated-digit string for length 5.
-        """
         mask = self.env["res.partner.bank"]._mask_account_number
         self.assertEqual(mask("1234"), "****")
         self.assertEqual(mask("12345"), "*2345")
         self.assertEqual(mask("123456"), "**3456")
         self.assertEqual(mask("1234567"), "12*4567")
         self.assertEqual(mask("0011223344556677"), "00**********6677")
-        # Property: output length matches, and the interior is never the raw value.
         for acc in ("12345", "123456", "1234567", "0011223344556677"):
             masked = mask(acc)
             self.assertEqual(len(masked), len(acc))
             self.assertNotEqual(masked, acc)
 
     def test_bank_account_masking_end_to_end_non_hr(self):
-        """A non-HR user reading an employee bank account sees a masked name."""
         emp = self._new_employee("Masked Guy")
         ba = self.env["res.partner.bank"].create(
             {"acc_number": "123456", "partner_id": emp.work_contact_id.id}
@@ -347,26 +294,15 @@ class TestHrAuditRound2(TestHrCommon):
         self.assertEqual(display, "**3456")
 
     def test_combine_tz_uses_correct_offset(self):
-        """``_combine_tz`` attaches the zone's real standard/DST offset."""
         mx = timezone("America/Mexico_City")
         dt = self.env["hr.employee"]._combine_tz(date(2026, 7, 1), time.min, mx)
-        # America/Mexico_City is UTC-6 (no DST since 2022).
         self.assertEqual(dt.utcoffset(), timedelta(hours=-6))
-        # Falsy tz -> naive datetime, unchanged behavior.
         self.assertIsNone(
             self.env["hr.employee"]._combine_tz(date(2026, 7, 1), time.min, None).tzinfo
         )
 
     def test_combine_tz_picks_the_standard_side_of_a_dst_fold(self):
-        """On the hour a zone repeats when DST ends, ``_combine_tz`` resolves to the
-        standard side.
-
-        A bare ``.replace(tzinfo=tz)`` silently takes ``fold=0``, the DST side, which
-        is an hour earlier in UTC than the side pytz's ``localize`` chose before the
-        zoneinfo migration. ``time.min`` does not escape it: Cuba folds at midnight.
-        """
         havana = timezone("America/Havana")
-        # 2026-11-01 00:00 in Havana exists twice: CDT (-4) then CST (-5).
         dt = self.env["hr.employee"]._combine_tz(date(2026, 11, 1), time.min, havana)
         self.assertEqual(dt.utcoffset(), timedelta(hours=-5))
         fold_zero = datetime.combine(date(2026, 11, 1), time.min).replace(tzinfo=havana)
@@ -374,28 +310,17 @@ class TestHrAuditRound2(TestHrCommon):
         self.assertEqual(
             dt.astimezone(UTC) - fold_zero.astimezone(UTC), timedelta(hours=1)
         )
-        # An unambiguous day in the same zone is untouched by the fold handling.
         plain = self.env["hr.employee"]._combine_tz(date(2026, 7, 1), time.min, havana)
         self.assertEqual(plain.utcoffset(), timedelta(hours=-4))
 
-    # Pinned inside the 2026-01-01 -> 2026-07-31 version window.  The scenario
-    # is "a leave on the *current* version's last valid day", and hr resolves a
-    # leave's calendar through ``employee_id.version_id`` — the version valid
-    # *now* — so the case only exists while now falls in that window.  With
-    # absolute dates and a live clock the test quietly stopped testing anything
-    # on 2026-08-01, when version_id moved on to the unbounded next version and
-    # its date_end became False.
     @freeze_time("2026-06-15")
     def test_leave_on_version_last_day_gets_calendar(self):
-        """A leave on a version's inclusive ``date_end`` is assigned that version's
-        calendar (regression: the exclusive midnight bound dropped last-day leaves)."""
         cal1 = self.env["resource.calendar"].search([], limit=1)
         cal2 = self.env["resource.calendar"].create({"name": "R2 Cal2"})
         emp = self._new_employee("Leave Guy", resource_calendar_id=cal1.id)
         emp.create_version(
             {"date_version": "2026-01-01", "contract_date_start": "2026-01-01"}
         )
-        # A future version bounds the current one, so its date_end is set.
         emp.create_version(
             {"date_version": "2026-08-01", "resource_calendar_id": cal2.id}
         )
@@ -418,9 +343,6 @@ class TestHrAuditRound2(TestHrCommon):
         )
 
     def test_create_version_end_without_start_raises_clean_error(self):
-        """create_version with a contract end date at a non-contract date raises a
-        clear UserError instead of an opaque DB CheckViolation, and does not touch
-        sibling versions."""
         emp = self._new_employee("NoContract Guy")
         emp.create_version({"date_version": "2019-01-01"})
         versions_before = self.env["hr.version"].search([("employee_id", "=", emp.id)])
@@ -431,27 +353,13 @@ class TestHrAuditRound2(TestHrCommon):
                 {"date_version": "2026-03-01", "contract_date_end": "2026-12-31"}
             )
 
-        # No sibling version was stamped with an end date.
         self.assertFalse(
             versions_before.filtered("contract_date_end"),
             "no version should have gained a contract end date",
         )
 
     def test_open_ended_version_no_overflow_in_utc_negative_tz(self):
-        """An open-ended contract version must not overflow the attendance
-        interval computation for an employee in a UTC-negative timezone.
-
-        Regression: the round-2 audit rewrote the open-ended sentinel to
-        ``_combine_tz(version.date_end or date.max, time.max, tz)``.
-        ``_combine_tz`` attaches the zone directly, where zoneinfo does
-        ``dt - offset``; for a negative offset (America/Mexico_City, UTC-6)
-        that pushes ``date.max`` (9999-12-31) past ``datetime.max`` and raises
-        ``OverflowError``, crashing the Attendance Gantt progress bar
-        (web_gantt -> _gantt_compute_max_work_hours_within_interval ->
-        _employee_attendance_intervals -> _get_expected_attendances).
-        """
         emp = self._new_employee("MX Open Ended", tz="America/Mexico_City")
-        # Open-ended contract overlapping the query window (no date_end).
         emp.create_version(
             {"date_version": "2026-01-01", "contract_date_start": "2026-01-01"}
         )
@@ -463,9 +371,6 @@ class TestHrAuditRound2(TestHrCommon):
         start = datetime(2026, 7, 1).replace(tzinfo=utc)
         stop = datetime(2026, 7, 31, 23, 59, 59).replace(tzinfo=utc)
 
-        # Guard: the open-ended version must actually overlap the window,
-        # otherwise the early return skips the overflow path and the test
-        # would pass vacuously.
         self.assertTrue(
             emp.sudo()._get_versions_with_contract_overlap_with_period(
                 start.date(), stop.date()
@@ -473,7 +378,6 @@ class TestHrAuditRound2(TestHrCommon):
             "open-ended version must overlap the window to exercise the bug",
         )
 
-        # None of the three fixed call sites may raise OverflowError.
-        emp._employee_attendance_intervals(start, stop)  # _get_expected_attendances
+        emp._employee_attendance_intervals(start, stop)
         emp._employee_attendance_intervals(start, stop, lunch=True)
         emp._get_calendar_attendances(start, stop)

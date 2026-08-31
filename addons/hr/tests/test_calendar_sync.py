@@ -12,7 +12,6 @@ class TestContractCalendars(TestHrCommon):
             {"name": "Calendar of Richard"}
         )
         cls.employee.resource_calendar_id = cls.calendar_richard
-        # force old date to test new version to be created.
         cls.employee.version_id.date_version = Date.to_date("2015-01-01")
 
         cls.calendar_35h = cls.env["resource.calendar"].create({"name": "35h calendar"})
@@ -34,7 +33,6 @@ class TestContractCalendars(TestHrCommon):
         }
 
     def test_contract_state_incoming_to_open(self):
-        # Employee's calendar should change
         self.assertEqual(self.employee.resource_calendar_id, self.calendar_richard)
         cdd = self.employee.create_version(self.contract_cdd_values)
         self.assertEqual(
@@ -49,7 +47,6 @@ class TestContractCalendars(TestHrCommon):
         )
 
     def test_set_fully_flexible_contract_should_change_resource_calendar(self):
-        # Setting a running contract with fully flexible calendar should set the employee's calendar to False (fully flexible)
         self.assertEqual(self.employee.resource_calendar_id, self.calendar_richard)
         flexijob = self.employee.create_version(self.contract_fully_flexible_values)
         self.assertEqual(
@@ -84,7 +81,6 @@ class TestContractCalendars(TestHrCommon):
         end = Datetime.to_datetime("2015-11-28 18:00:00")
         leave2 = create_calendar_leave(start, end, resource=self.employee.resource_id)
 
-        # global leave
         start = Datetime.to_datetime("2015-11-25 07:00:00")
         end = Datetime.to_datetime("2015-11-28 18:00:00")
         leave3 = create_calendar_leave(start, end)
@@ -111,7 +107,6 @@ class TestContractCalendars(TestHrCommon):
             "It should be transferred to the other calendar",
         )
 
-        # Transfer global leaves
         self.calendar_richard.transfer_leaves_to(
             self.calendar_35h, resources=None, from_date=Date.to_date("2015-11-21")
         )
@@ -121,7 +116,6 @@ class TestContractCalendars(TestHrCommon):
         )
 
     def test_calendar_no_desync(self):
-        """resource_calendar_id cannot be desync between employee and version last version"""
         self.employee.create_version(self.contract_cdd_values)
         self.assertEqual(self.employee.resource_calendar_id, self.calendar_35h)
         self.assertEqual(
@@ -138,9 +132,6 @@ class TestContractCalendars(TestHrCommon):
         )
 
     def test_employee_resource_contract_without_and_with_date_from(self):
-        """
-        Test setting the resource with an employee contract on resource leave without and with start date.
-        """
         leave_form = Form(self.env["resource.calendar.leaves"])
         leave_form.date_from = False
 

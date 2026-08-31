@@ -23,8 +23,6 @@ class HrContractTemplateWizard(models.TransientModel):
         if not employee_id or not self.contract_template_id:
             return
         employee = self.env["hr.employee"].browse(employee_id)
-        # Reuse the single source of truth (applies the template's company context
-        # and sudo's the restricted-field read) instead of re-deriving it here.
         val_list = self.env["hr.version"].get_values_from_contract_template(
             self.contract_template_id
         )

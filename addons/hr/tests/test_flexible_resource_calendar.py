@@ -122,12 +122,6 @@ class TestFlexibleResourceCalendar(TransactionCase):
             },
         )
 
-        # Mon 28 Jul -> Sun 3 Aug 2025 is exactly ISO week 31, so there is a
-        # single bucket.  The second one existed only while the budget was
-        # bucketed by *Sunday*-anchored weeks: the range was then widened to
-        # whole Sunday-weeks and spilled into the following one.  The key is
-        # the ISO week since ``resource.resource._flexible_week_key`` became
-        # its single authority, so it no longer depends on res.lang.week_start.
         self.assertDictEqual(
             hours_per_week[self.flex_resource.id],
             {(2025, 31): 32.0},
@@ -209,8 +203,6 @@ class TestFlexibleResourceCalendar(TransactionCase):
             "no date hours limit for fully flexible employees",
         )
 
-        # One ISO week in the queried period, hence one bucket -- see the note
-        # in test_flexible_resource_work_intervals_with_contracts.
         self.assertDictEqual(
             hours_per_week[self.flex_resource.id],
             {(2025, 31): 40.0},

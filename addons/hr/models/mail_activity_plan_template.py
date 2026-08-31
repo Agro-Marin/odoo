@@ -16,7 +16,6 @@ class MailActivityPlanTemplate(models.Model):
 
     @api.constrains("plan_id", "responsible_type")
     def _check_responsible_hr(self):
-        """Ensure that hr types are used only on employee model"""
         for template in self.filtered(
             lambda tpl: tpl.plan_id.res_model != "hr.employee"
         ):
@@ -70,10 +69,6 @@ class MailActivityPlanTemplate(models.Model):
                 )
             result["responsible"] = employee.coach_id.user_id
             if employee.coach_id and not result["responsible"]:
-                # If a plan cannot be launched due to the coach not being linked to an user,
-                # attempt to assign it to the coach's manager user. If that manager is also not linked
-                # to an user, continue searching upwards until a manager with a linked user is found.
-                # If no one is found still, assign to current user.
                 result = self._get_closest_parent_user(
                     employee=employee,
                     responsible=employee.coach_id.parent_id,
@@ -89,10 +84,6 @@ class MailActivityPlanTemplate(models.Model):
                 )
             result["responsible"] = employee.parent_id.user_id
             if employee.parent_id and not result["responsible"]:
-                # If a plan cannot be launched due to the manager not being linked to an user,
-                # attempt to assign it to the manager's manager user. If that manager is also not linked
-                # to an user, continue searching upwards until a manager with a linked user is found.
-                # If no one is found still, assign to current user.
                 result = self._get_closest_parent_user(
                     employee=employee,
                     responsible=employee.parent_id.parent_id,
@@ -104,10 +95,6 @@ class MailActivityPlanTemplate(models.Model):
         elif self.responsible_type == "employee":
             result["responsible"] = employee.user_id
             if not result["responsible"]:
-                # If a plan cannot be launched due to the employee not being linked to an user,
-                # attempt to assign it to the manager's user. If the manager is also not linked
-                # to an user, continue searching upwards until a manager with a linked user is found.
-                # If no one is found still, assign to current user.
                 result = self._get_closest_parent_user(
                     employee=employee,
                     responsible=employee.parent_id,
@@ -116,6 +103,4 @@ class MailActivityPlanTemplate(models.Model):
                     ),
                 )
 
-        # Always return the well-formed dict (callers subscript ["responsible"] /
-        # ["error"]); never None, which would raise TypeError.
         return result

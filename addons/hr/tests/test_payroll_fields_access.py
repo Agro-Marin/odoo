@@ -6,11 +6,6 @@ from odoo.tests import TransactionCase, tagged
 @tagged("post_install", "-at_install")
 class TestPayrollFieldsAccess(TransactionCase):
     def test_related_fields_on_version(self):
-        """Some groups have been added to avoid users with basic access to HR app see some critical (like wage field for instance)
-        This test makes sure the groups added in version fields is also in the employee fields related.
-        However, to define the same groups in employee fields, we have to redefine the related fields (readonly=False, related='version_id.{field_name})
-        Otherwise, the field we loose the linked with the version field and could be readonly instead of editable.
-        """
         version_fields = {
             f_name: field
             for f_name, field in self.env["hr.version"]._fields.items()

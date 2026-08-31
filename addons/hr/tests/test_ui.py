@@ -24,7 +24,6 @@ class TestEmployeeUi(HttpCase):
 
     @freeze_time("2024-01-01")
     def test_version_timeline_auto_save_tour(self):
-        # as payroll tap access will be overridden by hr_payroll
         is_payroll_installed = self.env["ir.module.module"].search_count(
             [("name", "=", "hr_payroll"), ("state", "=", "installed")]
         )

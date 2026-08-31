@@ -47,7 +47,6 @@ class TestHrVersion(TestHrCommon):
             )
 
     def test_contracts_no_overlap(self):
-        # Simple overlap cases
         employee = self.env["hr.employee"].create(
             {
                 "name": "John Doe",
@@ -84,7 +83,6 @@ class TestHrVersion(TestHrCommon):
                 }
             )
 
-        # It should not detect overlap with archived versions
         employee.create_version(
             {
                 "active": False,
@@ -95,24 +93,17 @@ class TestHrVersion(TestHrCommon):
         )
 
     def test_occupation_dates(self):
-        """
-        Occupation dates are global for the employee, they are a list of intervals
-        (date_from, date_to) where the employee is in contract (date_from and date_to included).
-        """
-        # A single version and no contract
         employee = self.env["hr.employee"].create(
             {"name": "John Doe", "date_version": "2020-01-01"}
         )
         self.assertEqual(employee._get_all_contract_dates(), [])
 
-        # A single version and contract
         employee.write(
             {"contract_date_start": "2020-01-01", "contract_date_end": "2020-12-31"}
         )
         occupation_dates = [(date(2020, 1, 1), date(2020, 12, 31))]
         self.assertEqual(employee._get_all_contract_dates(), occupation_dates)
 
-        # 2 versions with 1 contract each
         employee.create_version(
             {
                 "date_version": "2021-01-01",
@@ -126,7 +117,6 @@ class TestHrVersion(TestHrCommon):
         ]
         self.assertEqual(employee._get_all_contract_dates(), occupation_dates)
 
-        # 3 versions with 2 sharing the same contract
         employee.create_version(
             {
                 "date_version": "2022-01-01",
@@ -134,7 +124,6 @@ class TestHrVersion(TestHrCommon):
         )
         self.assertEqual(employee._get_all_contract_dates(), occupation_dates)
 
-        # 4 versions with 2 sharing the same contract, the last one is permanent
         employee.create_version(
             {
                 "date_version": "2025-01-01",
@@ -149,10 +138,6 @@ class TestHrVersion(TestHrCommon):
         self.assertEqual(employee._get_all_contract_dates(), occupation_dates)
 
     def test_dates_new_version_out_of_contract(self):
-        """
-        If the new version falls on a period out of contract, clear the dates
-        """
-        # Create a new version after the end of the current contract
         employee = self.env["hr.employee"].create(
             {
                 "name": "John Doe",
@@ -166,7 +151,6 @@ class TestHrVersion(TestHrCommon):
         self.assertFalse(version.contract_date_start)
         self.assertFalse(version.contract_date_end)
 
-        # Forcing the contract_date_start and or contract_date_end in the 'create' should override False
         employee = self.env["hr.employee"].create(
             {
                 "name": "John Doe",
@@ -185,7 +169,6 @@ class TestHrVersion(TestHrCommon):
         self.assertEqual(version.contract_date_start, date(2021, 1, 1))
         self.assertEqual(version.contract_date_end, date(2021, 12, 31))
 
-        # Create a new version before the start of the current contract
         employee = self.env["hr.employee"].create(
             {
                 "name": "John Doe",
@@ -198,7 +181,6 @@ class TestHrVersion(TestHrCommon):
         self.assertFalse(version.contract_date_start)
         self.assertFalse(version.contract_date_end)
 
-        # Create a new version between two contracts
         employee = self.env["hr.employee"].create(
             {
                 "name": "John Doe",
@@ -224,10 +206,6 @@ class TestHrVersion(TestHrCommon):
         self.assertFalse(version.contract_date_end)
 
     def test_dates_new_version_in_contract(self):
-        """
-        If the new version falls on some contract, copy its contract dates
-        """
-        # Create a new version on a permanent contract
         employee = self.env["hr.employee"].create(
             {
                 "name": "John Doe",
@@ -240,7 +218,6 @@ class TestHrVersion(TestHrCommon):
         self.assertEqual(version.contract_date_start, date(2020, 1, 1))
         self.assertFalse(version.contract_date_end)
 
-        # Create a new version on a fixed term contract
         employee = self.env["hr.employee"].create(
             {
                 "name": "John Doe",
@@ -253,7 +230,6 @@ class TestHrVersion(TestHrCommon):
         self.assertEqual(version.contract_date_start, date(2020, 1, 1))
         self.assertEqual(version.contract_date_end, date(2021, 12, 31))
 
-        # Create a new version on any contract interval regardless of the version valid at that date
         employee = self.env["hr.employee"].create(
             {
                 "name": "John Doe",
@@ -279,10 +255,6 @@ class TestHrVersion(TestHrCommon):
         self.assertEqual(version.contract_date_end, date(2022, 12, 31))
 
     def test_dates_synchronisation(self):
-        """
-        All versions that share or will share (at the end of a 'write')
-        the same contract_date_start are synchronized.
-        """
         employee = self.env["hr.employee"].create(
             {
                 "name": "John Doe",
@@ -344,10 +316,6 @@ class TestHrVersion(TestHrCommon):
             self.assertEqual(version.contract_date_end, date(2040, 12, 31))
 
     def test_1_version_contract_synchronisation(self):
-        """
-        When an employee has only one version, the contract_date_start should
-        be synchronized with the date_version.
-        """
         employee = self.env["hr.employee"].create(
             {
                 "name": "John Doe",
@@ -359,7 +327,6 @@ class TestHrVersion(TestHrCommon):
         employee.write({"contract_date_start": "2019-01-01"})
         self.assertEqual(version.contract_date_start, version.date_version)
 
-        # date_version should not be reset if the contract_date_start is set to False
         employee.write({"contract_date_start": False})
         self.assertEqual(version.date_version, date(2019, 1, 1))
 
@@ -367,9 +334,6 @@ class TestHrVersion(TestHrCommon):
         self.assertEqual(version.contract_date_start, version.date_version)
 
     def test_2_versions_contract_synchronisation(self):
-        """
-        When an employee has two versions, the synchronisation should stop
-        """
         employee = self.env["hr.employee"].create(
             {
                 "name": "John Doe",
@@ -386,17 +350,11 @@ class TestHrVersion(TestHrCommon):
         self.assertEqual(v1.date_version, date(2019, 1, 1))
         self.assertEqual(v2.date_version, date(2021, 1, 1))
 
-        # Archived versions do not count.
-        # So if we archive v2, the synchronisation should start again.
         v2.active = False
         employee.write({"contract_date_start": "2021-01-01"})
         self.assertEqual(v1.contract_date_start, v1.date_version)
 
     def test_in_out_contract(self):
-        """
-        Check that an employee is in or out of the contract at a specific date.
-        """
-        # If no contract dates are defined, the employee is not considered in contract
         employee = self.env["hr.employee"].create(
             {
                 "name": "John Doe",
@@ -407,13 +365,11 @@ class TestHrVersion(TestHrCommon):
         self.assertFalse(employee._is_in_contract(date(2020, 1, 1)))
         self.assertFalse(employee._is_in_contract(date(2030, 1, 1)))
 
-        # In a permanent contract, the employee is contract since the contract_date_start
         employee.contract_date_start = "2020-01-01"
         self.assertFalse(employee._is_in_contract(date(2010, 1, 1)))
         self.assertTrue(employee._is_in_contract(date(2020, 1, 1)))
         self.assertTrue(employee._is_in_contract(date(2030, 1, 1)))
 
-        # In a fixed term contract, the employee is contract in between the contract dates
         employee.contract_date_end = "2029-12-31"
         self.assertFalse(employee._is_in_contract(date(2010, 1, 1)))
         self.assertTrue(employee._is_in_contract(date(2020, 1, 1)))
@@ -440,14 +396,7 @@ class TestHrVersion(TestHrCommon):
             cron.method_direct_trigger()
             self.assertEqual(v2, employee.current_version_id)
 
-    # NB: the version<->employee field-group consistency check formerly duplicated
-    # here lives in test_payroll_fields_access.TestPayrollFieldsAccess
-    # (test_related_fields_on_version) — kept in one place to avoid drift.
-
     def test_multi_edit_contract_sync_same_contract(self):
-        """
-        Test the multi-edit contract sync feature when the targeted versions share the same contract.
-        """
         employee = self.env["hr.employee"].create(
             {
                 "name": "John Doe",
@@ -466,9 +415,6 @@ class TestHrVersion(TestHrCommon):
             self.assertEqual(version.contract_date_end, date(2020, 9, 30))
 
     def test_multi_edit_contract_sync_different_contract(self):
-        """
-        Test the multi-edit contract sync feature when the targeted versions have different contracts.
-        """
         employee = self.env["hr.employee"].create(
             {
                 "name": "John Doe",
@@ -490,10 +436,6 @@ class TestHrVersion(TestHrCommon):
             versions[:2].contract_date_end = "2020-9-30"
 
     def test_multi_edit_other(self):
-        """
-        Test the multi-edit when the targeted versions have different contracts
-        Different fields than contract_date_start and contract_date_end are changed.
-        """
         jobA = self.env["hr.job"].create({"name": "Job A"})
         jobB = self.env["hr.job"].create({"name": "Job B"})
 
@@ -523,10 +465,6 @@ class TestHrVersion(TestHrCommon):
             self.assertEqual(version.job_id.id, jobB.id)
 
     def test_multi_edit_other_and_contract_date_sync(self):
-        """
-        Test the multi-edit when the targeted versions have the same contract
-        Different contract_dates and other fields are changed.
-        """
         jobA = self.env["hr.job"].create({"name": "Job A"})
         jobB = self.env["hr.job"].create({"name": "Job B"})
 
@@ -584,9 +522,6 @@ class TestHrVersion(TestHrCommon):
             v2.unlink()
 
     def test_multi_edit_multi_employees_no_contract(self):
-        """
-        Test the multi-edit when there is one version per employee, without contract
-        """
         employee_john, employee_rob = self.env["hr.employee"].create(
             [
                 {
@@ -605,9 +540,6 @@ class TestHrVersion(TestHrCommon):
         self.assertEqual(versions[1].contract_date_start, date(2021, 10, 10))
 
     def test_multi_edit_multi_employees_mix_contract(self):
-        """
-        Test the multi-edit when there is one version per employee, some with contract
-        """
         employee_john, employee_rob = self.env["hr.employee"].create(
             [
                 {
@@ -627,9 +559,6 @@ class TestHrVersion(TestHrCommon):
         self.assertEqual(versions[1].contract_date_start, date(2021, 10, 10))
 
     def test_multi_edit_multi_employees_all_contract(self):
-        """
-        Test the multi-edit when there is one version per employee, all with different contract
-        """
         employee_john, employee_rob = self.env["hr.employee"].create(
             [
                 {
@@ -657,9 +586,6 @@ class TestHrVersion(TestHrCommon):
         self.assertEqual(versions[2].contract_date_start, date(2021, 10, 10))
 
     def test_multi_edit_multi_employees_incompatible(self):
-        """
-        Test the multi-edit when there is one version per employee, one with incompatible dates
-        """
         employee_john, employee_rob = self.env["hr.employee"].create(
             [
                 {
@@ -746,7 +672,6 @@ class TestHrVersion(TestHrCommon):
         )
 
     def test_related_fields_on_version_onchange(self):
-        """This test is to ensure that each _onchange method on version has a corresponding _onchange on employee that calls it."""
         version_methods = {
             method
             for method in dir(self.env["hr.version"])
@@ -965,11 +890,8 @@ class TestHrVersion(TestHrCommon):
                 "date_version": "2021-01-01",
             }
         )
-        # make sure there are at least 2 versions
         self.assertEqual(len(employee.version_ids), 2)
-        # attempt to archive all versions
         with self.assertRaises(ValidationError):
             employee.version_ids.action_archive()
-        # attempt to reassign all versions
         with self.assertRaises(ValidationError):
             employee.version_ids.write({"employee_id": another_employee.id})

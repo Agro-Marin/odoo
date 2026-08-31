@@ -10,9 +10,6 @@ class MailActivityPlan(models.Model):
         check_company=True,
         index="btree_not_null",
         compute="_compute_department_id",
-        # ``department_id`` is only a visibility filter, not an owner: deleting a
-        # department must not cascade-delete the whole plan (and its activity
-        # templates). Clear the filter instead.
         ondelete="set null",
         readonly=False,
         store=True,
@@ -21,8 +18,6 @@ class MailActivityPlan(models.Model):
 
     @api.constrains("res_model")
     def _check_compatibility_with_model(self):
-        """Check that when the model is updated to a model different from employee,
-        there are no remaining specific values to employee."""
         plan_tocheck = self.filtered(lambda plan: not plan.department_assignable)
         failing_plans = plan_tocheck.filtered("department_id")
         if failing_plans:
@@ -48,12 +43,6 @@ class MailActivityPlan(models.Model):
 
     @api.model
     def _is_department_assignable(self, res_model):
-        """Whether a plan for ``res_model`` may be scoped to an hr.department.
-
-        The wizard asks the same question (``mail.activity.schedule``'s
-        ``plan_department_filterable``); one definition, so the two cannot answer
-        differently.
-        """
         return res_model == "hr.employee"
 
     @api.depends("res_model")

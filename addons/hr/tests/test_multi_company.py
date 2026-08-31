@@ -21,8 +21,6 @@ class TestMultiCompanyReport(TestHrCommon):
             (4, cls.company_2.id),
         ]
         cls.res_users_hr_officer.company_id = cls.company_1.id
-        # flush and invalidate the cache, otherwise a full cache may prevent
-        # access rights to be checked
         cls.env.flush_all()
         cls.env.invalidate_all()
 
@@ -37,7 +35,7 @@ class TestMultiCompanyReport(TestHrCommon):
         self.assertIn(b"Machin", content)
 
     def test_single_company_report(self):
-        with self.assertRaises(AccessError):  # CacheMiss followed by AccessError
+        with self.assertRaises(AccessError):
             self.env["ir.actions.report"].with_user(
                 self.res_users_hr_officer
             ).with_company(self.company_1)._render_qweb_pdf(
@@ -98,8 +96,6 @@ class TestMultiCompany(TestHrCommon):
         cls.env.invalidate_all()
 
     def test_read_manager_employee(self):
-        # UserB should be able to read its manager's record - without being connected
-        # on company A
         self.assertEqual(
             self.employee_a.with_user(self.user_b).with_company(self.company_b).name,
             "Employee A",
@@ -110,7 +106,6 @@ class TestMultiCompany(TestHrCommon):
             "Employee B",
         )
 
-        # UserB should not be able to read other employees in that company
         with self.assertRaises(AccessError):
             self.employee_other_a.with_user(self.user_b).with_company(
                 self.company_b
@@ -124,13 +119,11 @@ class TestMultiCompany(TestHrCommon):
 
     def test_compute_hr_presence_state(self):
         self.user_a.company_ids = self.company_a
-        # user A should still read the employee since he is the manager of that employee
         self.assertEqual(
             self.employee_b.with_user(self.user_a).with_company(self.company_a).name,
             "Employee B",
         )
 
-        # user A should still read hr_presence_state even if he does not have access to the company of the employee
         presence_state = (
             self.employee_b.with_user(self.user_a)
             .with_company(self.company_a)

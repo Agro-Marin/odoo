@@ -12,7 +12,6 @@
                 (4, ref('hr.group_hr_manager'))]"/>
         </record>
 
-        <!-- Resource Calendar -->
         <record id="resource_calendar_std_20h" model="resource.calendar">
             <field name="name">Standard 20 hours/week</field>
             <field name="company_id" eval="False"/>
@@ -29,7 +28,6 @@
             <field name="full_time_required_hours">40</field>
         </record>
 
-        <!--Department-->
         <record id="dep_management" model="hr.department">
             <field name="name">Management</field>
             <field name="color" eval="5"/>
@@ -71,7 +69,6 @@
             <field name="color" eval="3"/>
         </record>
 
-        <!-- Jobs -->
         <record id="job_cto" model="hr.job">
             <field name="name">Chief Technical Officer</field>
             <field name="company_id" eval="False"/>
@@ -175,14 +172,12 @@ You are approachable, honest and a fun team player
 If you have development competencies, we can propose you specific traineeships</field>
         </record>
 
-        <!-- Work Locations -->
         <record id="work_location_1" model="hr.work.location">
             <field name="name">Building 1, Second Floor</field>
             <field name="location_type">office</field>
             <field name="address_id" ref="base.main_partner"/>
         </record>
 
-        <!-- Employee categories -->
         <record id="employee_category_2" model="hr.employee.category">
             <field name="name">Sales</field>
             <field name="color" eval="1"/>
@@ -213,7 +208,6 @@ If you have development competencies, we can propose you specific traineeships</
             <field name="color" eval="8"/>
         </record>
 
-        <!--Employees-->
         <record id="employee_admin" model="hr.employee">
             <field name="private_phone">+1 555-555-5555</field>
             <field name="private_email">admin@yourcompany.example.com</field>
@@ -804,7 +798,6 @@ If you have development competencies, we can propose you specific traineeships</
             }"/>
         </function>
 
-        <!-- Contract Templates -->
         <record id="contract_template_us_developer" model="hr.version">
             <field name="name">Developer USA</field>
             <field name="contract_type_id" ref="contract_type_permanent"/>
@@ -825,7 +818,6 @@ If you have development competencies, we can propose you specific traineeships</
             <field name="resource_calendar_id" ref="resource.resource_calendar_std_38h"/>
         </record>
 
-        <!-- Assign manager for each department -->
         <record id="dep_management" model="hr.department">
             <field name="manager_id" ref="employee_admin"/>
         </record>
@@ -850,7 +842,6 @@ If you have development competencies, we can propose you specific traineeships</
             <field name="manager_id" ref="employee_vad"/>
         </record>
 
-        <!-- Structure Types -->
         <record id="structure_type_employee_cp200_pfi" model="hr.payroll.structure.type">
             <field name="default_resource_calendar_id" ref="resource.resource_calendar_std_38h"/>
         </record>

@@ -71,8 +71,6 @@ class HrJob(models.Model):
         nulls_distinct=True,
         message="The name of the job position must be unique per department in company!",
     )
-    # The department-less half of the same rule, which the one above cannot
-    # reach while it keeps UNIQUE's NULL semantics.
     _name_src_uniq_no_department = name_uniq_index(
         "company_id",
         nulls_distinct=True,
@@ -96,7 +94,6 @@ class HrJob(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """We don't want the current user to be follower of all created job"""
         return super(HrJob, self.with_context(mail_create_nosubscribe=True)).create(
             vals_list
         )
@@ -109,9 +106,6 @@ class HrJob(models.Model):
         ]
 
     def copy_translations(self, new, excluded=()):
-        # ``copy_data`` renames ``name`` in the duplicating user's language
-        # only; without this the copy would keep the source record's exact
-        # ``name`` in every other language.
         super().copy_translations(new, excluded=(*excluded, "name"))
         self._copy_translations_of_renamed_field(
             new, "name", lambda record, term: record.env._("%s (copy)", term)

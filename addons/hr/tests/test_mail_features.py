@@ -24,7 +24,6 @@ class TestHrEmployeeMail(TestHrCommon, MailCommon):
                 }
             )
         )
-        # note: email and phone are user related fields
         cls.test_employee = cls.env["hr.employee"].create(
             [
                 {

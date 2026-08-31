@@ -14,7 +14,6 @@ import { getFieldDomain } from "@web/model/relational_model";
 export class VersionsTimeline extends StatusBarField {
     static template = "hr.VersionsTimeline";
 
-    /** @override **/
     setup() {
         super.setup();
         this.actionService = useService("action");
@@ -73,9 +72,6 @@ export class VersionsTimeline extends StatusBarField {
 
     async createVersion(date) {
         await this.props.record.save();
-        // Serialize the Luxon date to a plain "YYYY-MM-DD" string (like the
-        // sibling button_new_contract widget) rather than relying on the ORM
-        // truncating a locale/zone-dependent ISO datetime.
         const version_id = await this.orm.call("hr.employee", "create_version", [
             this.props.record.evalContext.id,
             { date_version: serializeDate(date) },
@@ -93,7 +89,6 @@ export class VersionsTimeline extends StatusBarField {
         this.dateTimePicker.open();
     }
 
-    /** @override **/
     async selectItem(item) {
         const { record } = this.props;
         await record.save();
@@ -105,7 +100,6 @@ export class VersionsTimeline extends StatusBarField {
         });
     }
 
-    /** @override **/
     getAllItems() {
         function format(dateString) {
             return luxon.DateTime.fromISO(dateString).toFormat("MMM dd, yyyy");
@@ -143,13 +137,11 @@ export function useSpecialDataNoCache(loadFn) {
     const component = useComponent();
     const orm = component.env.services.orm;
 
-    /** @type {{ data: T[] }} */
     const result = useState({ data: [] });
     useRecordObserver(async (record, props) => {
         result.data = await loadFn(orm, { ...props, record });
     });
     onWillUpdateProps(async (props) => {
-        // useRecordObserver callback is not called when the record doesn't change
         if (props.record.id === component.props.record.id) {
             result.data = await loadFn(orm, props);
         }

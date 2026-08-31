@@ -16,7 +16,6 @@ class ResourceCalendarLeaves(models.Model):
         leaves_by_contract = self.grouped(
             lambda leave: leave.resource_id.employee_id.version_id
         )
-        # set aside leaves without version_id for super
         remaining = leaves_by_contract.pop(
             self.env["hr.version"],
             self.env["resource.calendar.leaves"],
@@ -24,22 +23,11 @@ class ResourceCalendarLeaves(models.Model):
         for contract, leaves in leaves_by_contract.items():
             tz = timezone(contract.resource_calendar_id.tz or "UTC")
             start_dt = date2datetime(contract.date_start, tz)
-            # ``date_end`` is the version's *inclusive* last valid day (see
-            # hr.version._compute_dates: date_end = next_date_version - 1 day), so
-            # the exclusive upper bound is midnight of the following day. Using
-            # midnight of ``date_end`` itself dropped every leave falling on that
-            # last day (it matched neither this version's window nor the next),
-            # leaving those leaves with no calendar assigned.
             end_dt = (
                 date2datetime(contract.date_end + timedelta(days=1), tz)
                 if contract.date_end
                 else datetime.max  # noqa: DTZ901 - naive sentinel, compared only
-                # against other naive datetimes (date2datetime always strips
-                # tzinfo, Odoo Datetime fields are always naive); see
-                # hr_attendance_gantt/hr_work_entry_attendance/calendar
-                # precedent from this campaign.
             )
-            # only modify leaves that fall under the active contract
             leaves.filtered(
                 lambda leave, start_dt=start_dt, end_dt=end_dt: (
                     leave.date_from and start_dt <= leave.date_from < end_dt

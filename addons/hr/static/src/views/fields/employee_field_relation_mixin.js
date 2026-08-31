@@ -5,7 +5,6 @@ import { user } from "@web/core/user";
 import { usePopover } from "@web/ui/popover";
 
 /**
- * Mixin that handles public/private access of employee records in many2X fields
  * @param { Class } fieldClass
  * @returns Class
  */

@@ -171,7 +171,6 @@ class ActivityScheduleHRCase(ActivityScheduleCase):
 class TestActivitySchedule(ActivityScheduleHRCase):
     @users("admin")
     def test_department(self):
-        """Check that the allowed plan are filtered according to the department."""
         no_plan = self.env["mail.activity.plan"]
         plan_department_a, plan_department_b = self.env["mail.activity.plan"].create(
             [
@@ -224,8 +223,6 @@ class TestActivitySchedule(ActivityScheduleHRCase):
                     form.plan_id = plan
 
     def test_res_model_compatibility(self):
-        """Check that we cannot change the plan model to a model different
-        of employee if hr plan specific features are used."""
         with self.assertRaises(
             UserError,
             msg="Coach, manager or employee can only be chosen as template responsible with employee plan.",
@@ -254,7 +251,6 @@ class TestActivitySchedule(ActivityScheduleHRCase):
         self.assertFalse(self.plan_onboarding.department_id)
 
     def test_responsible(self):
-        """Check that the responsible is correctly configured."""
         self.plan_onboarding.template_ids[0].write(
             {
                 "responsible_type": "manager",
@@ -278,7 +274,6 @@ class TestActivitySchedule(ActivityScheduleHRCase):
             }
         )
         for employees in (self.employee_1, self.employee_1 + self.employee_2):
-            # Happy case
             form = self._instantiate_activity_schedule_wizard(employees)
             form.plan_id = self.plan_onboarding
             expected_summary_lines = [
@@ -311,7 +306,6 @@ class TestActivitySchedule(ActivityScheduleHRCase):
                 self.assertEqual(activities[1].user_id, self.user_coach)
                 self.assertEqual(activities[2].user_id, employee.user_id)
 
-            # Cases with errors
             self.employee_1.parent_id = False
             self.employee_1.coach_id = False
             form = self._instantiate_activity_schedule_wizard(employees)
@@ -352,7 +346,6 @@ class TestActivitySchedule(ActivityScheduleHRCase):
                     f"The manager of {self.employee_2.name} should be linked to a user.",
                     form.warning,
                 )
-            # should save without error, with coach
             form.save()
             self.employee_coach.user_id = self.user_coach
             self.employee_manager.user_id = self.user_manager
@@ -375,7 +368,6 @@ class TestActivitySchedule(ActivityScheduleHRCase):
                 form.plan_id = self.plan_onboarding
                 self.assertEqual(form.plan_date, fields.Date.from_string(plan_date))
 
-        # not applicable on other models
         customers = self.env["res.partner"].create(
             [
                 {"name": "Customer1"},

@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data noupdate="1">
-        <!-- Department -->
         <record id="dep_rd" model="hr.department" forcecreate="1">
             <field name="name">Research &amp; Development</field>
             <field name="color" eval="10"/>
@@ -11,7 +10,6 @@
             <field name="color" eval="5"/>
         </record>
 
-        <!-- Job -->
         <record id="job_consultant" model="hr.job" forcecreate="1">
             <field name="name">Consultant</field>
             <field name="no_of_recruitment">5</field>
@@ -55,7 +53,6 @@
             <field name="contract_type_id" ref="hr.contract_type_permanent"/>
         </record>
 
-        <!-- Employee category -->
         <record id="employee_category_4" model="hr.employee.category" forcecreate="1">
             <field name="name">Employee</field>
             <field name="color" eval="6"/>
@@ -69,7 +66,6 @@
             <field name="color" eval="6"/>
         </record>
 
-        <!-- Partner -->
         <record id="work_contact_eg" model="res.partner" forcecreate="1">
             <field name="name">Emma Granger</field>
             <field name="email">granger@mycompany.example.com</field>
@@ -110,7 +106,6 @@
             <field name="phone">(555)-768-6230</field>
         </record>
 
-        <!-- Employee -->
         <record id="employee_mw" model="hr.employee" forcecreate="1">
             <field name="active">True</field>
             <field name="name">Michael Williams</field>

@@ -1,6 +1,5 @@
 from odoo import api, fields, models
 from odoo.db.schema import drop_view_if_exists
-from odoo.fields import Domain
 
 
 class HrEmployeePublic(models.Model):
@@ -8,9 +7,8 @@ class HrEmployeePublic(models.Model):
     _description = "Public Employee"
     _order = "name"
     _auto = False
-    _log_access = True  # Include magic fields
+    _log_access = True
 
-    # Fields coming from hr.employee
     create_date = fields.Datetime(readonly=True)
     name = fields.Char(readonly=True)
     active = fields.Boolean(readonly=True)
@@ -56,12 +54,10 @@ class HrEmployeePublic(models.Model):
     resource_calendar_id = fields.Many2one("resource.calendar", readonly=True)
     country_code = fields.Char(compute="_compute_country_code")
 
-    # Manager-only fields
     is_manager = fields.Boolean(compute="_compute_is_manager")
     is_user = fields.Boolean(compute="_compute_is_user")
 
     employee_id = fields.Many2one("hr.employee", "Employee", readonly=True)
-    # hr.employee.public specific fields
     child_ids = fields.One2many(
         "hr.employee.public", "parent_id", string="Direct subordinates", readonly=True
     )
@@ -127,9 +123,6 @@ class HrEmployeePublic(models.Model):
 
     @api.depends("user_id")
     def _compute_last_activity(self):
-        # Mirror the employee's own computation instead of restating it: this was
-        # a verbatim copy of hr.employee._compute_last_activity, i.e. a second
-        # place for the presence/timezone rules to drift.
         self._compute_from_employee(["last_activity", "last_activity_time"])
 
     @api.depends("company_id.country_id")
@@ -141,8 +134,6 @@ class HrEmployeePublic(models.Model):
     def _compute_is_manager(self):
         user_employee = self.env.user.employee_id
         if not user_employee:
-            # No linked employee -> ``child_of False`` is an ill-defined domain;
-            # nobody reports to a non-existent manager.
             self.is_manager = False
             return
         all_reports = (
@@ -165,7 +156,6 @@ class HrEmployeePublic(models.Model):
 
     @api.depends("resource_calendar_id", "hr_presence_state")
     def _compute_presence_icon(self):
-        # Both fields come from the same sudo employee map — fetch it once.
         self._compute_from_employee(["hr_icon_display", "show_hr_icon_display"])
 
     @api.depends_context("uid", "company")
@@ -177,21 +167,7 @@ class HrEmployeePublic(models.Model):
         return []
 
     def _search_member_of_department(self, operator, value):
-        if operator != "in":
-            return NotImplemented
-
-        user_employee = self.env["hr.employee"]._get_valid_employee_for_user()
-        if not user_employee.department_id:
-            # A search method must agree with its compute, and
-            # ``_compute_member_of_department`` answers False for everyone when
-            # the reader has no department. This used to return
-            # ``[("id", "in", user_employee.ids)]`` -- the reader's own row, on
-            # which the field reads False -- so the "My Department" filter
-            # returned a record that did not satisfy it. The same branch was
-            # copied onto hr.version, where ``id`` is a VERSION id, and there it
-            # matched unrelated versions outright.
-            return Domain.FALSE
-        return [("department_id", "child_of", user_employee.department_id.ids)]
+        return self.env["hr.employee"]._search_member_of_department_domain(operator)
 
     @api.depends_context("uid")
     def _compute_manager_only_fields(self):
@@ -205,42 +181,17 @@ class HrEmployeePublic(models.Model):
                 for f in manager_fields:
                     employee[f] = False
 
-    # Mirror the employee side's indirection rather than hard-coding
-    # ``create_date``: ``_get_new_hire_field`` exists to be overridden, and a
-    # literal here would silently go stale the first time one does.
     @api.depends(lambda self: [self.env["hr.employee"]._get_new_hire_field()])
     def _compute_newly_hired(self):
         self._compute_from_employee("newly_hired")
 
     def _search_newly_hired(self, operator, value):
-        # The SQL view selects ``e.id AS id``, so an hr.employee id IS the public
-        # id and the employee-side domain applies verbatim. Delegating keeps the
-        # 90-day window and ``_get_new_hire_field`` in one place.
         return self.env["hr.employee"]._search_newly_hired(operator, value)
 
-    # Fields that ``_get_fields`` always emits explicitly (they are selected
-    # from the employee row directly, not derived from the model's field set).
     _PUBLIC_BASE_FIELDS = ("id", "employee_id", "name", "active")
 
     @api.model
     def _get_public_field_names(self):
-        """Single source of truth for the public/private field boundary.
-
-        A field of ``hr.employee`` is considered *public* iff it is declared on
-        this model (``hr.employee.public``) as a stored, column-backed field.
-        This method returns exactly those names (excluding ``_PUBLIC_BASE_FIELDS``,
-        which ``_get_fields`` emits explicitly).
-
-        Two mechanisms rely on this boundary and MUST stay consistent:
-          * ``_get_fields`` builds the SQL view columns from this set;
-          * ``hr.employee._check_private_fields`` treats any field absent from
-            ``hr.employee.public._fields`` as private.
-
-        Drift risk: the set is *derived* from this model's stored fields, so
-        adding or removing a stored field here silently moves the boundary
-        (a new stored field becomes publicly readable). Review such changes
-        against the private-field expectations of ``hr.employee``.
-        """
         return [
             name
             for name, field in self._fields.items()

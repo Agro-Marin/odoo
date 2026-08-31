@@ -49,8 +49,6 @@ class ResUsers(models.Model):
     _inherit = "res.users"
 
     def _domain_employee_ids(self):
-        # employee_ids is considered a safe field and as such will be fetched as sudo.
-        # So try to enforce the security rules on the field to make sure we do not load employees outside of active companies
         return [
             (
                 "company_id",
@@ -59,7 +57,6 @@ class ResUsers(models.Model):
             )
         ]
 
-    # note: a user can only be linked to one employee per company (see sql constraint in `hr.employee`)
     employee_ids = fields.One2many(
         "hr.employee", "user_id", string="Related employee", domain=_domain_employee_ids
     )
@@ -144,12 +141,6 @@ class ResUsers(models.Model):
     km_home_work = fields.Integer(
         related="employee_id.km_home_work", readonly=False, related_sudo=False
     )
-    # res.users already have a field bank_account_id and country_id from the res.partner inheritance: don't redefine them
-    # This field no longer appears to be in use. To avoid breaking anything it must only be removed after the freeze of v19.
-    # SECURITY: it MUST NOT be added back to HR_WRITABLE_FIELDS. res.users.write elevates
-    # a self-write to superuser when every key is self-writable, gating only on top-level
-    # key names — so a self-writable M2M to res.partner.bank lets an ordinary employee
-    # create/trust arbitrary bank accounts under sudo (vendor-payment fraud vector).
     employee_bank_account_ids = fields.Many2many(
         "res.partner.bank",
         related="employee_id.bank_account_ids",
@@ -197,10 +188,6 @@ class ResUsers(models.Model):
     is_system = fields.Boolean(compute="_compute_is_system")
     is_hr_user = fields.Boolean(compute="_compute_is_hr_user")
 
-    # NOTE: both of these describe the CURRENT user, not the record. They exist
-    # so a view can branch on the reader's rights, and they answer the same value
-    # for every record in the set -- do not read them off another user expecting
-    # that user's rights.
     @api.depends_context("uid")
     def _compute_is_system(self):
         self.is_system = self.env.user._is_system()
@@ -229,10 +216,6 @@ class ResUsers(models.Model):
 
     @api.model
     def get_views(self, views, options=None):
-        # Requests the My Preferences form view as last.
-        # Otherwise the fields of the 'search' view will take precedence
-        # and will omit the fields that are requested as SUPERUSER
-        # in `get_view()`.
         preferences_view = self.env.ref("hr.res_users_view_form_preferences")
         preferences_form = preferences_view and [preferences_view.id, "form"]
         if preferences_form and preferences_form in views:
@@ -242,14 +225,6 @@ class ResUsers(models.Model):
 
     @api.model
     def get_view(self, view_id=None, view_type="form", **options):
-        # When the front-end loads the views it gets the list of available fields
-        # for the user (according to its access rights). Later, when the front-end wants to
-        # populate the view with data, it only asks to read those available fields.
-        # However, in this case, we want the user to be able to read/write its own data,
-        # even if they are protected by groups.
-        # We make the front-end aware of those fields by sending all field definitions.
-        # Note: limit the `sudo` to the only action of "editing own preferences" action in order to
-        # avoid breaking `groups` mecanism on res.users form view.
         preferences_view = self.env.ref("hr.res_users_view_form_preferences")
         if preferences_view and view_id == preferences_view.id:
             self = self.with_user(SUPERUSER_ID)
@@ -259,8 +234,6 @@ class ResUsers(models.Model):
     def create(self, vals_list):
         res = super().create(vals_list)
         employee_create_vals = []
-        # create() is 1:1 with vals_list; fail loudly on any mismatch rather than
-        # silently binding create_employee flags to the wrong user.
         for user, vals in zip(res, vals_list, strict=True):
             if not vals.get("create_employee") and not vals.get("create_employee_id"):
                 continue
@@ -283,7 +256,6 @@ class ResUsers(models.Model):
         return res
 
     def _get_employee_fields_to_sync(self):
-        """Get values to sync to the related employee when the User is changed."""
         return ["name", "email", "image_1920", "tz"]
 
     def _get_personal_info_partner_ids_to_notify(self, employee):
@@ -297,7 +269,6 @@ class ResUsers(models.Model):
         return ("", [])
 
     def _notify_hr_of_personal_info_change(self, changed_field_names, employee_domain):
-        """Tell each employee's HR responsible which of their fields just moved."""
         employees = self.env["hr.employee"].sudo().search(employee_domain)
         if not employees:
             return
@@ -308,10 +279,6 @@ class ResUsers(models.Model):
                 for fname in changed_field_names
             ]
         )
-        # The MODIFIER is the acting user, not the employee whose record moved:
-        # this used to name ``employee.name``, which reads correctly only in the
-        # self-service case and credits the wrong person whenever an HR officer
-        # edits somebody else's record.
         modified_by = self.env.user.name
         for employee in employees:
             reason_message, partner_ids = self._get_personal_info_partner_ids_to_notify(
@@ -331,7 +298,6 @@ class ResUsers(models.Model):
             )
 
     def _update_employees_from_user_vals(self, vals, employee_domain):
-        """Push the user fields that mirror onto hr.employee (``name``, ``email``…)."""
         employee_values = {
             fname: vals[fname]
             for fname in self._get_employee_fields_to_sync()
@@ -345,8 +311,6 @@ class ResUsers(models.Model):
         if "image_1920" not in vals:
             Employee.search(employee_domain).write(employee_values)
             return
-        # Employees that already have a custom photo must keep it: only the
-        # non-image values reach them, never their image.
         Employee.search([*employee_domain, ("image_1920", "=", False)]).write(
             employee_values
         )
@@ -355,11 +319,6 @@ class ResUsers(models.Model):
         )
 
     def write(self, vals):
-        """
-        Synchronize user and its related employee
-        and check access rights if employees are not allowed to update
-        their own data (otherwise sudo is applied for self data).
-        """
         hr_fields = [
             field_name
             for field_name, field in self._fields.items()
@@ -372,11 +331,6 @@ class ResUsers(models.Model):
             ("user_id", "in", self.ids),
         ]
 
-        # Capture the pre-write values so that only the fields that ACTUALLY
-        # changed are reported (writing a field with its current value must not
-        # notify). Read via sudo: these related fields may be group-restricted
-        # (private_*), and a self-service user must not hit an AccessError just so
-        # a change can be detected.
         self_sudo = self.sudo()
         old_hr_values = {
             field_name: {user.id: user[field_name] for user in self_sudo}
@@ -432,11 +386,6 @@ class ResUsers(models.Model):
             user.employee_id = employee_per_user.get(user)
 
     def _search_employee_id(self, operator, value):
-        # Equivalent to `[('employee_ids', operator, value)]`,
-        # but we inline the ids directly to simplify final queries and improve performance,
-        # as it's part of a few ir.rules.
-        # If we're going to inject too many `ids`, we fall back on the default behavior
-        # to avoid a performance regression.
         IN_MAX = 10_000
         domain = Domain("employee_ids", operator, value)
         user_ids = (
@@ -501,9 +450,6 @@ class ResUsers(models.Model):
         }
 
     def get_formview_action(self, access_uid=None):
-        """Override this method in order to redirect many2one towards the full user form view
-        incase the user is ERP manager and the request coming from employee form."""
-
         res = super().get_formview_action(access_uid=access_uid)
         user = self.env.user
         if access_uid:

@@ -7,7 +7,7 @@
             <field name="model">hr.job</field>
             <field name="arch" type="xml">
                 <form string="Job">
-                    <header/> <!-- inherited in other module -->
+                    <header/>
                     <field name="active" invisible="1"/>
                     <sheet>
                         <div class="oe_button_box" name="button_box"/>

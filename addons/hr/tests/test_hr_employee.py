@@ -51,21 +51,14 @@ class TestHrEmployee(TestHrCommon):
             employee_version.write({"active": False})
 
     def test_related_partners_count_is_per_employee(self):
-        """Regression: ``related_partners_count`` must be computed per employee,
-        not as the whole-recordset union written onto every record."""
         e1 = self.env["hr.employee"].create({"name": "RP One"})
         e2 = self.env["hr.employee"].create({"name": "RP Two"})
-        # Each employee gets its own (distinct) auto-created work contact and has
-        # no user, so each must report exactly one related partner -- not two
-        # (the combined union, which the pre-fix batch compute wrote to all).
         (e1 | e2)._compute_related_partners_count()
         self.assertEqual(e1.related_partners_count, 1)
         self.assertEqual(e2.related_partners_count, 1)
         self.assertNotEqual(e1.work_contact_id, e2.work_contact_id)
 
     def test_user_image_write_preserves_custom_employee_image(self):
-        """Regression: writing image_1920 on a user must not overwrite the photo
-        of an employee that already has its own custom image."""
         import base64
         import io
 
@@ -90,9 +83,7 @@ class TestHrEmployee(TestHrCommon):
         )
         stored_custom = employee.image_1920
         self.assertTrue(stored_custom)
-        # Sync a brand new avatar onto the user.
         user.write({"image_1920": img_b})
-        # The employee kept its own custom photo (not clobbered by the user's).
         self.assertEqual(employee.image_1920, stored_custom)
 
     def test_employee_smart_button_multi_company(self):
@@ -155,26 +146,20 @@ class TestHrEmployee(TestHrCommon):
         employee_form.work_email = "yoahm@example.com"
         employee = employee_form.save()
 
-        # validate timezone sync between employee & user
         self.assertEqual(employee.tz, self.res_users_hr_officer.tz)
 
-        # validate that we can change timezone on user
         self.res_users_hr_officer.tz = "Europe/Brussels"
         self.assertEqual(self.res_users_hr_officer.tz, employee.tz)
 
-        # validate that we can change timezone on employee
         employee.tz = "Europe/London"
         self.assertEqual(self.res_users_hr_officer.tz, employee.tz)
 
-        # Check False value on employee
         with mute_logger("odoo.db"), self.assertRaises(NotNullViolation):
             employee.tz = False
 
-        # Check False value on user
         with mute_logger("odoo.db"), self.assertRaises(NotNullViolation):
             self.res_users_hr_officer.tz = False
 
-        # Check None value on user's calendar
         with mute_logger("odoo.db"), self.assertRaises(NotNullViolation):
             self.res_users_hr_officer.company_id.resource_calendar_id.write(
                 {"tz": None}
@@ -360,15 +345,11 @@ class TestHrEmployee(TestHrCommon):
                 },
             ]
         )
-        # Test that creating an user does not create an employee by default
         self.assertFalse(user_1.employee_id)
-        # Test that setting create_employee does create the associated employee
         self.assertTrue(user_2.employee_id)
-        # Test that creating an user with a given employee associates the employee correctly
         self.assertEqual(user_3.employee_id, employee)
 
     def test_employee_create_from_signup(self):
-        # Test that an employee is not created when signin up on the website
         partner = self.env["res.partner"].create({"name": "test partner"})
         self.env["res.users"].signup(
             {
@@ -384,10 +365,6 @@ class TestHrEmployee(TestHrCommon):
         )
 
     def test_employee_update_work_contact_id(self):
-        """
-        Check that the `work_contact_id` information is no longer
-        updated when an employee's `user_id` is added to another employee.
-        """
         user = self.env["res.users"].create(
             {
                 "name": "Test",
@@ -418,9 +395,6 @@ class TestHrEmployee(TestHrCommon):
         self.assertEqual(employee_B.work_contact_id, user.partner_id)
 
     def test_availability_user_infos_employee(self):
-        """Ensure that all the user infos needed to display the avatar popover card
-        are available on the model hr.employee.
-        """
         user = self.env["res.users"].create(
             [
                 {
@@ -461,7 +435,6 @@ class TestHrEmployee(TestHrCommon):
             {"company_ids": test_company.ids, "company_id": test_company.id}
         )
 
-        # Try to set the user with existing employee in the company, on a new employee form
         employee_form = Form(
             self.env["hr.employee"]
             .with_user(self.res_users_hr_officer)
@@ -483,7 +456,6 @@ class TestHrEmployee(TestHrCommon):
             }
         )
 
-        # Try to set the user with existing employee in the company, on another existing employee
         employee_2_form = Form(
             employee_2.with_user(self.res_users_hr_officer).with_company(
                 company=test_company.id
@@ -535,18 +507,12 @@ class TestHrEmployee(TestHrCommon):
                 "bank_account_ids": [Command.link(bank_account.id)],
             }
         )
-        # change user -> bank account change company
         with Form(test_employee) as employee_form:
             employee_form.user_id = test_other_user
-        # change user back -> check that there is no company error
         with Form(test_employee) as employee_form:
             employee_form.user_id = test_user
 
     def test_change_user_on_employee_keep_partner(self):
-        """
-        Check that removing user from employee keeps the link in
-        work_contact_id until the user is assigned to another employee.
-        """
         user = self.env["res.users"].create(
             {
                 "name": "Test User",
@@ -559,31 +525,21 @@ class TestHrEmployee(TestHrCommon):
                 "user_id": user.id,
             }
         )
-        # remove user
         employee.user_id = None
         self.assertEqual(employee.work_contact_id, user.partner_id)
         self.assertFalse(employee.user_id)
-        # create new employee from user
         user._compute_employee_id()
         user.action_create_employee()
         self.assertTrue(
             len(user.employee_ids) == 1,
             "Test user should have exactly one employee associated with it",
         )
-        # previous employee shouldn't have a work_contact_id anymore, as the partner is reassigned
         self.assertFalse(employee.work_contact_id)
-        # the new employee should be associated to both the user and its partner
         new_employee = user.employee_ids
         self.assertEqual(new_employee.work_contact_id, user.partner_id)
         self.assertEqual(new_employee.user_id, user)
 
     def test_change_user_on_employee_multi_company(self):
-        """
-        Removing user from employee keeps the link in work_contact_id in the correct company until the user
-        is assigned to another employee, and does not affect employees in other companies. When the unique
-        constraint of one employee per user in one company is triggered, the work_contact_id for the
-        existing employee is nor removed, and employees in other companies are not affected.
-        """
         company_A = self.env["res.company"].create({"name": "company_A"})
         company_B = self.env["res.company"].create({"name": "company_B"})
         user = self.env["res.users"].create(
@@ -603,24 +559,19 @@ class TestHrEmployee(TestHrCommon):
         employee_B = self.env["hr.employee"].create(
             {"name": "employee_B", "user_id": user.id, "company_id": company_B.id}
         )
-        # Creating an employee in one company does not remove the link with employee in the other company
         self.assertEqual(user.with_company(company_A).employee_id, employee_A)
         self.assertEqual(user.with_company(company_B).employee_id, employee_B)
-        # Partner is linked to both employees
         partner.with_company(company_A).with_company(
             company_B
         )._compute_employees_count()
         self.assertEqual(partner.employees_count, 2)
-        # Remove user from employee in one company does not affect link user-employee in the other company
         employee_A.user_id = None
         self.assertEqual(user.with_company(company_A).employee_id.ids, [])
         self.assertEqual(user.with_company(company_B).employee_id, employee_B)
-        # Partner still linked to both employees
         partner.with_company(company_A).with_company(
             company_B
         )._compute_employees_count()
         self.assertEqual(partner.employees_count, 2)
-        # Creating a new employee for a user in company A does not affect link user-employee in the other company
         new_employee_A = self.env["hr.employee"].create(
             {
                 "name": "new_employee_A",
@@ -628,7 +579,6 @@ class TestHrEmployee(TestHrCommon):
                 "company_id": company_A.id,
             }
         )
-        # User cannot be assigned to more than one employee in the same company. work_contact_id should not be removed.
         with (
             mute_logger("odoo.db"),
             self.assertRaises(UniqueViolation),
@@ -646,7 +596,6 @@ class TestHrEmployee(TestHrCommon):
         self.assertEqual(partner.employee_ids, employee_B + new_employee_A)
 
     def test_avatar(self):
-        # Check simple employee has a generated image (initials)
         employee_georgette = self.env["hr.employee"].create(
             {"name": "Georgette Pudubec"}
         )
@@ -657,14 +606,12 @@ class TestHrEmployee(TestHrCommon):
         self.assertTrue(employee_georgette.work_contact_id.image_1920)
         self.assertTrue(employee_georgette.work_contact_id.avatar_1920)
 
-        # Check user has a generate image
         user_norbert = self.env["res.users"].create(
             {"name": "Norbert Comidofisse", "login": "Norbert6870"}
         )
         self.assertTrue(user_norbert.image_1920)
         self.assertTrue(user_norbert.avatar_1920)
 
-        # Check that linked employee got user image
         employee_norbert = self.env["hr.employee"].create(
             {"name": "Norbert Employee", "user_id": user_norbert.id}
         )
@@ -672,7 +619,6 @@ class TestHrEmployee(TestHrCommon):
         self.assertEqual(employee_norbert.avatar_1920, user_norbert.avatar_1920)
 
     def test_badge_validation(self):
-        # check employee's barcode should be a sequence of digits and alphabets
         employee = self.env["hr.employee"].create({"name": "Badge Employee"})
 
         employee_form = Form(employee)
@@ -690,7 +636,6 @@ class TestHrEmployee(TestHrCommon):
         self.assertEqual(employee_form.barcode, "Testbadge2")
 
     def test_departure_wizard(self):
-        """Test the archiving wizard in the case of multiple employees"""
         employee_A, employee_B, employee_C = self.env["hr.employee"].create(
             [
                 {
@@ -791,33 +736,23 @@ class TestHrEmployee(TestHrCommon):
         second_job = self.env["hr.job"].create({"name": "second job"})
 
         with Form(self.employee_without_image) as employee_form:
-            # Assign first job to employee, job title should be job name
             employee_form.job_id = first_job
             self.assertEqual(employee_form.job_title, first_job.name)
 
-            # Change job title, job name should not change
             employee_form.job_title = "custom job title"
             self.assertEqual(first_job.name, "first job")
 
-            # Change the name of the first job, job title should not be updated
             first_job.name = "first job modified"
             self.assertEqual(employee_form.job_title, "custom job title")
             employee_form.save()
 
-            # Assign second job to employee, job title should be second job name
             employee_form.job_id = second_job
             self.assertEqual(employee_form.job_title, second_job.name)
 
-            # Switch back to first job, job title should be first job name
             employee_form.job_id = first_job
             self.assertEqual(employee_form.job_title, first_job.name)
 
     def test_flexible_working_hours(self):
-        """
-        Test to verifie that get_unusual_days() return false for flexible work schedule
-        """
-
-        # Creating a flexible working schedule
         calendar_flex = self.env["resource.calendar"].create(
             [
                 {
@@ -833,14 +768,12 @@ class TestHrEmployee(TestHrCommon):
             }
         )
 
-        # Testing employeA on regular working schedule
         days = employeeA._get_unusual_days(
             str(datetime(2025, 1, 1)), str(datetime(2025, 12, 31))
         )
         self.assertTrue(days)
         self.assertTrue(days["2025-01-04"])
 
-        # Assigning flexible work hours to employeeA
         employeeA.resource_calendar_id = calendar_flex.id
         days = employeeA._get_unusual_days(
             str(datetime(2025, 1, 1)), str(datetime(2025, 12, 31))
@@ -889,7 +822,6 @@ class TestHrEmployee(TestHrCommon):
                 },
             ]
         )
-        # Add an existing employee who already has a user to the employee list
         employees += self.employee_without_image
         context = {"selected_ids": employees.ids}
         confirmed_employees = (
@@ -967,24 +899,18 @@ class TestHrEmployee(TestHrCommon):
 @tagged("-at_install", "post_install")
 class TestHrEmployeeLinks(HttpCase):
     def test_shared_private_link_permissions(self):
-        """
-        Employees not part of group_hr_user are not supposed to be able to see
-        private employees pages (e.g.: from a shared link).
-        The tour will check if the correct redirection warning appears when such
-        case happens.
-        """
         user_amy = new_test_user(
             self.env,
             name="Amy Rose",
             login="amy",
-            groups="base.group_user",  # cannot access private employee profiles
+            groups="base.group_user",
         )
         employee_sonic = self.env["hr.employee"].create(
             {
                 "name": "Sonic the Hedgehog",
             }
         )
-        with mute_logger("odoo.http"):  # ignore raised RedirectWarning
+        with mute_logger("odoo.http"):
             self.start_tour(
                 f"/odoo/employees/{employee_sonic.id}",
                 "check_public_employee_link_redirect",
@@ -994,18 +920,14 @@ class TestHrEmployeeLinks(HttpCase):
 
 @tagged("-at_install", "post_install")
 class TestVersionCron(TransactionCase):
-    """Test the behavior of CRONs affecting hr.version"""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
 
-        # Will be used for default employee version address (contains phone)
         cls.env.user.company_id = cls.env["res.company"].create(
             {"name": "Pokémon Center", "phone": "+32404040404"}
         )
 
-        # Employee has a default version that will be overridden
         with freeze_time("2020-10-07"):
             cls.employee = cls.env["hr.employee"].create(
                 {
@@ -1017,16 +939,10 @@ class TestVersionCron(TransactionCase):
             )
 
     def test_version_cron_update_no_fields(self):
-        """
-        Employees should not see their fields be updated if the CRON does not
-        change their version.
-        """
         with freeze_time("2023-10-06"):
             self.employee.create_version({"date_version": "2023-10-07", "wage": 4000})
 
-        # Saving current employee data to compare later on
         employee_values = {}
-        # some fields cannot be accessed. We need to filter them out
         employee_fields = [
             field
             for field in self.env["hr.employee"]._fields
@@ -1035,7 +951,6 @@ class TestVersionCron(TransactionCase):
         for field in employee_fields:
             employee_values[field] = self.employee[field]
 
-        # Should not change to new version
         with freeze_time("2023-10-06"):
             self.env["hr.employee"]._cron_update_current_version_id()
 
@@ -1048,15 +963,10 @@ class TestVersionCron(TransactionCase):
             )
 
     def test_version_cron_update_fields(self):
-        """
-        Employees should see some of their field be changed if the CRON changes
-        their version.
-        """
         with freeze_time("2023-10-06"):
             self.employee.create_version({"date_version": "2023-10-07", "wage": 4000})
         current_wage = self.employee.wage
         current_version = self.employee.current_version_id
-        # Should change to new version
         with freeze_time("2023-10-07"):
             self.env["hr.employee"]._cron_update_current_version_id()
 
@@ -1076,11 +986,9 @@ class TestVersionCron(TransactionCase):
 class TestHrEmployeeWebJson(HttpCase):
     def setUp(self):
         super().setUp()
-        # JSON route needs to be enabled for the tests
         self.env["ir.config_parameter"].sudo().set_param("web.json.enabled", True)
 
     def test_webjson_employees(self):
-        # Check that json employees can be accessed
         url = "/json/1/employees"
         self.env["ir.config_parameter"].set_param("web.json.enabled", True)
         self.authenticate("admin", "admin")

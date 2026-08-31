@@ -53,7 +53,6 @@
             <field name="plan_id" ref="offboarding_plan"/>
         </record>
 
-        <!-- Departure Reasons -->
         <record id="departure_fired" model="hr.departure.reason">
             <field name="sequence">0</field>
             <field name="name">Fired</field>
@@ -150,7 +149,6 @@
             <field name="address_id" ref="base.main_partner"/>
         </record>
 
-        <!-- Contract or Work Permit Expiring -->
         <record id="ir_cron_data_employee_notify_expiring_contract_work_permit" model="ir.cron">
             <field name="name">HR Employee: Notify Expiring Contract or Work Permit</field>
             <field name="model_id" ref="model_hr_employee"/>
@@ -169,7 +167,6 @@
             <field name="interval_type">days</field>
         </record>
 
-        <!-- Structure Type -->
         <record id="structure_type_employee" model="hr.payroll.structure.type">
             <field name="name">Employee</field>
             <field name="country_id" eval="False"/>
@@ -190,7 +187,6 @@
             <field name="country_id" ref="base.be"/>
         </record>
 
-        <!-- Employee -->
         <record id="employee_admin" model="hr.employee" forcecreate="0">
             <field name="name" eval="obj(ref('base.partner_admin')).name" model="res.partner"/>
             <field name="department_id" ref="dep_administration"/>
@@ -200,7 +196,6 @@
             <field name="structure_type_id" ref="hr.structure_type_employee"/>
         </record>
 
-        <!-- Contract-related subtypes for messaging / Chatter -->
         <record id="mt_contract_pending" model="mail.message.subtype">
             <field name="name">To Renew</field>
             <field name="res_model">hr.version</field>
@@ -214,7 +209,6 @@
             <field name="description">Contract expired</field>
         </record>
 
-        <!-- Department-related (parent) subtypes for messaging / Chatter -->
         <record id="mt_department_contract_pending" model="mail.message.subtype">
             <field name="name">Contract to Renew</field>
             <field name="res_model">hr.department</field>

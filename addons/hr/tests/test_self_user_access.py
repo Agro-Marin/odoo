@@ -13,7 +13,6 @@ from odoo.addons.hr.tests.common import TestHrCommon
 @tagged("post_install", "-at_install")
 class TestSelfAccessPreferences(TestHrCommon):
     def test_access_preferences_view(self):
-        """A simple user should be able to read all fields in the preferences form"""
         james = new_test_user(
             self.env,
             login="hel",
@@ -43,16 +42,14 @@ class TestSelfAccessPreferences(TestHrCommon):
         james.read(fields)
 
     def test_preferences_view_fields(self):
-        """A simple user should see all fields in preferences view, even if they are protected by groups"""
         view = self.env.ref("hr.res_users_view_form_preferences")
 
-        # For reference, check the view with user with every groups protecting user fields
         all_groups_xml_ids = chain(
             *[
                 field.groups.split(",")
                 for field in self.env["res.users"]._fields.values()
                 if field.groups
-                if field.groups != "."  # "no-access" group on purpose
+                if field.groups != "."
             ]
         )
         all_groups = self.env["res.groups"]
@@ -72,7 +69,6 @@ class TestSelfAccessPreferences(TestHrCommon):
             )
         ]
 
-        # Now check the view for a simple user
         user = new_test_user(self.env, login="gro", name="Grouillot")
         view_infos = self.env["res.users"].with_user(user).get_view(view.id)
         fields = [
@@ -82,13 +78,11 @@ class TestSelfAccessPreferences(TestHrCommon):
             )
         ]
 
-        # Compare both
         self.assertEqual(
             full_fields, fields, "View fields should not depend on user's groups"
         )
 
     def test_access_preferences_view_toolbar(self):
-        """A simple user shouldn't have the possibilities to see the 'Change Password' action"""
         james = new_test_user(
             self.env,
             login="jam",
@@ -113,7 +107,6 @@ class TestSelfAccessPreferences(TestHrCommon):
             any(x["id"] == change_password_action.id for x in available_actions)
         )
 
-        # An ERP manager should have the possibilities to see the 'Change Password'
         john = new_test_user(
             self.env,
             login="joh",
@@ -137,9 +130,6 @@ class TestSelfAccessPreferences(TestHrCommon):
         )
 
     def test_employee_fields_groups(self):
-        # Note: If this tests is crashing, this is probably because the linked field on the error
-        # message is defined on hr.employee only (and not on hr.employee.public) and has no group
-        # defined on it (at least hr.group_hr_user).
         internal_user = new_test_user(
             self.env,
             login="mireille",
@@ -150,7 +140,6 @@ class TestSelfAccessPreferences(TestHrCommon):
         self.env["hr.employee"].with_user(internal_user).search([]).read([])
 
     def test_open_preferences_with_group_without_external_id(self):
-        """Test opening preferences when the user belongs to a group without an external ID."""
         self.env["hr.employee"].create(
             {
                 "name": "John",
@@ -207,7 +196,6 @@ class TestSelfAccessRights(TestHrCommon):
                 if v.groups == "hr.group_hr_user"
             ]
         )
-        # Compute fields and id field are always readable by everyone
         cls.read_protected_fields_emp = OrderedDict(
             [
                 (k, v)
@@ -224,7 +212,6 @@ class TestSelfAccessRights(TestHrCommon):
             ]
         )
 
-    # Read hr.employee #
     def testReadSelfEmployee(self):
         with self.assertRaises(AccessError):
             self.hubert_emp.with_user(self.richard).read(
@@ -236,7 +223,6 @@ class TestSelfAccessRights(TestHrCommon):
             self.hubert_emp.with_user(self.richard).read(
                 self.protected_fields_emp.keys()
             )
-        # Check simple user can read all public fields of private employee
         public_fields = [
             field_name
             for field_name in self.env["hr.employee.public"]._fields
@@ -245,7 +231,6 @@ class TestSelfAccessRights(TestHrCommon):
         res = self.hubert_emp.with_user(self.richard).read(public_fields)
         self.assertEqual(len(public_fields), len(res[0]))
 
-    # Write hr.employee #
     def testWriteSelfEmployee(self):
         for f in self.protected_fields_emp:
             with self.assertRaises(AccessError):
@@ -256,10 +241,9 @@ class TestSelfAccessRights(TestHrCommon):
             with self.assertRaises(AccessError):
                 self.hubert_emp.with_user(self.richard).write({f: "dummy"})
 
-    # Read res.users #
     def testReadSelfUserEmployee(self):
         for f in self.self_protected_fields_user:
-            self.richard.with_user(self.richard).read([f])  # should not raise
+            self.richard.with_user(self.richard).read([f])
 
     def testReadOtherUserEmployee(self):
         with self.assertRaises(AccessError):
@@ -279,12 +263,10 @@ class TestSelfAccessRights(TestHrCommon):
                 self.hubert.with_user(self.richard).write({f: "dummy"})
 
     def testSearchUserEMployee(self):
-        # Searching user based on employee_id field should not raise bad query error
         self.env["res.users"].with_user(self.richard).search(
             [("employee_id", "ilike", "Hubert")]
         )
 
-    # Write hr.department
     def testWriteDepartmentEmployee(self):
         with self.assertRaises(AccessError):
             self.env["hr.department"].with_user(self.richard).create(
@@ -295,19 +277,11 @@ class TestSelfAccessRights(TestHrCommon):
             dept.with_user(self.richard).write({"name": "Renamed Dept"})
 
     def test_onchange_readable_fields_with_no_access(self):
-        """
-        The purpose is to test that the onchange logic takes into account `SELF_READABLE_FIELDS`.
-
-        The view contains fields that are in `SELF_READABLE_FIELDS` (example: `private_street`).
-        Even if the user does not have read access to the employee,
-        it should not cause an access error if these fields are in `SELF_READABLE_FIELDS`.
-        """
         self.env["res.lang"]._activate_lang("fr_FR")
         with Form(
             self.richard.with_user(self.richard),
             view="hr.res_users_view_form_preferences",
         ) as form:
-            # triggering an onchange should not trigger some access error
             form.lang = "fr_FR"
             form.tz = "Europe/Brussels"
 

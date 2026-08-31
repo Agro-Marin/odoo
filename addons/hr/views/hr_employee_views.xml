@@ -607,8 +607,6 @@
             </field>
         </record>
 
-        <!-- This part of the view_employee_form is defined separately so that the
-        smartbutton can have lower priority and therefore be last in the list. -->
         <record id="view_employee_form_smartbutton_inherited" model="ir.ui.view">
             <field name="name">view.employee.form.smartbutton.inherited</field>
             <field name="model">hr.employee</field>
@@ -621,6 +619,7 @@
                         icon="fa-regular fa-address-card"
                         type="object"
                         help="Related Contacts"
+                        invisible="related_partners_count == 0"
                         groups="base.group_no_one">
                         <div class="o_field_widget o_stat_info">
                             <span class="o_stat_value"><field name="related_partners_count"></field></span>

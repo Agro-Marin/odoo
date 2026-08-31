@@ -3,11 +3,9 @@ import { Store } from "@mail/core/common/store_service";
 import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 
-/** @type {import("models").Store} */
 const storeServicePatch = {
     setup() {
         super.setup();
-        /** @type {{[key: number]: {id: number, user_id: number, hasCheckedUser: boolean}}} */
         this.employees = {};
     },
     async getChat(person) {
@@ -28,11 +26,6 @@ const storeServicePatch = {
                 ["user_id", "user_partner_id"],
                 { context: { active_test: false } }
             );
-            // An empty many2one comes back as `false`, so `employeeData.user_id[0]`
-            // would be `undefined` and pollute the store with junk `users[undefined]`
-            // / `res.partner{ id: undefined }` records. Only enrich when the employee
-            // actually has a linked user; the `if (!employee.user_id)` branch below
-            // then cleanly handles the no-user case.
             if (employeeData && employeeData.user_id) {
                 employee.user_id = employeeData.user_id[0];
                 let user = this.users[employee.user_id];

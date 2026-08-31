@@ -12,7 +12,6 @@ export class ButtonNewContractWidget extends Component {
         ...standardWidgetProps,
     };
 
-    /** @override **/
     setup() {
         super.setup();
         this.orm = useService("orm");

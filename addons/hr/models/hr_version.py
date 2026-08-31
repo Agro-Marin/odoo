@@ -7,7 +7,6 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
-from odoo.fields import Domain
 from odoo.tools import babel_locale_parse, get_lang
 
 _logger = logging.getLogger(__name__)
@@ -26,7 +25,7 @@ class HrVersion(models.Model):
     _inherit = [
         "mixin.mail.thread",
         "mixin.mail.activity",
-    ]  # TODO: remove later ? (see if still needed because contract template)
+    ]
     _mail_post_access = "read"
     _order = "date_version"
     _rec_name = "name"
@@ -37,14 +36,6 @@ class HrVersion(models.Model):
 
     @api.model
     def _get_default_structure_type(self, country_id):
-        """The country's default salary-structure type, else the countryless one.
-
-        sudo: hr.payroll.structure.type is readable by hr.group_hr_manager only,
-        while an HR *officer* creating an employee must still get a default.
-        ``structure_type_id`` is itself manager-only, so nothing is disclosed.
-        ``_compute_structure_type_id`` used to run this same lookup WITHOUT sudo
-        and therefore left the field unset for an officer.
-        """
         StructureType = self.env["hr.payroll.structure.type"].sudo()
         return StructureType.search(
             [("country_id", "=", country_id)], limit=1
@@ -92,7 +83,6 @@ class HrVersion(models.Model):
         groups="hr.group_hr_user",
     )
 
-    # Work Information
     employee_type = fields.Selection(
         [
             ("employee", "Employee"),
@@ -178,7 +168,6 @@ class HrVersion(models.Model):
     )
     tz = fields.Selection(related="employee_id.tz")
 
-    # Contract Information
     contract_date_start = fields.Date(
         "Contract Start Date", tracking=True, groups="hr.group_hr_manager"
     )
@@ -253,7 +242,6 @@ class HrVersion(models.Model):
     contract_wage = fields.Monetary(
         "Contract Wage", compute="_compute_contract_wage", groups="hr.group_hr_manager"
     )
-    # [XBO] TODO: remove me in master
     company_country_id = fields.Many2one(
         "res.country",
         string="Company country",
@@ -307,8 +295,6 @@ class HrVersion(models.Model):
     def _compute_job_title(self):
         for version in self:
             if not version.job_id:
-                # Job cleared: drop a title that merely mirrored the job name;
-                # keep a title the user typed themselves (is_custom_job_title).
                 if not version.is_custom_job_title:
                     version.job_title = False
                 continue
@@ -325,31 +311,17 @@ class HrVersion(models.Model):
     @api.depends("job_id")
     def _compute_is_custom_job_title(self):
         for version in self:
-            # Reset the custom flag whenever the job changes (including when it is
-            # cleared), so a stale flag can't keep an orphaned title around.
             if version._origin.job_id != version.job_id:
                 version.is_custom_job_title = False
 
     @staticmethod
     def _periods_overlap(start_a, end_a, start_b, end_b):
-        """Return True if the two date intervals overlap.
-
-        A falsy end date is treated as open-ended (``date.max``). This is the
-        module's ONE interval rule; ``_is_overlapping_period`` and
-        ``_period_contains`` are the two ways of asking it.
-        """
         end_a = end_a or date.max
         end_b = end_b or date.max
         return start_a <= end_b and start_b <= end_a
 
     @staticmethod
     def _period_contains(start, end, day):
-        """Return True if ``day`` falls inside ``[start, end]``, a falsy end being open.
-
-        Containment is overlap with a single-day interval. Named so callers do not
-        spell out the bound check by hand -- hr.employee._get_contract_dates did,
-        which was a third spelling of the same rule.
-        """
         return HrVersion._periods_overlap(start, end, day, day)
 
     @api.constrains("employee_id", "contract_date_start", "contract_date_end")
@@ -370,7 +342,7 @@ class HrVersion(models.Model):
         dates_per_employee = defaultdict(list)
         for employee, date_start, date_end, versions in version_read_group:
             dates_per_employee[employee].append((date_start, date_end, versions))
-        for version in self.sudo():  # sudo needed to read contract dates
+        for version in self.sudo():
             if not version.contract_date_start or not version.employee_id:
                 continue
             if (
@@ -434,7 +406,6 @@ class HrVersion(models.Model):
                 contract_vals = Version.get_values_from_contract_template(
                     Version.browse(vals["contract_template_id"])
                 )
-                # take vals from template, but priority given to the original vals
                 vals.update({**contract_vals, **vals})
         return super().create(vals_list)
 
@@ -450,11 +421,6 @@ class HrVersion(models.Model):
                 )
 
     def _check_employee_keeps_a_version(self, vals):
-        """An employee must never be left with no active version of their own.
-
-        Both shapes that would do it: reassigning every version they have to
-        somebody else, and archiving every version they have.
-        """
         if "employee_id" in vals and self.filtered(
             lambda v: (
                 v.employee_id
@@ -477,11 +443,6 @@ class HrVersion(models.Model):
             )
 
     def _check_one_contract_per_write(self):
-        """A contract-date write may only span versions of ONE contract.
-
-        Otherwise a single ``write`` would stamp one contract's dates onto
-        another's versions.
-        """
         for versions_by_employee in self.grouped("employee_id").values():
             if len(versions_by_employee.grouped("contract_date_start").keys()) > 1:
                 raise ValidationError(
@@ -491,7 +452,6 @@ class HrVersion(models.Model):
                 )
 
     def _get_contract_dates_to_sync(self, vals, first_version):
-        """The contract bounds to propagate: those in ``vals``, else the current ones."""
         dates_vals = {}
         for fname in ("contract_date_start", "contract_date_end"):
             dates_vals[fname] = (
@@ -513,8 +473,6 @@ class HrVersion(models.Model):
 
         multiple_versions = self
         if vals.get("contract_date_start"):
-            # An employee with a single version has no siblings to reconcile, so
-            # its date_version simply follows the contract start.
             unique_versions = multiple_versions.filtered(
                 lambda v: len(v.employee_id.version_ids) == 1
             )
@@ -545,7 +503,9 @@ class HrVersion(models.Model):
             )
             all_versions_to_sync = self.env["hr.version"]
             for contract_versions in versions_to_sync.values():
-                all_versions_to_sync |= next(iter(contract_versions.values()))
+                all_versions_to_sync |= contract_versions.get(
+                    first_version.contract_date_start, self.env["hr.version"]
+                )
             if all_versions_to_sync:
                 all_versions_to_sync.with_context(sync_contract_dates=True).write(
                     dates_vals
@@ -554,19 +514,11 @@ class HrVersion(models.Model):
         return super(HrVersion, multiple_versions).write(new_vals)
 
     def get_formview_action(self, access_uid=None):
-        """
-        Override this method in order to redirect many2one towards the right model
-            - Contract template -> hr.version
-            - Employee record -> hr.employee(.public) with version_id in context
-        """
         res = super().get_formview_action(access_uid=access_uid)
         context = res.get("context", {})
         if self.employee_id:
             user = self.env.user
             if access_uid:
-                # sudo: reading another user's group membership (mirrors the
-                # res.users.get_formview_action override) — a non-privileged
-                # current user may not read res.users otherwise.
                 user = self.env["res.users"].browse(access_uid).sudo()
             res["res_model"] = (
                 "hr.employee"
@@ -608,23 +560,11 @@ class HrVersion(models.Model):
 
     def _is_in_contract(self, date=None):
         date = date or fields.Date.today()
-        # Return True if the employee is in contract on a given date
         if not self.contract_date_start:
             return False
         return self.date_start <= date and (not self.date_end or self.date_end >= date)
 
     def _is_overlapping_period(self, date_from, date_to):
-        """
-        Return True if the employee is at least in contract one day during the period given
-        :param date date_from: the start of the period
-        :param date date_to: the stop of the period
-
-        An open-ended period is supported: a missing bound extends to
-        -inf/+inf. Guarding on date_from/date_to (as an earlier version did) made
-        those fallbacks dead and wrongly returned False for an open-ended query.
-        Delegates to ``_periods_overlap`` so the module has ONE interval-overlap
-        rule rather than two spellings of it.
-        """
         if not self.contract_date_start:
             return False
         return self._periods_overlap(
@@ -632,7 +572,6 @@ class HrVersion(models.Model):
         )
 
     def _is_fully_flexible(self):
-        """return True if the version has a fully flexible working calendar"""
         self.check_singleton()
         return not self.resource_calendar_id
 
@@ -646,8 +585,6 @@ class HrVersion(models.Model):
 
     @api.model
     def _get_whitelist_fields_from_template(self):
-        # Add here any field that you want to copy from a contract template
-        # Those fields should have tracking=True in hr.version to see the change
         return [
             "job_id",
             "department_id",
@@ -663,13 +600,6 @@ class HrVersion(models.Model):
             return {}
         company = contract_template_id.company_id or self.env.company
         whitelist = self.with_company(company)._get_whitelist_fields_from_template()
-        # sudo: copy_data() reads every copyable field on the template, including
-        # manager-only ones (wage, structure_type_id). An HR *officer* who is
-        # allowed to pick a template but not read those fields would otherwise hit
-        # an AccessError here. The filter below must therefore re-check field
-        # access explicitly: the whitelist alone does NOT do it (wage and
-        # structure_type_id are whitelisted), and without the check the sudo
-        # leaks the template's wage to users outside hr.group_hr_manager.
         contract_template_vals = contract_template_id.sudo().copy_data()[0]
         HrVersion = self.env["hr.version"]
         return {
@@ -696,16 +626,11 @@ class HrVersion(models.Model):
         return "wage"
 
     def _get_normalized_wage(self):
-        """This method is overridden in hr_payroll, as without that module, nothing allows to know
-        there's no way to determine the employee's pay frequency.
-        """
         wage = self._get_contract_wage()
-        # without payroll installed, we suppose that the employee with a specific schedule has a monthly salary
         if self.resource_calendar_id:
             if not self.resource_calendar_id.hours_per_week:
                 return 0
             return wage * 12 / 52 / self.resource_calendar_id.hours_per_week
-        # without any calendar, the employee has a fully flexible schedule and is supposedly working on an hourly wage
         return wage
 
     @api.depends_context("uid", "company")
@@ -725,19 +650,7 @@ class HrVersion(models.Model):
                 )
 
     def _search_member_of_department(self, operator, value):
-        if operator != "in":
-            return NotImplemented
-
-        user_employee = self.env["hr.employee"]._get_valid_employee_for_user()
-        if not user_employee.department_id:
-            # ``_compute_member_of_department`` answers False for everyone in
-            # this case, so match nothing. The previous
-            # ``[("id", "in", user_employee.ids)]`` was copied from
-            # hr.employee.public -- where the SQL view makes ``id`` the employee
-            # id -- and here compared hr.employee ids against hr.version ids,
-            # returning arbitrary versions (contract templates included).
-            return Domain.FALSE
-        return [("department_id", "child_of", user_employee.department_id.ids)]
+        return self.env["hr.employee"]._search_member_of_department_domain(operator)
 
     @api.depends("company_id", "company_id.country_id")
     def _compute_structure_type_id(self):
@@ -763,9 +676,6 @@ class HrVersion(models.Model):
         "employee_id.version_ids.date_version",
     )
     def _compute_dates(self):
-        # Batch the sibling lookup: one search over all versions of the involved
-        # employees (respecting the current active_test context, as the previous
-        # per-version search did) instead of one search per version (N+1).
         sibling_versions = self.env["hr.version"].search(
             [("employee_id", "in", self.employee_id.ids)],
             order="date_version",
@@ -781,8 +691,6 @@ class HrVersion(models.Model):
                 else version.date_version
             )
 
-            # siblings are ordered by date_version, so the first one strictly
-            # after this version is the next version bounding the interval
             next_date_version = next(
                 (
                     date_version
@@ -804,15 +712,6 @@ class HrVersion(models.Model):
             else:
                 version.date_end = version.contract_date_end
 
-    # NOTE: these searches are APPROXIMATIONS. `date_start`/`date_end` compute
-    # from date_version AND the sibling versions bounding the interval
-    # (_compute_dates), so they diverge from the raw contract dates: e.g. a
-    # version whose contract has no end but is followed by a later version has a
-    # real computed `date_end` yet `contract_date_end = False`, so
-    # `search([("date_end", "=", False)])` wrongly returns it. A faithful search
-    # would need a correlated subquery over each employee's sibling date_versions.
-    # No shipped view filters on these (they use contract_date_start/end
-    # directly); do not rely on them for exact effective-window queries.
     def _search_date_start(self, operator, value):
         return [("contract_date_start", operator, value)]
 
@@ -843,10 +742,12 @@ class HrVersion(models.Model):
 
     def _get_tz(self):
         self.check_singleton()
-        if self.resource_calendar_id and self.resource_calendar_id.tz:
-            return self.resource_calendar_id.tz
-        else:
-            return self.tz
+        return (
+            self.resource_calendar_id.tz
+            or self.tz
+            or self.company_id.resource_calendar_id.tz
+            or "UTC"
+        )
 
     def action_view_version(self):
         self.check_singleton()

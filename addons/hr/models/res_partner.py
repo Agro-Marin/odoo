@@ -26,8 +26,6 @@ class ResPartner(models.Model):
     )
 
     def _compute_employees_count(self):
-        # sudo + a single grouped read instead of one query per partner (the
-        # per-record ``partner.sudo()`` broke batch prefetch entirely).
         counts = dict(
             self.env["hr.employee"]
             .sudo()
@@ -120,7 +118,6 @@ class ResPartner(models.Model):
             raise RedirectWarning(error_msg, action_error, self.env._("Go to contact"))
 
     def _action_show(self):
-        """If self is a singleton, directly access the form view. If it is a recordset, open a list view"""
         view_id = self.env.ref("base.view_partner_form").id
         action = {
             "type": "ir.actions.act_window",
@@ -149,7 +146,6 @@ class ResPartner(models.Model):
     def _get_fields_store_avatar_card(self, target):
         avatar_card_fields = super()._get_fields_store_avatar_card(target)
         if target.is_internal(self.env):
-            # sudo: res.partner - internal users can access employee information of partner
             employee_fields = self.sudo().employee_ids._get_fields_store_avatar_card(
                 target
             )

@@ -49,7 +49,6 @@ export class KanbanMany2OneAvatarEmployeeField extends Component {
     }
 }
 
-/** @type {import("registries").FieldsRegistryItemShape} */
 const fieldDescr = {
     ...buildM2OFieldDescription(KanbanMany2OneAvatarEmployeeField),
     additionalClasses: ["o_field_many2one_avatar_kanban", "o_field_many2one_avatar_user"],

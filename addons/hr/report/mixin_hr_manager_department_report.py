@@ -13,14 +13,6 @@ class MixinHrManagerDepartmentReport(models.AbstractModel):
     )
 
     def _get_managed_department_ids(self):
-        """Departments the current user manages, as a Query.
-
-        This lookup -- and only this lookup -- was spelled out twice, in the
-        search method and in the compute. The two DOMAINS around it are NOT the
-        same domain (one is rooted on this report, the other on hr.employee), and
-        the search method's shape feeds ir.rule ``domain_force`` in hr_holidays,
-        hr_timesheet and hr_skills, so both are left exactly as they were.
-        """
         return self.env["hr.department"]._search(
             [("manager_id", "in", self.env.user.employee_ids.ids)]
         )

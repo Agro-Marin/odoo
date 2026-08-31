@@ -7,7 +7,7 @@ class HrDepartment(models.Model):
     _name = "hr.department"
     _description = "Department"
     _inherit = ["mixin.mail.thread", "mixin.mail.activity"]
-    _order = "name"
+    _order = "complete_name"
     _rec_name = "complete_name"
     _parent_store = True
 
@@ -45,8 +45,6 @@ class HrDepartment(models.Model):
     member_ids = fields.One2many(
         "hr.employee", "department_id", string="Members", readonly=True
     )
-    # Search-only: no ``compute``, so READING this field raises. It exists to
-    # carry ``_search_has_read_access`` into an action domain (hr_department_views).
     has_read_access = fields.Boolean(
         search="_search_has_read_access", store=False, export_string_translation=False
     )
@@ -169,35 +167,28 @@ class HrDepartment(models.Model):
             dept.company_id = dept.parent_id.company_id or dept.company_id
 
     def write(self, vals):
-        """If updating manager of a department, we need to update all the employees
-        of department hierarchy, and subscribe the new manager.
-        """
         if "manager_id" in vals:
-            manager_id = vals.get("manager_id")
-            # set the employees's parent to the new manager
-            self._update_employee_manager(manager_id)
+            new_manager_id = vals.get("manager_id")
+            self._update_employee_manager(new_manager_id)
         return super().write(vals)
 
-    def _update_employee_manager(self, manager_id):
+    def _update_employee_manager(self, new_manager_id):
         department_employees = self.env["hr.employee"].search(
             [
-                ("id", "!=", manager_id),
+                ("id", "!=", new_manager_id),
                 ("department_id", "in", self.ids),
             ]
         )
-        # One pass over the employees, looking each one's own department up --
-        # instead of re-``filtered()``ing the whole set once per department.
-        # Called BEFORE super().write, so ``manager_id`` here is still the OLD
-        # manager: that is what identifies the employees who were reporting to it.
-        manager_per_department = {
+        outgoing_manager_per_department = {
             department: department.manager_id for department in self
         }
         employees = department_employees.filtered(
             lambda employee: (
-                employee.parent_id == manager_per_department.get(employee.department_id)
+                employee.parent_id
+                == outgoing_manager_per_department.get(employee.department_id)
             )
         )
-        employees.write({"parent_id": manager_id})
+        employees.write({"parent_id": new_manager_id})
 
     def get_formview_action(self, access_uid=None):
         res = super().get_formview_action(access_uid=access_uid)
@@ -230,13 +221,6 @@ class HrDepartment(models.Model):
             ("department_id", "in", self.ids),
         ]
         if "domain" in action:
-            # The stored domain is an EXPRESSION, not a literal: this one names
-            # ``allowed_company_ids``, which is why ``ast.literal_eval`` raises on
-            # it and why this used to substitute the name into the string before
-            # literal-eval'ing the result -- a substitution that only ever works
-            # for the one name the caller thought of.
-            # ``_eval_action_domain`` is the twin of the ``_eval_action_context``
-            # this method already uses.
             action["domain"] = Domain.AND(
                 [
                     self.env["ir.actions.actions"]._eval_action_domain(

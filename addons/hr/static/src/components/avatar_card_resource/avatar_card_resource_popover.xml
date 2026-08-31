@@ -6,11 +6,8 @@
  </xpath>
  <xpath expr="//span[hasclass('o_user_im_status')]" position="after">
  <span t-elif="record.show_hr_icon_display" name="icon" class="o_card_avatar_im_status position-absolute d-flex align-items-center justify-content-center o_employee_presence_status bg-inherit">
- <!-- Employee is present/connected and it is normal according to his work schedule -->
  <i t-if="record.hr_icon_display == 'presence_present'" class="fa-solid fa-circle text-success" title="Present" role="img" aria-label="Present"/>
- <!-- Employee is not present/connected and it is normal according to his work schedule -->
  <i t-if="record.hr_icon_display == 'presence_absent'" class="fa-solid fa-circle text-warning" title="Absent" role="img" aria-label="Absent"/>
- <!-- Employee is connected but according to his work schedule, he should not work for now -->
  <i t-if="record.hr_icon_display == 'presence_out_of_working_hour'" class="fa-solid fa-circle text-muted" title="Off-Hours" role="img" aria-label="Off-Hours"/>
  </span>
  </xpath>

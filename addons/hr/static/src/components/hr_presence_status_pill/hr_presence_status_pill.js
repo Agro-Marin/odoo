@@ -5,14 +5,12 @@ import { HrPresenceStatus, hrPresenceStatus } from "../hr_presence_status/hr_pre
 export class HrPresenceStatusPill extends HrPresenceStatus {
     static template = "hr.HrPresenceStatusPill";
 
-    /** @override */
     get classNames() {
         const classNames = ["fw-bold", "text-center", "btn", "rounded-pill", "cursor-default"];
         classNames.push(this.color);
         return classNames.join(" ");
     }
 
-    /** @override */
     get color() {
         switch (this.value) {
             case "presence_present":

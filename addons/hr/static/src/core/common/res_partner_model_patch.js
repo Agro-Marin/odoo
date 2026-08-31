@@ -6,7 +6,6 @@ import { patch } from "@web/core/utils/patch";
 import { user } from "@web/core/user";
 
 patch(ResPartner.prototype, {
-    /** @type {number|undefined} */
     employeeId: undefined,
     setup() {
         super.setup();

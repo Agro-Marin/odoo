@@ -19,11 +19,6 @@ class BankAccountAllocationWizard(models.TransientModel):
         self.check_singleton()
         wizard_lines = []
         distribution = self.employee_id.salary_distribution or {}
-        # Seed sequences for not-yet-distributed accounts AFTER the largest
-        # persisted sequence. Using the raw enumerate index shared the sequence
-        # namespace with stored values, so a freshly-added (empty, 0%) account
-        # could sort ahead of real allocations and silently become the primary
-        # account (hr.employee._compute_primary_bank_account_id picks the min).
         next_seq = max(
             (entry.get("sequence", 0) for entry in distribution.values()), default=-1
         )
@@ -34,10 +29,6 @@ class BankAccountAllocationWizard(models.TransientModel):
                 is_percentage = dist_entry.get("amount_is_percentage")
                 sequence = dist_entry.get("sequence")
             else:
-                # A bank account may not yet be present in the salary
-                # distribution (e.g. freshly added on the employee). Seed a
-                # default, empty percentage line after the existing sequences
-                # instead of blocking the wizard from opening.
                 amount = 0.0
                 is_percentage = True
                 next_seq += 1
@@ -65,10 +56,6 @@ class BankAccountAllocationWizard(models.TransientModel):
     def action_save(self):
         self.check_singleton()
 
-        # Line amounts are captured at 2 decimals (the wizard-line ``amount``
-        # field precision); the percentage total is checked at the same
-        # precision. Note hr.employee._check_salary_distribution itself compares
-        # at 4 digits, but here the inputs never carry more than 2.
         precision_digits = 2
 
         distribution = {}
@@ -77,10 +64,6 @@ class BankAccountAllocationWizard(models.TransientModel):
         seen_accounts = set()
         trust_by_account = {}
 
-        # Validate everything first and only mutate persistent records (the
-        # ``allow_out_payment`` trust flag, the employee's distribution) once all
-        # checks have passed — otherwise a later validation failure would leave
-        # early lines' trust flags written while the distribution is not saved.
         for line in self.allocation_ids:
             bank_account = line.bank_account_id
             if bank_account.id in seen_accounts:
@@ -110,11 +93,6 @@ class BankAccountAllocationWizard(models.TransientModel):
             trust_by_account[bank_account] = line.trusted
 
         if has_percentage:
-            # Mirror hr.employee._check_salary_distribution: when percentage
-            # lines are present they must total exactly 100%. Fixed-amount lines
-            # are absolute allocations and legitimately coexist with them (see
-            # hr.employee.get_accounts_with_fixed_allocations), so they are not
-            # summed into this check.
             if not float_is_zero(
                 percentage_total - 100.0, precision_digits=precision_digits
             ):
@@ -122,9 +100,6 @@ class BankAccountAllocationWizard(models.TransientModel):
                     self.env._("Total percentage allocation must equal 100%.")
                 )
 
-        # Side effects, batched by value. NOTE: writing allow_out_payment with
-        # sudo() bypasses the accounting "trusted account" control on
-        # res.partner.bank; kept as-is (out of scope).
         trusted = self.env["res.partner.bank"]
         untrusted = self.env["res.partner.bank"]
         for account, is_trusted in trust_by_account.items():

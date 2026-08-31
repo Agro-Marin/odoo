@@ -2,10 +2,6 @@
 <odoo>
     <data>
 
-        <!-- Inherit the preference view to remove title, image and footer -->
-        <!-- This view is meant to be included in the employee preferences view -->
-        <!-- It ensures that if the 'normal' Preferences view is changed, it's
-            also reflected in the employee's preferences -->
         <record id="res_users_view_form_simple_modif" model="ir.ui.view">
             <field name="name">res.users.preferences.form.simplified.inherit</field>
             <field name="model">res.users</field>
@@ -49,11 +45,9 @@
                     <attribute name="placeholder">Employee's Name</attribute>
                     <attribute name="required">1</attribute>
                 </xpath>
-                <!-- Must be replaced by work_email when the user has an employee_id. -->
                 <xpath expr="//h5[@name='h5_email']" position="attributes">
                     <attribute name="invisible">1</attribute>
                 </xpath>
-                <!-- Must be replaced by work_phone when the user has an employee_id. -->
                 <xpath expr="//h5[@name='h5_phone']" position="attributes">
                     <attribute name="invisible">1</attribute>
                 </xpath>
@@ -124,7 +118,6 @@
                 <xpath expr="//group[@name='access_groups']" position="inside">
                     <field name="create_employee_id" force_save="1" invisible="1"/>
                     <field name="create_employee" force_save="1" string="Create Employee" invisible="1" groups="hr.group_hr_user"/>
-                    <!-- It is required to stay create_employee field defined here to make it true because store value is false -->
                 </xpath>
             </field>
         </record>
@@ -166,7 +159,6 @@
                             type="object" name="action_create_employee"
                             invisible="not id or share or employee_id"
                             groups="hr.group_hr_user"/>
-                            <!-- share is not correctly recomputed because it depends on fields of reified view => invisible before saving (id=False) -->
                 </xpath>
                 <xpath expr="//div[@name='button_box']" position="inside">
                     <button name="action_view_employees"
@@ -187,7 +179,6 @@
                         </div>
                     </button>
                 </xpath>
-                <!--increase image size to accommodate the additional login field-->
                 <field name="image_1920" widget="contact_image" position="attributes">
                     <attribute name="invisible">employee_id and work_email != login</attribute>
                 </field>
@@ -195,11 +186,9 @@
                     <field name="image_1920" class="o_contact_image_large" invisible="not employee_id or work_email == login"
                         widget="contact_image" options="{'preview_image': 'avatar_128', 'img_class': 'rounded-4'}"/>
                 </field>
-                <!-- Must be replaced by work_email when the user has an employee_id. -->
                 <xpath expr="//h5[@name='h5_email']" position="attributes">
                     <attribute name="invisible">employee_id</attribute>
                 </xpath>
-                <!-- Must be replaced by work_phone when the user has an employee_id. -->
                 <xpath expr="//h5[@name='h5_phone']" position="attributes">
                     <attribute name="invisible">employee_id</attribute>
                 </xpath>
