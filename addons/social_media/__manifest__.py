@@ -1,22 +1,21 @@
 {
-    'name': "Social Media",
-
-    'summary': "Social media connectors for company settings.",
-
-    'description': """
+    "name": "Social Media",
+    "version": "0.1",
+    "category": "Marketing/Social Marketing",
+    "summary": "Social media connectors for company settings.",
+    "description": """
 The purpose of this technical module is to provide a front for
 social media configuration for any other module that might need it.
     """,
-    'category': 'Marketing/Social Marketing',
-    'version': '0.1',
-    'depends': ['base'],
-
-    'data': [
-        'views/res_company_views.xml',
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "base",
     ],
-    'demo': [
-        'demo/res_company_demo.xml',
+    "data": [
+        "views/res_company_views.xml",
     ],
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/res_company_demo.xml",
+    ],
 }
