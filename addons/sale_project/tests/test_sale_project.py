@@ -23,13 +23,13 @@ class TestSaleProjectServices(TestSaleProjectCommon):
                     Command.create(
                         {
                             "product_id": self.product_consumable.id,
-                            "product_uom_qty": 1,
+                            "product_qty": 1,
                         }
                     ),
                     Command.create(
                         {
                             "product_id": self.product_service_ordered_prepaid.id,
-                            "product_uom_qty": 1,
+                            "product_qty": 1,
                         }
                     ),
                 ],
@@ -47,7 +47,7 @@ class TestSaleProjectServices(TestSaleProjectCommon):
                     Command.create(
                         {
                             "product_id": self.product_consumable.id,
-                            "product_uom_qty": 1,
+                            "product_qty": 1,
                         }
                     )
                 ],

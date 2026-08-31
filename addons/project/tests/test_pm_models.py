@@ -531,7 +531,7 @@ class TestPmModelBehaviour(TestProjectCommon):
         )
         self.project_pigs.invalidate_recordset(["risk_count"])
         self.assertEqual(self.project_pigs.risk_count, 1)
-        risk.state = "resolved"
+        risk.write({"state": "resolved", "date_resolved": fields.Date.today()})
         self.project_pigs.invalidate_recordset(["risk_count"])
         self.assertEqual(
             self.project_pigs.risk_count,

@@ -558,7 +558,7 @@ class TestReInvoice(TestSaleCommon):
         )
 
         sol_2_subtotal_before = sol_2.price_unit
-        sol_2.product_uom_qty = 3.0
+        sol_2.product_qty = 3.0
         sol_2_subtotal_after = sol_2.price_unit
 
         self.assertEqual(sol_2_subtotal_before, sol_2_subtotal_after)

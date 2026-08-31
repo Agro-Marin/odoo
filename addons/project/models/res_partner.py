@@ -24,7 +24,7 @@ class ResPartner(models.Model):
     )
 
     @api.constrains("company_id", "project_ids")
-    def _check_same_company_than_projects(self) -> None:
+    def _check_same_company_as_projects(self) -> None:
         for partner in self:
             if (
                 partner.company_id
@@ -38,7 +38,7 @@ class ResPartner(models.Model):
                 )
 
     @api.constrains("company_id", "task_ids")
-    def _check_same_company_than_tasks(self) -> None:
+    def _check_same_company_as_tasks(self) -> None:
         for partner in self:
             if (
                 partner.company_id

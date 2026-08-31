@@ -1967,7 +1967,7 @@ class ProjectProject(models.Model):
         return values
 
     @api.constrains("phase_id")
-    def _check_stage_has_same_company(self) -> None:
+    def _check_phase_has_same_company(self) -> None:
         for project in self:
             if (
                 project.phase_id.company_id
