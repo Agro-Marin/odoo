@@ -2,7 +2,7 @@
     "name": "Resource Mail",
     "version": "1.0",
     "category": "Hidden",
-    "description": """Integrate features developped in Mail in use case involving resources instead of users""",
+    "description": """Integrate features developed in Mail in use case involving resources instead of users""",
     "depends": ["resource", "mail"],
     "auto_install": True,
     "assets": {
