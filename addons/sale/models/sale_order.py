@@ -1645,10 +1645,11 @@ class SaleOrder(models.Model):
 
     def _prepare_down_payment_section_line(self, **optional_values):
         self.ensure_one()
-        context = {"lang": self.partner_id.lang}
-        down_payments_section_line = {
+        lang = self._get_lang()
+        self_lang = self.with_context(lang=lang) if lang != self.env.lang else self
+        return {
             "display_type": "line_section",
-            "name": _("Down Payments"),
+            "name": self_lang.env._("Down Payments"),
             "product_id": False,
             "product_uom_id": False,
             "quantity": 0,
@@ -1657,8 +1658,6 @@ class SaleOrder(models.Model):
             "account_id": False,
             **optional_values,
         }
-        del context
-        return down_payments_section_line
 
     def _prepare_down_payment_line_values_from_base_line(self, base_line):
         self.ensure_one()
