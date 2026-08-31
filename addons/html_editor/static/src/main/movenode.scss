@@ -1,21 +1,36 @@
 /* Element widget */
 .oe-sidewidget-move {
     position: absolute;
-    opacity: 0.6;
     display: flex;
     justify-content: center;
     align-items: center;
-    background-color: rgba(white, 0.4);
-    color: #6e727a;
-    border-radius: 3px;
-    padding: 2px 3px;
+    color: rgba(110, 114, 122, 0.6);
     cursor: move; /* fallback if grab cursor is unsupported */
     cursor: grab;
     right: 5px;
     top: 0px;
 }
 .oe-sidewidget-move:hover {
-    opacity: 1;
+    color: rgb(110, 114, 122);
+}
+
+/* Pulled back against the form sheet's border: bridge the gap with a rule that
+   continues the sheet's own, so the widget reads as hanging off it. */
+.oe_movewidget_border {
+    background-color: o-token(--o-bg-view, $o-view-background-color);
+    font-size: 13px;
+
+    &::after {
+        content: '';
+        position: absolute;
+        top: -1px;
+        bottom: -1px;
+        left: 0;
+        width: var(--after-element-width, 0);
+        border: $border-width solid o-token(--border-color, $border-color);
+        border-right: none;
+        border-radius: 4px 0 0 4px;
+    }
 }
 
 /* Element widget drag & drop zone */

@@ -26,6 +26,8 @@ import { closestElement } from "../utils/dom_traversal.js";
 
 const WIDGET_CONTAINER_WIDTH = 25;
 const WIDGET_MOVE_SIZE = 20;
+// How far the hook hangs to the left of the form sheet border.
+const MOVE_WIDGET_OFFSET_FROM_SHEET_BORDER = 5.5;
 
 const ALLOWED_ELEMENTS = "h1, h2, h3, p, hr, pre, blockquote, li";
 
@@ -278,10 +280,30 @@ export class MoveNodePlugin extends Plugin {
             moveWidgetOffsetTop = parseInt(style.marginTop, 10) || 0;
         }
 
+        // Compute the left position up front rather than reading it back from
+        // the widget, to avoid a second layout pass.
+        let moveWidgetLeftPos = anchorX - WIDGET_CONTAINER_WIDTH;
+        const formSheet = this.widgetContainer.closest(".o_form_sheet");
+        if (formSheet) {
+            const formSheetRect = formSheet.getBoundingClientRect();
+            if (formSheetRect.left > moveWidgetLeftPos) {
+                // The widget would be drawn outside the sheet, where it is
+                // clipped. Hang it off the sheet's border instead.
+                this.moveWidget.classList.add("oe_movewidget_border");
+                moveWidgetLeftPos =
+                    formSheetRect.left - MOVE_WIDGET_OFFSET_FROM_SHEET_BORDER;
+                // Width the bridging rule to the gap it has to cover.
+                this.moveWidget.style.setProperty(
+                    "--after-element-width",
+                    `${MOVE_WIDGET_OFFSET_FROM_SHEET_BORDER}px`,
+                );
+            }
+        }
+
         this.moveWidget.style.width = `${WIDGET_MOVE_SIZE}px`;
         this.moveWidget.style.height = `${WIDGET_MOVE_SIZE}px`;
         this.moveWidget.style.top = `${anchorY - containerRect.y - moveWidgetOffsetTop}px`;
-        this.moveWidget.style.left = `${anchorX - containerRect.x - WIDGET_CONTAINER_WIDTH}px`;
+        this.moveWidget.style.left = `${moveWidgetLeftPos - containerRect.x}px`;
 
         const dragToMoveTooltip = _t("Drag to move");
         const clickToSelectTooltip = _t("Click to select");
