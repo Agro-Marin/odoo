@@ -4,8 +4,10 @@ from unittest.mock import ANY, Mock, patch
 from odoo.exceptions import UserError
 from odoo.tests.common import TransactionCase
 
+from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
 
-class TestFetchmailOutlook(TransactionCase):
+
+class TestFetchmailOutlook(EncryptionKeyCase, TransactionCase):
 
     @patch('odoo.addons.mail.tools.incoming_mail.OdooIMAP4_SSL')
     def test_connect(self, mock_imap):

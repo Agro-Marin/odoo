@@ -1,6 +1,6 @@
 {
     "name": "Google Gmail",
-    "version": "1.2",
+    "version": "19.0.2.0.0",
     "category": "Hidden",
     "description": "Gmail support for incoming / outgoing mail servers",
     "depends": [

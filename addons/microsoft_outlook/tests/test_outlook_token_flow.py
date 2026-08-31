@@ -6,12 +6,14 @@ from unittest.mock import MagicMock, patch
 from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
 
+from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
+
 # the flow itself lives in the shared provider mixin
 MIXIN_MODULE = "odoo.addons.mail_oauth2.models.mixin_oauth2_mail_provider"
 
 
 @tagged("post_install", "-at_install")
-class TestOutlookTokenFlow(TransactionCase):
+class TestOutlookTokenFlow(EncryptionKeyCase, TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

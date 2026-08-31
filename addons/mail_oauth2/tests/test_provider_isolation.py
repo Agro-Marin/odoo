@@ -3,11 +3,13 @@ from urllib.parse import parse_qs, urlsplit
 
 from odoo.tests import TransactionCase, tagged
 
+from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
+
 PROVIDER_MIXINS = ('mixin.google.gmail', 'mixin.microsoft.outlook')
 
 
 @tagged('post_install', '-at_install')
-class TestProviderIsolation(TransactionCase):
+class TestProviderIsolation(EncryptionKeyCase, TransactionCase):
     """One model carrying two providers must keep their two flows apart.
 
     ``ir.mail_server`` and ``fetchmail.server`` each inherit both bundled

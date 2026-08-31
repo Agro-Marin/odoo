@@ -1,0 +1,8 @@
+{
+  "expected": {},
+  "note": "green; covers the shared provider mixin and both providers that use it",
+  "run_spec": "-i google_gmail,microsoft_outlook --test-enable --test-tags /google_gmail,/microsoft_outlook,/mail_oauth2",
+  "suite": "/mail_oauth2",
+  "tests_total": 34,
+  "verified_at": "26240d0b113"
+}

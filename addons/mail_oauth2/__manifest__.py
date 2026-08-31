@@ -19,6 +19,7 @@ own prefix. It does not restate the flow.
     "license": "LGPL-3",
     "depends": [
         "mail",
+        "credential",
     ],
     "auto_install": True,
 }

@@ -20,6 +20,9 @@ OAUTH2_TOKEN_VALIDITY_THRESHOLD = OAUTH2_TOKEN_REQUEST_TIMEOUT + 5
 
 _logger = logging.getLogger(__name__)
 
+# `_` is the translation function; a sentinel needs its own object.
+_UNSET = object()
+
 
 class MixinOauth2MailProvider(models.AbstractModel):
     _name = 'mixin.oauth2.mail.provider'
@@ -27,6 +30,62 @@ class MixinOauth2MailProvider(models.AbstractModel):
     _description = 'OAuth2 Mail Provider Mixin'
 
     active = fields.Boolean(default=True)
+
+    # ADR-0081: every provider's tokens rest in credential.credential, and the
+    # plumbing is here rather than in each provider mixin because the shape is
+    # identical -- an access token, a refresh token, and an expiry that is not a
+    # secret. Gmail and Outlook keep their own field NAMES, which are part of
+    # their views and their callers, and turn them into doors onto this.
+    oauth2_credential_id = fields.Many2one(
+        comodel_name='credential.credential',
+        string='OAuth2 Credential',
+        ondelete='restrict',
+        copy=False,
+        groups='base.group_system',
+        help="Holds this record's OAuth tokens.",
+    )
+
+    def _oauth2_stored_tokens(self):
+        """This record's tokens, or empty strings when it holds no credential."""
+        self.ensure_one()
+        credential = self.oauth2_credential_id.sudo()
+        return (
+            credential.oauth_access_token or False,
+            credential.oauth_refresh_token or False,
+        )
+
+    def _oauth2_store_tokens(self, access_token=_UNSET, refresh_token=_UNSET):
+        """Write whichever tokens were given into this record's credential.
+
+        The default is a sentinel rather than None because None is a value a
+        caller means. Renewing an access token writes ONLY that one, and a store
+        that could not tell "not given" from "given as empty" would discard the
+        refresh token every time it was used -- the one token that cannot be
+        re-obtained without the user authorising again.
+        """
+        self.ensure_one()
+        values = {}
+        if access_token is not _UNSET:
+            values['oauth_access_token'] = access_token or False
+        if refresh_token is not _UNSET:
+            values['oauth_refresh_token'] = refresh_token or False
+
+        credential = self.oauth2_credential_id.sudo()
+        if credential:
+            if any(values.values()):
+                credential.write(values)
+            else:
+                self.oauth2_credential_id = False
+                credential.unlink()
+            return
+        if not any(values.values()):
+            return
+        self.oauth2_credential_id = self.env['credential.credential'].sudo().create({
+            'name': _("%(model)s: %(record)s", model=self._description, record=self.display_name),
+            'category_id': self.env.ref('credential.credential_category_oauth2').id,
+            # In the same create: the oauth2 constraint runs there.
+            **values,
+        }).id
 
     def _oauth2_credentials(self, provider):
         Config = self.env['ir.config_parameter'].sudo()

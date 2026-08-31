@@ -1,6 +1,6 @@
 {
     "name": "Microsoft Outlook",
-    "version": "1.1",
+    "version": "19.0.2.0.0",
     "category": "Hidden",
     "description": "Outlook support for incoming / outgoing mail servers",
     "depends": [

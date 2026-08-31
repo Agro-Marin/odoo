@@ -42,14 +42,39 @@ class MixinMicrosoftOutlook(models.AbstractModel):
 
     _OUTLOOK_SCOPE = None
 
+    # Doors onto `oauth2_credential_id` (ADR-0081). The names stay: they are in
+    # the views and in every caller.
     microsoft_outlook_refresh_token = fields.Char(string='Outlook Refresh Token',
-        groups='base.group_system', copy=False)
+        groups='base.group_system', copy=False,
+        compute='_compute_microsoft_outlook_tokens',
+        inverse='_inverse_microsoft_outlook_refresh_token')
     microsoft_outlook_access_token = fields.Char(string='Outlook Access Token',
-        groups='base.group_system', copy=False)
+        groups='base.group_system', copy=False,
+        compute='_compute_microsoft_outlook_tokens',
+        inverse='_inverse_microsoft_outlook_access_token')
     microsoft_outlook_access_token_expiration = fields.Integer(string='Outlook Access Token Expiration Timestamp',
         groups='base.group_system', copy=False)
     microsoft_outlook_uri = fields.Char(compute='_compute_outlook_uri', string='Authentication URI',
         help='The URL to generate the authorization code from Outlook', groups='base.group_system')
+
+    @api.depends('oauth2_credential_id')
+    def _compute_microsoft_outlook_tokens(self):
+        for record in self:
+            access_token, refresh_token = record._oauth2_stored_tokens()
+            record.microsoft_outlook_access_token = access_token
+            record.microsoft_outlook_refresh_token = refresh_token
+
+    def _inverse_microsoft_outlook_access_token(self):
+        for record in self:
+            record._oauth2_store_tokens(
+                access_token=record.microsoft_outlook_access_token
+            )
+
+    def _inverse_microsoft_outlook_refresh_token(self):
+        for record in self:
+            record._oauth2_store_tokens(
+                refresh_token=record.microsoft_outlook_refresh_token
+            )
 
     def _compute_outlook_uri(self):
         self._oauth2_compute_uri(OUTLOOK)

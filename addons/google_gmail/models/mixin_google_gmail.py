@@ -1,6 +1,6 @@
 import time
 
-from odoo import fields, models
+from odoo import api, fields, models
 
 from odoo.addons.mail_oauth2.models.mixin_oauth2_mail_provider import (
     OAUTH2_TOKEN_REQUEST_TIMEOUT,
@@ -37,10 +37,35 @@ class MixinGoogleGmail(models.AbstractModel):
 
     _SERVICE_SCOPE = GMAIL.scope
 
-    google_gmail_refresh_token = fields.Char(string='Refresh Token', groups='base.group_system', copy=False)
-    google_gmail_access_token = fields.Char(string='Access Token', groups='base.group_system', copy=False)
+    # Doors onto `oauth2_credential_id` (ADR-0081). The names stay: they are in
+    # the views and in every caller.
+    google_gmail_refresh_token = fields.Char(
+        string='Refresh Token', groups='base.group_system', copy=False,
+        compute='_compute_google_gmail_tokens',
+        inverse='_inverse_google_gmail_refresh_token',
+    )
+    google_gmail_access_token = fields.Char(
+        string='Access Token', groups='base.group_system', copy=False,
+        compute='_compute_google_gmail_tokens',
+        inverse='_inverse_google_gmail_access_token',
+    )
     google_gmail_access_token_expiration = fields.Integer(string='Access Token Expiration Timestamp', groups='base.group_system', copy=False)
     google_gmail_uri = fields.Char(compute='_compute_gmail_uri', string='URI', help='The URL to generate the authorization code from Google', groups='base.group_system')
+
+    @api.depends('oauth2_credential_id')
+    def _compute_google_gmail_tokens(self):
+        for record in self:
+            access_token, refresh_token = record._oauth2_stored_tokens()
+            record.google_gmail_access_token = access_token
+            record.google_gmail_refresh_token = refresh_token
+
+    def _inverse_google_gmail_access_token(self):
+        for record in self:
+            record._oauth2_store_tokens(access_token=record.google_gmail_access_token)
+
+    def _inverse_google_gmail_refresh_token(self):
+        for record in self:
+            record._oauth2_store_tokens(refresh_token=record.google_gmail_refresh_token)
 
     def _compute_gmail_uri(self):
         self._oauth2_compute_uri(GMAIL)
