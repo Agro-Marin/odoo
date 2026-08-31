@@ -1065,7 +1065,19 @@ class SaleOrder(models.Model):
             and self.env.cache.contains(self, self._fields["state"])
             and self._discard_tracking()
         ):
-            self.env.cr.precommit.data.pop(f"mail.tracking.{self._name}", {})
+            # Discard only this record's own pending tracking entry: the
+            # "mail.tracking.<model>" dict in precommit.data is shared by
+            # every record of this model queued in the same transaction, so
+            # popping it wholesale would silently drop other sale orders'
+            # legitimate pending tracked-field changes.
+            tracking = self.env.cr.precommit.data.get(f"mail.tracking.{self._name}")
+            if tracking is not None:
+                tracking.pop(self.id, None)
+            writer_uids = self.env.cr.precommit.data.get(
+                f"mail.tracking.uid.{self._name}",
+            )
+            if writer_uids is not None:
+                writer_uids.pop(self.id, None)
             self.env.flush_all()
             return None
         return super()._track_finalize()
