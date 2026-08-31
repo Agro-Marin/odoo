@@ -102,3 +102,18 @@ test("removing the background image stops the gradient from repeating", async ()
     expect(":iframe .test-options-target").not.toHaveClass("o_bg_img_opt_repeat");
     expect(queryOne(":iframe .test-options-target").style.backgroundSize).toBe("");
 });
+
+test("the button that removes the background image warns in red", async () => {
+    addBackgroundOption();
+    await setupHTMLBuilder(
+        `<div class="test-options-target oe_img_bg" style="${twoLayerBackground}">b</div>`,
+        { styleContent: bgRepeatStyle }
+    );
+    await contains(":iframe .test-options-target").click();
+    await waitFor("[data-action-id='removeBgImage']");
+
+    // The other destructive builder buttons already carry this: the snippet
+    // trash in `option_container.xml` and "Reset shape" in
+    // `image_shape_option.xml`.
+    expect("[data-action-id='removeBgImage']").toHaveClass("btn-danger-color-hover");
+});

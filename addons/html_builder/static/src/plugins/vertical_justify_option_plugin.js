@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { END } from "@html_builder/utils/option_sequence";
+import { VERTICAL_ALIGNMENT } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
 import { withSequence } from "@html_editor/utils/resource";
@@ -9,7 +9,7 @@ class VerticalJustifyOptionPlugin extends Plugin {
     static id = "verticalJustifyOption";
     /** @type {import("plugins").BuilderResources} */
     resources = {
-        builder_options: [withSequence(END, VerticalJustifyOption)],
+        builder_options: [withSequence(VERTICAL_ALIGNMENT, VerticalJustifyOption)],
     };
 }
 
