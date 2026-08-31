@@ -701,10 +701,9 @@ class TestSalePurchase(TestSalePurchaseCommon):
                 ],
             }
         )
-        # FIXME: there is some sort of multi-company misconfiguration with the permissions that require a sudo here
-        # for this test to run. Issue doesn't occur when running test locally => probably some other module is messing
-        # with the permissions and/or there's an issue with the subsidiary setup
-        order.sudo().with_company(company_1).action_confirm()
+        order.with_context(
+            allowed_company_ids=(company_1 + company_2).ids
+        ).with_company(company_1).action_confirm()
         self.assertFalse(order.purchase_order_count)
 
         order2 = self.env["sale.order"].create(
@@ -722,8 +721,9 @@ class TestSalePurchase(TestSalePurchaseCommon):
             }
         )
 
-        # FIXME: same sudo issue as above
-        order2.sudo().with_company(company_2).action_confirm()
+        order2.with_context(
+            allowed_company_ids=(company_1 + company_2).ids
+        ).with_company(company_2).action_confirm()
         self.assertTrue(order2.purchase_order_count)
 
     def test_service_to_purchase_branch_tax_propagation(self):
