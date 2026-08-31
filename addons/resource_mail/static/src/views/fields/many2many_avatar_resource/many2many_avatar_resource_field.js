@@ -13,7 +13,6 @@ import {
 } from "@mail/views/web/fields/many2many_avatar_user_field/many2many_avatar_user_field";
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 import { AvatarCardResourcePopover } from "@resource_mail/components/avatar_card_resource/avatar_card_resource_popover";
-import { Domain } from "@web/core/domain";
 import { KanbanMany2ManyTagsAvatarFieldTagsList } from "@web/fields/relational/many2many_tags_avatar/many2many_tags_avatar_field";
 
 
@@ -21,25 +20,12 @@ export class AvatarResourceMany2XAutocomplete extends Many2XAutocomplete {
     /**
      * @override
      */
-    search(request) {
-        return this.orm.call(
-            this.props.resModel,
-            "search_read",
-            [this.getDomain(request), ["id", "display_name", "resource_type", "color"]],
-            {
-                context: this.props.context,
-                limit: this.props.searchLimit + 1,
-            }
-        );
-    }
-
-    /**
-     * @override
-     */
-    getDomain(request) {
-        return Domain.and([[["name", "ilike", request]], this.props.getDomain()]).toList(
-            this.props.context
-        );
+    get searchSpecification() {
+        return {
+            ...super.searchSpecification,
+            resource_type: {},
+            color: {},
+        };
     }
 }
 
