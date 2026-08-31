@@ -1587,6 +1587,44 @@ class TestPortalRulePermFlags(SaleCommon):
 
 
 @tagged("post_install", "-at_install")
+class TestPriceHistoryWizardRule(SaleCommon):
+    """The price-history wizard models must be scoped to their own creator,
+    like the sibling wizards sale_advance_payment_inv/mass_cancel_orders
+    (F08)."""
+
+    def test_wizard_is_scoped_to_its_creator(self):
+        group = self.env.ref("sales_team.group_sale_salesman")
+        user_a, user_b = self.env["res.users"].create(
+            [
+                {
+                    "name": "F08 User A",
+                    "login": "f08_user_a",
+                    "group_ids": [(4, group.id)],
+                },
+                {
+                    "name": "F08 User B",
+                    "login": "f08_user_b",
+                    "group_ids": [(4, group.id)],
+                },
+            ]
+        )
+        wizard = (
+            self.env["sale.order.line.price.history"]
+            .with_user(user_a)
+            .create({"line_id": self.sale_order.line_ids[0].id})
+        )
+
+        found = (
+            self.env["sale.order.line.price.history"]
+            .with_user(user_b)
+            .search([("id", "=", wizard.id)])
+        )
+        self.assertFalse(
+            found, "another salesman must not see user_a's price-history wizard"
+        )
+
+
+@tagged("post_install", "-at_install")
 class TestDownPaymentSectionLineLang(SaleCommon):
     """_prepare_down_payment_section_line() must translate "Down Payments"
     against the partner's language, not whatever the current env happens to

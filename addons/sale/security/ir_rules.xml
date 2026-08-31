@@ -202,6 +202,18 @@
         <field name="domain_force">[('create_uid', '=', user.id)]</field>
     </record>
 
+    <record id="sale_order_line_price_history_rule" model="ir.rule">
+        <field name="name">Sale Order Line Price History: access only your own wizard</field>
+        <field name="model_id" ref="model_sale_order_line_price_history" />
+        <field name="domain_force">[('create_uid', '=', user.id)]</field>
+    </record>
+
+    <record id="sale_order_line_price_history_line_rule" model="ir.rule">
+        <field name="name">Sale Order Line Price History Line: access only your own wizard</field>
+        <field name="model_id" ref="model_sale_order_line_price_history_line" />
+        <field name="domain_force">[('create_uid', '=', user.id)]</field>
+    </record>
+
     <record id="account_invoice_send_single_rule_see_personal" model="ir.rule">
         <field name="name">Personal Invoice Send and Print (single mode)</field>
         <field name="model_id" ref="account.model_account_move_send_wizard" />
