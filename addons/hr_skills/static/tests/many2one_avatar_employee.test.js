@@ -19,11 +19,12 @@ test("many2one_avatar_employee widget in kanban view with skills on avatar card"
     });
     const [javaForPierre, tigrinyaForPierre] = pyEnv["hr.employee.skill"].create([
         { employee_id: pierreEid, skill_id: java },
-        { employee_id: pierreEid, skill_id: tigrinya },
+        { employee_id: pierreEid, skill_id: tigrinya, valid_to: "2020-01-01" },
     ]);
     pyEnv["hr.employee.public"].create({
         name: "Pierre",
         employee_skill_ids: [javaForPierre, tigrinyaForPierre],
+        current_employee_skill_ids: [javaForPierre],
     });
     pyEnv["m2o.avatar.employee"].create([{ employee_id: pierreEid }]);
     await start();
@@ -38,7 +39,8 @@ test("many2one_avatar_employee widget in kanban view with skills on avatar card"
             email:resource.email,
             phone: resource.phone,
             user_id: resource.user_id,
-            employee_skill_ids: resource.employee_skill_ids
+            employee_skill_ids: resource.employee_skill_ids,
+            current_employee_skill_ids: resource.current_employee_skill_ids,
         }));
         return result;
     });
@@ -60,5 +62,6 @@ test("many2one_avatar_employee widget in kanban view with skills on avatar card"
     ).toBe(`/web/image/hr.employee/${pierreEid}/avatar_128`);
     await click(".o_kanban_record .o_m2o_avatar > img");
     await contains(".o_avatar_card");
-    await contains(".o_avatar_card .o_employee_skills_tags > .o_tag", { count: 2 });
+    // Tigrinya lapsed in 2020: the card tags what Pierre has, not what he had.
+    await contains(".o_avatar_card .o_employee_skills_tags > .o_tag", { count: 1 });
 });
