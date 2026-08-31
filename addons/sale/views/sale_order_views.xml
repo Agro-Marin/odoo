@@ -628,6 +628,7 @@
                                 invisible="1"
                                 groups="!product.group_product_pricelist" />
                             <field name="payment_term_id"
+                                readonly="state in ['done', 'cancel']"
                                 placeholder="Immediate"
                                 options="{'no_open': True, 'no_create': True}" />
                         </group>
