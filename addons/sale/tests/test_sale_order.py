@@ -231,9 +231,7 @@ class TestSaleOrder(SaleCommon):
     def _create_sale_order(self):
         return (
             self.env["sale.order"]
-            .with_context(
-                default_sale_order_template_id=False
-            )
+            .with_context(default_sale_order_template_id=False)
             .create(
                 {
                     "partner_id": self.partner.id,
