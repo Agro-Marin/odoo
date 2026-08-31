@@ -17,7 +17,7 @@ calls whatever it likes, private or not, and the field is edited in the web
 client, so most of what it holds was never in any checkout. Measured over the
 shipped data files of this repository, which is only the half a grep can see:
 101 distinct private method names, in 110 code blocks, across 68 files. One of
-them, `_fetch_mails`, already carries a verb §2.4 abolishes and the `naming`
+them, `_poll_mails`, already carries a verb §2.4 abolishes and the `naming`
 ratchet counts — a rename the section asks for, with a binding nothing checks.
 
 `ir.actions.actions._for_xml_id` made this concrete and breaks the section on its
@@ -92,7 +92,7 @@ view source to cover an unobserved case buys less than it risks.
 **Add a gate instead of renaming.** Not an alternative — the follow-up, recorded
 in §2.4 rather than here. A checker that reads `<field name="code">` the way
 `naming_vocabulary` reads `.py` would move the shipped half of this population
-from unenumerable to merely wide, and would have caught `_fetch_mails`. It is a
+from unenumerable to merely wide, and would have caught `_poll_mails`. It is a
 new blocking gate and owes its own record.
 
 ## Consequences

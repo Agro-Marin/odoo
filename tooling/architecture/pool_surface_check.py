@@ -84,7 +84,7 @@ KNOWN_VIOLATIONS: tuple[Known, ...] = (
     ),
     Known(
         "odoo/orm/models/mixins/recompute.py",
-        "_ensure_field_triggers",
+        "_get_field_triggers",
         "RecomputeMixin.modified() needs the trigger tree built before it can "
         "ask whether any modified field has dependents. Mild: the five other "
         "callers are all inside _RegistryFieldsMixin itself, which is the "
@@ -139,7 +139,7 @@ class _PoolReachCollector(ast.NodeVisitor):
     """
 
     #: names bound to the pool in the function body being walked
-    _POOL_RETURNING = frozenset({"registry_of"})
+    _POOL_RETURNING = frozenset({"get_registry_of"})
 
     def __init__(self) -> None:
         self.hits: list[tuple[str, int, bool]] = []

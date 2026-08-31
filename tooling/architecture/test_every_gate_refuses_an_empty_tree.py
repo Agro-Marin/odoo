@@ -50,6 +50,7 @@ GATES = {
     "field_hook_naming": ["--count"],
     "field_hook_purity": ["--count"],
     "naming_vocabulary": ["--count"],
+    "naming_core_vocabulary": ["--count"],
     "order_line_qty": ["--count"],
     "translation_catalog": ["--count"],
     "compute_context_deps": ["--count"],

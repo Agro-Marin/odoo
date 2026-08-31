@@ -4,8 +4,8 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 6.8
-:Date: 2026-08-29
+:Version: 6.9
+:Date: 2026-08-30
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
 
@@ -979,7 +979,7 @@ Do not read a prefix as a claim that no other binding exists.
 **One verb per operation** ``[review]``. The table in §2.4 governs prefixes
 carrying an ORM role; every other method opens with a free verb. The abolished
 spellings are wrong, not lesser-preferred. The tree spells single operations many
-ways: 7 stems are written with two or more verbs drawn from one semantic family,
+ways: 3 stems are written with two or more verbs drawn from one semantic family,
 and 103 groups of methods share a byte-identical body under different names.
 
 **Every figure in this section is measured, not stated**
@@ -1058,6 +1058,11 @@ meanings -- a business method that deletes records is ``_remove_*``, never
        applicable* (§2.4.11)
    * - ``_sync_``
      - convergence on a source of truth elsewhere (§2.4.12)
+   * - ``fetch``
+     - the ORM read operation that loads stored values into the cache. The
+       public ``fetch()`` and its internals ``_fetch_field`` / ``_fetch_query``
+       / ``_fetch_query_sql`` are **one** contract, so they are renamed together
+       or not at all (§2.4.11); ``_get_query`` would promise a ``Query`` return
    * - ``flush_``
      - the ORM operation -- ``flush_model``, ``flush_recordset``
    * - ``_evict_``
@@ -1142,7 +1147,7 @@ Backlog ``[gate doc_restated_counts]``. The ``fields`` family is converted:
 **207** definitions under **98** names in this repository spell it head-first and
 **17** spell it the other way. **The rule is general; the conversion reached one
 family** -- across **19** of them this repository spells **66** definitions
-head-first against **182** the other way. A name in the second count is a backlog
+head-first against **185** the other way. A name in the second count is a backlog
 item, not an open question. Two cautions:
 ``naming_vocabulary._COLLECTION_HEADS`` is a **search**, so a head absent from it
 is measured by nothing; and ``ids`` is deliberately absent, because
@@ -1425,7 +1430,7 @@ among them have been renamed to ``_get_``. Split by what the body does, the **30
   (``_find_available_name`` appends ``(2)``, ``(3)`` until unused: a derivation).
 
 The third kind is gone. **The canonical is ``_get_or_create_*``**: **1** methods
-here still spell it ``_find_``, against **19** spelling it ``_get_``. ``_find_``
+here still spell it ``_find_``, against **25** spelling it ``_get_``. ``_find_``
 is not in the abolished table, because classification needs the body: a pass keyed
 on the name scored both survivors as pure reads, and a check for ``create`` /
 ``write`` / ``unlink`` / ``copy`` moved them out.
@@ -1508,11 +1513,38 @@ three are load-bearing.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **The vocabulary governs model methods** -- classes deriving from
-``models.Model`` / ``TransientModel`` / ``AbstractModel``. The framework packages
-below the ORM (``odoo/db``, ``odoo/http``, ``odoo/tools``, ``odoo/orm``
-internals) legitimately speak SQL and Python data-structure vocabulary and are out
-of scope. The carve-out is about *packages*: a helper in an addon's ``models/``
-may not borrow that vocabulary, whether or not it is indented under a class.
+``models.Model`` / ``TransientModel`` / ``AbstractModel`` -- **and every function
+in the core package ``odoo/``**, at module level and on plain classes alike. A
+helper in an addon's ``models/`` may not borrow another vocabulary either,
+whether or not it is indented under a class.
+
+**The package carve-out that stood here is retired** ``[review]``. It exempted the
+framework packages below the ORM (``odoo/db``, ``odoo/http``, ``odoo/tools``,
+``odoo/orm`` internals) on the ground that they legitimately speak SQL and Python
+data-structure vocabulary. Read against the bodies rather than the package names,
+that was true of a handful of names and false of the rest: what the sweep found in
+core was ordinary misnaming -- a ``_validate_`` that raises, a ``_fetch_`` that
+reads, an ``_ensure_`` that returns a value it built, a ``_fill_`` that writes --
+and four spellings that were never claims about a verb at all. **What survives the
+vocabulary in core is a list, not a package boundary**:
+
+* **``fetch``** is the ORM read operation and now has a row in the reserved table
+  above.
+* **``append_paths``** keeps its verb because both halves of the ``_append_``
+  reservation hold: the receiver is an ordered list and the addition lands at its
+  end, beside an ``insert_paths`` that takes the index.
+* **Four infix hits are nouns wearing a verb's spelling**, which is the case
+  §2.4.4 warns the ratchet cannot tell apart: ``fill_temporal`` is a ``read_group``
+  parameter and a context key, ``ensure_db`` names the route flag declared in
+  ``addons/web``, ``on_delete`` is a field on ``ir.model.fields``, and a control
+  character is a character.
+
+**A bool return moved a name across the table, not just along it** ``[review]``.
+``validate_csrf`` answers a question and never raises, so the Validation row sends
+it to the Predicate row rather than to ``_check_``; ``verify_hash_signed`` returns
+the message or ``None`` and lands on ``_resolve_`` (§2.4.11); ``validate_url``
+prepends a scheme and returns a URL, so it was a converter mislabelled as a check.
+**Read the return before reading the verb.**
 
 **It governs the module's own helpers too, and no gate sees them** ``[review]``.
 ``naming_vocabulary.py`` implements the scope as a *class-membership* test, so two
@@ -2002,7 +2034,7 @@ holding its own cursor (``self.env.registry.cursor()``) may commit.
 **Assign fields directly in computes** (``self.field = value``); ``write()`` in a
 compute recurses.
 
-**``ensure_one()``** at the top of any method that assumes a single record.
+**``check_singleton()``** at the top of any method that assumes a single record.
 
 **Context is a frozen dict** -- propagate with ``with_context``. For company
 scoping use ``with_company``:
@@ -4562,6 +4594,14 @@ One row per change, one clause. The argument lives in the section it moved.
    * - Version
      - Date
      - Summary
+   * - 6.9
+     - 2026-08-30
+     - §2.4.7: the core package is clean of the assemble verbs, and it is gated
+       at zero rather than held by review -- ``classify`` reports ``build`` /
+       ``make`` / ``compose`` / ``construct`` only on a payload suffix, which
+       left 45 definitions in ``odoo/`` that a reading found and no count did,
+       seven of them a bare verb. New gate ``naming_core_vocabulary``, over
+       every function rather than over model classes. ADR-0083.
    * - 6.8
      - 2026-08-29
      - §2.5: ``service/__init__.py`` and ``service/db/`` are no longer

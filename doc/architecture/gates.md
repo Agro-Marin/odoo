@@ -21,14 +21,14 @@ python tooling/architecture/layer_check.py --json    # machine-readable
 
 **Twenty-one are count ratchets.** `js_function_length`, `py_function_length`, `py_hook_arity`,
 `py_x2many_count`, `sql_in_placeholder`, `py_count_as_boolean`,
-`py_shadowed_member`, `naming_vocabulary`,
+`py_shadowed_member`, `naming_vocabulary`, `naming_core_vocabulary`,
 `field_hook_naming`, `field_hook_purity`, `js_service_shape`,
 `js_vacuous_assertions`, `js_duplication`, `compute_context_deps`,
 `js_eager_mock_fixture`, `py_unresolved_calls` and `order_line_qty` implement no
-`--check` at all — the sixteen a `--check` loop breaks on. They print a number under `--count` and hand it
+`--check` at all — the seventeen a `--check` loop breaks on. They print a number under `--count` and hand it
 to `tooling/ratchet/ratchet.py`, which owns the floor. `js_private_access`,
 `js_forced_render` and `translation_catalog` also implement `--check`, but CI
-drives them as ratchets, so they belong to this group. Run any of the nineteen bare
+drives them as ratchets, so they belong to this group. Run any of the twenty bare
 and it reports without enforcing.
 
 Forty-two plus twenty-one is sixty-three. All three figures derive from the
@@ -91,6 +91,7 @@ py_count_as_boolean py_count_as_boolean
 py_hook_arity      py_hook_arity
 py_shadowed_member py_shadowed_member
 naming_vocabulary  naming
+naming_core_vocabulary naming_core
 order_line_qty     orderlineqty
 compute_context_deps computectx
 field_hook_naming  fieldhooks
@@ -133,7 +134,9 @@ js_service_shape.py --addon account --count|jsserviceshape_account --count
 js_service_shape.py --addon mail --count|jsserviceshape_mail --count
 js_service_shape.py --addon stock --count|jsserviceshape_stock --count
 py_count_as_boolean.py --addon addons --count|py_count_as_boolean_addons --count
+py_count_as_boolean.py --addon tests --count|py_count_as_boolean_tests --count
 py_hook_arity.py --addon addons --count|py_hook_arity_addons --count
+py_hook_arity.py --addon tests --count|py_hook_arity_tests --count
 py_function_length.py --addon crm --count|pyfunclen_crm --count
 py_function_length.py --addon loyalty --count|pyfunclen_loyalty --count
 py_function_length.py --addon mail --count|pyfunclen_mail --count
@@ -144,10 +147,12 @@ py_function_length.py --count --addon addons|pyfunclen_addons --mode no-increase
 py_shadowed_member.py --addon addons --count|py_shadowed_member_addons --count
 py_x2many_count.py --addon account --count|py_x2many_count_account --count
 py_x2many_count.py --addon addons --count|py_x2many_count_addons --count
+py_x2many_count.py --addon tests --count|py_x2many_count_tests --count
 py_x2many_count.py --addon mail --count|py_x2many_count_mail --count
 py_x2many_count.py --addon project --count|py_x2many_count_project --count
 py_x2many_count.py --addon stock --count|py_x2many_count_stock --count
 sql_in_placeholder.py --addon addons --count|sql_in_placeholder_addons --count
+sql_in_placeholder.py --addon tests --count|sql_in_placeholder_tests --count
 EOF
 ```
 
@@ -216,7 +221,8 @@ The Python boundary checker (ADR-0005) is one gate among several. The
 | `js_env_config_surface.py` | the keys read out of `env.config`, web's ambient per-action bag — inherited through the component tree, so it is neither an import nor a class member and the two surface gates above are blind to it |
 | `js_action_surface.py` | the members reached on the `ActionManager` instance behind `env.services.action` — handed out by name, so blind to the import and member gates for the same reason. It found the contract under-declaring by four members that consumers reached at 45 call sites |
 | `js_template_binding.py` | the names an OWL template calls against the component that owns it — ADR-0032's rule on a fourth string edge. It found `EmbeddedActionsBar` binding a handler its class had lost, which took the client down on every click for 48 commits |
-| `naming_vocabulary.py` | the §2.4 method-naming verb vocabulary |
+| `naming_vocabulary.py` | the §2.4 method-naming verb vocabulary, over the methods of model classes — the population an addon is made of |
+| `naming_core_vocabulary.py` | the same vocabulary over **every function** in the core package `odoo/`, at a floor of six: module level, plain classes, nested closures and `odoo/tests`, the test *framework* every other gate skips by the name of its directory. It flags the four assemble verbs whatever their suffix, which the sibling cannot — ADR-0082 and ADR-0083 swept core by hand twice, three days apart, the second time over 45 definitions no count reported. Its survivors are an argued allowlist, not a floor; the six it does floor are `odoo/tests`, left to the sweep already running in that tree (ADR-0083) |
 | `field_hook_naming.py` | what a `compute=`, `search=`, `inverse=`, `default=` or `domain=` names — the field declaration carries the method's name, so the two sit inches apart and can disagree; plus the domain builders whose name does not lead with it (ADR-0049, ADR-0050, ADR-0054) |
 | `field_hook_purity.py` | whether the method a field attribute names is a hook at all — **16** are also called from production code, down from the 342 ADR-0051 opened with, which makes a compute's dependency graph something its callers compensate for (ADR-0051) |
 | `order_line_qty.py` | writes of `product_uom_qty` on a sale or purchase order line — the field swapped meaning with `product_qty` in this fork (Appendix A) and both names survived, so writing the readonly one does not raise: `create` discards the value and the line silently becomes quantity 1, `write` lands it in the column while `product_qty` keeps its old value |

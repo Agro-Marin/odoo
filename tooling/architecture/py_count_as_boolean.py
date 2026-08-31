@@ -22,9 +22,11 @@ DEFAULT_ADDON = "core"
 
 ALL_ADDONS = "addons"
 
+TESTS = "tests"
+
 SIBLING_SCOPES = ("enterprise", "agromarin")
 
-GOVERNED_ADDONS = (DEFAULT_ADDON, ALL_ADDONS, *SIBLING_SCOPES)
+GOVERNED_ADDONS = (DEFAULT_ADDON, ALL_ADDONS, TESTS, *SIBLING_SCOPES)
 
 METHOD = "search_count"
 
@@ -34,6 +36,8 @@ def addon_src(addon: str = DEFAULT_ADDON) -> Path:
         return SCOPE
     if addon == ALL_ADDONS:
         return ROOT / "addons"
+    if addon == TESTS:
+        return SCOPE / "tests"
     if addon in SIBLING_SCOPES:
         return sibling_repos_root(ROOT) / addon
     return ROOT / "addons" / addon
@@ -51,10 +55,18 @@ class Offence:
 
 
 def iter_source_files(src: Path | None = None) -> list[Path]:
+    root = SCOPE if src is None else src
+    # odoo/tests is the test FRAMEWORK -- TransactionCase, Form, the CDP driver,
+    # the suite runner -- production code that every addon test runs on. It is
+    # excluded from the default scan only because is_test_path matches any path
+    # with a `tests` component, so scanning it needs that filter lifted. Real
+    # test suites (odoo/orm/tests and the rest) stay out, which is the point of
+    # the filter; this is the one tree the name gets wrong.
+    tests_root = root == SCOPE / "tests"
     return sorted(
         p
-        for p in (SCOPE if src is None else src).rglob("*.py")
-        if "__pycache__" not in p.parts and not _sources.is_test_path(p)
+        for p in root.rglob("*.py")
+        if "__pycache__" not in p.parts and (tests_root or not _sources.is_test_path(p))
     )
 
 

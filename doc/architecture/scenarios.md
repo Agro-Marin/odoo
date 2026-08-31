@@ -23,7 +23,7 @@ on `_ModuleLoader` and run in this order:
 | 3 | `capture_database_field_metadata()` — snapshot `ir_model_fields` **before** anything changes it | data |
 | 4 | `open_environment_and_load_base()` — `base` must exist before any graph work | runtime |
 | 5 | `load_languages()` | data |
-| 6 | `process_module_requests()` — "updating modules list": reconcile `ir_module_module` against `addons_path` | data + module |
+| 6 | `apply_module_requests()` — "updating modules list": reconcile `ir_module_module` against `addons_path` | data + module |
 | 7 | `converge_module_graph()` — resolve dependencies and load each module's Python, data and views | module + data |
 | 8 | `untranslate_dropped_fields()` | data |
 | 9 | `finish_registry_setup()` | runtime |
@@ -40,7 +40,7 @@ out split two ways, and the second group is not bookkeeping:
 | Left out | Why |
 |---|---|
 | `report_modules_that_never_loaded`, `report_pending_module_states`, `log_assertion_report`, `flag_partially_updated_database`, `collect_models_with_manual_fields` | reporting and bookkeeping — they cross no view |
-| `register_model_hooks`, `check_null_constraints`, `validate_custom_views`, `run_post_update_model_checks` | real work, selected out of *this* thread rather than out of the loader. Three of the four appear in [`runtime.md`](runtime.md#registry-build)'s sketch, which selects fourteen for a different purpose |
+| `register_model_hooks`, `check_null_constraints`, `check_custom_views`, `run_post_update_model_checks` | real work, selected out of *this* thread rather than out of the loader. Three of the four appear in [`runtime.md`](runtime.md#registry-build)'s sketch, which selects fourteen for a different purpose |
 
 Three things this ordering encodes that no other view states:
 

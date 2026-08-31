@@ -307,7 +307,7 @@ desktop suite at 375x667. Combined serial runtime went from ~1 992 s to
    Warming costs ~13 s per boot and made the cold run green.
 2. `run_suites` authenticates over HTTP (admin/admin) to get a `session_id`,
    then instantiates `odoo.tests.common.ChromeBrowser` through a tiny shim
-   (it only needs `_logger`, `browser_size`, `touch_enabled`, `fetch_proxy`),
+   (it only needs `_logger`, `browser_size`, `touch_enabled`, `prepare_proxy_response`),
    sets the session cookie, and navigates to
    `/web/tests?headless&loglevel=2&preset=…&timeout=…&id=<hash>…`.
 3. Success/failure is detected exactly as the real suite does: the

@@ -252,6 +252,8 @@ enforce them.
 | [0079](0079-a-suite-that-no-lane-runs-is-not-a-test.md) | A suite that no lane runs is not a test | 2026-08-30 | Accepted |
 | [0080](0080-an-exchange-has-a-counterparty-a-lifecycle-and-a-journal.md) | An exchange has a counterparty, a lifecycle and a journal, and none of the three is a localisation | 2026-08-30 | Accepted |
 | [0081](0081-a-credential-is-stored-in-the-vault-and-nowhere-else.md) | A credential is stored in the vault, and nowhere else | 2026-08-30 | Accepted |
+| [0082](0082-the-method-vocabulary-reaches-core.md) | The method vocabulary reaches core | 2026-08-30 | Accepted |
+| [0083](0083-the-assemble-verbs-lose-their-carve-out.md) | The assemble verbs lose their carve-out | 2026-08-30 | Accepted |
 
 ## Template
 

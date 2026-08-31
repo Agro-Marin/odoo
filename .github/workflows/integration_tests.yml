@@ -134,7 +134,7 @@ env:
   #
   # test_http itself ran in NO workflow until 2026-08, and the cost was three
   # defects: test05_session_save_logs_on_failure committed red two months
-  # earlier; MemorySessionStore missing the `_delete_sid` that the `rotate` it
+  # earlier; MemorySessionStore missing the `_remove_sid` that the `rotate` it
   # borrows from FilesystemSessionStore calls, so /web/session/logout 500'd in
   # five tests; and 4ffeacacd8c stripping `_http_handler`'s docstring, which
   # `openapi._summary()` reads as fixture data. All three are the same failure:

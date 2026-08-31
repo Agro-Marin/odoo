@@ -1,0 +1,19 @@
+{
+  "adr": "0079",
+  "note": "What survives the method vocabulary in the core package odoo/, one entry per name with the reason it is not a violation. ADR-0082 established that this is a list and not a package boundary; ADR-0083 kept it one. There is no --update: an entry is argued, never banked. A name here must be reachable by the gate -- an entry no definition answers to is dead weight, and test_naming_core_vocabulary asserts none is.",
+  "names": {
+    "fetch": "reserved -- the ORM read operation that loads stored values into the cache (§2.4.3)",
+    "_fetch_field": "reserved -- fetch()'s internals are one contract with it, renamed together or not at all",
+    "_fetch_query": "reserved -- as _fetch_field; _get_query would promise a Query return",
+    "_fetch_query_sql": "reserved -- as _fetch_field",
+    "append_paths": "reserved -- both halves of the _append_ reservation hold: an ordered list, and an addition at its end, beside an insert_paths that takes the index",
+    "ensure_db_endpoint": "noun -- ensure_db is the route flag declared in addons/web, not a verb",
+    "register_ensure_db_paths": "noun -- as ensure_db_endpoint",
+    "is_ensure_db_path": "noun -- as ensure_db_endpoint",
+    "remove_control_characters": "noun -- a control character is a character",
+    "_read_group_fill_temporal": "noun -- fill_temporal is a read_group parameter and a context key",
+    "_read_group_fill_temporal_bound": "noun -- as _read_group_fill_temporal",
+    "_read_group_apply_fill_temporal": "noun -- as _read_group_fill_temporal",
+    "_check_on_delete_required_m2o": "noun -- on_delete is a field on ir.model.fields"
+  }
+}

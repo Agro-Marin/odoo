@@ -42,7 +42,7 @@ valid bearer token to `/web/hook/<uuid>` returned 100 × `200` then 30 × `422`,
 and the credential access log held 100 `read` rows and 30 `read_rate_limited`
 rows, all attributed to the public user. `api.endpoint.inbound` compares a
 presented token against `credential_fingerprint`, a stored SHA-256 costing no
-decryption; `base_automation._verify_webhook_request` reads the credential's
+decryption; `base_automation._check_webhook_request` reads the credential's
 plaintext per request, and that read goes through `_enforce_access_rate_limit`,
 whose cap is per user per hour and whose purpose is to stop a *user* harvesting
 credentials. Every sender of a public webhook shares one bucket, because

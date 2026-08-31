@@ -113,7 +113,7 @@ jobs:
         # in package.json is its only source — no apt package provides it and
         # node_modules is gitignored, so it must be installed per run.
         # Without it, `-i` on the module set below reaches test_assetsbundle,
-        # whose _register_hook pregenerates every bundle, and find_sass()
+        # whose _register_hook pregenerates every bundle, and get_sass_path()
         # returns None: SassNotFoundError aborts the registry load before a
         # single module is measured.
         run: npm ci

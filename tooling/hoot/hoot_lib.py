@@ -797,11 +797,11 @@ class _ShimCase:
 
         return HttpCase
 
-    def fetch_proxy(self, url: str) -> dict:
-        return self._http_case.fetch_proxy(self, url)
+    def prepare_proxy_response(self, url: str) -> dict:
+        return self._http_case.prepare_proxy_response(self, url)
 
-    def make_fetch_proxy_response(self, content, code: int = 200) -> dict:
-        return self._http_case.make_fetch_proxy_response(self, content, code)
+    def prepare_proxy_response_from_content(self, content, code: int = 200) -> dict:
+        return self._http_case.prepare_proxy_response_from_content(self, content, code)
 
 
 def _bootstrap_odoo() -> None:

@@ -330,7 +330,7 @@ class TestToolsIsTheFacadeForLibs(unittest.TestCase):
             f"symbols straight from `odoo.libs`**",
             DOC_FLAT,
         )
-        for symbol in ("SQL", "float_round", "classproperty", "make_index_name"):
+        for symbol in ("SQL", "float_round", "classproperty", "get_index_name"):
             self.assertIn(symbol, direct)
 
     def test_the_transitive_count_is_live(self) -> None:

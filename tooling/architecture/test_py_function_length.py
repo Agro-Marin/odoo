@@ -81,11 +81,11 @@ class TestExcessIsTheRatchetedMetric(unittest.TestCase):
         self.assertEqual(pfl.excess_lines(found), 15)
 
     def test_splitting_one_long_function_lowers_excess_even_as_count_rises(self):
-        before = [pfl.LongFunction("a.py", 1, 1024, "_build_cli")]
+        before = [pfl.LongFunction("a.py", 1, 1024, "_prepare_cli_parser")]
         after = [
             pfl.LongFunction("a.py", 1, 294, "_add_database_options"),
             pfl.LongFunction("a.py", 2, 161, "_add_common_options"),
-            pfl.LongFunction("a.py", 3, 99, "_build_cli"),
+            pfl.LongFunction("a.py", 3, 99, "_prepare_cli_parser"),
             pfl.LongFunction("a.py", 4, 99, "_add_advanced_options"),
             pfl.LongFunction("a.py", 5, 90, "_add_multiprocessing_options"),
         ]
@@ -238,15 +238,15 @@ class TestRealTree(unittest.TestCase):
         found = pfl.measure()
         by_name = {f.what: f.lines for f in found}
         self.assertNotIn(
-            "_build_cli",
+            "_prepare_cli_parser",
             [f.what for f in found if f.lines > 400],
-            "_build_cli is over 400 lines again",
+            "_prepare_cli_parser is over 400 lines again",
         )
         if found:
             self.assertLess(
                 found[0].lines, 400, f"a function over 400 lines is back: {found[0]}"
             )
-        self.assertLessEqual(by_name.get("_build_cli", 0), 150)
+        self.assertLessEqual(by_name.get("_prepare_cli_parser", 0), 150)
 
 
 if __name__ == "__main__":

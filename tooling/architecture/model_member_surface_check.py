@@ -134,7 +134,7 @@ KNOWN_MEMBER_SURFACE: dict[str, frozenset[str]] = {
     "ir.model.fields": frozenset(
         {
             "_get",
-            "_get_ids",
+            "_get_ids_by_name",
             "_get_manual_field_data",
             "_is_field_ready",
             "_prepare_field_attrs",
@@ -151,7 +151,7 @@ KNOWN_MEMBER_SURFACE: dict[str, frozenset[str]] = {
         {"_extract_resource_attachment_translations", "_import_zipfile", "update_list"}
     ),
     "ir.qweb": frozenset({"_pregenerate_assets_bundles"}),
-    "ir.rule": frozenset({"_compute_domain", "_prepare_access_error"}),
+    "ir.rule": frozenset({"_get_domain_accessible_records", "_prepare_access_error"}),
     "ir.ui.view": frozenset(
         {"_render_template", "_check_custom_views", "_check_module_views"}
     ),
@@ -160,7 +160,7 @@ KNOWN_MEMBER_SURFACE: dict[str, frozenset[str]] = {
     "res.lang": frozenset({"_get_data", "_lang_get", "get_installed"}),
     "res.users": frozenset(
         {
-            "_compute_session_token",
+            "_get_session_token",
             "_has_group",
             "_is_public",
             "authenticate",

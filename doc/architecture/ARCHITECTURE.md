@@ -88,7 +88,7 @@ Five behaviours that cut across every view.
 
 ### Models are assembled per database, not defined
 
-A model class in the tree is a *definition*. `orm/registration.py::add_to_registry`
+A model class in the tree is a *definition*. `orm/registration.py::add_model_to_registry`
 composes the runtime class for a database by multiple inheritance over every
 installed module's contribution to that `_name`; `_inherit` collects parents,
 `_inherits` sets up delegation, `setup_model_classes(env)` resolves fields across
@@ -150,7 +150,7 @@ lifecycle*](runtime.md#request-lifecycle-http).
 | **Scenarios** | end-to-end threads — installing a module, upgrading a populated database | [`scenarios.md`](scenarios.md) |
 | **Qualities** | how much the forces cost, measured — so a change can fail one | [`qualities.md`](qualities.md) |
 | **Risks** | where the implementation and the design demonstrably disagree | [`risks.md`](risks.md) |
-| **Decisions** | why the architecture is this way, dated and immutable — architecture decisions, 0001–0081 | `doc/adr/` |
+| **Decisions** | why the architecture is this way, dated and immutable — architecture decisions, 0001–0083 | `doc/adr/` |
 
 Rationale is not a view. Each gate's module docstring carries its own, beside
 the `MEASURED` block `doc_measured.py` keeps fresh; decisions are in

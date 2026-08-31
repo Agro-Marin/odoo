@@ -115,13 +115,13 @@ Registry.new(db)
    ├─ capture_database_field_metadata()   update only, before the schema moves
    ├─ open_environment_and_load_base()    first Environment; `base` data loaded
    ├─ load_languages()
-   ├─ process_module_requests()           update only: to-install / to-upgrade
+   ├─ apply_module_requests()             update only: to-install / to-upgrade
    ├─ converge_module_graph()             load modules until the graph is stable
    ├─ finish_registry_setup()             _setup_models__ / init_models
    ├─ run_end_migrations()                update only
    ├─ finalize_constraints()              deferred constraints, then NOT NULL
    ├─ uninstall_removed_modules()         update only; may force one full reload
-   ├─ validate_custom_views()             update only
+   ├─ check_custom_views()             update only
    └─ register_model_hooks() · check_null_constraints()
 ```
 
@@ -138,7 +138,7 @@ Two consequences before touching this path:
   makes `load_modules` call `Registry.new()` again from inside itself.
 
 After `load_modules` returns, `Registry.new` marks the registry ready, calls
-`_ensure_field_triggers()`, and `signal_changes()` so other workers reload.
+`_get_field_triggers()`, and `signal_changes()` so other workers reload.
 
 ### Request lifecycle (HTTP)
 

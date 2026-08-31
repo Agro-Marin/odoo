@@ -967,6 +967,27 @@ jobs:
           set -e
           exit $rc
 
+      - name: Run x2many-count ratchet (odoo/tests)
+        id: py_x2many_count_tests
+        # odoo/tests is the test FRAMEWORK -- TransactionCase, HttpCase, Form,
+        # the Chrome CDP driver, the suite runner -- production code every addon
+        # test in the repository runs on. It was in NO lane of this gate, and not
+        # by judgement: `_sources.is_test_path` calls any path with a `tests`
+        # component a test path, so the package is excluded by the name of its
+        # directory. py_function_length already carries its own `tests` lane
+        # (pyfunclen_tests) for exactly this reason; this is that precedent
+        # applied to the gate beside it. Measured at zero over all 19 modules
+        # when it landed, so the floor opens at zero and any new site fails on
+        # its own.
+        run: |
+          set +e
+          python tooling/architecture/py_x2many_count.py --addon tests | tee /tmp/py_x2many_count_tests.log
+          python tooling/architecture/py_x2many_count.py --addon tests --count \
+            | xargs python tooling/ratchet/ratchet.py py_x2many_count_tests --count
+          rc=$?
+          set -e
+          exit $rc
+
       - name: Run x2many-counter ratchet (mail)
         id: py_x2many_count_mail
         run: |
@@ -1038,6 +1059,27 @@ jobs:
           set -e
           exit $rc
 
+      - name: Run sql-in-placeholder ratchet (odoo/tests)
+        id: sql_in_placeholder_tests
+        # odoo/tests is the test FRAMEWORK -- TransactionCase, HttpCase, Form,
+        # the Chrome CDP driver, the suite runner -- production code every addon
+        # test in the repository runs on. It was in NO lane of this gate, and not
+        # by judgement: `_sources.is_test_path` calls any path with a `tests`
+        # component a test path, so the package is excluded by the name of its
+        # directory. py_function_length already carries its own `tests` lane
+        # (pyfunclen_tests) for exactly this reason; this is that precedent
+        # applied to the gate beside it. Measured at zero over all 19 modules
+        # when it landed, so the floor opens at zero and any new site fails on
+        # its own.
+        run: |
+          set +e
+          python tooling/architecture/sql_in_placeholder.py --addon tests | tee /tmp/sql_in_placeholder_tests.log
+          python tooling/architecture/sql_in_placeholder.py --addon tests --count \
+            | xargs python tooling/ratchet/ratchet.py sql_in_placeholder_tests --count
+          rc=$?
+          set -e
+          exit $rc
+
       - name: Run docstring-at-runtime gate
         id: py_docstring_at_runtime
         # Prose in odoo/odoo is removed by policy, so `__doc__` is None there --
@@ -1083,6 +1125,27 @@ jobs:
           set -e
           exit $rc
 
+      - name: Run count-as-boolean ratchet (odoo/tests)
+        id: py_count_as_boolean_tests
+        # odoo/tests is the test FRAMEWORK -- TransactionCase, HttpCase, Form,
+        # the Chrome CDP driver, the suite runner -- production code every addon
+        # test in the repository runs on. It was in NO lane of this gate, and not
+        # by judgement: `_sources.is_test_path` calls any path with a `tests`
+        # component a test path, so the package is excluded by the name of its
+        # directory. py_function_length already carries its own `tests` lane
+        # (pyfunclen_tests) for exactly this reason; this is that precedent
+        # applied to the gate beside it. Measured at zero over all 19 modules
+        # when it landed, so the floor opens at zero and any new site fails on
+        # its own.
+        run: |
+          set +e
+          python tooling/architecture/py_count_as_boolean.py --addon tests | tee /tmp/py_count_as_boolean_tests.log
+          python tooling/architecture/py_count_as_boolean.py --addon tests --count \
+            | xargs python tooling/ratchet/ratchet.py py_count_as_boolean_tests --count
+          rc=$?
+          set -e
+          exit $rc
+
       - name: Run hook-arity ratchet (core)
         id: py_hook_arity
         # ADR-0077. The ORM calls @api.depends / depends_context / constrains /
@@ -1108,6 +1171,27 @@ jobs:
           python tooling/architecture/py_hook_arity.py --addon addons | tee /tmp/py_hook_arity_addons.log
           python tooling/architecture/py_hook_arity.py --addon addons --count \
             | xargs python tooling/ratchet/ratchet.py py_hook_arity_addons --count
+          rc=$?
+          set -e
+          exit $rc
+
+      - name: Run hook-arity ratchet (odoo/tests)
+        id: py_hook_arity_tests
+        # odoo/tests is the test FRAMEWORK -- TransactionCase, HttpCase, Form,
+        # the Chrome CDP driver, the suite runner -- production code every addon
+        # test in the repository runs on. It was in NO lane of this gate, and not
+        # by judgement: `_sources.is_test_path` calls any path with a `tests`
+        # component a test path, so the package is excluded by the name of its
+        # directory. py_function_length already carries its own `tests` lane
+        # (pyfunclen_tests) for exactly this reason; this is that precedent
+        # applied to the gate beside it. Measured at zero over all 19 modules
+        # when it landed, so the floor opens at zero and any new site fails on
+        # its own.
+        run: |
+          set +e
+          python tooling/architecture/py_hook_arity.py --addon tests | tee /tmp/py_hook_arity_tests.log
+          python tooling/architecture/py_hook_arity.py --addon tests --count \
+            | xargs python tooling/ratchet/ratchet.py py_hook_arity_tests --count
           rc=$?
           set -e
           exit $rc
@@ -1377,6 +1461,28 @@ jobs:
           python tooling/architecture/naming_vocabulary.py | tee /tmp/naming_vocab.log
           python tooling/architecture/naming_vocabulary.py --count \
             | xargs python tooling/ratchet/ratchet.py naming --count
+          rc=$?
+          set -e
+          exit $rc
+
+      - name: Run core method-vocabulary gate
+        id: naming_core_vocab
+        # The sibling above is a floor over model classes; this one runs over
+        # every function in the core package `odoo/`, which is
+        # overwhelmingly module-level functions and plain classes it cannot see.
+        # ADR-0082 and ADR-0083 swept core by hand twice, three days apart, the
+        # second time over 45 definitions the first sweep's measurement could not
+        # report -- which is the evidence for a checker rather than a third
+        # reading. What survives the vocabulary in core is an argued allowlist
+        # rather than a floor, because a floor would let the next one in
+        # silently; the floor of six it does carry is odoo/tests, left to the
+        # sweep already running in that tree, and goes when that lands.
+        run: |
+          set +e
+          python tooling/architecture/naming_core_vocabulary.py \
+            | tee /tmp/naming_core_vocab.log
+          python tooling/architecture/naming_core_vocabulary.py --count \
+            | xargs python tooling/ratchet/ratchet.py naming_core --count
           rc=$?
           set -e
           exit $rc

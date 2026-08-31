@@ -6,7 +6,10 @@ import pytest
 from naming_vocabulary import (
     ABOLISHED,
     RESERVED,
+    ROOT,
+    SCAN_ROOTS,
     Violation,
+    _python_files,
     classify,
     collection_head_order,
     is_model_class,
@@ -88,7 +91,7 @@ def test_model_classes_are_in_scope(src):
     "src",
     [
         "class Cursor:\n    def _drop_table(self): pass",
-        "class Session(dict):\n    def delete_old_sessions(self): pass",
+        "class Session(dict):\n    def remove_old_sessions(self): pass",
         "class Registry(Mapping):\n    def discard_field(self): pass",
     ],
 )
@@ -194,10 +197,21 @@ def test_violation_renders_the_replacement():
     assert "_check_*" in str(v)
 
 
-def test_the_real_tree_still_measures():
-    found = measure()
-    assert found, "the odoo checkout should still have abolished-verb definitions"
-    assert all(Path(v.path).suffix == ".py" for v in found)
+def test_the_real_tree_is_still_scanned():
+    # This asserted the checkout still HAD abolished verbs, which stopped being a
+    # statement about the gate the moment the sweep reached zero: a ratchet at 0
+    # is the goal, not a broken measurement. What has to stay true is that the
+    # scan still reaches files -- an empty walk would report 0 for the same
+    # reason a clean tree does. The classification itself is covered against a
+    # fixture above, and `measure` refusing an empty scan is covered by
+    # test_every_gate_refuses_an_empty_tree.
+    scanned = _python_files([ROOT / r for r in SCAN_ROOTS])
+    assert len(scanned) > 1000, (
+        f"only {len(scanned)} files scanned under {', '.join(SCAN_ROOTS)} — the "
+        f"walk is broken, and every count it reports would be 0 by accident"
+    )
+    assert all(p.suffix == ".py" for p in scanned)
+    assert all(Path(v.path).suffix == ".py" for v in measure())
 
 
 @pytest.mark.parametrize(

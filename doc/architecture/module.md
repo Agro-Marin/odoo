@@ -160,7 +160,7 @@ before anything else (see **Process boot**) and patches third-party modules only
 
 `tools/__init__.py` re-exports **22 of its 104 `__all__` symbols straight from
 `odoo.libs`** — `SQL`, `float_round`, `float_compare`, `classproperty`, `lazy`,
-`parse_version`, `SetDefinitions`, `pg_varchar`, `make_index_name` and 13 more.
+`parse_version`, `SetDefinitions`, `pg_varchar`, `get_index_name` and 13 more.
 Sanctioned: `libs_facade_check.py` polices *how* `libs` is imported, and a
 re-export layer is the door it sanctions.
 
@@ -460,7 +460,7 @@ are clean and always will be, because that reach produces no import edge.
 
 The inversion is one of kind, not of volume: the two reach the Registry about as
 often, and Layer 2 reaches more *distinct* members and has private reaches of its
-own (`_ensure_field_triggers`, `_init_modules`, `_database_translated_fields`,
+own (`_get_field_triggers`, `_init_modules`, `_database_translated_fields`,
 `_database_company_dependent_fields`).
 
 **These figures rose when the checker learned to follow a local.**

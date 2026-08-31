@@ -192,6 +192,7 @@ class TestEveryToolAgrees:
         ("architecture", "js_suite_parity"): "ROOT",
         ("architecture", "js_template_binding"): "ROOT",
         ("architecture", "js_vacuous_assertions"): "ROOT",
+        ("architecture", "naming_core_vocabulary"): "ROOT",
         ("architecture", "naming_vocabulary"): "ROOT",
         ("architecture", "order_line_qty"): "ROOT",
         ("architecture", "translation_catalog"): "ROOT",

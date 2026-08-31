@@ -260,7 +260,7 @@ class TestLifecycleSketches(unittest.TestCase):
 
     def test_the_three_server_classes_are_the_ones_start_chooses(self) -> None:
         src = (ROOT / "odoo" / "service" / "_factory.py").read_text(encoding="utf-8")
-        body = src.split("\ndef _build_server(", 1)[1]
+        body = src.split("\ndef _prepare_server(", 1)[1]
         chosen = {
             name
             for name in ("EventServer", "PreforkServer", "ThreadedServer")

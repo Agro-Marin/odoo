@@ -4,7 +4,7 @@ from odoo.db import schema
 
 _logger = logging.getLogger(__name__)
 
-# ADR-0078 renamed every abolished-verb definition in the core package. Source is
+# ADR-0082 renamed every abolished-verb definition in the core package. Source is
 # rewritten by the ordinary upgrade; a database also holds Python in columns, and
 # ADR-0056 established both that this is a binding of the third kind and which
 # columns hold it.
