@@ -82,6 +82,7 @@ export class AutoComplete extends Component {
 
     dismissed = false;
     ignoreBlur = false;
+    _scrollAwayAttached = false;
 
     /**
      * @type {Deferred<void> | null}
@@ -152,8 +153,7 @@ export class AutoComplete extends Component {
             if (this.props.value !== nextProps.value || this.forceValFromProp) {
                 this.forceValFromProp = false;
                 if (!this.inEdition) {
-                    this.state.value = nextProps.value;
-                    this.inputRef.el.value = nextProps.value;
+                    this.setInputValue(nextProps.value);
                 }
                 this.close();
             }
@@ -186,23 +186,26 @@ export class AutoComplete extends Component {
     }
 
     setupDismissal() {
-        useClickAway((node) => this.externalClose(node), {
+        useClickAway(() => this.externalClose(), {
             getAnchor: () => this.root.el,
             getContentEl: () => this.listRef.el,
         });
+        // Not a click-away: a scroll carries no "went outside" semantics of its
+        // own, so this handler owns its containment test. Scrolling the page
+        // under an open dropdown dismisses it; scrolling the dropdown itself,
+        // or anything else inside the component, must not.
         this._onScrollAway = (/** @type {Event} */ ev) => {
-            const target = ev.target;
+            const target = /** @type {Node} */ (ev.target);
             if (
                 target === document ||
                 target === document.documentElement ||
-                target === document.body
+                target === document.body ||
+                this.root.el?.contains(target)
             ) {
                 return;
             }
-            this.externalClose(/** @type {Node} */ (target));
+            this.externalClose();
         };
-        /** @type {(() => void)[]} */
-        this._globalCleanups = [];
         onWillDestroy(() => this._removeGlobalListeners());
     }
 
@@ -225,6 +228,23 @@ export class AutoComplete extends Component {
                 this._addGlobalListeners();
             }
         });
+    }
+
+    /**
+     * The template binds the input with `t-model="state.value"`, so the state
+     * and the element are one value with two homes. Writing only the element --
+     * which `cancel` and the `resetOnSelect` branch of `selectOption` used to do
+     * -- leaves the state holding the old text for good: owl assigns
+     * `input.value` only when the *rendered* value changed, and it never
+     * changes again, so nothing puts the two back in step.
+     *
+     * @param {string} value
+     */
+    setInputValue(value) {
+        this.state.value = value;
+        if (this.inputRef.el) {
+            this.inputRef.el.value = value;
+        }
     }
 
     get targetDropdown() {
@@ -325,31 +345,25 @@ export class AutoComplete extends Component {
     }
 
     _addGlobalListeners() {
-        if (this._globalCleanups.length) {
+        if (this._scrollAwayAttached) {
             return;
         }
-        const add = (target, event, handler, capture = false) => {
-            target.addEventListener(event, handler, capture);
-            this._globalCleanups.push(() =>
-                target.removeEventListener(event, handler, capture),
-            );
-        };
-        add(window, "scroll", this._onScrollAway, true);
+        window.addEventListener("scroll", this._onScrollAway, true);
+        this._scrollAwayAttached = true;
     }
 
     _removeGlobalListeners() {
-        for (const cleanup of this._globalCleanups) {
-            cleanup();
+        if (!this._scrollAwayAttached) {
+            return;
         }
-        this._globalCleanups = [];
+        window.removeEventListener("scroll", this._onScrollAway, true);
+        this._scrollAwayAttached = false;
     }
 
     cancel() {
-        if (this.inputRef.el.value.length) {
-            if (this.props.autoSelect) {
-                this.inputRef.el.value = this.props.value;
-                this.props.onCancel();
-            }
+        if (this.props.autoSelect && this.inputRef.el.value.length) {
+            this.setInputValue(this.props.value);
+            this.props.onCancel();
         }
         this.inEdition = false;
         this.close();
@@ -511,7 +525,7 @@ export class AutoComplete extends Component {
         }
 
         if (this.props.resetOnSelect) {
-            this.inputRef.el.value = "";
+            this.setInputValue("");
         }
         this.isOptionSelected = true;
         this.forceValFromProp = true;
@@ -568,9 +582,9 @@ export class AutoComplete extends Component {
         this.debouncedProcessInput();
     }
 
-    onInputFocus(ev) {
+    onInputFocus() {
         this.inputRef.el.setSelectionRange(0, this.inputRef.el.value.length);
-        this.props.onFocus(ev);
+        this.props.onFocus({ inputValue: this.inputRef.el.value });
     }
 
     get autoCompleteRootClass() {
@@ -691,9 +705,8 @@ export class AutoComplete extends Component {
         this.ignoreBlur = true;
     }
 
-    /** @param {Node} [node] */
-    externalClose(node) {
-        if (this.isOpened && !this.root.el?.contains(node ?? null)) {
+    externalClose() {
+        if (this.isOpened) {
             this.cancel();
         }
     }

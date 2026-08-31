@@ -4,12 +4,20 @@
 import { Component, onMounted, useRef, useState } from "@odoo/owl";
 import { useFileUploader } from "@web/core/utils/files";
 /**
- * @param {string} [props.acceptedFileExtensions='*']
- * @param {string} [props.route='/web/binary/upload_attachment']
- * @param {string} [props.resId]
- * @param {string} [props.resModel]
- * @param {string} [props.multiUpload=false]
+ * @typedef FileInputProps
+ * @property {string} [acceptedFileExtensions="*"]
+ * @property {boolean} [autoOpen]
+ * @property {boolean} [hidden]
+ * @property {boolean} [multiUpload=false]
+ * @property {(data: any, files: FileList | File[]) => any} [onUpload]
+ * @property {(files: File[]) => any} [onWillUploadFiles]
+ * @property {() => Promise<boolean>} [beforeOpen]
+ * @property {number} [resId]
+ * @property {string} [resModel]
+ * @property {string} [route="/web/binary/upload_attachment"]
  */
+
+/** @extends {Component<FileInputProps>} */
 export class FileInput extends Component {
     static template = "web.FileInput";
     static defaultProps = {

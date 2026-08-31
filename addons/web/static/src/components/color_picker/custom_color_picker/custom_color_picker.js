@@ -467,7 +467,6 @@ export class CustomColorPicker extends Component {
         if (this.props.stopClickPropagation) {
             ev.stopPropagation();
         }
-        /** @type {any} */ (ev).__isColorpickerClick = true;
         const target = /** @type {HTMLInputElement} */ (ev.target);
         if (target.dataset.colorMethod === "hex" && !this.selectedHexValue) {
             target.select();

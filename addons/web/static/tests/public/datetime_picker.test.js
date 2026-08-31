@@ -9,10 +9,10 @@ import { startInteraction } from "./helpers.js";
 describe.current.tags("interaction_dev");
 
 /**
- * @param {{ enableThrows?: boolean, trackSteps?: boolean }} [options]
+ * @param {{ disposeThrows?: boolean, trackSteps?: boolean }} [options]
  * @returns {{ props: any }}
  */
-function mockPicker({ enableThrows = false, trackSteps = false } = {}) {
+function mockPicker({ disposeThrows = false, trackSteps = false } = {}) {
     /** @type {{ props: any }} */
     const captured = { props: null };
     /** @param {string} name */
@@ -25,14 +25,16 @@ function mockPicker({ enableThrows = false, trackSteps = false } = {}) {
         create({ pickerProps }) {
             captured.props = pickerProps;
             return /** @type {any} */ ({
-                enable: () => () => {
-                    step("disableListeners");
-                    if (enableThrows) {
-                        throw new Error("disableListeners blew up");
+                enable: () => () => {},
+                // Teardown is one call: the service owns the ordering and the
+                // run-every-step-anyway guarantee, and is tested for both in
+                // components/datetime/datetime_controller.test.js.
+                dispose: () => {
+                    step("dispose");
+                    if (disposeThrows) {
+                        throw new Error("dispose blew up");
                     }
                 },
-                close: () => step("close"),
-                disable: () => step("disable"),
             });
         },
     });
@@ -75,8 +77,8 @@ test("defaults to datetime and leaves absent bounds undefined", async () => {
     expect(captured.props.maxDate).toBe(undefined);
 });
 
-test("every teardown step runs even when an earlier one throws", async () => {
-    mockPicker({ enableThrows: true, trackSteps: true });
+test("teardown disposes the picker, and lets its failure surface", async () => {
+    mockPicker({ disposeThrows: true, trackSteps: true });
     const { core } = await startInteraction(
         DatetimePicker,
         `<input data-widget="datetime-picker" value=""/>`,
@@ -84,5 +86,5 @@ test("every teardown step runs even when an earlier one throws", async () => {
     expect(() => core.stopInteractions()).toThrow(
         "Could not destroy some interactions",
     );
-    expect.verifySteps(["disableListeners", "close", "disable"]);
+    expect.verifySteps(["dispose"]);
 });

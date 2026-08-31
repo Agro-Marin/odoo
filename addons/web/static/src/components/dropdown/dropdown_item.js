@@ -4,7 +4,12 @@
 import { Component } from "@odoo/owl";
 import { useDropdownCloser } from "@web/components/dropdown/dropdown_hook";
 
-const ClosingMode = {
+/**
+ * The accepted values of `DropdownItem`'s `closingMode` prop. Exported because
+ * they are the prop's public vocabulary: every call site outside this file
+ * spells one of these strings by hand.
+ */
+export const ClosingMode = {
     None: "none",
     ClosestParent: "closest",
     AllParents: "all",

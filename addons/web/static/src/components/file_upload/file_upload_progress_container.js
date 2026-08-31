@@ -9,6 +9,5 @@ export class FileUploadProgressContainer extends Component {
         Component: { optional: false },
         shouldDisplay: { type: Function, optional: true },
         fileUploads: { type: Object },
-        selector: { optional: true },
     };
 }

@@ -138,13 +138,24 @@ export class DomainSelector extends Component {
         return getDefaultCondition(fieldDefs);
     }
 
+    /**
+     * The operator vocabulary offered for a field. The single place this
+     * component decides it: both the default operator and the operator editor
+     * are derived from it.
+     *
+     * @param {Record<string, any>} [fieldDef]
+     * @returns {string[]}
+     */
+    getDisplayedOperators(fieldDef) {
+        return getDomainDisplayedOperators(fieldDef);
+    }
+
     getDefaultOperator(fieldDef) {
-        return getDomainDisplayedOperators(fieldDef)[0];
+        return this.getDisplayedOperators(fieldDef)[0];
     }
 
     getOperatorEditorInfo(fieldDef) {
-        const operators = getDomainDisplayedOperators(fieldDef);
-        return getOperatorEditorInfo(operators, fieldDef);
+        return getOperatorEditorInfo(this.getDisplayedOperators(fieldDef), fieldDef);
     }
 
     getPathEditorInfo(resModel, defaultCondition) {

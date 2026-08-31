@@ -127,7 +127,7 @@ export class FileViewer extends Component {
     }
 
     onIframeLoaded() {
-        requestAnimationFrame(() => {
+        browser.requestAnimationFrame(() => {
             this.state.isIframeLoaded = true;
         });
     }

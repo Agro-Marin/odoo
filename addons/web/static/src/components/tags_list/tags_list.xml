@@ -2,7 +2,7 @@
 <templates xml:space="preserve">
 
     <t t-name="web.TagsList">
-        <t t-foreach="visibleTags" t-as="tag" t-key="tag.id or tag_index">
+        <t t-foreach="visibleTags" t-as="tag" t-key="tagKey(tag, tag_index)">
             <span
                 class="o_tag position-relative d-inline-flex align-items-center user-select-none mw-100"
                 t-att-class="{
@@ -59,7 +59,7 @@
     </t>
 
     <t t-name="web.TagsList.Tooltip">
-        <t t-foreach="tags" t-as="tag" t-key="tag.id or tag_index">
+        <t t-foreach="tags" t-as="tag" t-key="tag.resId or tag.id or tag_index">
             <div t-esc="tag.text"/>
         </t>
     </t>

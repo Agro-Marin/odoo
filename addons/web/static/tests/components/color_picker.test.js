@@ -6,6 +6,7 @@ import {
     click,
     manuallyDispatchProgrammaticEvent,
     press,
+    queryAll,
     queryOne,
 } from "@odoo/hoot-dom";
 import { Component, useState, xml } from "@odoo/owl";
@@ -483,4 +484,69 @@ test("useColorPicker re-reads its props on every open when given a getter", asyn
     await contains("button").click();
     await animationFrame();
     expect(opened).toEqual(["first-", "second-"]);
+});
+
+/**
+ * Focus a swatch, leave it for a sibling, focus it again, and report what the
+ * picker asked the host to preview at each step.
+ *
+ * @param {string} tab
+ */
+async function focusCycleOnSwatch(tab) {
+    /** @type {string[]} */
+    const applied = [];
+    await mountWithCleanup(ColorPicker, {
+        props: {
+            state: { selectedColor: "#FF0000", defaultTab: tab },
+            getUsedCustomColors: () => ["#123456", "#654321"],
+            applyColor() {},
+            applyColorPreview: (/** @type {string} */ c) =>
+                applied.push(`preview:${c}`),
+            applyColorResetPreview: () => applied.push("reset"),
+            colorPrefix: "",
+        },
+    });
+    const [swatch, sibling] = queryAll(
+        ".o_colorpicker_section .o_color_button[data-color]",
+    );
+    /** @param {(el: HTMLElement) => void} act */
+    const record = async (act) => {
+        applied.length = 0;
+        act(swatch);
+        await animationFrame();
+        return [...applied];
+    };
+    return {
+        focusedOnce: await record((el) =>
+            el.dispatchEvent(new FocusEvent("focusin", { bubbles: true })),
+        ),
+        leftForSibling: await record((el) =>
+            el.dispatchEvent(
+                new FocusEvent("focusout", { bubbles: true, relatedTarget: sibling }),
+            ),
+        ),
+        focusedAgain: await record((el) =>
+            el.dispatchEvent(new FocusEvent("focusin", { bubbles: true })),
+        ),
+    };
+}
+
+// The custom tab used to wire `focusout` to the *pointer*-out handler, which
+// resets the preview but never clears the picker's `focusedBtn`. `focusin` then
+// short-circuits forever on that element, so a swatch previewed once and never
+// again -- keyboard users lost the preview after the first visit. Both tabs
+// have to answer the same, which is why this is two tests and not one loop:
+// each needs its own fixture.
+test("the solid tab re-previews a swatch focused, left and focused again", async () => {
+    const cycle = await focusCycleOnSwatch("solid");
+    expect(cycle.focusedOnce.length).toBe(1);
+    expect(cycle.leftForSibling).toEqual(["reset"]);
+    expect(cycle.focusedAgain.length).toBe(1);
+});
+
+test("the custom tab re-previews a swatch focused, left and focused again", async () => {
+    const cycle = await focusCycleOnSwatch("custom");
+    expect(cycle.focusedOnce.length).toBe(1);
+    expect(cycle.leftForSibling).toEqual(["reset"]);
+    expect(cycle.focusedAgain.length).toBe(1);
 });

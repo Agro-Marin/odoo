@@ -42,18 +42,8 @@ export class DatetimePicker extends Interaction {
                 ),
             },
         });
-        const disableListeners = picker.enable();
-        this.registerCleanup(() => {
-            try {
-                disableListeners();
-            } finally {
-                try {
-                    picker.close();
-                } finally {
-                    picker.disable();
-                }
-            }
-        });
+        picker.enable();
+        this.registerCleanup(() => picker.dispose());
     }
 }
 

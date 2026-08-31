@@ -107,7 +107,6 @@
                         <label
                             t-attf-for="{{ idPrefix }}_{{ section.id }}_group_{{ groupId }}"
                             class="o_search_panel_label form-check-label d-flex align-items-center justify-content-between w-100 cursor-pointer"
-                            t-att-class="{ o_with_counters: group.enableCounters }"
                             t-att-title="group.tooltip or false"
                             >
                             <span class="o_search_panel_label_title text-truncate"
@@ -191,7 +190,6 @@
                 >
                 <div
                     class="o_search_panel_label d-flex align-items-center overflow-hidden w-100 cursor-pointer mb-0"
-                    t-att-class="{'o_with_counters': section.enableCounters }"
                     t-att-data-tooltip="value.display_name"
                     >
                     <button class="o_toggle_fold btn p-0 px-1 flex-shrink-0 text-center" tabindex="-1" aria-hidden="true">

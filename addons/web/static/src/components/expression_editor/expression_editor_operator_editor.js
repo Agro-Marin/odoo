@@ -3,12 +3,16 @@
 
 import { getDomainDisplayedOperators } from "@web/components/domain_selector/domain_selector_operator_editor";
 
-/** @type {string[]} */
+/**
+ * The subset of `getDomainDisplayedOperators` that an expression can express.
+ * It is an intersection, so an entry that function never returns is dead: `<=`
+ * and `>=` sat here unreachable, since no branch of it yields either.
+ *
+ * @type {string[]}
+ */
 const EXPRESSION_VALID_OPERATORS = [
     "<",
-    "<=",
     ">",
-    ">=",
     "between",
     "in range",
     "in",

@@ -23,7 +23,7 @@ import { getComponentElement } from "@web/core/utils/components";
 import { mergeClasses } from "@web/core/utils/dom/classname";
 import { uniqueId } from "@web/core/utils/functions";
 import { useChildRef, useService } from "@web/core/utils/hooks";
-import { disposableEffect } from "@web/core/utils/reactive";
+import { effect } from "@web/core/utils/reactive";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { utils } from "@web/ui/viewport";
 
@@ -208,7 +208,7 @@ export class Dropdown extends Component {
         });
 
         onMounted(() => this.onStateChanged(this.state));
-        const disposeEffect = disposableEffect(
+        const disposeEffect = effect(
             (state) => this.onStateChanged(state),
             [this.state],
         );

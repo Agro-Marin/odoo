@@ -45,6 +45,16 @@ errorNotificationRegistry.addValidation({
 });
 
 /**
+ * The host that served the failing script, when the error came with an event.
+ *
+ * @param {UncaughtError} error
+ * @returns {string | undefined}
+ */
+function serverHostOf(error) {
+    return /** @type {any} */ (error.event)?.target?.location?.host;
+}
+
+/**
  * @param {OdooEnv} env
  * @param {UncaughtError} error
  * @param {Error} originalError
@@ -52,7 +62,7 @@ errorNotificationRegistry.addValidation({
  */
 export function supersededErrorHandler(env, error, originalError) {
     if (originalError instanceof SupersededError || error instanceof SupersededError) {
-        /** @type {any} */ (error).event?.preventDefault?.();
+        error.event?.preventDefault();
         return true;
     }
     return false;
@@ -74,7 +84,7 @@ export function rpcErrorHandler(env, error, originalError) {
         return false;
     }
     if (originalError instanceof RPCError) {
-        error.unhandledRejectionEvent?.preventDefault();
+        error.event?.preventDefault();
         const exceptionName = originalError.exceptionName;
         let ErrorComponent = /** @type {any} */ (originalError).Component;
         if (!ErrorComponent && exceptionName) {
@@ -110,7 +120,7 @@ export function rpcErrorHandler(env, error, originalError) {
             subType: originalError.subType,
             code: originalError.code,
             type: originalError.type,
-            serverHost: /** @type {any} */ (error).event?.target?.location?.host,
+            serverHost: serverHostOf(error),
             model: originalError.model,
         });
         return true;
@@ -144,7 +154,7 @@ function handleInvalidResponse(env, error, originalError, recovery) {
         traceback: error.traceback,
         message: originalError.message,
         name: originalError.name,
-        serverHost: /** @type {any} */ (error).event?.target?.location?.host,
+        serverHost: serverHostOf(error),
     });
     return true;
 }
@@ -166,7 +176,7 @@ export function lostConnectionHandler(env, error, originalError) {
         return false;
     }
     const recovery = env.services.connection_recovery;
-    error.unhandledRejectionEvent?.preventDefault();
+    error.event?.preventDefault();
     if (!recovery || recovery.isDestroyed) {
         return true;
     }
@@ -210,7 +220,7 @@ function requestEntityTooLargeHandler(env, error, originalError) {
         return false;
     }
     if (originalError instanceof RequestEntityTooLargeError) {
-        error.unhandledRejectionEvent?.preventDefault();
+        error.event?.preventDefault();
         env.services.dialog.add(RequestEntityTooLargeErrorDialog);
         return true;
     }
@@ -251,7 +261,7 @@ export function defaultHandler(env, error) {
         traceback: error.traceback,
         message: error.message,
         name: error.name,
-        serverHost: /** @type {any} */ (error).event?.target?.location?.host,
+        serverHost: serverHostOf(error),
     });
     return true;
 }

@@ -1,7 +1,7 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { click, press } from "@odoo/hoot-dom";
+import { click, press, queryOne } from "@odoo/hoot-dom";
 import { animationFrame, Deferred, runAllTimers } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
 import {
@@ -557,5 +557,48 @@ test("a rejected pager entry is put back, not left in the input", async () => {
 
     expect(".o_pager_value").toHaveValue("1-10", {
         message: "a backwards range reverts too",
+    });
+});
+
+test.tags("desktop");
+test("editing survives a pointerdown inside the input, and only that", async () => {
+    class Host extends Component {
+        static template = xml`<div><span class="outside">elsewhere</span><Pager t-props="state"/></div>`;
+        static components = { Pager };
+        static props = ["*"];
+        setup() {
+            this.state = useState({ ...this.props });
+        }
+    }
+    const props = { offset: 0, limit: 4, total: 10, onUpdate() {} };
+
+    // Clicking the input to move the caret must not tear the input down. The
+    // click-away hook fires on every window pointerdown, so before it honoured
+    // its own getAnchor/getContentEl this collapsed edit mode on the first
+    // click inside the field.
+    await mountWithCleanup(Host, { props });
+    await contains(".o_pager_value").click();
+    expect("input.o_pager_value").toHaveCount(1);
+    await contains("input.o_pager_value").click();
+    await animationFrame();
+    expect("input.o_pager_value").toHaveCount(1, {
+        message: "clicking inside the open input keeps edit mode",
+    });
+
+    // A bare pointerdown, with no focus or click following it, is the event the
+    // hook actually listens to.
+    queryOne("input.o_pager_value").dispatchEvent(
+        new PointerEvent("pointerdown", { bubbles: true, composed: true }),
+    );
+    await animationFrame();
+    expect("input.o_pager_value").toHaveCount(1, {
+        message: "a bare pointerdown inside the input keeps edit mode",
+    });
+
+    // ...while a pointerdown anywhere else still commits and closes.
+    await contains(".outside").click();
+    await animationFrame();
+    expect("input.o_pager_value").toHaveCount(0, {
+        message: "clicking outside still leaves edit mode",
     });
 });

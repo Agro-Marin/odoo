@@ -9,4 +9,4 @@ export {
     useDropdownCloser,
     useDropdownState,
 } from "./dropdown/dropdown_hook.js";
-export { DropdownItem } from "./dropdown/dropdown_item.js";
+export { ClosingMode, DropdownItem } from "./dropdown/dropdown_item.js";

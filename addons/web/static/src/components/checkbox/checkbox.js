@@ -112,7 +112,7 @@ export class CheckBox extends Component {
                 if (!this.env.debug) {
                     return;
                 }
-                console.warn(
+                browser.console.warn(
                     "[CheckBox] reverted a click because `value` never moved. " +
                         "Either the parent rejected the change, or it stored it " +
                         "somewhere owl cannot see (a plain Set/Map/field instead " +

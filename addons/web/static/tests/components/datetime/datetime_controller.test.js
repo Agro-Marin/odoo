@@ -316,3 +316,47 @@ test("the visibility spacer is returned on a normal close", () => {
     controller.picker.close();
     expect(input.style.marginBottom).toBe("4px");
 });
+
+test("dispose runs every teardown step even when one throws", async () => {
+    const { controller, dateTimePickerList, getPopover } = createController();
+    const [input] = makeInputs(1);
+    controller.getInputs = () => [input, null];
+    controller.enable();
+    controller.open(0);
+    expect(controller.isOpen()).toBe(true);
+    expect(dateTimePickerList.has(controller.picker)).toBe(true);
+
+    // A popover that refuses to close must not strand the listeners or the
+    // registration: the picker would stay in the "close every other picker"
+    // sweep forever, holding a detached input.
+    patchWithCleanup(getPopover(), {
+        close() {
+            throw new Error("popover close blew up");
+        },
+    });
+
+    /** @type {any} */
+    let raised = null;
+    try {
+        controller.dispose();
+    } catch (error) {
+        raised = error;
+    }
+
+    expect(raised?.message).toBe("popover close blew up");
+    expect(dateTimePickerList.has(controller.picker)).toBe(false);
+    expect(controller.disableListeners).toBe(null);
+    expect(controller.destroyed).toBe(true);
+});
+
+test("unregister only drops the registration, it is not enable's inverse", async () => {
+    const { controller, dateTimePickerList } = createController();
+    const [input] = makeInputs(1);
+    controller.getInputs = () => [input, null];
+    controller.enable();
+
+    expect(dateTimePickerList.has(controller.picker)).toBe(true);
+    controller.picker.unregister();
+    expect(dateTimePickerList.has(controller.picker)).toBe(false);
+    expect(controller.disableListeners).not.toBe(null);
+});

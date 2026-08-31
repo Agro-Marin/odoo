@@ -10,6 +10,8 @@ import { useDateTimePicker } from "./datetime_picker_hook.js";
 
 /**
  * @typedef {import("./datetime_picker").DateTimePickerProps & {
+ * class?: string;
+ * disabled?: boolean;
  * format?: string;
  * id?: string;
  * onApply?: (value: DateTime) => any;
@@ -28,6 +30,9 @@ const dateTimeInputOwnProps = {
     disabled: { type: Boolean, optional: true },
 };
 
+/** Everything above is consumed here and must not reach the picker. */
+const DATE_TIME_INPUT_OWN_PROP_NAMES = Object.keys(dateTimeInputOwnProps);
+
 /** @extends {Component<DateTimeInputProps>} */
 export class DateTimeInput extends Component {
     static props = {
@@ -39,10 +44,7 @@ export class DateTimeInput extends Component {
 
     setup() {
         const getPickerProps = () =>
-            omit(
-                this.props,
-                .../** @type {any} */ (Object.keys(dateTimeInputOwnProps)),
-            );
+            omit(this.props, .../** @type {any} */ (DATE_TIME_INPUT_OWN_PROP_NAMES));
 
         useDateTimePicker(
             /** @type {any} */ ({

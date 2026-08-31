@@ -11,7 +11,6 @@ export class FileUploadProgressRecord extends Component {
     };
     static props = {
         fileUpload: Object,
-        selector: { type: String, optional: true },
     };
     /**
      * @returns {{ left: string, right: string }}

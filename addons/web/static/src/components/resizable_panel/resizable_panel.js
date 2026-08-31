@@ -2,7 +2,11 @@
 /** @odoo-module native */
 
 import { Component } from "@odoo/owl";
-import { useResizable } from "@web/components/resizable_panel/resizable_panel_hook";
+import {
+    DEFAULT_PANEL_WIDTH,
+    useResizable,
+} from "@web/components/resizable_panel/resizable_panel_hook";
+import { mergeClasses } from "@web/core/utils/dom/classname";
 
 export class ResizablePanel extends Component {
     static template = "web.ResizablePanel";
@@ -20,8 +24,8 @@ export class ResizablePanel extends Component {
     };
     static defaultProps = {
         onResize: () => {},
-        initialWidth: 400,
-        minWidth: 400,
+        initialWidth: DEFAULT_PANEL_WIDTH,
+        minWidth: DEFAULT_PANEL_WIDTH,
         class: "",
         handleSide: "end",
     };
@@ -38,13 +42,17 @@ export class ResizablePanel extends Component {
     }
 
     /**
-     * @returns {string}
+     * The panel positions its handle absolutely, so it has to establish a
+     * containing block -- unless the caller already chose a `position-*` of
+     * their own, which is theirs to keep.
+     *
+     * @returns {Record<string, boolean>}
      */
     get class() {
-        const classes = this.props.class.split(" ");
-        if (!classes.some((cls) => cls.startsWith("position-"))) {
-            classes.push("position-relative");
-        }
-        return classes.join(" ");
+        const classes = mergeClasses(this.props.class);
+        const positioned = Object.keys(classes).some(
+            (cls) => classes[cls] && cls.startsWith("position-"),
+        );
+        return mergeClasses(classes, { "position-relative": !positioned });
     }
 }

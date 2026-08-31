@@ -46,7 +46,7 @@ export class ColorList extends Component {
                 this.state.isExpanded = nextProps.isExpanded;
             }
         });
-        useClickAway((node) => this.onOutsideClick(node), {
+        useClickAway(() => this.onOutsideClick(), {
             getAnchor: () => this.colorlistRef.el,
             getContentEl: () => this.colorlistRef.el,
         });
@@ -75,13 +75,8 @@ export class ColorList extends Component {
             this.state.isExpanded = false;
         }
     }
-    /** @param {Node} [node] */
-    onOutsideClick(node) {
-        if (
-            !this.state.isExpanded ||
-            this.props.forceExpanded ||
-            this.colorlistRef.el?.contains(node ?? null)
-        ) {
+    onOutsideClick() {
+        if (!this.state.isExpanded || this.props.forceExpanded) {
             return;
         }
         this.state.isExpanded = false;

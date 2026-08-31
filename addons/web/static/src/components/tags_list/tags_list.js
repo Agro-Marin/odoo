@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { Component } from "@odoo/owl";
+import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 
 /**
  * @typedef {Object} Tag
@@ -45,6 +46,29 @@ export class TagsList extends Component {
         visibleItemsLimit: { type: Number, optional: true },
         tags: { type: Array, element: TAG_SHAPE },
     };
+
+    setup() {
+        useRenderCounter("components.TagsList");
+    }
+
+    /**
+     * `resId` first, because `id` is not stable for every producer: the x2many
+     * tag builders fill it with the relational model's *datapoint* id, which is
+     * re-minted whenever the list reloads. Keying on that made an unrelated save
+     * destroy and rebuild every tag's DOM node -- losing focus, selection and any
+     * running transition -- although nothing about the tag had changed.
+     *
+     * `||` rather than `??` on purpose: an unsaved record has `resId === false`,
+     * which must fall through to the datapoint id rather than key every such tag
+     * the same.
+     *
+     * @param {Tag} tag
+     * @param {number} index
+     * @returns {string | number}
+     */
+    tagKey(tag, index) {
+        return /** @type {any} */ (tag).resId || tag.id || index;
+    }
 
     /**
      * @returns {number}

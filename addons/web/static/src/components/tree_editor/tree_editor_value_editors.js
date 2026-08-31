@@ -33,6 +33,7 @@ import {
 import { getInRangeProviderOptions } from "@web/core/tree/in_range_providers";
 import { disambiguate, getResModel, isId } from "@web/core/tree/utils";
 import { unique } from "@web/core/utils/collections/arrays";
+import { isObject } from "@web/core/utils/collections/objects";
 /**
  * @typedef {Object} ValueEditorInfo
  * @property {import("@odoo/owl").ComponentConstructor | null} [component]
@@ -41,7 +42,7 @@ import { unique } from "@web/core/utils/collections/arrays";
  * @property {(operator?: string) => any} defaultValue
  * @property {((value: any) => boolean)} [shouldResetValue]
  * @property {string} message
- * @property {(value: any, disambiguate?: boolean) => string} stringify
+ * @property {(value: any, shouldDisambiguate?: boolean) => string} stringify
  * @typedef {Partial<ValueEditorInfo> & Pick<ValueEditorInfo, "isSupported" | "defaultValue">} PartialValueEditorInfo
  */
 
@@ -147,11 +148,11 @@ function makeSelectEditor(options, params = {}) {
         }),
         isSupported: (value) => Boolean(getOption(value)),
         defaultValue: () => options[0]?.[0] ?? false,
-        stringify: (value, disambiguate) => {
+        stringify: (value, shouldDisambiguate) => {
             const option = getOption(value);
             return option
                 ? String(option[1])
-                : disambiguate
+                : shouldDisambiguate
                   ? formatValue(value)
                   : String(value);
         },
@@ -195,13 +196,6 @@ function makeAutoCompleteEditor(fieldDef) {
 }
 
 /**
- * @param {any} value
- * @returns {boolean}
- */
-function isLitteralObject(value) {
-    return typeof value === "object" && !Array.isArray(value) && value !== null;
-}
-/**
  * @param {Object} fieldDef
  * @param {Object} params
  * @returns {PartialValueEditorInfo}
@@ -222,7 +216,7 @@ function makeBetweenEditor(fieldDef, params) {
         isSupported: (value) => Array.isArray(value) && value.length === 2,
         defaultValue: () => {
             const value = defaultValue();
-            return isLitteralObject(value) ? [value.start, value.end] : [value, value];
+            return isObject(value) ? [value.start, value.end] : [value, value];
         },
         shouldResetValue: (value) =>
             !editorInfo.isSupported(value[0]) || !editorInfo.isSupported(value[1]),
@@ -542,8 +536,8 @@ export function getValueEditorInfo(fieldDef, operator, options = {}) {
     return {
         extractProps: ({ value, update }) => ({ value, update }),
         message: _t("Value not supported"),
-        stringify: (val, disambiguate = true) => {
-            if (disambiguate) {
+        stringify: (val, shouldDisambiguate = true) => {
+            if (shouldDisambiguate) {
                 return formatValue(val);
             }
             return String(val);

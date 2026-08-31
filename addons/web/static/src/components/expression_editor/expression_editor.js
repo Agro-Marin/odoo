@@ -7,6 +7,7 @@ import { getExpressionDisplayedOperators } from "@web/components/expression_edit
 import { ModelFieldSelector } from "@web/components/model_field_selector/model_field_selector";
 import { getOperatorEditorInfo, TreeEditor } from "@web/components/tree_editor";
 import { _t } from "@web/core/translation";
+import { formatValue } from "@web/core/tree/condition_tree";
 import { expressionFromTree } from "@web/core/tree/expression_from_tree";
 import { treeFromExpression } from "@web/core/tree/tree_from_expression";
 export class ExpressionEditor extends Component {
@@ -74,11 +75,23 @@ export class ExpressionEditor extends Component {
     }
 
     /**
+     * The operator vocabulary offered for a field. The single place this
+     * component decides it; both the default operator and the operator editor
+     * are derived from it.
+     *
+     * @param {Object} fieldDef
+     * @returns {string[]}
+     */
+    getDisplayedOperators(fieldDef) {
+        return getExpressionDisplayedOperators(fieldDef);
+    }
+
+    /**
      * @param {Object} fieldDef
      * @returns {string}
      */
     getDefaultOperator(fieldDef) {
-        return getExpressionDisplayedOperators(fieldDef)[0];
+        return this.getDisplayedOperators(fieldDef)[0];
     }
 
     /**
@@ -86,8 +99,7 @@ export class ExpressionEditor extends Component {
      * @returns {any}
      */
     getOperatorEditorInfo(fieldDef) {
-        const operators = getExpressionDisplayedOperators(fieldDef);
-        return getOperatorEditorInfo(operators, fieldDef);
+        return getOperatorEditorInfo(this.getDisplayedOperators(fieldDef), fieldDef);
     }
 
     /**
@@ -115,7 +127,10 @@ export class ExpressionEditor extends Component {
             }),
             isSupported: (value) =>
                 [0, 1].includes(value) || value in this.filteredFields,
-            stringify: (value) => this.props.fields[value].string,
+            // Reached only when isSupported said no, which includes paths this
+            // model has no field for -- so this cannot dereference blindly.
+            stringify: (value) =>
+                this.props.fields[value]?.string ?? formatValue(value),
             defaultValue: () => defaultCondition.path,
             message: _t("Field properties not supported"),
         };

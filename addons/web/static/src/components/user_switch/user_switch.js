@@ -32,11 +32,11 @@ export class UserSwitch extends Component {
             if (!this.form) {
                 return;
             }
-            const hideForm = users.length > 1;
-            this.form.classList.toggle("d-none", hideForm);
-            if (!hideForm) {
-                this.form.querySelector(":placeholder-shown")?.focus();
-            }
+            // The login form is hidden exactly while the user is being offered a
+            // choice, which is what `displayUserChoice` already says. Deriving
+            // it here from a second, different threshold (`> 1` against
+            // `toggleFormDisplay`'s `> 0`) was two spellings of one predicate.
+            this.syncFormDisplay();
         });
         useEffect(
             (el) => el?.querySelector("button.list-group-item-action")?.focus(),
@@ -44,14 +44,22 @@ export class UserSwitch extends Component {
         );
     }
 
-    toggleFormDisplay() {
-        this.state.displayUserChoice =
-            !this.state.displayUserChoice && this.state.users.length > 0;
+    syncFormDisplay() {
         if (!this.form) {
             return;
         }
         this.form.classList.toggle("d-none", this.state.displayUserChoice);
-        this.form.querySelector(":placeholder-shown")?.focus();
+        if (!this.state.displayUserChoice) {
+            /** @type {HTMLElement | null} */ (
+                this.form.querySelector(":placeholder-shown")
+            )?.focus();
+        }
+    }
+
+    toggleFormDisplay() {
+        this.state.displayUserChoice =
+            !this.state.displayUserChoice && this.state.users.length > 0;
+        this.syncFormDisplay();
     }
 
     /** @param {{ partnerId: number, partnerWriteDate: any }} param0 */

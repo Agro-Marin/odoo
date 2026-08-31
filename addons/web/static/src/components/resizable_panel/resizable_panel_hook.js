@@ -11,6 +11,11 @@ import {
 } from "@odoo/owl";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
+/** Fallback half-width used before the handle element exists. */
+const DEFAULT_SPACING = 10;
+/** Shared with `ResizablePanel.defaultProps`, which is the caller-facing copy. */
+export const DEFAULT_PANEL_WIDTH = 400;
+
 /**
  * @typedef {"start" | "end"} ResizeSide
  * @typedef {Object} UseResizableParams
@@ -123,8 +128,8 @@ class ResizeController {
     }
 
     /** @returns {number} */
-    handlerSpacing() {
-        return this.handleRef.el ? this.handleRef.el.offsetWidth / 2 : 10;
+    handleSpacing() {
+        return this.handleRef.el ? this.handleRef.el.offsetWidth / 2 : DEFAULT_SPACING;
     }
 
     /**
@@ -134,7 +139,7 @@ class ResizeController {
     clampWidth(width) {
         return Math.min(
             Math.max(this.minWidth, width),
-            this.limitWidth() - this.handlerSpacing(),
+            this.limitWidth() - this.handleSpacing(),
         );
     }
 
@@ -143,7 +148,7 @@ class ResizeController {
      * @returns {number}
      */
     finalWidth(targetContainerWidth) {
-        return this.clampWidth(targetContainerWidth + this.handlerSpacing());
+        return this.clampWidth(targetContainerWidth + this.handleSpacing());
     }
 
     /** @returns {{ left: number, right: number, width: number }} */
@@ -186,8 +191,8 @@ class ResizeController {
 export function useResizable({
     containerRef: _containerRef,
     handleRef: _handleRef,
-    getInitialWidth = (_props) => 400,
-    getMinWidth = (_props) => 400,
+    getInitialWidth = (_props) => DEFAULT_PANEL_WIDTH,
+    getMinWidth = (_props) => DEFAULT_PANEL_WIDTH,
     onResize = (_width) => {},
     getResizeSide = (_props) => "end",
 }) {

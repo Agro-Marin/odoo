@@ -48,7 +48,7 @@ import { ensureArray } from "@web/core/utils/collections/arrays";
  * @property {(date: DateTime) => string} [dayCellClass]
  * @typedef {DateItem | MonthItem} Item
  * @typedef MonthItem
- * @property {[string, string][]} daysOfWeek
+ * @property {[string, string, string][]} daysOfWeek
  * @property {string} id
  * @property {number} number
  * @property {WeekItem[]} weeks
@@ -183,12 +183,15 @@ const PRECISION_LEVELS = new Map()
                 weeks.push(toWeekItem(weekDayItems));
             }
 
+            // One locale for the whole row: reading `Info.weekdays` per day
+            // rebuilt the same seven-name array seven times.
+            const narrowWeekdays = Info.weekdays("narrow", {
+                locale: weeks[0].days[0].range[0].locale,
+            });
             const daysOfWeek = weeks[0].days.map((d) => [
                 d.range[0].weekdayShort,
                 d.range[0].weekdayLong,
-                Info.weekdays("narrow", { locale: d.range[0].locale })[
-                    d.range[0].weekday - 1
-                ],
+                narrowWeekdays[d.range[0].weekday - 1],
             ]);
             if (showWeekNumbers) {
                 daysOfWeek.unshift(["", _t("Week numbers"), ""]);
@@ -463,14 +466,13 @@ export class DateTimePicker extends Component {
         const { focusedDateIndex, range, showWeekNumbers } = this.props;
         const { focusDate, hoveredDate } = this.state;
         const precision = this.activePrecisionLevel;
-        const effShowWeekNumbers = showWeekNumbers ?? !range;
 
         const gridKey = [
             focusDate?.ts,
             precision,
             this.minDate?.ts,
             this.maxDate?.ts,
-            effShowWeekNumbers,
+            showWeekNumbers,
             today().ts,
         ];
         if (
@@ -482,7 +484,7 @@ export class DateTimePicker extends Component {
             this._grid = precision.getItems(focusDate, {
                 maxDate: this.maxDate,
                 minDate: this.minDate,
-                showWeekNumbers: effShowWeekNumbers,
+                showWeekNumbers,
             });
         }
         this.items = this.decorateGrid(this._grid);

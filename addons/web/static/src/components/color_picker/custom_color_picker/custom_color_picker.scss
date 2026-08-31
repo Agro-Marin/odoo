@@ -25,8 +25,7 @@
             #f00 100%
         );
     }
-    .o_opacity_slider,
-    .o_color_preview {
+    .o_opacity_slider {
         @extend %o-preview-alpha-background;
     }
     .o_color_slider,
@@ -55,8 +54,7 @@
     }
     .o_slider_pointer,
     .o_opacity_pointer,
-    .o_picker_pointer,
-    .o_color_preview {
+    .o_picker_pointer {
         box-shadow: inset 0 0 0 1px rgba(white, 0.9);
         border: 1px solid black;
     }

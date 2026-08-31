@@ -406,6 +406,19 @@ export class TreeEditor extends Component {
     }
 
     /**
+     * Applies `operation` to the tree and publishes the result.
+     *
+     * The parent re-renders us whenever the edit changed the tree it holds; when
+     * it did not -- re-picking the operator already in place, toggling a
+     * connector that has one child -- nothing upstream moves, so we refresh our
+     * own derived info and render.
+     *
+     * The publish is unconditional. It used to sit after the refresh, which
+     * meant a refresh that rejected (`loadFields` failing on the equivalent-tree
+     * path) dropped the user's edit *and* let the rejection escape into an
+     * un-awaited template handler. The edit is the user's; a failure to
+     * re-derive labels for it is not a reason to discard it.
+     *
      * @param {Tree} node
      * @param {() => void|Promise<void>} operation
      * @returns {Promise<void>}
@@ -414,10 +427,13 @@ export class TreeEditor extends Component {
         const previousNode = cloneTree(node);
         await operation();
         const parentWillNotRerenderUs = areEquivalentTrees(node, previousNode);
-        if (parentWillNotRerenderUs && (await this.prepareInfo(this.props))) {
-            this.render();
+        try {
+            if (parentWillNotRerenderUs && (await this.prepareInfo(this.props))) {
+                this.render();
+            }
+        } finally {
+            this.notifyChanges();
         }
-        this.notifyChanges();
     }
 
     /**

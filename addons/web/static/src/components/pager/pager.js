@@ -34,7 +34,7 @@ export class Pager extends Component {
             isDisabled: false,
         });
         this.inputRef = useAutofocus();
-        useClickAway(() => this.onClickAway(), {
+        useClickAway(() => this.stopEditing(), {
             getAnchor: () => this.inputRef.el,
             getContentEl: () => this.inputRef.el,
         });
@@ -177,10 +177,7 @@ export class Pager extends Component {
         }
     }
 
-    onClickAway() {
-        this.state.isEditing = false;
-    }
-    onInputBlur() {
+    stopEditing() {
         this.state.isEditing = false;
     }
     /**
