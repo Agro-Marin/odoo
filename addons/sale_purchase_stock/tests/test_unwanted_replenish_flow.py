@@ -213,3 +213,57 @@ class TestWarnUnwantedReplenish(common.TransactionCase):
         po = (so1 | so2)._get_purchase_orders()
         self.assertTrue(po.action_confirm())
         self.assertNotEqual(len(po.ids), 1)
+
+    def test_get_sale_order_line_product_on_dropship_line(self):
+        # `_get_sale_order_line_product` is defined independently in both
+        # this module and purchase_mrp (a sibling auto_install module this
+        # one shares no dependency with); neither calls super(), so which
+        # implementation wins is decided by module-load order rather than
+        # by any explicit contract. Pin the correct resolution here so a
+        # future regression (e.g. purchase_mrp's `False` stub winning
+        # instead) fails loudly.
+        try:
+            dropship_route = self.env.ref("stock_dropshipping.route_drop_shipping")
+        except ValueError:
+            self.skipTest("This test requires the following module: stock_dropshipping")
+
+        dropshipped_product = self.env["product.product"].create(
+            {
+                "name": "Dropshipped Product 2",
+                "type": "consu",
+                "is_storable": True,
+                "seller_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "partner_id": self.vendor.id,
+                        },
+                    )
+                ],
+                "route_ids": dropship_route.ids,
+            }
+        )
+
+        so = self.env["sale.order"].create(
+            {
+                "partner_id": self.customer.id,
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": dropshipped_product.id,
+                            "product_qty": 1,
+                            "price_unit": 100.0,
+                        }
+                    ),
+                ],
+            }
+        )
+        so.action_confirm()
+
+        po_line = so._get_purchase_orders().line_ids
+        self.assertEqual(po_line.sale_line_id, so.line_ids)
+        self.assertEqual(
+            po_line._get_sale_order_line_product(),
+            dropshipped_product,
+        )
