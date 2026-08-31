@@ -170,10 +170,12 @@ class kioskAttendanceApp extends Component{
         if (result && result.attendance) {
             this.employeeData = result
             this.switchDisplay('greet')
+            return true;
         }else{
             if (enteredPin){
                 this.displayNotification(_t("Wrong Pin"))
             }
+            return false;
         }
     }
 

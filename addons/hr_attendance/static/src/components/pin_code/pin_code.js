@@ -49,7 +49,6 @@ export class KioskPinCode extends Component {
                 this.state.codePin = this.state.codePin.substring(0, this.state.codePin.length - 1);
             }
         }
-        browser.addEventListener('keydown', onKeyDown);
         onWillStart(() => browser.addEventListener('keydown', onKeyDown))
         onWillDestroy(() => browser.removeEventListener('keydown', onKeyDown));
     }
@@ -62,11 +61,19 @@ export class KioskPinCode extends Component {
             this.state.codePin = "";
         } else if (value === "OK") {
             this.lockPad = true;
-            await this.props.onPinConfirm(this.props.employeeData.id, this.state.codePin)
+            const accepted = await this.props.onPinConfirm(
+                this.props.employeeData.id,
+                this.state.codePin
+            );
             this.state.codePin = "";
-            this.failedAttempts += 1;
+            // Only a rejected PIN slows the pad down. Counting every press made
+            // a correct one wait too, and reset nothing on success, so the
+            // employee after a few mistakes paid for them as well.
+            this.failedAttempts = accepted ? 0 : this.failedAttempts + 1;
             const backoff = Math.min(this.failedAttempts * 500, 5000);
-            await new Promise((resolve) => browser.setTimeout(resolve, backoff));
+            if (backoff) {
+                await new Promise((resolve) => browser.setTimeout(resolve, backoff));
+            }
             this.lockPad = false;
         } else {
             this.state.codePin += value;

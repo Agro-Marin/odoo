@@ -273,9 +273,14 @@ class HrAttendance(http.Controller):
     ):
         company = self._get_company(token)
         if company:
-            employee = request.env["hr.employee"].sudo().browse(employee_id)
-            if employee.company_id == company and (
-                (not company.attendance_kiosk_use_pin) or (employee.pin == pin_code)
+            employee = request.env["hr.employee"].sudo().browse(employee_id).exists()
+            if (
+                employee
+                and employee.company_id == company
+                and (
+                    (not company.attendance_kiosk_use_pin)
+                    or employee._check_attendance_pin(pin_code)
+                )
             ):
                 employee.sudo()._attendance_action_change(
                     self._get_geoip_response(

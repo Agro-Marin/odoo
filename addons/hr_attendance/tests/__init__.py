@@ -9,6 +9,7 @@ from . import test_hr_attendance_rulesets
 from . import test_performance
 from . import test_hr_attendance_manager
 from . import test_hr_attendance_security
+from . import test_hr_attendance_pin
 from . import test_hr_attendance_derived_fields
 from . import test_hr_attendance_timezone
 from . import test_hr_attendance_expected_hours_hook

@@ -1,3 +1,4 @@
+import hmac
 from collections import defaultdict
 from datetime import UTC
 
@@ -75,6 +76,16 @@ class HrEmployee(models.Model):
     total_overtime = fields.Float(compute="_compute_total_overtime", compute_sudo=True)
     display_extra_hours = fields.Boolean(
         related="company_id.hr_attendance_display_overtime"
+    )
+
+    attendance_pin_failure_count = fields.Integer(
+        default=0,
+        copy=False,
+        groups="hr_attendance.group_hr_attendance_officer,hr.group_hr_user",
+    )
+    attendance_pin_retry_after = fields.Datetime(
+        copy=False,
+        groups="hr_attendance.group_hr_attendance_officer,hr.group_hr_user",
     )
 
     ruleset_id = fields.Many2one(
@@ -253,6 +264,58 @@ class HrEmployee(models.Model):
             employee.attendance_state = (
                 att and not att.check_out and "checked_in"
             ) or "checked_out"
+
+    # Free while an employee is plausibly mistyping, then doubling, capped so a
+    # locked-out employee waits a minute rather than an afternoon. A four digit
+    # PIN is ten thousand guesses; at a minute each that is a week of sustained
+    # requests, while three fat-fingered attempts still cost nothing.
+    _PIN_FAILURES_BEFORE_THROTTLE = 3
+    _PIN_MAX_RETRY_DELAY = 60
+
+    def _attendance_pin_retry_delay(self):
+        self.ensure_one()
+        over = self.attendance_pin_failure_count - self._PIN_FAILURES_BEFORE_THROTTLE
+        if over < 1:
+            return 0
+        return min(2**over, self._PIN_MAX_RETRY_DELAY)
+
+    def _check_attendance_pin(self, pin_code):
+        """Whether `pin_code` opens this employee's kiosk, throttled.
+
+        The route this backs is `auth="public"`, so the only thing between a
+        four digit PIN and anyone holding the kiosk URL is what happens here.
+        The keypad's own back-off runs in the caller's browser and is not
+        reached by a request that never loads it.
+        """
+        self.ensure_one()
+        employee = self.sudo()
+        now = fields.Datetime.now()
+        # Attempts made while throttled still count. Returning early without
+        # counting them pins the delay at whatever first triggered it, so a
+        # caller that simply retries on a timer never escalates past it.
+        locked = (
+            employee.attendance_pin_retry_after
+            and now < employee.attendance_pin_retry_after
+        )
+        if (
+            not locked
+            and pin_code
+            and hmac.compare_digest(str(employee.pin or ""), str(pin_code))
+        ):
+            if employee.attendance_pin_failure_count:
+                employee.write(
+                    {
+                        "attendance_pin_failure_count": 0,
+                        "attendance_pin_retry_after": False,
+                    }
+                )
+            return True
+        employee.attendance_pin_failure_count += 1
+        delay = employee._attendance_pin_retry_delay()
+        employee.attendance_pin_retry_after = (
+            now + relativedelta(seconds=delay) if delay else False
+        )
+        return False
 
     def _attendance_action_change(self, geo_information=None):
         self.check_singleton()
