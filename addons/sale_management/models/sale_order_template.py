@@ -165,7 +165,9 @@ class SaleOrderTemplate(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         records = super().create(vals_list)
-        records._update_product_translations()
+        for record, vals in zip(records, vals_list, strict=True):
+            if "sale_order_template_line_ids" in vals:
+                record._update_product_translations()
         return records
 
     def write(self, vals):
@@ -177,7 +179,8 @@ class SaleOrderTemplate(models.Model):
             )
             companies.sale_order_template_id = None
         result = super().write(vals)
-        self._update_product_translations()
+        if "sale_order_template_line_ids" in vals:
+            self._update_product_translations()
         return result
 
     def _update_product_translations(self):
