@@ -10,6 +10,7 @@ export class CustomInnerSnippet extends Component {
         snippetModel: { type: Object },
         snippet: { type: Object },
         onClickHandler: { type: Function },
+        onSnippetKeydown: { type: Function, optional: true },
         disabledTooltip: { type: String },
     };
     static components = { Img };

@@ -1,11 +1,12 @@
 /** @odoo-module native */
 import { Img } from "@html_builder/core/img";
+import { useMatrixKeyNavigation } from "@html_builder/utils/keyboard_navigation";
 import { Component, markup, useRef } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { localization } from "@web/core/l10n/localization";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { fuzzyLookup } from "@web/core/utils/search";
+import { fuzzyLevenshteinLookup, fuzzyLookup } from "@web/core/utils/search";
 
 import { InputConfirmationDialog } from "./input_confirmation_dialog.js";
 
@@ -24,6 +25,11 @@ export class SnippetViewer extends Component {
         this.dialog = useService("dialog");
         this.content = useRef("content");
         this.backendDirection = localization.direction;
+
+        this.handleMatrixKeyNavigation = useMatrixKeyNavigation(
+            () => [this.content.el],
+            ".o_snippet_preview_wrap"
+        );
     }
 
     /**
@@ -105,20 +111,14 @@ export class SnippetViewer extends Component {
 
     getSnippetColumns() {
         const snippets = this.getSelectedSnippets();
-
-        const columns = [[], []];
-        for (const index in snippets) {
-            if (index % 2 === 0) {
-                columns[0].push(snippets[index]);
-            } else {
-                columns[1].push(snippets[index]);
-            }
+        // A phone-shaped preview is narrower, so the same width holds one more
+        // column of it.
+        const nbColumns = this.props.state.isMobilePreviewMode ? 3 : 2;
+        const columns = Array.from({ length: nbColumns }, () => []);
+        for (const [index, snippet] of snippets.entries()) {
+            columns[index % nbColumns].push(snippet);
         }
-        let numResults = 0;
-        for (const column of columns) {
-            numResults += column.length;
-        }
-        this.props.hasSearchResults(numResults > 0);
+        this.props.hasSearchResults(snippets.length > 0);
         return columns;
     }
 
@@ -135,6 +135,7 @@ export class SnippetViewer extends Component {
         if (hotkey === "enter" || hotkey === "space") {
             this.onClick(snippet);
         }
+        this.handleMatrixKeyNavigation(ev);
     }
 
     getContent(elem) {
@@ -143,6 +144,50 @@ export class SnippetViewer extends Component {
 
     getButtonInstallName(snippet) {
         return _t("Install %s", snippet.title);
+    }
+
+    /**
+     * The `s_*` classes carried by a snippet, its root node included.
+     *
+     * @param {Object} snippet
+     * @returns {string[]}
+     */
+    getSnippetClasses(snippet) {
+        const classes = new Set();
+        const elements = [snippet.content, ...snippet.content.querySelectorAll("*")];
+        for (const el of elements) {
+            for (const className of el.classList) {
+                if (className.startsWith("s_")) {
+                    classes.add(className);
+                }
+            }
+        }
+        return Array.from(classes);
+    }
+
+    /**
+     * The terms a snippet is searched by. Whole labels and classes are what
+     * makes the fuzzy ranking meaningful; the split keywords give the
+     * correction pass short strings to measure a distance against.
+     *
+     * @param {Object} snippet
+     * @returns {string[]}
+     */
+    getSnippetSearchTerms(snippet) {
+        const terms = new Set();
+        for (const term of [
+            snippet.title || "",
+            snippet.name || "",
+            snippet.label || "",
+            ...(snippet.keyWords?.split(",") || []),
+            ...this.getSnippetClasses(snippet),
+        ]) {
+            const normalized = term.trim().toLowerCase();
+            if (normalized) {
+                terms.add(normalized);
+            }
+        }
+        return Array.from(terms);
     }
 
     getSelectedSnippets() {
@@ -155,25 +200,27 @@ export class SnippetViewer extends Component {
                 this.content.el.ownerDocument.body.scrollTop = 0;
             }
         }
-        const getClasses = (snippet) => {
-            const classes = new Set();
-            const elements = [snippet.content, ...snippet.content.querySelectorAll("*")];
-            for (const el of elements) {
-                for (const className of el.classList) {
-                    if (className.startsWith("s_")) {
-                        classes.add(className);
-                    }
-                }
-            }
-            return Array.from(classes);
-        };
         if (this.props.state.search) {
-            return fuzzyLookup(this.props.state.search, snippetStructures, (snippet) => [
-                snippet.title || "",
-                snippet.name || "",
-                ...(snippet.keyWords?.split(",") || ""),
-                ...getClasses(snippet),
-            ]);
+            // Both passes ask for the same terms, and the second one asks for
+            // them again per snippet: build them once.
+            const termsBySnippet = new Map();
+            const getTerms = (snippet) => {
+                if (!termsBySnippet.has(snippet)) {
+                    termsBySnippet.set(snippet, this.getSnippetSearchTerms(snippet));
+                }
+                return termsBySnippet.get(snippet);
+            };
+            const matches = fuzzyLookup(this.props.state.search, snippetStructures, getTerms);
+            if (matches.length) {
+                return matches;
+            }
+            // Nothing matched as a subsequence, which is what a mistyped letter
+            // looks like. Allow a bounded number of corrections rather than
+            // showing an empty grid.
+            return snippetStructures.filter(
+                (snippet) =>
+                    fuzzyLevenshteinLookup(this.props.state.search, getTerms(snippet), 5).length
+            );
         }
 
         return snippetStructures.filter(

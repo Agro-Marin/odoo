@@ -5,7 +5,7 @@ import { isBrowserFirefox } from "@web/core/browser/feature_detection";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { colorScheme } from "@web/core/color_scheme";
 import { localization } from "@web/core/l10n/localization";
-import { useChildRef } from "@web/core/utils/hooks";
+import { useChildRef, useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog";
 import { getFirstAndLastTabableElements } from "@web/ui/ui_service";
 
@@ -29,6 +29,7 @@ export class AddSnippetDialog extends Component {
     };
 
     setup() {
+        this.hotkeyService = useService("hotkey");
         this.iframeRef = useRef("iframe");
         this.modalRef = useChildRef();
         this.state = useState({
@@ -36,6 +37,7 @@ export class AddSnippetDialog extends Component {
             groupSelected: this.props.selectedSnippet.groupName,
             showIframe: false,
             hasNoSearchResults: false,
+            isMobilePreviewMode: false,
         });
         this.snippetViewerProps = {
             state: this.state,
@@ -75,6 +77,11 @@ export class AddSnippetDialog extends Component {
             iframeDocument.body.style.setProperty("direction", localization.direction);
             iframeDocument.body.tabIndex = "-1";
             iframeDocument.addEventListener("keydown", this.onIframeDocumentKeydown.bind(this));
+
+            // Without this the preview swallows every hotkey, Escape included:
+            // the service listens on the top window, which the iframe's own
+            // keydowns never reach.
+            this.hotkeyService.registerIframe(this.iframeRef.el);
 
             root = this.__owl__.app.createRoot(SnippetViewer, {
                 props: this.snippetViewerProps,
@@ -151,6 +158,10 @@ export class AddSnippetDialog extends Component {
         metaElement.content = scheme;
         iframeDocument.head.appendChild(metaElement);
         iframeDocument.body.parentElement.classList.add("o_add_snippets_preview--" + scheme);
+    }
+
+    toggleMobilePreview() {
+        this.state.isMobilePreviewMode = !this.state.isMobilePreviewMode;
     }
 
     /**

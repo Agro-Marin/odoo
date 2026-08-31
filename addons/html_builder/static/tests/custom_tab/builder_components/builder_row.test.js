@@ -426,3 +426,22 @@ describe("HTML builder tests", () => {
         expect(".o-tooltip").toHaveCount(0);
     });
 });
+
+test("the tooltip mark is legible next to its label", async () => {
+    addBuilderOption(
+        class extends BaseOptionComponent {
+            static selector = ".test-options-target";
+            static template = xml`<BuilderRow label="'my label'" tooltip="'my tooltip'">row text</BuilderRow>`;
+        }
+    );
+    await setupHTMLBuilder(`<div class="test-options-target">b</div>`);
+    await contains(":iframe .test-options-target").click();
+
+    // The mark is sized in `em`, so what matters is its share of the label it
+    // sits next to, not an absolute pixel count.
+    const iconEl = queryOne(".hb-row-label .icon-sup");
+    const labelSize = parseFloat(getComputedStyle(iconEl.parentElement).fontSize);
+    expect(parseFloat(getComputedStyle(iconEl).fontSize)).toBeCloseTo(labelSize * 0.75, {
+        digits: 2,
+    });
+});

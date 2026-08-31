@@ -81,3 +81,13 @@ test("Ensure order of operations when clicking very fast on two options", async 
     expect(":iframe .s_rating").not.toHaveAttribute("data-active-custom-icon");
     expect(":iframe .s_rating_icons").not.toHaveClass("fa-2x");
 });
+
+test("the Replace Icon buttons read as the other Replace buttons do", async () => {
+    await setupHTMLBuilder(websiteContent);
+    await contains(":iframe .s_rating").click();
+
+    // `Replace` on a media option is a success button; the rating's two were
+    // the only ones left drawing as plain secondary.
+    expect("[data-action-param='customActiveIcon']").toHaveClass("btn-success");
+    expect("[data-action-param='customInactiveIcon']").toHaveClass("btn-success");
+});

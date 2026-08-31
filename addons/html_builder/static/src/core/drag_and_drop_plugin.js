@@ -214,9 +214,15 @@ export class DragAndDropPlugin extends Plugin {
                 return draggedEl;
             },
             onDragStart: ({ x, y }) => {
+                // The options come back once the whole gesture is over, so
+                // the sidebar never drops to Blocks in between.
                 const dragAndDropProm = new Promise(
                     (resolve) => (dragAndDropResolve = () => resolve())
-                );
+                ).then(() => {
+                    this.dependencies.builderOptions.updateContainers(this.overlayTarget, {
+                        forceUpdate: true,
+                    });
+                });
                 this.dependencies.operation.next(async () => await dragAndDropProm, {
                     withLoadingEffect: false,
                     canTimeout: false,
@@ -228,7 +234,6 @@ export class DragAndDropPlugin extends Plugin {
                     this.dragState.restoreCallbacks?.forEach((restore) => restore());
                     restoreDragSavePoint();
                     dragAndDropResolve();
-                    this.dependencies.builderOptions.updateContainers(this.overlayTarget);
                 };
 
                 this.dragStarted = true;
@@ -301,9 +306,8 @@ export class DragAndDropPlugin extends Plugin {
                     withGrids
                 );
 
-                // Remove the dragged element and deactivate the options.
+                // Remove the dragged element.
                 this.overlayTarget.remove();
-                this.dependencies.builderOptions.deactivateContainers();
 
                 // Add the dropzones.
                 dropzoneEls = this.dependencies.dropzone.activateDropzones(selectors, {
@@ -460,7 +464,6 @@ export class DragAndDropPlugin extends Plugin {
                 }
 
                 dragAndDropResolve();
-                this.dependencies.builderOptions.updateContainers(this.overlayTarget);
             },
         };
 
