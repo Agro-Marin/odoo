@@ -24,14 +24,7 @@
         <ImageTransformOption t-if="!state.isImageAnimated and !state.isImageBinaryField" />
     </BuilderRow>
     <ImageFilterOption />
-    <BuilderRow label.translate="Size" t-if="!state.isImageBinaryField">
-        <BuilderButtonGroup styleAction="'width'">
-            <BuilderButton styleActionValue="''" title.translate="Resize Default">Default</BuilderButton>
-            <BuilderButton styleActionValue="'25%'" title.translate="Resize Quarter">25%</BuilderButton>
-            <BuilderButton styleActionValue="'50%'" title.translate="Resize Half">50%</BuilderButton>
-            <BuilderButton styleActionValue="'100%'" title.translate="Resize Full">100%</BuilderButton>
-        </BuilderButtonGroup>
-    </BuilderRow>
+    <MediaSizeOption t-if="!state.isImageBinaryField"/>
     <ImageFormatOption />
 </t>
 

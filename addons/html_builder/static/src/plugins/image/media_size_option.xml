@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+<t t-name="html_builder.MediaSizeOption">
+    <BuilderRow label.translate="Size">
+        <div class="w-50">
+            <BuilderRange action="'mediaSizeSlider'" min="5" max="100" step="1" unit="'%'"/>
+        </div>
+        <BuilderNumberInput
+            action="'mediaSizeText'"
+            placeholder.translate="auto"
+            default="null"
+            unit="'%'"
+            min="5"
+            max="100"
+        />
+        <BuilderButton title.translate="Auto" action="'setMediaSizeAuto'" icon="'fa-expand'"/>
+    </BuilderRow>
+</t>
+
+</templates>
