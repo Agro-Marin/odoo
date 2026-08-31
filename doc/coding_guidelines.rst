@@ -983,7 +983,7 @@ ways: 7 stems are written with two or more verbs drawn from one semantic family,
 and 103 groups of methods share a byte-identical body under different names.
 
 **Every figure in this section is measured, not stated**
-``[gate doc_restated_counts]``. The population is the 25,062 non-test methods
+``[gate doc_restated_counts]``. The population is the 25,064 non-test methods
 declared on a model class **in this repository** -- the population
 ``naming_vocabulary.py`` ratchets. The census stops here (ADR-0033), so every
 figure is a floor.
