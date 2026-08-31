@@ -126,6 +126,16 @@ class TestSaleCouponProgramNumbers(TestSaleCouponNumbersCommon):
             4,
             "We should have 4 lines as we should have a new line for promo code reduction",
         )
+        self.assertAlmostEqual(
+            order.amount_total,
+            72022.5,
+            msg="Free product value should not be subtracted twice from the discountable amount",
+        )
+        self.assertAlmostEqual(
+            order.amount_untaxed,
+            72022.5,
+            msg="Free product value should not be subtracted twice from the discountable amount",
+        )
 
         # Check you can still have auto applied promotion if you have a promo code set to the order
         self.env["sale.order.line"].create(
