@@ -287,10 +287,10 @@ test("do not lose id when adjusting 'selected'", async () => {
     await setupHTMLBuilder(`<div class="test-options-target">b</div>`);
     await contains(":iframe .test-options-target").click();
 
-    await contains(".we-bg-options-container .bl-dropdown-toggle").click();
-    await contains(".o_popover .o-hb-select-dropdown-item").click();
-    await contains(".we-bg-options-container .bl-dropdown-toggle").click();
-    await contains(".o_popover .o-hb-select-dropdown-item").click();
+    await contains(".we-bg-options-container .o-hb-selectMany2X-toggle").click();
+    await contains(".o_select_menu_menu .o-dropdown-item").click();
+    await contains(".we-bg-options-container .o-hb-selectMany2X-toggle").click();
+    await contains(".o_select_menu_menu .o-dropdown-item").click();
     expect(":iframe .test-options-target").toHaveAttribute(
         "data-list",
         JSON.stringify([
@@ -377,8 +377,86 @@ test("can add item with string and integer ids", async () => {
     await contains(":iframe .test-options-target").click();
 
     for (let i = 0; i < 2; i++) {
-        await contains(".we-bg-options-container .bl-dropdown-toggle").click();
-        await contains(".o_popover .o-hb-select-dropdown-item").click();
+        await contains(".we-bg-options-container .o-hb-selectMany2X-toggle").click();
+        await contains(".o_select_menu_menu .o-dropdown-item").click();
     }
-    expect(".we-bg-options-container .bl-dropdown-toggle").toHaveProperty("disabled");
+    expect(".we-bg-options-container .o-hb-selectMany2X-toggle").toHaveProperty("disabled");
+});
+
+test("the record manager adds and removes records in bulk", async () => {
+    // Adding twenty options one at a time out of a dropdown is the thing this
+    // dialog exists to stop.
+    class Test extends BaseOptionComponent {
+        static template = xml`
+            <BuilderList
+                dataAttributeAction="'list'"
+                addItemTitle="'Add'"
+                itemShape="{ display_name: 'text', selected: 'boolean' }"
+                default="{ display_name: 'Extra', selected: false }"
+                records="availableRecords" />`;
+        static components = { BuilderList };
+        static props = ["*"];
+        setup() {
+            this.availableRecords = JSON.stringify([
+                { id: 1, display_name: "A" },
+                { id: 2, display_name: "B" },
+                { id: 3, display_name: "C" },
+            ]);
+        }
+    }
+    addBuilderOption(
+        class extends Test {
+            static selector = ".test-options-target";
+        }
+    );
+    await setupHTMLBuilder(`<div class="test-options-target">b</div>`);
+    await contains(":iframe .test-options-target").click();
+
+    await contains(".we-bg-options-container button.fa-gear").click();
+    expect(".o_bl_dialog").toHaveCount(1);
+    expect(".o_bl_dialog .o_left_panel .o_list_item").toHaveCount(3);
+    expect(".o_bl_dialog .o_right_panel .o_list_item").toHaveCount(0);
+
+    await contains(".o_bl_dialog .o_left_panel button:contains('Include all')").click();
+    expect(".o_bl_dialog .o_left_panel .o_list_item").toHaveCount(0);
+    expect(".o_bl_dialog .o_right_panel .o_list_item").toHaveCount(3);
+
+    // Nothing reaches the page until Save.
+    expect(":iframe .test-options-target").not.toHaveAttribute("data-list");
+    await contains(".o_bl_dialog footer button.btn-primary").click();
+    expect(".o_bl_dialog").toHaveCount(0);
+    expect(".we-bg-options-container .o_row_draggable").toHaveCount(3);
+    expect(":iframe .test-options-target").toHaveAttribute("data-list");
+});
+
+test("the record manager searches both panels at once", async () => {
+    class Test extends BaseOptionComponent {
+        static template = xml`
+            <BuilderList
+                dataAttributeAction="'list'"
+                addItemTitle="'Add'"
+                itemShape="{ display_name: 'text', selected: 'boolean' }"
+                default="{ display_name: 'Extra', selected: false }"
+                records="availableRecords" />`;
+        static components = { BuilderList };
+        static props = ["*"];
+        setup() {
+            this.availableRecords = JSON.stringify([
+                { id: 1, display_name: "Alpha" },
+                { id: 2, display_name: "Beta" },
+                { id: 3, display_name: "Alfalfa" },
+            ]);
+        }
+    }
+    addBuilderOption(
+        class extends Test {
+            static selector = ".test-options-target";
+        }
+    );
+    await setupHTMLBuilder(`<div class="test-options-target">b</div>`);
+    await contains(":iframe .test-options-target").click();
+    await contains(".we-bg-options-container button.fa-gear").click();
+
+    await contains(".o_bl_dialog input[type='search']").edit("alf");
+    expect(".o_bl_dialog .o_left_panel .o_list_item").toHaveCount(1);
 });
