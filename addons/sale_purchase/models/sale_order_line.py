@@ -292,7 +292,7 @@ class SaleOrderLine(models.Model):
     def _get_additional_domain_for_purchase_order_line(self):
         return [("sale_order_id", "=", self.order_id.id)]
 
-    def _purchase_service_match_purchase_order(self, partner, company=False):
+    def _purchase_service_match_purchase_order(self, partner):
         return (
             self.env["purchase.order.line"]
             .search(
@@ -304,7 +304,7 @@ class SaleOrderLine(models.Model):
                             (
                                 "company_id",
                                 "=",
-                                (company or self._purchase_service_get_company()).id,
+                                self._purchase_service_get_company().id,
                             ),
                         ],
                         self._get_additional_domain_for_purchase_order_line(),
