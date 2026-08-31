@@ -13,7 +13,7 @@ from .server import main
 class Start(Command):
     description = "Quickly start the odoo server with default options"
 
-    def get_module_list(self, path: str | Path) -> list[str]:
+    def get_module_names(self, path: str | Path) -> list[str]:
         base = Path(path)
         return [
             match.parent.name
@@ -50,7 +50,7 @@ class Start(Command):
 
         project_path, db_name = self._resolve_project(args.path, args.db_name)
 
-        mods = self.get_module_list(project_path)
+        mods = self.get_module_names(project_path)
         if mods and not _has_arg(server_args, "--addons-path"):
             addons_paths = [str(project_path)]
             if bootstrap_value := odoo.cli.BOOTSTRAP_ADDONS_PATH:

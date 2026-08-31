@@ -226,7 +226,7 @@ class Many2many(_RelationalMulti):
     @override
     def read(self, records: BaseModel) -> None:
         comodel = records.env[self.comodel_name].with_context(
-            **self._get_read_context()
+            **self._prepare_read_context()
         )
 
         filter_access = self.bypass_search_access and is_search_overridden(
@@ -524,7 +524,7 @@ class Many2many(_RelationalMulti):
         if coquery.is_empty():
             return SQL("FALSE") if exists else SQL("TRUE")
         rel_table, rel_id1, rel_id2 = self._relation_columns()
-        rel_alias = query.make_alias(alias, self.name)
+        rel_alias = query.get_table_alias(alias, self.name)
         if not coquery.where_clause:
             return SQL(
                 "%sEXISTS (SELECT 1 FROM %s AS %s WHERE %s = %s)",

@@ -179,7 +179,7 @@ class AccessMixin(_ModelStubs):
         real_self = self.browse(id_ for id_ in self._ids if id_)
         if real_self:
             Rule = self.env["ir.rule"]
-            domain = Rule._compute_domain(self._name, operation)
+            domain = Rule._get_domain_accessible_records(self._name, operation)
             if domain and (
                 forbidden := real_self
                 - real_self.sudo()

@@ -9,7 +9,7 @@ import werkzeug.wrappers
 from odoo.http.application import Application
 from odoo.http.constants import NOT_FOUND_NODB, NOT_FOUND_NODB_TEXT
 from odoo.http.dispatcher import Json2Dispatcher
-from odoo.http.routing import build_routing_map
+from odoo.http.routing import prepare_routing_map
 from odoo.http.session import FilesystemSessionStore, Session
 from odoo.http.wrappers import Response
 
@@ -41,7 +41,7 @@ def _environ(path="/no-such-route", content_type=None, accept="*/*"):
 @pytest.fixture
 def nodb_app(tmp_path):
     app = Application()
-    app.__dict__["nodb_routing_map"] = build_routing_map([])
+    app.__dict__["nodb_routing_map"] = prepare_routing_map([])
     app.__dict__["session_store"] = FilesystemSessionStore(
         str(tmp_path), session_class=Session, renew_missing=True
     )

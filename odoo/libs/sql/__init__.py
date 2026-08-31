@@ -5,8 +5,8 @@ from .trigram import (
 )
 from .utils import (
     escape_psql,
-    make_identifier,
-    make_index_name,
+    normalize_identifier,
+    get_index_name,
     pg_varchar,
     reverse_order,
 )
@@ -14,8 +14,8 @@ from .utils import (
 __all__ = [
     "SQL",
     "escape_psql",
-    "make_identifier",
-    "make_index_name",
+    "get_index_name",
+    "normalize_identifier",
     "pattern_to_translated_trigram_pattern",
     "pg_varchar",
     "reverse_order",

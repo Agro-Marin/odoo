@@ -111,7 +111,7 @@ def test_a_dispatcher_that_cannot_build_an_error_response_still_yields_one():
     request.dispatcher.handle_error.side_effect = RuntimeError("handler is broken")
 
     exc = ValueError("original")
-    app._ensure_error_response(exc, request)
+    app._get_or_create_error_response(exc, request)
 
     assert isinstance(get_error_response(exc), InternalServerError)
 
@@ -123,7 +123,7 @@ def test_an_existing_error_response_is_left_alone():
     request.dispatcher.handle_error.return_value = InternalServerError()
     exc.error_response = exc
 
-    app._ensure_error_response(exc, request)
+    app._get_or_create_error_response(exc, request)
 
     assert get_error_response(exc) is exc
     request.dispatcher.handle_error.assert_not_called()

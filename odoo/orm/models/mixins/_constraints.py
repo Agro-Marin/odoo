@@ -37,7 +37,7 @@ class _ConstraintsMixin(_ModelStubs):
 
         cls = self.env.registry[self._name]
 
-        def build():
+        def get_constraint_methods():
             methods = []
             for attr, func in getmembers(cls, is_constraint):
                 if callable(func._constrains):
@@ -61,9 +61,9 @@ class _ConstraintsMixin(_ModelStubs):
                 methods.append(func)
             return methods
 
-        return own_class_memo(cls, "_constraint_methods__", build)
+        return own_class_memo(cls, "_constraint_methods__", get_constraint_methods)
 
-    def _validate_fields(
+    def _check_fields(
         self, field_names: Iterable[str], excluded_names: Iterable[str] = ()
     ) -> None:
         methods = self._constraint_methods
@@ -87,6 +87,4 @@ class _ConstraintsMixin(_ModelStubs):
                     _count += 1
 
         prof.stop()
-        prof.report(
-            _orm_crud, "_validate_fields %s: %d constraints", self._name, _count
-        )
+        prof.report(_orm_crud, "_check_fields %s: %d constraints", self._name, _count)

@@ -5,7 +5,7 @@ from lxml import html as lxml_html
 from markupsafe import Markup
 
 from odoo.libs.text.html import (
-    append_content_to_html,
+    add_html_content,
     fromstring,
     html2plaintext,
     html_normalize,
@@ -48,27 +48,23 @@ class TestHtml2PlaintextKeepsStructure(unittest.TestCase):
 
 class TestAppendContentToHtml(unittest.TestCase):
     def test_caller_markup_is_left_alone(self):
-        result = append_content_to_html(
-            '<HTML><BODY><A HREF="/x">Hi</A></BODY></HTML>', "x"
-        )
+        result = add_html_content('<HTML><BODY><A HREF="/x">Hi</A></BODY></HTML>', "x")
         self.assertIn('<A HREF="/x">Hi</A>', result)
         self.assertIn("</BODY>", result)
 
     def test_closing_tag_with_whitespace_is_found(self):
-        result = append_content_to_html("<html><body>x</body >", "content")
+        result = add_html_content("<html><body>x</body >", "content")
         self.assertTrue(result.endswith("</body >"), result)
 
     def test_falls_back_to_html_then_to_the_end(self):
-        self.assertTrue(
-            append_content_to_html("<html>x</html>", "c").endswith("</html>")
-        )
+        self.assertTrue(add_html_content("<html>x</html>", "c").endswith("</html>"))
         self.assertEqual(
-            append_content_to_html("<div>x</div>", "c"), "<div>x</div>\n<p>c</p>\n"
+            add_html_content("<div>x</div>", "c"), "<div>x</div>\n<p>c</p>\n"
         )
 
     def test_uppercase_and_lowercase_insert_at_the_same_place(self):
-        lower = append_content_to_html("<html><body>x</body></html>", "c")
-        upper = append_content_to_html("<HTML><BODY>x</BODY></HTML>", "c")
+        lower = add_html_content("<html><body>x</body></html>", "c")
+        upper = add_html_content("<HTML><BODY>x</BODY></HTML>", "c")
         self.assertEqual(lower.lower(), upper.lower())
 
 

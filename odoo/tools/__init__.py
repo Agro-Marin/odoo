@@ -61,7 +61,7 @@ from .misc import (
     file_open,
     file_open_temporary_directory,
     file_path,
-    find_in_path,
+    get_executable_path,
     formatLang,
     format_amount,
     format_amount_parts,
@@ -92,15 +92,15 @@ from .misc import (
     street_split,
     topological_sort,
     unique,
-    verify_hash_signed,
+    resolve_hash_signed,
 )
 from .query import Query
 
 from odoo.libs.sql import (
     SQL,
     escape_psql,
-    make_identifier,
-    make_index_name,
+    normalize_identifier,
+    get_index_name,
     pattern_to_translated_trigram_pattern,
     pg_varchar,
     reverse_order,
@@ -110,7 +110,7 @@ from .translate import LazyTranslate, _, html_translate, xml_translate
 from .xml_utils import (
     cleanup_xml_node,
     load_xsd_files_from_url,
-    validate_xml_from_attachment,
+    check_xml_from_attachment,
 )
 
 __all__ = [
@@ -130,6 +130,7 @@ __all__ = [
     "SetExpressionError",
     "_",
     "babel_locale_parse",
+    "check_xml_from_attachment",
     "classproperty",
     "clean_context",
     "cleanup_xml_node",
@@ -152,7 +153,6 @@ __all__ = [
     "file_open",
     "file_open_temporary_directory",
     "file_path",
-    "find_in_path",
     "float_compare",
     "float_is_zero",
     "float_repr",
@@ -169,6 +169,8 @@ __all__ = [
     "format_time",
     "formataddr",
     "frozendict",
+    "get_executable_path",
+    "get_index_name",
     "get_iso_codes",
     "get_lang",
     "groupby",
@@ -187,11 +189,10 @@ __all__ = [
     "lazy",
     "lazy_classproperty",
     "load_xsd_files_from_url",
-    "make_identifier",
-    "make_index_name",
     "merge_sequences",
     "mod10r",
     "mute_logger",
+    "normalize_identifier",
     "ormcache",
     "ormcache_context",
     "parse_contact_from_email",
@@ -207,6 +208,7 @@ __all__ = [
     "remove_accents",
     "replace_exceptions",
     "reset_cached_properties",
+    "resolve_hash_signed",
     "reverse_order",
     "single_email_re",
     "split_every",
@@ -214,8 +216,6 @@ __all__ = [
     "street_split",
     "topological_sort",
     "unique",
-    "validate_xml_from_attachment",
     "value_to_translated_trigram_pattern",
-    "verify_hash_signed",
     "xml_translate",
 ]

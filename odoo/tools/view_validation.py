@@ -78,7 +78,7 @@ def _extract_domain_operand(
     node: ast.AST, contextual_values: set[str], field_names: set[str]
 ) -> None:
     if isinstance(node, _NESTED_DOMAIN_NODES):
-        _extract_from_domain(node, contextual_values, field_names)
+        _extract_names_from_domain(node, contextual_values, field_names)
     else:
         contextual_values.update(_get_expression_contextual_values(node))
 
@@ -108,12 +108,12 @@ def _extract_domain_leaf(
         raise ValueError
 
 
-def _extract_from_domain(
+def _extract_names_from_domain(
     ast_domain: ast.AST, contextual_values: set[str], field_names: set[str]
 ) -> None:
     if isinstance(ast_domain, ast.IfExp):
-        _extract_from_domain(ast_domain.body, contextual_values, field_names)
-        _extract_from_domain(ast_domain.orelse, contextual_values, field_names)
+        _extract_names_from_domain(ast_domain.body, contextual_values, field_names)
+        _extract_names_from_domain(ast_domain.orelse, contextual_values, field_names)
         return
     if isinstance(ast_domain, ast.BoolOp):
         for value in ast_domain.values:
@@ -152,7 +152,7 @@ def get_domain_value_names(domain: list | str) -> tuple[set[str], set[str]]:
             if isinstance(item_ast, ast.Name):
                 contextual_values.update(_get_expression_contextual_values(item_ast))
             else:
-                _extract_from_domain(item_ast, contextual_values, field_names)
+                _extract_names_from_domain(item_ast, contextual_values, field_names)
 
     except ValueError, TypeError, AttributeError:
         msg = "Wrong domain formatting."
@@ -161,7 +161,7 @@ def get_domain_value_names(domain: list | str) -> tuple[set[str], set[str]]:
     return field_names, _filter_contextual_names(contextual_values)
 
 
-def _contextual_values_of(*nodes: ast.AST | None) -> set[str]:
+def _get_contextual_values_of_nodes(*nodes: ast.AST | None) -> set[str]:
     values: set[str] = set()
     for node in nodes:
         if node is not None:
@@ -198,7 +198,7 @@ def _get_expression_contextual_values(item_ast: ast.AST) -> set[str]:
     children = _CONTEXTUAL_CHILDREN.get(type(item_ast))
     if children is None:
         raise ValueError(f"Unsupported expression: {type(item_ast).__name__}.")
-    return _contextual_values_of(*children(item_ast))
+    return _get_contextual_values_of_nodes(*children(item_ast))
 
 
 def get_expression_field_names(expression: str) -> set[str]:

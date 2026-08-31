@@ -644,7 +644,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         )
 
         if lazy_groupby and lazy:
-            rows_dict = self._read_group_fill_results(
+            rows_dict = self._read_group_expand_results(
                 domain,
                 lazy_groupby[0],
                 annotated_aggregates,

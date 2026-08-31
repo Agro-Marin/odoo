@@ -33,7 +33,7 @@ class _HooksMixin(_ModelStubs):
 
         cls = self.env.registry[self._name]
 
-        def build():
+        def get_onchange_methods():
             methods = defaultdict(list)
             for _attr, func in getmembers(cls, is_onchange):
                 missing = []
@@ -63,4 +63,4 @@ class _HooksMixin(_ModelStubs):
 
             return dict(methods)
 
-        return own_class_memo(cls, "_onchange_methods__", build)
+        return own_class_memo(cls, "_onchange_methods__", get_onchange_methods)

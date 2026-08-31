@@ -37,7 +37,7 @@ class _RegistryFieldsMixin(_RegistryStubs):
     def _publish_field_metadata(self) -> tuple:
         return self.field_inverses, self.field_computed
 
-    def _ensure_field_triggers(self) -> dict:
+    def _get_field_triggers(self) -> dict:
         refused_at = self.__dict__.get("_field_triggers_refused_at")
         if refused_at is not None and refused_at != self.model_graph.trigger_epoch:
             self.__dict__.pop("_field_triggers", None)
@@ -148,11 +148,11 @@ class _RegistryFieldsMixin(_RegistryStubs):
     def get_trigger_tree(
         self, fields: list[Field], select: Callable[[Field], bool] = bool
     ) -> TriggerTree:
-        self._ensure_field_triggers()
+        self._get_field_triggers()
         return self.model_graph.get_trigger_tree(fields, select)
 
     def get_dependent_fields(self, field: Field) -> Iterator[Field]:
-        self._ensure_field_triggers()
+        self._get_field_triggers()
         return self.model_graph.get_dependent_fields(field)
 
     @locked
@@ -181,7 +181,7 @@ class _RegistryFieldsMixin(_RegistryStubs):
         self.__dict__.pop("_field_triggers", None)
 
     def get_field_trigger_tree(self, field: Field) -> TriggerTree:
-        self._ensure_field_triggers()
+        self._get_field_triggers()
         return self.model_graph.get_field_trigger_tree(field)
 
     @functools.cached_property
@@ -228,5 +228,5 @@ class _RegistryFieldsMixin(_RegistryStubs):
         return graph.published_triggers
 
     def is_modifying_relations(self, field: Field) -> bool:
-        self._ensure_field_triggers()
+        self._get_field_triggers()
         return self.model_graph.is_modifying_relations(field)

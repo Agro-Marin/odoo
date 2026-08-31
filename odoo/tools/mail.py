@@ -34,7 +34,7 @@ from odoo.libs.text import (
     TEXT_URL_REGEX,
     URL_REGEX,
     URL_SKIP_PROTOCOL_REGEX,
-    append_content_to_html,
+    add_html_content,
     create_link,
     fromstring,
     html2plaintext,
@@ -44,12 +44,12 @@ from odoo.libs.text import (
     html_sanitize,
     html_to_inner_content,
     is_html_empty,
+    normalize_url,
     plaintext2html,
     prepend_html_content,
     replace_local_links,
     safe_attrs,
     tag_quote,
-    validate_url,
 )
 
 __all__ = [
@@ -60,7 +60,7 @@ __all__ = [
     "TEXT_URL_REGEX",
     "URL_REGEX",
     "URL_SKIP_PROTOCOL_REGEX",
-    "append_content_to_html",
+    "add_html_content",
     "create_link",
     "decode_message_header",
     "email_addr_escapes_re",
@@ -89,6 +89,7 @@ __all__ = [
     "html_to_inner_content",
     "is_html_empty",
     "mail_header_msgid_re",
+    "normalize_url",
     "parse_contact_from_email",
     "plaintext2html",
     "prepend_html_content",
@@ -98,7 +99,6 @@ __all__ = [
     "tag_quote",
     "unfold_references",
     "url_domain_extract",
-    "validate_url",
 ]
 
 

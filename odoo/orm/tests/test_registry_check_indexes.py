@@ -55,7 +55,7 @@ class _IdxCursor:
         yield
 
 
-_IDX = sql.make_index_name("fake_model", "state")
+_IDX = sql.get_index_name("fake_model", "state")
 
 
 def test_btree_to_btree_not_null_marks_stale():

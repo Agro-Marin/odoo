@@ -366,14 +366,14 @@ class _RelationalMulti(_Relational):
 
         raise ValueError(f"Wrong value for {self}: {value}")
 
-    def _get_read_context(self) -> dict:
+    def _prepare_read_context(self) -> dict:
         context = {
             key: value for key, value in self.context.items() if key != "active_test"
         }
         context["active_test"] = False
         return context
 
-    def _make_corecords(
+    def _prepare_corecords(
         self, env: Environment, ids: tuple[int | NewId, ...], prefetch_ids: typing.Any
     ) -> BaseModel:
         Comodel = env.registry[self.comodel_name]
@@ -393,13 +393,13 @@ class _RelationalMulti(_Relational):
     def convert_to_record(
         self, value: tuple[int | NewId, ...], record: ModelLike
     ) -> BaseModel:
-        return self._make_corecords(record.env, value, PrefetchX2many(record, self))
+        return self._prepare_corecords(record.env, value, PrefetchX2many(record, self))
 
     def convert_to_record_multi(
         self, values: list[tuple[int | NewId, ...]], records: BaseModel
     ) -> BaseModel:
         ids = tuple(unique(id_ for ids in values for id_ in ids))
-        return self._make_corecords(records.env, ids, PrefetchX2many(records, self))
+        return self._prepare_corecords(records.env, ids, PrefetchX2many(records, self))
 
     @override
     def convert_to_read(

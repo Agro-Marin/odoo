@@ -8,7 +8,7 @@ from .dsig import (
     XmlSigError,
     canonicalize,
     canonicalize_signed_info,
-    fill_reference_digests,
+    update_reference_digests,
     resolve_reference,
 )
 
@@ -45,7 +45,6 @@ __all__ = [
     "create_xml_node_chain",
     "default_parser",
     "dict_to_xml",
-    "fill_reference_digests",
     "fromstring",
     "locate_node",
     "parse",
@@ -53,4 +52,5 @@ __all__ = [
     "remove_element",
     "resolve_reference",
     "strict_parser",
+    "update_reference_digests",
 ]

@@ -87,7 +87,7 @@ def _run_post_install_tests(registry: Registry, update_module: bool) -> None:
     )
     _logger.info("Starting post tests")
     tests_before = registry._assertion_report.testsRun
-    post_install_suite = loader.make_suite(module_names, "post_install")
+    post_install_suite = loader.prepare_suite(module_names, "post_install")
     if post_install_suite.has_http_case():
         with registry.cursor() as cr:
             env = api.Environment(cr, api.SUPERUSER_ID, {})

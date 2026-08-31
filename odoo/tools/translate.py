@@ -544,7 +544,7 @@ def get_translation(module: str, lang: str, source: str, args: tuple | dict) -> 
             )
     if has_iterable:
 
-        def process_translation_arg(v):
+        def translate_arg(v):
             if _is_iterable_arg(v):
                 v = [
                     el._translate(lang) if isinstance(el, LazyGettext) else el
@@ -557,9 +557,9 @@ def get_translation(module: str, lang: str, source: str, args: tuple | dict) -> 
             return v
 
         if isinstance(args, dict):
-            args = {k: process_translation_arg(v) for k, v in args.items()}
+            args = {k: translate_arg(v) for k, v in args.items()}
         else:
-            args = tuple(process_translation_arg(v) for v in args)
+            args = tuple(translate_arg(v) for v in args)
     try:
         return translation % args
     except TypeError, ValueError, KeyError:
@@ -1359,7 +1359,7 @@ class TranslationReader:
         )
 
     def _export_imdinfo(self, model: str, imd_per_id: dict[int, ImdInfo]):
-        records = self._get_translatable_records(imd_per_id.values())
+        records = self._get_records_translatable(imd_per_id.values())
         if not records:
             return
 
@@ -1405,7 +1405,7 @@ class TranslationReader:
                         value=term_lang if term_lang != term_en else "",
                     )
 
-    def _get_translatable_records(self, imd_records: Collection[ImdInfo]) -> Any:
+    def _get_records_translatable(self, imd_records: Collection[ImdInfo]) -> Any:
         model = next(iter(imd_records)).model
         if model not in self.env:
             _logger.error("Unable to find object %r", model)
@@ -1505,7 +1505,7 @@ class TranslationRecordReader(TranslationReader):
         ):
             return
 
-        records._ensure_xml_ids()
+        records._get_or_create_xml_ids()
 
         model_name = records._name
         query = """SELECT min(concat(module, '.', name)), res_id
@@ -1829,7 +1829,7 @@ class TranslationImporter:
                 ][lang] = row["value"]
                 self.imported_langs.add(lang)
 
-    def _fetch_terms_rows(
+    def _get_terms_rows(
         self,
         model_table: str,
         model_name: str,
@@ -1957,7 +1957,7 @@ class TranslationImporter:
                 for sub_xmlids in batched(
                     field_dictionary.keys(), self.cr.BATCH_SIZE, strict=False
                 ):
-                    rows_by_id = self._fetch_terms_rows(
+                    rows_by_id = self._get_terms_rows(
                         model_table,
                         model_name,
                         field_name,

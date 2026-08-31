@@ -40,7 +40,7 @@ from .exceptions import (
 )
 from .geoip import geoip2, maxminddb
 from .request_class import Request
-from .routing import _generate_routing_rules, build_routing_map
+from .routing import _generate_routing_rules, prepare_routing_map
 from .session import FilesystemSessionStore, Session
 from .wrappers import HTTPRequest, Response, no_content
 
@@ -147,7 +147,7 @@ class Application:
 
     @_locked_cached_property
     def nodb_routing_map(self):
-        return build_routing_map(
+        return prepare_routing_map(
             _generate_routing_rules(
                 [""] + config["server_wide_modules"], nodb_only=True
             )
@@ -282,7 +282,9 @@ class Application:
         else:
             _logger.error("Exception during request handling.", exc_info=exc)
 
-    def _ensure_error_response(self, exc: Exception, request: Request | None) -> Any:
+    def _get_or_create_error_response(
+        self, exc: Exception, request: Request | None
+    ) -> Any:
         existing = get_error_response(exc)
         if existing is not None:
             return existing
@@ -360,7 +362,7 @@ class Application:
                 if _hands_over_to_the_debugger(request):
                     raise
                 error_response = self._finalize_error_response(
-                    exc, request, self._ensure_error_response(exc, request)
+                    exc, request, self._get_or_create_error_response(exc, request)
                 )
                 if error_response is None:
                     error_response = InternalServerError(str(exc) or None)

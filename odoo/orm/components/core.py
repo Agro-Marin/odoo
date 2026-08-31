@@ -82,7 +82,7 @@ class OrmCore[F: FieldKey = FieldKey]:
     def is_any_dirty(self) -> bool:
         return self._cache.is_any_dirty()
 
-    def find_pending_write(
+    def get_pending_write(
         self, fields: Iterable[F], ids: Iterable[Any] | None
     ) -> tuple[F, list[Any]] | None:
         if isinstance(ids, Iterator):

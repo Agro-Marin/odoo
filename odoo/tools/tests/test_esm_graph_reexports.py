@@ -3,7 +3,7 @@ import unittest
 from odoo.tools.assets.esm_graph import (
     _TRANSITIVE_IMPORT_RE,
     _scan_import_specifiers,
-    find_escaping_relative_imports,
+    get_escaping_relative_imports,
 )
 from odoo.tools.assets.esm_lexer import lex_module
 
@@ -50,7 +50,7 @@ class TestNamedReExportsAreSeen(unittest.TestCase):
         )
 
     def test_an_escaping_named_re_export_is_reported(self):
-        escapes = find_escaping_relative_imports([_Module()])
+        escapes = get_escaping_relative_imports([_Module()])
         self.assertIn(
             "../outside/thing",
             {spec for _path, spec, _resolved in escapes},

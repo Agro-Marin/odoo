@@ -26,7 +26,7 @@ class TestDumpSqlMetaCommandScanner:
         ],
     )
     def test_flags_interpreted_meta_commands(self, db_mod, sql):
-        assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+        assert db_mod._get_disallowed_psql_meta_command(sql) is not None
 
     @pytest.mark.parametrize(
         "sql",
@@ -42,7 +42,7 @@ class TestDumpSqlMetaCommandScanner:
         ],
     )
     def test_allows_data_and_pg_dump_commands(self, db_mod, sql):
-        assert db_mod._find_disallowed_psql_meta_command(sql) is None
+        assert db_mod._get_disallowed_psql_meta_command(sql) is None
 
     def test_assert_dump_sql_safe_raises_on_evil_file(self, db_mod):
         with tempfile.NamedTemporaryFile(
@@ -86,10 +86,10 @@ class TestDumpSqlMetaCommandArguments:
         ],
     )
     def test_flags_malformed_meta_command_arguments(self, db_mod, sql):
-        assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+        assert db_mod._get_disallowed_psql_meta_command(sql) is not None
 
     def test_report_names_the_argument_not_just_the_verb(self, db_mod):
-        hit = db_mod._find_disallowed_psql_meta_command("\\restrict `id`\n")
+        hit = db_mod._get_disallowed_psql_meta_command("\\restrict `id`\n")
         assert hit is not None
         assert "`id`" in hit[1]
 
@@ -104,11 +104,11 @@ class TestDumpSqlMetaCommandArguments:
         ],
     )
     def test_allows_real_pg_dump_shapes(self, db_mod, sql):
-        assert db_mod._find_disallowed_psql_meta_command(sql) is None
+        assert db_mod._get_disallowed_psql_meta_command(sql) is None
 
     def test_argument_text_is_not_lexed_as_sql(self, db_mod):
         sql = "\\restrict k1\nSELECT 1;\n\\! id\n"
-        hit = db_mod._find_disallowed_psql_meta_command(sql)
+        hit = db_mod._get_disallowed_psql_meta_command(sql)
         assert hit == (3, "\\!")
 
 
@@ -178,7 +178,7 @@ class TestDumpSqlScannerLexerDivergence:
     @pytest.mark.parametrize("ident", ["a$b$c", "money$usd$x", "éx$q$z", "_a$t$b"])
     def test_dollar_inside_identifier_does_not_open_a_quoted_body(self, db_mod, ident):
         sql = f"CREATE TABLE {ident} (x int);\n\\! touch /tmp/pwn\n"
-        assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+        assert db_mod._get_disallowed_psql_meta_command(sql) is not None
 
     @pytest.mark.parametrize(
         "expr",
@@ -192,89 +192,89 @@ class TestDumpSqlScannerLexerDivergence:
     )
     def test_digit_led_run_restarts_at_the_identifier(self, db_mod, expr):
         sql = f"{expr};\n\\! touch /tmp/pwn\n"
-        assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+        assert db_mod._get_disallowed_psql_meta_command(sql) is not None
 
     def test_number_really_does_open_a_dollar_quote(self, db_mod):
         sql = "SELECT 1$t$ a \\! b $t$;\n"
-        assert db_mod._find_disallowed_psql_meta_command(sql) is None
+        assert db_mod._get_disallowed_psql_meta_command(sql) is None
 
     def test_missing_a_dollar_body_is_not_a_safe_fallback(self, db_mod):
         run = "1" + "0" * 300
         sql = f"SELECT {run}$$ it's $$\n\\! touch /tmp/pwn\n"
-        assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+        assert db_mod._get_disallowed_psql_meta_command(sql) is not None
 
     def test_dollar_quote_after_a_token_boundary_still_opens(self, db_mod):
         sql = (
             "CREATE FUNCTION f() RETURNS text AS $_$ SELECT 'a; \\! b'; $_$ "
             "LANGUAGE sql;\n"
         )
-        assert db_mod._find_disallowed_psql_meta_command(sql) is None
+        assert db_mod._get_disallowed_psql_meta_command(sql) is None
 
     def test_identifier_containing_dollar_is_not_flagged(self, db_mod):
         sql = "CREATE TABLE money$usd (x int);\nINSERT INTO money$usd VALUES (1);\n"
-        assert db_mod._find_disallowed_psql_meta_command(sql) is None
+        assert db_mod._get_disallowed_psql_meta_command(sql) is None
 
     def test_copy_from_stdin_without_semicolon_does_not_enter_data_mode(self, db_mod):
         sql = "COPY nosuchtable FROM stdin\n\\! touch /tmp/pwn\n"
-        assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+        assert db_mod._get_disallowed_psql_meta_command(sql) is not None
 
     def test_meta_command_between_copy_and_its_semicolon_is_flagged(self, db_mod):
         sql = "COPY ok FROM stdin\n\\! touch /tmp/pwn\n;\n1\n\\.\n"
-        assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+        assert db_mod._get_disallowed_psql_meta_command(sql) is not None
 
     def test_terminated_copy_still_treats_following_lines_as_data(self, db_mod):
         sql = "COPY t (a,b) FROM stdin;\n1\tdata\\x\\.more\n\\.\nSELECT 1;\n"
-        assert db_mod._find_disallowed_psql_meta_command(sql) is None
+        assert db_mod._get_disallowed_psql_meta_command(sql) is None
 
     def test_semicolon_inside_copy_options_does_not_arm_data_mode_early(self, db_mod):
         sql = "COPY t FROM stdin WITH (DELIMITER ';');\n1\n\\.\nSELECT 1;\n"
-        assert db_mod._find_disallowed_psql_meta_command(sql) is None
+        assert db_mod._get_disallowed_psql_meta_command(sql) is None
 
     def test_copy_to_stdout_with_from_stdin_in_line_comment_is_not_data(self, db_mod):
         sql = "COPY (SELECT 1) TO STDOUT; -- FROM stdin\n\\! touch /tmp/pwn\n"
-        assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+        assert db_mod._get_disallowed_psql_meta_command(sql) is not None
 
     def test_copy_to_stdout_with_from_stdin_in_block_comment_is_not_data(self, db_mod):
         sql = "COPY (SELECT 1) TO STDOUT /* FROM stdin */;\n\\! touch /tmp/pwn\n"
-        assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+        assert db_mod._get_disallowed_psql_meta_command(sql) is not None
 
     def test_copy_to_stdout_with_from_stdin_in_string_literal_is_not_data(self, db_mod):
         sql = "COPY (SELECT 'FROM stdin') TO STDOUT;\n\\! touch /tmp/pwn\n"
-        assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+        assert db_mod._get_disallowed_psql_meta_command(sql) is not None
 
     def test_from_stdin_after_the_terminating_semicolon_is_not_data(self, db_mod):
         sql = "COPY (SELECT 1) TO STDOUT; SELECT 'x' FROM stdin\n\\! touch /tmp/pwn\n"
-        assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+        assert db_mod._get_disallowed_psql_meta_command(sql) is not None
 
     def test_statement_not_starting_with_copy_never_enters_data_mode(self, db_mod):
         sql = "SELECT * FROM stdin;\n\\! touch /tmp/pwn\n"
-        assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+        assert db_mod._get_disallowed_psql_meta_command(sql) is not None
 
     def test_quoted_copy_identifier_is_not_the_copy_command(self, db_mod):
         sql = '"COPY" t FROM stdin;\n\\! touch /tmp/pwn\n'
-        assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+        assert db_mod._get_disallowed_psql_meta_command(sql) is not None
 
     def test_copy_from_stdin_is_case_insensitive(self, db_mod):
         sql = "copy T (a) FrOm StDiN;\n1\tdata\\x\n\\.\nSELECT 1;\n"
-        assert db_mod._find_disallowed_psql_meta_command(sql) is None
+        assert db_mod._get_disallowed_psql_meta_command(sql) is None
 
     def test_copy_preceded_by_a_comment_on_the_same_line_still_enters_data_mode(
         self, db_mod
     ):
         sql = "/* c */ COPY t (a) FROM stdin;\n1\t\\N\n\\.\nSELECT 1;\n"
-        assert db_mod._find_disallowed_psql_meta_command(sql) is None
+        assert db_mod._get_disallowed_psql_meta_command(sql) is None
 
     def test_copy_from_stdin_spanning_two_lines_still_enters_data_mode(self, db_mod):
         sql = "COPY t (a)\n  FROM stdin;\n1\t\\N\n\\.\nSELECT 1;\n"
-        assert db_mod._find_disallowed_psql_meta_command(sql) is None
+        assert db_mod._get_disallowed_psql_meta_command(sql) is None
 
     def test_e_prefix_inside_an_identifier_is_not_an_escape_string(self, db_mod):
         sql = "SELECT fooE'x';\n\\! touch /tmp/pwn\n"
-        assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+        assert db_mod._get_disallowed_psql_meta_command(sql) is not None
 
     def test_real_escape_string_still_swallows_its_backslashes(self, db_mod):
         sql = "SELECT E'a\\nb\\\\c';\nSELECT 1;\n"
-        assert db_mod._find_disallowed_psql_meta_command(sql) is None
+        assert db_mod._get_disallowed_psql_meta_command(sql) is None
 
     def test_token_start_tracking_stays_linear(self, db_mod):
         import time
@@ -284,7 +284,7 @@ class TestDumpSqlScannerLexerDivergence:
             best = float("inf")
             for _ in range(runs):
                 t0 = time.perf_counter()
-                assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+                assert db_mod._get_disallowed_psql_meta_command(sql) is not None
                 best = min(best, time.perf_counter() - t0)
             return best
 
@@ -309,7 +309,7 @@ class TestDumpSqlScannerStreaming:
             ("SELECT 'a\nb';\n\\connect evil\n", True),
         ]
         for sql, expect_hit in cases:
-            got = db_mod._find_disallowed_psql_meta_command(sql)
+            got = db_mod._get_disallowed_psql_meta_command(sql)
             assert (got is not None) is expect_hit, (sql, got)
 
     def test_feeding_line_by_line_matches_whole_string(self, db_mod):
@@ -318,7 +318,7 @@ class TestDumpSqlScannerStreaming:
             "CREATE FUNCTION f() AS $b$ SELECT '\\!'; $b$ LANGUAGE sql;\n"
             "SELECT 1;\n\\gexec\n"
         )
-        whole = db_mod._find_disallowed_psql_meta_command(sql)
+        whole = db_mod._get_disallowed_psql_meta_command(sql)
         scanner = db_mod._PsqlSqlScanner()
         streamed = None
         for line in db_mod._iter_physical_lines(sql):
@@ -415,7 +415,7 @@ class TestTheReportedLineNumber:
         ],
     )
     def test_the_refusal_names_the_line_the_command_is_on(self, db_mod, label, sql):
-        found = db_mod._find_disallowed_psql_meta_command(sql)
+        found = db_mod._get_disallowed_psql_meta_command(sql)
         assert found is not None, f"{label}: the command was not flagged at all"
         assert found[0] == self._expected_line(sql), (
             f"{label}: refused at line {found[0]}, but the command is on line "
@@ -462,7 +462,7 @@ class TestTheScannerAlwaysTerminates:
 
         def run():
             results.extend(
-                (sql, db_mod._find_disallowed_psql_meta_command(sql))
+                (sql, db_mod._get_disallowed_psql_meta_command(sql))
                 for sql in TestTheScannerAlwaysTerminates.PATHOLOGICAL
             )
 

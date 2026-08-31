@@ -178,7 +178,7 @@ class HttpCase(TransactionCase):
             message,
         )
 
-    def build_rpc_payload(self, params: dict | None = None) -> dict:
+    def prepare_rpc_payload(self, params: dict | None = None) -> dict:
         return {
             "jsonrpc": "2.0",
             "method": "call",
@@ -318,14 +318,14 @@ class HttpCase(TransactionCase):
 
         return session
 
-    def fetch_proxy(self, url: str) -> dict:
+    def prepare_proxy_response(self, url: str) -> dict:
 
         if "https://fonts.googleapis.com/css" in url:
             _logger.info(
                 "External chrome request during tests: Return empty file for %s",
                 url,
             )
-            return self.make_fetch_proxy_response("")
+            return self.prepare_proxy_response_from_content("")
 
         _logger.info("External chrome request during tests: returning 404 for %s", url)
         return {
@@ -334,7 +334,9 @@ class HttpCase(TransactionCase):
             "responseHeaders": [],
         }
 
-    def make_fetch_proxy_response(self, content: str | bytes, code: int = 200) -> dict:
+    def prepare_proxy_response_from_content(
+        self, content: str | bytes, code: int = 200
+    ) -> dict:
         if isinstance(content, str):
             content = content.encode()
         return {
@@ -550,7 +552,7 @@ class HttpCase(TransactionCase):
         "is_tour": "self.start_tour",
     }
 
-    def make_jsonrpc_request(
+    def call_jsonrpc(
         self,
         route: str,
         params: dict | None = None,
@@ -560,7 +562,7 @@ class HttpCase(TransactionCase):
     ) -> Any:
         response = self.opener.post(
             urljoin(self.base_url(), route),
-            json=self.build_rpc_payload(params),
+            json=self.prepare_rpc_payload(params),
             headers=headers,
             cookies=cookies,
             timeout=timeout,

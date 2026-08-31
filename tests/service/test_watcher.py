@@ -165,7 +165,7 @@ class TestFSWatcherInotifyRewatch:
         obj.started = False
         obj.thread = None
         try:
-            obj._build_watcher([str(root)], block_duration_s=0.05)
+            obj._arm_watcher([str(root)], block_duration_s=0.05)
         except OSError as exc:
             if exc.errno != errno.ENOSPC:
                 raise

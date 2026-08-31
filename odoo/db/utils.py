@@ -27,7 +27,7 @@ def is_maintenance_db(db_name: str) -> bool:
     return db_name in SYSTEM_DBS or db_name == tools.config["db_template"]
 
 
-def find_value_markers(query: str) -> list[int]:
+def get_value_marker_positions(query: str) -> list[int]:
     out = []
     i, n = 0, len(query)
     while i < n - 1:
@@ -110,7 +110,7 @@ def _mask_nested(sql_text: str) -> str:
     return "".join(out)
 
 
-def _search_from(body: str) -> re.Match | None:
+def _match_from_clause(body: str) -> re.Match | None:
     masked = _mask_nested(body)
     match = re_from.search(masked)
     if match is not None:
@@ -128,14 +128,14 @@ def categorize_query(decoded_query: str) -> tuple[str, str] | tuple[str, None]:
         return "into", res_update.group(1)
 
     if re_delete.match(body):
-        res_from = _search_from(body)
+        res_from = _match_from_clause(body)
         return ("into", res_from.group(1)) if res_from else ("other", None)
 
     res_into = re_into.search(body)
     if res_into:
         return "into", res_into.group(1)
 
-    res_from = _search_from(body)
+    res_from = _match_from_clause(body)
     if res_from:
         return "from", res_from.group(1)
 
@@ -161,7 +161,7 @@ _HEALTH_PARAMS: dict[str, str] = {
 }
 
 
-def connection_info_for(db_or_uri: str, readonly: bool = False) -> tuple[str, dict]:
+def get_connection_info_for(db_or_uri: str, readonly: bool = False) -> tuple[str, dict]:
     global _ODOO_PGAPPNAME_WARNED  # noqa: PLW0603  warn-once latch for the whole process
     app_name = tools.config["db_app_name"]
     if "ODOO_PGAPPNAME" in os.environ:

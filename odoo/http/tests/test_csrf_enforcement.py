@@ -45,12 +45,12 @@ def _request(method="POST", params=None, db="db", valid=True, mimetype="", body=
             mimetype=mimetype,
             get_data=lambda cache=True: body,
         ),
-        validate_csrf=lambda token: valid,
+        is_valid_csrf=lambda token: valid,
         redirect=lambda location, **kw: ("redirected", location),
         get_json_data=dict,
     )
     this.get_http_params = lambda: dict(params or {})
-    this.make_json_response = lambda data, **kw: ("json", data)
+    this.prepare_json_response = lambda data, **kw: ("json", data)
     return this
 
 

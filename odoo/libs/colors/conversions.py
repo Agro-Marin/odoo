@@ -5,10 +5,10 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Sequence
 __all__ = [
+    "get_hsl_from_seed",
     "get_lightness",
     "get_saturation",
     "hex_to_rgb",
-    "hsl_from_seed",
     "rgb_to_hex",
 ]
 
@@ -44,7 +44,7 @@ def rgb_to_hex(rgb: Sequence[int]) -> str:
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
-def hsl_from_seed(seed: str) -> str:
+def get_hsl_from_seed(seed: str) -> str:
     hashed_seed = sha512(seed.encode()).hexdigest()
     hue = int(hashed_seed[0:2], 16) * 360 / 255
     sat = int(hashed_seed[2:4], 16) * ((70 - 40) / 255) + 40

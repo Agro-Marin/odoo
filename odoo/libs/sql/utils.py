@@ -1,7 +1,7 @@
 __all__ = [
     "escape_psql",
-    "make_identifier",
-    "make_index_name",
+    "get_index_name",
+    "normalize_identifier",
     "pg_varchar",
     "reverse_order",
 ]
@@ -65,7 +65,7 @@ def reverse_order(order: str) -> str:
     return ", ".join(items)
 
 
-def make_identifier(identifier: str) -> str:
+def normalize_identifier(identifier: str) -> str:
     encoded = identifier.encode()
     if len(encoded) > 63:
         prefix = encoded[:54].decode(errors="ignore")
@@ -73,5 +73,5 @@ def make_identifier(identifier: str) -> str:
     return identifier
 
 
-def make_index_name(table_name: str, column_name: str) -> str:
-    return make_identifier(f"{table_name}__{column_name}_index")
+def get_index_name(table_name: str, column_name: str) -> str:
+    return normalize_identifier(f"{table_name}__{column_name}_index")

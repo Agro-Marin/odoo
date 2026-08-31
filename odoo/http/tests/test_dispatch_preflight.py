@@ -189,7 +189,7 @@ def test_unmatched_json_error_keeps_the_status_code():
     captured = {}
 
     class _Req(RequestState):
-        def make_json_response(self, data, headers=None, cookies=None, status=200):
+        def prepare_json_response(self, data, headers=None, cookies=None, status=200):
             captured["status"] = status
             return data
 

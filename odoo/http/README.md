@@ -146,10 +146,10 @@ post_dispatch out of band.
 | `application.py` | serving | `Application`: the WSGI callable, static/nodb/db routing decision, error logging and `_finalize_error_response` |
 | `_serve.py` | serving | `_RequestServeMixin`: `_serve_static`, `_serve_nodb`, `_serve_db`, `_serve_aborted`, `_serve_ir_http`, `_serve_ir_http_fallback` |
 | `request_class.py` | serving | `Request`, composed from the serve / response / CSRF mixins |
-| `_response.py` | serving | `_RequestResponseMixin`: `make_response`, `make_json_response`, redirects, `render` |
+| `_response.py` | serving | `_RequestResponseMixin`: `prepare_response`, `prepare_json_response`, redirects, `render` |
 | `_csrf.py` | serving | `_RequestCsrfMixin`: CSRF token generation and validation |
 | `dispatcher.py` | serving | `Dispatcher` and its three subclasses (`HttpDispatcher`, `JsonRPCDispatcher`, `Json2Dispatcher`), selected by `routing["type"]` |
-| `routing.py` | serving | `route()`, the `route_wrapper` it builds, `LazyCompiledBuilder` / `FasterRule`, `build_routing_map` (used by both maps the framework serves from) and the routing-parameter registry |
+| `routing.py` | serving | `route()`, the `route_wrapper` it builds, `LazyCompiledBuilder` / `FasterRule`, `prepare_routing_map` (used by both maps the framework serves from) and the routing-parameter registry |
 | `controller.py` | serving | `Controller` and the controller registry |
 | `session.py` | serving | `Session`, `FilesystemSessionStore`, session rotation and GC |
 | `stream.py` | serving | `Stream`: file/attachment streaming and conditional responses |
@@ -157,7 +157,7 @@ post_dispatch out of band.
 | `core.py` | serving | `_request_stack` (a werkzeug `LocalStack`), the `request` proxy bound to it, and `borrow_request` |
 | `helpers.py` | serving | `content_disposition`, `rewind_uploaded_files`, `db_list` — the package's one database-listing entry point, cached and read by both the selector and `Request._get_session_and_dbname` — and the `dbfilter` machinery |
 | `_retry.py` | serving | `RequestRetryParticipant`: restores the session and rewinds uploads when `retrying()` replays a handler, installed on `service.transaction` at import |
-| `openapi.py` | features | `build_openapi`: an OpenAPI `3.1.0` document generated from the routing map |
+| `openapi.py` | features | `prepare_openapi_document`: an OpenAPI `3.1.0` document generated from the routing map |
 | `_params.py` | features | `ParamSpec` and the annotation-driven coercion behind `@route(typed=True)` |
 | `geoip.py` | features | `GeoIP` lookup exposed on the request (`_GeoIPNull` when unavailable) |
 | `constants.py` | features | Package-wide constants, `allow_header`, and the session/ensure-db path registries with their `is_ensure_db_path` predicate |

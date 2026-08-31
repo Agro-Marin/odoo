@@ -28,8 +28,8 @@ class TestKnownSubtractionSemantics(unittest.TestCase):
             schedule_inline=True,
             set_factory=OrderedSet,
         )
-        scheduler.process_entry(field, OrderedSet([20, 21]))
-        recursive_ids = scheduler.process_entry(
+        scheduler.schedule_recompute(field, OrderedSet([20, 21]))
+        recursive_ids = scheduler.schedule_recompute(
             field, OrderedSet([10, 20, 30, 11, 21, 31])
         )
 
@@ -40,27 +40,27 @@ class TestKnownSubtractionSemantics(unittest.TestCase):
         engine = ComputeEngine()
         field = _MockField("f", stored_computed=True, recursive=True)
         scheduler = RecomputeScheduler(engine, marked={field: {1, 2}})
-        self.assertEqual(scheduler.process_entry(field, {1, 2, 3}), frozenset({3}))
+        self.assertEqual(scheduler.schedule_recompute(field, {1, 2, 3}), frozenset({3}))
 
     def test_only_accumulated(self) -> None:
         engine = ComputeEngine()
         field = _MockField("f", stored_computed=True, recursive=True)
         scheduler = RecomputeScheduler(engine)
-        scheduler.process_entry(field, {1, 2})
-        self.assertEqual(scheduler.process_entry(field, {2, 3}), frozenset({3}))
+        scheduler.schedule_recompute(field, {1, 2})
+        self.assertEqual(scheduler.schedule_recompute(field, {2, 3}), frozenset({3}))
 
     def test_neither_leaves_ids_untouched(self) -> None:
         engine = ComputeEngine()
         field = _MockField("f", stored_computed=True, recursive=True)
         scheduler = RecomputeScheduler(engine)
-        self.assertEqual(scheduler.process_entry(field, {1, 2}), frozenset({1, 2}))
+        self.assertEqual(scheduler.schedule_recompute(field, {1, 2}), frozenset({1, 2}))
 
     def test_fully_known_is_a_noop(self) -> None:
         engine = ComputeEngine()
         field = _MockField("f", stored_computed=True, recursive=True)
         scheduler = RecomputeScheduler(engine, marked={field: {1}})
-        scheduler.process_entry(field, {2})
-        self.assertEqual(scheduler.process_entry(field, {1, 2}), frozenset())
+        scheduler.schedule_recompute(field, {2})
+        self.assertEqual(scheduler.schedule_recompute(field, {1, 2}), frozenset())
         self.assertEqual(scheduler.to_recompute[field], {2})
 
 
@@ -89,7 +89,7 @@ class TestCachedIdsIntersection(unittest.TestCase):
         )
 
         cached = _MembershipOnlyView([9, 3, 7, 1])
-        recursive_ids = scheduler.process_entry(
+        recursive_ids = scheduler.schedule_recompute(
             field, OrderedSet([1, 3, 5, 7]), cached_ids=cached
         )
 
@@ -101,7 +101,7 @@ class TestCachedIdsIntersection(unittest.TestCase):
         engine = ComputeEngine()
         field = _MockField("display", stored_computed=False, recursive=True)
         scheduler = RecomputeScheduler(engine)
-        recursive_ids = scheduler.process_entry(
+        recursive_ids = scheduler.schedule_recompute(
             field, {1, 2, 3, 4, 5}, cached_ids={2, 4, 99}
         )
         self.assertEqual(recursive_ids, frozenset({2, 4}))
@@ -110,8 +110,10 @@ class TestCachedIdsIntersection(unittest.TestCase):
         engine = ComputeEngine()
         field = _MockField("display", stored_computed=False, recursive=True)
         scheduler = RecomputeScheduler(engine)
-        scheduler.process_entry(field, {1, 2}, cached_ids={1, 2})
-        recursive_ids = scheduler.process_entry(field, {1, 3, 4}, cached_ids={1, 3})
+        scheduler.schedule_recompute(field, {1, 2}, cached_ids={1, 2})
+        recursive_ids = scheduler.schedule_recompute(
+            field, {1, 3, 4}, cached_ids={1, 3}
+        )
         self.assertEqual(recursive_ids, frozenset({3}))
 
 

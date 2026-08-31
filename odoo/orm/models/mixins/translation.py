@@ -170,7 +170,7 @@ class TranslationMixin(_ModelStubs):
         digest: Callable[[str], str] | None = None,
         source_lang: str = "",
     ) -> bool:
-        self.ensure_one()
+        self.check_singleton()
 
         self.check_access("write")
         field = self._fields[field_name]
@@ -205,7 +205,7 @@ class TranslationMixin(_ModelStubs):
     def get_field_translations(
         self, field_name: str, langs: Collection[str] | None = None
     ) -> tuple[list[dict[str, str]], dict[str, typing.Any]]:
-        self.ensure_one()
+        self.check_singleton()
         field = self._fields[field_name]
         langs = set(langs or [l[0] for l in self.env["res.lang"].get_installed()])
         self_lang = self.with_context(check_translations=True, prefetch_langs=True)
@@ -244,5 +244,5 @@ class TranslationMixin(_ModelStubs):
         return translations, context
 
     def _get_base_lang(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         return "en_US"

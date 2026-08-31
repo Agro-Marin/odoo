@@ -29,7 +29,7 @@ import requests
 import odoo.tools
 from odoo.libs.worker_thread import current_worker_thread
 from odoo.logutils import RUNBOT
-from odoo.tools.misc import find_in_path
+from odoo.tools.misc import get_executable_path
 
 from .utils import HOST, InfrastructureUnavailable, get_db_name, save_test_file
 
@@ -77,7 +77,7 @@ class ChromeBrowserException(Exception):
     pass
 
 
-def run(gen_func):
+def run_coroutine(gen_func):
     def done(f):
         try:
             try:
@@ -314,7 +314,7 @@ class ChromeBrowser:
     @property
     def executable(self):
         try:
-            return _find_executable()
+            return _get_browser_executable_path()
         except Exception:
             self._logger.warning("Chrome executable not found")
             raise
@@ -610,7 +610,7 @@ class ChromeBrowser:
             response = {}
         else:
             cmd = "Fetch.fulfillRequest"
-            response = self.test_case.fetch_proxy(url)
+            response = self.test_case.prepare_proxy_response(url)
         try:
             self._websocket_send(
                 cmd, params={"requestId": params["requestId"], **response}
@@ -664,13 +664,13 @@ class ChromeBrowser:
 
     def _handle_success_signal(self, _logger: logging.Logger) -> None:
 
-        @run
+        @run_coroutine
         def _get_heap():
             yield self._websocket_send("HeapProfiler.collectGarbage", with_future=True)
             r = yield self._websocket_send("Runtime.getHeapUsage", with_future=True)
             _logger.info("heap %d (allocated %d)", r["usedSize"], r["totalSize"])
 
-        @run
+        @run_coroutine
         def _check_form():
             node_id = 0
 
@@ -787,7 +787,7 @@ which leads to stray network requests and inconsistencies."""
             params["httpOnly"] = True
         self._websocket_request("Network.setCookie", params=params)
 
-    def delete_cookie(self, name: str, **kwargs: str) -> None:
+    def remove_cookie(self, name: str, **kwargs: str) -> None:
         params = {k: v for k, v in kwargs.items() if k in ["url", "domain", "path"]}
         params["name"] = name
         self._websocket_request("Network.deleteCookies", params=params)
@@ -1042,7 +1042,7 @@ class Screencaster:
             concat_file.write(f"file '{frames[-1]['file_path']}'\n")
 
         try:
-            ffmpeg_path = find_in_path("ffmpeg")
+            ffmpeg_path = get_executable_path("ffmpeg")
         except OSError:
             self._logger.log(RUNBOT, "Screencast frames in: %s", self.frames_dir)
             return
@@ -1083,7 +1083,7 @@ class Screencaster:
 
 
 @lru_cache(1)
-def _find_executable():
+def _get_browser_executable_path():
     browser_bin_path = os.environ.get("ODOO_BROWSER_BIN")
     if browser_bin_path and pathlib.Path(browser_bin_path).exists():
         return browser_bin_path
@@ -1096,7 +1096,7 @@ def _find_executable():
             "google-chrome-stable",
         ]:
             try:
-                return find_in_path(bin_)
+                return get_executable_path(bin_)
             except OSError:
                 continue
 

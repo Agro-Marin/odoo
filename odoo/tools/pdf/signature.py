@@ -89,7 +89,7 @@ class PdfSigner:
             visible_signature, field_name, signer
         )
 
-        if not self._perform_signature(sig_field_value):
+        if not self._sign_field(sig_field_value):
             return None
 
         out_stream = io.BytesIO()
@@ -410,7 +410,7 @@ class PdfSigner:
             return None
         return placeholder_start, placeholder_end, placeholder
 
-    def _perform_signature(self, sig_field_value: DictionaryObject) -> bool:
+    def _sign_field(self, sig_field_value: DictionaryObject) -> bool:
         private_key, certificate = self._load_key_and_certificate()
         if private_key is None or certificate is None:
             return False

@@ -89,7 +89,7 @@ def _get_upgrade_test_modules(module: str) -> Generator[Any]:
                 yield pymod
 
 
-def make_suite(module_names: list[str], position: str = "at_install") -> OdooSuite:
+def prepare_suite(module_names: list[str], position: str = "at_install") -> OdooSuite:
     config_tags = TagsSelector(tools.config["test_tags"])
     position_tag = TagsSelector(position)
     tests = [

@@ -7,7 +7,7 @@ import psycopg
 
 from odoo.db import FunctionStatus
 from odoo.db import schema as sql
-from odoo.libs.sql import make_index_name
+from odoo.libs.sql import get_index_name
 from odoo.tools import OrderedSet
 
 from ..primitives import SUPERUSER_ID
@@ -85,7 +85,7 @@ class _RegistrySchemaMixin(_RegistryStubs):
                         else:
                             _schema.warning("Missing not-null constraint on %s", field)
 
-    def _build_index_expression(self, field, index) -> tuple[str, str, str]:
+    def _get_index_expression(self, field, index) -> tuple[str, str, str]:
         column_expression = f'"{field.name}"'
         if index == "trigram":
             if field.translate:
@@ -144,7 +144,7 @@ class _RegistrySchemaMixin(_RegistryStubs):
     def check_indexes(self, cr: Cursor, model_names: Iterable[str]) -> None:
 
         expected = [
-            (make_index_name(Model._table, field.name), Model._table, field)
+            (get_index_name(Model._table, field.name), Model._table, field)
             for model_name in model_names
             for Model in [self.models[model_name]]
             if Model._auto and not Model._abstract
@@ -203,7 +203,7 @@ class _RegistrySchemaMixin(_RegistryStubs):
                 stale = False
 
             if will_index:
-                expression, method, where = self._build_index_expression(field, index)
+                expression, method, where = self._get_index_expression(field, index)
                 self._apply_index(
                     cr, indexname, tablename, expression, method, where, stale
                 )

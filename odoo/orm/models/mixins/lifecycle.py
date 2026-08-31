@@ -80,7 +80,7 @@ class LifecycleMixin(_ModelStubs):
     def _can_return_content(
         self, field_name: str | None = None, access_token: str | None = None
     ) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return False
 
     def _has_onchange(self, field: Field, other_fields: Collection[Field]) -> bool:

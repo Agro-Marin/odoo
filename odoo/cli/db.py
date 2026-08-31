@@ -15,7 +15,7 @@ import requests
 
 from ..db import SYSTEM_DBS, db_connect
 from ..modules.neutralize import neutralize_database
-from ..service._db_helpers import validate_db_name
+from ..service._db_helpers import check_db_name
 from ..service.db import (
     _drop_database,
     _duplicate_database,
@@ -338,7 +338,7 @@ class Db(Command):
     def load(self, args: argparse.Namespace) -> None:
         db_name = args.database or Path(args.dump_file).stem
         try:
-            validate_db_name(db_name)
+            check_db_name(db_name)
         except ValueError as e:
             sys.exit(f"{e}")
         self._check_target_free(db_name, force=args.force)

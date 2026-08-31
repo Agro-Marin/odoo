@@ -8,7 +8,7 @@ from odoo import tools
 from .budget import ConnectionBudget
 from .dsn import _expand_conninfo
 from .pool import ConnectionPool
-from .utils import connection_info_for
+from .utils import get_connection_info_for
 
 DEFAULT_PG_PORT = 5432
 
@@ -46,32 +46,34 @@ class EndpointRegistry:
         self._budgets: dict[tuple, ConnectionBudget] = {}
         self._lock = threading.RLock()
 
-    def endpoint_of(self, readonly: bool) -> tuple:
-        _, info = connection_info_for("", readonly)
+    def get_endpoint_of(self, readonly: bool) -> tuple:
+        _, info = get_connection_info_for("", readonly)
         return endpoint_key(info)
 
-    def maxconn_at(self, endpoint: tuple) -> int:
+    def get_maxconn_at(self, endpoint: tuple) -> int:
         base = base_maxconn()
-        if endpoint != self.endpoint_of(False) and endpoint == self.endpoint_of(True):
+        if endpoint != self.get_endpoint_of(False) and endpoint == self.get_endpoint_of(
+            True
+        ):
             return int(tools.config["db_maxconn_replica"] or base)
         return base
 
-    def maxconn_for(self, readonly: bool) -> int:
-        return self.maxconn_at(self.endpoint_of(readonly))
+    def get_maxconn_for(self, readonly: bool) -> int:
+        return self.get_maxconn_at(self.get_endpoint_of(readonly))
 
-    def budget_at(self, endpoint: tuple) -> ConnectionBudget:
+    def get_budget_at(self, endpoint: tuple) -> ConnectionBudget:
         with self._lock:
             budget = self._budgets.get(endpoint)
             if budget is None:
                 budget = self._budgets[endpoint] = ConnectionBudget(
-                    self.maxconn_at(endpoint)
+                    self.get_maxconn_at(endpoint)
                 )
             return budget
 
-    def budget_for(self, readonly: bool) -> ConnectionBudget:
-        return self.budget_at(self.endpoint_of(readonly))
+    def get_budget_for(self, readonly: bool) -> ConnectionBudget:
+        return self.get_budget_at(self.get_endpoint_of(readonly))
 
-    def pool_at(self, endpoint: tuple, readonly: bool) -> ConnectionPool:
+    def get_pool_at(self, endpoint: tuple, readonly: bool) -> ConnectionPool:
         key = (endpoint, readonly)
         pool = self._pools.get(key)
         if pool is not None:
@@ -79,7 +81,7 @@ class EndpointRegistry:
         with self._lock:
             pool = self._pools.get(key)
             if pool is None:
-                budget = self.budget_at(endpoint)
+                budget = self.get_budget_at(endpoint)
                 pool = self._pools[key] = ConnectionPool(
                     budget.maxconn,
                     readonly=readonly,
@@ -93,18 +95,21 @@ class EndpointRegistry:
                 )
             return pool
 
-    def pool_for(self, readonly: bool) -> ConnectionPool:
-        return self.pool_at(self.endpoint_of(readonly), readonly)
+    def get_pool_for(self, readonly: bool) -> ConnectionPool:
+        return self.get_pool_at(self.get_endpoint_of(readonly), readonly)
 
-    def all_pools(self) -> list[ConnectionPool]:
+    def get_all_pools(self) -> list[ConnectionPool]:
         with self._lock:
             return list(self._pools.values())
 
     def is_pooled(self, db_name: str) -> bool:
-        return any(pool.has_database(db_name) for pool in self.all_pools())
+        return any(pool.has_database(db_name) for pool in self.get_all_pools())
 
     def health(self) -> dict:
-        configured = {False: self.endpoint_of(False), True: self.endpoint_of(True)}
+        configured = {
+            False: self.get_endpoint_of(False),
+            True: self.get_endpoint_of(True),
+        }
         health: dict = {"read_write": None, "read_only": None}
         with self._lock:
             items = list(self._pools.items())
@@ -118,17 +123,17 @@ class EndpointRegistry:
         return health
 
     def close_db(self, db_name: str) -> None:
-        for pool in self.all_pools():
+        for pool in self.get_all_pools():
             pool.close_database(db_name)
 
     def close_all(self) -> None:
-        for pool in self.all_pools():
+        for pool in self.get_all_pools():
             pool.close_all()
 
     def drain_db(self, db_name: str) -> None:
-        for pool in self.all_pools():
+        for pool in self.get_all_pools():
             pool.drain_database(db_name)
 
     def drain_all(self) -> None:
-        for pool in self.all_pools():
+        for pool in self.get_all_pools():
             pool.drain()

@@ -2,8 +2,8 @@ import unittest
 from typing import TYPE_CHECKING, cast
 
 from odoo.tools.security import (
+    is_valid_limited_field_access_token,
     limited_field_access_token,
-    verify_limited_field_access_token,
 )
 
 if TYPE_CHECKING:
@@ -33,7 +33,7 @@ class _FakeRecord:
     _name = "res.partner"
     id = 42
 
-    def ensure_one(self):
+    def check_singleton(self):
         return self
 
     def __call__(self, su=False):
@@ -49,7 +49,7 @@ class TestVerifyLimitedFieldAccessToken(unittest.TestCase):
         self.record = cast("BaseModel", _FakeRecord())
 
     def _verify(self, token):
-        return verify_limited_field_access_token(
+        return is_valid_limited_field_access_token(
             self.record, "image_128", token, scope="binary"
         )
 
@@ -82,7 +82,7 @@ class TestVerifyLimitedFieldAccessToken(unittest.TestCase):
     def test_wrong_scope_returns_false(self):
         token = limited_field_access_token(self.record, "image_128", scope="binary")
         self.assertIs(
-            verify_limited_field_access_token(
+            is_valid_limited_field_access_token(
                 self.record, "image_128", token, scope="other"
             ),
             False,

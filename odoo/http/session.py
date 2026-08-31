@@ -74,7 +74,7 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
                     os.utime(path)
         return session
 
-    def _delete_sid(self, sid: str) -> None:
+    def _remove_sid(self, sid: str) -> None:
         with contextlib.suppress(OSError, ValueError):
             Path(self.get_session_filename(sid)).unlink()
 
@@ -84,10 +84,10 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
         except OSError:
             self.save(session)
 
-    def delete_old_sessions(self, session: Session) -> None:
+    def remove_old_sessions(self, session: Session) -> None:
         if "gc_previous_sessions" in session:
             if session["create_time"] + SESSION_DELETION_TIMER < time.time():
-                self.delete_from_identifiers(
+                self.remove_from_identifiers(
                     [session.sid[:STORED_SESSION_BYTES]],
                     exclude_sid=session.sid,
                 )
@@ -127,7 +127,7 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
                 msg = "Saving an authenticated session requires an environment"
                 raise ValueError(msg)
             new_token = (
-                env["res.users"].browse(session.uid)._compute_session_token(next_sid)
+                env["res.users"].browse(session.uid)._get_session_token(next_sid)
             )
 
         old_sid_to_delete = None
@@ -150,7 +150,7 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
         self.save(session)
 
         if old_sid_to_delete is not None:
-            self._delete_sid(old_sid_to_delete)
+            self._remove_sid(old_sid_to_delete)
 
     def vacuum(self, max_lifetime: int = SESSION_LIFETIME) -> None:
         threshold = time.time() - max_lifetime
@@ -188,7 +188,7 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
                 )
         return identifiers
 
-    def delete_from_identifiers(
+    def remove_from_identifiers(
         self,
         identifiers: list[str],
         exclude_sid: str | None = None,
@@ -363,7 +363,7 @@ class Session(collections.abc.MutableMapping):
                 "login": login,
                 "uid": uid,
                 "context": user_context,
-                "session_token": env.user._compute_session_token(self.sid),
+                "session_token": env.user._get_session_token(self.sid),
             }
         )
 
@@ -432,7 +432,7 @@ class Session(collections.abc.MutableMapping):
         self.is_dirty = True
         return new_trace
 
-    def _delete_old_sessions(self) -> None:
+    def _remove_old_sessions(self) -> None:
         if self.store is None:
             return
-        self.store.delete_old_sessions(self)
+        self.store.remove_old_sessions(self)

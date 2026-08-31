@@ -65,7 +65,7 @@ def restoring(tmp_path):
             patch.object(restore, "_rollback_new_database"),
             patch.object(restore, "_assert_filestore_dest_free"),
             patch.object(restore, "_assert_dump_sql_safe"),
-            patch.object(restore, "validate_db_name"),
+            patch.object(restore, "check_db_name"),
             patch.object(restore, "shutil", MagicMock(move=lambda *a: moved.append(a))),
             patch.object(restore.odoo.tools, "config", MagicMock()),
             patch.object(restore, "subprocess") as sub,
@@ -116,7 +116,7 @@ class TestRawRestoreNeedsAPath:
             patch.object(restore, "_create_empty_database"),
             patch.object(restore, "_rollback_new_database"),
             patch.object(restore, "_assert_filestore_dest_free"),
-            patch.object(restore, "validate_db_name"),
+            patch.object(restore, "check_db_name"),
             patch.object(restore.odoo.tools, "config", MagicMock()),
             pytest.raises(TypeError, match="needs a file path"),
         ):

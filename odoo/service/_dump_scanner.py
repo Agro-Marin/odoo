@@ -303,7 +303,7 @@ def _iter_physical_lines(text: str) -> Iterator[str]:
         yield text[start:]
 
 
-def _find_disallowed_psql_meta_command(text: str) -> tuple[int, str] | None:
+def _get_disallowed_psql_meta_command(text: str) -> tuple[int, str] | None:
     scanner = _PsqlSqlScanner()
     for line in _iter_physical_lines(text):
         hit = scanner.feed(line)
@@ -360,6 +360,6 @@ def _assert_dump_sql_safe(sql_path: str) -> None:
 __all__ = (
     "_PsqlSqlScanner",
     "_assert_dump_sql_safe",
-    "_find_disallowed_psql_meta_command",
+    "_get_disallowed_psql_meta_command",
     "_iter_physical_lines",
 )

@@ -63,7 +63,7 @@ def _esbuild_argv(
 _ESBUILD_PATH: str | None = None
 
 
-def _find_esbuild() -> str | None:
+def _get_esbuild_path() -> str | None:
     global _ESBUILD_PATH  # noqa: PLW0603  process-wide memo of a filesystem lookup
     if _ESBUILD_PATH is not None:
         return _ESBUILD_PATH
@@ -111,7 +111,7 @@ def has_nested_template_literal(source: str) -> bool:
 def minify_js(
     source: str, *, label: str = "<asset>", timeout_s: int = 60
 ) -> str | None:
-    esbuild_bin = _find_esbuild()
+    esbuild_bin = _get_esbuild_path()
     if not esbuild_bin:
         log_event(_esbuild_log, logging.WARNING, "minify_no_binary", asset=label)
         return None
@@ -356,7 +356,7 @@ class EsbuildCompiler:
         _t0 = time.monotonic()
 
         odoo_root = Path(odoo.__path__[0]).parent
-        esbuild = _find_esbuild()
+        esbuild = _get_esbuild_path()
         if not esbuild:
             raise FileNotFoundError(
                 "esbuild is required for native ESM bundling. "
@@ -602,7 +602,7 @@ class EsbuildCompiler:
                 else:
                     stub_path.symlink_to(real_dir, target_is_directory=True)
             shim_path = stub_root / f"{rel}.js"
-            cls._ensure_inside_mirror(shim_path, stub_root)
+            cls._check_inside_mirror(shim_path, stub_root)
             shim_path.write_text(stubs[spec], encoding="utf-8")
             flags.append(f"--alias:{spec}={stub_path}")
         return flags
@@ -630,7 +630,7 @@ class EsbuildCompiler:
                 (mirror / entry.name).symlink_to(entry)
 
     @staticmethod
-    def _ensure_inside_mirror(path: Path, stub_root: Path) -> None:
+    def _check_inside_mirror(path: Path, stub_root: Path) -> None:
         resolved = path.parent.resolve()
         if not resolved.is_relative_to(stub_root.resolve()):
             raise RuntimeError(
@@ -648,7 +648,7 @@ class EsbuildCompiler:
         return candidate if candidate.is_dir() else None
 
     @staticmethod
-    def _purge_stale_fail_dumps(name: str) -> None:
+    def _remove_stale_fail_dumps(name: str) -> None:
         pattern = "esbuild_fail_" + glob.escape(name) + "_*.js"
         with contextlib.suppress(OSError):
             for stale in Path(tempfile.gettempdir()).glob(pattern):
@@ -674,7 +674,7 @@ class EsbuildCompiler:
                 check=False,
             )
             if result.returncode != 0:
-                self._purge_stale_fail_dumps(self.name)
+                self._remove_stale_fail_dumps(self.name)
                 try:
                     with tempfile.NamedTemporaryFile(
                         mode="w",

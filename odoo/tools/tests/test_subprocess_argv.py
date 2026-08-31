@@ -2,7 +2,11 @@ import unittest
 from unittest import mock
 
 from odoo.tools import subprocess as tools_subprocess
-from odoo.tools.subprocess import find_in_path, find_pg_tool, stripped_sys_argv
+from odoo.tools.subprocess import (
+    get_executable_path,
+    get_pg_tool_path,
+    stripped_sys_argv,
+)
 
 
 def strip(argv, *extra):
@@ -77,15 +81,15 @@ class TestStrippedSysArgv(unittest.TestCase):
 
 class TestToolLookup(unittest.TestCase):
     def test_find_in_path_finds_a_real_executable(self):
-        self.assertTrue(find_in_path("sh").endswith("sh"))
+        self.assertTrue(get_executable_path("sh").endswith("sh"))
 
     def test_find_in_path_raises_for_a_missing_executable(self):
         with self.assertRaises(OSError):
-            find_in_path("odoo-no-such-binary-xyz")
+            get_executable_path("odoo-no-such-binary-xyz")
 
     def test_find_pg_tool_raises_filenotfound(self):
         with self.assertRaises(FileNotFoundError):
-            find_pg_tool("pg_no_such_tool_xyz")
+            get_pg_tool_path("pg_no_such_tool_xyz")
 
 
 if __name__ == "__main__":

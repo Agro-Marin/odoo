@@ -63,7 +63,7 @@ class TestBuildWatcher:
     def _build(self, exc):
         obj = object.__new__(_watcher.FSWatcherInotify)
         with patch.object(_watcher, "InotifyTrees", side_effect=exc):
-            obj._build_watcher(["/some/path"])
+            obj._arm_watcher(["/some/path"])
         return obj
 
     def test_an_unrecognised_failure_is_re_raised_unchanged(self):
@@ -92,7 +92,7 @@ class TestBuildWatcher:
             patch.object(_watcher, "InotifyTrees", return_value=trees),
             patch.object(_watcher, "_InotifyInternals") as internals,
         ):
-            obj._build_watcher(["/a", "/b"])
+            obj._arm_watcher(["/a", "/b"])
         assert obj.roots == ["/a", "/b"]
         internals.return_value.register_path.assert_called_once_with(
             _watcher.OVERFLOW_WD, _watcher.OVERFLOW_PATH

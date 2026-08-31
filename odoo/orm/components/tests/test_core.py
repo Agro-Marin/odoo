@@ -44,7 +44,7 @@ _DELEGATIONS = [
 ]
 _NON_PASSTHROUGH = {
     "new_scheduler",
-    "find_pending_write",
+    "get_pending_write",
 }
 
 _KWARG_DELEGATIONS = [
@@ -229,24 +229,22 @@ class TestOrmCoreFindPendingWrite(unittest.TestCase):
         self.f_b = FakeField("res.partner", "b")
 
     def test_none_when_nothing_dirty(self) -> None:
-        self.assertIsNone(self.core.find_pending_write([self.f_a], [1, 2]))
+        self.assertIsNone(self.core.get_pending_write([self.f_a], [1, 2]))
 
     def test_ids_none_matches_any_dirty_entry(self) -> None:
         self.core.mark_dirty(self.f_a, [7])
-        self.assertEqual(
-            self.core.find_pending_write([self.f_a], None), (self.f_a, [7])
-        )
+        self.assertEqual(self.core.get_pending_write([self.f_a], None), (self.f_a, [7]))
 
     def test_reports_only_the_overlap(self) -> None:
         self.core.mark_dirty(self.f_a, [1, 5, 9])
         self.assertEqual(
-            self.core.find_pending_write([self.f_a], [9, 5]), (self.f_a, [5, 9])
+            self.core.get_pending_write([self.f_a], [9, 5]), (self.f_a, [5, 9])
         )
 
     def test_iterator_ids_survive_a_clean_first_field(self) -> None:
         self.core.mark_dirty(self.f_a, [99])
         self.core.mark_dirty(self.f_b, [1])
-        found = self.core.find_pending_write([self.f_a, self.f_b], (i for i in (1, 2)))
+        found = self.core.get_pending_write([self.f_a, self.f_b], (i for i in (1, 2)))
         self.assertEqual(found, (self.f_b, [1]))
 
     def test_iterator_ids_match_list_ids(self) -> None:
@@ -254,8 +252,8 @@ class TestOrmCoreFindPendingWrite(unittest.TestCase):
         self.core.mark_dirty(self.f_b, [1])
         fields = [self.f_a, self.f_b]
         self.assertEqual(
-            self.core.find_pending_write(fields, iter([1, 2])),
-            self.core.find_pending_write(fields, [1, 2]),
+            self.core.get_pending_write(fields, iter([1, 2])),
+            self.core.get_pending_write(fields, [1, 2]),
         )
 
 

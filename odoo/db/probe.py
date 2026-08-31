@@ -68,7 +68,7 @@ class ReachabilityProbe:
                 [key for key in self._proven if predicate(key)]
             )
 
-    def ensure_connectable(
+    def check_connectable(
         self,
         key: frozenset,
         conninfo: str,
@@ -90,9 +90,9 @@ class ReachabilityProbe:
             self._stats.record_probe_outcome("skipped_proven")
             return
         assert probe is not None
-        self._run_or_follow(key, probe, leader, conninfo, kwargs, deadline)
+        self._probe_or_await_leader(key, probe, leader, conninfo, kwargs, deadline)
 
-    def _run_or_follow(
+    def _probe_or_await_leader(
         self,
         key: frozenset,
         probe: _InFlightProbe,

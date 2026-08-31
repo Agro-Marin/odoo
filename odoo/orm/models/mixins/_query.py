@@ -229,7 +229,9 @@ class _QueryMixin(_ModelStubs):
 
         if check_access:
             self_sudo = self.sudo().with_context(active_test=False)
-            sec_domain = self.env["ir.rule"]._compute_domain(self._name, "read")
+            sec_domain = self.env["ir.rule"]._get_domain_accessible_records(
+                self._name, "read"
+            )
             sec_domain = sec_domain.optimize_full(self_sudo)
             if sec_domain.is_false():
                 return self.browse()._as_query()

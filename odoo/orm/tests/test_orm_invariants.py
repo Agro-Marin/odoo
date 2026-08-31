@@ -59,7 +59,7 @@ class ICurrency(models.Model):
     rounding = fields.Float(default=0.01)
 
     def round(self, amount: float) -> float:
-        self.ensure_one()
+        self.check_singleton()
         prec = self.rounding or 0.01
         return round(amount / prec) * prec
 

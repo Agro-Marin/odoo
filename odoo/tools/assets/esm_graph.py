@@ -159,7 +159,7 @@ def _scan_import_specifiers(src: str) -> set[str]:
     return specs
 
 
-def find_escaping_relative_imports(
+def get_escaping_relative_imports(
     modules: Iterable,
 ) -> list[tuple[str, str, str]]:
     modules = list(modules)

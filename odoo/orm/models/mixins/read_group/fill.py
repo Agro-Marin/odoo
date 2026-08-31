@@ -27,7 +27,7 @@ class _ReadGroupFillMixin(_ReadGroupEmptyMixin):
         return groups.search([])
 
     @api.model
-    def _read_group_fill_results(
+    def _read_group_expand_results(
         self,
         domain: DomainType,
         groupby: str,
@@ -41,7 +41,7 @@ class _ReadGroupFillMixin(_ReadGroupEmptyMixin):
             return read_group_result
         if "." in groupby.split(":", maxsplit=1)[0] and field.relational:
             raise ValueError(
-                f"_read_group_fill_results does not support a relational path: "
+                f"_read_group_expand_results does not support a relational path: "
                 f"{groupby!r} groups by the leaf field while {field} carries the "
                 f"group_expand. Expand on the leaf's model instead."
             )

@@ -46,7 +46,7 @@ from .stream import Stream
 from .controller import Controller
 
 from .routing import (
-    build_routing_map,
+    prepare_routing_map,
     FasterRule,
     fragment_to_query_string,
     LazyCompiledBuilder,
@@ -71,9 +71,9 @@ from .geoip import (
 )
 
 from .openapi import (
-    build_openapi,
+    prepare_openapi_document,
     iter_map_routes,
-    openapi_from_map,
+    prepare_openapi_from_map,
     RouteInfo,
 )
 
@@ -163,8 +163,6 @@ __all__ = [
     "_generate_routing_rules",
     "_request_stack",
     "borrow_request",
-    "build_openapi",
-    "build_routing_map",
     "content_disposition",
     "cors_same_host",
     "db_filter",
@@ -179,7 +177,9 @@ __all__ = [
     "iter_map_routes",
     "maxminddb",
     "no_content",
-    "openapi_from_map",
+    "prepare_openapi_document",
+    "prepare_openapi_from_map",
+    "prepare_routing_map",
     "register_ensure_db_paths",
     "register_routing_parameters",
     "register_session_rotation_excluded_paths",

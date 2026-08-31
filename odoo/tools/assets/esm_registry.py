@@ -9,11 +9,11 @@ from odoo.libs.asset_log import get_asset_logger, log_event
 
 __all__ = [
     "EsmRegistry",
+    "check_esm_config",
     "esm_registry",
     "external_bare_specifiers",
     "external_libs",
     "invalidate_esm_registry",
-    "validate_esm_config",
 ]
 
 _registry_log = get_asset_logger("bundle")
@@ -53,7 +53,7 @@ def esm_registry() -> EsmRegistry:
     if _cache[0] is None:
         with _lock:
             if _cache[0] is None:
-                _cache[0] = _build()
+                _cache[0] = _prepare_esm_registry()
     return _cache[0]
 
 
@@ -193,7 +193,7 @@ def _assemble_registry(
     )
 
 
-def _build() -> EsmRegistry:
+def _prepare_esm_registry() -> EsmRegistry:
     from odoo.modules import Manifest
 
     bundles: set = set()
@@ -230,7 +230,7 @@ def _build() -> EsmRegistry:
             if key in esm:
                 _merge_mapping(target, esm[key], module=manifest.name, key=key)
 
-    validate_esm_config(
+    check_esm_config(
         bundles,
         dynamic_children,
         import_map_includes,
@@ -260,7 +260,7 @@ def _build() -> EsmRegistry:
     return registry
 
 
-def validate_esm_config(
+def check_esm_config(
     bundles: set,
     dynamic_children: Mapping,
     import_map_includes: Mapping,

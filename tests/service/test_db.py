@@ -256,7 +256,7 @@ class TestDumpDbNameValidation:
     ):
         with (
             patch("odoo.service.db.dump.subprocess.run") as mock_run,
-            patch.object(db_mod.dump, "find_pg_tool") as mock_tool,
+            patch.object(db_mod.dump, "get_pg_tool_path") as mock_tool,
         ):
             with pytest.raises(ValueError):
                 db_mod.dump_db(bad_name, None, backup_format="dump")
@@ -272,7 +272,7 @@ class TestDumpDbNameValidation:
 
         with (
             patch("odoo.service.db.dump.subprocess.run", side_effect=fake_run),
-            patch.object(db_mod.dump, "find_pg_tool", lambda n: f"/usr/bin/{n}"),
+            patch.object(db_mod.dump, "get_pg_tool_path", lambda n: f"/usr/bin/{n}"),
             patch.object(db_mod.dump, "exec_pg_environ", dict),
         ):
             result = db_mod.dump_db("gooddb", None, backup_format="dump")
@@ -358,7 +358,9 @@ class TestDumpDbZipStderr:
     def _patches(self, db_mod, returncode: int, stderr: bytes) -> list:
         mock_db, _mock_cr = fake_pg_connection()
         return [
-            patch("odoo.service.db.dump.find_pg_tool", return_value="/usr/bin/pg_dump"),
+            patch(
+                "odoo.service.db.dump.get_pg_tool_path", return_value="/usr/bin/pg_dump"
+            ),
             patch("odoo.service.db.dump.exec_pg_environ", return_value={}),
             patch("odoo.db.db_connect", return_value=mock_db),
             patch.object(
@@ -426,7 +428,9 @@ class TestDumpDbZipLargeSqlMember:
     def _patches(self, db_mod, stdout: bytes, zip64_limit: int) -> list:
         mock_db, _mock_cr = fake_pg_connection()
         return [
-            patch("odoo.service.db.dump.find_pg_tool", return_value="/usr/bin/pg_dump"),
+            patch(
+                "odoo.service.db.dump.get_pg_tool_path", return_value="/usr/bin/pg_dump"
+            ),
             patch("odoo.service.db.dump.exec_pg_environ", return_value={}),
             patch("odoo.db.db_connect", return_value=mock_db),
             patch.object(
@@ -481,7 +485,8 @@ class TestDumpDbZipManifestBeforeFilestore:
             )
             stack.enter_context(
                 patch(
-                    "odoo.service.db.dump.find_pg_tool", return_value="/usr/bin/pg_dump"
+                    "odoo.service.db.dump.get_pg_tool_path",
+                    return_value="/usr/bin/pg_dump",
                 )
             )
             stack.enter_context(
@@ -504,7 +509,9 @@ class TestDumpDbWallClockTimeout:
     def _patches(self, db_mod, run_side_effect) -> list:
         mock_db, _mock_cr = fake_pg_connection()
         return [
-            patch("odoo.service.db.dump.find_pg_tool", return_value="/usr/bin/pg_dump"),
+            patch(
+                "odoo.service.db.dump.get_pg_tool_path", return_value="/usr/bin/pg_dump"
+            ),
             patch("odoo.service.db.dump.exec_pg_environ", return_value={}),
             patch("odoo.db.db_connect", return_value=mock_db),
             patch.object(
@@ -743,7 +750,9 @@ class TestDumpDbDumpFormat:
     def test_stream_path_raises_on_nonzero_returncode(self, db_mod, bypass_db_mgmt):
         proc = self._make_mock_proc(b"pg_dump: error: boom", returncode=1)
         with (
-            patch("odoo.service.db.dump.find_pg_tool", return_value="/usr/bin/pg_dump"),
+            patch(
+                "odoo.service.db.dump.get_pg_tool_path", return_value="/usr/bin/pg_dump"
+            ),
             patch("odoo.service.db.dump.exec_pg_environ", return_value={}),
             patch("odoo.service.db.dump.subprocess.Popen", return_value=proc),
         ):
@@ -754,7 +763,9 @@ class TestDumpDbDumpFormat:
         pg_err = b"FATAL: authentication failed for user"
         proc = self._make_mock_proc(pg_err, returncode=1)
         with (
-            patch("odoo.service.db.dump.find_pg_tool", return_value="/usr/bin/pg_dump"),
+            patch(
+                "odoo.service.db.dump.get_pg_tool_path", return_value="/usr/bin/pg_dump"
+            ),
             patch("odoo.service.db.dump.exec_pg_environ", return_value={}),
             patch("odoo.service.db.dump.subprocess.Popen", return_value=proc),
         ):
@@ -765,7 +776,9 @@ class TestDumpDbDumpFormat:
     def test_stream_path_success_returns_none(self, db_mod, bypass_db_mgmt):
         proc = self._make_mock_proc(b"", returncode=0)
         with (
-            patch("odoo.service.db.dump.find_pg_tool", return_value="/usr/bin/pg_dump"),
+            patch(
+                "odoo.service.db.dump.get_pg_tool_path", return_value="/usr/bin/pg_dump"
+            ),
             patch("odoo.service.db.dump.exec_pg_environ", return_value={}),
             patch("odoo.service.db.dump.subprocess.Popen", return_value=proc),
         ):
@@ -774,7 +787,9 @@ class TestDumpDbDumpFormat:
 
     def test_no_stream_path_raises_on_nonzero_returncode(self, db_mod, bypass_db_mgmt):
         with (
-            patch("odoo.service.db.dump.find_pg_tool", return_value="/usr/bin/pg_dump"),
+            patch(
+                "odoo.service.db.dump.get_pg_tool_path", return_value="/usr/bin/pg_dump"
+            ),
             patch("odoo.service.db.dump.exec_pg_environ", return_value={}),
             patch(
                 "odoo.service.db.dump.subprocess.run",
@@ -788,7 +803,9 @@ class TestDumpDbDumpFormat:
 
     def test_no_stream_path_returns_seekable_tempfile(self, db_mod, bypass_db_mgmt):
         with (
-            patch("odoo.service.db.dump.find_pg_tool", return_value="/usr/bin/pg_dump"),
+            patch(
+                "odoo.service.db.dump.get_pg_tool_path", return_value="/usr/bin/pg_dump"
+            ),
             patch("odoo.service.db.dump.exec_pg_environ", return_value={}),
             patch(
                 "odoo.service.db.dump.subprocess.run",
@@ -1460,16 +1477,16 @@ class TestDbnamePattern:
 class TestValidateDbNameLengthBoundary:
     def test_exactly_the_maximum_is_accepted(self, db_mod):
         name = "a" * db_mod.DBNAME_MAX_LENGTH
-        db_mod.validate_db_name(name)
+        db_mod.check_db_name(name)
 
     def test_one_over_the_maximum_is_refused(self, db_mod):
         name = "a" * (db_mod.DBNAME_MAX_LENGTH + 1)
         with pytest.raises(ValueError, match="63 characters"):
-            db_mod.validate_db_name(name)
+            db_mod.check_db_name(name)
 
     def test_the_length_check_runs_before_the_regex(self, db_mod):
         with pytest.raises(ValueError, match="63 characters"):
-            db_mod.validate_db_name("-" * 5000)
+            db_mod.check_db_name("-" * 5000)
 
 
 class TestRpcDbExposedGate:
@@ -1517,7 +1534,7 @@ class TestAdminGates:
         import odoo.tools
 
         with patch.object(
-            odoo.tools.config, "verify_admin_password", return_value=True
+            odoo.tools.config, "is_valid_admin_password", return_value=True
         ) as verify:
             assert db_mod.check_super("correct") is True
         verify.assert_called_once_with("correct")
@@ -1527,7 +1544,7 @@ class TestAdminGates:
         from odoo.exceptions import AccessDenied
 
         with patch.object(
-            odoo.tools.config, "verify_admin_password", return_value=False
+            odoo.tools.config, "is_valid_admin_password", return_value=False
         ) as verify:
             with pytest.raises(AccessDenied):
                 db_mod.check_super("wrong")
@@ -2810,7 +2827,7 @@ class TestZipDumpDoesNotStageFilestore:
 
         with (
             patch.object(odoo.tools, "config", _Cfg({"list_db": True})),
-            patch.object(db_mod.dump, "find_pg_tool", return_value="/bin/true"),
+            patch.object(db_mod.dump, "get_pg_tool_path", return_value="/bin/true"),
             patch.object(db_mod.dump, "exec_pg_environ", return_value={}),
             patch.object(
                 db_mod.dump, "dump_db_manifest", return_value={"odoo_dump": "1"}
@@ -2881,7 +2898,7 @@ class TestZipDumpDoesNotStageFilestore:
 
         with (
             patch.object(odoo.tools, "config", _Cfg({"list_db": True})),
-            patch.object(db_mod.dump, "find_pg_tool", return_value="/bin/true"),
+            patch.object(db_mod.dump, "get_pg_tool_path", return_value="/bin/true"),
             patch.object(db_mod.dump, "exec_pg_environ", return_value={}),
             patch.object(
                 db_mod.dump, "dump_db_manifest", return_value={"odoo_dump": "1"}

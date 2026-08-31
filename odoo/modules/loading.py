@@ -347,7 +347,7 @@ class _PackageLoader:
     def name(self) -> str:
         return self.package.name
 
-    def resolve_operation(self) -> None:
+    def update_operation(self) -> None:
         package = self.package
         if not self.update_module:
             self.operation = None
@@ -488,7 +488,7 @@ class _PackageLoader:
 
         from odoo.tests import loader
 
-        suite = loader.make_suite([self.name], "at_install")
+        suite = loader.prepare_suite([self.name], "at_install")
         if not suite.countTestCases():
             return
         if not self.operation:
@@ -530,7 +530,7 @@ class _PackageLoader:
             )
 
     def run(self) -> None:
-        self.resolve_operation()
+        self.update_operation()
         self.announce()
         self.run_pre_migration()
         self.import_python_module()
@@ -760,7 +760,7 @@ class _ModuleLoader:
                 tools.translate.load_language(self.cr, lang)
             self.registry._load_language_done = True
 
-    def process_module_requests(self) -> None:
+    def apply_module_requests(self) -> None:
         if not self.update_module:
             return
         env = self.env
@@ -1012,7 +1012,7 @@ class _ModuleLoader:
             {"models_to_check": True, "update_custom_fields": True},
         )
 
-    def validate_custom_views(self) -> None:
+    def check_custom_views(self) -> None:
         if not self.update_module:
             return
         View = self.env["ir.ui.view"]
@@ -1085,7 +1085,7 @@ def load_modules(
         loader.capture_database_field_metadata()
         loader.open_environment_and_load_base()
         loader.load_languages()
-        loader.process_module_requests()
+        loader.apply_module_requests()
         loader.converge_module_graph()
         loader.untranslate_dropped_fields()
         loader.finish_registry_setup()
@@ -1108,7 +1108,7 @@ def load_modules(
 
         loader.collect_models_with_manual_fields()
         loader.reinit_models_to_check()
-        loader.validate_custom_views()
+        loader.check_custom_views()
         loader.log_assertion_report()
         loader.register_model_hooks()
         loader.check_null_constraints()

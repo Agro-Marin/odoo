@@ -46,7 +46,7 @@ def _apply_cookie_defaults(
     return expires, max_age, secure, samesite
 
 
-def make_request_wrap_methods(attr: str) -> tuple[Any, Any]:
+def prepare_request_wrap_methods(attr: str) -> tuple[Any, Any]:
 
     def getter(self: HTTPRequest) -> Any:
         return getattr(self._HTTPRequest__wrapped, attr)
@@ -172,7 +172,7 @@ HTTPREQUEST_ATTRIBUTES = [
     "values",
 ]
 for attr in HTTPREQUEST_ATTRIBUTES:
-    setattr(HTTPRequest, attr, property(*make_request_wrap_methods(attr)))
+    setattr(HTTPRequest, attr, property(*prepare_request_wrap_methods(attr)))
 
 
 class _Response(werkzeug.wrappers.Response):
@@ -205,7 +205,7 @@ class _Response(werkzeug.wrappers.Response):
         raise TypeError(
             f"{fname} returns an invalid value: {result!r}. type='http' routes "
             "return str/bytes/None/Response; for a dict or list, return "
-            "request.make_json_response(...) or use a jsonrpc/json2 route."
+            "request.prepare_json_response(...) or use a jsonrpc/json2 route."
         )
 
     def set_default(

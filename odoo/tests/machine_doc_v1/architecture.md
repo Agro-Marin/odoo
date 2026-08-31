@@ -47,7 +47,7 @@ unittest.TestCase
 
 ```
 modules/loading.py
-  └─ loader.make_suite(modules, position)     position ∈ {at_install, post_install}
+  └─ loader.prepare_suite(modules, position)  position ∈ {at_install, post_install}
        ├─ get_test_modules(module)            imports odoo.addons.<m>.tests.test_*
        ├─ TagsSelector(config[test_tags])     + TagsSelector(position)
        └─ OdooSuite(sorted by test_sequence)
@@ -92,7 +92,7 @@ class/method out.
 browser_js
   └─ ChromeBrowser(test_case)        spawns chrome --headless, connects CDP ws
        ├─ _receive thread            dispatches CDP events → _handlers
-       ├─ Fetch.requestPaused        non-local URLs → test_case.fetch_proxy (404/mock)
+       ├─ Fetch.requestPaused        non-local URLs → test_case.prepare_proxy_response (404/mock)
        ├─ Runtime.consoleAPICalled   console.error → screenshot + fail future
        │                             success_signal ("test successful"/"tour
        │                             succeeded") → dirty-form check → success
@@ -121,7 +121,7 @@ browser_js
 
 ## Form emulation (`form.py`)
 
-`_process_view` annotates each field's info dict (`edition_view`, `invisible`,
+`_get_view_info` annotates each field's info dict (`edition_view`, `invisible`,
 and the one2many → many2many downgrade once the nesting budget runs out), so it
 **copies** the dict out of `_models_info` first: every nesting level shares that
 mapping, and on a self-referential o2m the innermost downgrade used to rewrite

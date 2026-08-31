@@ -32,7 +32,7 @@ _DBNAME_TOO_LONG_MSG = (
 )
 
 
-def validate_db_name(name: str) -> None:
+def check_db_name(name: str) -> None:
     if len(name) > DBNAME_MAX_LENGTH:
         raise ValueError(_DBNAME_TOO_LONG_MSG.format(name=name, length=len(name)))
     if not re.match(DBNAME_PATTERN, name):
@@ -72,7 +72,7 @@ def check_db_management_enabled(func: Callable, /) -> Callable:
 
 
 def check_super(passwd: str) -> Literal[True]:
-    if passwd and odoo.tools.config.verify_admin_password(passwd):
+    if passwd and odoo.tools.config.is_valid_admin_password(passwd):
         return True
     raise odoo.exceptions.AccessDenied
 

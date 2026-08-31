@@ -33,7 +33,7 @@ __all__ = [
     "URL_REGEX",
     "URL_SKIP_PROTOCOL_REGEX",
     "VOID_ELEMENTS",
-    "append_content_to_html",
+    "add_html_content",
     "create_link",
     "fromstring",
     "html2plaintext",
@@ -45,12 +45,12 @@ __all__ = [
     "is_html_empty",
     "nl2br",
     "nl2br_enclose",
+    "normalize_url",
     "plaintext2html",
     "prepend_html_content",
     "replace_local_links",
     "safe_attrs",
     "tag_quote",
-    "validate_url",
 ]
 
 
@@ -403,7 +403,7 @@ def tag_quote(el: etree._Element) -> None:
         el.set(_QUOTE, "1")
 
 
-def _find_all(doc: etree._Element, tag: str) -> list[etree._Element]:
+def _get_elements_by_tag(doc: etree._Element, tag: str) -> list[etree._Element]:
     return doc.findall(tag) or doc.findall(f"{{{XHTML_NAMESPACE}}}{tag}")
 
 
@@ -458,10 +458,10 @@ def fromstring(
     if is_full_html:
         return doc, False
 
-    bodies = _find_all(doc, "body")
+    bodies = _get_elements_by_tag(doc, "body")
     body = _merge_into_first(bodies) if bodies else None
 
-    if heads := _find_all(doc, "head"):
+    if heads := _get_elements_by_tag(doc, "head"):
         _merge_into_first(heads)
         return doc, False
     if body is None:
@@ -674,7 +674,7 @@ _SIMPLE_TAG_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9]*$")
 _BR_TAGS_RE = re.compile(r"(([<]\s*[bB][rR]\s*/?[>]\s*){2,})")
 
 
-def validate_url(url: str) -> str:
+def normalize_url(url: str) -> str:
     if urlparse(url).scheme in ("http", "https", "ftp", "ftps"):
         return url
     if url.startswith(("/", "?", "#")):
@@ -842,7 +842,7 @@ def plaintext2html(
     return final
 
 
-def append_content_to_html(
+def add_html_content(
     html_body: str,
     content: str,
     plaintext: bool = True,

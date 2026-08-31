@@ -51,13 +51,13 @@ type IdRef = dict[str, int | Literal[False]]
 class ParseError(Exception): ...
 
 
-def _require_model(f_model: str | None) -> str:
+def _check_model_name(f_model: str | None) -> str:
     if not f_model:
         raise ValueError('Define an attribute model="..." in your .XML file!')
     return f_model
 
 
-def _get_eval_context(
+def _prepare_eval_context(
     self: Any, env: Environment, model_str: str | None
 ) -> dict[str, Any]:
     from odoo import fields, release
@@ -92,7 +92,7 @@ def _substitute_xml_ids(self: Any, s: str) -> str:
         if m.group(0) == "%%":
             return "%"
         rec_id = m.group(1)
-        xid = self.make_xml_id(rec_id)
+        xid = self.normalize_xml_id(rec_id)
         if (record_id := self.idref.get(xid)) is None:
             record_id = self.idref[xid] = self.id_get(xid)
         return str(record_id)
@@ -109,8 +109,8 @@ def _eval_xml_search(
 ) -> Any:
     f_use = node.get("use", "id")
     f_name = node.get("name")
-    f_model = _require_model(f_model)
-    context = _get_eval_context(self, env, f_model)
+    f_model = _check_model_name(f_model)
+    context = _prepare_eval_context(self, env, f_model)
     q = safe_eval(f_search, context)
     records = env[f_model].search(q)
     ids = records.ids
@@ -183,7 +183,7 @@ def _eval_xml_field(self: Any, node: etree._Element, env: Environment) -> Any:
         return _eval_xml_search(self, node, env, f_model, f_search)
 
     if a_eval := node.get("eval"):
-        context = _get_eval_context(self, env, f_model)
+        context = _prepare_eval_context(self, env, f_model)
         try:
             return safe_eval(a_eval, context)
         except Exception:
@@ -206,7 +206,7 @@ def _eval_xml_function_args(
     args: list = []
     kwargs: dict = {}
     if a_eval := node.get("eval"):
-        context = _get_eval_context(self, env, model_str)
+        context = _prepare_eval_context(self, env, model_str)
         args = list(safe_eval(a_eval, context))
     for child in node:
         if child.tag == "value" and child.get("name"):
@@ -272,7 +272,7 @@ class xml_import:
             )
         return self.env
 
-    def make_xml_id(self, xml_id: str) -> str:
+    def normalize_xml_id(self, xml_id: str) -> str:
         if not xml_id or "." in xml_id:
             return xml_id
         return "%s.%s" % (self.module, xml_id)
@@ -296,7 +296,7 @@ form: module.record_id""" % (xml_id,)
         records = self.env[d_model]
 
         if d_search := rec.get("search"):
-            context = _get_eval_context(self, self.env, d_model)
+            context = _prepare_eval_context(self, self.env, d_model)
             try:
                 records = records.search(safe_eval(d_search, context))
             except ValueError:
@@ -381,7 +381,7 @@ form: module.record_id""" % (xml_id,)
             values["group_ids"] = groups
 
         data = {
-            "xml_id": self.make_xml_id(rec_id),
+            "xml_id": self.normalize_xml_id(rec_id),
             "values": values,
             "noupdate": self.noupdate,
         }
@@ -399,7 +399,7 @@ form: module.record_id""" % (xml_id,)
             for child in rec.xpath(".//record[@id]"):
                 sub_xid = child.get("id")
                 self._test_xml_id(sub_xid)
-                sub_xid = self.make_xml_id(sub_xid)
+                sub_xid = self.normalize_xml_id(sub_xid)
                 if sub_record := env["ir.model.data"]._load_xmlid(sub_xid):
                     self.idref[sub_xid] = sub_record.id
 
@@ -418,8 +418,8 @@ form: module.record_id""" % (xml_id,)
     ) -> Any:
         from odoo.fields import Command
 
-        f_model = _require_model(f_model)
-        context = _get_eval_context(self, env, f_model)
+        f_model = _check_model_name(f_model)
+        context = _prepare_eval_context(self, env, f_model)
         q = safe_eval(f_search, context)
         s = env[f_model].search(q)
         f_use = field.get("use", "") or "id"
@@ -537,7 +537,7 @@ form: module.record_id""" % (xml_id,)
             )
 
         self._test_xml_id(rec_id)
-        xid = self.make_xml_id(rec_id)
+        xid = self.normalize_xml_id(rec_id)
 
         if self.noupdate and self.mode != "init":
             if not rec_id:
@@ -687,7 +687,7 @@ form: module.record_id""" % (xml_id,)
     def id_get(
         self, id_str: str, raise_if_not_found: bool = True
     ) -> int | Literal[False]:
-        id_str = self.make_xml_id(id_str)
+        id_str = self.normalize_xml_id(id_str)
         if id_str in self.idref:
             return self.idref[id_str]
         return self.model_id_get(id_str, raise_if_not_found)[1]
@@ -695,7 +695,7 @@ form: module.record_id""" % (xml_id,)
     def model_id_get(
         self, id_str: str, raise_if_not_found: bool = True
     ) -> tuple[str, int | Literal[False]]:
-        id_str = self.make_xml_id(id_str)
+        id_str = self.normalize_xml_id(id_str)
         return self.env["ir.model.data"]._xmlid_to_res_model_res_id(
             id_str, raise_if_not_found=raise_if_not_found
         )

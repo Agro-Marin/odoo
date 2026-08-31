@@ -19,11 +19,11 @@ from odoo.libs.xml import (
 from odoo.tools.files import file_open
 
 __all__ = [
+    "check_xml_from_attachment",
     "cleanup_xml_node",
     "dict_to_xml",
-    "find_xml_value",
+    "get_xml_value",
     "load_xsd_files_from_url",
-    "validate_xml_from_attachment",
 ]
 
 if typing.TYPE_CHECKING:
@@ -105,7 +105,7 @@ def _check_xml(
             xmls = [xmls]
 
         for xml in xmls:
-            validate_xml_from_attachment(env, xml, name)
+            check_xml_from_attachment(env, xml, name)
     finally:
         owned.unlink()
 
@@ -187,7 +187,7 @@ def _upsert_xsd_attachment(env: Environment, name: str, content: bytes) -> Any:
     return env["ir.attachment"].create({"name": name, "raw": content, "public": True})
 
 
-def _fetch_xsd_content(url: str, request_max_timeout: int) -> bytes | None:
+def _get_xsd_content(url: str, request_max_timeout: int) -> bytes | None:
     try:
         _logger.info("Fetching file/archive from given URL: %s", url)
         response = requests.get(url, timeout=request_max_timeout)
@@ -246,7 +246,7 @@ def load_xsd_files_from_url(
     xsd_names_filter: list[str] | None = None,
     modify_xsd_content: Callable[[bytes], bytes] | None = None,
 ) -> BaseModel | Literal[False]:
-    content = _fetch_xsd_content(url, request_max_timeout)
+    content = _get_xsd_content(url, request_max_timeout)
     if content is None:
         return False
 
@@ -271,7 +271,7 @@ def load_xsd_files_from_url(
     return _upsert_xsd_attachment(env, prefixed_xsd_name, content)
 
 
-def validate_xml_from_attachment(
+def check_xml_from_attachment(
     env: Environment,
     xml_content: etree._Element | str | bytes,
     xsd_name: str,
@@ -307,7 +307,7 @@ def validate_xml_from_attachment(
         )
 
 
-def find_xml_value(
+def get_xml_value(
     xpath: str,
     xml_element: etree._Element,
     namespaces: dict | None = None,

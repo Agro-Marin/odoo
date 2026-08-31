@@ -1,6 +1,6 @@
 import pytest
 
-from odoo.service._dump_scanner import _find_disallowed_psql_meta_command
+from odoo.service._dump_scanner import _get_disallowed_psql_meta_command
 
 from .conftest import requires_pg, requires_psql
 
@@ -78,7 +78,7 @@ class TestScannerAgreesWithPsql:
     def test_anything_psql_executes_is_rejected(self, name, tmp_path, run_psql):
         canary = tmp_path / f"canary_{name}"
         path = _write(tmp_path, name, ATTACKS[name], canary)
-        rejected = _find_disallowed_psql_meta_command(path.read_text("latin-1"))
+        rejected = _get_disallowed_psql_meta_command(path.read_text("latin-1"))
         run_psql(path)
         if canary.exists():
             assert rejected is not None, (
@@ -100,7 +100,7 @@ class TestScannerAgreesWithPsql:
     def test_data_and_text_are_not_executed_by_either(self, name, tmp_path, run_psql):
         canary = tmp_path / f"canary_{name}"
         path = _write(tmp_path, name, BENIGN[name], canary)
-        rejected = _find_disallowed_psql_meta_command(path.read_text("latin-1"))
+        rejected = _get_disallowed_psql_meta_command(path.read_text("latin-1"))
         run_psql(path)
         assert not canary.exists(), f"payload {name!r} is not benign after all"
         assert rejected is None, (
@@ -113,7 +113,7 @@ class TestScannerAgreesWithPsql:
         self, name, tmp_path, run_psql
     ):
         path = _write(tmp_path, name, LEGIT[name], tmp_path / "unused")
-        assert _find_disallowed_psql_meta_command(path.read_text("latin-1")) is None, (
+        assert _get_disallowed_psql_meta_command(path.read_text("latin-1")) is None, (
             f"the scanner refuses {name!r}, a shape real pg_dump output carries"
         )
         result = run_psql(path)

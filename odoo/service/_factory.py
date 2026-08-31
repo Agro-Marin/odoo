@@ -59,7 +59,7 @@ def _with_werkzeug_debugger(app: Any) -> Any:
     return DebuggedApplication(app, evalex=True)
 
 
-def _build_server(app: Any) -> CommonServer:
+def _prepare_server(app: Any) -> CommonServer:
     import odoo
 
     if odoo.evented:
@@ -78,7 +78,7 @@ def start(preload: list[str] | None = None, stop: bool = False) -> int:
     import odoo.http
 
     app = _with_werkzeug_debugger(odoo.http.root)
-    server = _build_server(app)
+    server = _prepare_server(app)
     set_server(server)
 
     _warn_on_connection_budget()

@@ -84,7 +84,7 @@ class Form:
         )
         self._models_info = views["models"]
         tree = etree.fromstring(views["views"]["form"]["arch"])
-        self._view = self._process_view(tree, record)
+        self._view = self._get_view_info(tree, record)
 
         self._values = UpdateDict()
         if record:
@@ -122,7 +122,7 @@ class Form:
 
         return cls(record, view_id)
 
-    def _process_view(self, tree: Any, model: BaseModel, level: int = 2) -> dict:
+    def _get_view_info(self, tree: Any, model: BaseModel, level: int = 2) -> dict:
         fields = {"id": {"type": "id"}}
         fields_spec: dict[str, dict] = {}
         modifiers: dict[str, dict[str, Any]] = {
@@ -196,7 +196,7 @@ class Form:
             "fields_spec": fields_spec,
             "modifiers": modifiers,
             "contexts": contexts,
-            "onchange": model._onchange_spec(  # type: ignore[attr-defined]  # base adds it to every model
+            "onchange": model._get_onchange_spec(  # type: ignore[attr-defined]  # base adds it to every model
                 {"arch": etree.tostring(tree)}
             ),
         }
@@ -231,7 +231,7 @@ class Form:
         if not (view_type == "list" and views["list"].get("editable")):
             view_type = "form"
 
-        return self._process_view(views[view_type], submodel, level=level - 1)
+        return self._get_view_info(views[view_type], submodel, level=level - 1)
 
     def __str__(self) -> str:
         return f"<{type(self).__name__} {self._record}>"
@@ -334,7 +334,7 @@ class Form:
         if vals is None:
             vals = self._values
 
-        eval_context = self._get_eval_context(vals)
+        eval_context = self._prepare_eval_context(vals)
 
         return bool(safe_eval(expr, eval_context))
 
@@ -342,10 +342,10 @@ class Form:
         context_str = self._view["contexts"].get(field_name)
         if not context_str:
             return {}
-        eval_context = self._get_eval_context()
+        eval_context = self._prepare_eval_context()
         return safe_eval(context_str, eval_context)
 
-    def _get_eval_context(self, values: dict | None = None) -> dict:
+    def _prepare_eval_context(self, values: dict | None = None) -> dict:
         context = {
             "id": self._record.id,
             "active_id": self._record.id,
@@ -355,15 +355,15 @@ class Form:
             **self._env.context,
         }
         if values is None:
-            values = self._get_all_values()
+            values = self._prepare_all_vals()
         return {
             **context,
             "context": context,
             **values,
         }
 
-    def _get_all_values(self) -> dict:
-        return self._get_values("all")
+    def _prepare_all_vals(self) -> dict:
+        return self._prepare_vals("all")
 
     def __enter__(self) -> Self:
         return self
@@ -378,7 +378,7 @@ class Form:
             self.save()
 
     def save(self) -> BaseModel:
-        values = self._get_save_values()
+        values = self._prepare_save_vals()
         if not self._record or values:
             [record_values] = self._record.web_save(  # type: ignore[attr-defined]  # base adds it to every model
                 values, self._view["fields_spec"]
@@ -401,15 +401,15 @@ class Form:
         assert not self._values._changed
         return self._record
 
-    def _get_save_values(self) -> dict:
-        return self._get_values("save")
+    def _prepare_save_vals(self) -> dict:
+        return self._prepare_vals("save")
 
     def _o2m_commands(
         self, mode: str, value: O2MValue, field_info: dict, parent_values: UpdateDict
     ) -> list:
         subview = field_info["edition_view"]
         return value.to_commands(
-            lambda vals: self._get_values(
+            lambda vals: self._prepare_vals(
                 mode,
                 vals,
                 subview,
@@ -422,7 +422,7 @@ class Form:
             )
         )
 
-    def _get_values(
+    def _prepare_vals(
         self,
         mode: str,
         values: UpdateDict | None = None,
@@ -518,7 +518,7 @@ class Form:
             if context:
                 record = record.with_context(**context)
 
-        values = self._get_onchange_values()
+        values = self._prepare_onchange_vals()
         result = record.onchange(values, field_names, self._view["fields_spec"])
         self._env.flush_all()
         self._env.clear()
@@ -550,8 +550,8 @@ class Form:
 
         return result
 
-    def _get_onchange_values(self) -> dict:
-        return self._get_values("onchange")
+    def _prepare_onchange_vals(self) -> dict:
+        return self._prepare_vals("onchange")
 
     def _apply_onchange(self, values: dict) -> None:
         self._apply_onchange_values(self._values, self._view["fields"], values)
@@ -628,17 +628,17 @@ class O2MForm(Form):
             return True
         return super()._get_modifier(field_name, modifier, view=view, vals=vals)
 
-    def _get_eval_context(self, values: dict | None = None) -> dict:
-        eval_context = super()._get_eval_context(values)
+    def _prepare_eval_context(self, values: dict | None = None) -> dict:
+        eval_context = super()._prepare_eval_context(values)
         eval_context["parent"] = Dotter(self._proxy._form._values)
         return eval_context
 
-    def _get_onchange_values(self) -> dict:
-        values = super()._get_onchange_values()
+    def _prepare_onchange_vals(self) -> dict:
+        values = super()._prepare_onchange_vals()
         field_info = self._proxy._field_info
         if "relation_field" in field_info:
             parent_form = self._proxy._form
-            parent_values = parent_form._get_onchange_values()
+            parent_values = parent_form._prepare_onchange_vals()
             if parent_form._record.id:
                 parent_values["id"] = parent_form._record.id
             values[field_info["relation_field"]] = parent_values
@@ -647,7 +647,7 @@ class O2MForm(Form):
     def save(self) -> BaseModel:
         proxy = self._proxy
         field_value = proxy._form._values[proxy._field]
-        values = self._get_save_values()
+        values = self._prepare_save_vals()
         if self._index is None:
             field_value.create(values)
         else:
@@ -657,7 +657,7 @@ class O2MForm(Form):
         proxy._form._perform_onchange(proxy._field)
         return self._record
 
-    def _get_save_values(self) -> UpdateDict:
+    def _prepare_save_vals(self) -> UpdateDict:
         values = UpdateDict(self._values)
 
         for field_name in self._view["fields"]:

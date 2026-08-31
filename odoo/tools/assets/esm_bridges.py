@@ -178,7 +178,7 @@ class BridgeShimManager:
             return False
         return True
 
-    def _build_parent_self_bridge(self) -> dict[str, str]:
+    def _prepare_parent_self_bridge(self) -> dict[str, str]:
         source_map: dict[str, str] = {
             a.module_path: a.raw_content for a in self.native_modules
         }
@@ -258,7 +258,7 @@ class BridgeShimManager:
                     record(specifier, None)
         return discovered, ext_seen
 
-    def build_shim_sources(self, specifiers: set[str]) -> dict[str, str]:
+    def prepare_shim_sources(self, specifiers: set[str]) -> dict[str, str]:
         if not specifiers:
             return {}
         resolver = _BridgeExportResolver(
@@ -273,7 +273,7 @@ class BridgeShimManager:
             shims[spec] = shim
         return shims
 
-    def _build_native_to_legacy_bridge(
+    def _prepare_native_to_legacy_bridge(
         self,
         native_specifiers: set[str],
         modules: Sequence[NativeModuleLike] | None = None,

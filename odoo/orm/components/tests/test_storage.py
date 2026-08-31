@@ -59,27 +59,27 @@ class TestDictBackendFetch(_BackendCase):
         )
 
     def test_fetch_all_columns(self) -> None:
-        rows = self.backend.fetch_rows("partner", [1, 2], ["name", "email"])
+        rows = self.backend.get_row_tuples("partner", [1, 2], ["name", "email"])
         self.assertEqual(rows, [("Alice", "a@x.com"), ("Bob", "b@x.com")])
 
     def test_fetch_subset_columns(self) -> None:
-        rows = self.backend.fetch_rows("partner", [1], ["name"])
+        rows = self.backend.get_row_tuples("partner", [1], ["name"])
         self.assertEqual(rows, [("Alice",)])
 
     def test_fetch_missing_id(self) -> None:
-        rows = self.backend.fetch_rows("partner", [999], ["name"])
+        rows = self.backend.get_row_tuples("partner", [999], ["name"])
         self.assertEqual(rows, [])
 
     def test_fetch_mixed_ids(self) -> None:
-        rows = self.backend.fetch_rows("partner", [1, 999], ["name"])
+        rows = self.backend.get_row_tuples("partner", [1, 999], ["name"])
         self.assertEqual(rows, [("Alice",)])
 
     def test_fetch_missing_column(self) -> None:
-        rows = self.backend.fetch_rows("partner", [1], ["nonexistent"])
+        rows = self.backend.get_row_tuples("partner", [1], ["nonexistent"])
         self.assertEqual(rows, [(None,)])
 
     def test_fetch_empty_table(self) -> None:
-        rows = self.backend.fetch_rows("empty_table", [1], ["name"])
+        rows = self.backend.get_row_tuples("empty_table", [1], ["name"])
         self.assertEqual(rows, [])
 
 
@@ -90,14 +90,14 @@ class TestDictBackendUpdate(_BackendCase):
 
     def test_update_single_field(self) -> None:
         self.backend.update_rows("partner", [(1, {"name": "Alicia"})])
-        rows = self.backend.fetch_rows("partner", [1], ["name", "email"])
+        rows = self.backend.get_row_tuples("partner", [1], ["name", "email"])
         self.assertEqual(rows, [("Alicia", "a@x.com")])
 
     def test_update_multiple_fields(self) -> None:
         self.backend.update_rows(
             "partner", [(1, {"name": "Alicia", "email": "new@x.com"})]
         )
-        rows = self.backend.fetch_rows("partner", [1], ["name", "email"])
+        rows = self.backend.get_row_tuples("partner", [1], ["name", "email"])
         self.assertEqual(rows, [("Alicia", "new@x.com")])
 
     def test_update_nonexistent_id(self) -> None:
@@ -117,21 +117,21 @@ class TestDictBackendDelete(_BackendCase):
         )
 
     def test_delete_single(self) -> None:
-        self.backend.delete_rows("partner", [1])
+        self.backend.remove_rows("partner", [1])
         self.assertEqual(self.backend.row_count("partner"), 1)
-        rows = self.backend.fetch_rows("partner", [1], ["name"])
+        rows = self.backend.get_row_tuples("partner", [1], ["name"])
         self.assertEqual(rows, [])
 
     def test_delete_multiple(self) -> None:
-        self.backend.delete_rows("partner", [1, 2])
+        self.backend.remove_rows("partner", [1, 2])
         self.assertEqual(self.backend.row_count("partner"), 0)
 
     def test_delete_nonexistent(self) -> None:
-        self.backend.delete_rows("partner", [999])
+        self.backend.remove_rows("partner", [999])
         self.assertEqual(self.backend.row_count("partner"), 2)
 
     def test_delete_nonexistent_table(self) -> None:
-        self.backend.delete_rows("nonexistent", [1])
+        self.backend.remove_rows("nonexistent", [1])
 
 
 class TestDictBackendHelpers(_BackendCase):

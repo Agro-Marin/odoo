@@ -24,7 +24,7 @@ class IrRuleStub(models.AbstractModel):
     _register = False
     _module = None
 
-    def _compute_domain(self, model_name, mode="read"):
+    def _get_domain_accessible_records(self, model_name, mode="read"):
         return []
 
 
@@ -53,7 +53,7 @@ def test_caller_provided_ir_rule_model_is_served():
         assert "ir.rule" in env.registry
         rule_model = env["ir.rule"]
         assert rule_model._name == "ir.rule"
-        assert rule_model._compute_domain("irm.widget", "read") == []
+        assert rule_model._get_domain_accessible_records("irm.widget", "read") == []
 
 
 def test_harness_crud_untouched_by_marker():

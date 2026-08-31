@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 import psycopg
 
-from odoo.libs.sql import SQL, make_index_name
+from odoo.libs.sql import SQL, get_index_name
 
 if TYPE_CHECKING:
     from odoo.db import BaseCursor
@@ -287,7 +287,7 @@ def convert_column(
 def convert_column_translatable(
     cr: BaseCursor, tablename: str, columnname: str, columntype: str
 ) -> None:
-    drop_index(cr, make_index_name(tablename, columnname), tablename)
+    drop_index(cr, get_index_name(tablename, columnname), tablename)
     if columntype == "jsonb":
         using = SQL(
             "CASE WHEN %s IS NOT NULL THEN jsonb_build_object('en_US', %s::varchar) END",
@@ -327,7 +327,7 @@ def _convert_column(
 
 
 def drop_depending_views(cr: BaseCursor, table: str, column: str) -> None:
-    for v, k in get_depending_views(cr, table, column):
+    for v, k in get_views_depending_on_table(cr, table, column):
         cr.execute(
             SQL(
                 "DROP %s IF EXISTS %s CASCADE",
@@ -338,7 +338,7 @@ def drop_depending_views(cr: BaseCursor, table: str, column: str) -> None:
         _schema.debug("Drop view %r", v)
 
 
-def get_depending_views(
+def get_views_depending_on_table(
     cr: BaseCursor, table: str, column: str
 ) -> list[tuple[str, str]]:
     cr.execute(

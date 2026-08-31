@@ -172,3 +172,83 @@ class TestToolsSubmoduleSurfaces(unittest.TestCase):
                 self.assertEqual(
                     missing, [], f"odoo.tools.{name}.__all__ has dead names"
                 )
+
+
+class TestRootPackageStub(unittest.TestCase):
+    """`odoo/__init__.pyi` is the only declaration of the root surface.
+
+    The stub exists because `__init__.py` resolves its names through a
+    module-level `__getattr__`, and mypy treats such a module as having every
+    attribute -- its own header records the four real errors that disappeared
+    when it was absent. The consequence is that mypy parses the STUB and never
+    the implementation, so nothing compared the two: a name added to the stub
+    without a matching branch in `__getattr__` type-checks everywhere and
+    raises AttributeError at runtime.
+
+    These assertions are that comparison. They run against the imported module,
+    not the source, so a `__getattr__` that cannot really produce a name fails
+    here rather than in production.
+    """
+
+    STUB = Path(__file__).resolve().parents[2] / "odoo" / "__init__.pyi"
+
+    def _stub_all(self):
+        for node in ast.parse(self.STUB.read_text(encoding="utf-8")).body:
+            if (
+                isinstance(node, ast.Assign)
+                and any(
+                    isinstance(t, ast.Name) and t.id == "__all__" for t in node.targets
+                )
+                and isinstance(node.value, ast.List)
+            ):
+                return [
+                    e.value
+                    for e in node.value.elts
+                    if isinstance(e, ast.Constant) and isinstance(e.value, str)
+                ]
+        raise AssertionError(f"{self.STUB.name} declares no __all__")
+
+    def test_the_stub_exists(self):
+        # The canary. Delete the stub and mypy falls back to __getattr__, which
+        # makes every attribute valid -- coverage is lost while the count
+        # improves, so the ratchet reads it as progress.
+        self.assertTrue(
+            self.STUB.is_file(),
+            f"{self.STUB} is missing; without it mypy accepts any attribute on "
+            f"`odoo` and the assertions below stop meaning anything",
+        )
+
+    def test_the_stub_and_the_module_declare_the_same_surface(self):
+        import odoo
+
+        self.assertEqual(
+            sorted(self._stub_all()),
+            sorted(odoo.__all__),
+            "odoo/__init__.pyi and odoo/__init__.py disagree on __all__; the "
+            "stub is what every type-checked caller sees and the module is "
+            "what runs",
+        )
+
+    def test_every_name_the_stub_declares_really_resolves(self):
+        import odoo
+
+        for name in self._stub_all():
+            with self.subTest(name=name):
+                try:
+                    getattr(odoo, name)
+                except AttributeError:
+                    self.fail(
+                        f"odoo/__init__.pyi declares {name!r}, so `from odoo "
+                        f"import {name}` type-checks, but __init__.py cannot "
+                        f"resolve it -- add a branch to __getattr__ or drop it "
+                        f"from the stub"
+                    )
+
+    def test_an_undeclared_name_is_refused(self):
+        # Proves __getattr__ still raises rather than returning something for
+        # anything asked of it, which is the failure mode the stub guards
+        # against on the static side.
+        import odoo
+
+        with self.assertRaises(AttributeError):
+            odoo.this_name_is_not_part_of_the_surface

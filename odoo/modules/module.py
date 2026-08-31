@@ -255,7 +255,7 @@ class Manifest(Mapping[str, typing.Any]):
 
     @functools.cached_property
     def icon(self) -> str:
-        return _resolve_module_icon(self.name, self.raw_value("icon"))
+        return _get_module_icon_path(self.name, self.raw_value("icon"))
 
     @functools.cached_property
     def static_path(self) -> str | None:
@@ -295,7 +295,7 @@ class Manifest(Mapping[str, typing.Any]):
 
         for binary in depends.get("bin", []):
             try:
-                tools.find_in_path(binary)
+                tools.get_executable_path(binary)
             except OSError as e:
                 msg = f"Unable to find {binary!r} in path"
                 raise MissingDependencyError(msg, binary) from e
@@ -447,7 +447,7 @@ def get_resource_from_path(path: str) -> ResourceLocation | None:
     return None
 
 
-def _resolve_module_icon(module: str, declared: typing.Any) -> str:
+def _get_module_icon_path(module: str, declared: typing.Any) -> str:
     fpath = (declared or "").lstrip("/")
     if not fpath:
         fpath = f"{module}/static/description/icon.png"
@@ -461,7 +461,7 @@ def _resolve_module_icon(module: str, declared: typing.Any) -> str:
 def get_module_icon(module: str) -> str:
     manifest = Manifest.for_addon(module, display_warning=False)
     declared = manifest.raw_value("icon") if manifest else None
-    return _resolve_module_icon(module, declared)
+    return _get_module_icon_path(module, declared)
 
 
 def _normalise_auto_install(module: str, manifest: dict, depends: Collection) -> None:

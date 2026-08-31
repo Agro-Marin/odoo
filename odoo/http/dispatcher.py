@@ -179,7 +179,7 @@ class Dispatcher(ABC):
         root = self.request.app
 
         self.request._save_session()
-        self.request._inject_future_response(response)
+        self.request._update_response_from_future(response)
         root.set_csp(response)
 
     def _call_endpoint(self, endpoint: Endpoint) -> Any:
@@ -235,7 +235,7 @@ class HttpDispatcher(Dispatcher):
                 return self.request.redirect("/web/database/selector")
 
             token = self.request.params.pop("csrf_token", None)
-            if not self.request.validate_csrf(token):
+            if not self.request.is_valid_csrf(token):
                 if token is not None:
                     _logger.warning(
                         "CSRF validation failed on path '%s'",
@@ -328,7 +328,9 @@ class JsonRPCDispatcher(Dispatcher):
             "id": None,
             "error": {"code": 400, "message": message, "data": {}},
         }
-        raise HTTPException(response=self.request.make_json_response(body, status=400))
+        raise HTTPException(
+            response=self.request.prepare_json_response(body, status=400)
+        )
 
     def _response(
         self, result: Any = None, error: dict[str, Any] | None = None
@@ -342,7 +344,7 @@ class JsonRPCDispatcher(Dispatcher):
             if version is not None:
                 response["version"] = version
 
-        return self.request.make_json_response(response)
+        return self.request.prepare_json_response(response)
 
 
 class Json2Dispatcher(Dispatcher):
@@ -394,7 +396,7 @@ class Json2Dispatcher(Dispatcher):
             return result
         if isinstance(result, werkzeug.wrappers.Response):
             return Response(result)
-        return self.request.make_json_response(result)
+        return self.request.prepare_json_response(result)
 
     def handle_error(self, exc: Exception) -> Response:
         if isinstance(exc, HTTPException) and exc.response:
@@ -416,4 +418,4 @@ class Json2Dispatcher(Dispatcher):
             status = HTTPStatus.INTERNAL_SERVER_ERROR
             body = serialize_exception(exc)
 
-        return self.request.make_json_response(body, headers=headers, status=status)
+        return self.request.prepare_json_response(body, headers=headers, status=status)

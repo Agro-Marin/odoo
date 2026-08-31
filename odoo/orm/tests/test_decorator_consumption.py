@@ -110,15 +110,15 @@ class TestDependsCallableConsumption:
 
 
 class TestConstraintSudoSemantics:
-    def _validate_and_collect(self, records):
+    def _get_observed_su(self, records):
         DecSudoProbe.observed_su.clear()
-        records._validate_fields(["name"])
+        records._check_fields(["name"])
         return dict(DecSudoProbe.observed_su)
 
     def test_superuser_env_runs_all_constraints_as_su(self):
         with model_test_env(DecSudoProbe) as env:
             record = env["deccons.probe"].create({"name": "a"})
-            observed = self._validate_and_collect(record)
+            observed = self._get_observed_su(record)
             assert observed == {"default": True, "user": True}
 
     def test_non_superuser_env_sudo_default_vs_sudo_false(self):
@@ -131,7 +131,7 @@ class TestConstraintSudoSemantics:
             assert user_env.su is False
             record_as_user = user_env["deccons.probe"].browse(record.id)
 
-            observed = self._validate_and_collect(record_as_user)
+            observed = self._get_observed_su(record_as_user)
             assert observed == {"default": True, "user": False}
 
 

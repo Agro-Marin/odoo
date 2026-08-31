@@ -103,7 +103,7 @@ def _supports_embedded(sass_path: str) -> bool:
     return b"unavailable" not in out and b"pure js" not in out
 
 
-def find_sass() -> str | None:
+def get_sass_path() -> str | None:
     node_modules = Path(odoo.__path__[0]).parent / "node_modules"
     candidates: list[str] = []
     system_sass = shutil.which("sass")
@@ -133,7 +133,7 @@ class SassEmbeddedCompiler:
 
         sass_path = self._sass_path
         if sass_path is None:
-            sass_path = find_sass()
+            sass_path = get_sass_path()
         if sass_path is None:
             raise SassNotFoundError(
                 "Dart Sass not found. It is a required dependency of this fork: "
@@ -252,7 +252,7 @@ class SassEmbeddedCompiler:
             watchdog.daemon = True
             watchdog.start()
             try:
-                return self._do_compile(
+                return self._compile_with_embedded_sass(
                     compilation_id,
                     source,
                     syntax,
@@ -271,7 +271,7 @@ class SassEmbeddedCompiler:
             finally:
                 watchdog.cancel()
 
-    def _build_compile_request(
+    def _prepare_compile_request(
         self,
         compilation_id: int,
         source: str,
@@ -373,7 +373,7 @@ class SassEmbeddedCompiler:
                 import_resp.error = str(e)
         return response
 
-    def _do_compile(
+    def _compile_with_embedded_sass(
         self,
         compilation_id: int,
         source: str,
@@ -386,7 +386,7 @@ class SassEmbeddedCompiler:
         url: str,
     ) -> str:
         deprecations: collections.Counter[str] = collections.Counter()
-        request, importer_id_map = self._build_compile_request(
+        request, importer_id_map = self._prepare_compile_request(
             compilation_id,
             source,
             syntax,
@@ -443,7 +443,7 @@ class SassEmbeddedCompiler:
                     _logger.debug("Ignoring unhandled message type: %s", msg_type)
 
 
-def _resolve_sass_path(base: str) -> list[str]:
+def _get_sass_path_candidates(base: str) -> list[str]:
     base_path = Path(base)
     dirname = base_path.parent
     basename = base_path.name
@@ -485,7 +485,7 @@ class OdooSassImporter(SassImporter):
 
         for search_dir in search_dirs:
             base = str(Path(search_dir) / filename)
-            for candidate in _resolve_sass_path(base):
+            for candidate in _get_sass_path_candidates(base):
                 candidate_path = Path(candidate)
                 if candidate_path.is_file():
                     return f"file://{candidate_path.resolve()}"

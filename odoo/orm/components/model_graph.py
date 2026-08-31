@@ -273,7 +273,7 @@ class ModelGraph:
         structure = state.merged.get(key)
         if structure is None:
             trees = [
-                self._tree_for(state, field)
+                self._get_field_trigger_tree(state, field)
                 for field in fields
                 if field in state.triggers
             ]
@@ -284,9 +284,9 @@ class ModelGraph:
         return structure._filtered(select)
 
     def get_field_trigger_tree(self, field: Any) -> TriggerTree:
-        return self._tree_for(self._state, field)
+        return self._get_field_trigger_tree(self._state, field)
 
-    def _tree_for(self, state: _TriggerState, field: Any) -> TriggerTree:
+    def _get_field_trigger_tree(self, state: _TriggerState, field: Any) -> TriggerTree:
         try:
             return state.trees[field]
         except KeyError:
@@ -353,18 +353,18 @@ class ModelGraph:
         return tree
 
     def get_dependent_fields(self, field: Any) -> Iterator[Any]:
-        return self._dependent_fields_for(self._state, field)
+        return self._get_dependent_fields(self._state, field)
 
-    def _dependent_fields_for(self, state: _TriggerState, field: Any) -> Iterator[Any]:
+    def _get_dependent_fields(self, state: _TriggerState, field: Any) -> Iterator[Any]:
         if field not in state.triggers:
             return
-        for tree in self._tree_for(state, field).depth_first():
+        for tree in self._get_field_trigger_tree(state, field).depth_first():
             yield from tree.root
 
     def is_modifying_relations(self, field: Any) -> bool:
-        return self._modifying_relations_for(self._state, field)
+        return self._is_modifying_relations(self._state, field)
 
-    def _modifying_relations_for(self, state: _TriggerState, field: Any) -> bool:
+    def _is_modifying_relations(self, state: _TriggerState, field: Any) -> bool:
         if field not in state.triggers:
             return False
 
@@ -378,7 +378,7 @@ class ModelGraph:
             or self._inverses.get(field, ())
             or any(
                 _is_relational(dep) or self._inverses.get(dep, ())
-                for dep in self._dependent_fields_for(state, field)
+                for dep in self._get_dependent_fields(state, field)
             )
         )
         state.modifying_relations[field] = result
@@ -389,13 +389,11 @@ class ModelGraph:
         state = self._state
         order = state.recompute_order
         if order is None:
-            order = state.recompute_order = self._compute_recompute_order(
-                state.triggers
-            )
+            order = state.recompute_order = self._get_recompute_order(state.triggers)
         return order
 
     @staticmethod
-    def _compute_recompute_order(
+    def _get_recompute_order(
         triggers: defaultdict,
     ) -> dict[FieldLike, int]:
         adjacency = _stored_compute_adjacency(triggers)
@@ -426,10 +424,10 @@ class ModelGraph:
     def freeze(self) -> None:
         state = self._state
         for field in state.triggers:
-            self._tree_for(state, field)
-            self._modifying_relations_for(state, field)
+            self._get_field_trigger_tree(state, field)
+            self._is_modifying_relations(state, field)
         if state.recompute_order is None:
-            state.recompute_order = self._compute_recompute_order(state.triggers)
+            state.recompute_order = self._get_recompute_order(state.triggers)
 
     def set_inverses(self, inverses: _Collector) -> None:
         self._inverses = inverses

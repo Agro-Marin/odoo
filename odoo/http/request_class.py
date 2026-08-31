@@ -259,7 +259,7 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
                 cr, self.session.uid, self.session.context or {}
             )
 
-    def _inject_future_response(self, response: Response) -> Response:
+    def _update_response_from_future(self, response: Response) -> Response:
         headers = response.headers
         staged = self.future_response.headers
 

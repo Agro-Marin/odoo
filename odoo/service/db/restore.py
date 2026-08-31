@@ -12,9 +12,9 @@ import odoo.api
 import odoo.modules.neutralize
 import odoo.modules.registry
 import odoo.tools
-from odoo.tools.misc import exec_pg_environ, find_pg_tool
+from odoo.tools.misc import exec_pg_environ, get_pg_tool_path
 
-from .._db_helpers import check_db_management_enabled, validate_db_name
+from .._db_helpers import check_db_management_enabled, check_db_name
 from .._dump_scanner import _assert_dump_sql_safe
 from .._env import env_float, env_int
 from .lifecycle import (
@@ -168,7 +168,7 @@ def _run_pg_restore(db: str, pg_cmd: str, pg_args: list[str]) -> None:
     timeout = _pg_restore_total_timeout()
     try:
         r = subprocess.run(
-            [find_pg_tool(pg_cmd), "--dbname=" + db, *pg_args],
+            [get_pg_tool_path(pg_cmd), "--dbname=" + db, *pg_args],
             env=exec_pg_environ(),
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
@@ -217,7 +217,7 @@ def restore_db(
 ) -> None:
     if not isinstance(db, str):
         raise TypeError(f"db must be a str, got {type(db).__name__!r}")
-    validate_db_name(db)
+    check_db_name(db)
     if exp_db_exist(db):
         _logger.warning("RESTORE DB: %s already exists", db)
         raise RuntimeError(f"Database {db!r} already exists")

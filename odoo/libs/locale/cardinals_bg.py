@@ -150,7 +150,7 @@ def _scale_words(power: int, count: int) -> list[str]:
     return [SCALES[power] + SCALE_PLURAL] if count > 1 else [SCALES[power]]
 
 
-def _gender_for(power: int) -> int:
+def _get_gender_for_power(power: int) -> int:
     if power == 3:
         return FEMININE
     return NEUTER if power == 0 else MASCULINE
@@ -221,7 +221,7 @@ class BulgarianNumerals:
                 words.extend(_scale_words(power, group))
                 continue
 
-            words.extend(_spell_group(group, _gender_for(power), is_final))
+            words.extend(_spell_group(group, _get_gender_for_power(power), is_final))
             if power:
                 words.extend(_scale_words(power, group))
 

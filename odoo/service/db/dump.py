@@ -15,9 +15,9 @@ from typing import IO, TYPE_CHECKING, Any
 import odoo.db
 import odoo.release
 import odoo.tools
-from odoo.tools.misc import exec_pg_environ, find_pg_tool
+from odoo.tools.misc import exec_pg_environ, get_pg_tool_path
 
-from .._db_helpers import check_db_management_enabled, validate_db_name
+from .._db_helpers import check_db_management_enabled, check_db_name
 from .._env import env_float
 from .listing import check_db_exposed
 
@@ -200,7 +200,7 @@ def _run_pg_dump_streaming(cmd: list[str], env: dict, stream: IO[bytes]) -> None
         raise _failed(proc.returncode, b"".join(stderr_chunks))
 
 
-def _zip_filestore_into(zipf: zipfile.ZipFile, filestore: str) -> None:
+def _zip_filestore_into_archive(zipf: zipfile.ZipFile, filestore: str) -> None:
     root = Path(filestore)
     if not root.is_dir():
         return
@@ -239,7 +239,7 @@ def _write_zip_dump(
         with zipf.open("dump.sql", "w", force_zip64=True) as sql_member:
             _run_pg_dump_streaming(cmd, env, sql_member)
         if with_filestore:
-            _zip_filestore_into(zipf, odoo.tools.config.filestore(db_name))
+            _zip_filestore_into_archive(zipf, odoo.tools.config.filestore(db_name))
 
 
 @check_db_management_enabled
@@ -249,7 +249,7 @@ def dump_db(
     backup_format: str = "zip",
     with_filestore: bool = True,
 ) -> IO[bytes] | None:
-    validate_db_name(db_name)
+    check_db_name(db_name)
     if backup_format not in BACKUP_FORMATS:
         raise ValueError(
             f"Invalid backup format {backup_format!r}: expected one of "
@@ -263,7 +263,7 @@ def dump_db(
         "with filestore" if with_filestore else "without filestore",
     )
 
-    cmd = [find_pg_tool("pg_dump"), "--no-owner", db_name]
+    cmd = [get_pg_tool_path("pg_dump"), "--no-owner", db_name]
     env = exec_pg_environ()
 
     if backup_format == "zip":

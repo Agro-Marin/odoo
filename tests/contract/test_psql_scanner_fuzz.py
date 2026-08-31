@@ -1,7 +1,7 @@
 import random
 import subprocess
 
-from odoo.service._dump_scanner import _find_disallowed_psql_meta_command
+from odoo.service._dump_scanner import _get_disallowed_psql_meta_command
 
 from .._pg import psql_path
 from .conftest import requires_pg, requires_psql
@@ -79,7 +79,7 @@ class TestScannerHasNoBypassUnderFuzz:
             path = tmp_path / f"case_{seed}.sql"
             path.write_text(sql, encoding="latin-1")
 
-            rejected = _find_disallowed_psql_meta_command(sql) is not None
+            rejected = _get_disallowed_psql_meta_command(sql) is not None
             flagged += rejected
             run_psql(path)
             if canary.exists():
@@ -121,7 +121,7 @@ if __name__ == "__main__":  # pragma: no cover - investigation entry point
         sql = build_case(seed, canary)
         case = out / f"case_{seed}.sql"
         case.write_text(sql, encoding="latin-1")
-        rejected = _find_disallowed_psql_meta_command(sql) is not None
+        rejected = _get_disallowed_psql_meta_command(sql) is not None
         subprocess.run(
             [
                 psql_path(),

@@ -22,7 +22,7 @@ def loader():
     suite = MagicMock()
     suite.has_http_case.return_value = False
     fake = MagicMock()
-    fake.make_suite.return_value = suite
+    fake.prepare_suite.return_value = suite
     with (
         patch.dict("sys.modules", {}),
         patch("odoo.tests.loader", fake, create=True),
@@ -45,7 +45,7 @@ class TestWhichModulesThePostInstallSuiteRunsFor:
 
         lifecycle._run_post_install_tests(registry, update_module=True)
 
-        fake.make_suite.assert_called_once_with(
+        fake.prepare_suite.assert_called_once_with(
             ["updated_one", "updated_two"], "post_install"
         )
 
@@ -57,7 +57,7 @@ class TestWhichModulesThePostInstallSuiteRunsFor:
 
         lifecycle._run_post_install_tests(registry, update_module=False)
 
-        fake.make_suite.assert_called_once_with(["alpha", "zeta"], "post_install")
+        fake.prepare_suite.assert_called_once_with(["alpha", "zeta"], "post_install")
 
 
 class TestAssetsArePregeneratedOnlyWhenSomethingServesHttp:

@@ -225,7 +225,7 @@ def execute_cr(
 
 def _force_lazy_values(result: typing.Any) -> typing.Any:
     try:
-        return _force_lazy_in(result)
+        return _force_lazy_in_value(result)
     except RecursionError:
         _logger.warning(
             "RPC result is cyclic or nested too deep to force lazies; "
@@ -246,13 +246,13 @@ def _forced_mapping(val: Mapping) -> Mapping:
     if isinstance(val, MutableMapping):
         for key, value in list(val.items()):
             if value.__class__ not in _SCALAR_LEAF_TYPES:
-                forced = _force_lazy_in(value)
+                forced = _force_lazy_in_value(value)
                 if forced is not value:
                     val[key] = forced
         return val
     for value in val.values():
         if value.__class__ not in _SCALAR_LEAF_TYPES and not _is_bare_iterator(value):
-            _force_lazy_in(value)
+            _force_lazy_in_value(value)
     return val
 
 
@@ -260,12 +260,12 @@ def _forced_sequence(val: Sequence) -> Sequence:
     if isinstance(val, MutableSequence):
         for index, item in enumerate(val):
             if item.__class__ not in _SCALAR_LEAF_TYPES:
-                forced = _force_lazy_in(item)
+                forced = _force_lazy_in_value(item)
                 if forced is not item:
                     val[index] = forced
         return val
     items = [
-        item if item.__class__ in _SCALAR_LEAF_TYPES else _force_lazy_in(item)
+        item if item.__class__ in _SCALAR_LEAF_TYPES else _force_lazy_in_value(item)
         for item in val
     ]
     if any(new is not old for new, old in zip(items, val, strict=True)):
@@ -276,21 +276,21 @@ def _forced_sequence(val: Sequence) -> Sequence:
 def _warm_in_place(val: Iterable) -> None:
     for item in val:
         if item.__class__ not in _SCALAR_LEAF_TYPES and not _is_bare_iterator(item):
-            _force_lazy_in(item)
+            _force_lazy_in_value(item)
 
 
-def _force_lazy_in(val: typing.Any) -> typing.Any:
+def _force_lazy_in_value(val: typing.Any) -> typing.Any:
     if val.__class__ in _SCALAR_LEAF_TYPES:
         return val
     if isinstance(val, lazy):
-        _force_lazy_in(val._value)
+        _force_lazy_in_value(val._value)
         return val
     if isinstance(val, (str, bytes, BaseModel)):
         return val
     if isinstance(val, Mapping):
         return _forced_mapping(val)
     if isinstance(val, Iterator):
-        return [_force_lazy_in(item) for item in val]
+        return [_force_lazy_in_value(item) for item in val]
     if isinstance(val, Sequence):
         return _forced_sequence(val)
     if isinstance(val, (AbstractSet, Iterable)):

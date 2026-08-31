@@ -54,8 +54,8 @@ from odoo.libs.web.urls import urljoin
 from odoo.libs.xml.dsig import (
     EXC_C14N_ALGORITHM,
     XmlSigError,
-    _c14n_params_from_transforms,
-    fill_reference_digests,
+    _get_c14n_params_from_transforms,
+    update_reference_digests,
 )
 
 
@@ -964,17 +964,17 @@ class TestDsigTransformOrderIsIrrelevant:
         )
 
     def test_exclusive_c14n_is_found_after_an_enveloped_transform(self):
-        assert _c14n_params_from_transforms(
+        assert _get_c14n_params_from_transforms(
             self._reference(self.ENVELOPED, EXC_C14N_ALGORITHM)
         ) == (True, [])
 
     def test_it_is_still_found_when_it_comes_first(self):
-        assert _c14n_params_from_transforms(
+        assert _get_c14n_params_from_transforms(
             self._reference(EXC_C14N_ALGORITHM, self.ENVELOPED)
         ) == (True, [])
 
     def test_a_reference_without_it_is_still_inclusive(self):
-        assert _c14n_params_from_transforms(self._reference(self.ENVELOPED)) == (
+        assert _get_c14n_params_from_transforms(self._reference(self.ENVELOPED)) == (
             False,
             [],
         )
@@ -987,14 +987,14 @@ class TestDsigTransformOrderIsIrrelevant:
             f'<InclusiveNamespaces PrefixList="soap wcf"/>'
             f"</Transform></Transforms></Reference>".encode()
         )
-        assert _c14n_params_from_transforms(reference) == (True, ["soap", "wcf"])
+        assert _get_c14n_params_from_transforms(reference) == (True, ["soap", "wcf"])
 
     def test_a_reference_with_no_digest_value_names_itself(self):
         signed_info = etree.fromstring(
             f'<SignedInfo xmlns="{self.DS}"><Reference URI="#x"/></SignedInfo>'.encode()
         )
         with pytest.raises(XmlSigError, match="no <ds:DigestValue>"):
-            fill_reference_digests(signed_info)
+            update_reference_digests(signed_info)
 
 
 class TestIsEncodableEmptyString:
@@ -1064,4 +1064,4 @@ class TestCryptContextCopyKeepsEverySetting:
         hashed = copy.hash("secret")
         assert copy.verify("secret", hashed)
         assert not copy.verify("wrong", hashed)
-        assert copy.verify_and_update("secret", hashed) == (True, None)
+        assert copy.match_and_update("secret", hashed) == (True, None)

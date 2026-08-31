@@ -84,9 +84,7 @@ class CryptContext:
             )
         return False
 
-    def verify_and_update(
-        self, password: str, hash_str: str
-    ) -> tuple[bool, str | None]:
+    def match_and_update(self, password: str, hash_str: str) -> tuple[bool, str | None]:
         if not self.verify(password, hash_str):
             return False, None
 

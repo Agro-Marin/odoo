@@ -123,7 +123,7 @@ class TestTheDedupedProbeDoesNotShareATraceback(unittest.TestCase):
 
         def call(tag):
             try:
-                pool._probe.ensure_connectable(key, "", {})
+                pool._probe.check_connectable(key, "", {})
             except Exception as exc:
                 caught[tag] = exc
 

@@ -9,7 +9,9 @@ class DictBackend:
         self._tables: dict[str, dict[int, dict[str, Any]]] = {}
         self._sequences: dict[str, int] = defaultdict(int)
 
-    def fetch_rows(self, table: str, ids: list[int], columns: list[str]) -> list[tuple]:
+    def get_row_tuples(
+        self, table: str, ids: list[int], columns: list[str]
+    ) -> list[tuple]:
         tbl = self._tables.get(table, {})
         result = []
         for id_ in ids:
@@ -62,7 +64,7 @@ class DictBackend:
                 tbl[id_] = {"id": id_, **values}
                 self._sequences[table] = max(self._sequences[table], id_)
 
-    def delete_rows(self, table: str, ids: list[int]) -> None:
+    def remove_rows(self, table: str, ids: list[int]) -> None:
         tbl = self._tables.get(table)
         if tbl is None:
             return

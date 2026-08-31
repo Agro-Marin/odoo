@@ -179,7 +179,7 @@ class _RequestServeMixin(RequestState):
             readonly = readonly(rule.endpoint.func.__self__, rule, args)
         return functools.partial(self._serve_ir_http, rule, args), bool(readonly)
 
-    def _run_serve_func(self, serve_func: Any) -> Response:
+    def _serve_readwrite(self, serve_func: Any) -> Response:
         env = self.env
         assert env is not None, "a database-bound request has an environment"
         try:
@@ -259,7 +259,7 @@ class _RequestServeMixin(RequestState):
                 self._reset_for_replay(cr)
             else:
                 self.env = env(cr=cr)
-            return self._run_serve_func(serve_func)
+            return self._serve_readwrite(serve_func)
         except HTTPException as exc:
             if exc.code is not None:
                 raise

@@ -216,7 +216,7 @@ class PostgresBackend:
         Defaults: BaseModel,
         Attachment: BaseModel,
     ) -> tuple[BaseModel, BaseModel]:
-        return model._delete_sql(sub_ids, Data, Defaults, Attachment)
+        return model._unlink_sql(sub_ids, Data, Defaults, Attachment)
 
     def read_m2m_pairs(
         self,
@@ -472,7 +472,7 @@ class InMemoryBackend:
         Defaults: BaseModel,
         Attachment: BaseModel,
     ) -> tuple[BaseModel, BaseModel]:
-        self.storage.delete_rows(model._table, list(sub_ids))
+        self.storage.remove_rows(model._table, list(sub_ids))
         return Data.browse(), Attachment.browse()
 
     def _m2m_rows(self, relation: str):
@@ -532,4 +532,4 @@ class InMemoryBackend:
             if (row.get(column1), row.get(column2)) in doomed
         ]
         if row_ids:
-            self.storage.delete_rows(relation, row_ids)
+            self.storage.remove_rows(relation, row_ids)

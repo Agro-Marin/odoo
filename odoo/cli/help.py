@@ -8,7 +8,7 @@ from .command import (
     PROG_NAME,
     Command,
     commands,
-    find_command,
+    get_cli_command,
     load_addons_commands,
     load_internal_commands,
 )
@@ -40,7 +40,7 @@ class Help(Command):
     def run(self, args: list[str]) -> None:
         parsed = self.parser.parse_args(args)
         if parsed.command and Command.is_valid_name(parsed.command):
-            return self.run_command_help(parsed.command)
+            return self.show_command_help(parsed.command)
 
         load_internal_commands()
         load_addons_commands()
@@ -70,8 +70,8 @@ class Help(Command):
         )
         return None
 
-    def run_command_help(self, name: str) -> None:
-        command = find_command(name)
+    def show_command_help(self, name: str) -> None:
+        command = get_cli_command(name)
         if command is None:
             sys.exit(
                 f"Unknown command {name!r}.\n"

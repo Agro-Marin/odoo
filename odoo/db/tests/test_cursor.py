@@ -351,7 +351,7 @@ class TestTheDiscardPathTellsAnOutageFromAFault(unittest.TestCase):
         try:
             with (
                 patch.object(
-                    type(cur), "_do_rollback", side_effect=rollback_error, create=True
+                    type(cur), "_rollback", side_effect=rollback_error, create=True
                 ),
                 patch.object(type(cur), "print_log", MagicMock(), create=True),
                 patch.object(

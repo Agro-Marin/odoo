@@ -682,7 +682,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 self.print_log()
             finally:
                 try:
-                    self._do_rollback()
+                    self._rollback()
                 except Exception as exc:
                     keep_in_pool = self._connection_is_clean()
                     if keep_in_pool:
@@ -737,9 +737,9 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 "Cannot rollback inside a savepoint! "
                 "Use cr.savepoint() for nested transaction control."
             )
-        self._do_rollback()
+        self._rollback()
 
-    def _do_rollback(self) -> None:
+    def _rollback(self) -> None:
         self.clear()
         self.postcommit.clear()
         try:

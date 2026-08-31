@@ -222,7 +222,7 @@ class ormcache:
             return
         d[key] = cache_value
 
-    def generation_of(self, model: BaseModel) -> int:
+    def get_cache_generation(self, model: BaseModel) -> int:
         return model.pool.ormcache_lrus[self.cache_name].generation
 
     def determine_key(self) -> None:
@@ -434,7 +434,7 @@ def _format_ormcache_stats(
     return log_msgs
 
 
-def _run_ormcache_stats(show_size: bool) -> None:
+def _log_ormcache_stats(show_size: bool) -> None:
     global _logger_state  # noqa: PLW0603  process-wide cache-stats logging state
     try:
         collected = _collect_ormcache_stats(show_size)
@@ -467,7 +467,7 @@ def log_ormcache_stats(
         _logger_state = "run"
 
     threading.Thread(
-        target=_run_ormcache_stats,
+        target=_log_ormcache_stats,
         args=(show_size,),
         name=(
             "odoo.signal.log_ormcache_stats_with_size"

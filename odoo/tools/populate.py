@@ -198,7 +198,7 @@ def get_field_variation(
             return SQL.identifier(field.name)
 
 
-def fetch_last_id(model: Model) -> int:
+def get_last_id(model: Model) -> int:
     query = SQL(
         "SELECT id FROM %s ORDER BY id DESC LIMIT 1",
         SQL.identifier(model._table),
@@ -229,7 +229,7 @@ def populate_field(
             return copy_raw(field_)
 
     def copy_id():
-        last_id = fetch_last_id(model)
+        last_id = get_last_id(model)
         populated[model] = last_id
         return SQL(
             "id + %(last_id)s * %(series_alias)s",
@@ -278,7 +278,7 @@ def populate_model(
             SQL(
                 "SELECT SETVAL(%(sequence)s, %(last_id)s, TRUE)",
                 sequence=f"{model_._table}_id_seq",
-                last_id=fetch_last_id(model_),
+                last_id=get_last_id(model_),
             )
         )
 

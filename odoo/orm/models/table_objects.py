@@ -1,7 +1,7 @@
 import typing
 
 from odoo.db import schema as sql
-from odoo.libs.sql import make_identifier
+from odoo.libs.sql import normalize_identifier
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
@@ -46,7 +46,7 @@ class TableObject:
     def full_name(self, model: BaseModel) -> str:
         assert self.name, "The table object is not named"
         name = f"{model._table}_{self.name}"
-        return make_identifier(name)
+        return normalize_identifier(name)
 
     def get_error_message(
         self, model: BaseModel, diagnostics: Diagnostic | None = None

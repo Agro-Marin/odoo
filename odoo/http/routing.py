@@ -14,7 +14,7 @@ import werkzeug.routing
 from odoo.tools import unique
 from odoo.tools.misc import submap
 
-from ._params import build_param_specs
+from ._params import get_param_specs
 from .constants import ROUTING_KEYS
 from .controller import Controller, newest_by_identity
 
@@ -92,7 +92,7 @@ def rule_routing_kwargs(endpoint: HasRouting) -> dict[str, Any]:
     return routing
 
 
-def build_routing_map(
+def prepare_routing_map(
     rules: Iterable[tuple[str, Endpoint]],
     converters: dict[str, type] | None = None,
 ) -> werkzeug.routing.Map:
@@ -379,7 +379,7 @@ def _generate_routing_rules(
 
             frozen_routing = MappingProxyType(merged_routing)
             param_specs = (
-                build_param_specs(_original_endpoint(method))
+                get_param_specs(_original_endpoint(method))
                 if merged_routing.get("typed")
                 else None
             )

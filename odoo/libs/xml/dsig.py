@@ -12,8 +12,8 @@ __all__ = [
     "XmlSigError",
     "canonicalize",
     "canonicalize_signed_info",
-    "fill_reference_digests",
     "resolve_reference",
+    "update_reference_digests",
 ]
 
 
@@ -44,7 +44,9 @@ def canonicalize(
     )
 
 
-def _c14n_params_from_transforms(reference: etree._Element) -> tuple[bool, list[str]]:
+def _get_c14n_params_from_transforms(
+    reference: etree._Element,
+) -> tuple[bool, list[str]]:
     exclusive = next(
         (
             transform
@@ -84,7 +86,7 @@ def _enveloping_signatures(
 
 
 def resolve_reference(uri: str, reference: etree._Element, base_uri: str = "") -> bytes:
-    exclusive, prefix_list = _c14n_params_from_transforms(reference)
+    exclusive, prefix_list = _get_c14n_params_from_transforms(reference)
     node = deepcopy(reference.getroottree().getroot())
 
     if uri == base_uri:
@@ -127,7 +129,7 @@ def canonicalize_signed_info(signed_info: etree._Element) -> bytes:
     )
 
 
-def fill_reference_digests(
+def update_reference_digests(
     signed_info: etree._Element,
     base_uri: str = "",
     *,

@@ -81,12 +81,12 @@ def test_route_param_filter_survives_type_checking_annotation():
 
 
 def test_build_param_specs_leaves_unresolvable_annotation_uncoerced():
-    from odoo.http._params import build_param_specs
+    from odoo.http._params import get_param_specs
 
     ns = _make_callable(
         "def endpoint(self, thing: Environment, limit: int = 10):\n    return thing"
     )
-    specs = build_param_specs(ns["endpoint"])
+    specs = get_param_specs(ns["endpoint"])
     assert specs["limit"].target is int
     assert "thing" not in specs
 

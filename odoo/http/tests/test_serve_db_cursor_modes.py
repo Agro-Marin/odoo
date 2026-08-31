@@ -84,7 +84,7 @@ def _make(readonly_route=True, replica=True):
     )
     for helper in (
         "_resolve_serve_target",
-        "_run_serve_func",
+        "_serve_readwrite",
         "_serve_readonly",
         "_open_read_write_cursor",
     ):

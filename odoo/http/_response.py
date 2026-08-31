@@ -17,7 +17,7 @@ from .wrappers import HTTPRequest, Response
 
 
 class _RequestResponseMixin(RequestState):
-    def make_response(
+    def prepare_response(
         self,
         data: str | bytes | None,
         headers: list[tuple[str, str]] | werkzeug.datastructures.Headers | None = None,
@@ -30,7 +30,7 @@ class _RequestResponseMixin(RequestState):
                 response.set_cookie(k, v)
         return response
 
-    def make_json_response(
+    def prepare_json_response(
         self,
         data: Any,
         headers: list[tuple[str, str]] | None = None,
@@ -43,7 +43,7 @@ class _RequestResponseMixin(RequestState):
         if "Content-Type" not in json_headers:
             json_headers["Content-Type"] = "application/json; charset=utf-8"
 
-        return self.make_response(payload, json_headers, cookies, status)
+        return self.prepare_response(payload, json_headers, cookies, status)
 
     def not_found(self, description: str | None = None) -> NotFound:
         return NotFound(description)

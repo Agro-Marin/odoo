@@ -29,7 +29,7 @@ def is_model_definition(cls: type) -> bool:
     return isinstance(cls, models.MetaModel) and getattr(cls, "pool", None) is None
 
 
-def registry_of(model_cls: type[BaseModel]) -> Registry:
+def get_registry_of(model_cls: type[BaseModel]) -> Registry:
     pool = model_cls.pool
     assert pool is not None, (
         f"{model_cls.__name__} is a model definition class and has no registry; "
@@ -55,7 +55,9 @@ def _warn_removed_model_attributes(model_def: type[BaseModel]) -> None:
         )
 
 
-def add_to_registry(registry: Registry, model_def: type[BaseModel]) -> type[BaseModel]:
+def add_model_to_registry(
+    registry: Registry, model_def: type[BaseModel]
+) -> type[BaseModel]:
     if not is_model_definition(model_def):
         raise TypeError(f"{model_def!r} is not a model definition class")
 
@@ -204,7 +206,7 @@ def _init_model_class_attributes_once(model_cls: type[BaseModel]):
     if depends:
         model_cls._depends = frozendict(depends)
 
-    registry = registry_of(model_cls)
+    registry = get_registry_of(model_cls)
     for parent_name in model_cls._inherits:
         registry[parent_name]._inherits_children.add(model_cls._name)
 
@@ -273,7 +275,7 @@ def _setup_phases(model_cls: type[BaseModel], env: Environment) -> None:
 
     _collect_and_install_fields(model_cls, env)
 
-    registry = registry_of(model_cls)
+    registry = get_registry_of(model_cls)
     if registry._init_modules:
         _add_manual_fields(model_cls, env)
 
@@ -286,10 +288,10 @@ def _setup_phases(model_cls: type[BaseModel], env: Environment) -> None:
     for field in model_cls._fields.values():
         field.prepare_setup()
 
-    _validate_rec_name(model_cls)
-    _validate_active_name(model_cls)
+    _check_rec_name(model_cls)
+    _check_active_name(model_cls)
 
-    _build_table_objects(model_cls)
+    _add_table_objects(model_cls)
 
 
 def _collect_and_install_fields(model_cls: type[BaseModel], env: Environment):
@@ -319,7 +321,7 @@ def _collect_and_install_fields(model_cls: type[BaseModel], env: Environment):
 
 
 def _patch_translate_field(model_cls: type[BaseModel], name: str, fields_: list):
-    registry = registry_of(model_cls)
+    registry = get_registry_of(model_cls)
     key = f"{model_cls._name}.{name}"
     if key not in registry._database_translated_fields:
         return
@@ -345,7 +347,7 @@ def _patch_company_dependent_field(
     model_cls: type[BaseModel], env: Environment, name: str, fields_: list
 ):
     key = f"{model_cls._name}.{name}"
-    if key not in registry_of(model_cls)._database_company_dependent_fields:
+    if key not in get_registry_of(model_cls)._database_company_dependent_fields:
         return
 
     company_dependent = next(
@@ -367,7 +369,7 @@ def _patch_company_dependent_field(
             fields_.append(type(fields_[0])(company_dependent=True))
 
 
-def _validate_rec_name(model_cls: type[BaseModel]):
+def _check_rec_name(model_cls: type[BaseModel]):
     if model_cls._rec_name:
         if model_cls._rec_name not in model_cls._fields:
             raise TypeError(
@@ -380,7 +382,7 @@ def _validate_rec_name(model_cls: type[BaseModel]):
         model_cls._rec_name = "x_name"
 
 
-def _validate_active_name(model_cls: type[BaseModel]):
+def _check_active_name(model_cls: type[BaseModel]):
     if model_cls._active_name:
         if (
             model_cls._active_name not in model_cls._fields
@@ -397,7 +399,7 @@ def _validate_active_name(model_cls: type[BaseModel]):
         model_cls._active_name = "x_active"
 
 
-def _build_table_objects(model_cls: type[BaseModel]):
+def _add_table_objects(model_cls: type[BaseModel]):
     if model_cls._table_object_definitions:
         raise TypeError(
             f"Model {model_cls._name!r}: registry class must not own "
@@ -438,7 +440,9 @@ def _add_inherited_fields(model_cls: type[BaseModel]):
 
     to_inherit: dict[str, tuple[str, Field]] = {}
     for parent_model_name, parent_fname in model_cls._inherits.items():
-        for name, field in registry_of(model_cls)[parent_model_name]._fields.items():
+        for name, field in get_registry_of(model_cls)[
+            parent_model_name
+        ]._fields.items():
             if name in model_cls._fields:
                 continue
             if (existing := to_inherit.get(name)) is not None:
@@ -472,7 +476,7 @@ def _add_inherited_fields(model_cls: type[BaseModel]):
 
 def _setup_fields(model_cls: type[BaseModel], env: Environment):
     bad_fields = []
-    many2one_company_dependents = registry_of(model_cls).many2one_company_dependents
+    many2one_company_dependents = get_registry_of(model_cls).many2one_company_dependents
     model = model_cls(env, (), ())
     for name, field in model_cls._fields.items():
         try:
@@ -535,7 +539,7 @@ def _add_manual_models(env: Environment):
             attrs["_log_access"] = set(LOG_ACCESS_COLUMNS) <= columns
 
         model_def = type("CustomDefinitionModel", (models.Model,), attrs)
-        add_to_registry(env.registry, model_def)
+        add_model_to_registry(env.registry, model_def)
 
 
 def _add_manual_fields(model_cls: type[BaseModel], env: Environment):
@@ -562,7 +566,7 @@ def add_field(model_cls: type[BaseModel], name: str, field: Field):
     is_class_field = any(
         isinstance(getattr(model, name, None), fields.Field)
         for model in [model_cls]
-        + [registry_of(model_cls)[inherit] for inherit in model_cls._inherits]
+        + [get_registry_of(model_cls)[inherit] for inherit in model_cls._inherits]
     )
     if not (is_class_field or is_manual_name(name)):
         raise ValidationError(
@@ -596,7 +600,7 @@ def pop_field(model_cls: type[BaseModel], name: str) -> Field | None:
     discardattr(model_cls, name)
     if model_cls._rec_name == name:
         model_cls._rec_name = None
-        registry = registry_of(model_cls)
+        registry = get_registry_of(model_cls)
         if model_cls.display_name in registry.field_depends:
             registry.field_depends[model_cls.display_name] = tuple(
                 dep

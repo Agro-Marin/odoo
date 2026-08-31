@@ -10,7 +10,7 @@ from psycopg.pq import TransactionStatus
 import odoo
 from odoo.modules.registry import Registry
 
-from .loader import make_suite, run_suite
+from .loader import prepare_suite, run_suite
 from .result import OdooTestResult
 
 _logger = logging.getLogger(__name__)
@@ -77,7 +77,7 @@ def _run_tests(db_name: str, modules: list[str]) -> OdooTestResult:
         try:
             registry.loaded = False
             registry.ready = False
-            at_install_suite = make_suite(modules, "at_install")
+            at_install_suite = prepare_suite(modules, "at_install")
             if at_install_suite.countTestCases():
                 _logger.info("Starting at_install tests")
                 report.update(run_suite(at_install_suite, report))
@@ -85,7 +85,7 @@ def _run_tests(db_name: str, modules: list[str]) -> OdooTestResult:
             registry.loaded = True
             registry.ready = True
 
-    post_install_suite = make_suite(modules, "post_install")
+    post_install_suite = prepare_suite(modules, "post_install")
     if post_install_suite.countTestCases():
         _logger.info("Starting post_install tests")
         report.update(run_suite(post_install_suite, report))

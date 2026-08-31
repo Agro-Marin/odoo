@@ -70,7 +70,7 @@ def stack_size() -> int:
     return size
 
 
-def make_session(name: str = "") -> str:
+def get_session_name(name: str = "") -> str:
     return f"{real_datetime_now():%Y-%m-%d %H:%M:%S} {name}"
 
 
@@ -92,7 +92,7 @@ class Collector:
             cls._registry[cls.__name__] = cls
 
     @classmethod
-    def make(cls, name: str, *args: Any, **kwargs: Any) -> Collector:
+    def prepare_collector(cls, name: str, *args: Any, **kwargs: Any) -> Collector:
         return cls._registry[name](*args, **kwargs)
 
     def __init__(self) -> None:
@@ -606,7 +606,7 @@ class Profiler:
         self.duration: float = 0
         self.start_cpu_time: float = 0
         self.cpu_duration: float = 0
-        self.profile_session: str = profile_session or make_session()
+        self.profile_session: str = profile_session or get_session_name()
         self.description: str | None = description
         self.init_frame: FrameType | None = None
         self.init_stack_trace: list[tuple[str, int, str, str]] | None = None
@@ -636,7 +636,7 @@ class Profiler:
         for collector in collectors:
             if isinstance(collector, str):
                 try:
-                    collector = Collector.make(collector)
+                    collector = Collector.prepare_collector(collector)
                 except Exception:
                     _logger.error("Could not create collector with name %r", collector)
                     continue

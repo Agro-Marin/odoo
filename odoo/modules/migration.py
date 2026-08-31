@@ -146,12 +146,12 @@ class MigrationManager:
         self.migrations = {}
         self._get_files()
 
-    def _needs_migration(self, pkg: module_graph.ModuleNode) -> bool:
+    def _is_migration_required(self, pkg: module_graph.ModuleNode) -> bool:
         return pkg.load_state == "to upgrade"
 
     def _get_files(self) -> None:
         for pkg in self.graph:
-            if not self._needs_migration(pkg):
+            if not self._is_migration_required(pkg):
                 continue
 
             self.migrations[pkg.name] = {
@@ -180,7 +180,7 @@ class MigrationManager:
             "post": "[%s>]",
             "end": "[$%s]",
         }
-        if not self._needs_migration(pkg):
+        if not self._is_migration_required(pkg):
             return
 
         def _get_migration_versions(

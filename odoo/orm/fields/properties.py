@@ -147,7 +147,7 @@ class Properties(Field):
             value = value._values
 
         elif isinstance(value, dict):
-            value = fast_clone(self._recordsets_to_ids(value, record))
+            value = fast_clone(self._replace_recordsets_with_ids(value, record))
 
         elif isinstance(value, str):
             value = json.loads(value)
@@ -171,7 +171,7 @@ class Properties(Field):
 
         return value
 
-    def _recordsets_to_ids(
+    def _replace_recordsets_with_ids(
         self, values: dict[str, typing.Any], record: ModelLike
     ) -> dict[str, typing.Any]:
         if not any(is_recordset(value) for value in values.values()):
@@ -951,7 +951,7 @@ class PropertiesDefinition(Field):
         if validate:
             Properties._remove_display_name(value, value_key="default")
 
-            self._validate_properties_definition(value, record.env)
+            self._check_properties_definition(value, record.env)
 
         return PsycopgJson(record._convert_to_column_properties_definition(value))
 
@@ -974,7 +974,7 @@ class PropertiesDefinition(Field):
         if validate:
             Properties._remove_display_name(value, value_key="default")
 
-            self._validate_properties_definition(value, record.env)
+            self._check_properties_definition(value, record.env)
 
         return record._convert_to_cache_properties_definition(value)
 
@@ -1124,7 +1124,7 @@ class PropertiesDefinition(Field):
                 duplicated = set(filter(lambda x: all_tags.count(x) > 1, all_tags))
                 raise ValueError(f"Some tags are duplicated: {', '.join(duplicated)}.")
 
-    def _validate_properties_definition(
+    def _check_properties_definition(
         self, properties_definition: list[dict[str, typing.Any]], env: typing.Any
     ) -> None:
         allowed_keys = (
@@ -1133,7 +1133,7 @@ class PropertiesDefinition(Field):
         )
         allowed_keys_set = set(allowed_keys)
 
-        env["base"]._validate_properties_definition(properties_definition, self)
+        env["base"]._check_properties_definition(properties_definition, self)
 
         properties_names: set[str] = set()
 

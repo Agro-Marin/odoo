@@ -33,7 +33,7 @@ class TestMalformedHash(unittest.TestCase):
         for bad in (MALFORMED, NON_BASE64):
             with self.subTest(hash=bad):
                 self.assertEqual(
-                    self.ctx.verify_and_update("whatever", bad), (False, None)
+                    self.ctx.match_and_update("whatever", bad), (False, None)
                 )
 
     def test_a_malformed_hash_does_not_fall_through_to_plaintext(self):

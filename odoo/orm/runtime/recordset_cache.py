@@ -108,7 +108,7 @@ class Cache:
         dirty: bool = False,
     ) -> None:
         if not dirty and (
-            found := self.transaction.core.find_pending_write((field,), records._ids)
+            found := self.transaction.core.get_pending_write((field,), records._ids)
         ):
             _field, overlap = found
             _logger.warning(
@@ -182,7 +182,7 @@ class Cache:
             return
         core = self.transaction.core
         for field, ids in spec:
-            if (found := core.find_pending_write((field,), ids)) is not None:
+            if (found := core.get_pending_write((field,), ids)) is not None:
                 _field, overlap = found
                 raise ValueError(
                     f"Cache.invalidate: refusing to drop {field} on records "

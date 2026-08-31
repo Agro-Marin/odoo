@@ -17,7 +17,7 @@ from odoo.db import is_maintenance_db
 from odoo.db import schema as _db_schema
 from odoo.release import version_info
 
-from .._db_helpers import validate_db_name
+from .._db_helpers import check_db_name
 from .._env import env_float
 
 _logger = logging.getLogger("odoo.service.db")
@@ -75,14 +75,14 @@ def _rpc_db_exist(db_name: str) -> bool:
     if not odoo.tools.config["list_db"]:
         return False
     try:
-        validate_db_name(db_name)
+        check_db_name(db_name)
     except TypeError, ValueError:
         return False
     if is_maintenance_db(db_name):
         return False
     if db_name not in list_dbs(True):
         return False
-    if _answers_from_config():
+    if _is_db_list_configured():
         return exp_db_exist(db_name)
     return True
 
@@ -167,7 +167,7 @@ def _cached_catalogue() -> list[str]:
     return list(names)
 
 
-def _answers_from_config() -> bool:
+def _is_db_list_configured() -> bool:
     return not odoo.tools.config["dbfilter"] and bool(odoo.tools.config["db_name"])
 
 
@@ -175,7 +175,7 @@ def list_dbs(force: bool = False) -> list[str]:
     if not odoo.tools.config["list_db"] and not force:
         raise odoo.exceptions.AccessDenied
 
-    if _answers_from_config():
+    if _is_db_list_configured():
         return sorted(odoo.tools.config["db_name"])
 
     return _cached_catalogue()

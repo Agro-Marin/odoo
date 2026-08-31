@@ -143,7 +143,7 @@ class Speedscope:
                 self.add_output([key], display_name=key, **params)
         return self
 
-    def make(self, **params: Any) -> dict[str, Any]:
+    def prepare_document(self, **params: Any) -> dict[str, Any]:
         if not self.profiles:
             self.add_default(**params)
         return {

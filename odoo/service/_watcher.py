@@ -292,9 +292,9 @@ class FSWatcherInotify(FSWatcherBase):
         inotify.adapters._LOGGER.setLevel(logging.ERROR)
         paths = self.watch_paths()
         _logger.info("Watching %d folder(s) for changes", len(paths))
-        self._build_watcher(paths)
+        self._arm_watcher(paths)
 
-    def _build_watcher(self, paths: list[str], block_duration_s: float = 0.5) -> None:
+    def _arm_watcher(self, paths: list[str], block_duration_s: float = 0.5) -> None:
         self.roots = paths
         try:
             self.watcher = InotifyTrees(

@@ -16,9 +16,9 @@ class _FieldComputeMixin(_ModelStubs):
         determine(field.compute, self)
 
         if validate:
-            self._validate_computed(field)
+            self._check_computed(field)
 
-    def _validate_computed(self, field: Field) -> None:
+    def _check_computed(self, field: Field) -> None:
         if field.store and any(self._ids):
             fnames = [f.name for f in self.pool.field_computed[field]]
-            self.filtered("id")._validate_fields(fnames)
+            self.filtered("id")._check_fields(fnames)

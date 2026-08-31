@@ -154,7 +154,7 @@ class ModuleGraph:
                     self._remove(name)
 
     def _update_depth(self, names: Iterable[str]) -> None:
-        for cycle_member in self._find_cycle_members():
+        for cycle_member in self._get_cycle_members():
             if cycle_member in self._modules:
                 _logger.warning(
                     "module %s: in a dependency loop, skipped",
@@ -165,7 +165,7 @@ class ModuleGraph:
             if module := self._modules.get(name):
                 _ = module.depth
 
-    def _find_cycle_members(self) -> set[str]:
+    def _get_cycle_members(self) -> set[str]:
         indices: dict[str, int] = {}
         lowlinks: dict[str, int] = {}
         on_scc_stack: set[str] = set()

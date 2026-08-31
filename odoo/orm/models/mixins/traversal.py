@@ -95,8 +95,8 @@ class TraversalMixin(_ModelStubs):
                 return getter(records)
             if not records:
                 return []
-            field.ensure_access(records)
-            field.ensure_computed(records)
+            field.check_read_access(records)
+            field.recompute_pending(records)
             field_cache = field._get_cache(records.env)
             _SENTINEL = SENTINEL
             _PENDING = PENDING
@@ -161,8 +161,8 @@ class TraversalMixin(_ModelStubs):
             if not can_scan_truthy(field):
                 _field_get = field.__get__
                 return self.browse(rec._ids[0] for rec in self if _field_get(rec))
-            field.ensure_access(self)
-            field.ensure_computed(self)
+            field.check_read_access(self)
+            field.recompute_pending(self)
             field_cache = field._get_cache(self.env)
             passing_ids, miss_indices = _batch_cache_filter(
                 field_cache, self._ids, PENDING
@@ -205,8 +205,8 @@ class TraversalMixin(_ModelStubs):
         if isinstance(key, str):
             field = self._fields[key]
             if not field.relational:
-                field.ensure_access(self)
-                field.ensure_computed(self)
+                field.check_read_access(self)
+                field.recompute_pending(self)
                 field_cache = field._get_cache(self.env)
                 _SENTINEL = SENTINEL
                 _PENDING = PENDING
@@ -298,14 +298,14 @@ class TraversalMixin(_ModelStubs):
             return self
         if isinstance(key, str):
             order = key
-            self._sorted_ensure_computed(order)
+            self._sorted_load_fields(order)
             ids = self._sorted_by_ids(order, reverse)
             if ids is not None:
                 return self._spawn(self.env, ids, self._prefetch_ids)
             key = self._sorted_order_to_function(order)
         elif key is None:
             order = self._order
-            self._sorted_ensure_computed(order)
+            self._sorted_load_fields(order)
             ids = self._sorted_by_ids(order, reverse)
             if ids is not None:
                 return self._spawn(self.env, ids, self._prefetch_ids)
@@ -318,15 +318,15 @@ class TraversalMixin(_ModelStubs):
         )
         return self._spawn(self.env, ids, self._prefetch_ids)
 
-    def _sorted_ensure_computed(self, order: str) -> None:
+    def _sorted_load_fields(self, order: str) -> None:
         _fields = self._fields
         for part in order.split(","):
             match = regex_order.match(part)
             if match:
                 field = _fields.get(match["field"])
                 if field is not None:
-                    field.ensure_access(self)
-                    field.ensure_computed(self)
+                    field.check_read_access(self)
+                    field.recompute_pending(self)
 
     def _sorted_by_ids(self, order: str, reverse: bool) -> tuple | None:
         _PENDING = PENDING

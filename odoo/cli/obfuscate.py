@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 import psycopg
 
-from odoo.db import connection_info_for, db_connect
+from odoo.db import db_connect, get_connection_info_for
 from odoo.tools import SQL
 
 from . import DatabaseCommand
@@ -108,14 +108,14 @@ class Obfuscate(DatabaseCommand):
     def cr(self, cr: Cursor | None) -> None:
         self._cr = cr
 
-    def _fetch_row(self) -> tuple[Any, ...]:
+    def _get_row(self) -> tuple[Any, ...]:
         row = self.cr.fetchone()
         if row is None:
             msg = "query returned no row where one was guaranteed"
             raise RuntimeError(msg)
         return row
 
-    def _ensure_pgcrypto(self) -> None:
+    def _install_pgcrypto(self) -> None:
         self.cr.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
         self.cr.execute(
             """
@@ -156,7 +156,7 @@ class Obfuscate(DatabaseCommand):
             )
             self.cr.execute(query)
             if self.cr.rowcount == 0 or (
-                self.cr.rowcount == 1 and self._fetch_row()[0] == pwd
+                self.cr.rowcount == 1 and self._get_row()[0] == pwd
             ):
                 return True
         except psycopg.errors.ExternalRoutineInvocationException as e:
@@ -181,7 +181,7 @@ class Obfuscate(DatabaseCommand):
         )
 
     @staticmethod
-    def _kind_of(udt_name: str) -> str | None:
+    def _get_column_kind(udt_name: str) -> str | None:
         if udt_name in ("text", "varchar"):
             return "string"
         if udt_name == "jsonb":
@@ -199,7 +199,7 @@ class Obfuscate(DatabaseCommand):
         self._field_kinds = {}
         self._field_widths = {}
         for table, column, udt, max_length in rows:
-            if kind := self._kind_of(udt):
+            if kind := self._get_column_kind(udt):
                 self._field_kinds[table, column] = kind
                 if max_length is not None:
                     self._field_widths[table, column] = max_length
@@ -221,10 +221,10 @@ class Obfuscate(DatabaseCommand):
         qry = "SELECT udt_name FROM information_schema.columns WHERE table_name=%s AND column_name=%s AND table_schema = current_schema"
         self.cr.execute(qry, [table, field])
         if self.cr.rowcount == 1:
-            return self._kind_of(self._fetch_row()[0])
+            return self._get_column_kind(self._get_row()[0])
         return None
 
-    def find_unfittable_fields(
+    def get_fields_unfittable(
         self, fields: list[tuple[str, str]], pwd: str
     ) -> list[tuple[tuple[str, str], int, int]]:
         unfittable = []
@@ -335,7 +335,7 @@ class Obfuscate(DatabaseCommand):
                 sql_field,
             )
         )
-        if skipped := self._fetch_row()[0]:
+        if skipped := self._get_row()[0]:
             _logger.warning(
                 "%s.%s: %d row(s) hold a jsonb value that is not an object "
                 "(an array or a scalar); they are left as they are.",
@@ -356,7 +356,7 @@ class Obfuscate(DatabaseCommand):
 
     def _vacuum_tables(self, tables: dict[str, set[str]]) -> None:
         _logger.info("Vacuuming obfuscated tables")
-        _, conn_info = connection_info_for(self.dbname)
+        _, conn_info = get_connection_info_for(self.dbname)
         with psycopg.connect(**conn_info, autocommit=True) as vac_conn:
             for table in tables:
                 _logger.debug("Vacuuming table %s", table)
@@ -487,7 +487,7 @@ class Obfuscate(DatabaseCommand):
         try:
             with db_connect(self.dbname).cursor() as cr:
                 self.cr = cr
-                self._ensure_pgcrypto()
+                self._install_pgcrypto()
                 if not self.check_pwd(pwd):
                     self.rollback()
                     sys.exit(
@@ -586,7 +586,7 @@ class Obfuscate(DatabaseCommand):
         pwd: str,
         requested: set[tuple[str, str]],
     ) -> list[tuple[str, str]]:
-        unfittable = self.find_unfittable_fields(fields, pwd)
+        unfittable = self.get_fields_unfittable(fields, pwd)
         if not unfittable:
             return fields
         described = ", ".join(

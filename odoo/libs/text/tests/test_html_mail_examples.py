@@ -5,7 +5,7 @@ from markupsafe import Markup
 from markupsafe import escape as html_escape
 
 from odoo.libs.text.html import (
-    append_content_to_html,
+    add_html_content,
     html2plaintext,
     html_sanitize,
     html_to_inner_content,
@@ -569,11 +569,11 @@ class TestHtmlTools(unittest.TestCase):
             expected,
         ) in test_samples:
             self.assertEqual(
-                append_content_to_html(
+                add_html_content(
                     html, content, plaintext_flag, preserve_flag, container_tag
                 ),
                 expected,
-                "append_content_to_html is broken",
+                "add_html_content is broken",
             )
 
     def test_is_html_empty(self):

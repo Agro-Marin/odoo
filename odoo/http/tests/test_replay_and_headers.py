@@ -23,7 +23,7 @@ def test_staged_headers_override_the_response():
     req.future_response.headers.set("Content-Type", "application/json")
     response = Response("body", headers=[("Content-Type", "text/html")])
 
-    req._inject_future_response(response)
+    req._update_response_from_future(response)
 
     assert response.headers.getlist("Content-Type") == ["application/json"]
 
@@ -34,7 +34,7 @@ def test_repeated_staged_headers_are_not_collapsed():
     req.future_response.headers.add("Link", "</b>; rel=preload")
     response = Response("body")
 
-    req._inject_future_response(response)
+    req._update_response_from_future(response)
 
     assert response.headers.getlist("Link") == [
         "</a>; rel=preload",
@@ -48,7 +48,7 @@ def test_staged_cookie_keeps_cookies_set_on_the_response():
     response.set_cookie("trusted_device", "SECRET", secure=False)
     req.future_response.set_cookie("session_id", "SID", secure=False)
 
-    req._inject_future_response(response)
+    req._update_response_from_future(response)
 
     cookies = response.headers.getlist("Set-Cookie")
     assert any(c.startswith("trusted_device=SECRET") for c in cookies), cookies
@@ -62,7 +62,7 @@ def test_staged_cookie_overrides_the_handlers_namesake():
     response.set_cookie("content_density", "comfy", secure=False)
     req.future_response.set_cookie("session_id", "STAGED", secure=False)
 
-    req._inject_future_response(response)
+    req._update_response_from_future(response)
 
     cookies = response.headers.getlist("Set-Cookie")
     session_cookies = [c for c in cookies if c.startswith("session_id=")]
@@ -76,7 +76,7 @@ def test_single_valued_staged_header_still_overrides_the_response():
     response = Response("body", headers=[("Access-Control-Allow-Origin", "evil")])
     req.future_response.headers.set("Access-Control-Allow-Origin", "*")
 
-    req._inject_future_response(response)
+    req._update_response_from_future(response)
 
     assert response.headers.getlist("Access-Control-Allow-Origin") == ["*"]
 
@@ -87,7 +87,7 @@ def test_restaging_a_cookie_replaces_it_rather_than_duplicating():
     req.future_response.set_cookie("session_id", "NEW", secure=False)
     response = Response("body")
 
-    req._inject_future_response(response)
+    req._update_response_from_future(response)
 
     cookies = response.headers.getlist("Set-Cookie")
     assert len(cookies) == 1, cookies
@@ -100,7 +100,7 @@ def test_set_cookie_still_accumulates():
     req.future_response.set_cookie("b", "2", secure=False)
     response = Response("body")
 
-    req._inject_future_response(response)
+    req._update_response_from_future(response)
 
     cookies = response.headers.getlist("Set-Cookie")
     assert len(cookies) == 2
@@ -184,7 +184,7 @@ def test_set_cookie_match_is_case_insensitive(header):
     req.future_response.headers.add(header, "b=2; Path=/")
     response = Response("body")
 
-    req._inject_future_response(response)
+    req._update_response_from_future(response)
 
     assert len(response.headers.getlist("Set-Cookie")) == 2
 
@@ -198,7 +198,7 @@ def test_staged_vary_unions_with_the_handlers_own():
     response = Response("body", headers=[("Vary", "Accept-Encoding")])
     req.future_response.headers.set("Vary", "Origin")
 
-    req._inject_future_response(response)
+    req._update_response_from_future(response)
 
     vary = response.headers.getlist("Vary")
     assert len(vary) == 1, f"must collapse to one canonical value: {vary}"
@@ -210,7 +210,7 @@ def test_vary_union_dedupes_case_insensitively():
     response = Response("body", headers=[("Vary", "origin, Accept-Encoding")])
     req.future_response.headers.set("Vary", "Origin")
 
-    req._inject_future_response(response)
+    req._update_response_from_future(response)
 
     assert response.headers["Vary"] == "origin, Accept-Encoding"
 
@@ -220,7 +220,7 @@ def test_vary_star_absorbs_named_tokens():
     response = Response("body", headers=[("Vary", "*")])
     req.future_response.headers.set("Vary", "Origin")
 
-    req._inject_future_response(response)
+    req._update_response_from_future(response)
 
     assert response.headers["Vary"] == "*"
 
@@ -230,7 +230,7 @@ def test_vary_staged_alone_still_lands():
     response = Response("body")
     req.future_response.headers.set("Vary", "Origin")
 
-    req._inject_future_response(response)
+    req._update_response_from_future(response)
 
     assert response.headers["Vary"] == "Origin"
 

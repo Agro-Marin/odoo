@@ -32,7 +32,7 @@ def _inherits_from_cron(limit: int) -> bool:
     return limit <= INHERIT_FROM_CRON
 
 
-def _resolve_budget(*keys: str) -> int:
+def _get_inherited_budget(*keys: str) -> int:
     limit = config[keys[0]]
     for key in keys[1:]:
         if not _inherits_from_cron(limit):
@@ -42,16 +42,16 @@ def _resolve_budget(*keys: str) -> int:
 
 
 def job_max_age() -> int:
-    return _resolve_budget("limit_time_worker_job", "limit_time_worker_cron")
+    return _get_inherited_budget("limit_time_worker_job", "limit_time_worker_cron")
 
 
 def cron_real_time_budget() -> float:
-    return max(_resolve_budget("limit_time_real_cron", "limit_time_real"), 0)
+    return max(_get_inherited_budget("limit_time_real_cron", "limit_time_real"), 0)
 
 
 def job_real_time_budget() -> float:
     return max(
-        _resolve_budget(
+        _get_inherited_budget(
             "limit_time_real_job", "limit_time_real_cron", "limit_time_real"
         ),
         0,

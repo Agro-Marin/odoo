@@ -237,7 +237,7 @@ class configmanager:
             "import_image_timeout": "import_file_timeout",
         }
 
-        self.parser = self._build_cli()
+        self.parser = self._prepare_cli_parser()
         self._load_default_options()
 
         try:
@@ -264,7 +264,7 @@ class configmanager:
         )
         self._override_options["config"] = rcfile
 
-    def _build_cli(self) -> optparse.OptionParser:
+    def _prepare_cli_parser(self) -> optparse.OptionParser:
         OdooOption = type("OdooOption", (_OdooOption,), {"config": self})
         FileOnlyOption = type("FileOnlyOption", (_FileOnlyOption, OdooOption), {})
         PosixOnlyOption = type("PosixOnlyOption", (_PosixOnlyOption, OdooOption), {})
@@ -2207,11 +2207,11 @@ class configmanager:
     def set_admin_password(self, new_password: str) -> None:
         self.options["admin_passwd"] = crypt_context.hash(new_password)
 
-    def verify_admin_password(self, password: str) -> bool:
+    def is_valid_admin_password(self, password: str) -> bool:
         stored_hash = self.options["admin_passwd"]
         if not stored_hash:
             return False
-        result, updated_hash = crypt_context.verify_and_update(password, stored_hash)
+        result, updated_hash = crypt_context.match_and_update(password, stored_hash)
         if result:
             if updated_hash:
                 self.options["admin_passwd"] = updated_hash

@@ -5,7 +5,7 @@ import os
 import signal
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 import odoo
 from odoo import api
@@ -40,7 +40,7 @@ _logger = logging.getLogger(__name__)
 """
 
 
-def raise_keyboard_interrupt(*a: Any) -> None:
+def raise_keyboard_interrupt(*a: Any) -> NoReturn:
     raise KeyboardInterrupt
 
 

@@ -35,22 +35,22 @@ class TestAddValueGeneration(unittest.TestCase):
         self.assertEqual(self.lru[self._key("a")], 1)
 
     def test_matching_generation_writes(self):
-        gen = self.cache.generation_of(self.model)
+        gen = self.cache.get_cache_generation(self.model)
         self.cache.add_value(self.model, "a", cache_value=1, generation=gen)
         self.assertEqual(self.lru[self._key("a")], 1)
 
     def test_a_clear_between_snapshot_and_write_drops_the_stale_value(self):
-        gen = self.cache.generation_of(self.model)
+        gen = self.cache.get_cache_generation(self.model)
         self.lru.clear()
-        self.assertNotEqual(self.cache.generation_of(self.model), gen)
+        self.assertNotEqual(self.cache.get_cache_generation(self.model), gen)
         self.cache.add_value(self.model, "a", cache_value=1, generation=gen)
         with self.assertRaises(KeyError):
             self.lru[self._key("a")]
 
     def test_generation_of_tracks_clears(self):
-        g0 = self.cache.generation_of(self.model)
+        g0 = self.cache.get_cache_generation(self.model)
         self.lru.clear()
-        self.assertEqual(self.cache.generation_of(self.model), g0 + 1)
+        self.assertEqual(self.cache.get_cache_generation(self.model), g0 + 1)
 
 
 if __name__ == "__main__":

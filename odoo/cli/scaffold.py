@@ -61,7 +61,7 @@ class Scaffold(Command):
 
         try:
             params = args.template.parse_params(args.name)
-            modname = args.template.modname_for(args.name, params)
+            modname = args.template.get_module_name(args.name, params)
         except ValueError as err:
             parser.error(str(err))
         dest = directory(args.dest, create=True)
@@ -69,7 +69,7 @@ class Scaffold(Command):
             parser.error(
                 f"{dest / modname} already exists; pass --force to overwrite it"
             )
-        args.template.render_to(modname, dest, params=params)
+        args.template.render_to_directory(modname, dest, params=params)
 
 
 def _builtins_dir(*parts: str) -> Path:
@@ -166,7 +166,7 @@ class Template:
         convention = NAMING_CONVENTIONS.get(self.id, DEFAULT_NAMING)
         return convention.parse(name)
 
-    def modname_for(self, name: str, params: dict[str, str]) -> str:
+    def get_module_name(self, name: str, params: dict[str, str]) -> str:
         convention = NAMING_CONVENTIONS.get(self.id, DEFAULT_NAMING)
         modname = convention.modname(name, params)
         if not _MODNAME_RE.match(modname):
@@ -177,7 +177,7 @@ class Template:
             raise ValueError(msg)
         return modname
 
-    def render_to(
+    def render_to_directory(
         self, modname: str, directory: Path, params: dict[str, str] | None = None
     ) -> None:
         env = _env()

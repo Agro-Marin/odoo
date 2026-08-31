@@ -19,7 +19,7 @@ package live in `odoo/addons/base/tests/` (see Conventions).
 | `case.py` | Vendored `unittest.TestCase` (trimmed run loop, traceback surgery) |
 | `suite.py` | Vendored `TestSuite` + `OdooSuite` (class setup/teardown, stats) |
 | `result.py` | `OdooTestResult`: log-as-you-fail, counters, per-test stats, `soft_fail` |
-| `loader.py` | Discover test modules per addon, build/run suites (`make_suite`/`run_suite`) |
+| `loader.py` | Discover test modules per addon, build/run suites (`prepare_suite`/`run_suite`) |
 | `tag_selector.py` | `TagsSelector`: parses `--test-tags` specs, filters tests |
 | `common.py` | The public façade: decorators (`tagged`, `users`, `warmup`, `no_retry`, `freeze_time`, `standalone`), `new_test_user`, `test_xsd`, and the re-exports `__all__` names |
 | `transaction_case.py` | `BaseCase`/`TransactionCase`/`SingleTransactionCase`, their assertions, and the registry-lock, statement-recorder and stranded-cursor machinery they own |
@@ -36,7 +36,7 @@ package live in `odoo/addons/base/tests/` (see Conventions).
 
 ## Entry Points
 
-- Module loading runs tests via `loader.make_suite` + `run_suite`
+- Module loading runs tests via `loader.prepare_suite` + `run_suite`
   (called from `odoo/modules/loading.py` when `--test-enable`/`--test-tags`).
 - `odoo-bin shell` → `odoo.tests.shell.run_tests(env, test_tags)`.
 - `python -m odoo.tests.module_operations -d db [cycle|uninstall|standalone]`.

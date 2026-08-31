@@ -104,7 +104,7 @@ class SchemaMixin(_ModelStubs):
         if self._auto:
             if must_create_table:
 
-                def make_type(field):
+                def get_column_type(field):
                     return field.column_type[1] + (
                         " NOT NULL" if field.required else ""
                     )
@@ -114,7 +114,7 @@ class SchemaMixin(_ModelStubs):
                     self._table,
                     self._description,
                     [
-                        (field.name, make_type(field), field.string)
+                        (field.name, get_column_type(field), field.string)
                         for field in sorted(
                             self._fields.values(), key=lambda f: f.column_order
                         )

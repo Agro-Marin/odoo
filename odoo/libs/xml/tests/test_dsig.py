@@ -10,8 +10,8 @@ from odoo.libs.xml.dsig import (
     XmlSigError,
     canonicalize,
     canonicalize_signed_info,
-    fill_reference_digests,
     resolve_reference,
+    update_reference_digests,
 )
 
 DOC = f"""<Invoice xmlns:ds="{DS_NS}">
@@ -203,7 +203,7 @@ class TestDigests:
     def test_digest_algorithm_is_honoured(self, algorithm):
         root = _tree()
         signed_info = _signed_info(root)
-        fill_reference_digests(signed_info, algorithm=algorithm)
+        update_reference_digests(signed_info, algorithm=algorithm)
         reference = _first_reference(root)
         octets = resolve_reference("", reference, "")
         expected = b64encode(hashlib.new(algorithm, octets).digest())
@@ -212,7 +212,7 @@ class TestDigests:
     def test_every_reference_is_filled(self):
         root = _tree()
         signed_info = _signed_info(root)
-        fill_reference_digests(signed_info)
+        update_reference_digests(signed_info)
         values = [e.text for e in signed_info.iter(f"{{{DS_NS}}}DigestValue")]
         assert len(values) == 2
         assert all(values)

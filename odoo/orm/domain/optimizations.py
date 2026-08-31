@@ -9,7 +9,7 @@ from datetime import UTC, date, datetime, time, timedelta
 from odoo.exceptions import MissingError
 from odoo.libs.datetime import utc
 from odoo.tools import SQL, OrderedSet, partition, str2bool
-from odoo.tools.date_utils import parse_iso_date, resolve_date
+from odoo.tools.date_utils import parse_date_expression, parse_iso_date
 
 from .._recordset import is_recordset
 from ..primitives import COLLECTION_TYPES
@@ -551,10 +551,10 @@ def _value_to_date(
             try:
                 parsed: date = parse_iso_date(value)
             except ValueError:
-                resolve_date(value, env)
+                parse_date_expression(value, env)
                 return value
         else:
-            parsed = resolve_date(value, env)
+            parsed = parse_date_expression(value, env)
         return _value_to_date(parsed, env)
     if isinstance(value, COLLECTION_TYPES):
         return OrderedSet(_value_to_date(v, env=env, iso_only=iso_only) for v in value)
@@ -653,10 +653,12 @@ def _value_to_datetime(
             try:
                 parsed: date = parse_iso_date(value)
             except ValueError:
-                _dt, is_date = _value_to_datetime(resolve_date(value, env), env)
+                _dt, is_date = _value_to_datetime(
+                    parse_date_expression(value, env), env
+                )
                 return value, is_date
         else:
-            parsed = resolve_date(value, env)
+            parsed = parse_date_expression(value, env)
         return _value_to_datetime(parsed, env)
     if isinstance(value, date):
         tz = None if value.year in (1, 9999) else env.tz
@@ -774,7 +776,7 @@ def _optimize_type_datetime_relative(condition, model):
     env = model.env
 
     def _resolve(v):
-        return resolve_date(v, env) if isinstance(v, str) else v
+        return parse_date_expression(v, env) if isinstance(v, str) else v
 
     if isinstance(value, OrderedSet):
         resolved = OrderedSet(_resolve(v) for v in value)

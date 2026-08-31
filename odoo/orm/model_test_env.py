@@ -246,7 +246,7 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
 
         self.has_unaccent = FunctionStatus.MISSING
 
-        self._build(list(model_defs))
+        self._setup_registry(list(model_defs))
 
     def __getitem__(self, model_name: str) -> type[BaseModel]:
         try:
@@ -385,7 +385,7 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
             all_defs.insert(0, _TestBase)
         return all_defs
 
-    def _build(self, model_defs: list[type[BaseModel]]) -> None:
+    def _setup_registry(self, model_defs: list[type[BaseModel]]) -> None:
         all_defs = self._collect_model_defs(model_defs)
 
         for model_name, fallback in _FALLBACK_MODELS:
@@ -398,7 +398,7 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
 
         registry_self = cast("Registry", self)
         for model_def in all_defs:
-            registration.add_to_registry(registry_self, model_def)
+            registration.add_model_to_registry(registry_self, model_def)
 
         cr = InMemoryCursor(registry_self)
         from .runtime.environment import Environment
@@ -442,7 +442,7 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
         env: Environment,
     ) -> None:
         model = model_cls(env, (), ())
-        pool = registration.registry_of(model_cls)
+        pool = registration.get_registry_of(model_cls)
         for name, field in model_cls._fields.items():
             try:
                 field.setup(model)

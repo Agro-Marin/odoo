@@ -91,15 +91,15 @@ from .security import (
     consteq,
     hash_sign,
     hmac,
+    is_valid_limited_field_access_token,
     limited_field_access_token,
-    verify_hash_signed,
-    verify_limited_field_access_token,
+    resolve_hash_signed,
 )
 from .subprocess import (
     dumpstacks,
     exec_pg_environ,
-    find_in_path,
-    find_pg_tool,
+    get_executable_path,
+    get_pg_tool_path,
     real_time,
     stripped_sys_argv,
 )
@@ -140,8 +140,6 @@ __all__ = [
     "file_open",
     "file_open_temporary_directory",
     "file_path",
-    "find_in_path",
-    "find_pg_tool",
     "formatLang",
     "format_amount",
     "format_amount_parts",
@@ -155,9 +153,11 @@ __all__ = [
     "freehash",
     "frozendict",
     "get_diff",
+    "get_executable_path",
     "get_flag",
     "get_iso_codes",
     "get_lang",
+    "get_pg_tool_path",
     "groupby",
     "has_list_types",
     "hash_sign",
@@ -166,6 +166,7 @@ __all__ = [
     "human_size",
     "is_encodable",
     "is_list_of",
+    "is_valid_limited_field_access_token",
     "limited_field_access_token",
     "lower_logging",
     "merge_sequences",
@@ -178,6 +179,7 @@ __all__ = [
     "real_time",
     "remove_accents",
     "replace_exceptions",
+    "resolve_hash_signed",
     "scan_languages",
     "split_every",
     "str2bool",
@@ -187,8 +189,6 @@ __all__ = [
     "topological_sort",
     "unique",
     "unquote",
-    "verify_hash_signed",
-    "verify_limited_field_access_token",
 ]
 
 SKIPPED_ELEMENT_TYPES = _xml_lib.SKIPPED_ELEMENT_TYPES
@@ -230,7 +230,7 @@ def get_diff(
     custom_style: str | None = None,
     dark_color_scheme: bool = False,
 ) -> str:
-    def handle_style(
+    def style_html_diff(
         html_diff: str, custom_style: str | None, dark_color_scheme: bool
     ) -> str:
         to_append = {
@@ -283,4 +283,4 @@ def get_diff(
         context=True,
         numlines=3,
     )
-    return handle_style(diff, custom_style, dark_color_scheme)
+    return style_html_diff(diff, custom_style, dark_color_scheme)

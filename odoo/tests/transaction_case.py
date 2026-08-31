@@ -1001,7 +1001,7 @@ class BaseCase(TestCase):
     def profile(self, description: str = "", **kwargs: Any) -> Any:
         test_method = getattr(self, "_testMethodName", "Unknown test method")
         if not hasattr(self, "profile_session"):
-            self.profile_session = profiler.make_session(test_method)
+            self.profile_session = profiler.get_session_name(test_method)
         if "db" not in kwargs:
             kwargs["db"] = self.env.cr.dbname
         return profiler.Profiler(

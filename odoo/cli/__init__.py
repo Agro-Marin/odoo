@@ -1,7 +1,7 @@
 from .command import (
     Command,
     DatabaseCommand,
-    build_config_args,
+    get_config_argv,
     get_single_database,
     main,
     odoo_env,

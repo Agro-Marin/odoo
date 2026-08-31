@@ -3,7 +3,7 @@ from typing import Any
 
 from psycopg import sql as _sql
 
-from .utils import find_value_markers
+from .utils import get_value_marker_positions
 
 _DDL_KEYWORDS: tuple[str, ...] = (
     "CREATE",
@@ -89,7 +89,7 @@ def _inline_ddl_params(qs: str, params: tuple | list | dict, ctx: Any) -> str:
             return _sql.quote(params[name], ctx)
 
         return _DICT_MARKER_RE.sub(_sub_named, qs)
-    markers = find_value_markers(qs)
+    markers = get_value_marker_positions(qs)
     if len(markers) != len(params):
         raise ValueError(
             f"DDL parameter count mismatch: {len(markers)} '%s' "

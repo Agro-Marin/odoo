@@ -37,7 +37,7 @@ if TYPE_CHECKING:
             self, sid: str | None = None
         ) -> tuple[Session, str | None]: ...
 
-        def _inject_future_response(self, response: Response) -> Response: ...
+        def _update_response_from_future(self, response: Response) -> Response: ...
 
         def _reset_for_replay(self, cr: Any = None) -> None: ...
 
@@ -47,7 +47,7 @@ if TYPE_CHECKING:
 
         def get_json_data(self) -> Any: ...
 
-        def make_json_response(
+        def prepare_json_response(
             self,
             data: Any,
             headers: list[tuple[str, str]] | None = None,
@@ -67,7 +67,7 @@ if TYPE_CHECKING:
             local: bool = True,
         ) -> Response: ...
 
-        def validate_csrf(self, csrf: str | None) -> bool: ...
+        def is_valid_csrf(self, csrf: str | None) -> bool: ...
 
 else:
     RequestState = object

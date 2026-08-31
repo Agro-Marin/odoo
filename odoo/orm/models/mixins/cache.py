@@ -3,7 +3,7 @@ import typing
 from collections.abc import Collection, Mapping, Sequence
 
 from ... import decorators as api
-from ...helpers import resolve_fnames
+from ...helpers import get_fields_by_name
 from ._model_stubs import _ModelStubs
 
 _orm_cache = logging.getLogger("odoo.orm.cache")
@@ -104,7 +104,7 @@ class CacheMixin(_ModelStubs):
         if fnames is None:
             fields = self._fields.values()
         else:
-            fields = resolve_fnames(self, fnames)
+            fields = get_fields_by_name(self, fnames)
 
         env = self.env
         if not flush:
@@ -122,7 +122,7 @@ class CacheMixin(_ModelStubs):
     def _check_no_pending_write(
         self, fields: Collection[Field], ids: Sequence[IdType] | None
     ) -> None:
-        found = self.env._core.find_pending_write(fields, ids)
+        found = self.env._core.get_pending_write(fields, ids)
         if found is None:
             return
         field, overlap = found

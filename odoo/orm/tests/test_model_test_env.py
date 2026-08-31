@@ -48,7 +48,7 @@ class HAnimalLegs(models.Model):
     legs = fields.Integer(default=4)
 
     def describe(self):
-        self.ensure_one()
+        self.check_singleton()
         return f"{self['name']} says {self['sound']} on {self.legs} legs"
 
 

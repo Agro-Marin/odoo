@@ -48,7 +48,7 @@ def test_forget_is_idempotent(seeded):
 
 
 def test_delete_all_clears_the_per_database_maps(seeded):
-    Registry.delete_all()
+    Registry.remove_all()
 
     assert not cap_mod._UnaccentTables.by_db
     assert not reg_mod._ASSERTION_REPORTS

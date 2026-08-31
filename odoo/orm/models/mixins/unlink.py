@@ -154,12 +154,12 @@ class UnlinkMixin(_ModelStubs):
     ) -> tuple[Self, Self]:
         return self.env.backend.delete(self, sub_ids, Data, Defaults, Attachment)
 
-    def _delete_sql_default_guard(
+    def _unlink_sql_default_guard(
         self, sub_ids: tuple[int, ...], Defaults: typing.Any, many2one_fields
     ) -> None:
         IrModelFields = self.env["ir.model.fields"]
         field_ids = tuple(
-            IrModelFields._get_ids(field.model_name).get(field.name)
+            IrModelFields._get_ids_by_name(field.model_name).get(field.name)
             for field in many2one_fields
         )
         sub_ids_json_text = tuple(json_dumps(id_) for id_ in sub_ids)
@@ -182,7 +182,7 @@ class UnlinkMixin(_ModelStubs):
                 )
             )
 
-    def _delete_sql_restrict_guard(self, model, field, sub_ids) -> None:
+    def _unlink_sql_restrict_guard(self, model, field, sub_ids) -> None:
         if res := self.env.execute_query(
             SQL(
                 """
@@ -210,7 +210,7 @@ class UnlinkMixin(_ModelStubs):
                 )
             )
 
-    def _delete_sql_clear_company_dependent(self, model, field, sub_ids) -> None:
+    def _unlink_sql_clear_company_dependent(self, model, field, sub_ids) -> None:
         affected = self.env.execute_query(
             SQL(
                 """
@@ -238,7 +238,7 @@ class UnlinkMixin(_ModelStubs):
             affected_recs = model.browse(row[0] for row in affected)
             affected_recs.modified([field.name])
 
-    def _delete_sql(
+    def _unlink_sql(
         self,
         sub_ids: tuple[int, ...],
         Data: typing.Any,
@@ -270,7 +270,7 @@ class UnlinkMixin(_ModelStubs):
         many2one_fields = self.env.registry.many2one_company_dependents[self._name]
         uninstalling = self.env.context.get(MODULE_UNINSTALL_FLAG)
         if many2one_fields and not uninstalling:
-            self._delete_sql_default_guard(sub_ids, Defaults, many2one_fields)
+            self._unlink_sql_default_guard(sub_ids, Defaults, many2one_fields)
 
         if many2one_fields and not all(
             isinstance(id_, int) and id_ > 0 for id_ in sub_ids
@@ -281,9 +281,9 @@ class UnlinkMixin(_ModelStubs):
         for field in many2one_fields:
             model = self.env[field.model_name]
             if field.ondelete == "restrict" and not uninstalling:
-                self._delete_sql_restrict_guard(model, field, sub_ids)
+                self._unlink_sql_restrict_guard(model, field, sub_ids)
             else:
-                self._delete_sql_clear_company_dependent(model, field, sub_ids)
+                self._unlink_sql_clear_company_dependent(model, field, sub_ids)
 
         Defaults.discard_records(records)
 

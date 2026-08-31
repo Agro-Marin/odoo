@@ -320,7 +320,7 @@ class PreforkServer(CommonServer):
                 self._remember_killed(pid)
                 self.worker_pop(pid)
 
-    def process_signals(self) -> None:
+    def apply_pending_signals(self) -> None:
         while self.queue:
             sig = self.queue.popleft()
             if sig in [signal.SIGINT, signal.SIGTERM]:
@@ -333,7 +333,7 @@ class PreforkServer(CommonServer):
             elif sig == signal.SIGTTOU:
                 self.population = max(self.population - 1, 0)
 
-    def process_zombie(self) -> None:
+    def reap_exited_workers(self) -> None:
         while True:
             try:
                 wpid, status = os.waitpid(-1, os.WNOHANG)
@@ -387,7 +387,7 @@ class PreforkServer(CommonServer):
                 self._consecutive_fast_deaths,
             )
 
-    def process_timeout(self) -> None:
+    def kill_timed_out_workers(self) -> None:
         now = time.monotonic()
         for pid, worker in list(self.workers.items()):
             if (
@@ -402,7 +402,7 @@ class PreforkServer(CommonServer):
                 )
                 self.worker_kill(pid, signal.SIGKILL)
 
-    def process_spawn(self) -> None:
+    def spawn_missing_workers(self) -> None:
         if time.monotonic() < self._respawn_not_before:
             return
         registries = Registry.registries.snapshot
@@ -636,13 +636,13 @@ class PreforkServer(CommonServer):
         escalated = False
         while self.workers:
             try:
-                self.process_signals()
+                self.apply_pending_signals()
             except KeyboardInterrupt:
                 self.logger.info("Forced shutdown.")
                 break
 
             if is_main_server:
-                self.process_zombie()
+                self.reap_exited_workers()
             else:
                 for pid, proc in list(processes.items()):
                     if not proc.is_running():
@@ -661,7 +661,7 @@ class PreforkServer(CommonServer):
                         os.kill(pid, signal.SIGKILL)
 
             self.sleep()
-            self.process_timeout()
+            self.kill_timed_out_workers()
 
         _process_state.set_phoenix(phoenix_decided)
 
@@ -735,10 +735,10 @@ class PreforkServer(CommonServer):
         self.logger.debug("starting")
         while True:
             try:
-                self.process_signals()
-                self.process_zombie()
-                self.process_timeout()
-                self.process_spawn()
+                self.apply_pending_signals()
+                self.reap_exited_workers()
+                self.kill_timed_out_workers()
+                self.spawn_missing_workers()
                 self._publish_census()
                 self.sleep()
             except KeyboardInterrupt:

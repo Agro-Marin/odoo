@@ -34,7 +34,7 @@ class _Model:
         self._fields = {n: _Field(n, t, name) for n, t in field_types.items()}
 
 
-def _build_domain():
+def _get_domain_fixture():
     return (Domain("a", "=", 5) & Domain("b", "in", [1, 2, 5])) | (
         Domain("a", "in", [5, 6]) & Domain("b", "!=", 0)
     )
@@ -56,8 +56,8 @@ class TestOptStampConcurrency(unittest.TestCase):
         self.m_seed = _Model("m_seed", {"a": "integer", "b": "integer"})
         self.m_int = _Model("m_int", {"a": "integer", "b": "integer"})
         self.m_bool = _Model("m_bool", {"a": "boolean", "b": "boolean"})
-        self.expected_int = list(_build_domain().optimize(self.m_int))
-        self.expected_bool = list(_build_domain().optimize(self.m_bool))
+        self.expected_int = list(_get_domain_fixture().optimize(self.m_int))
+        self.expected_bool = list(_get_domain_fixture().optimize(self.m_bool))
         self.assertNotEqual(self.expected_int, self.expected_bool)
 
     def test_cross_model_concurrent_optimize_copies_and_never_tears(self):
@@ -65,7 +65,7 @@ class TestOptStampConcurrency(unittest.TestCase):
         known_stamped_models = {None, "m_seed"}
 
         for _ in range(_ITERATIONS):
-            shared = _build_domain().optimize(self.m_seed)
+            shared = _get_domain_fixture().optimize(self.m_seed)
             stamps_before = {id(node): node._opt for node in _iter_nodes(shared)}
             barrier = threading.Barrier(3)
             results: dict[str, typing.Any] = {}
@@ -141,7 +141,7 @@ class TestOptStampConcurrency(unittest.TestCase):
         errors: list[tuple] = []
 
         for _ in range(_ITERATIONS):
-            shared = _build_domain()
+            shared = _get_domain_fixture()
             barrier = threading.Barrier(2)
             results: dict[str, typing.Any] = {}
             failures: list = []

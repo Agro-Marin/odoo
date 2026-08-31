@@ -70,7 +70,7 @@ class Count(Integer):
                 f"{self}: count_of={self.count_of!r} is a {counted.type} field; "
                 f"a Count counts a one2many or a many2many."
             )
-        self.counts_in_database = self._resolve_counts_in_database(model, counted)
+        self.counts_in_database = self._can_count_in_database(model, counted)
 
         comodel = model.env[counted.comodel_name]
         if (
@@ -105,7 +105,7 @@ class Count(Integer):
         if comodel._active_name and counted.context.get("active_test", True):
             paths.append(comodel._active_name)
         if paths:
-            mirror = self._mirror_of(counted, comodel)
+            mirror = self._get_mirror_field_name(counted, comodel)
             if mirror:
                 paths.insert(0, mirror)
 
@@ -120,7 +120,7 @@ class Count(Integer):
         return (*depends, *extra), depends_context
 
     @staticmethod
-    def _mirror_of(counted: typing.Any, comodel: BaseModel) -> str | None:
+    def _get_mirror_field_name(counted: typing.Any, comodel: BaseModel) -> str | None:
         if not counted.is_many2many:
             return None
         relation, column1, column2 = counted.relation, counted.column1, counted.column2
@@ -139,9 +139,7 @@ class Count(Integer):
     def _counted(self, model: BaseModel) -> typing.Any:
         return model._fields[self.count_of]
 
-    def _resolve_counts_in_database(
-        self, model: BaseModel, counted: typing.Any
-    ) -> bool:
+    def _can_count_in_database(self, model: BaseModel, counted: typing.Any) -> bool:
         if counted.compute and not counted.store:
             return False
         if counted.is_one2many:

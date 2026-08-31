@@ -280,10 +280,10 @@ class LoadMixin(_ModelStubs):
             [index for index, fnames in enumerate(field_paths) if not is_o2m(fnames)]
         )
 
-        def only_o2m_values(row) -> bool:
+        def is_only_o2m_row(row) -> bool:
             return any(get_o2m_values(row)) and not any(get_other_values(row))
 
-        return only_o2m_values
+        return is_only_o2m_row
 
     def _extract_property_definitions(
         self, field_paths: FieldPaths
@@ -362,7 +362,7 @@ class LoadMixin(_ModelStubs):
         limit: float = float("inf"),
     ) -> Generator[tuple[dict, dict]]:
         fields = self._fields
-        only_o2m_values = self._o2m_only_row_predicate(field_paths)
+        is_only_o2m_row = self._o2m_only_row_predicate(field_paths)
 
         property_definitions, property_columns = self._extract_property_definitions(
             field_paths
@@ -388,7 +388,7 @@ class LoadMixin(_ModelStubs):
             }
 
             following = itertools.takewhile(
-                only_o2m_values,
+                is_only_o2m_row,
                 (data[j] for j in range(index + 1, len(data))),
             )
             record_span = list(itertools.chain([row], following))
@@ -485,7 +485,7 @@ class LoadMixin(_ModelStubs):
             yield dbid, xid, converted, dict(extras, record=stream_index)
 
     def _load_records_write(self, values: ValuesType) -> None:
-        self.ensure_one()
+        self.check_singleton()
         to_write = {}
         for fname in list(values):
             if fname not in self._fields or not self._fields[fname].is_properties:

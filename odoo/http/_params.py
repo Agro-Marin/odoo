@@ -49,7 +49,7 @@ def _resolve(annotation: Any) -> tuple[type | None, type | None, bool]:
     return None, None, allow_none
 
 
-def build_param_specs(endpoint: typing.Callable) -> dict[str, ParamSpec]:
+def get_param_specs(endpoint: typing.Callable) -> dict[str, ParamSpec]:
     specs: dict[str, ParamSpec] = {}
     params = list(
         inspect.signature(

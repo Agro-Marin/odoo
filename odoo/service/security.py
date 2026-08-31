@@ -13,7 +13,7 @@ _logger = logging.getLogger(__name__)
 
 def compute_session_token(session: Session, env: Environment) -> str | bool:
     self = env["res.users"].browse(session.uid)
-    return self._compute_session_token(session.sid)
+    return self._get_session_token(session.sid)
 
 
 def check_session(
@@ -21,7 +21,7 @@ def check_session(
     env: Environment,
     request: Request | None = None,
 ) -> bool:
-    session._delete_old_sessions()
+    session._remove_old_sessions()
     if "deletion_time" in session and session["deletion_time"] <= time.time():
         return False
     expected = compute_session_token(session, env)

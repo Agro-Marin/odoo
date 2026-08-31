@@ -22,8 +22,8 @@ from .._db_helpers import (
     DatabaseExists,
     _drop_conn,
     check_db_management_enabled,
+    check_db_name,
     database_identifier,
-    validate_db_name,
 )
 from .listing import check_db_exposed, invalidate_catalog_caches
 
@@ -98,7 +98,7 @@ def _create_empty_database(
     db = odoo.db.db_connect("postgres")
     with closing(db.cursor()) as cr:
         chosen_template = template or odoo.tools.config["db_template"]
-        validate_db_name(chosen_template)
+        check_db_name(chosen_template)
         cr.rollback()
         cr.connection.autocommit = True
 
@@ -192,7 +192,7 @@ def exp_create_database(
     country_code: str | None = None,
     phone: str | None = None,
 ) -> Literal[True]:
-    validate_db_name(db_name)
+    check_db_name(db_name)
     _assert_filestore_dest_free(
         odoo.tools.config.filestore(db_name), f"Cannot create {db_name!r}"
     )
@@ -223,7 +223,7 @@ def _duplicate_database(
     db_name: str,
     neutralize_database: bool = False,
 ) -> Literal[True]:
-    validate_db_name(db_name)
+    check_db_name(db_name)
 
     to_fs = odoo.tools.config.filestore(db_name)
     _assert_filestore_dest_free(to_fs, f"Cannot duplicate to {db_name!r}")
@@ -383,7 +383,7 @@ def exp_rename(old_name: str, new_name: str) -> Literal[True]:
 
 
 def _rename_database(old_name: str, new_name: str) -> Literal[True]:
-    validate_db_name(new_name)
+    check_db_name(new_name)
 
     old_fs = odoo.tools.config.filestore(old_name)
     new_fs = odoo.tools.config.filestore(new_name)

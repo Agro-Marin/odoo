@@ -16,7 +16,7 @@ from odoo.tools import SQL
 from odoo.tools.misc import real_time
 
 from .errors import CURSOR_LOGGER_NAME, reached_the_server
-from .utils import find_value_markers
+from .utils import get_value_marker_positions
 
 _logger = logging.getLogger(CURSOR_LOGGER_NAME)
 
@@ -114,7 +114,7 @@ if TYPE_CHECKING:
         def _preallocate_copy_ids(self, table: str, count: int) -> list[int]: ...
 
 
-def _validate_copy_args(
+def _check_copy_args(
     cursor: _CursorInternals,
     table: str,
     columns: list[str],
@@ -212,7 +212,7 @@ class _BulkAccessMixin:
             query = query.as_string(self._obj)
         if page_size <= 0:
             raise ValueError(f"execute_values page_size must be >= 1, got {page_size}")
-        markers = find_value_markers(query)
+        markers = get_value_marker_positions(query)
         if len(markers) != 1:
             raise ValueError(
                 f"execute_values requires exactly one '%s' marker in the "
@@ -273,7 +273,7 @@ class _BulkAccessMixin:
         on_error: str | None = None,
         log_exceptions: bool = True,
     ) -> list[int] | None:
-        _validate_copy_args(self, table, columns, returning_ids, binary, on_error)
+        _check_copy_args(self, table, columns, returning_ids, binary, on_error)
         self._before_statement()
 
         if returning_ids:

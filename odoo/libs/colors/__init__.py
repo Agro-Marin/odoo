@@ -3,7 +3,7 @@ from .conversions import (
     get_lightness,
     hex_to_rgb,
     rgb_to_hex,
-    hsl_from_seed,
+    get_hsl_from_seed,
 )
 from .terminal import (
     BLACK,
@@ -37,9 +37,9 @@ __all__ = [
     "WHITE",
     "YELLOW",
     "colorize",
+    "get_hsl_from_seed",
     "get_lightness",
     "get_saturation",
     "hex_to_rgb",
-    "hsl_from_seed",
     "rgb_to_hex",
 ]

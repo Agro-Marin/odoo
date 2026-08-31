@@ -1125,7 +1125,7 @@ class Field[T](
         record_ids = record._ids
         if len(record_ids) != 1:
             if record_ids:
-                record.ensure_one()
+                record.check_singleton()
             value = self.convert_to_cache(False, record, validate=False)
             return self.convert_to_record(value, record)
 
@@ -1302,7 +1302,7 @@ class Field[T](
                 self.mark_dirty(records, value)
                 return
             if not record_id:
-                self._assign_new(records, [record_id], value)
+                self._update_new(records, [record_id], value)
                 return
             write_value = self.convert_to_write(value, records)
             records.write({self.name: write_value})
@@ -1321,18 +1321,18 @@ class Field[T](
                 other_ids.append(record_id)
 
         if protected_ids:
-            self._assign_protected(records, protected_ids, value)
+            self._update_protected(records, protected_ids, value)
         if new_ids:
-            self._assign_new(records, new_ids, value)
+            self._update_new(records, new_ids, value)
         if other_ids:
-            self._assign_real(records, other_ids, value)
+            self._update_real(records, other_ids, value)
 
-    def _assign_protected(
+    def _update_protected(
         self, records: BaseModel, ids: list[typing.Any], value: typing.Any
     ) -> None:
         self.mark_dirty(_recordset_like(records, ids), value)
 
-    def _assign_new(
+    def _update_new(
         self, records: BaseModel, ids: list[typing.Any], value: typing.Any
     ) -> None:
         new_records = _recordset_like(records, ids)
@@ -1348,14 +1348,14 @@ class Field[T](
             parents = new_records[self._related_names[0]]
             parents._new_records[self.name] = value
 
-    def _assign_real(
+    def _update_real(
         self, records: BaseModel, ids: list[typing.Any], value: typing.Any
     ) -> None:
         records = _recordset_like(records, ids)
         write_value = self.convert_to_write(value, records)
         records.write({self.name: write_value})
 
-    def ensure_access(self, record: ModelLike) -> None:
+    def check_read_access(self, record: ModelLike) -> None:
         env = record.env
         if self.groups and not env.su and not record._has_field_access(self, "read"):
             record._check_field_access(self, "read")
@@ -1366,7 +1366,7 @@ class Field[T](
             return False, SENTINEL
         return True, value
 
-    def ensure_computed(self, records: ModelLike) -> None:
+    def recompute_pending(self, records: ModelLike) -> None:
         if self.is_stored_computed and records.env._core.has_pending_field(self):
             self.recompute(records)
 
@@ -1441,7 +1441,7 @@ class Field[T](
             if not (expanded and record_ids[0] in computed_ids):
                 raise
         if computed_ids:
-            records.browse(computed_ids)._validate_computed(self)
+            records.browse(computed_ids)._check_computed(self)
 
     def _recompute_batched(
         self,
@@ -1516,7 +1516,7 @@ class Field[T](
         return determine(self.group_expand, records, values, domain)
 
 
-def _make_scalar_get(
+def _prepare_scalar_get(
     cache_to_record: Callable[[typing.Any], typing.Any],
 ) -> Callable[..., typing.Any]:
     _PENDING = PENDING

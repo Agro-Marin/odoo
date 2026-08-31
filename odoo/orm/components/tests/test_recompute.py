@@ -32,7 +32,7 @@ class TestProtection(unittest.TestCase):
         engine.protect(field, frozenset({1, 2, 3}))
 
         scheduler = RecomputeScheduler(engine)
-        result = scheduler.process_entry(field, {1, 2, 3})
+        result = scheduler.schedule_recompute(field, {1, 2, 3})
 
         self.assertEqual(result, frozenset())
         self.assertEqual(dict(scheduler.to_recompute), {})
@@ -44,7 +44,7 @@ class TestProtection(unittest.TestCase):
         engine.protect(field, frozenset({2}))
 
         scheduler = RecomputeScheduler(engine)
-        scheduler.process_entry(field, {1, 2, 3})
+        scheduler.schedule_recompute(field, {1, 2, 3})
 
         self.assertEqual(scheduler.to_recompute[field], {1, 3})
 
@@ -53,7 +53,7 @@ class TestProtection(unittest.TestCase):
         field = _MockField("total", stored_computed=True)
 
         scheduler = RecomputeScheduler(engine)
-        scheduler.process_entry(field, {1, 2, 3})
+        scheduler.schedule_recompute(field, {1, 2, 3})
 
         self.assertEqual(scheduler.to_recompute[field], {1, 2, 3})
 
@@ -65,7 +65,7 @@ class TestProtection(unittest.TestCase):
         engine.protect(field_a, frozenset({1, 2}))
 
         scheduler = RecomputeScheduler(engine)
-        scheduler.process_entry(field_b, {1, 2, 3})
+        scheduler.schedule_recompute(field_b, {1, 2, 3})
 
         self.assertEqual(scheduler.to_recompute[field_b], {1, 2, 3})
 
@@ -76,7 +76,7 @@ class TestRouting(unittest.TestCase):
         field = _MockField("total", stored_computed=True)
 
         scheduler = RecomputeScheduler(engine)
-        scheduler.process_entry(field, {1, 2})
+        scheduler.schedule_recompute(field, {1, 2})
 
         self.assertIn(field, scheduler.to_recompute)
         self.assertEqual(scheduler.to_recompute[field], {1, 2})
@@ -87,7 +87,7 @@ class TestRouting(unittest.TestCase):
         field = _MockField("display_name", stored_computed=False)
 
         scheduler = RecomputeScheduler(engine)
-        scheduler.process_entry(field, {1, 2})
+        scheduler.schedule_recompute(field, {1, 2})
 
         self.assertEqual(dict(scheduler.to_recompute), {})
         self.assertEqual(len(scheduler.to_invalidate), 1)
@@ -99,8 +99,8 @@ class TestRouting(unittest.TestCase):
         field = _MockField("total", stored_computed=True)
 
         scheduler = RecomputeScheduler(engine)
-        scheduler.process_entry(field, {1, 2})
-        scheduler.process_entry(field, {3, 4})
+        scheduler.schedule_recompute(field, {1, 2})
+        scheduler.schedule_recompute(field, {3, 4})
 
         self.assertEqual(scheduler.to_recompute[field], {1, 2, 3, 4})
 
@@ -110,8 +110,8 @@ class TestRouting(unittest.TestCase):
         field_b = _MockField("b", stored_computed=False)
 
         scheduler = RecomputeScheduler(engine)
-        scheduler.process_entry(field_a, {1})
-        scheduler.process_entry(field_b, {2})
+        scheduler.schedule_recompute(field_a, {1})
+        scheduler.schedule_recompute(field_b, {2})
 
         self.assertEqual(scheduler.to_recompute[field_a], {1})
         self.assertEqual(scheduler.to_invalidate[0], (field_b, frozenset({2})))
@@ -123,7 +123,7 @@ class TestRecursiveStoredComputed(unittest.TestCase):
         field = _MockField("parent_total", stored_computed=True, recursive=True)
 
         scheduler = RecomputeScheduler(engine)
-        recursive_ids = scheduler.process_entry(field, {1, 2, 3})
+        recursive_ids = scheduler.schedule_recompute(field, {1, 2, 3})
 
         self.assertEqual(recursive_ids, frozenset({1, 2, 3}))
         self.assertEqual(scheduler.to_recompute[field], {1, 2, 3})
@@ -133,7 +133,7 @@ class TestRecursiveStoredComputed(unittest.TestCase):
         field = _MockField("total", stored_computed=True, recursive=False)
 
         scheduler = RecomputeScheduler(engine)
-        recursive_ids = scheduler.process_entry(field, {1, 2, 3})
+        recursive_ids = scheduler.schedule_recompute(field, {1, 2, 3})
 
         self.assertEqual(recursive_ids, frozenset())
 
@@ -143,7 +143,7 @@ class TestRecursiveStoredComputed(unittest.TestCase):
         marked = {field: {1, 2}}
 
         scheduler = RecomputeScheduler(engine, marked=marked)
-        recursive_ids = scheduler.process_entry(field, {1, 2, 3})
+        recursive_ids = scheduler.schedule_recompute(field, {1, 2, 3})
 
         self.assertEqual(recursive_ids, frozenset({3}))
         self.assertEqual(scheduler.to_recompute[field], {3})
@@ -153,8 +153,8 @@ class TestRecursiveStoredComputed(unittest.TestCase):
         field = _MockField("parent_total", stored_computed=True, recursive=True)
 
         scheduler = RecomputeScheduler(engine)
-        scheduler.process_entry(field, {1, 2})
-        recursive_ids = scheduler.process_entry(field, {2, 3})
+        scheduler.schedule_recompute(field, {1, 2})
+        recursive_ids = scheduler.schedule_recompute(field, {2, 3})
 
         self.assertEqual(recursive_ids, frozenset({3}))
         self.assertEqual(scheduler.to_recompute[field], {1, 2, 3})
@@ -165,8 +165,8 @@ class TestRecursiveStoredComputed(unittest.TestCase):
         marked = {field: {1}}
 
         scheduler = RecomputeScheduler(engine, marked=marked)
-        scheduler.process_entry(field, {2})
-        recursive_ids = scheduler.process_entry(field, {1, 2, 3})
+        scheduler.schedule_recompute(field, {2})
+        recursive_ids = scheduler.schedule_recompute(field, {1, 2, 3})
 
         self.assertEqual(recursive_ids, frozenset({3}))
 
@@ -176,7 +176,7 @@ class TestRecursiveStoredComputed(unittest.TestCase):
         marked = {field: {1, 2, 3}}
 
         scheduler = RecomputeScheduler(engine, marked=marked)
-        recursive_ids = scheduler.process_entry(field, {1, 2, 3})
+        recursive_ids = scheduler.schedule_recompute(field, {1, 2, 3})
 
         self.assertEqual(recursive_ids, frozenset())
         self.assertNotIn(field, scheduler.to_recompute)
@@ -188,7 +188,7 @@ class TestRecursiveNonStored(unittest.TestCase):
         field = _MockField("display", stored_computed=False, recursive=True)
 
         scheduler = RecomputeScheduler(engine)
-        recursive_ids = scheduler.process_entry(
+        recursive_ids = scheduler.schedule_recompute(
             field,
             {1, 2, 3, 4, 5},
             cached_ids={2, 4},
@@ -203,7 +203,7 @@ class TestRecursiveNonStored(unittest.TestCase):
         field = _MockField("display", stored_computed=False, recursive=True)
 
         scheduler = RecomputeScheduler(engine)
-        recursive_ids = scheduler.process_entry(
+        recursive_ids = scheduler.schedule_recompute(
             field,
             {1, 2, 3},
             cached_ids=set(),
@@ -217,7 +217,7 @@ class TestRecursiveNonStored(unittest.TestCase):
         field = _MockField("display", stored_computed=False, recursive=True)
 
         scheduler = RecomputeScheduler(engine)
-        recursive_ids = scheduler.process_entry(
+        recursive_ids = scheduler.schedule_recompute(
             field,
             {1, 2, 3},
             cached_ids=None,
@@ -230,13 +230,13 @@ class TestRecursiveNonStored(unittest.TestCase):
         field = _MockField("display", stored_computed=False, recursive=True)
 
         scheduler = RecomputeScheduler(engine)
-        r1 = scheduler.process_entry(field, {1, 2}, cached_ids={1, 2, 3})
+        r1 = scheduler.schedule_recompute(field, {1, 2}, cached_ids={1, 2, 3})
         self.assertEqual(r1, frozenset({1, 2}))
 
-        r2 = scheduler.process_entry(field, {1, 2, 3}, cached_ids={1, 2, 3})
+        r2 = scheduler.schedule_recompute(field, {1, 2, 3}, cached_ids={1, 2, 3})
         self.assertEqual(r2, frozenset({3}))
 
-        r3 = scheduler.process_entry(field, {1, 2, 3}, cached_ids={1, 2, 3})
+        r3 = scheduler.schedule_recompute(field, {1, 2, 3}, cached_ids={1, 2, 3})
         self.assertEqual(r3, frozenset())
 
     def test_cycle_detection_non_stored_interacts_with_cached(self) -> None:
@@ -244,9 +244,9 @@ class TestRecursiveNonStored(unittest.TestCase):
         field = _MockField("display", stored_computed=False, recursive=True)
 
         scheduler = RecomputeScheduler(engine)
-        scheduler.process_entry(field, {1, 2}, cached_ids={1, 2})
+        scheduler.schedule_recompute(field, {1, 2}, cached_ids={1, 2})
 
-        r2 = scheduler.process_entry(field, {1, 3, 4}, cached_ids={1, 3})
+        r2 = scheduler.schedule_recompute(field, {1, 3, 4}, cached_ids={1, 3})
         self.assertEqual(r2, frozenset({3}))
 
 
@@ -258,7 +258,7 @@ class TestProtectionWithRecursive(unittest.TestCase):
         engine.protect(field, frozenset({2}))
 
         scheduler = RecomputeScheduler(engine)
-        recursive_ids = scheduler.process_entry(field, {1, 2, 3})
+        recursive_ids = scheduler.schedule_recompute(field, {1, 2, 3})
 
         self.assertEqual(recursive_ids, frozenset({1, 3}))
         self.assertEqual(scheduler.to_recompute[field], {1, 3})
@@ -270,7 +270,7 @@ class TestProtectionWithRecursive(unittest.TestCase):
         engine.protect(field, frozenset({1}))
 
         scheduler = RecomputeScheduler(engine)
-        recursive_ids = scheduler.process_entry(
+        recursive_ids = scheduler.schedule_recompute(
             field,
             {1, 2, 3, 4},
             cached_ids={2, 3},
@@ -296,7 +296,7 @@ class TestInlineScheduling(unittest.TestCase):
         field = _MockField("total", stored_computed=True)
 
         scheduler = RecomputeScheduler(engine)
-        scheduler.process_entry(field, {1, 2})
+        scheduler.schedule_recompute(field, {1, 2})
 
         self.assertEqual(engine.schedule_calls, [])
         self.assertFalse(engine.has_pending_field(field))
@@ -306,8 +306,8 @@ class TestInlineScheduling(unittest.TestCase):
         field = _MockField("total", stored_computed=True)
 
         scheduler = RecomputeScheduler(engine, schedule_inline=True)
-        scheduler.process_entry(field, {1, 2})
-        scheduler.process_entry(field, {3})
+        scheduler.schedule_recompute(field, {1, 2})
+        scheduler.schedule_recompute(field, {3})
 
         self.assertEqual(engine.pending_ids(field), {1, 2, 3})
         self.assertEqual(scheduler.to_recompute[field], {1, 2, 3})
@@ -317,9 +317,9 @@ class TestInlineScheduling(unittest.TestCase):
         field = _MockField("total", stored_computed=True)
 
         scheduler = RecomputeScheduler(engine, schedule_inline=True)
-        scheduler.process_entry(field, {1, 2})
+        scheduler.schedule_recompute(field, {1, 2})
         engine.mark_done(field, [1, 2])
-        scheduler.process_entry(field, {3, 4})
+        scheduler.schedule_recompute(field, {3, 4})
 
         self.assertEqual(
             [set(ids) for _f, ids in engine.schedule_calls],
@@ -335,8 +335,8 @@ class TestInlineScheduling(unittest.TestCase):
         engine.protect(stored, frozenset({1}))
 
         scheduler = RecomputeScheduler(engine, schedule_inline=True)
-        scheduler.process_entry(stored, {1, 2})
-        scheduler.process_entry(non_stored, {5})
+        scheduler.schedule_recompute(stored, {1, 2})
+        scheduler.schedule_recompute(non_stored, {5})
 
         self.assertEqual(engine.pending_ids(stored), {2})
         self.assertFalse(engine.has_pending_field(non_stored))
@@ -350,7 +350,7 @@ class TestInlineScheduling(unittest.TestCase):
         scheduler = RecomputeScheduler(
             engine, marked=engine.pending, schedule_inline=True
         )
-        recursive_ids = scheduler.process_entry(field, {1, 2, 3})
+        recursive_ids = scheduler.schedule_recompute(field, {1, 2, 3})
 
         self.assertEqual(recursive_ids, frozenset({3}))
         self.assertEqual(scheduler.to_recompute[field], {3})
@@ -358,7 +358,7 @@ class TestInlineScheduling(unittest.TestCase):
         self.assertEqual(engine.pending_ids(field), {1, 2, 3})
 
         engine.schedule_calls.clear()
-        recursive_ids = scheduler.process_entry(field, {1, 2, 3})
+        recursive_ids = scheduler.schedule_recompute(field, {1, 2, 3})
         self.assertEqual(recursive_ids, frozenset())
         self.assertEqual(engine.schedule_calls, [])
 
@@ -373,8 +373,8 @@ class TestDeterministicOrder(unittest.TestCase):
             engine, schedule_inline=True, set_factory=OrderedSet
         )
 
-        scheduler.process_entry(field, OrderedSet([7, 3, 9]))
-        scheduler.process_entry(field, OrderedSet([1, 8]))
+        scheduler.schedule_recompute(field, OrderedSet([7, 3, 9]))
+        scheduler.schedule_recompute(field, OrderedSet([1, 8]))
 
         self.assertEqual(list(scheduler.to_recompute[field]), [7, 3, 9, 1, 8])
         self.assertEqual(list(engine.pending_ids(field)), [7, 3, 9, 1, 8])
@@ -390,7 +390,7 @@ class TestDeterministicOrder(unittest.TestCase):
             engine, schedule_inline=True, set_factory=OrderedSet
         )
 
-        scheduler.process_entry(field, OrderedSet([7, 3, 9, 1]))
+        scheduler.schedule_recompute(field, OrderedSet([7, 3, 9, 1]))
 
         self.assertEqual(list(engine.pending_ids(field)), [7, 9, 1])
 
@@ -413,8 +413,8 @@ class TestRepr(unittest.TestCase):
         field_b = _MockField("b", stored_computed=False)
 
         scheduler = RecomputeScheduler(engine)
-        scheduler.process_entry(field_a, {1, 2, 3})
-        scheduler.process_entry(field_b, {4, 5})
+        scheduler.schedule_recompute(field_a, {1, 2, 3})
+        scheduler.schedule_recompute(field_b, {4, 5})
 
         r = repr(scheduler)
         self.assertIn("recompute=1f/3e", r)
@@ -427,7 +427,7 @@ class TestEdgeCases(unittest.TestCase):
         field = _MockField("total", stored_computed=True)
 
         scheduler = RecomputeScheduler(engine)
-        recursive_ids = scheduler.process_entry(field, set())
+        recursive_ids = scheduler.schedule_recompute(field, set())
 
         self.assertEqual(recursive_ids, frozenset())
         self.assertNotIn(field, scheduler.to_recompute)
@@ -437,7 +437,7 @@ class TestEdgeCases(unittest.TestCase):
         field = _MockField("total", stored_computed=True)
 
         scheduler = RecomputeScheduler(engine)
-        scheduler.process_entry(field, frozenset({1, 2}))
+        scheduler.schedule_recompute(field, frozenset({1, 2}))
 
         self.assertEqual(scheduler.to_recompute[field], {1, 2})
 
@@ -447,10 +447,10 @@ class TestEdgeCases(unittest.TestCase):
         marked: dict = {field: set()}
 
         scheduler = RecomputeScheduler(engine, marked=marked)
-        scheduler.process_entry(field, {1, 2})
+        scheduler.schedule_recompute(field, {1, 2})
 
         marked[field].add(3)
-        recursive_ids = scheduler.process_entry(field, {1, 2, 3, 4})
+        recursive_ids = scheduler.schedule_recompute(field, {1, 2, 3, 4})
 
         self.assertEqual(recursive_ids, frozenset({4}))
 
@@ -460,10 +460,10 @@ class TestEdgeCases(unittest.TestCase):
         non_stored = _MockField("display", stored_computed=False)
 
         scheduler = RecomputeScheduler(engine)
-        scheduler.process_entry(stored, {1})
-        scheduler.process_entry(non_stored, {2})
-        scheduler.process_entry(stored, {3})
-        scheduler.process_entry(non_stored, {4})
+        scheduler.schedule_recompute(stored, {1})
+        scheduler.schedule_recompute(non_stored, {2})
+        scheduler.schedule_recompute(stored, {3})
+        scheduler.schedule_recompute(non_stored, {4})
 
         self.assertEqual(scheduler.to_recompute[stored], {1, 3})
         self.assertEqual(len(scheduler.to_invalidate), 2)

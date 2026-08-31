@@ -82,7 +82,9 @@ def hash_sign(
     return base64.urlsafe_b64encode(token).decode().rstrip("=")
 
 
-def verify_hash_signed(env: Environment, scope: str, payload: str) -> typing.Any | None:
+def resolve_hash_signed(
+    env: Environment, scope: str, payload: str
+) -> typing.Any | None:
     if not isinstance(payload, str):
         return None
     try:
@@ -119,7 +121,7 @@ def limited_field_access_token(
     *,
     scope: str,
 ) -> str:
-    record.ensure_one()
+    record.check_singleton()
     if not timestamp:
         unique_str = repr((record._name, record.id, field_name))
         two_weeks = 1209600
@@ -135,7 +137,7 @@ def limited_field_access_token(
     return f"{token}o{timestamp}"
 
 
-def verify_limited_field_access_token(
+def is_valid_limited_field_access_token(
     record: BaseModel,
     field_name: str,
     access_token: str,

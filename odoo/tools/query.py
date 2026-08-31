@@ -1,7 +1,7 @@
 import itertools
 from typing import TYPE_CHECKING
 
-from odoo.libs.sql import SQL, make_identifier
+from odoo.libs.sql import SQL, normalize_identifier
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
@@ -9,14 +9,14 @@ if TYPE_CHECKING:
     from odoo.api import Environment
 
 
-def _sql_from_table(alias: str, table: SQL) -> SQL:
+def _prepare_table_sql(alias: str, table: SQL) -> SQL:
     if (alias_identifier := SQL.identifier(alias)) == table:
         return table
     return SQL("%s AS %s", table, alias_identifier)
 
 
-def _sql_from_join(kind: SQL, alias: str, table: SQL, condition: SQL) -> SQL:
-    return SQL("%s %s ON (%s)", kind, _sql_from_table(alias, table), condition)
+def _prepare_join_sql(kind: SQL, alias: str, table: SQL, condition: SQL) -> SQL:
+    return SQL("%s %s ON (%s)", kind, _prepare_table_sql(alias, table), condition)
 
 
 _SQL_JOINS = {
@@ -26,7 +26,7 @@ _SQL_JOINS = {
 
 
 def _generate_table_alias(src_table_alias: str, link: str) -> str:
-    return make_identifier(f"{src_table_alias}__{link}")
+    return normalize_identifier(f"{src_table_alias}__{link}")
 
 
 class Query:
@@ -79,7 +79,7 @@ class Query:
         self._ids = None
 
     @staticmethod
-    def make_alias(alias: str, link: str) -> str:
+    def get_table_alias(alias: str, link: str) -> str:
         return _generate_table_alias(alias, link)
 
     def add_table(self, alias: str, table: SQL | None = None) -> None:
@@ -123,7 +123,7 @@ class Query:
         assert lhs_alias in self._tables or lhs_alias in self._joins, (
             "Alias %r not in %s" % (lhs_alias, str(self))
         )
-        rhs_alias = self.make_alias(lhs_alias, link)
+        rhs_alias = self.get_table_alias(lhs_alias, link)
         condition = SQL(
             "%s = %s",
             SQL.identifier(lhs_alias, lhs_column),
@@ -208,14 +208,14 @@ class Query:
     @property
     def from_clause(self) -> SQL:
         tables = SQL(" CROSS JOIN ").join(
-            itertools.starmap(_sql_from_table, self._tables.items())
+            itertools.starmap(_prepare_table_sql, self._tables.items())
         )
         if not self._joins:
             return tables
         items = (
             tables,
             *(
-                _sql_from_join(kind, alias, table, condition)
+                _prepare_join_sql(kind, alias, table, condition)
                 for alias, (kind, table, condition) in self._joins.items()
             ),
         )

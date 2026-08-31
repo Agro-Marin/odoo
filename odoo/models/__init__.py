@@ -25,7 +25,7 @@ from odoo.orm.models.table_objects import Constraint, Index, UniqueIndex
 
 from odoo.orm.registration import (
     add_field,
-    add_to_registry,
+    add_model_to_registry,
     is_model_definition,
     pop_field,
 )
@@ -57,7 +57,7 @@ __all__ = [
     "UniqueIndex",
     "ValuesType",
     "add_field",
-    "add_to_registry",
+    "add_model_to_registry",
     "check_companies_domain_parent_of",
     "check_company_domain_parent_of",
     "check_pg_name",

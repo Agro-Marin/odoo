@@ -37,7 +37,7 @@ class RecomputeScheduler:
         self.to_recompute: dict[Any, set] = defaultdict(set_factory or set)
         self.to_invalidate: list[tuple[Any, frozenset]] = []
 
-    def process_entry(
+    def schedule_recompute(
         self,
         field: SchedulableField,
         ids: AbstractSet,

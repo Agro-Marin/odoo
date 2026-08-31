@@ -75,7 +75,7 @@ class _PropertiesMixin(_ModelStubs):
                 if len(new_values) != len(old_value):
                     record[fname] = new_values
 
-    def _validate_properties_definition(
+    def _check_properties_definition(
         self, properties_definition: typing.Any, field: Field
     ) -> None:
         pass

@@ -38,7 +38,7 @@ class _RequestCsrfMixin(RequestState):
             self.session.touch()
         return f"{hm}o{max_ts}"
 
-    def validate_csrf(self, csrf: str | None) -> bool:
+    def is_valid_csrf(self, csrf: str | None) -> bool:
         if not csrf:
             return False
 

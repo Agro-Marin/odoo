@@ -102,7 +102,7 @@ class TestLazyIsNotMistakenForAnIterator:
         from collections.abc import Iterator
 
         assert isinstance(lazy(lambda: 1), Iterator), (
-            "if this ever stops being true the guards in _force_lazy_in can "
+            "if this ever stops being true the guards in _force_lazy_in_value can "
             "drop their lazy check -- until then they cannot"
         )
 

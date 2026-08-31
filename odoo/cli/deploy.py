@@ -58,7 +58,7 @@ _LOGIN_TIMEOUT = (10, 30)
 _UPLOAD_TIMEOUT = (10, None)
 
 
-def _should_skip(filepath: Path) -> bool:
+def _is_file_excluded(filepath: Path) -> bool:
     return filepath.suffix in EXCLUDED_SUFFIXES or filepath.name in EXCLUDED_FILE_NAMES
 
 
@@ -203,7 +203,7 @@ class Deploy(Command):
                             continue
                         if not filepath.is_file():
                             continue
-                        if _should_skip(filepath):
+                        if _is_file_excluded(filepath):
                             continue
                         zfile.write(filepath, filepath.relative_to(module_dir.parent))
         except Exception:

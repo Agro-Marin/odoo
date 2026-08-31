@@ -364,7 +364,7 @@ class Many2one(_Relational):
                     WHERE %(cotable_alias)s.id = %(ref)s)""",
                 cotable=SQL.identifier(comodel._table),
                 cotable_alias=SQL.identifier(
-                    Query.make_alias(comodel._table, "exists")
+                    Query.get_table_alias(comodel._table, "exists")
                 ),
                 ref=sql_field,
             )
@@ -449,7 +449,7 @@ class Many2one(_Relational):
 
     def join(self, model: ModelLike, alias: str, query: Query) -> tuple[BaseModel, str]:
         comodel = model.env[self.comodel_name]
-        coalias = query.make_alias(alias, self.name)
+        coalias = query.get_table_alias(alias, self.name)
         query.add_join(
             "LEFT JOIN",
             coalias,

@@ -85,13 +85,13 @@ class BaseString(Field[str | typing.Literal[False]]):
         else:
             if value is not PENDING:
                 return False if value is None else value
-        if self._needs_translate_fallback(record_id):
+        if self._is_translate_fallback_required(record_id):
             fb_val = self._scalar_translate_fallback(env, record_id)
             if fb_val is not SENTINEL:
                 return False if fb_val is None else fb_val
         return super().__get__(record, owner)
 
-    def _needs_translate_fallback(self, record_id: typing.Any) -> bool:
+    def _is_translate_fallback_required(self, record_id: typing.Any) -> bool:
         return self.translate is True and not (
             self.compute
             or (self.store and (record_id or getattr(record_id, "origin", None)))
@@ -875,7 +875,7 @@ class Html(BaseString):
             if record is None or len(record._ids) != 1:
                 return Field.__get__(self, record, owner)
             record_id = record._ids[0]
-            if not self._needs_translate_fallback(record_id):
+            if not self._is_translate_fallback_required(record_id):
                 return Field.__get__(self, record, owner)
             env = record.env
             if (

@@ -13,7 +13,7 @@ from odoo.tools.misc import PENDING
 
 from ... import decorators as api
 from ...components.recompute import RecomputeScheduler
-from ...helpers import own_class_memo, resolve_fnames
+from ...helpers import get_fields_by_name, own_class_memo
 from ...primitives import NewId
 from ._model_stubs import _ModelStubs
 
@@ -64,7 +64,7 @@ class RecomputeMixin(_ModelStubs):
             if field.recursive and not field.is_stored_computed:
                 cached_ids = field._get_all_cache_ids(env).keys()
 
-            recursive_ids = scheduler.process_entry(
+            recursive_ids = scheduler.schedule_recompute(
                 field,
                 OrderedSet(records._ids),
                 cached_ids=cached_ids,
@@ -103,7 +103,7 @@ class RecomputeMixin(_ModelStubs):
                 list(fnames) if not isinstance(fnames, (list, dict)) else fnames
             )
 
-        _field_triggers = self.pool._ensure_field_triggers()
+        _field_triggers = self.pool._get_field_triggers()
         _fields = self._fields
         fields = [_fields[fname] for fname in fnames]
         if not any(f in _field_triggers for f in fields):
@@ -237,7 +237,7 @@ class RecomputeMixin(_ModelStubs):
     ) -> Collection[Field]:
         if fnames is None:
             return self._get_stored_computed_fields()
-        return resolve_fnames(self, fnames)
+        return get_fields_by_name(self, fnames)
 
     def _recompute_fields(
         self, fields: Collection[Field], ids: Sequence[IdType] | None
@@ -277,7 +277,7 @@ class RecomputeMixin(_ModelStubs):
 
     @api.private
     def flush_model(self, fnames: Collection[str] | None = None) -> None:
-        fields = None if fnames is None else resolve_fnames(self, fnames)
+        fields = None if fnames is None else get_fields_by_name(self, fnames)
         if fields is not None:
             core = self.env._core
             if not core.has_pending() and not core.is_any_dirty():
@@ -298,7 +298,7 @@ class RecomputeMixin(_ModelStubs):
 
     @api.private
     def flush_recordset(self, fnames: Collection[str] | None = None) -> None:
-        named_fields = None if fnames is None else resolve_fnames(self, fnames)
+        named_fields = None if fnames is None else get_fields_by_name(self, fnames)
         if not self:
             return
         if named_fields is not None:

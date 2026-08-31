@@ -198,12 +198,12 @@ class WriteMixin(_ModelStubs):
                 self.flush_model([self._parent_name])
 
             inverse_fields = [f.name for fs in determine_inverses.values() for f in fs]
-            real_recs._validate_fields(vals, inverse_fields)
+            real_recs._check_fields(vals, inverse_fields)
             prof.mark("validate")
 
             self._write_determine_inverses(determine_inverses, real_recs, vals)
 
-            real_recs._validate_fields(inverse_fields)
+            real_recs._check_fields(inverse_fields)
 
         if self._check_company_auto:
             self._check_company(list(vals))

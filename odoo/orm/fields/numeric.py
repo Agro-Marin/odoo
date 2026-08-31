@@ -8,7 +8,7 @@ from odoo.tools import float_compare, float_round
 from odoo.tools.misc import PENDING, SENTINEL, Sentinel
 
 from ..primitives import SEQUENCE_FIELD
-from .base import Field, _make_scalar_get
+from .base import Field, _prepare_scalar_get
 
 if typing.TYPE_CHECKING:
     from .._typing import BaseModel, Environment, ModelClass, ModelLike, ModelType
@@ -38,7 +38,7 @@ class Integer(Field[int]):
     aggregator: str | None = "sum"
 
     if not typing.TYPE_CHECKING:
-        __get__ = _make_scalar_get(lambda v: v or 0)
+        __get__ = _prepare_scalar_get(lambda v: v or 0)
 
     def _get_attrs(self, model_class: ModelClass, name: str) -> dict[str, typing.Any]:
         res = super()._get_attrs(model_class, name)
@@ -118,7 +118,7 @@ class Float(Field[float]):
     aggregator: str | None = "sum"
 
     if not typing.TYPE_CHECKING:
-        __get__ = _make_scalar_get(lambda v: v or 0.0)
+        __get__ = _prepare_scalar_get(lambda v: v or 0.0)
 
     def __init__(
         self,
@@ -249,7 +249,7 @@ class Monetary(Field[float]):
     falsy_value = 0.0
 
     if not typing.TYPE_CHECKING:
-        __get__ = _make_scalar_get(lambda v: v or 0.0)
+        __get__ = _prepare_scalar_get(lambda v: v or 0.0)
 
     currency_field: str | None = None
     aggregator: str | None = "sum"

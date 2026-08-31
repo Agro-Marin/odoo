@@ -55,14 +55,14 @@ def _registry_with(*, extra_trigger=False):
 
 def test_happy_path_publishes_and_memoizes():
     registry, dep = _registry_with()
-    triggers = registry._ensure_field_triggers()
+    triggers = registry._get_field_triggers()
     assert dep in triggers, "the dependency must appear in the published map"
     assert registry.__dict__["_field_triggers"] is registry.model_graph._triggers
 
 
 def test_refused_publication_records_the_epoch_it_lost_at():
     registry, _dep = _registry_with()
-    registry._ensure_field_triggers()
+    registry._get_field_triggers()
 
     registry.model_graph.begin_invalidation()
     registry.__dict__.pop("_field_triggers", None)
@@ -73,7 +73,7 @@ def test_refused_publication_records_the_epoch_it_lost_at():
 
 def test_a_refused_memo_goes_permanently_stale_but_the_barrier_heals_it():
     registry, dep = _registry_with()
-    registry._ensure_field_triggers()
+    registry._get_field_triggers()
 
     registry.model_graph.begin_invalidation()
     registry.__dict__.pop("_field_triggers", None)
@@ -91,7 +91,7 @@ def test_a_refused_memo_goes_permanently_stale_but_the_barrier_heals_it():
 
     assert new_field not in registry._field_triggers[dep][()]
 
-    healed = registry._ensure_field_triggers()
+    healed = registry._get_field_triggers()
     assert healed is registry.model_graph._triggers
     assert healed is not refused_map
 
@@ -114,5 +114,5 @@ def test_no_production_caller_reads_the_memo_directly():
     leaking = _direct_attribute_reads()
     assert not leaking, (
         "read `_field_triggers` directly instead of calling "
-        "`_ensure_field_triggers()`: " + ", ".join(leaking)
+        "`_get_field_triggers()`: " + ", ".join(leaking)
     )

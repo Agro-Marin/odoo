@@ -77,7 +77,7 @@ _HTML_DOC_HEAD = b'\n</head>\n<body>\n<div class="document">'
 _HTML_DOC_TAIL = b"</div>\n</body>\n</html>\n"
 
 
-def _make_settings(writer_name: str, overrides: dict[str, typing.Any]) -> typing.Any:
+def _prepare_settings(writer_name: str, overrides: dict[str, typing.Any]) -> typing.Any:
     parser = parsers.get_parser_class("restructuredtext")()
     reader = readers.get_reader_class("standalone")(parser)
     writer = writers.get_writer_class(writer_name)()
@@ -88,12 +88,12 @@ def _make_settings(writer_name: str, overrides: dict[str, typing.Any]) -> typing
 
 @functools.cache
 def _tree_settings() -> typing.Any:
-    return _make_settings("pseudoxml", dict(SAFE_SETTINGS))
+    return _prepare_settings("pseudoxml", dict(SAFE_SETTINGS))
 
 
 @functools.cache
 def _html_settings() -> typing.Any:
-    return _make_settings("html", {**SAFE_SETTINGS, "embed_stylesheet": False})
+    return _prepare_settings("html", {**SAFE_SETTINGS, "embed_stylesheet": False})
 
 
 @functools.cache

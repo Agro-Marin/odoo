@@ -5,8 +5,8 @@ from odoo.db import utils as db_utils
 from odoo.db.utils import (
     _HEALTH_PARAMS,
     categorize_query,
-    connection_info_for,
-    find_value_markers,
+    get_connection_info_for,
+    get_value_marker_positions,
     is_maintenance_db,
 )
 
@@ -72,7 +72,7 @@ class TestConnectionInfoForKeywords(unittest.TestCase):
     def _info(self, name="mydb", readonly=False, **overrides):
         with patch.object(db_utils, "tools") as tools:
             tools.config = _config(**overrides)
-            return connection_info_for(name, readonly)
+            return get_connection_info_for(name, readonly)
 
     def test_returns_the_database_name_unchanged(self):
         db, info = self._info("mydb")
@@ -110,7 +110,7 @@ class TestConnectionInfoForReplica(unittest.TestCase):
     def _info(self, readonly, **overrides):
         with patch.object(db_utils, "tools") as tools:
             tools.config = _config(**overrides)
-            return connection_info_for("mydb", readonly)[1]
+            return get_connection_info_for("mydb", readonly)[1]
 
     def test_replica_overrides_host_and_port_only(self):
         info = self._info(True, db_replica_host="replica.example", db_replica_port=5433)
@@ -132,7 +132,7 @@ class TestConnectionInfoForUri(unittest.TestCase):
     def _info(self, uri):
         with patch.object(db_utils, "tools") as tools:
             tools.config = _config()
-            return connection_info_for(uri)
+            return get_connection_info_for(uri)
 
     def test_database_is_taken_from_the_uri_path(self):
         db, info = self._info("postgresql://user@host:5432/thedb")
@@ -281,11 +281,11 @@ class TestFromInsideAFunctionCall(unittest.TestCase):
 
 class TestFindValueMarkers(unittest.TestCase):
     def test_basic_and_escapes(self):
-        self.assertEqual(find_value_markers("%s and %s"), [0, 7])
-        self.assertEqual(find_value_markers("LIKE 'a%%s'"), [])
-        self.assertEqual(find_value_markers("x %s y %% z %s"), [2, 12])
-        self.assertEqual(find_value_markers("%%"), [])
-        self.assertEqual(find_value_markers("ends %s"), [5])
+        self.assertEqual(get_value_marker_positions("%s and %s"), [0, 7])
+        self.assertEqual(get_value_marker_positions("LIKE 'a%%s'"), [])
+        self.assertEqual(get_value_marker_positions("x %s y %% z %s"), [2, 12])
+        self.assertEqual(get_value_marker_positions("%%"), [])
+        self.assertEqual(get_value_marker_positions("ends %s"), [5])
 
 
 if __name__ == "__main__":

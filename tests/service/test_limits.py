@@ -159,14 +159,14 @@ SENTINELS = [-5, -1, 0, 30, 300]
 
 
 def _legacy_inherits(limit):
-    """The pre-`_resolve_budget` predicate, spelled out as it was."""
+    """The pre-`_get_inherited_budget` predicate, spelled out as it was."""
     return limit == -1 or limit < -1
 
 
 @pytest.mark.parametrize("worker_job", SENTINELS)
 @pytest.mark.parametrize("worker_cron", SENTINELS)
 def test_job_max_age_still_walks_the_two_level_chain(worker_job, worker_cron):
-    """`_resolve_budget` must be a rewrite, not a behaviour change."""
+    """`_get_inherited_budget` must be a rewrite, not a behaviour change."""
     from odoo.service._limits import job_max_age
     from odoo.tools import config
 
@@ -214,13 +214,13 @@ def test_the_job_budget_still_walks_the_three_level_chain(real_job, real_cron, r
 
 def test_a_chain_whose_last_link_also_inherits_returns_the_sentinel():
     """Documented edge: the caller's clamp, not the resolver, absorbs it."""
-    from odoo.service._limits import _resolve_budget, cron_real_time_budget
+    from odoo.service._limits import _get_inherited_budget, cron_real_time_budget
     from odoo.tools import config
 
     with patch.dict(
         config.options, {"limit_time_real_cron": -1, "limit_time_real": -1}
     ):
-        assert _resolve_budget("limit_time_real_cron", "limit_time_real") == -1
+        assert _get_inherited_budget("limit_time_real_cron", "limit_time_real") == -1
         assert cron_real_time_budget() == 0
 
 

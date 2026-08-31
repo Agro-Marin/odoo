@@ -81,7 +81,7 @@ def merge_pdf(pdf_data: list[bytes]) -> bytes:
         return _buffer.getvalue()
 
 
-def fill_form_fields_pdf(writer: PdfWriter, form_fields: dict[str, Any]) -> None:
+def update_form_fields_pdf(writer: PdfWriter, form_fields: dict[str, Any]) -> None:
 
     writer.set_need_appearances_writer()
 

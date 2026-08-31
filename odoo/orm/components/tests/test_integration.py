@@ -101,7 +101,7 @@ class TestCacheStorageRoundTrip(unittest.TestCase):
             [("Alice", "alice@example.com")],
         )
 
-        rows = self.storage.fetch_rows("partner", [1], ["name", "email"])
+        rows = self.storage.get_row_tuples("partner", [1], ["name", "email"])
         self.assertEqual(rows, [("Alice", "alice@example.com")])
 
     def test_update_flush(self) -> None:
@@ -115,7 +115,7 @@ class TestCacheStorageRoundTrip(unittest.TestCase):
             value = self.cache.get_value("name", id_)
             self.storage.update_rows("partner", [(id_, {"name": value})])
 
-        rows = self.storage.fetch_rows("partner", [1], ["name"])
+        rows = self.storage.get_row_tuples("partner", [1], ["name"])
         self.assertEqual(rows, [("Alicia",)])
         self.assertFalse(self.cache.has_dirty_field("name"))
 
@@ -285,7 +285,7 @@ class TestRecomputeSchedulerIntegration(unittest.TestCase):
         self.engine.protect(f, frozenset([2, 3]))
 
         scheduler = self.RecomputeScheduler(self.engine, marked={})
-        scheduler.process_entry(f, {1, 2, 3, 4})
+        scheduler.schedule_recompute(f, {1, 2, 3, 4})
 
         self.assertEqual(scheduler.to_recompute[f], {1, 4})
         self.engine.pop_protection()
@@ -294,7 +294,7 @@ class TestRecomputeSchedulerIntegration(unittest.TestCase):
         f = self._field("m", "display_name", stored_computed=False)
 
         scheduler = self.RecomputeScheduler(self.engine, marked={})
-        scheduler.process_entry(f, {1, 2, 3})
+        scheduler.schedule_recompute(f, {1, 2, 3})
 
         self.assertEqual(len(scheduler.to_recompute), 0)
         self.assertEqual(len(scheduler.to_invalidate), 1)
@@ -306,7 +306,7 @@ class TestRecomputeSchedulerIntegration(unittest.TestCase):
         self.engine.schedule(f, [1])
         scheduler = self.RecomputeScheduler(self.engine, marked=self.engine.pending)
 
-        recursive_ids = scheduler.process_entry(f, {1, 2, 3})
+        recursive_ids = scheduler.schedule_recompute(f, {1, 2, 3})
 
         self.assertEqual(scheduler.to_recompute[f], {2, 3})
         self.assertEqual(recursive_ids, frozenset({2, 3}))

@@ -10,7 +10,7 @@ from .schema import FunctionStatus, has_trigram, has_unaccent
 from .utils import (
     SYSTEM_DBS,
     categorize_query,
-    connection_info_for,
+    get_connection_info_for,
     is_maintenance_db,
 )
 
@@ -28,10 +28,10 @@ __all__ = [
     "categorize_query",
     "close_all",
     "close_db",
-    "connection_info_for",
     "db_connect",
     "drain_all",
     "drain_db",
+    "get_connection_info_for",
     "has_trigram",
     "has_unaccent",
     "insert_or_existing",
@@ -47,11 +47,11 @@ registry = EndpointRegistry()
 
 
 def db_connect(to: str, allow_uri: bool = False, readonly: bool = False) -> Connection:
-    db, info = connection_info_for(to, readonly)
+    db, info = get_connection_info_for(to, readonly)
     if not allow_uri and db != to:
         msg = "URI connections not allowed"
         raise ValueError(msg)
-    return Connection(registry.pool_at(endpoint_key(info), readonly), db, info)
+    return Connection(registry.get_pool_at(endpoint_key(info), readonly), db, info)
 
 
 def is_pooled(db_name: str) -> bool:

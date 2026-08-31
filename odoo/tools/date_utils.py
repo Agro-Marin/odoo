@@ -68,8 +68,8 @@ __all__ = [
     "get_quarter_number",
     "get_timedelta",
     "localized",
+    "parse_date_expression",
     "parse_iso_date",
-    "resolve_date",
     "start_of",
     "subtract",
     "sum_intervals",
@@ -112,7 +112,7 @@ def _apply_unit_term(dt: datetime | date, operator: str, term: str) -> datetime 
     return dt + relativedelta(**{unit: number})
 
 
-def resolve_date(value: str, env: Environment) -> date | datetime:
+def parse_date_expression(value: str, env: Environment) -> date | datetime:
     if re.match(r"\d+-", value):
         return parse_iso_date(value)
     terms = value.split()

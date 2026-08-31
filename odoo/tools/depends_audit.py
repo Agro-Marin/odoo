@@ -150,7 +150,7 @@ def audit_registry(
     only_without_dependencies: bool = True,
     include_stored: bool = False,
 ) -> Iterator[DependsFinding]:
-    registry._ensure_field_triggers()
+    registry._get_field_triggers()
     for model_class in registry.models.values():
         if model_class._abstract:
             continue

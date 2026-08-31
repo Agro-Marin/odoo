@@ -156,7 +156,7 @@ class Registry(
         registry.ready = True
         registry.registry_invalidated = bool(update_module)
 
-        registry._ensure_field_triggers()
+        registry._get_field_triggers()
 
         if update_module:
             from odoo.db import drain_all
@@ -319,7 +319,7 @@ class Registry(
 
     @classmethod
     @locked
-    def delete_all(cls):
+    def remove_all(cls):
         cls.registries.clear()
         forget_all_unaccent_tables()
         _ASSERTION_REPORTS.clear()
@@ -342,7 +342,7 @@ class Registry(
 
         model_names = []
         for model_def in model_defs:
-            model_cls = registration.add_to_registry(
+            model_cls = registration.add_model_to_registry(
                 self, typing.cast("type[BaseModel]", model_def)
             )
             model_names.append(model_cls._name)
@@ -475,7 +475,7 @@ class Registry(
             for model in env.values():
                 model._register_hook()
             self.__dict__.pop("_field_triggers", None)
-            self._ensure_field_triggers()
+            self._get_field_triggers()
             env.flush_all()
 
     def init_models(

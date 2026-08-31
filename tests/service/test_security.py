@@ -16,7 +16,7 @@ class _FakeSession:
         self.uid = uid
         self.sid = sid
         self.session_token = token
-        self._delete_old_sessions = MagicMock()
+        self._remove_old_sessions = MagicMock()
         self._data: dict = {}
         if deletion_time is not None:
             self._data["deletion_time"] = deletion_time
@@ -31,7 +31,7 @@ class _FakeSession:
 def _make_env(expected_token: str, device_log=None):
     env = MagicMock()
     user = MagicMock()
-    user._compute_session_token.return_value = expected_token
+    user._get_session_token.return_value = expected_token
     users = MagicMock(browse=MagicMock(return_value=user))
 
     def getitem(key):
@@ -127,4 +127,4 @@ class TestCheckSession:
         session = _FakeSession(uid=1, sid="abc", token="tok")
         env, _ = _make_env("tok")
         sec.check_session(session, env)
-        session._delete_old_sessions.assert_called_once()
+        session._remove_old_sessions.assert_called_once()

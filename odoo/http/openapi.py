@@ -5,7 +5,7 @@ import re
 import typing
 from typing import Any, NamedTuple
 
-from ._params import ParamSpec, build_param_specs
+from ._params import ParamSpec, get_param_specs
 
 _logger = logging.getLogger(__name__)
 
@@ -67,10 +67,10 @@ class RouteInfo(NamedTuple):
     param_specs: dict[str, ParamSpec] | None = None
 
 
-def _specs_of(route: RouteInfo) -> dict[str, ParamSpec]:
+def _get_route_param_specs(route: RouteInfo) -> dict[str, ParamSpec]:
     if route.param_specs is not None:
         return route.param_specs
-    return build_param_specs(route.handler)
+    return get_param_specs(route.handler)
 
 
 def _nullable(schema: dict[str, Any]) -> dict[str, Any]:
@@ -115,7 +115,7 @@ def _summary(handler: typing.Callable) -> str | None:
     return doc.strip().splitlines()[0] if doc and doc.strip() else None
 
 
-def build_operation(
+def prepare_openapi_operation(
     route: RouteInfo,
     method: str,
     template: str,
@@ -136,7 +136,7 @@ def build_operation(
         path_param_names = {p["name"] for p in path_params}
         specs = {
             name: spec
-            for name, spec in _specs_of(route).items()
+            for name, spec in _get_route_param_specs(route).items()
             if name not in path_param_names
         }
         if route_type == "http":
@@ -176,7 +176,7 @@ def build_operation(
     return operation
 
 
-def build_openapi(
+def prepare_openapi_document(
     routes: typing.Iterable[RouteInfo],
     *,
     title: str = "Odoo HTTP API",
@@ -218,7 +218,7 @@ def build_openapi(
                 )
                 continue
             claimed_by[template, verb] = route.rule
-            path_item[verb] = build_operation(
+            path_item[verb] = prepare_openapi_operation(
                 route,
                 method,
                 template,
@@ -253,5 +253,5 @@ def iter_map_routes(routing_map: Any) -> typing.Iterator[RouteInfo]:
         )
 
 
-def openapi_from_map(routing_map: Any, **kwargs: Any) -> dict[str, Any]:
-    return build_openapi(iter_map_routes(routing_map), **kwargs)
+def prepare_openapi_from_map(routing_map: Any, **kwargs: Any) -> dict[str, Any]:
+    return prepare_openapi_document(iter_map_routes(routing_map), **kwargs)

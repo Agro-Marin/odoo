@@ -23,7 +23,7 @@ MAINTENANCE_DB_MESSAGE = "Refusing to operate on system or template database {db
 commands: dict[str, type[Command]] = {}
 
 
-def build_config_args(
+def get_config_argv(
     config_file: str | None = None,
     db_name: str | None = None,
     *,
@@ -164,8 +164,8 @@ class Command:
         return self._parser
 
     @classmethod
-    def is_valid_name(cls, name: str) -> re.Match[str] | None:
-        return COMMAND_NAME_RE.match(name)
+    def is_valid_name(cls, name: str) -> bool:
+        return COMMAND_NAME_RE.match(name) is not None
 
 
 class DatabaseCommand(Command, register=False):
@@ -226,15 +226,15 @@ class DatabaseCommand(Command, register=False):
         forwarded = list(extra_args or [])
         if getattr(parsed_args, "data_dir", None):
             forwarded = ["-D", parsed_args.data_dir, *forwarded]
-        config_args = build_config_args(
+        config_args = get_config_argv(
             parsed_args.config,
             parsed_args.db_name,
             extra_args=forwarded or None,
         )
         config.parse_config(config_args, setup_logging=True)
-        return self.require_single_database(parsed_args, allow_none=allow_none)
+        return self.get_configured_database(parsed_args, allow_none=allow_none)
 
-    def require_single_database(
+    def get_configured_database(
         self,
         parsed_args: argparse.Namespace,
         *,
@@ -291,7 +291,7 @@ def load_addons_commands(command: str | None = None) -> None:
             _logger.warning("Failed to load CLI command %s: %s", fq_name, e)
 
 
-def find_command(name: str) -> type[Command] | None:
+def get_cli_command(name: str) -> type[Command] | None:
     if not Command.is_valid_name(name):
         return None
 
@@ -307,7 +307,7 @@ def find_command(name: str) -> type[Command] | None:
     return commands.get(name)
 
 
-def build_bootstrap_parser() -> argparse.ArgumentParser:
+def prepare_bootstrap_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
     parser.add_argument("--addons-path", default=None)
     return parser
@@ -316,7 +316,7 @@ def build_bootstrap_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = sys.argv[1:]
 
-    boot_parser = build_bootstrap_parser()
+    boot_parser = prepare_bootstrap_parser()
     bootstrap, args = boot_parser.parse_known_args(args)
     odoo.cli.BOOTSTRAP_ADDONS_PATH = bootstrap.addons_path
     if bootstrap.addons_path is not None:
@@ -332,7 +332,7 @@ def main() -> None:
         command_name = DEFAULT_COMMAND
 
     odoo.cli.COMMAND = command_name
-    if command := find_command(command_name):
+    if command := get_cli_command(command_name):
         command().run(args)
     else:
         sys.exit(

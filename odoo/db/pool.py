@@ -199,7 +199,7 @@ class ConnectionPool:
         idle_session_ms = max(900, int(self._max_idle * 1.5)) * 1000
         kwargs["options"] = _connection_options(conninfo, kwargs, idle_session_ms)
 
-        self._probe.ensure_connectable(key, conninfo, kwargs, deadline)
+        self._probe.check_connectable(key, conninfo, kwargs, deadline)
 
         with self._lock:
             pool = self._pools.get(key)
@@ -307,7 +307,7 @@ class ConnectionPool:
         conn = None
         try:
             conn, pool = self._getconn_with_retry(pool, key, connection_info, deadline)
-            self._validate_borrowed_conn(conn, pool)
+            self._check_borrowed_conn(conn, pool)
             self._probe.mark_proven(key)
             self._checkouts.track(conn, _borrow_caller())
             self._warn_about_leaks()
@@ -441,7 +441,7 @@ class ConnectionPool:
                 raise
         raise PoolError("getconn retry budget exhausted")
 
-    def _validate_borrowed_conn(
+    def _check_borrowed_conn(
         self, conn: psycopg.Connection, pool: _PsycopgPool
     ) -> None:
         try:

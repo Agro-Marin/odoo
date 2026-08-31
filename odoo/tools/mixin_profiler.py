@@ -12,7 +12,7 @@ _logger = logging.getLogger(__name__)
 _profile_data = threading.local()
 
 
-def _get_data():
+def _get_profile_data():
     if not hasattr(_profile_data, "methods"):
         _profile_data.methods = defaultdict(
             lambda: {
@@ -33,7 +33,7 @@ def _wrap_method(model_name, method_name, original_method):
 
     @functools.wraps(original_method)
     def wrapper(self, *args, **kwargs):
-        data = _get_data()
+        data = _get_profile_data()
         if not data.enabled:
             return original_method(self, *args, **kwargs)
 
@@ -170,7 +170,7 @@ def unprofile_methods(model_name, method_names, registry=None):
 
 @contextmanager
 def profiling_enabled():
-    data = _get_data()
+    data = _get_profile_data()
     was_enabled = data.enabled
     data.enabled = True
     try:
@@ -180,7 +180,7 @@ def profiling_enabled():
 
 
 def clear_profile_data():
-    data = _get_data()
+    data = _get_profile_data()
     data.methods.clear()
 
 
@@ -292,7 +292,7 @@ def _profile_opportunities(methods: list[dict]) -> list[str]:
 
 
 def get_profile_report(sort_by="total_time", top_n=20):
-    data = _get_data()
+    data = _get_profile_data()
 
     if not data.methods:
         return "No profiling data collected."
@@ -312,7 +312,7 @@ def get_profile_report(sort_by="total_time", top_n=20):
 
 
 def get_query_patterns():
-    data = _get_data()
+    data = _get_profile_data()
     patterns = []
 
     for key, stats in data.methods.items():

@@ -9,10 +9,10 @@ from odoo.http.openapi import (
     RouteInfo,
     _effective_methods,
     _operation_id,
-    build_openapi,
-    openapi_from_map,
+    prepare_openapi_document,
+    prepare_openapi_from_map,
 )
-from odoo.http.routing import build_routing_map
+from odoo.http.routing import prepare_routing_map
 
 if TYPE_CHECKING:
     from odoo.http._protocols import Endpoint
@@ -42,7 +42,7 @@ def test_effective_methods_strips_implicit_verbs():
 
 
 def test_methods_none_route_emits_operations():
-    doc = build_openapi([_route("/web/version", methods=frozenset())])
+    doc = prepare_openapi_document([_route("/web/version", methods=frozenset())])
     assert sorted(doc["paths"]["/web/version"]) == ["get", "post"]
 
 
@@ -56,7 +56,7 @@ def test_operation_id_disambiguates_realistic_collision():
 
 
 def test_build_openapi_no_duplicate_operation_ids():
-    doc = build_openapi(
+    doc = prepare_openapi_document(
         [
             _route("/shop/cart", methods=frozenset({"GET"})),
             _route("/shop-cart", methods=frozenset({"GET"})),
@@ -78,7 +78,7 @@ def test_typed_route_documents_query_params_and_400():
         routing={"type": "http", "auth": "public", "typed": True},
         handler=handler,
     )
-    op = build_openapi([route])["paths"]["/typed"]["get"]
+    op = prepare_openapi_document([route])["paths"]["/typed"]["get"]
     assert op["summary"] == "List things."
     names = {p["name"]: p for p in op["parameters"]}
     assert names["n"]["required"] is True
@@ -96,7 +96,7 @@ def test_typed_jsonrpc_documents_request_body():
         routing={"type": "jsonrpc", "auth": "user", "typed": True},
         handler=handler,
     )
-    op = build_openapi([route])["paths"]["/rpc"]["post"]
+    op = prepare_openapi_document([route])["paths"]["/rpc"]["post"]
     body = op["requestBody"]["content"]["application/json"]["schema"]
     assert body["properties"]["n"] == {"type": "integer"}
     assert body["required"] == ["n"]
@@ -112,7 +112,7 @@ def test_path_param_not_duplicated_as_query_param():
         routing={"type": "http", "auth": "public", "typed": True},
         handler=handler,
     )
-    op = build_openapi([route])["paths"]["/item/{ident}"]["get"]
+    op = prepare_openapi_document([route])["paths"]["/item/{ident}"]["get"]
     ident_params = [p for p in op["parameters"] if p["name"] == "ident"]
     assert len(ident_params) == 1
     assert ident_params[0]["in"] == "path"
@@ -129,7 +129,7 @@ def test_path_param_not_duplicated_in_request_body():
         routing={"type": "json2", "auth": "bearer", "typed": True},
         handler=handler,
     )
-    op = build_openapi([route])["paths"]["/item/{ident}"]["post"]
+    op = prepare_openapi_document([route])["paths"]["/item/{ident}"]["post"]
     body = op["requestBody"]["content"]["application/json"]["schema"]
     assert set(body["properties"]) == {"name"}
     assert body["required"] == ["name"]
@@ -143,7 +143,7 @@ def test_typed_only_filters_untyped_routes():
         routing={"type": "http", "auth": "public", "typed": True},
     )
     untyped = _route("/plain", methods=frozenset({"GET"}))
-    doc = build_openapi([typed, untyped], typed_only=True)
+    doc = prepare_openapi_document([typed, untyped], typed_only=True)
     assert set(doc["paths"]) == {"/typed"}
 
 
@@ -151,7 +151,7 @@ def test_security_schemes_registered_per_auth():
     bearer = _route(
         "/b", methods=frozenset({"GET"}), routing={"type": "http", "auth": "bearer"}
     )
-    doc = build_openapi([bearer])
+    doc = prepare_openapi_document([bearer])
     assert "bearerAuth" in doc["components"]["securitySchemes"]
     assert doc["paths"]["/b"]["get"]["security"] == [{"bearerAuth": []}]
 
@@ -165,7 +165,7 @@ def test_openapi_from_map_roundtrip():
     handler.routing = {"type": "http", "auth": "public"}
     handler.original_endpoint = handler
     m.add(werkzeug.routing.Rule("/a/<int:ident>", endpoint=handler, methods=["GET"]))
-    doc = openapi_from_map(m, title="T", version="9")
+    doc = prepare_openapi_from_map(m, title="T", version="9")
     op = doc["paths"]["/a/{ident}"]["get"]
     assert doc["info"] == {"title": "T", "version": "9"}
     assert op["parameters"][0]["schema"] == {"type": "integer"}
@@ -177,7 +177,7 @@ def test_a_colliding_path_template_keeps_the_first_and_warns(caplog):
         _route("/a/<string:x>", methods={"GET"}),
     ]
     with caplog.at_level(logging.WARNING, logger="odoo.http.openapi"):
-        doc = build_openapi(routes)
+        doc = prepare_openapi_document(routes)
 
     assert list(doc["paths"]) == ["/a/{x}"]
     assert list(doc["paths"]["/a/{x}"]) == ["get"]
@@ -187,7 +187,7 @@ def test_a_colliding_path_template_keeps_the_first_and_warns(caplog):
 
 
 def test_a_collision_does_not_burn_an_operation_id():
-    doc = build_openapi(
+    doc = prepare_openapi_document(
         [
             _route("/a/<int:x>", methods={"GET"}),
             _route("/a/<string:x>", methods={"GET"}),
@@ -201,7 +201,7 @@ def test_a_collision_does_not_burn_an_operation_id():
 
 
 def test_two_verbs_on_one_template_are_both_kept():
-    doc = build_openapi(
+    doc = prepare_openapi_document(
         [
             _route("/a", methods={"GET"}),
             _route("/a", methods={"POST"}),
@@ -244,7 +244,7 @@ def test_a_rule_repeating_a_path_parameter_is_skipped_not_emitted():
         ),
     ]
 
-    doc = build_openapi(routes)
+    doc = prepare_openapi_document(routes)
 
     assert "/dup/{id}/{id}" not in doc["paths"]
     assert "/fine/{id}" in doc["paths"], "one bad rule must not cost the good ones"
@@ -260,9 +260,9 @@ def test_the_lazy_builder_lets_a_duplicate_parameter_rule_into_the_map():
             [werkzeug.routing.Rule("/dup/<int:id>/<int:id>", endpoint="e")]
         )
 
-    routing_map = build_routing_map(
+    routing_map = prepare_routing_map(
         [("/dup/<int:id>/<int:id>", _endpoint("/dup/<int:id>/<int:id>"))]
     )
 
     assert [r.rule for r in routing_map.iter_rules()] == ["/dup/<int:id>/<int:id>"]
-    assert "/dup/{id}/{id}" not in openapi_from_map(routing_map)["paths"]
+    assert "/dup/{id}/{id}" not in prepare_openapi_from_map(routing_map)["paths"]

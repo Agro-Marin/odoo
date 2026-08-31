@@ -29,7 +29,7 @@ carry the detailed invariants — this file is the map.
 | `lifecycle.py` | psycopg_pool `configure`/`reset`/`check` callbacks (adapters, prepare tuning, session reset, grace-windowed health check sized by `db_healthcheck_grace`) | no |
 | `schema_cache.py` | `TransactionSchemaCache`: per-cursor, transaction-lifetime catalog facts for `copy_from` (id sequences, column types) | yes |
 | `metrics.py` | `_MetricsMixin` (query counters, thread metrics, DEBUG per-table stats), `sql_counter` | yes* |
-| `utils.py` | `connection_info_for`, `is_maintenance_db`, `categorize_query`, `seed_planner_stats`, adapter registration | no |
+| `utils.py` | `get_connection_info_for`, `is_maintenance_db`, `categorize_query`, `seed_planner_stats`, adapter registration | no |
 
 “Pure” = importable and testable without a database or the framework
 (`yes*`: pure logic, but pulls `odoo.tools` on import).
@@ -51,7 +51,7 @@ carry the detailed invariants — this file is the map.
 - **One budget per PostgreSQL server**: `db_maxconn` is the cap for a *server*,
   because that is what an operator sizes `max_connections` against, so
   `__init__.py` keys its `ConnectionBudget`s on the resolved `(host, port)` of
-  `connection_info_for`. This has been wrong in both directions. A budget per
+  `get_connection_info_for`. This has been wrong in both directions. A budget per
   *pool* let one worker hold `2 * db_maxconn` — 128 against a stock 100. One
   budget for *both* pools fixed that but bounded the sum of two independent
   servers once `db_replica_host` was set: the replica added no concurrency, and
@@ -88,7 +88,7 @@ carry the detailed invariants — this file is the map.
   `os.environ` decodes on every access, and one `os.environ.get("PGHOST")`
   measures 357 ns on a function that runs per `db_connect`.) The defaulting is
   the URI path's alone — the ordinary path has nothing to default, because
-  `connection_info_for` omits what has no value and that is the same "unset"
+  `get_connection_info_for` omits what has no value and that is the same "unset"
   the configured endpoint resolves to. An explicit socket directory is still
   not resolved against the compiled-in default; those two file apart, which
   errs toward an extra budget for one server rather than one budget spanning
@@ -103,7 +103,7 @@ carry the detailed invariants — this file is the map.
   under `_pool_lock` while `is_pooled`, `pool_health`, `close_db`, `close_all`,
   `drain_db` and `drain_all` iterated the dict bare, which one writer and one
   reader thread turned into `RuntimeError: dictionary changed size during
-  iteration` in 1.5 s. `all_pools()` snapshots under the lock, so the shape is
+  iteration` in 1.5 s. `get_all_pools()` snapshots under the lock, so the shape is
   gone rather than bounded.
 
   The registry then stopped being module state. It is
@@ -232,7 +232,7 @@ carry the detailed invariants — this file is the map.
   per database.
 - **A cursor close only discards a DAMAGED connection**: `Cursor._close` asks
   `transaction_status` (`_connection_is_clean`) rather than treating any
-  exception from `_do_rollback` as connection damage — that method also runs
+  exception from `_rollback` as connection damage — that method also runs
   `transaction.clear()` and the rollback hooks, so an application bug there used
   to cost a warm pooled connection on top of the error.
 - **One borrow, one deadline**: `db_borrow_timeout` is taken at the top of
@@ -639,7 +639,7 @@ carry the detailed invariants — this file is the map.
   is the entire thing being asked, was filed as a *transient* probe failure
   whenever the close raised, and the pool then paid the full borrow budget
   behind it. Only the connect is guarded now; the close is in the `else`.
-  `ensure_connectable` also took the lock twice (`is_proven`, then the
+  `check_connectable` also took the lock twice (`is_proven`, then the
   in-flight registration), leaving a window where a key proven between them
   started a second probe — a full extra connect on the path whose whole
   purpose is to avoid one. One acquisition answers both.

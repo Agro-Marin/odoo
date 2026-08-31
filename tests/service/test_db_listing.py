@@ -296,12 +296,12 @@ class TestDbExistDoesNotPayForWhatTheListingProved:
         drift; `_rpc_db_exist` is the caller that has to know.
         """
         with self._config(db_name=["configured"]):
-            assert listing._answers_from_config() is True
+            assert listing._is_db_list_configured() is True
             assert listing.list_dbs(True) == ["configured"]
         with self._config():
-            assert listing._answers_from_config() is False
+            assert listing._is_db_list_configured() is False
         with self._config(db_name=["configured"], dbfilter="^x"):
-            assert listing._answers_from_config() is False, (
+            assert listing._is_db_list_configured() is False, (
                 "a dbfilter sends list_dbs to the catalogue even with db_name set"
             )
 

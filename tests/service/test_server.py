@@ -158,38 +158,38 @@ class TestPreforkServerProcessSignals:
     def test_sigint_raises_keyboard_interrupt(self, prefork_server):
         prefork_server.queue.append(signal.SIGINT)
         with pytest.raises(KeyboardInterrupt):
-            prefork_server.process_signals()
+            prefork_server.apply_pending_signals()
 
     def test_sigterm_raises_keyboard_interrupt(self, prefork_server):
         prefork_server.queue.append(signal.SIGTERM)
         with pytest.raises(KeyboardInterrupt):
-            prefork_server.process_signals()
+            prefork_server.apply_pending_signals()
 
     def test_sighup_sets_phoenix_flag_and_raises(self, prefork_server):
         prefork_server.queue.append(signal.SIGHUP)
         with patch.object(_process_state, "server_phoenix", False):
             with pytest.raises(KeyboardInterrupt):
-                prefork_server.process_signals()
+                prefork_server.apply_pending_signals()
             assert _process_state.server_phoenix is True
 
     def test_sigttin_increments_population(self, prefork_server):
         prefork_server.queue.append(signal.SIGTTIN)
-        prefork_server.process_signals()
+        prefork_server.apply_pending_signals()
         assert prefork_server.population == 5
 
     def test_sigttou_decrements_population(self, prefork_server):
         prefork_server.queue.append(signal.SIGTTOU)
-        prefork_server.process_signals()
+        prefork_server.apply_pending_signals()
         assert prefork_server.population == 3
 
     def test_multiple_signals_processed_in_order(self, prefork_server):
         prefork_server.queue.append(signal.SIGTTIN)
         prefork_server.queue.append(signal.SIGTTOU)
-        prefork_server.process_signals()
+        prefork_server.apply_pending_signals()
         assert prefork_server.population == 4
 
     def test_empty_queue_is_noop(self, prefork_server):
-        prefork_server.process_signals()
+        prefork_server.apply_pending_signals()
         assert prefork_server.population == 4
 
 
@@ -836,25 +836,25 @@ class TestPreforkProcessZombie:
     def test_normal_exit_pops_worker(self, prefork_server):
         prefork_server.worker_pop = MagicMock()
         with patch("os.waitpid", side_effect=[(1234, 0), (0, 0)]):
-            prefork_server.process_zombie()
+            prefork_server.reap_exited_workers()
         prefork_server.worker_pop.assert_called_once_with(1234)
 
     def test_exit_code_3_does_not_raise(self, prefork_server):
         prefork_server.worker_pop = MagicMock()
         with patch("os.waitpid", side_effect=[(5678, 3 << 8), (0, 0)]):
-            prefork_server.process_zombie()
+            prefork_server.reap_exited_workers()
         prefork_server.worker_pop.assert_called_once_with(5678)
 
     def test_echild_breaks_loop_cleanly(self, prefork_server):
         prefork_server.worker_pop = MagicMock()
         with patch("os.waitpid", side_effect=OSError(errno.ECHILD, "no children")):
-            prefork_server.process_zombie()
+            prefork_server.reap_exited_workers()
         prefork_server.worker_pop.assert_not_called()
 
     def test_other_oserror_propagates(self, prefork_server):
         with patch("os.waitpid", side_effect=OSError(errno.EINTR, "interrupted")):
             with pytest.raises(OSError):
-                prefork_server.process_zombie()
+                prefork_server.reap_exited_workers()
 
 
 class TestLongPollingPopenReconciliation:
@@ -1010,11 +1010,11 @@ class TestPreforkRespawnBackoff:
         assert prefork_server._consecutive_fast_deaths == 0
         assert prefork_server._respawn_not_before == 0.0
 
-    def test_process_spawn_skips_during_backoff(self, prefork_server):
+    def test_spawn_missing_workers_skips_during_backoff(self, prefork_server):
         prefork_server._respawn_not_before = time.monotonic() + 100
         prefork_server.worker_spawn = MagicMock()
         prefork_server.long_polling_spawn = MagicMock()
-        prefork_server.process_spawn()
+        prefork_server.spawn_missing_workers()
         prefork_server.worker_spawn.assert_not_called()
         prefork_server.long_polling_spawn.assert_not_called()
 
@@ -1080,8 +1080,8 @@ class TestPreforkGracefulStopEscalation:
         wedged.watchdog_timeout = None
         prefork_server.workers = {321: wedged}
         prefork_server.worker_kill = MagicMock()
-        prefork_server.process_signals = MagicMock()
-        prefork_server.process_timeout = MagicMock()
+        prefork_server.apply_pending_signals = MagicMock()
+        prefork_server.kill_timed_out_workers = MagicMock()
         prefork_server.sleep = MagicMock()
 
         killed: list[tuple[int, int]] = []
@@ -1090,7 +1090,7 @@ class TestPreforkGracefulStopEscalation:
             if killed:
                 prefork_server.workers.pop(321, None)
 
-        prefork_server.process_zombie = MagicMock(side_effect=fake_zombie)
+        prefork_server.reap_exited_workers = MagicMock(side_effect=fake_zombie)
         monkeypatch.setattr(os, "kill", lambda pid, sig: killed.append((pid, sig)))
         monkeypatch.setattr(_prefork, "GRACEFUL_STOP_TIMEOUT_S", 0.0)
 
@@ -1226,7 +1226,7 @@ class TestPreforkProcessTimeout:
         stale.watchdog_time = time.monotonic() - 60
         prefork_server.workers = {9999: stale}
         prefork_server.worker_kill = MagicMock()
-        prefork_server.process_timeout()
+        prefork_server.kill_timed_out_workers()
         prefork_server.worker_kill.assert_called_once_with(9999, signal.SIGKILL)
 
     def test_leaves_healthy_worker_alone(self, prefork_server):
@@ -1235,7 +1235,7 @@ class TestPreforkProcessTimeout:
         healthy.watchdog_time = time.monotonic()
         prefork_server.workers = {1111: healthy}
         prefork_server.worker_kill = MagicMock()
-        prefork_server.process_timeout()
+        prefork_server.kill_timed_out_workers()
         prefork_server.worker_kill.assert_not_called()
 
     def test_none_watchdog_timeout_never_kills(self, prefork_server):
@@ -1244,7 +1244,7 @@ class TestPreforkProcessTimeout:
         w.watchdog_time = time.monotonic() - 99999
         prefork_server.workers = {2222: w}
         prefork_server.worker_kill = MagicMock()
-        prefork_server.process_timeout()
+        prefork_server.kill_timed_out_workers()
         prefork_server.worker_kill.assert_not_called()
 
 
@@ -2242,11 +2242,11 @@ class TestStopWorkersGracefullyDictRace:
 
         with (
             patch.object(
-                prefork_server, "process_signals", side_effect=KeyboardInterrupt
+                prefork_server, "apply_pending_signals", side_effect=KeyboardInterrupt
             ),
-            patch.object(prefork_server, "process_zombie"),
+            patch.object(prefork_server, "reap_exited_workers"),
             patch.object(prefork_server, "sleep"),
-            patch.object(prefork_server, "process_timeout"),
+            patch.object(prefork_server, "kill_timed_out_workers"),
         ):
             prefork_server.stop_workers_gracefully()
 
@@ -2909,9 +2909,9 @@ class TestTheStartupLineNamesTheSocketItActuallyGot:
 class TestAWatchdogKillIsAccountedForLikeAnyOtherCrash:
     """`crashed_by_signal` is written for SIGKILL and was unreachable.
 
-    `process_timeout` SIGKILLs a worker that stopped pinging, and
+    `kill_timed_out_workers` SIGKILLs a worker that stopped pinging, and
     `worker_kill` pops it so the watchdog cannot kill the same pid twice. But
-    the exit is only *accounted* for later, when `process_zombie` reaps it, and
+    the exit is only *accounted* for later, when `reap_exited_workers` reaps it, and
     `_note_worker_exit` looked the worker up in `self.workers` to learn how
     long it lived — so after the pop it returned immediately, taking the whole
     crash branch with it.
@@ -2935,7 +2935,7 @@ class TestAWatchdogKillIsAccountedForLikeAnyOtherCrash:
     def test_the_watchdog_kill_arms_the_backoff(self, prefork_server):
         self._young_worker(prefork_server, 4242)
         with patch.object(_prefork.os, "kill"):
-            prefork_server.process_timeout()
+            prefork_server.kill_timed_out_workers()
         assert 4242 not in prefork_server.workers, "the pop still has to happen"
         prefork_server._note_worker_exit(4242, signal.SIGKILL)
         assert prefork_server._consecutive_fast_deaths == 1
@@ -2949,14 +2949,14 @@ class TestAWatchdogKillIsAccountedForLikeAnyOtherCrash:
         worker.spawn_time = time.monotonic() - 600
         prefork_server._consecutive_fast_deaths = 3
         with patch.object(_prefork.os, "kill"):
-            prefork_server.process_timeout()
+            prefork_server.kill_timed_out_workers()
         prefork_server._note_worker_exit(4243, signal.SIGKILL)
         assert prefork_server._consecutive_fast_deaths == 0
 
     def test_the_record_does_not_outlive_the_reap(self, prefork_server):
         self._young_worker(prefork_server, 4244)
         with patch.object(_prefork.os, "kill"):
-            prefork_server.process_timeout()
+            prefork_server.kill_timed_out_workers()
         assert prefork_server._killed_workers
         prefork_server._note_worker_exit(4244, signal.SIGKILL)
         assert not prefork_server._killed_workers, "kept a worker after its reap"

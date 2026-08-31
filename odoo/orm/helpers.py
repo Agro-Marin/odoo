@@ -23,7 +23,7 @@ def _origin_ids(ids: Iterable) -> list[int]:
     return _origin_ids_python(ids)
 
 
-def resolve_fnames(model: ModelLike, fnames: Iterable[str]) -> list[Field]:
+def get_fields_by_name(model: ModelLike, fnames: Iterable[str]) -> list[Field]:
     fields = []
     _fields = model._fields
     for fname in fnames:

@@ -23,7 +23,9 @@ if typing.TYPE_CHECKING:
 class ExportMixin(_ModelStubs):
     __slots__ = ()
 
-    def _ensure_xml_ids(self, skip: bool = False) -> Iterator[tuple[Self, str | None]]:
+    def _get_or_create_xml_ids(
+        self, skip: bool = False
+    ) -> Iterator[tuple[Self, str | None]]:
         if skip:
             return ((record, None) for record in self)
 
@@ -121,7 +123,7 @@ class ExportMixin(_ModelStubs):
             index = index_fallback
 
         if subfield == "id":
-            text = ",".join(xid for _, xid in value._ensure_xml_ids())
+            text = ",".join(xid for _, xid in value._get_or_create_xml_ids())
         elif subfield == ".id":
             text = ",".join(str(rec_id) for rec_id in value.ids)
         else:
@@ -140,7 +142,7 @@ class ExportMixin(_ModelStubs):
             cache_properties = self.env.cr.cache["export_properties_cache"] = (
                 defaultdict(dict)
             )
-            self._export_fetch_fields(self, fields, cache_properties)
+            self._export_prefetch_fields(self, fields, cache_properties)
 
         for record in self:
             current: list[typing.Any] = [""] * len(fields)
@@ -195,14 +197,14 @@ class ExportMixin(_ModelStubs):
                             current[i] = ""
 
         if _is_toplevel_call and any(f[-1] == "id" for f in fields):
-            self._inject_export_xids(lines, fields)
+            self._update_export_xids(lines, fields)
 
         if _is_toplevel_call:
             self.env.cr.cache.pop("export_properties_cache", None)
 
         return lines
 
-    def _export_fill_properties_cache(
+    def _export_update_properties_cache(
         self, records, fnames_by_path, fname, cache_properties
     ):
         cache_properties_field = cache_properties[records._fields[fname]]
@@ -242,7 +244,7 @@ class ExportMixin(_ModelStubs):
                     value = dict(prop["selection"]).get(value, "")
                 cache_by_id[rec_id] = value
 
-    def _export_fetch_fields(self, records, field_paths, cache_properties):
+    def _export_prefetch_fields(self, records, field_paths, cache_properties):
         if not records:
             return
 
@@ -258,7 +260,7 @@ class ExportMixin(_ModelStubs):
         for fname in fnames:
             field = records._fields[fname]
             if field.is_properties:
-                self._export_fill_properties_cache(
+                self._export_update_properties_cache(
                     records, fnames_by_path, fname, cache_properties
                 )
 
@@ -291,9 +293,9 @@ class ExportMixin(_ModelStubs):
                 subrecords = records[fname]
 
             paths = [path[1:] or ["display_name"] for path in paths]
-            self._export_fetch_fields(subrecords, paths, cache_properties)
+            self._export_prefetch_fields(subrecords, paths, cache_properties)
 
-    def _inject_export_xids(self, lines, fields):
+    def _update_export_xids(self, lines, fields):
         bymodels = collections.defaultdict(set)
         xidmap = collections.defaultdict(list)
         for i, line in enumerate(lines):
@@ -302,7 +304,7 @@ class ExportMixin(_ModelStubs):
                     bymodels[cell[0]].add(cell[1])
                     xidmap[cell].append((i, j))
         for model, ids in bymodels.items():
-            for record, xid in self.env[model].browse(ids)._ensure_xml_ids():
+            for record, xid in self.env[model].browse(ids)._get_or_create_xml_ids():
                 for i, j in xidmap.pop((record._name, record.id)):
                     lines[i][j] = xid
         if xidmap:

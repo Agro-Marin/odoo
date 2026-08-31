@@ -110,7 +110,7 @@ class TestBudgetAccounting(unittest.TestCase):
         )
 
     def test_the_getconn_helpers_never_touch_the_budget(self):
-        for helper in ("_getconn_with_retry", "_validate_borrowed_conn"):
+        for helper in ("_getconn_with_retry", "_check_borrowed_conn"):
             with self.subTest(helper=helper):
                 self.assertNotIn(
                     "_budget", _callees(getattr(pool.ConnectionPool, helper))
@@ -348,7 +348,7 @@ class TestSchemaCacheClearsHaveDistinctCallSites(unittest.TestCase):
         )
 
     def test_transaction_boundaries_and_savepoint_rollback_clear_everything(self):
-        for method in ("commit", "_do_rollback", "_on_rollback_to_savepoint"):
+        for method in ("commit", "_rollback", "_on_rollback_to_savepoint"):
             with self.subTest(method=method):
                 self.assertEqual(
                     _calls_on(getattr(cursor.Cursor, method), "_schema_cache"),
@@ -442,7 +442,7 @@ class TestSchemaChangeDrainsAtCommit(unittest.TestCase):
             "commit is the moment the schema change becomes visible to other "
             "connections, so it is the moment they must be drained",
         )
-        for name in ("_do_rollback", "_on_rollback_to_savepoint", "_close"):
+        for name in ("_rollback", "_on_rollback_to_savepoint", "_close"):
             with self.subTest(method=name):
                 self.assertNotIn(
                     "_drain_sibling_connections",
@@ -458,7 +458,7 @@ class TestSchemaChangeDrainsAtCommit(unittest.TestCase):
             "the flag must be reset on rollback, or a rolled-back schema "
             "change drains on the next unrelated commit",
         )
-        self.assertIn("_schema_changed", inspect.getsource(cursor.Cursor._do_rollback))
+        self.assertIn("_schema_changed", inspect.getsource(cursor.Cursor._rollback))
 
 
 class TestOneConnectionOptionsAssembler(unittest.TestCase):
@@ -551,8 +551,8 @@ class TestEveryCheckoutIsTracked(unittest.TestCase):
 
 class TestBudgetBelongsToAServer(unittest.TestCase):
     def test_the_key_is_the_resolved_endpoint(self):
-        names = _callees(endpoints.EndpointRegistry.budget_for)
-        self.assertIn("endpoint_of", names)
+        names = _callees(endpoints.EndpointRegistry.get_budget_for)
+        self.assertIn("get_endpoint_of", names)
         self.assertNotIn(
             "db_replica_host",
             names,
@@ -562,11 +562,14 @@ class TestBudgetBelongsToAServer(unittest.TestCase):
 
     def test_the_endpoint_comes_from_the_resolved_connection_info(self):
         self.assertIn(
-            "connection_info_for", _callees(endpoints.EndpointRegistry.endpoint_of)
+            "get_connection_info_for",
+            _callees(endpoints.EndpointRegistry.get_endpoint_of),
         )
 
     def test_the_replica_ceiling_is_gated_on_the_endpoint_differing(self):
-        self.assertIn("endpoint_of", _callees(endpoints.EndpointRegistry.maxconn_for))
+        self.assertIn(
+            "get_endpoint_of", _callees(endpoints.EndpointRegistry.get_maxconn_for)
+        )
 
     def test_budgets_are_kept_per_endpoint_not_as_one_global(self):
         registry = endpoints.EndpointRegistry()
@@ -683,7 +686,7 @@ class TestASavepointIsNeverOpenedInsideAPipeline(unittest.TestCase):
         )
 
     def test_the_refusal_matches_the_precedent_copy_from_set(self):
-        self.assertIn("in_pipeline", inspect.getsource(bulk._validate_copy_args))
+        self.assertIn("in_pipeline", inspect.getsource(bulk._check_copy_args))
 
 
 class TestEveryFailedBorrowIsCounted(unittest.TestCase):
@@ -858,7 +861,7 @@ class TestTheSaturationErrorReadsOneConsistentPair(unittest.TestCase):
 
 class TestTheProbeAsksItsQuestionOnce(unittest.TestCase):
     def test_the_proof_and_the_inflight_map_share_one_acquisition(self):
-        src = inspect.getsource(probe.ReachabilityProbe.ensure_connectable)
+        src = inspect.getsource(probe.ReachabilityProbe.check_connectable)
         self.assertEqual(
             src.count("with self._lock:"),
             1,
@@ -868,7 +871,7 @@ class TestTheProbeAsksItsQuestionOnce(unittest.TestCase):
         )
         self.assertNotIn(
             "is_proven",
-            _callees(probe.ReachabilityProbe.ensure_connectable),
+            _callees(probe.ReachabilityProbe.check_connectable),
             "is_proven takes the lock itself; that is the second acquisition",
         )
 

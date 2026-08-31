@@ -8,7 +8,7 @@ from odoo.tools.sass_embedded import (
     SassEmbeddedCompiler,
     SassNotFoundError,
     _supports_embedded,
-    find_sass,
+    get_sass_path,
 )
 
 
@@ -76,7 +76,7 @@ class TestFindSass(unittest.TestCase):
                 "/usr/bin/sass",
                 "/app/node_modules/.bin/sass",
             ]
-            result = find_sass()
+            result = get_sass_path()
         self.assertEqual(result, "/app/node_modules/.bin/sass")
 
     def test_returns_first_verified_embedded_candidate(self) -> None:
@@ -85,7 +85,7 @@ class TestFindSass(unittest.TestCase):
             patch("pathlib.Path.glob", return_value=iter([])),
             patch("odoo.tools.sass_embedded._supports_embedded", return_value=True),
         ):
-            result = find_sass()
+            result = get_sass_path()
         self.assertEqual(result, "/usr/bin/sass")
 
     def test_no_system_sass_and_no_bundled_binary_returns_none(self) -> None:
@@ -93,7 +93,7 @@ class TestFindSass(unittest.TestCase):
             patch("shutil.which", return_value=None),
             patch("pathlib.Path.glob", return_value=iter([])),
         ):
-            result = find_sass()
+            result = get_sass_path()
         self.assertIsNone(result)
 
 
@@ -109,7 +109,7 @@ class TestRestartDoesNotLeakPipes(unittest.TestCase):
     def setUp(self):
         if not Path("/proc/self/fd").is_dir():
             self.skipTest("needs /proc to count descriptors")
-        if find_sass() is None:
+        if get_sass_path() is None:
             raise SassNotFoundError("sass is a required dependency of this fork")
 
     @staticmethod

@@ -80,14 +80,14 @@ def test_delete_old_sessions_keeps_current_removes_predecessor(store):
     store.rotate(s, env=None, soft=True)
     s["create_time"] = time.time() - 10_000
     store.save(s)
-    store.delete_old_sessions(s)
+    store.remove_old_sessions(s)
     assert not pathlib.Path(store.get_session_filename(old)).exists()
     assert pathlib.Path(store.get_session_filename(s.sid)).exists()
 
 
 def test_delete_from_identifiers_rejects_bad_identifier(store):
     with pytest.raises(ValueError, match="Identifier format"):
-        store.delete_from_identifiers(["../etc"])
+        store.remove_from_identifiers(["../etc"])
 
 
 def test_vacuum_operates_on_own_path(store, tmp_path):
@@ -341,7 +341,7 @@ def _token_for(sid):
 class _TokenEnv(dict):
     def __getitem__(self, key):
         return SimpleNamespace(
-            browse=lambda uid: SimpleNamespace(_compute_session_token=_token_for)
+            browse=lambda uid: SimpleNamespace(_get_session_token=_token_for)
         )
 
 

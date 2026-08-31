@@ -21,7 +21,7 @@ class EnvironmentMixin(_ModelStubs):
     __slots__ = ()
 
     @api.private
-    def ensure_one(self) -> Self:
+    def check_singleton(self) -> Self:
         try:
             (_id,) = self._ids
             return self
@@ -107,7 +107,7 @@ class EnvironmentMixin(_ModelStubs):
         return not (value is None or type(value) is int)
 
     def _update_cache(self, values: ValuesType, validate: bool = True) -> None:
-        self.ensure_one()
+        self.check_singleton()
         fields = self._fields
         try:
             field_values = [

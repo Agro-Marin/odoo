@@ -155,7 +155,7 @@ class Transaction:
 
     def _live_recompute_order(self) -> dict[typing.Any, int]:
         registry = self.registry
-        registry._ensure_field_triggers()
+        registry._get_field_triggers()
         return registry.model_graph.recompute_order
 
     def reset(self) -> None:

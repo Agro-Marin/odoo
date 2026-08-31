@@ -7,13 +7,13 @@ from werkzeug.exceptions import BadRequest
 from odoo.http._params import (
     ParamSpec,
     _resolve,
-    build_param_specs,
     coerce_params,
+    get_param_specs,
 )
 
 
 def _spec(fn):
-    return build_param_specs(fn)
+    return get_param_specs(fn)
 
 
 def test_resolve_optional_forms_are_equivalent():

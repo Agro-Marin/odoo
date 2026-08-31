@@ -61,7 +61,7 @@ class _ReadGroupSQLMixin(_ModelStubs):
         )
         currency_field_name = field.get_currency_field(self)
         assert currency_field_name is not None
-        alias_rate = query.make_alias(self._table, f"{currency_field_name}__rates")
+        alias_rate = query.get_table_alias(self._table, f"{currency_field_name}__rates")
         currency_field_sql = self._field_to_sql(self._table, currency_field_name, query)
         condition = SQL(
             "%s = %s",
@@ -142,9 +142,9 @@ class _ReadGroupSQLMixin(_ModelStubs):
         comodel = self.env[field.comodel_name]
         coquery = comodel.with_context(active_test=False)._search([])
         if self.env.su or not coquery.where_clause:
-            coalias = query.make_alias(alias, fname)
+            coalias = query.get_table_alias(alias, fname)
         else:
-            coalias = query.make_alias(alias, f"{fname}__{self.env.uid}")
+            coalias = query.get_table_alias(alias, f"{fname}__{self.env.uid}")
         condition = SQL(
             "%s = %s",
             self._field_to_sql(alias, fname, query),
@@ -186,7 +186,7 @@ class _ReadGroupSQLMixin(_ModelStubs):
         codomain = field.get_comodel_domain(self)
         comodel = self.env[field.comodel_name].with_context(**field.context)
         coquery = comodel._search(codomain, bypass_access=field.bypass_search_access)
-        rel_alias = query.make_alias(alias, field.name)
+        rel_alias = query.get_table_alias(alias, field.name)
         condition = SQL(
             "%s = %s",
             SQL.identifier(alias, "id"),
@@ -474,7 +474,7 @@ class _ReadGroupSQLMixin(_ModelStubs):
         sql_property: SQL,
         query: Query,
     ) -> SQL:
-        property_alias = query.make_alias(alias, f"{fname}_{property_name}")
+        property_alias = query.get_table_alias(alias, f"{fname}_{property_name}")
         sql_property = SQL(
             """ CASE
                     WHEN jsonb_typeof(%(property)s) = 'array'
@@ -519,7 +519,7 @@ class _ReadGroupSQLMixin(_ModelStubs):
     ) -> SQL:
         options = [option[0] for option in definition.get("selection") or ()]
 
-        property_alias = query.make_alias(alias, f"{fname}_{property_name}")
+        property_alias = query.get_table_alias(alias, f"{fname}_{property_name}")
         query.add_join(
             "LEFT JOIN",
             property_alias,

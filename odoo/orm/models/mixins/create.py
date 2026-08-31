@@ -300,7 +300,7 @@ class CreateMixin(_ModelStubs):
         self._create_apply_inverses(data_list, determine_inverses)
         prof.mark("trigger")
 
-        self._validate_created(data_list)
+        self._check_created(data_list)
 
         if self._check_company_auto:
             records._check_company()
@@ -319,7 +319,7 @@ class CreateMixin(_ModelStubs):
         self._create_update_xmlids(records, vals_list)
         return records
 
-    def _validate_created(self, data_list: list[dict]) -> None:
+    def _check_created(self, data_list: list[dict]) -> None:
         groups: dict[tuple, tuple[list, dict]] = {}
         for data in data_list:
             inversed = data["inversed"]
@@ -331,7 +331,7 @@ class CreateMixin(_ModelStubs):
             else:
                 group[0].append(data["record"].id)
         for ids, data in groups.values():
-            self.browse(ids)._validate_fields(data["inversed"], data["stored"])
+            self.browse(ids)._check_fields(data["inversed"], data["stored"])
 
     def _prepare_create_values(self, vals_list: list[ValuesType]) -> list[ValuesType]:
         bad_names = bad_field_names(self)
@@ -428,7 +428,7 @@ class CreateMixin(_ModelStubs):
             if core.get_field_data_or_none(field) is not None:
                 field._invalidate_cache(env, ids)
 
-    def _build_insert_rows(
+    def _prepare_insert_rows(
         self, stored_list: list, columns: list[str], col_fields: list[Field]
     ) -> list[tuple]:
         return [
@@ -502,7 +502,7 @@ class CreateMixin(_ModelStubs):
 
                 records.modified([field.name for field in other_fields], create=True)
 
-        records._validate_fields(name for data in data_list for name in data["stored"])
+        records._check_fields(name for data in data_list for name in data["stored"])
         records.check_access("create")
 
         prof.stop("trigger")
@@ -526,7 +526,7 @@ class CreateMixin(_ModelStubs):
         subprof = _OrmProfile(_orm_crud)
 
         if use_copy:
-            copy_rows = self._build_insert_rows(stored_list, columns, col_fields)
+            copy_rows = self._prepare_insert_rows(stored_list, columns, col_fields)
             batch_ids = cr.copy_from(
                 self._table,
                 columns,
@@ -545,7 +545,7 @@ class CreateMixin(_ModelStubs):
             )
         else:
             if col_fields:
-                rows: list[tuple] = self._build_insert_rows(
+                rows: list[tuple] = self._prepare_insert_rows(
                     stored_list, columns, col_fields
                 )
             else:

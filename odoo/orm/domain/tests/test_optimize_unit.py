@@ -431,7 +431,9 @@ class TestDatetimeEqualityGranularity(unittest.TestCase):
         )
 
     def test_eq_today_resolves_to_whole_day(self):
-        with patch.object(optimizations, "resolve_date", return_value=date(2024, 1, 5)):
+        with patch.object(
+            optimizations, "parse_date_expression", return_value=date(2024, 1, 5)
+        ):
             self.assertEqual(
                 list(Domain("dt", "=", "today").optimize_full(_as_model(_StubModel()))),
                 [
@@ -466,7 +468,9 @@ class TestRelativePassSkipsWithoutStrings(unittest.TestCase):
         condition = DomainCondition(
             "dt", "in", OrderedSet(["today", datetime(2024, 3, 4, 5, 6, 7)])
         )
-        with patch.object(optimizations, "resolve_date", return_value=date(2024, 1, 5)):
+        with patch.object(
+            optimizations, "parse_date_expression", return_value=date(2024, 1, 5)
+        ):
             result = optimizations._optimize_type_datetime_relative(
                 condition, _StubModel()
             )

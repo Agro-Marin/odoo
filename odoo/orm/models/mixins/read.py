@@ -97,7 +97,7 @@ class ReadMixin(_ModelStubs):
         env = self.env
         ids = self._ids
         field = self._fields[name]
-        field.ensure_computed(self)
+        field.recompute_pending(self)
         field_cache = field._get_cache(env)
         none_val: typing.Any = field.convert_to_record(None, self[:1])
         if type(field_cache) is dict:
@@ -157,7 +157,7 @@ class ReadMixin(_ModelStubs):
         self, name: str, field, data: list, use_display_name: bool
     ) -> None:
         if field.store:
-            field.ensure_computed(self)
+            field.recompute_pending(self)
         values_list = []
         records = []
         valid_data = []
@@ -183,7 +183,7 @@ class ReadMixin(_ModelStubs):
         self, name: str, field, data: list, use_display_name: bool
     ) -> None:
         env = self.env
-        field.ensure_computed(self)
+        field.recompute_pending(self)
         _read_cache = field.read_cache
         convert_to_record = field.convert_to_record
         convert_to_read = field.convert_to_read
@@ -235,7 +235,7 @@ class ReadMixin(_ModelStubs):
         record_fnames = []
         for name in fnames:
             field = _fields[name]
-            field.ensure_access(self)
+            field.check_read_access(self)
             if can_scan_read(field):
                 scalar_fnames.append(name)
             else:

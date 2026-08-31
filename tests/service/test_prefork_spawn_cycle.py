@@ -216,7 +216,7 @@ class TestSignalHandlerCoalescesSigchld:
             prefork.signal_handler(signal.SIGCHLD, None)
         assert prefork.queue == [signal.SIGCHLD], (
             "SIGCHLD must be coalesced: the master reaps every zombie in one "
-            "process_zombie() pass, so N deaths need one queue entry, not N"
+            "reap_exited_workers() pass, so N deaths need one queue entry, not N"
         )
 
     def test_a_second_sigchld_after_the_queue_drains_is_enqueued_again(self, prefork):
@@ -322,7 +322,7 @@ class TestProcessSpawnChecksSignallingOncePerCycle:
             patch.object(prefork, "worker_spawn", side_effect=fake_spawn),
             patch.object(prefork, "long_polling_spawn"),
         ):
-            prefork.process_spawn()
+            prefork.spawn_missing_workers()
         return spawned, fake_db
 
     def test_signalling_is_checked_once_no_matter_how_many_workers_spawn(self, prefork):
@@ -347,7 +347,7 @@ class TestProcessSpawnChecksSignallingOncePerCycle:
         cfg = {"http_enable": False, "max_cron_threads": 1, "job_workers": 0}
         self._run(prefork, registries, cfg)
         assert registries == {"db1": registries["db1"]}, (
-            "process_spawn mutated the registry mapping it was handed; the "
+            "spawn_missing_workers mutated the registry mapping it was handed; the "
             "snapshot is a copy today, but clearing it is the shape of the bug "
             "that made this read as emptying the server's live cache"
         )
@@ -377,7 +377,7 @@ class TestProcessSpawnChecksSignallingOncePerCycle:
             prefork._respawn_not_before = 200.0
             spawned, _ = self._run(prefork, {"db1": MagicMock()}, cfg)
         assert spawned == [], (
-            "process_spawn forked inside the respawn backoff window; a worker "
+            "spawn_missing_workers forked inside the respawn backoff window; a worker "
             "crash-looping at boot would be respawned as fast as it dies"
         )
 
@@ -389,9 +389,9 @@ class TestProcessSpawnChecksSignallingOncePerCycle:
             patch.object(_prefork, "db"),
             patch.object(prefork, "worker_spawn", return_value=None) as spawn,
         ):
-            prefork.process_spawn()
+            prefork.spawn_missing_workers()
         assert spawn.call_count == 1, (
-            f"worker_spawn returned None (fork failed) and process_spawn called "
+            f"worker_spawn returned None (fork failed) and spawn_missing_workers called "
             f"it {spawn.call_count} times in the same cycle. A fork that failed "
             f"with EAGAIN fails for every later class too, so the cycle must be "
             f"abandoned (return), not merely the current loop (break)."
@@ -483,7 +483,7 @@ class TestARecycledFdIsRegisteredForItsNewOwner:
     descriptor number.  A master that diffs numbers sees no change across a
     worker replacement, skips the re-register, and keeps a map entry for a
     descriptor epoll dropped when it was closed -- so the replacement is never
-    selected on, its `watchdog_time` never advances, and `process_timeout`
+    selected on, its `watchdog_time` never advances, and `kill_timed_out_workers`
     SIGKILLs it one `limit_time_real` after it started.  Measured end to end
     before the fix: every replacement worker killed at its timeout while idle,
     respawned, and killed again, indefinitely.
@@ -541,11 +541,11 @@ class TestARecycledFdIsRegisteredForItsNewOwner:
         assert replacement.watchdog_time > 0.0, (
             "the replacement's watchdog ping was not observed: the selector "
             "still holds the dead worker's registration for this descriptor "
-            "number, so process_timeout will SIGKILL a healthy idle worker "
+            "number, so kill_timed_out_workers will SIGKILL a healthy idle worker "
             "one limit_time_real after it spawned"
         )
 
-    def test_process_timeout_does_not_kill_the_healthy_replacement(self, master):
+    def test_kill_timed_out_workers_spares_the_healthy_replacement(self, master):
         """The symptom the operator sees, rather than the mechanism."""
         prefork, spawn = master
 
@@ -564,7 +564,7 @@ class TestARecycledFdIsRegisteredForItsNewOwner:
                 prefork.pipe_ping(replacement.watchdog_pipe)
                 prefork.sleep()
                 time.sleep(0.02)
-                prefork.process_timeout()
+                prefork.kill_timed_out_workers()
 
         assert killed == [], (
             f"the master SIGKILLed {killed} — a worker that pinged its "
@@ -611,7 +611,7 @@ class TestWatchdogSleep:
 
         assert alive.watchdog_time > 0.0, (
             "the worker said it was alive and the master did not record it; "
-            "process_timeout will SIGKILL it once the beat elapses"
+            "kill_timed_out_workers will SIGKILL it once the beat elapses"
         )
         assert quiet.watchdog_time == 0.0, "a silent worker must not be credited"
 
@@ -658,10 +658,10 @@ class TestRun:
             calls = []
             for name in (
                 "start",
-                "process_signals",
-                "process_zombie",
-                "process_timeout",
-                "process_spawn",
+                "apply_pending_signals",
+                "reap_exited_workers",
+                "kill_timed_out_workers",
+                "spawn_missing_workers",
             ):
                 setattr(
                     prefork, name, MagicMock(side_effect=lambda n=name: calls.append(n))
@@ -704,10 +704,10 @@ class TestRun:
     def test_the_loop_runs_the_supervision_pass(self, running):
         _, calls, _, _ = running(stop=False)
         assert calls[1:5] == [
-            "process_signals",
-            "process_zombie",
-            "process_timeout",
-            "process_spawn",
+            "apply_pending_signals",
+            "reap_exited_workers",
+            "kill_timed_out_workers",
+            "spawn_missing_workers",
         ], calls
 
     def test_a_keyboard_interrupt_is_a_clean_stop(self, running):
