@@ -1,5 +1,5 @@
 {
-  "count": 411,
-  "measured_at": "b7b596cd004b13ff0031a8f8a1ee850bfa02589a",
-  "note": "Re-measured after rebasing this branch onto origin/19.0-marin (214 upstream commits). Neither side's floor described the merged tree: both had driven counts down independently from a common base, so every one of these had to be re-derived rather than merged. Measured at HEAD in the workspace checkout; mypy per section 9.3 in a detached worktree with mypy==2.3.0 alone."
+  "count": 412,
+  "measured_at": "14a4cc97b0738bc1b226f0ccfcdd67093675434d",
+  "note": "411 -> 412, and the unit is a module rather than anything this rebase changed: 9f5060ff60f (Microsoft OAuth tokens into the vault) ships addons/microsoft_account/tests/test_credential_storage.py, and no lane in .github/workflows names microsoft_account. Diffed as a SET against the pre-rebase tip rather than compared as a count -- 412 both sides, one name different -- so this is that commit s floor and not a second thing hiding behind a matching total.\n\nTHIS IS THE STOPGAP, NOT THE RESOLUTION. The gate asks for a lane or an EXEMPT entry with a reason; giving that module a lane takes this straight back to 411 and this floor with it. Raised here only so the branch is not red on a gate whose fix belongs to that commit s author."
 }

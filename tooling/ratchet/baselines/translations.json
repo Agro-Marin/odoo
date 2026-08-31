@@ -1,5 +1,5 @@
 {
-  "count": 371,
-  "measured_at": "6137c6abfcf6509f286ad624300a789fd0b2e00a",
-  "note": "Re-measured after rebasing this branch a second time, onto origin/19.0-marin at 8781de80114 (nine further commits). The upstream side had moved both of these itself -- the .pot re-export took translations well below its floor and the manifest canonicalisation took lint_manifest_shape below its own -- so neither side's figure described the merged tree and both were re-derived at HEAD."
+  "count": 373,
+  "measured_at": "cdef4b46a7e7daf15040a0f64ab324ef4bd1e9f4",
+  "note": "Re-measured after rebasing onto origin/19.0-marin at a1b37ae209c, and again after the two OAuth-vault commits that landed on this branch while the rebase was being verified (9f5060ff60f microsoft_account, cdef4b46a7e google_calendar): each brings strings of its own, and neither banked this floor. Taken with the working tree clean of anyone else s uncommitted work, per section 7 -- a reading taken over that moved 371 -> 372 -> 373 across three runs with no change of mine."
 }
