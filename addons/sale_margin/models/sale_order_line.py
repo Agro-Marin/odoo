@@ -18,6 +18,7 @@ class SaleOrderLine(models.Model):
         store=True,
         groups="base.group_user",
         precompute=True,
+        aggregator="avg",
     )
     purchase_price = fields.Float(
         string="Cost",
