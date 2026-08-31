@@ -39,3 +39,39 @@ class TestSmsTemplateWizards(TransactionCase):
             self.env["sms.account.sender"].create(
                 {"account_id": account.id, "sender_name": "a!"}
             )
+
+    def test_sender_name_valid_prefix_with_trailing_garbage_raises(self):
+        """A valid 3-char prefix followed by invalid trailing content must
+        still raise -- the pattern is anchored end-to-end, not just at the
+        start."""
+        account = self.env["iap.account"].get("sms")
+
+        with self.assertRaises(ValidationError):
+            self.env["sms.account.sender"].create(
+                {
+                    "account_id": account.id,
+                    "sender_name": "abc!!!lots-of-junk",
+                }
+            )
+
+    def test_sender_name_too_long_raises(self):
+        """A name over 11 valid characters has no upper bound to fall back
+        on and must raise."""
+        account = self.env["iap.account"].get("sms")
+
+        with self.assertRaises(ValidationError):
+            self.env["sms.account.sender"].create(
+                {
+                    "account_id": account.id,
+                    "sender_name": "abcdefghijklmnop",
+                }
+            )
+
+    def test_sender_name_valid_accepted(self):
+        """A name within the allowed shape does not raise."""
+        account = self.env["iap.account"].get("sms")
+
+        sender = self.env["sms.account.sender"].create(
+            {"account_id": account.id, "sender_name": "AgroMarin"}
+        )
+        self.assertEqual(sender.sender_name, "AgroMarin")

@@ -16,7 +16,7 @@ class SmsAccountSender(models.TransientModel):
     @api.constrains("sender_name")
     def _check_sender_name(self):
         for record in self:
-            if not re.match(r"[a-zA-Z0-9\- ]{3,11}", record.sender_name):
+            if not re.fullmatch(r"[a-zA-Z0-9\- ]{3,11}", record.sender_name):
                 raise ValidationError(
                     self.env._(
                         "Your sender name must be between 3 and 11 characters long and only contain alphanumeric characters."
