@@ -1,0 +1,8 @@
+{
+  "expected": {},
+  "note": "green. These are the module's only standard tests -- test_delivery_bpost.py is @tagged('-standard','external') and runs nothing here",
+  "run_spec": "-i delivery_bpost --test-enable --test-tags /delivery_bpost",
+  "suite": "/delivery_bpost",
+  "tests_total": 5,
+  "verified_at": "28e700fdf14"
+}
