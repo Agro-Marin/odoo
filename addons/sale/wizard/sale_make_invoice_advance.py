@@ -66,7 +66,6 @@ class SaleAdvancePaymentInv(models.TransientModel):
         " and same delivery address.",
     )
 
-
     @api.depends("sale_order_ids")
     def _compute_has_down_payments(self):
         for wizard in self:
@@ -103,14 +102,12 @@ class SaleAdvancePaymentInv(models.TransientModel):
                 wizard.sale_order_ids._origin.mapped("amount_taxinc_invoiced")
             )
 
-
     @api.onchange("advance_payment_method")
     def _onchange_advance_payment_method(self):
         if self.advance_payment_method == "percentage":
             amount = self.default_get(["amount"]).get("amount")
             return {"value": {"amount": amount}}
         return None
-
 
     def _check_amount_is_positive(self):
         for wizard in self:
@@ -126,7 +123,6 @@ class SaleAdvancePaymentInv(models.TransientModel):
                 raise UserError(
                     _("The percentage of the down payment cannot exceed 100%.")
                 )
-
 
     def create_invoices(self):
         self._check_amount_is_positive()
@@ -145,7 +141,6 @@ class SaleAdvancePaymentInv(models.TransientModel):
                 ("state", "=", "draft"),
             ],
         }
-
 
     def _create_invoices(self, sale_orders):
         self.ensure_one()
