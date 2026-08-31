@@ -50,7 +50,7 @@
         <field name="inherit_id" ref="payment.view_partners_form_payment_defaultcreditcard" />
         <field name="arch" type="xml">
             <button name="%(payment.action_payment_token)d" position="attributes">
-                <attribute name="groups">sales_team.group_sale_salesman</attribute>
+                <attribute name="groups" add="sales_team.group_sale_salesman" separator="," />
             </button>
         </field>
     </record>
@@ -61,13 +61,13 @@
         <field name="inherit_id" ref="account.view_partner_property_form" />
         <field name="arch" type="xml">
             <group name="fiscal_information" position="attributes">
-                <attribute name="groups">account.group_account_invoice,sales_team.group_sale_salesman</attribute>
+                <attribute name="groups" add="sales_team.group_sale_salesman" separator="," />
             </group>
             <field name="property_payment_term_id" position="attributes">
-                <attribute name="groups">account.group_account_invoice,sales_team.group_sale_salesman</attribute>
+                <attribute name="groups" add="sales_team.group_sale_salesman" separator="," />
             </field>
             <field name="property_supplier_payment_term_id" position="attributes">
-                <attribute name="groups">account.group_account_invoice,sales_team.group_sale_salesman</attribute>
+                <attribute name="groups" add="sales_team.group_sale_salesman" separator="," />
             </field>
         </field>
     </record>
