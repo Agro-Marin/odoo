@@ -678,6 +678,41 @@ class DeliveryCarrier(models.Model):
 
         return price
 
+    # Which of a carrier's own fields are doors onto the credential, and which
+    # vault field each lands in. A carrier extends this; the base holds none.
+    #
+    # It exists because an inverse is too late for some carriers. `create` runs
+    # `_validate_fields` INSIDE `_create`, before the inverse of a non-stored
+    # field has been called, so an `@api.constrains` that reads a door -- and
+    # `delivery_sendcloud` has exactly one -- sees an empty value and refuses the
+    # record. Routing the secrets in `create` puts the credential on the vals, so
+    # the door reads correctly by the time the constraint runs.
+    _CREDENTIAL_FIELDS: dict[str, str] = {}
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        if self._CREDENTIAL_FIELDS:
+            for vals in vals_list:
+                secrets = {
+                    self._CREDENTIAL_FIELDS[name]: vals.pop(name)
+                    for name in list(vals)
+                    if name in self._CREDENTIAL_FIELDS
+                }
+                secrets = {k: v for k, v in secrets.items() if v}
+                if secrets:
+                    vals["carrier_credential_id"] = self.env[
+                        "credential.credential"
+                    ].sudo().create({
+                        "name": vals.get("name") or _("Carrier"),
+                        "category_id": self.env.ref(
+                            "credential.credential_category_custom"
+                        ).id,
+                        "company_id": vals.get("company_id")
+                        or self.env.company.id,
+                        **secrets,
+                    }).id
+        return super().create(vals_list)
+
     def _carrier_secret(self, field_name):
         """One secret out of this carrier's credential, or False."""
         self.ensure_one()

@@ -6,9 +6,9 @@
     "delivery_dhl_rest/TestMockedDeliveryDHL.test_03_dhl_multipackage_international_flow": "ERROR",
     "delivery_dhl_rest/TestMockedDeliveryDHL.test_04_dhl_flow_from_delivery_order": "ERROR"
   },
-  "note": "5 errors in the mocked DHL flows predating the ADR-0081 migration; the 6 TestDhlCredentials tests added with it all pass",
-  "run_spec": "-i delivery_dhl_rest --test-enable --test-tags /delivery,/delivery_dhl_rest",
+  "note": "5 errors in the mocked DHL flows predating the ADR-0081 migration; covers DHL and Sendcloud, whose own suite is @tagged('-standard','external') and runs nothing here",
+  "run_spec": "-i delivery_dhl_rest,delivery_sendcloud --test-enable --test-tags /delivery,/delivery_dhl_rest,/delivery_sendcloud",
   "suite": "/delivery_dhl_rest",
-  "tests_total": 42,
-  "verified_at": "269cc5995e3"
+  "tests_total": 48,
+  "verified_at": "fe847e62c6b"
 }
