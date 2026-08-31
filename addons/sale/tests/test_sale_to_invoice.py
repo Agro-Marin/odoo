@@ -2028,9 +2028,7 @@ class TestSaleToInvoice(TestSaleCommon):
                 "user_id": salesperson,
                 "team_id": team2.id,
                 "line_ids": [
-                    Command.update(
-                        sol_id, {"price_unit": -10}
-                    )
+                    Command.update(sol_id, {"price_unit": -10})
                     for sol_id in self.sale_order.line_ids.ids
                 ],
             }
