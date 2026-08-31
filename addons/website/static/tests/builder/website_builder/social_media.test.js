@@ -309,3 +309,39 @@ test("Edit share icon", async () => {
     await contains(":iframe .s_share a i").dblclick();
     expect(".modal-content").toBeDisplayed();
 });
+
+test("Layout and Size reach the icons and an image standing in for one", async () => {
+    // An icon here is a FontAwesome 6 element, and the user is free to replace
+    // any of them with an image through the media dialog. Both have to answer
+    // the snippet's own Layout and Size options, or the option is a control
+    // that visibly does nothing.
+    // The option panel reads the website's recorded links on mount.
+    onRpc("website", "read", () => [
+        { id: 1, social_facebook: "https://fb.com/odoo", social_twitter: false },
+    ]);
+    const builder = await setupWebsiteBuilderWithSnippet("s_social_media");
+    const linkEls = queryAll(":iframe .s_social_media a");
+    const iconEl = linkEls[0].querySelector("i");
+    const imgEl = document.createElement("img");
+    imgEl.className = "social_media_img rounded shadow-sm o_editable_media";
+    imgEl.src = "/web/image/123";
+    linkEls[1].querySelector("i").replaceWith(imgEl);
+    builder.getEditor().shared.history.addStep();
+
+    await click(":iframe .s_social_media");
+    await waitForEndOfOperation();
+
+    await contains('[data-label="Layout"] button.o-hb-select-toggle').click();
+    await contains(
+        '.o-hb-select-dropdown-item[data-class-action="rounded-circle shadow-sm"]'
+    ).click();
+    await waitForEndOfOperation();
+    expect(iconEl).toHaveClass("rounded-circle");
+    expect(imgEl).toHaveClass("rounded-circle");
+
+    await contains('[data-label="Size"] button.o-hb-select-toggle').click();
+    await contains('.o-hb-select-dropdown-item[data-class-action="fa-3x"]').click();
+    await waitForEndOfOperation();
+    expect(iconEl).toHaveClass("fa-3x");
+    expect(imgEl).toHaveClass("fa-3x");
+});

@@ -247,6 +247,7 @@ export class MediaDialog extends Component {
                     }),
                 );
             }
+            element.classList.add(...this.extraClassesToAdd());
             element.classList.remove(...this.initialIconClasses);
             element.classList.remove("o_modified_image_to_save");
             element.classList.remove("oe_edited_link");
@@ -255,6 +256,17 @@ export class MediaDialog extends Component {
             );
         });
         return elements;
+    }
+
+    /**
+     * Classes to put on the media that was just inserted, on top of the tab's
+     * own `mediaSpecificClasses`. Empty here; a module that knows where the
+     * media landed overrides it.
+     *
+     * @returns {string[]}
+     */
+    extraClassesToAdd() {
+        return [];
     }
 
     selectMedia(media, tabId, multiSelect) {

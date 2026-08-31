@@ -2,11 +2,17 @@
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { _t } from "@web/core/translation";
 
+// What stands in for an icon inside `s_social_media` and `s_share`: a
+// FontAwesome element, or an image the user put in its place.
+export const socialMediaElementsSelector =
+    "a[href^='/website/social/'] > i:is(.fa-solid, .fa-regular, .fa-brands), " +
+    "a[class*='s_share_'] > i:is(.fa-solid, .fa-regular, .fa-brands), " +
+    ".social_media_img";
+
 export class ReplaceMediaOption extends BaseOptionComponent {
     static template = "html_builder.ReplaceMediaOption";
     static selector = "img, .media_iframe_video, :is(span, i):is(.fa-solid, .fa-regular, .fa-brands)";
-    static exclude =
-        "[data-oe-xpath], a[href^='/website/social/'] > i:is(.fa-solid, .fa-regular, .fa-brands), a[class*='s_share_'] > i:is(.fa-solid, .fa-regular, .fa-brands)";
+    static exclude = `[data-oe-xpath], ${socialMediaElementsSelector}`;
     static name = "replaceMediaOption";
     setup() {
         super.setup();

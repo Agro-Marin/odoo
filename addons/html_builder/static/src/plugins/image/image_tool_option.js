@@ -30,6 +30,7 @@ export class ImageToolOption extends BaseOptionComponent {
                 isImageAnimated: editingElement.classList.contains("o_animate"),
                 isDynamicSVG: editingElement.matches(dynamicSVGSelector),
                 isImageBinaryField: editingElement.parentElement.matches("[data-oe-type=image]"),
+                isSocialMediaImg: editingElement.classList.contains("social_media_img"),
                 showCropTool,
             };
         });
