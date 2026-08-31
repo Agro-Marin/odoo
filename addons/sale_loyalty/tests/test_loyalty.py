@@ -5,11 +5,11 @@ from odoo.fields import Command
 from odoo.libs.numbers import float_compare
 from odoo.tests import new_test_user, tagged
 
-from odoo.addons.sale_loyalty.tests.common import TestSaleCouponCommon
+from odoo.addons.sale_loyalty.tests.common import TestSaleCouponCommonWithCode10pc
 
 
 @tagged("post_install", "-at_install")
-class TestLoyalty(TestSaleCouponCommon):
+class TestLoyalty(TestSaleCouponCommonWithCode10pc):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -71,33 +71,9 @@ class TestLoyalty(TestSaleCouponCommon):
             cls.env, login="user_salemanager", groups="sales_team.group_sale_manager"
         )
 
-        cls.promotion_code_10pc = cls.env["loyalty.program"].create(
-            {
-                "name": "Code for 10% on orders",
-                "trigger": "with_code",
-                "program_type": "promotion",
-                "applies_on": "current",
-                "rule_ids": [
-                    Command.create(
-                        {
-                            "mode": "with_code",
-                            "code": "test_10pc",
-                        }
-                    )
-                ],
-                "reward_ids": [
-                    Command.create(
-                        {
-                            "reward_type": "discount",
-                            "discount_mode": "percent",
-                            "discount": 10,
-                            "discount_applicability": "order",
-                            "required_points": 1,
-                        }
-                    )
-                ],
-            }
-        )
+        # Re-activate the shared fixture: the sweep above deactivates every
+        # loyalty.program, including the one super().setUpClass() just created.
+        cls.promotion_code_10pc.active = True
 
     def test_nominative_programs(self):
         loyalty_program = self.env["loyalty.program"].create(

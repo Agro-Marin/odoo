@@ -323,6 +323,47 @@ class TestSaleCouponCommon(SaleCommon):
         return loyality_program.coupon_ids
 
 
+class TestSaleCouponCommonWithCode10pc(TestSaleCouponCommon):
+    """Shared 10%-on-orders promo code fixture.
+
+    Kept out of TestSaleCouponCommon itself: TestSaleCouponNumbersCommon (below)
+    also inherits from it and creates its own "test_10pc"-coded program (`p1`),
+    which would collide with this one on the promo code's uniqueness constraint.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+
+        cls.promotion_code_10pc = cls.env["loyalty.program"].create(
+            {
+                "name": "Code for 10% on orders",
+                "trigger": "with_code",
+                "program_type": "promotion",
+                "applies_on": "current",
+                "rule_ids": [
+                    Command.create(
+                        {
+                            "mode": "with_code",
+                            "code": "test_10pc",
+                        }
+                    )
+                ],
+                "reward_ids": [
+                    Command.create(
+                        {
+                            "reward_type": "discount",
+                            "discount_mode": "percent",
+                            "discount": 10,
+                            "discount_applicability": "order",
+                            "required_points": 1,
+                        }
+                    )
+                ],
+            }
+        )
+
+
 class TestSaleCouponNumbersCommon(TestSaleCouponCommon):
     @classmethod
     def setUpClass(cls):
