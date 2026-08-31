@@ -15,7 +15,7 @@
                         <tr class="o_group_has_content o_group_header o_resume_group_header">
                             <th tabindex="-1" class="o_group_name" colspan="2">
                                 <div class="d-flex align-items-center">
-                                    Experience - <t t-out="companyId"/>
+                                    Experience - <t t-out="companyName"/>
                                 </div>
                             </th>
                         </tr>
