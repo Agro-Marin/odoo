@@ -1,0 +1,8 @@
+{
+  "expected": {},
+  "note": "green; the 8 TestOdooFinCredentials tests added with the ADR-0081 migration all pass",
+  "run_spec": "-i account_online_synchronization --test-enable --test-tags /account_online_synchronization",
+  "suite": "/account_online_synchronization",
+  "tests_total": 44,
+  "verified_at": "253b392b87e"
+}
