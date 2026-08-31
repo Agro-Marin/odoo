@@ -14,8 +14,10 @@ class SaleStockPortal(CustomerPortal):
         try:
             picking.check_access("read")
         except exceptions.AccessError:
-            if not access_token or not consteq(
-                picking_sudo.sale_id.access_token, access_token
+            if (
+                not access_token
+                or not picking_sudo.sale_id
+                or not consteq(picking_sudo.sale_id.access_token, access_token)
             ):
                 raise
         return picking_sudo
