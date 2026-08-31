@@ -41,7 +41,7 @@ class SaleOrder(models.Model):
         """Override of `website_sale` to recompute warehouse and fiscal position when a new
         delivery method is not in-store anymore."""
 
-        self.ensure_one()
+        self.check_singleton()
         was_in_store_order = (
             self.carrier_id.delivery_type == "in_store"
             and delivery_method.delivery_type != "in_store"
@@ -93,7 +93,7 @@ class SaleOrder(models.Model):
 
     def _get_shop_warehouse_id(self):
         """Override of `website_sale_stock` to consider the chosen warehouse."""
-        self.ensure_one()
+        self.check_singleton()
         if self.carrier_id.delivery_type == "in_store":
             return self.warehouse_id.id
         return super()._get_shop_warehouse_id()
@@ -189,7 +189,7 @@ class SaleOrder(models.Model):
                 )
         return insufficient_stock_data
 
-    def _verify_updated_quantity(
+    def _get_updated_quantity(
         self, order_line, product_id, new_qty, uom_id, **kwargs
     ):
         """Override of `website_sale_stock` to skip the verification when click and collect
@@ -201,6 +201,6 @@ class SaleOrder(models.Model):
             and self.website_id.in_store_dm_id
         ):
             return new_qty, ""
-        return super()._verify_updated_quantity(
+        return super()._get_updated_quantity(
             order_line, product_id, new_qty, uom_id, **kwargs
         )

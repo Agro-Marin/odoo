@@ -234,7 +234,7 @@ class WebsiteVisitor(models.Model):
         }
 
     def action_send_mail(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self._check_for_message_composer():
             raise UserError(
                 _("There are no contact and/or no email linked to this visitor.")

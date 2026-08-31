@@ -988,7 +988,7 @@ class SlideChannel(models.Model):
         through the 'Presentation Published' email, it should be considered as a
         note as we don't want all channel followers to be notified of this answer.
         Also make sure that only one review can be posted per course."""
-        self.ensure_one()
+        self.check_singleton()
         if kwargs.get("message_type") == "comment" and not self.can_review:
             raise AccessError(_("Not enough karma to review"))
         if parent_id:
@@ -1451,7 +1451,7 @@ class SlideChannel(models.Model):
 
     def _get_access_action(self, access_uid=None, force_website=False):
         """Instead of the classic form view, redirect to website if it is published."""
-        self.ensure_one()
+        self.check_singleton()
         if force_website or self.website_published:
             return {
                 "type": "ir.actions.act_url",
@@ -1485,7 +1485,7 @@ class SlideChannel(models.Model):
         Backend and frontend ordering is the same, uncategorized first. It
         eases resequencing based on DOM / displayed order, notably when
         drag n drop is involved."""
-        self.ensure_one()
+        self.check_singleton()
         all_categories = (
             self.env["slide.slide"]
             .sudo()

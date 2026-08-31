@@ -31,7 +31,7 @@ class WebsitePagePropertiesBase(models.TransientModel):
         ]
 
     def _get_menu_domain(self, url=None):
-        self.ensure_one()
+        self.check_singleton()
         target = self.target_model_id
         domain = [("website_id", "=", self.website_id.id)]
         url_to_check = url or self.url
@@ -52,7 +52,7 @@ class WebsitePagePropertiesBase(models.TransientModel):
             record.is_in_menu = bool(record.menu_ids)
 
     def _inverse_is_in_menu(self):
-        self.ensure_one()
+        self.check_singleton()
         target = self.target_model_id
         if self.is_in_menu:
             if not self.menu_ids:
@@ -82,7 +82,7 @@ class WebsitePagePropertiesBase(models.TransientModel):
             record.is_homepage = url in (current_homepage_url, "/")
 
     def _inverse_is_homepage(self):
-        self.ensure_one()
+        self.check_singleton()
         url = self.url
         if self.is_homepage:
             if url and url != "/":
@@ -117,7 +117,7 @@ class WebsitePagePropertiesBase(models.TransientModel):
                 record.is_published = False
 
     def _inverse_is_published(self):
-        self.ensure_one()
+        self.check_singleton()
         target = self.target_model_id
         if target._name == "ir.ui.view":
             if self.can_publish:
@@ -135,14 +135,14 @@ class WebsitePagePropertiesBase(models.TransientModel):
         return self.env.ref("base.group_user")
 
     def _is_ir_ui_view_unpublished(self, view):
-        view.ensure_one()
+        view.check_singleton()
         return (
             view.visibility == "restricted_group"
             and self._get_ir_ui_view_unpublish_group() in view.group_ids.all_implied_ids
         )
 
     def _is_ir_ui_view_published(self, view):
-        view.ensure_one()
+        view.check_singleton()
         return not view.visibility
 
 

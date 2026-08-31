@@ -37,7 +37,7 @@ class SaleOrderLine(models.Model):
         return self.product_id.name
 
     def _get_date_order(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.order_id.website_id and self.state == "draft":
             # cart prices must always be computed based on the current time, not on the order
             # creation date.
@@ -45,7 +45,7 @@ class SaleOrderLine(models.Model):
         return super()._get_date_order()
 
     def _get_shop_warning(self, clear=True):
-        self.ensure_one()
+        self.check_singleton()
         warn = self.shop_warning
         if clear:
             self.shop_warning = ""
@@ -98,7 +98,7 @@ class SaleOrderLine(models.Model):
         ) or rounded_uom_qty
 
     def _show_in_cart(self):
-        self.ensure_one()
+        self.check_singleton()
         # Exclude delivery & section/note lines from showing up in the cart
         return (
             not self.is_delivery
@@ -107,7 +107,7 @@ class SaleOrderLine(models.Model):
         )
 
     def _is_reorder_allowed(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             bool(self.product_id)
             and self.product_id._is_add_to_cart_allowed()
@@ -115,7 +115,7 @@ class SaleOrderLine(models.Model):
         )
 
     def _get_cart_display_price(self):
-        self.ensure_one()
+        self.check_singleton()
         price_type = (
             "price_subtotal"
             if self.order_id.website_id.show_line_subtotals_tax_selection

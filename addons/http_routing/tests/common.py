@@ -94,8 +94,10 @@ def MockRequest(
         website=website,
         render=lambda *a, **kw: "<MockResponse>",
     )
-    request.make_response = partial(odoo.http.Request.make_response, request)
-    request.make_json_response = partial(odoo.http.Request.make_json_response, request)
+    request.prepare_response = partial(odoo.http.Request.prepare_response, request)
+    request.prepare_json_response = partial(
+        odoo.http.Request.prepare_json_response, request
+    )
     request.redirect = partial(odoo.http.Request.redirect, request)
     request.redirect_query = partial(odoo.http.Request.redirect_query, request)
     if url_root is not None:

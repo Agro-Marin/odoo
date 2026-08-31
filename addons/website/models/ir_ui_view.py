@@ -222,7 +222,7 @@ class IrUiView(models.Model):
         specific_views = self.env["ir.ui.view"]
         if self and self.pool._init:
             for view in self.filtered(lambda view: not view.website_id):
-                specific_views += view._get_specific_views()
+                specific_views += view._get_views_specific()
 
         result = super(IrUiView, self + specific_views).unlink()
         self.env.registry.clear_cache("templates")
@@ -241,7 +241,7 @@ class IrUiView(models.Model):
             ).page_id = new_page.id
 
     def get_view_hierarchy(self):
-        self.ensure_one()
+        self.check_singleton()
         top_level_view = self
         while top_level_view.inherit_id:
             top_level_view = top_level_view.inherit_id
@@ -316,13 +316,13 @@ class IrUiView(models.Model):
         return website_views_domain & domain
 
     @api.model
-    def _get_inheriting_views(self):
+    def _get_views_inheriting(self):
         if not self.env.context.get("website_id"):
-            return super()._get_inheriting_views()
+            return super()._get_views_inheriting()
 
         views = super(
             IrUiView, self.with_context(active_test=False)
-        )._get_inheriting_views()
+        )._get_views_inheriting()
         return views.filter_duplicate().filtered("active")
 
     @api.model
@@ -357,8 +357,8 @@ class IrUiView(models.Model):
         ]
 
     @api.model
-    def _get_template_minimal_cache_keys(self):
-        return super()._get_template_minimal_cache_keys() + (
+    def _get_template_cache_keys_minimal(self):
+        return super()._get_template_cache_keys_minimal() + (
             self.env.context.get("website_id"),
         )
 
@@ -479,7 +479,7 @@ class IrUiView(models.Model):
             super()._set_noupdate()
 
     def save(self, value, xpath=None):
-        self.ensure_one()
+        self.check_singleton()
         current_website = self.env["website"].get_current_website()
         if xpath and self.key and current_website:
             website_specific_view = self.env["ir.ui.view"].search(
@@ -535,7 +535,7 @@ class IrUiView(models.Model):
         )
 
     def _get_base_lang(self):
-        self.ensure_one()
+        self.check_singleton()
         website = self.website_id
         if website:
             return website.default_lang_id.code

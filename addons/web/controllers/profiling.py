@@ -50,7 +50,7 @@ class Profiling(Controller):
         profile_str = profile
         if not profiles:
             raise request.not_found()
-        params = kwargs or profiles._default_profile_params()
+        params = kwargs or profiles._prepare_profile_params_default()
         speedscope_result = profiles._generate_speedscope(
             profiles._parse_params(params)
         )
@@ -65,7 +65,7 @@ class Profiling(Controller):
                     ),
                 ),
             ]
-            return request.make_response(speedscope_result, headers)
+            return request.prepare_response(speedscope_result, headers)
         icp = request.env["ir.config_parameter"]
         context = {
             "profiles": profiles,
@@ -120,7 +120,7 @@ class Profiling(Controller):
             return request.render("web.view_memory", context)
 
         context = {
-            "default_params": profiles._default_profile_params(),
+            "default_params": profiles._prepare_profile_params_default(),
             "profile_str": profile_str,
             "profiles": profiles,
         }

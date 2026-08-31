@@ -79,7 +79,7 @@ class SaleOrder(models.Model):
 
         Returns True if any reward was claimed else False
         """
-        self.ensure_one()
+        self.check_singleton()
 
         claimed_reward_count = 0
         claimable_rewards = self._get_claimable_rewards()
@@ -198,8 +198,8 @@ class SaleOrder(models.Model):
 
         return super()._cart_update_order_line(order_line, quantity, **kwargs)
 
-    def _verify_cart_after_update(self):
-        super()._verify_cart_after_update()
+    def _sync_cart_after_update(self):
+        super()._sync_cart_after_update()
         self._update_programs_and_rewards()
         self._auto_apply_rewards()
         if request:  # In case the rewards application modifies the cart quantity
@@ -210,7 +210,7 @@ class SaleOrder(models.Model):
         return super()._get_non_delivery_lines() - self._get_free_shipping_lines()
 
     def _get_free_shipping_lines(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.line_ids.filtered(lambda l: l.reward_id.reward_type == "shipping")
 
     def _allow_nominative_programs(self):
@@ -242,7 +242,7 @@ class SaleOrder(models.Model):
             so._update_programs_and_rewards()
 
     def _get_claimable_and_showable_rewards(self):
-        self.ensure_one()
+        self.check_singleton()
         res = self._get_claimable_rewards()
         loyality_cards = self.env["loyalty.card"].search(
             [

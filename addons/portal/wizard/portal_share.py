@@ -47,7 +47,7 @@ class PortalShare(models.TransientModel):
             wizard.resource_ref = f"{record._name},{record.id}" if record else False
 
     def _get_portal_record(self):
-        self.ensure_one()
+        self.check_singleton()
         empty = self.env["mixin.portal"]
         if not self.res_model or self.res_model not in self.env:
             return empty
@@ -73,7 +73,7 @@ class PortalShare(models.TransientModel):
             rec.access_warning = record.access_warning if record else False
 
     def _get_shared_record(self):
-        self.ensure_one()
+        self.check_singleton()
         record = self._get_portal_record()
         if not record:
             raise UserError(_("This document cannot be shared: it has no portal page."))
@@ -119,7 +119,7 @@ class PortalShare(models.TransientModel):
             self._post_share_email(partner, share_link)
 
     def _get_public_link_partners(self):
-        self.ensure_one()
+        self.check_singleton()
         signup_enabled = (
             self.env["ir.config_parameter"]
             .sudo()
@@ -131,7 +131,7 @@ class PortalShare(models.TransientModel):
         return self.partner_ids.filtered(lambda partner: partner.user_ids)
 
     def action_send_mail(self):
-        self.ensure_one()
+        self.check_singleton()
         self._get_shared_record()
         public_link_partners = self._get_public_link_partners()
         self._send_public_link(public_link_partners)

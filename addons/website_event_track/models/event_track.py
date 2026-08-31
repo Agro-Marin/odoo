@@ -737,7 +737,7 @@ class EventTrack(models.Model):
         return res
 
     def _track_subtype(self, init_values):
-        self.ensure_one()
+        self.check_singleton()
         if "kanban_state" in init_values and self.kanban_state == "blocked":
             return self.env.ref("website_event_track.mt_track_blocked")
         elif "kanban_state" in init_values and self.kanban_state == "done":
@@ -766,7 +766,7 @@ class EventTrack(models.Model):
     # ------------------------------------------------------------
 
     def _get_event_track_visitors(self, force_create=False):
-        self.ensure_one()
+        self.check_singleton()
 
         force_visitor_create = self.env.user._is_public()
         visitor_sudo = self.env["website.visitor"]._get_visitor_from_request(
@@ -860,7 +860,7 @@ class EventTrack(models.Model):
         :param restrict_domain: an additional domain to restrict candidates;
         :param limit: number of tracks to return;
         """
-        self.ensure_one()
+        self.check_singleton()
 
         base_domain = [
             "&",
@@ -896,7 +896,7 @@ class EventTrack(models.Model):
         return track_candidates[:limit]
 
     def _get_track_calendar_description(self):
-        self.ensure_one()
+        self.check_singleton()
         return Markup(
             "<a href='%(event_track_url)s'>%(name)s</a>\n%(short_description)s\n\n%(reminder_times_warning)s"
         ) % {

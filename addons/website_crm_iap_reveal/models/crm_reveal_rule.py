@@ -411,7 +411,7 @@ class CrmRevealRule(models.Model):
         return lead
 
     def _lead_vals_from_response(self, result):
-        self.ensure_one()
+        self.check_singleton()
         company_data = result["reveal_data"]
         people_data = result.get("people_data")
         lead_vals = self.env["crm.iap.lead.helpers"].lead_vals_from_response(

@@ -411,7 +411,7 @@ class ForumForum(models.Model):
     # ----------------------------------------------------------------------
 
     def go_to_website(self):
-        self.ensure_one()
+        self.check_singleton()
         website_url = self._compute_website_url()
         if not website_url:
             return False

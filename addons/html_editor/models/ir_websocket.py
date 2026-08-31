@@ -7,7 +7,7 @@ from odoo.exceptions import AccessDenied, AccessError
 class IrWebsocket(models.AbstractModel):
     _inherit = 'ir.websocket'
 
-    def _build_bus_channel_list(self, channels):
+    def _get_bus_channels(self, channels):
         if self.env.uid:
             channels = list(channels)
             for channel in channels:
@@ -35,4 +35,4 @@ class IrWebsocket(models.AbstractModel):
                             continue
 
                         channels.append((self.env.registry.db_name, 'editor_collaboration', model_name, field_name, res_id))
-        return super()._build_bus_channel_list(channels)
+        return super()._get_bus_channels(channels)

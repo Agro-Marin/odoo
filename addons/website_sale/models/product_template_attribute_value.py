@@ -5,7 +5,7 @@ class ProductTemplateAttributeValue(models.Model):
     _inherit = "product.template.attribute.value"
 
     def _get_extra_price(self, combination_info):
-        self.ensure_one()
+        self.check_singleton()
         if not self.price_extra:
             return 0.0
 

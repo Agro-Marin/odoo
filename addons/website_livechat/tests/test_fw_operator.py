@@ -68,7 +68,7 @@ class TestFwOperator(ChatbotCase, HttpCase, TestLivechatCommon):
         )
 
     def test_chatbot_trigger_blocked_after_forward_to_operator(self):
-        data = self.make_jsonrpc_request(
+        data = self.call_jsonrpc(
             "/im_livechat/get_session",
             {
                 "channel_id": self.livechat_channel.id,
@@ -82,7 +82,7 @@ class TestFwOperator(ChatbotCase, HttpCase, TestLivechatCommon):
         self._post_answer_and_trigger_next_step(channel, self.fw_to_operator_answer.id)
         self.assertEqual(channel.livechat_operator_id, self.operator.partner_id)
         self.assertEqual(channel.chatbot_current_step_id.step_type, "forward_operator")
-        next_step_data = self.make_jsonrpc_request(
+        next_step_data = self.call_jsonrpc(
             "/chatbot/step/trigger", {"channel_id": channel.id}
         )
         self.assertFalse(next_step_data)

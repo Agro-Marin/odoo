@@ -281,7 +281,7 @@ export class SnippetModel extends SignalStore {
                                 snippetList.splice(snippetIndex, 1);
                             }
                         }
-                        await this.orm.call("ir.ui.view", "delete_snippet", [], {
+                        await this.orm.call("ir.ui.view", "remove_snippet", [], {
                             view_id: snippet.viewId,
                             template_key: this.snippetsName,
                         });

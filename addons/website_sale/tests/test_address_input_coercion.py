@@ -94,7 +94,7 @@ class TestShopListingInputCoercion(HttpCase, WebsiteSaleCommon):
         ):
             with self.subTest(route=route, params=params):
                 try:
-                    self.make_jsonrpc_request(route, params=params)
+                    self.call_jsonrpc(route, params=params)
                 except JsonRpcException as exc:
                     self.assertNotIn("ValueError", str(exc))
 

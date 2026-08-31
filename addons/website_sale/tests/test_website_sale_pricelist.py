@@ -757,7 +757,9 @@ class TestWebsitePriceListAvailableGeoIP(TestWebsitePriceListAvailable):
             )
         if fields_ := self.env.registry.many2one_company_dependents["res.partner"]:
             field_ids = [
-                self.env["ir.model.fields"]._get_ids(field.model_name).get(field.name)
+                self.env["ir.model.fields"]
+                ._get_ids_by_name(field.model_name)
+                .get(field.name)
                 for field in fields_
             ]
             self.env.cr.execute(

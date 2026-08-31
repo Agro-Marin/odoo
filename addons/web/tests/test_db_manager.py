@@ -85,7 +85,7 @@ class TestDatabaseOperations(BaseCase):
         self.password = secrets.token_hex()
 
         self.verify_admin_password_patcher = patch(
-            "odoo.tools.config.configmanager.verify_admin_password",
+            "odoo.tools.config.configmanager.is_valid_admin_password",
             self.password.__eq__,
         )
         self.startPatcher(self.verify_admin_password_patcher)
@@ -133,7 +133,7 @@ class TestDatabaseOperations(BaseCase):
         return res
 
     def test_database_creation(self):
-        self.assertTrue(odoo.tools.config.verify_admin_password(self.password))
+        self.assertTrue(odoo.tools.config.is_valid_admin_password(self.password))
 
         test_db_name = self.db_name + "-test-database-creation"
         self.assertNotIn(test_db_name, self.list_dbs_filtered())

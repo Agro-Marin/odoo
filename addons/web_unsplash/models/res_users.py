@@ -5,7 +5,7 @@ class ResUsers(models.Model):
     _inherit = 'res.users'
 
     def _can_manage_unsplash_settings(self):
-        self.ensure_one()
+        self.check_singleton()
         # Website has no dependency to web_unsplash, we cannot warranty the order of the execution
         # of the overwrite done in 5ef8300.
         # So to avoid to create a new module bridge, with a lot of code, we prefer to make a check

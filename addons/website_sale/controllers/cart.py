@@ -228,7 +228,7 @@ class Cart(PaymentPortal):
             values["quantity"] = updated_line.product_qty
 
         # Recompute delivery prices & other cart stuff (loyalty rewards)
-        order_sudo._verify_cart_after_update()
+        order_sudo._sync_cart_after_update()
 
         # The validity of a combo product line can only be checked after creating all of its combo
         # item lines.

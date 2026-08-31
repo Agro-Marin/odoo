@@ -35,7 +35,7 @@ WORKSPACE="$ADDONS"                            # same directory: this fork keeps
 # `dirname "$ADDONS"` — one level above the checkouts — which named a layout this
 # workspace does not use: the `<ws>/venv/<env>/bin/python` probe missed, `python3`
 # took over as the fallback, `parse_config` was handed a path that does not
-# exist, and all eight make_suite counts reported LOADER_FAILED. A gate reduced
+# exist, and all eight prepare_suite counts reported LOADER_FAILED. A gate reduced
 # to noise by a path guess is the same failure mode the roots above were written
 # to avoid.
 #
@@ -1067,8 +1067,8 @@ assert_eq "esm_registry.py exports esm_registry()" \
     "$(grep -c 'def esm_registry' "$PYTOOLS/esm_registry.py")" "1"
 assert_eq "esm_registry.py defines the EsmRegistry NamedTuple" \
     "$(grep -c 'class EsmRegistry' "$PYTOOLS/esm_registry.py")" "1"
-assert_eq "esm_registry.py defines validate_esm_config" \
-    "$(grep -c 'def validate_esm_config' "$PYTOOLS/esm_registry.py")" "1"
+assert_eq "esm_registry.py defines check_esm_config" \
+    "$(grep -c 'def check_esm_config' "$PYTOOLS/esm_registry.py")" "1"
 assert_eq "esbuild.py defines _LIB_CANDIDATES" \
     "$(grep -cE '_LIB_CANDIDATES: dict' "$PYTOOLS/esbuild.py")" "1"
 assert_eq "esm_graph.py defines is_native_module" \
@@ -1109,11 +1109,11 @@ assert_eq "service_worker_service.js emits CLEAR_CACHES on SW hard refresh" \
 assert_eq "rpc.js is the CLEAR_CACHES listener" \
     "$(grep -c 'addEventListener(RpcEvent.CLEAR_CACHES' "$WEB/static/src/core/network/rpc.js")" "1"
 
-# 21. TEST_TAGS.md test counts, collected through make_suite() — what
+# 21. TEST_TAGS.md test counts, collected through prepare_suite() — what
 #     --test-tags actually selects, including methods inherited from untagged
 #     base classes. A `def test_` grep gets both of those wrong.
 count_tag_tests() {
-    # $1 = topic tag; emits the number of tests make_suite() collects for it.
+    # $1 = topic tag; emits the number of tests prepare_suite() collects for it.
     # No database required — collection only.
     #
     # stderr is kept, not discarded: swallowing it is what turned a wrong
@@ -1141,23 +1141,23 @@ config.parse_config([
     f"--addons-path={repo}/odoo/addons,{repo}/addons",
 ])
 config["test_tags"] = tag
-from odoo.tests.loader import make_suite
-print(len(list(make_suite(["web"], tag))))
+from odoo.tests.loader import prepare_suite
+print(len(list(prepare_suite(["web"], tag))))
 PY
     )
 }
 LOADER_ERR="$(mktemp)"
 trap 'rm -f "$LOADER_ERR"' EXIT
 if [ -z "${ODOO_CONF:-}" ] || [ ! -f "$ODOO_CONF" ]; then
-    echo "SKIP: TEST_TAGS make_suite counts — no Odoo config found" \
+    echo "SKIP: TEST_TAGS prepare_suite counts — no Odoo config found" \
          "(looked for <env>.conf beside a matching venv under $WORKSPACE;" \
          "set ODOO_CONF/VENV_PY to override)"
     SKIP=$((SKIP+16))
 elif ! (cd "$REPO" && "$VENV_PY" -c "import odoo" >/dev/null 2>&1); then
-    echo "SKIP: TEST_TAGS make_suite counts — odoo not importable with $VENV_PY"
+    echo "SKIP: TEST_TAGS prepare_suite counts — odoo not importable with $VENV_PY"
     SKIP=$((SKIP+16))
 else
-    # `make_suite` is the only source of truth here. This loop used to carry a
+    # `prepare_suite` is the only source of truth here. This loop used to carry a
     # hardcoded expected count per tag AND assert the doc cited it — two copies
     # of one number, and the comment that stood here admitted the doc said 159
     # against 158 real. `addon_js` is generated (one method per uncovered addon)
@@ -1167,7 +1167,7 @@ else
         web_unit web_http web_tour web_js web_perf web_benchmark click_all addon_js; do
         actual=$(count_tag_tests "$tag")
         if [ -z "$actual" ]; then
-            assert_eq "TEST_TAGS $tag test count (make_suite)" \
+            assert_eq "TEST_TAGS $tag test count (prepare_suite)" \
                 "LOADER_FAILED: $(tail -n 1 "$LOADER_ERR")" "a number"
             continue
         fi

@@ -65,7 +65,7 @@ class WebsiteSaleCartPayment(PaymentHttpCommon, WebsiteSaleCommon):
             "partner_id": self.partner.id,  # This should be rejected.
         }
         with self.assertRaises(JsonRpcException, msg="odoo.exceptions.ValidationError"):
-            self.make_jsonrpc_request(url, route_kwargs)
+            self.call_jsonrpc(url, route_kwargs)
 
     def test_payment_confirmation_mail(self):
         """Check that a salesperson gets assigned when sending payment confirmation mails."""

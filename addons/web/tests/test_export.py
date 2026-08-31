@@ -219,7 +219,7 @@ class TestNamelistStaleTemplate(HttpCase):
         )
         self.authenticate("admin", "admin")
         try:
-            result = self.make_jsonrpc_request(
+            result = self.call_jsonrpc(
                 "/web/export/namelist",
                 {"model": "res.partner", "export_id": export.id},
             )

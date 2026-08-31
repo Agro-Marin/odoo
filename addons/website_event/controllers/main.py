@@ -624,7 +624,7 @@ class WebsiteEventController(http.Controller):
             for ticket in self.env["event.event.ticket"].browse(ticket_ids)
         }
         try:
-            event._verify_seats_availability(
+            event._check_seats_availability(
                 list(
                     {
                         (

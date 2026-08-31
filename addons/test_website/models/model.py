@@ -45,7 +45,7 @@ class TestModel(models.Model):
         }
 
     def open_website_url(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.env["website"].get_client_action(f"/test_model/{self.id}")
 
 

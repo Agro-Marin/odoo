@@ -347,7 +347,7 @@ class Website(Home):
                 )
                 create_sitemap("%s.xml" % sitemap_base_url, content)
 
-        return request.make_response(content, [("Content-Type", mimetype)])
+        return request.prepare_response(content, [("Content-Type", mimetype)])
 
     @http.route(
         ["/favicon.ico"],
@@ -1232,7 +1232,7 @@ class Website(Home):
             logger.warning("Google Search Console %s not recognize", key)
             raise werkzeug.exceptions.NotFound
 
-        return request.make_response(
+        return request.prepare_response(
             "google-site-verification: %s" % request.website.google_search_console
         )
 

@@ -13,13 +13,13 @@ _logger = logging.getLogger(__name__)
 
 @tagged("post_install", "-at_install", "website_snippets")
 class TestSnippets(HttpCase):
-    def fetch_proxy(self, url):
+    def prepare_proxy_response(self, url):
         if "twitter.com" in url or "youtube.com" in url:
             _logger.info(
                 "External chrome request during tests: Sending dummy page for %s", url
             )
-            return self.make_fetch_proxy_response("<body>Dummy page</body>")
-        return super().fetch_proxy(url)
+            return self.prepare_proxy_response_from_content("<body>Dummy page</body>")
+        return super().prepare_proxy_response(url)
 
     def test_01_empty_parents_autoremove(self):
         self.start_tour(

@@ -60,7 +60,7 @@ class ReportController(http.Controller):
             html = report.with_context(context)._render_qweb_html(
                 reportname, docids, data=data
             )[0]
-            return request.make_response(html)
+            return request.prepare_response(html)
         elif converter == "pdf":
             pdf = report.with_context(context)._render_qweb_pdf(
                 reportname, docids, data=data
@@ -69,7 +69,7 @@ class ReportController(http.Controller):
                 ("Content-Type", "application/pdf"),
                 ("Content-Length", len(pdf)),
             ]
-            return request.make_response(pdf, headers=pdfhttpheaders)
+            return request.prepare_response(pdf, headers=pdfhttpheaders)
         elif converter == "text":
             text = report.with_context(context)._render_qweb_text(
                 reportname, docids, data=data
@@ -78,7 +78,7 @@ class ReportController(http.Controller):
                 ("Content-Type", "text/plain"),
                 ("Content-Length", len(text)),
             ]
-            return request.make_response(text, headers=texthttpheaders)
+            return request.prepare_response(text, headers=texthttpheaders)
         else:
             raise werkzeug.exceptions.BadRequest(
                 description=f"Converter {converter!r} not supported."
@@ -109,7 +109,7 @@ class ReportController(http.Controller):
                 "Cannot convert into barcode."
             ) from None
 
-        return request.make_response(
+        return request.prepare_response(
             barcode,
             headers=[
                 ("Content-Type", "image/png"),
@@ -191,5 +191,5 @@ class ReportController(http.Controller):
             )
             se = http.serialize_exception(e)
             error = {"code": 0, "message": "Odoo Server Error", "data": se}
-            res = request.make_response(html_escape(json_dumps(error)))
+            res = request.prepare_response(html_escape(json_dumps(error)))
             raise werkzeug.exceptions.InternalServerError(response=res) from e

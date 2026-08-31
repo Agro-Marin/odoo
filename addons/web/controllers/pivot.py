@@ -86,7 +86,7 @@ class TableExporter(http.Controller):
                 model_name=jdata["model"],
             )
         )
-        return request.make_response(
+        return request.prepare_response(
             xlsx_data,
             headers=[
                 ("Content-Type", XLSX_MIMETYPE),

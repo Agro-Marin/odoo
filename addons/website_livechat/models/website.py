@@ -15,7 +15,7 @@ class Website(models.Model):
         """Get the livechat info dict (button text, channel name, ...) for the livechat channel of
         the current website.
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.channel_id:
             # sudo - im_livechat.channel: getting bsaic info related to live chat channel is allowed.
             return self.channel_id.sudo().get_livechat_info()

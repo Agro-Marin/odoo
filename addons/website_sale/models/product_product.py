@@ -50,7 +50,7 @@ class ProductProduct(models.Model):
     # === COMPUTE METHODS ===#
 
     def _get_base_unit_price(self, price):
-        self.ensure_one()
+        self.check_singleton()
         return self.base_unit_count and price / self.base_unit_count
 
     @api.depends("lst_price", "base_unit_count")
@@ -101,11 +101,11 @@ class ProductProduct(models.Model):
         return variant_dict
 
     def website_publish_button(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.product_tmpl_id.website_publish_button()
 
     def open_website_url(self):
-        self.ensure_one()
+        self.check_singleton()
         res = self.product_tmpl_id.open_website_url()
         res["url"] = self.website_url
         return res
@@ -120,7 +120,7 @@ class ProductProduct(models.Model):
         It contains in this order: the main image of the variant (which will fall back on the main
         image of the template, if unset), the Variant Extra Images, and the Template Extra Images.
         """
-        self.ensure_one()
+        self.check_singleton()
         variant_images = list(self.product_variant_image_ids)
         template_images = list(self.product_tmpl_id.product_template_image_ids)
         return [self] + variant_images + template_images
@@ -129,7 +129,7 @@ class ProductProduct(models.Model):
         """Return the variant info based on its combination.
         See `_get_combination_info` for more information.
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.product_tmpl_id._get_combination_info(
             combination=self.product_template_attribute_value_ids,
             product_id=self.id,
@@ -137,7 +137,7 @@ class ProductProduct(models.Model):
         )
 
     def _website_show_quick_add(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.filtered_domain(self.env["website"]._product_domain()):
             return False
         return (
@@ -145,7 +145,7 @@ class ProductProduct(models.Model):
         )
 
     def _is_add_to_cart_allowed(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.env.user.has_group("base.group_system"):
             return True
         if not self.active or not self.website_published:
@@ -170,7 +170,7 @@ class ProductProduct(models.Model):
         :return: The JSON-LD markup data.
         :rtype: dict
         """
-        self.ensure_one()
+        self.check_singleton()
 
         product_price = request.pricelist._get_product_price(
             self, quantity=1, currency=website.currency_id
@@ -218,22 +218,22 @@ class ProductProduct(models.Model):
     def _get_image_1920_url(self):
         """Returns the local url of the product main image.
 
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :rtype: str
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.env["website"].image_url(self, "image_1920")
 
     def _get_extra_image_1920_urls(self):
         """Returns the local url of the product additional images, no videos. This includes the
         variant specific images first and then the template images.
 
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :rtype: list[str]
         """
-        self.ensure_one()
+        self.check_singleton()
         return [
             self.env["website"].image_url(extra_image, "image_1920")
             for extra_image in self.product_variant_image_ids

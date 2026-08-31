@@ -11,20 +11,20 @@ class ProductProduct(models.Model):
     )
 
     def _has_stock_notification(self, partner):
-        self.ensure_one()
+        self.check_singleton()
         return partner in self.stock_notification_partner_ids
 
     def _get_max_quantity(self, website, sale_order, **kwargs):
         """The max quantity of a product is the difference between the quantity that's free to use
         and the quantity that's already been added to the cart.
 
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :param website website: The website for which to compute the max quantity.
         :return: The max quantity of the product.
         :rtype: float | None
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.is_storable and not self.allow_out_of_stock_order:
             qty_free = website._get_product_available_qty(self.sudo(), **kwargs)
             cart_qty = sale_order._get_cart_qty(self.id)
@@ -40,7 +40,7 @@ class ProductProduct(models.Model):
         :return: whether the product can still be sold
         :rtype: bool
         """
-        self.ensure_one()
+        self.check_singleton()
         if not self.is_storable or self.allow_out_of_stock_order:
             return False
         qty_free = (

@@ -720,7 +720,7 @@ class EventTrackController(http.Controller):
         content = files.get(track.id)
         if not content:
             return NotFound()
-        return request.make_response(
+        return request.prepare_response(
             content,
             [
                 ("Content-Type", "application/octet-stream"),

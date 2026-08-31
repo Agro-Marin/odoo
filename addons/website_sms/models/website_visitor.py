@@ -20,7 +20,7 @@ class WebsiteVisitor(models.Model):
         }
 
     def action_send_sms(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self._check_for_sms_composer():
             raise UserError(
                 _(

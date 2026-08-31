@@ -279,7 +279,7 @@ class SaleOrder(models.Model):
 
     def _get_confirmation_template(self):
         """Override of `sale` to use the website specific order confirmation email template if set."""
-        self.ensure_one()
+        self.check_singleton()
 
         if self.website_id and self.website_id.confirmation_email_template_id:
             return self.website_id.confirmation_email_template_id
@@ -388,7 +388,7 @@ class SaleOrder(models.Model):
         :param kwargs: Additional parameters given to deeper method calls.
         :return: values used by the cart service to give feedback to the customer.
         """
-        self.ensure_one()
+        self.check_singleton()
         self = self.with_company(self.company_id)
 
         if not uom_id:
@@ -403,7 +403,7 @@ class SaleOrder(models.Model):
                 **kwargs,
             )
 
-        quantity, warning = self._verify_updated_quantity(
+        quantity, warning = self._get_updated_quantity(
             self.env["sale.order.line"],
             product_id,
             quantity,
@@ -421,7 +421,7 @@ class SaleOrder(models.Model):
             (order_line or self).shop_warning = warning
 
         if not self.env.context.get("skip_cart_verification"):
-            self._verify_cart_after_update()
+            self._sync_cart_after_update()
 
         return {
             "added_qty": quantity,
@@ -451,7 +451,7 @@ class SaleOrder(models.Model):
         :return: matching order lines in the cart, if any
         :rtype: `sale.order.line` recordset
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.line_ids:
             return self.env["sale.order.line"]
@@ -498,7 +498,7 @@ class SaleOrder(models.Model):
         :return: values used by the cart service to give feedback to the customer.
         """
         if self:
-            self.ensure_one()
+            self.check_singleton()
 
         self = self.with_company(self.company_id)
 
@@ -515,7 +515,7 @@ class SaleOrder(models.Model):
             }
 
         if quantity > 0:
-            quantity, warning = self._verify_updated_quantity(
+            quantity, warning = self._get_updated_quantity(
                 order_line,
                 order_line.product_id.id,
                 quantity,
@@ -530,7 +530,7 @@ class SaleOrder(models.Model):
         added_qty = quantity - order_line.product_qty  # new_qty - old_qty
         order_line = self._cart_update_order_line(order_line, quantity, **kwargs)
         if not self.env.context.get("skip_cart_verification"):
-            self._verify_cart_after_update()
+            self._sync_cart_after_update()
 
         if warning:
             (order_line or self).shop_warning = warning
@@ -543,14 +543,14 @@ class SaleOrder(models.Model):
         }
 
     # hook to be overridden
-    def _verify_updated_quantity(
+    def _get_updated_quantity(
         self, order_line, product_id, new_qty, uom_id, **kwargs
     ):
         return new_qty, ""
 
     def _cart_update_order_line(self, order_line, quantity, **kwargs):
-        self.ensure_one()
-        order_line.ensure_one()
+        self.check_singleton()
+        order_line.check_singleton()
 
         if quantity <= 0:
             # Remove zero or negative lines
@@ -575,7 +575,7 @@ class SaleOrder(models.Model):
                 combo_quantity = quantity
                 for item_line in combo_item_lines:
                     if quantity != item_line.product_qty:
-                        combo_item_quantity, _warning = self._verify_updated_quantity(
+                        combo_item_quantity, _warning = self._get_updated_quantity(
                             item_line,
                             item_line.product_id.id,
                             quantity,
@@ -599,7 +599,7 @@ class SaleOrder(models.Model):
         return order_line
 
     def _prepare_order_line_update_values(self, order_line, quantity, **kwargs):
-        self.ensure_one()
+        self.check_singleton()
         values = {}
 
         if quantity != order_line.product_qty:
@@ -633,7 +633,7 @@ class SaleOrder(models.Model):
         combo_item_id=None,
         **kwargs,
     ):
-        self.ensure_one()
+        self.check_singleton()
         product = self.env["product.product"].browse(product_id)
 
         no_variant_attribute_values = product.env[
@@ -742,7 +742,7 @@ class SaleOrder(models.Model):
 
         return False
 
-    def _verify_cart_after_update(self):
+    def _sync_cart_after_update(self):
         """Global checks on the cart after updates.
 
         Called from controllers to ensure it's only done once by request (combos,
@@ -761,9 +761,9 @@ class SaleOrder(models.Model):
         if request:
             request.session["website_sale_cart_quantity"] = self.cart_quantity
 
-    def _verify_cart(self):
+    def _remove_invalid_cart_lines(self):
         """Check cart content and clear outdated/invalid lines."""
-        self.ensure_one()
+        self.check_singleton()
 
         # Remove lines with inactive products
         self.line_ids.filtered(
@@ -843,7 +843,7 @@ class SaleOrder(models.Model):
         if not self:
             return groups
 
-        self.ensure_one()
+        self.check_singleton()
         customer_portal_group = next(
             (group for group in groups if group[0] == "portal_customer"), None
         )
@@ -857,13 +857,13 @@ class SaleOrder(models.Model):
         return groups
 
     def _is_reorder_allowed(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.state == "done" and any(
             line._is_reorder_allowed() for line in self.line_ids if line.product_id
         )
 
     def _filter_can_send_abandoned_cart_mail(self):
-        self.website_id.ensure_one()
+        self.website_id.check_singleton()
         abandoned_datetime = datetime.now(UTC) - relativedelta(
             hours=self.website_id.cart_abandoned_delay
         )
@@ -947,7 +947,7 @@ class SaleOrder(models.Model):
         :return: The preferred delivery method for the order.
         :rtype: delivery.carrier
         """
-        self.ensure_one()
+        self.check_singleton()
 
         delivery_method = self.carrier_id
         if (
@@ -971,7 +971,7 @@ class SaleOrder(models.Model):
         :param dict rate: The rate of the delivery method.
         :return: None
         """
-        self.ensure_one()
+        self.check_singleton()
 
         self._remove_delivery_line()
         if not delivery_method or not self._has_deliverable_products():
@@ -1002,12 +1002,12 @@ class SaleOrder(models.Model):
     def _is_anonymous_cart(self):
         """Return whether the cart was created by the public user and no address was added yet.
 
-        Note: `self.ensure_one()`
+        Note: `self.check_singleton()`
 
         :return: Whether the cart is anonymous.
         :rtype: bool
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.partner_id.id == request.website.user_id.sudo().partner_id.id
 
     def _get_lang(self):
@@ -1020,7 +1020,7 @@ class SaleOrder(models.Model):
         return res
 
     def _get_shop_warning(self, clear=True):
-        self.ensure_one()
+        self.check_singleton()
         warn = self.shop_warning
         if clear:
             self.shop_warning = ""

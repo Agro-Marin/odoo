@@ -107,7 +107,7 @@ class WebJsonController(http.Controller):
         res = model.browse(int(record_id)).web_read(spec)
         if not res:
             raise NotFound
-        return request.make_json_response(res[0])
+        return request.prepare_json_response(res[0])
 
     def _get_json_listing(
         self, model, domain, spec, groupby, aggregates, limit, offset
@@ -131,7 +131,7 @@ class WebJsonController(http.Controller):
                 offset=offset,
             )
         res.pop("__version", None)
-        return request.make_json_response(res)
+        return request.prepare_json_response(res)
 
     def _get_json_domains(self, model, action, context, eval_context, kwargs):
         """The action's domain, plus the caller's or the view's default one."""
@@ -265,7 +265,7 @@ class WebJsonController(http.Controller):
             e = f"{action._name} are not supported server-side"
             raise BadRequest(e)
         eval_context = dict(
-            action._get_eval_context(action),
+            action._prepare_eval_context(action),
             active_id=active_id,
             context=context,
             allowed_company_ids=request.env.user.company_ids.ids,

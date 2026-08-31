@@ -21,7 +21,7 @@ class WebsiteSaleSEO(HttpCase, WebsiteSaleCommon):
             }
         )
         self.authenticate(internal_user.login, internal_user.login)
-        res = self.make_jsonrpc_request(
+        res = self.call_jsonrpc(
             "/website/get_seo_data",
             {"res_id": public_categ.id, "res_model": "product.public.category"},
         )

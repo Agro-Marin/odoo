@@ -43,9 +43,9 @@ class TestPortalApiKeysPolicy(TransactionCase):
         Description = self.env["res.users.apikeys.description"]
         self._set_allow_api_keys(False)
         with self.assertRaises(AccessError):
-            Description.with_user(self.portal_user).check_access_make_key()
+            Description.with_user(self.portal_user).check_access_generate_key()
         self._set_allow_api_keys("True")
-        Description.with_user(self.portal_user).check_access_make_key()
+        Description.with_user(self.portal_user).check_access_generate_key()
 
     def test_public_user_rejected_even_when_opted_in(self):
         self._set_allow_api_keys("True")

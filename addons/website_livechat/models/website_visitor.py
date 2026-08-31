@@ -180,7 +180,7 @@ class WebsiteVisitor(models.Model):
         return [field_spec]
 
     def _get_visitor_history(self):
-        self.ensure_one()
+        self.check_singleton()
         recent_history = self.env["website.track"].search(
             [("page_id", "!=", False), ("visitor_id", "=", self.id)], limit=3
         )

@@ -1135,7 +1135,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
                     order_sudo._recompute_prices()
             return
 
-        pricelist.ensure_one()
+        pricelist.check_singleton()
 
         if pricelist.id == request.pricelist.id:
             # Nothing to do
@@ -1386,7 +1386,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
         """
         order_sudo = request.cart
         if redirection := self._check_cart(order_sudo):
-            return request.make_json_response({"redirectUrl": redirection.location})
+            return request.prepare_json_response({"redirectUrl": redirection.location})
 
         # Retrieve the partner whose address to update, if any, and its address type.
         partner_sudo, address_type = self._prepare_address_update(
@@ -1418,7 +1418,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
         )
 
         if feedback_dict.get("invalid_fields"):
-            return request.make_json_response(
+            return request.prepare_json_response(
                 feedback_dict
             )  # Return if error when creating/updating partner.
 
@@ -1448,7 +1448,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
             # Unsubscribe the public partner if the cart was previously anonymous.
             order_sudo.message_unsubscribe(order_sudo.website_id.partner_id.ids)
 
-        return request.make_json_response(feedback_dict)
+        return request.prepare_json_response(feedback_dict)
 
     def _needs_address(self):
         if cart := request.cart:
@@ -1981,7 +1981,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
                 ("Content-Type", "application/pdf"),
                 ("Content-Length", "%s" % len(pdf)),
             ]
-            return request.make_response(pdf, headers=pdfhttpheaders)
+            return request.prepare_response(pdf, headers=pdfhttpheaders)
         return request.redirect(self._get_shop_path())
 
     # === CHECK METHODS === #

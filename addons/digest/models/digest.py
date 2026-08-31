@@ -381,7 +381,7 @@ class DigestDigest(models.Model):
             'kpi_col2': { ... },
             'kpi_col3':  { ... },
         }, { ... }]"""
-        self.ensure_one()
+        self.check_singleton()
         kpi_names = self._get_fields_kpi()
         kpi_actions = self._get_kpi_actions(company, user)
         timeframes = self._get_timeframes(company)
@@ -579,7 +579,7 @@ class DigestDigest(models.Model):
     def _get_next_run_date(self, periodicity=None):
         """Date of the next mailing for ``periodicity`` (default: this digest's)."""
         if periodicity is None:
-            self.ensure_one()
+            self.check_singleton()
             periodicity = self.periodicity
         return fields.Date.today() + PERIODICITIES[periodicity].run
 

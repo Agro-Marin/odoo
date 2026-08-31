@@ -373,7 +373,7 @@ class TestParentSelfBridge(TransactionCase):
             js=True,
             css=False,
         )
-        bridges = setup_ab._bridges._build_parent_self_bridge()
+        bridges = setup_ab._bridges._prepare_parent_self_bridge()
         native_specs = {a.module_path for a in setup_ab.native_modules}
         self.assertGreater(len(bridges), 0)
         for spec, url in list(bridges.items())[:20]:
@@ -2057,7 +2057,7 @@ class TestLazyBundleRelativeImports(TransactionCase):
         )
 
     def test_in_bundle_relative_import_passes(self):
-        from odoo.tools.assets.esm_graph import find_escaping_relative_imports
+        from odoo.tools.assets.esm_graph import get_escaping_relative_imports
 
         modules = [
             self._module(
@@ -2067,10 +2067,10 @@ class TestLazyBundleRelativeImports(TransactionCase):
             self._module("@mod/dir/b", "export const b = 1;\n"),
             self._module("@mod/c", "export const c = 1;\n"),
         ]
-        self.assertEqual(find_escaping_relative_imports(modules), [])
+        self.assertEqual(get_escaping_relative_imports(modules), [])
 
     def test_escaping_relative_import_is_reported(self):
-        from odoo.tools.assets.esm_graph import find_escaping_relative_imports
+        from odoo.tools.assets.esm_graph import get_escaping_relative_imports
 
         modules = [
             self._module(
@@ -2079,12 +2079,12 @@ class TestLazyBundleRelativeImports(TransactionCase):
             ),
         ]
         self.assertEqual(
-            find_escaping_relative_imports(modules),
+            get_escaping_relative_imports(modules),
             [("@mod/dir/a", "../../service.js", "@mod/service")],
         )
 
     def test_index_long_form_is_a_member(self):
-        from odoo.tools.assets.esm_graph import find_escaping_relative_imports
+        from odoo.tools.assets.esm_graph import get_escaping_relative_imports
 
         modules = [
             self._module(
@@ -2097,10 +2097,10 @@ class TestLazyBundleRelativeImports(TransactionCase):
                 url="/mod/static/src/widget/index.js",
             ),
         ]
-        self.assertEqual(find_escaping_relative_imports(modules), [])
+        self.assertEqual(get_escaping_relative_imports(modules), [])
 
     def test_bare_specifiers_are_ignored(self):
-        from odoo.tools.assets.esm_graph import find_escaping_relative_imports
+        from odoo.tools.assets.esm_graph import get_escaping_relative_imports
 
         modules = [
             self._module(
@@ -2108,10 +2108,10 @@ class TestLazyBundleRelativeImports(TransactionCase):
                 'import { registry } from "@web/core/registry";\n',
             ),
         ]
-        self.assertEqual(find_escaping_relative_imports(modules), [])
+        self.assertEqual(get_escaping_relative_imports(modules), [])
 
     def test_relative_import_from_an_index_module_is_a_member(self):
-        from odoo.tools.assets.esm_graph import find_escaping_relative_imports
+        from odoo.tools.assets.esm_graph import get_escaping_relative_imports
 
         modules = [
             self._module(
@@ -2130,10 +2130,10 @@ class TestLazyBundleRelativeImports(TransactionCase):
                 url="/mod/static/src/chart/menu/link.js",
             ),
         ]
-        self.assertEqual(find_escaping_relative_imports(modules), [])
+        self.assertEqual(get_escaping_relative_imports(modules), [])
 
     def test_relative_import_into_static_lib_is_a_member(self):
-        from odoo.tools.assets.esm_graph import find_escaping_relative_imports
+        from odoo.tools.assets.esm_graph import get_escaping_relative_imports
 
         modules = [
             self._module(
@@ -2148,10 +2148,10 @@ class TestLazyBundleRelativeImports(TransactionCase):
                 url="/mod/static/lib/vendored.js",
             ),
         ]
-        self.assertEqual(find_escaping_relative_imports(modules), [])
+        self.assertEqual(get_escaping_relative_imports(modules), [])
 
     def test_index_module_escaping_its_directory_is_still_reported(self):
-        from odoo.tools.assets.esm_graph import find_escaping_relative_imports
+        from odoo.tools.assets.esm_graph import get_escaping_relative_imports
 
         modules = [
             self._module(
@@ -2161,7 +2161,7 @@ class TestLazyBundleRelativeImports(TransactionCase):
             ),
         ]
         self.assertEqual(
-            find_escaping_relative_imports(modules),
+            get_escaping_relative_imports(modules),
             [("@mod/chart", "../service.js", "@mod/service")],
         )
 
@@ -2263,7 +2263,7 @@ class TestDynamicBundleIntegrity(TransactionCase):
         )
 
     def test_every_installed_dynamic_bundle_is_self_contained(self):
-        from odoo.tools.assets.esm_graph import find_escaping_relative_imports
+        from odoo.tools.assets.esm_graph import get_escaping_relative_imports
 
         IrQweb = self.env["ir.qweb"]
         names = self._dynamic_bundle_names()
@@ -2280,9 +2280,7 @@ class TestDynamicBundleIntegrity(TransactionCase):
             populated += bool(asset_bundle.native_modules)
             escapes.extend(
                 (bundle_name, *escape)
-                for escape in find_escaping_relative_imports(
-                    asset_bundle.native_modules
-                )
+                for escape in get_escaping_relative_imports(asset_bundle.native_modules)
             )
         self._assert_sweep_saw_assets(populated, names)
         self.assertFalse(

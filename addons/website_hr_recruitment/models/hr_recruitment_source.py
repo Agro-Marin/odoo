@@ -24,7 +24,7 @@ class HrRecruitmentSource(models.Model):
                             ).name,
                             "utm_medium": source.medium_id.name
                             or self.env["utm.medium"]
-                            ._fetch_or_create_utm_medium("website")
+                            ._get_or_create_utm_medium("website")
                             .name,
                             "utm_source": source.source_id.name or None,
                         }

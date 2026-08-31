@@ -79,7 +79,7 @@ class ResUsers(models.Model):
 
     def _rpc_api_keys_only(self):
         # 2FA enabled means we can't allow password-based RPC
-        self.ensure_one()
+        self.check_singleton()
         return self.totp_enabled or super()._rpc_api_keys_only()
 
     def _get_fields_session_token(self):
@@ -136,14 +136,14 @@ class ResUsers(models.Model):
         if request:
             self.env.flush_all()
             # update session token so the user does not get logged out (cache cleared by change)
-            new_token = self.env.user._compute_session_token(request.session.sid)
+            new_token = self.env.user._get_session_token(request.session.sid)
             request.session.session_token = new_token
 
         _logger.info("2FA enable: SUCCESS for %s %r", self, self.login)
         return True
 
     def _totp_rate_limit(self, limit_type):
-        self.ensure_one()
+        self.check_singleton()
         assert request, (
             "A request is required to be able to rate limit TOTP related actions"
         )
@@ -176,7 +176,7 @@ class ResUsers(models.Model):
         )
 
     def _totp_rate_limit_purge(self, limit_type):
-        self.ensure_one()
+        self.check_singleton()
         assert request, (
             "A request is required to be able to rate limit TOTP related actions"
         )
@@ -206,7 +206,7 @@ class ResUsers(models.Model):
         if request and self == self.env.user:
             self.env.flush_all()
             # update session token so the user does not get logged out (cache cleared by change)
-            new_token = self.env.user._compute_session_token(request.session.sid)
+            new_token = self.env.user._get_session_token(request.session.sid)
             request.session.session_token = new_token
 
         _logger.info(

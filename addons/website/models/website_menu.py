@@ -107,7 +107,7 @@ class WebsiteMenu(models.Model):
                 menu.url = (menu.page_id.url if menu.page_id else menu.url) or "#"
 
     @api.constrains("parent_id", "child_id", "is_mega_menu", "mega_menu_content")
-    def _validate_parent_menu(self):
+    def _check_parent_menu(self):
         for record in self:
             parent_menu = record.parent_id.sudo() if record.parent_id else None
 

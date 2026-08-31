@@ -280,7 +280,7 @@ class PaymentPortal(payment_portal.PaymentPortal):
             # the stale PMs while a background task updates the client cache.
             cache_control = "public, max-age=604800, stale-while-revalidate=86400"
 
-        return request.make_json_response(
+        return request.prepare_json_response(
             supported_pms,
             headers=[("Cache-Control", cache_control)],
         )

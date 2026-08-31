@@ -47,8 +47,8 @@ class ProductProduct(models.Model):
 
     def _get_image_1024_url(self):
         """Returns the local url of the product main image.
-        Note: self.ensure_one()
+        Note: self.check_singleton()
         :rtype: str
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.env["website"].image_url(self, "image_1024")

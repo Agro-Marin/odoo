@@ -1511,7 +1511,7 @@ class TestCowViewSaving(TestViewSavingCommon, HttpCase):
             self.base_view.with_context(lang="fr_BE").arch, "<div>bonjour</div>"
         )
         self.base_view.with_context(website_id=1).write({"active": True})
-        specific_view = self.base_view._get_specific_views() - self.base_view
+        specific_view = self.base_view._get_views_specific() - self.base_view
 
         self.assertEqual(
             specific_view.with_context(lang="fr_BE").arch,
@@ -1580,7 +1580,7 @@ class TestCowViewSaving(TestViewSavingCommon, HttpCase):
         website = self.env["website"].browse(1)
         website.default_lang_id = fr_BE
         self.base_view.with_context(website_id=1).write({"active": True})
-        specific_view = self.base_view._get_specific_views() - self.base_view
+        specific_view = self.base_view._get_views_specific() - self.base_view
 
         with patch(
             "odoo.addons.website.models.ir_http.get_request_website", lambda: website
@@ -1635,7 +1635,7 @@ class TestCowViewSaving(TestViewSavingCommon, HttpCase):
             limit=1,
         )
         base_footer.with_context(website_id=1).write({"active": True})
-        specific_footer = base_footer._get_specific_views()
+        specific_footer = base_footer._get_views_specific()
         specific_footer.with_context(lang="en_US").arch_db = "<div>hello</div>"
         specific_footer.update_field_translations(
             "arch_db", {"fr_BE": {"hello": "bonjour"}}
@@ -1790,7 +1790,7 @@ class TestCowViewSaving(TestViewSavingCommon, HttpCase):
         )
         to_translate = root.text_content()
         sha = sha256(to_translate.encode()).hexdigest()
-        payload = self.build_rpc_payload(
+        payload = self.prepare_rpc_payload(
             {
                 "model": view._name,
                 "record_id": view.id,

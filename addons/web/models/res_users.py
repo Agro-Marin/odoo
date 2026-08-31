@@ -54,7 +54,7 @@ class ResUsers(models.Model):
         return user_list
 
     def _on_webclient_bootstrap(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
 
     def _should_captcha_login(self, credential: dict[str, Any]) -> bool:
         if (

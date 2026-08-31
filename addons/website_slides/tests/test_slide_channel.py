@@ -306,7 +306,7 @@ class TestSlidesManagement(slides_common.SlidesCase, HttpCase):
         self.authenticate("admin", "admin")
 
         for _ in range(2):
-            self.make_jsonrpc_request(
+            self.call_jsonrpc(
                 "/slides/add_slide",
                 {
                     "channel_id": self.channel.id,
@@ -319,13 +319,13 @@ class TestSlidesManagement(slides_common.SlidesCase, HttpCase):
                 headers={"Content-Type": "application/json"},
             )
 
-            self.make_jsonrpc_request(
+            self.call_jsonrpc(
                 "/slides/slide/archive",
                 {"slide_id": self.channel.slide_ids[-1].id},
                 headers={"Content-Type": "application/json"},
             )
 
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             "/slides/prepare_preview",
             {
                 "channel_id": self.channel.id,

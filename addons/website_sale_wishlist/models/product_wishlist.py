@@ -121,7 +121,7 @@ class ProductTemplate(models.Model):
     _inherit = "product.template"
 
     def _is_in_wishlist(self):
-        self.ensure_one()
+        self.check_singleton()
         return self in self.env["product.wishlist"].current().mapped(
             "product_id.product_tmpl_id"
         )
@@ -131,5 +131,5 @@ class ProductProduct(models.Model):
     _inherit = "product.product"
 
     def _is_in_wishlist(self):
-        self.ensure_one()
+        self.check_singleton()
         return self in self.env["product.wishlist"].current().mapped("product_id")

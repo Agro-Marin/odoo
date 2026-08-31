@@ -5,7 +5,7 @@ class MailGroup(models.Model):
     _inherit = "mail.group"
 
     def action_go_to_website(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_url",
             "target": "self",

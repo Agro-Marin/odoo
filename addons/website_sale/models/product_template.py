@@ -274,7 +274,7 @@ class ProductTemplate(models.Model):
                 template.product_variant_ids.base_unit_id = template.base_unit_id
 
     def _get_base_unit_price(self, price):
-        self.ensure_one()
+        self.check_singleton()
         return self.base_unit_count and price / self.base_unit_count
 
     @api.depends("list_price", "base_unit_count")
@@ -344,14 +344,14 @@ class ProductTemplate(models.Model):
         :return: True if at least one no_variant attribute, False otherwise
         :rtype: bool
         """
-        self.ensure_one()
+        self.check_singleton()
         return any(
             a.create_variant == "no_variant"
             for a in self.valid_product_template_attribute_line_ids.attribute_id
         )
 
     def _has_is_custom_values(self):
-        self.ensure_one()
+        self.check_singleton()
         """Return whether this `product.template` has at least one is_custom
         attribute value.
 
@@ -379,7 +379,7 @@ class ProductTemplate(models.Model):
         :return: the sorted variants that are possible
         :rtype: recordset of `product.product`
         """
-        self.ensure_one()
+        self.check_singleton()
 
         def _sort_key_attribute_value(value):
             # if you change this order, keep it in sync with _order from `product.attribute`
@@ -531,7 +531,7 @@ class ProductTemplate(models.Model):
         """
         Pre-check to `_is_add_to_cart_possible` to know if product can be sold.
         """
-        self.ensure_one()
+        self.check_singleton()
         return bool(self.filtered_domain(self.env["website"]._product_domain()))
 
     def _is_add_to_cart_possible(self, parent_combination=None):
@@ -546,7 +546,7 @@ class ProductTemplate(models.Model):
         :return: True if it's possible to add to cart, else False
         :rtype: bool
         """
-        self.ensure_one()
+        self.check_singleton()
         if not self.active or not self._can_be_added_to_cart():
             # for performance: avoid calling `_get_possible_combinations`
             return False
@@ -606,7 +606,7 @@ class ProductTemplate(models.Model):
                 the price does not include the discount and there is actually a
                 discount applied (price < list_price), else False
         """
-        self.ensure_one()
+        self.check_singleton()
 
         combination = combination or self.env["product.template.attribute.value"]
         website = request.website.with_context(self.env.context)
@@ -873,7 +873,7 @@ class ProductTemplate(models.Model):
         :return: this product template or the first product variant
         :rtype: recordset of 'product.template' or recordset of 'product.product'
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.image_128:
             return self
         variant = self.env["product.product"].browse(
@@ -1004,7 +1004,7 @@ class ProductTemplate(models.Model):
         It contains in this order: the main image of the template and the
         Template Extra Images.
         """
-        self.ensure_one()
+        self.check_singleton()
         return [self] + list(self.product_template_image_ids)
 
     def _get_attribute_value_domain(self, attribute_value_dict):
@@ -1162,7 +1162,7 @@ class ProductTemplate(models.Model):
         return price, list_price
 
     def _get_google_analytics_data(self, product, combination_info):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "item_id": product.barcode or product.id,
             "item_name": combination_info["display_name"],
@@ -1179,7 +1179,7 @@ class ProductTemplate(models.Model):
         return pricelist
 
     def _website_show_quick_add(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.filtered_domain(self.env["website"]._product_domain()):
             return False
         return (
@@ -1235,7 +1235,7 @@ class ProductTemplate(models.Model):
         :return: The JSON-LD markup data.
         :rtype: dict
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if self.product_variant_count == 1:
             return self.product_variant_id._to_markup_data(website)
@@ -1301,7 +1301,7 @@ class ProductTemplate(models.Model):
 
     def _get_access_action(self, access_uid=None, force_website=False):
         """Instead of the classic form view, redirect to website if it is published."""
-        self.ensure_one()
+        self.check_singleton()
         if force_website or (self.website_published and self.env.user.share):
             return {
                 "type": "ir.actions.act_url",
@@ -1320,7 +1320,7 @@ class ProductTemplate(models.Model):
     def _get_product_url(
         self, category=None, query_params=None, grouped_attributes_values=None
     ):
-        self.ensure_one()
+        self.check_singleton()
         slug = self.env["ir.http"]._slug
 
         url = (category and f"/shop/{slug(category)}/{slug(self)}") or self.website_url

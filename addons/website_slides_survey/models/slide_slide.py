@@ -93,14 +93,14 @@ class SlideSlide(models.Model):
         slides = super().create(vals_list)
         slides_with_survey = slides.filtered("survey_id")
         slides_with_survey.slide_category = "certification"
-        slides_with_survey._ensure_challenge_category()
+        slides_with_survey._update_challenge_category()
         return slides
 
     def write(self, vals):
         old_surveys = self.mapped("survey_id")
         result = super().write(vals)
         if "survey_id" in vals:
-            self._ensure_challenge_category(
+            self._update_challenge_category(
                 old_surveys=old_surveys - self.mapped("survey_id")
             )
         return result
@@ -108,10 +108,10 @@ class SlideSlide(models.Model):
     def unlink(self):
         old_surveys = self.mapped("survey_id")
         result = super().unlink()
-        self._ensure_challenge_category(old_surveys=old_surveys, unlink=True)
+        self._update_challenge_category(old_surveys=old_surveys, unlink=True)
         return result
 
-    def _ensure_challenge_category(self, old_surveys=None, unlink=False):
+    def _update_challenge_category(self, old_surveys=None, unlink=False):
         """If a slide is linked to a survey that gives a badge, the challenge category of this badge must be
         set to 'slides' in order to appear under the certification badge list on ranks_badges page.
         If the survey is unlinked from the slide, the challenge category must be reset to 'certification'"""

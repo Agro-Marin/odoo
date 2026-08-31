@@ -239,10 +239,10 @@ class TestRoutes(HttpCaseWithUserDemo, TestWebsiteEventSaleCommon, PaymentHttpCo
         with self.assertRaisesRegex(
             JsonRpcException, r"odoo\.exceptions\.ValidationError"
         ):
-            self.make_jsonrpc_request(url, route_kwargs)
+            self.call_jsonrpc(url, route_kwargs)
         # Double check that we hit the correct limit for ticket
         with self.assertRaises(ValidationError):
-            self.event._verify_seats_availability(
+            self.event._check_seats_availability(
                 [
                     (slot, ticket, 1)
                     for slot, ticket in self.env["event.registration"]._read_group(
@@ -283,10 +283,10 @@ class TestRoutes(HttpCaseWithUserDemo, TestWebsiteEventSaleCommon, PaymentHttpCo
         with self.assertRaisesRegex(
             JsonRpcException, r"odoo\.exceptions\.ValidationError"
         ):
-            self.make_jsonrpc_request(url, route_kwargs)
+            self.call_jsonrpc(url, route_kwargs)
         # Double check that we hit the correct limit for event
         with self.assertRaises(ValidationError):
-            self.event._verify_seats_availability(
+            self.event._check_seats_availability(
                 [
                     (slot, ticket, 2)
                     for slot, ticket in self.env["event.registration"]._read_group(
@@ -299,7 +299,7 @@ class TestRoutes(HttpCaseWithUserDemo, TestWebsiteEventSaleCommon, PaymentHttpCo
         # Payment should succeed when buying only one ticket
         sale_order.line_ids.product_uom_qty = 1
         registration[1].unlink()
-        self.make_jsonrpc_request(url, route_kwargs)
+        self.call_jsonrpc(url, route_kwargs)
         registration.exists().write({"state": "open"})
         self.assertEqual(self.ticket.seats_taken, 2)
         self.assertEqual(self.event.seats_taken, 3)

@@ -346,7 +346,7 @@ class TestUi(TestUICommon):
         self.start_tour("/slides", "course_reviews_reaction_public", login=None)
 
     def _add_reaction(self, message, reaction):
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             "/mail/message/reaction",
             {
                 "action": "add",
@@ -391,15 +391,15 @@ class TestUi(TestUICommon):
 
 @tests.common.tagged("post_install", "-at_install")
 class TestUiPublisher(HttpCaseGamification):
-    def fetch_proxy(self, url):
+    def prepare_proxy_response(self, url):
         if url.endswith("ThreeTimeAKCGoldWinnerPembrookeWelshCorgi.jpg"):
             _logger.info(
                 "External chrome request during tests: Sending dummy image for %s", url
             )
             with file_open("base/tests/odoo.jpg", "rb") as f:
                 content = f.read()
-            return self.make_fetch_proxy_response(content)
-        return super().fetch_proxy(url)
+            return self.prepare_proxy_response_from_content(content)
+        return super().prepare_proxy_response(url)
 
     def test_course_publisher_elearning_manager(self):
         user_demo = self.user_demo

@@ -33,7 +33,7 @@ class PaymentTransaction(models.Model):
     def _send_donation_email(
         self, is_internal_notification=False, comment=None, recipient_email=None
     ):
-        self.ensure_one()
+        self.check_singleton()
         if is_internal_notification or self.state == "done":
             subject = (
                 _("A donation has been made on your website")

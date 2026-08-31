@@ -91,7 +91,7 @@ class WebManifest(http.Controller):
         readonly=True,
     )
     def webmanifest(self) -> Response:
-        return request.make_json_response(
+        return request.prepare_json_response(
             self._get_webmanifest(),
             {"Content-Type": "application/manifest+json"},
         )
@@ -104,7 +104,7 @@ class WebManifest(http.Controller):
         readonly=True,
     )
     def service_worker(self) -> Response:
-        return request.make_response(
+        return request.prepare_response(
             self._get_service_worker_content(),
             [
                 ("Content-Type", "text/javascript"),
@@ -186,7 +186,7 @@ class WebManifest(http.Controller):
                 colorize=(255, 255, 255),
                 padding=16,
             )
-        return request.make_response(image, headers=[("Content-Type", "image/png")])
+        return request.prepare_response(image, headers=[("Content-Type", "image/png")])
 
     @http.route(
         "/web/manifest.scoped_app_manifest",
@@ -211,7 +211,7 @@ class WebManifest(http.Controller):
             "prefer_related_applications": False,
             "shortcuts": self._get_scoped_app_shortcuts(app_id),
         }
-        return request.make_json_response(
+        return request.prepare_json_response(
             webmanifest, {"Content-Type": "application/manifest+json"}
         )
 

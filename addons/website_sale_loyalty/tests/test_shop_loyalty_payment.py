@@ -61,7 +61,7 @@ class TestShopLoyaltyPayment(PaymentHttpCommon, TestSaleCouponCommon):
                 JsonRpcException,
                 msg="Payment shouldn't succeed with expired reward still applied",
             ):
-                self.make_jsonrpc_request(
+                self.call_jsonrpc(
                     self._build_url(f"/shop/payment/transaction/{order.id}"),
                     {
                         "order_id": order.id,
@@ -78,7 +78,7 @@ class TestShopLoyaltyPayment(PaymentHttpCommon, TestSaleCouponCommon):
 
             # Update rewards & retry transaction
             order._update_programs_and_rewards()
-            tx_response = self.make_jsonrpc_request(
+            tx_response = self.call_jsonrpc(
                 self._build_url(f"/shop/payment/transaction/{order.id}"),
                 {
                     "order_id": order.id,

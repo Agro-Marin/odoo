@@ -5,7 +5,7 @@ class SaleOrderLine(models.Model):
     _inherit = "sale.order.line"
 
     def _set_shop_warning_stock(self, desired_qty, new_qty, save=True):
-        self.ensure_one()
+        self.check_singleton()
         warning = self.env._(
             "You ask for %(desired_qty)s %(product_name)s but only %(new_qty)s is available",
             desired_qty=desired_qty,
@@ -27,7 +27,7 @@ class SaleOrderLine(models.Model):
         the lowest max quantity. If none of the combo items has a max quantity, then the combo
         product also has no max quantity.
         """
-        self.ensure_one()
+        self.check_singleton()
         cart_and_free_quantities = [
             line.order_id._get_cart_and_free_qty(line.product_id)
             for line in self._get_lines_with_price()
@@ -40,7 +40,7 @@ class SaleOrderLine(models.Model):
         return min(max_quantities, default=None)
 
     def _check_availability(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.product_id.is_storable and not self.product_id.allow_out_of_stock_order:
             cart_qty, avl_qty = self.order_id._get_cart_and_free_qty(self.product_id)
             if cart_qty > avl_qty:

@@ -609,7 +609,7 @@ class Website(models.Model):
         :returns: list of product.pricelist ids
         :rtype: list
         """
-        self.ensure_one()
+        self.check_singleton()
         pricelists = self.env["product.pricelist"]
 
         def check_pricelist(pricelist):
@@ -665,7 +665,7 @@ class Website(models.Model):
         :param bool show_visible: if True, we don't display pricelist where selectable is False (Eg: Code promo)
         :returns: pricelist recordset
         """
-        self.ensure_one()
+        self.check_singleton()
 
         ProductPricelist = self.env["product.pricelist"]
 
@@ -733,7 +733,7 @@ class Website(models.Model):
         return [("sale_ok", "=", True)]
 
     def _create_cart(self):
-        self.ensure_one()
+        self.check_singleton()
 
         partner_sudo = self.env.user.partner_id
 
@@ -755,7 +755,7 @@ class Website(models.Model):
         return sale_order_sudo
 
     def _prepare_sale_order_values(self, partner_sudo):
-        self.ensure_one()
+        self.check_singleton()
 
         return {
             "company_id": self.company_id.id,
@@ -769,12 +769,12 @@ class Website(models.Model):
     def _get_and_cache_current_pricelist(self):
         """Retrieve and cache the current pricelist for the session.
 
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :return: The determined pricelist, which could be empty, as a sudoed record.
         :rtype: product.pricelist
         """
-        self.ensure_one()
+        self.check_singleton()
 
         ProductPricelistSudo = self.env["product.pricelist"].sudo()
         if not self.env["res.groups"]._is_feature_enabled(
@@ -813,12 +813,12 @@ class Website(models.Model):
     def _get_and_cache_current_fiscal_position(self):
         """Retrieve and cache the current fiscal position for the session.
 
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :return: A sudoed fiscal position record.
         :rtype: account.fiscal.position
         """
-        self.ensure_one()
+        self.check_singleton()
 
         AccountFiscalPositionSudo = self.env["account.fiscal.position"].sudo()
         fpos_sudo = AccountFiscalPositionSudo
@@ -858,12 +858,12 @@ class Website(models.Model):
     def _get_and_cache_current_cart(self):
         """Retrieves and caches the current cart for the session.
 
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :return: A sudoed Sales order record.
         :rtype: sale.order
         """
-        self.ensure_one()
+        self.check_singleton()
 
         SaleOrderSudo = self.env["sale.order"].sudo()
 
@@ -927,7 +927,7 @@ class Website(models.Model):
                     abandonned_cart_sudo._update_address(
                         partner_sudo.id, ["partner_id"]
                     )
-                    abandonned_cart_sudo._verify_cart()
+                    abandonned_cart_sudo._remove_invalid_cart_lines()
                 sale_order_sudo = abandonned_cart_sudo
 
         if (
@@ -984,7 +984,7 @@ class Website(models.Model):
         """
         Returns the number of columns (css) that both the images and the product details should take.
         """
-        self.ensure_one()
+        self.check_singleton()
 
         return {
             "none": (0, 12),
@@ -1207,7 +1207,7 @@ class Website(models.Model):
         )
 
     def _default_feed_is_valid(self):
-        self.ensure_one()
+        self.check_singleton()
         product_count = self.env["product.product"].search_count(
             self._get_basic_feed_product_domain(),
             limit=const.PRODUCT_FEED_SOFT_LIMIT + 1,

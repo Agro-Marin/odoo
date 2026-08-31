@@ -88,7 +88,7 @@ class EventTrack(models.Model):
                         track.quiz_points = 0
 
     def action_add_quiz(self):
-        self.ensure_one()
+        self.check_singleton()
         event_quiz_form = self.env.ref("website_event_track_quiz.event_quiz_view_form")
         return {
             "type": "ir.actions.act_window",
@@ -102,7 +102,7 @@ class EventTrack(models.Model):
         }
 
     def action_view_quiz(self):
-        self.ensure_one()
+        self.check_singleton()
         event_quiz_form = self.env.ref("website_event_track_quiz.event_quiz_view_form")
         return {
             "type": "ir.actions.act_window",

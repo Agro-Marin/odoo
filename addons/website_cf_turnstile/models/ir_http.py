@@ -34,7 +34,7 @@ class IrHttp(models.AbstractModel):
         super()._check_request_recaptcha_token(action)
         ip_addr = request.httprequest.remote_addr
         token = request.params.pop("turnstile_captcha", False)
-        turnstile_result = request.env["ir.http"]._verify_turnstile_token(
+        turnstile_result = request.env["ir.http"]._get_turnstile_verdict(
             ip_addr, token, action
         )
         if turnstile_result in ["is_human", "no_secret"]:
@@ -51,7 +51,7 @@ class IrHttp(models.AbstractModel):
         raise UserError(_("Suspicious activity detected by Turnstile CAPTCHA."))
 
     @api.model
-    def _verify_turnstile_token(self, ip_addr, token, action=False):
+    def _get_turnstile_verdict(self, ip_addr, token, action=False):
         """
         Verify a turnstile token and returns the result as a string.
         Turnstile verify DOC: https://developers.cloudflare.com/turnstile/get-started/server-side-validation/

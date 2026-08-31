@@ -29,6 +29,6 @@ class PaymentPortalOnsite(PaymentPortal):
                     ["__count"],
                 )
             )
-            event._verify_seats_availability(
+            event._check_seats_availability(
                 [(slot, ticket, count) for slot, ticket, count in count_per_slot_ticket]
             )

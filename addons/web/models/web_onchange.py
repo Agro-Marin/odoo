@@ -250,7 +250,7 @@ class Base(models.AbstractModel):
         return screened
 
     def web_override_translations(self, values: dict[str, str]) -> None:
-        self.ensure_one()
+        self.check_singleton()
         for field_name, value in values.items():
             field = self._fields.get(field_name)
             if field and field.translate is True:

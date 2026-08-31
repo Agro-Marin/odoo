@@ -58,7 +58,7 @@ class IrHttp(models.AbstractModel):
     @classmethod
     def _slug(cls, value: models.BaseModel | tuple[int, str]) -> str:
         try:
-            identifier, name = value.ensure_one().id, value.display_name
+            identifier, name = value.check_singleton().id, value.display_name
         except AttributeError:
             identifier, name = value
         if not identifier:
@@ -268,7 +268,7 @@ class IrHttp(models.AbstractModel):
         lang_code = self._get_default_lang_code()
         lang = Lang._get_data(code=lang_code) if lang_code else None
         if not lang:
-            lang = next(iter(Lang._get_active_by("code").values()))
+            lang = next(iter(Lang._get_active_by_field("code").values()))
         return lang
 
     @api.model

@@ -26,7 +26,7 @@ class ResPartner(models.Model):
                 )
 
     def _track_subtype(self, init_values):
-        self.ensure_one()
+        self.check_singleton()
         if "is_published" in init_values:
             if self.is_published:
                 return self.env.ref(

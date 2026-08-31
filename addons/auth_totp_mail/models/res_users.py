@@ -172,7 +172,7 @@ class ResUsers(models.Model):
             return super()._check_credentials(credentials, env)
 
     def _get_totp_mail_key(self):
-        self.ensure_one()
+        self.check_singleton()
         return hmac(
             self.env(su=True),
             "auth_totp_mail-code",
@@ -180,7 +180,7 @@ class ResUsers(models.Model):
         ).encode()
 
     def _get_totp_mail_code(self):
-        self.ensure_one()
+        self.check_singleton()
 
         key = self._get_totp_mail_key()
 
@@ -195,7 +195,7 @@ class ResUsers(models.Model):
         return str(code).zfill(6), expiration
 
     def _send_totp_mail_code(self):
-        self.ensure_one()
+        self.check_singleton()
         self._totp_rate_limit("send_email")
 
         if not self.email:

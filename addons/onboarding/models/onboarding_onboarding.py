@@ -172,7 +172,7 @@ class OnboardingOnboarding(models.Model):
         )
 
     def _prepare_rendering_values(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "close_method": self.panel_close_action_name,
             "close_model": "onboarding.onboarding",

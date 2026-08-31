@@ -518,7 +518,7 @@ class TestMenuHttp(common.HttpCase):
         root = html.fromstring(menu.mega_menu_content)
         to_translate = root.text_content()
         sha = sha256(to_translate.encode()).hexdigest()
-        payload = self.build_rpc_payload(
+        payload = self.prepare_rpc_payload(
             {
                 "model": menu._name,
                 "record_id": menu.id,

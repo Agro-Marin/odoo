@@ -26,7 +26,7 @@ class MixinWebsiteCover_Properties(models.AbstractModel):
         }
 
     def _get_background(self, height=None, width=None):
-        self.ensure_one()
+        self.check_singleton()
         properties = json_safe.loads(self.cover_properties)
         img = properties.get("background-image", "none")
 

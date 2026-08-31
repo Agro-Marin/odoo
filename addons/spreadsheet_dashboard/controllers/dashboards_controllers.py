@@ -19,7 +19,7 @@ class DashboardDataRoute(http.Controller):
         if dashboard._dashboard_is_empty() and dashboard.sample_dashboard_file_path:
             sample_data = dashboard._get_sample_dashboard()
             if sample_data:
-                return request.make_json_response({
+                return request.prepare_json_response({
                     'snapshot': sample_data,
                     'is_sample': True,
                 })
@@ -28,4 +28,4 @@ class DashboardDataRoute(http.Controller):
             ('Content-Length', len(body)),
             ('Content-Type', 'application/json; charset=utf-8'),
         ]
-        return request.make_response(body, headers)
+        return request.prepare_response(body, headers)

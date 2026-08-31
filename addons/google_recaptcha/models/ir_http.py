@@ -48,7 +48,7 @@ class IrHttp(models.AbstractModel):
             return
         ip_addr = request.httprequest.remote_addr
         token = request.params.pop("recaptcha_token_response", False)
-        recaptcha_result = request.env["ir.http"]._verify_recaptcha_token(
+        recaptcha_result = request.env["ir.http"]._get_recaptcha_verdict(
             ip_addr, token, action
         )
         if recaptcha_result in ["is_human", "no_secret"]:
@@ -64,7 +64,7 @@ class IrHttp(models.AbstractModel):
         raise UserError(_("Suspicious activity detected by google reCAPTCHA."))
 
     @api.model
-    def _verify_recaptcha_token(self, ip_addr, token, action=False):
+    def _get_recaptcha_verdict(self, ip_addr, token, action=False):
         """
         Verify a recaptchaV3 token and returns the result as a string.
         RecaptchaV3 verify DOC: https://developers.google.com/recaptcha/docs/verify

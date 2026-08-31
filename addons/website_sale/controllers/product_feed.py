@@ -42,7 +42,7 @@ class ProductFeed(Controller):
 
         compressed_gmc_xml = feed_sudo._render_and_cache_compressed_gmc_feed()
 
-        return request.make_response(
+        return request.prepare_response(
             compressed_gmc_xml,
             [
                 ("Content-Type", "application/xml; charset=utf-8"),

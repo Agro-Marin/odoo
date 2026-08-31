@@ -95,7 +95,7 @@ class MixinMailThread(models.AbstractModel):
         return new_group + groups
 
     def _sign_token(self, pid) -> str:
-        self.ensure_one()
+        self.check_singleton()
         if self._mail_post_token_field not in self._fields:
             raise NotImplementedError(
                 _(

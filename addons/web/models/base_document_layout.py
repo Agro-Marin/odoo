@@ -179,7 +179,7 @@ class BaseDocumentLayout(models.TransientModel):
         return "web.report_invoice_wizard_preview"
 
     def _get_render_information(self, styles: str) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         preview_css = self._get_css_for_preview(styles)
         return {
             "company": self,

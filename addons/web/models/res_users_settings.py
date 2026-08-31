@@ -40,13 +40,13 @@ class ResUsersSettings(models.Model):
         return res
 
     def get_embedded_actions_settings(self) -> dict[str, Any]:
-        self.ensure_one()
+        self.check_singleton()
         return self.embedded_actions_config_ids._format_embedded_action_settings()
 
     def set_embedded_actions_setting(
         self, action_id: int, res_id: int, vals: dict[str, Any]
     ) -> None:
-        self.ensure_one()
+        self.check_singleton()
         embedded_actions_config = self.env["res.users.settings.embedded.action"].search(
             [
                 ("user_setting_id", "=", self.id),

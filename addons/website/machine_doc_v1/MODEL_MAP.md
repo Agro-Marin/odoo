@@ -139,7 +139,7 @@ visibility + ACL), `group_ids` (visibility groups), `is_mega_menu`,
 `save` RPC. `create` fans a website-less menu out to every website; `unlink`
 removes per-website copies matched by url with guards
 (`_unlink_except_master_tags`). `get_tree(website_id, menu_id)` and
-`save(website_id, data)` are the editor RPCs. Constraint `_validate_parent_menu`
+`save(website_id, data)` are the editor RPCs. Constraint `_check_parent_menu`
 (max 2 levels; mega menu no parent/child).
 
 ### models/website_rewrite.py — WebsiteRoute + WebsiteRewrite — NEW
@@ -178,7 +178,7 @@ static nodes never honor the per-request debug bypass — GDPR safety).
 `visibility` (`''` public / connected / restricted_group / password),
 `visibility_password` (hashed) + SEO metadata via the mixin. `write` = **COW**
 (copies generic view to website-specific, relocates inherit children, creates
-specific pages); `unlink` = **COU**. `_get_inheriting_views` prefers inactive
+specific pages); `unlink` = **COU**. `_get_views_inheriting` prefers inactive
 specific over active generic. `_handle_visibility(do_raise)` enforces
 public/connected/group/password → 403. `get_view_hierarchy` / `get_related_views`
 are the editor RPCs. `save(value, xpath)` diverts writes to the specific view.

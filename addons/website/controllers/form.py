@@ -43,7 +43,7 @@ class WebsiteForm(http.Controller):
     )
     def website_form(self, model_name, **kwargs):
         csrf_token = request.params.pop("csrf_token", None)
-        if request.session.uid and not request.validate_csrf(csrf_token):
+        if request.session.uid and not request.is_valid_csrf(csrf_token):
             raise BadRequest("Session expired (invalid CSRF token)")
 
         try:

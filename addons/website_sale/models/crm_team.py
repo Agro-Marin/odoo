@@ -42,7 +42,7 @@ class CrmTeam(models.Model):
             team.abandoned_carts_amount = amounts.get(team.id, 0)
 
     def get_abandoned_carts(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": _("Abandoned Carts"),
             "type": "ir.actions.act_window",

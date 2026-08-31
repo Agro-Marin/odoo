@@ -633,7 +633,7 @@ class HTML_Editor(http.Controller):
             svg = self.replace_animation_duration(
                 shape_animation_speed=shape_animation_speed, svg=svg
             )
-        return request.make_response(
+        return request.prepare_response(
             svg,
             [
                 ("Content-type", "image/svg+xml"),
@@ -681,7 +681,7 @@ class HTML_Editor(http.Controller):
         uri = image_data_uri(b64encode(image))
         svg = svg.replace('<image xlink:href="', f'<image xlink:href="{uri}')
 
-        return request.make_response(
+        return request.prepare_response(
             svg,
             [
                 ("Content-type", "image/svg+xml"),

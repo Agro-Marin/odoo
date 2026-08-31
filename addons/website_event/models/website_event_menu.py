@@ -77,7 +77,7 @@ class WebsiteEventMenu(models.Model):
     @api.model
     def _copy_children_views(self, new_view, children_views, website_id):
         """Duplicate the children associated in the new view"""
-        new_view.ensure_one()
+        new_view.check_singleton()
         for child_view in children_views:
             view_info = child_view.key.split(".")
             # Get the last view modified based on the key and the website of the event

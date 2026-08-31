@@ -80,7 +80,7 @@ class WebsiteSnippetFilter(models.Model):
         res_id=None,
         **custom_template_data,
     ):
-        self and self.ensure_one()
+        self and self.check_singleton()
 
         if not template_key or ".dynamic_filter_template_" not in template_key:
             return []
@@ -136,7 +136,7 @@ class WebsiteSnippetFilter(models.Model):
         return value if value > 0 else None
 
     def _prepare_values(self, limit=None, search_domain=None, **options):
-        self and self.ensure_one()
+        self and self.check_singleton()
 
         model_name = self.filter_id.sudo().model_id or options.get("res_model")
         res_id = self._coerce_positive_int(options.get("res_id"))
@@ -266,11 +266,11 @@ class WebsiteSnippetFilter(models.Model):
         if sample_data:
             for index in range(length):
                 single_sample_data = sample_data[index % len(sample_data)].copy()
-                self._fill_sample(model, single_sample_data, index)
+                self._update_sample(model, single_sample_data, index)
                 sample.append(model.new(single_sample_data))
         return sample
 
-    def _fill_sample(self, model, sample, index):
+    def _update_sample(self, model, sample, index):
         meta_data = self._get_filter_meta_data(model)
         for field_name, field_widget in meta_data.items():
             if field_name not in sample and field_name in model:
@@ -288,7 +288,7 @@ class WebsiteSnippetFilter(models.Model):
         return [{}]
 
     def _filter_records_to_values(self, records, **options):
-        self and self.ensure_one()
+        self and self.check_singleton()
         model = self._resolve_model(self.model_name or options.get("res_model"))
         if model is None:
             return []

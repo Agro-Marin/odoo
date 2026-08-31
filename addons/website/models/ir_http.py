@@ -446,7 +446,7 @@ class IrHttp(models.AbstractModel):
         session_info = super().get_frontend_session_info()
         geoip_country_code = request.geoip.country_code
         geoip_phone_code = (
-            request.env["res.country"]._phone_code_for(geoip_country_code)
+            request.env["res.country"]._get_phone_code_by_code(geoip_country_code)
             if geoip_country_code
             else None
         )

@@ -68,7 +68,7 @@ class TestWebsiteResetPassword(HttpCase):
 
     def test_02_multi_user_login(self):
         website = self.env["website"].get_current_website()
-        website.ensure_one()
+        website.check_singleton()
         internal_group = self.env.ref("base.group_user")
         portal_group = self.env.ref("base.group_portal")
 

@@ -35,7 +35,7 @@ class TestGoogleRecaptcha(TransactionCase):
 
     def _verify_token(self, **kwargs):
         with self._mocked_verify(**kwargs):
-            return self.env["ir.http"]._verify_recaptcha_token(
+            return self.env["ir.http"]._get_recaptcha_verdict(
                 "10.0.0.1", "a-token", action="login"
             )
 
@@ -55,7 +55,7 @@ class TestGoogleRecaptcha(TransactionCase):
         info = self.env["ir.http"]._add_public_key_to_session_info({})
         self.assertNotIn("recaptcha_public_key", info)
 
-    # ── _verify_recaptcha_token ──────────────────────────────────────
+    # ── _get_recaptcha_verdict ──────────────────────────────────────
 
     def test_verify_returns_no_secret_without_private_key(self):
         """Verification is a no-op ('no_secret') when no secret is configured."""

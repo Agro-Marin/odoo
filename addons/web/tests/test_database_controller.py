@@ -31,7 +31,7 @@ class TestDatabaseMasterPassword(TransactionCase):
         fake_request.httprequest.remote_addr = remote_addr
         with (
             patch.object(
-                odoo.tools.config, "verify_admin_password", return_value=insecure
+                odoo.tools.config, "is_valid_admin_password", return_value=insecure
             ),
             patch("odoo.addons.web.controllers.database.request", fake_request),
             patch(

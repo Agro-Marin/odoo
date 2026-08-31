@@ -37,10 +37,10 @@ class IrUiView(models.Model):
                     templates_count += 1
                 else:
                     msg = _('Hierarchy view can contain only one templates tag')
-                    self._raise_view_error(msg, child)
+                    raise self._prepare_view_error(msg, child)
             elif child.tag != 'field':
                 msg = _('Hierarchy child can only be field or template, got %s', child.tag)
-                self._raise_view_error(msg, child)
+                raise self._prepare_view_error(msg, child)
 
         remaining = set(node.attrib) - HIERARCHY_VALID_ATTRIBUTES
         if remaining:
@@ -49,7 +49,7 @@ class IrUiView(models.Model):
                 invalid_attributes=remaining,
                 valid_attributes=HIERARCHY_VALID_ATTRIBUTES,
             )
-            self._raise_view_error(msg, node)
+            raise self._prepare_view_error(msg, node)
 
     def _get_view_info(self):
         return {'hierarchy': {'icon': 'fa-solid fa-share-alt fa-rotate-90'}} | super()._get_view_info()

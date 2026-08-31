@@ -58,7 +58,7 @@ class TestDocumentCheckAccess(TransactionCase):
 class TestTokenValidatorHttp(HttpCase):
     @mute_logger("odoo.http")
     def test_chatter_init_hash_pid_tokenless_model_no_500(self):
-        result = self.make_jsonrpc_request(
+        result = self.call_jsonrpc(
             "/portal/chatter_init",
             params={
                 "thread_model": "res.partner",

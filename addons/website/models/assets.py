@@ -204,7 +204,7 @@ class WebsiteAssets(models.AbstractModel):
                 )
                 continue
             fetched += 1
-            attachment_id = self._fetch_google_local_font(font_name)
+            attachment_id = self._get_google_local_font(font_name)
             if attachment_id:
                 resolved[font_name] = attachment_id
             else:
@@ -214,7 +214,7 @@ class WebsiteAssets(models.AbstractModel):
                 )
         return resolved
 
-    def _fetch_google_local_font(self, font_name):
+    def _get_google_local_font(self, font_name):
         IrAttachment = self.env["ir.attachment"]
         css = self._http_get_google_font(
             f"https://fonts.googleapis.com/css?family={quote(font_name)}"

@@ -3,7 +3,7 @@ import werkzeug.exceptions
 import odoo.release
 from odoo import http
 from odoo.http import request
-from odoo.http.openapi import openapi_from_map
+from odoo.http.openapi import prepare_openapi_from_map
 
 
 class OpenAPI(http.Controller):
@@ -15,11 +15,11 @@ class OpenAPI(http.Controller):
             raise werkzeug.exceptions.Forbidden(
                 "Only system administrators may read the API document."
             )
-        document = openapi_from_map(
+        document = prepare_openapi_from_map(
             request.env["ir.http"].routing_map(),
             title="Odoo HTTP API",
             version=odoo.release.major_version,
             servers=[{"url": request.httprequest.url_root.rstrip("/")}],
             typed_only=True,
         )
-        return request.make_json_response(document)
+        return request.prepare_json_response(document)

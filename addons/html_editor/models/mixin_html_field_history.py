@@ -125,7 +125,7 @@ class MixinHtmlFieldHistory(models.AbstractModel):
             ))
 
     def html_field_history_get_content_at_revision(self, field_name, revision_id):
-        self.ensure_one()
+        self.check_singleton()
         self._check_versioned_field(field_name)
         self._check_revision_id(revision_id)
         revisions = [
@@ -141,7 +141,7 @@ class MixinHtmlFieldHistory(models.AbstractModel):
         return content
 
     def html_field_history_get_comparison_at_revision(self, field_name, revision_id):
-        self.ensure_one()
+        self.check_singleton()
         self._check_versioned_field(field_name)
         self._check_revision_id(revision_id)
         restored_content = self.html_field_history_get_content_at_revision(
@@ -151,7 +151,7 @@ class MixinHtmlFieldHistory(models.AbstractModel):
         return generate_comparison(restored_content, self[field_name] or "")
 
     def html_field_history_get_unified_diff_at_revision(self, field_name, revision_id):
-        self.ensure_one()
+        self.check_singleton()
         self._check_versioned_field(field_name)
         self._check_revision_id(revision_id)
         restored_content = self.html_field_history_get_content_at_revision(

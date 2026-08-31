@@ -121,7 +121,7 @@ non-ESM bundle" stub and neither raises when it is the wrong one:
 
 - `import_map_includes` — the child is **never compiled**: `EsbuildCompiler.compile`
   returns an empty result when `_import_map_included` is set
-  (fed from `registry.import_map_included_bundles` in `AssetsBundle._make_esbuild_compiler`). Its specifiers
+  (fed from `registry.import_map_included_bundles` in `AssetsBundle._prepare_esbuild_compiler`). Its specifiers
   ride the parent's map and resolve to individual source URLs, which is what a test
   runner loading files on demand wants.
 - `secondary_import_map_includes` — the child **is** compiled, and this is the only
@@ -181,7 +181,7 @@ The rule is not "close every bundle under its relative imports". It is: a bundle
 is servable per-file only if it is closed, and `esm.runtime_bundles` is the
 declaration that says it must be.
 
-Invariants are enforced by `validate_esm_config` (`esm_registry.py`) when the
+Invariants are enforced by `check_esm_config` (`esm_registry.py`) when the
 registry is built —
 loud by design, so a bad manifest fails the first render/bundle that touches
 the registry.  For ALL THREE mappings (`dynamic_children`,
@@ -312,7 +312,7 @@ env["ir.config_parameter"].sudo().set_param("web.esbuild.timeout_s", "60")
 | esbuild subprocess non-zero exit | Syntax error in an ESM source | `odoo.assets.esbuild WARNING event=failed bundle=<name> exit=<code>` + stderr on next line |
 | Requests serve un-minified bundles | Circuit open after failure | `odoo.assets.fallback WARNING event=circuit_open` (at trip) then `DEBUG event=circuit_blocked` (per request) |
 | Duplicate CPU on cold start | Multiple workers cold-building same bundle | `odoo.assets.lock INFO event=contention` |
-| `[registry] Duplicate add for key "…" … (first registration wins)` console.warn in debug | Module loaded twice (separate instances) — `registry.add` is first-wins and warns rather than throwing | Missing bridge shim (happy path is an attachment URL; `data:` URI only as the read-only-cursor fallback); check `_build_native_to_legacy_bridge` |
+| `[registry] Duplicate add for key "…" … (first registration wins)` console.warn in debug | Module loaded twice (separate instances) — `registry.add` is first-wins and warns rather than throwing | Missing bridge shim (happy path is an attachment URL; `data:` URI only as the read-only-cursor fallback); check `_prepare_native_to_legacy_bridge` |
 | Test `patchWithCleanup(Klass.prototype, …)` has no effect; production code keeps using unpatched method | Parent + satellite each load their own copy of the same `@web/*` module → `Klass` in test bundle is a different class than the one the production controller instantiates | Add fingerprint logger to module body — two distinct `MODULE LOADED` events means two evaluations. Root cause is usually a sibling manifest (e.g. `spreadsheet/__manifest__.py` pulls `web/static/src/views/graph/graph_model.js` into `spreadsheet.o_spreadsheet`, which is then `('include',)`'d by the satellite test bundle). Fix wires the satellite import through the parent's self-bridge via the `prod_import_map[alias] = shim` override in `_get_esm_nodes_prod` (`ir_qweb_assets.py`). |
 
 ## Cache invalidation on source change — no manual flush needed

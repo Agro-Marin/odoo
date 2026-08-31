@@ -54,7 +54,7 @@ class CrmLead(models.Model):
         values["medium_id"] = (
             values.get("medium_id")
             or self.sudo().default_get(["medium_id"]).get("medium_id")
-            or self.env["utm.medium"]._fetch_or_create_utm_medium("website").id
+            or self.env["utm.medium"]._get_or_create_utm_medium("website").id
         )
         values["team_id"] = (
             values.get("team_id") or request.website.crm_default_team_id.id

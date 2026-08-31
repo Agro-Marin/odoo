@@ -57,7 +57,7 @@ class CrmLeadForwardToPartner(models.TransientModel):
         return res
 
     def action_forward(self):
-        self.ensure_one()
+        self.check_singleton()
         template = self.env.ref(
             "website_crm_partner_assign.email_template_lead_forward_mail", False
         )

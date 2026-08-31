@@ -17,10 +17,10 @@ class SaleOrder(models.Model):
             if not order.warehouse_id:
                 order.warehouse_id = self.env.user._get_default_warehouse_id()
 
-    def _verify_updated_quantity(
+    def _get_updated_quantity(
         self, order_line, product_id, new_qty, uom_id, **kwargs
     ):
-        self.ensure_one()
+        self.check_singleton()
         product = self.env["product.product"].browse(product_id)
         if product.is_storable and not product.allow_out_of_stock_order:
             uom = self.env["uom.uom"].browse(uom_id)
@@ -74,21 +74,21 @@ class SaleOrder(models.Model):
                         product_name=product.name,
                     )
                 return allowed_line_qty, warning
-        return super()._verify_updated_quantity(
+        return super()._get_updated_quantity(
             order_line, product_id, new_qty, uom_id, **kwargs
         )
 
     def _get_cart_and_free_qty(self, product):
         """Get cart quantity and free quantity for given product.
 
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :param product: `product.product` record.
         :returns: cart quantity and available quantity in the product uom
         :rtype: tuple
         """
-        self.ensure_one()
-        product.ensure_one()
+        self.check_singleton()
+        product.check_singleton()
 
         return self._get_cart_qty(product.id), self._get_free_qty(product)
 
@@ -101,12 +101,12 @@ class SaleOrder(models.Model):
         If no warehouse is specified on the website, all warehouses are considered,
         regardless of the warehouse automatically assigned to the order.
 
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :returns: `stock.warehouse` id
         :rtype: int or False
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.website_id.warehouse_id.id
 
     def _get_cart_qty(self, product_id):
@@ -151,7 +151,7 @@ class SaleOrder(models.Model):
         )
 
     def _all_product_available(self):
-        self.ensure_one()
+        self.check_singleton()
         if not (lines := self.line_ids):
             return True
         return not any(product._is_sold_out() for product in lines.product_id)

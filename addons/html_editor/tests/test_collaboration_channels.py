@@ -29,7 +29,7 @@ class TestCollaborationChannels(TransactionCase):
             self.env,
             self.env["ir.websocket"]
             .with_user(user)
-            ._build_bus_channel_list(
+            ._get_bus_channels(
                 channels,
             ),
         )
@@ -53,7 +53,7 @@ class TestCollaborationChannels(TransactionCase):
     def test_public_user_is_denied(self):
         public = self.env.ref("base.public_user")
         with self.assertRaises(AccessDenied):
-            self.env["ir.websocket"].with_user(public)._build_bus_channel_list(
+            self.env["ir.websocket"].with_user(public)._get_bus_channels(
                 [self._channel()],
             )
 

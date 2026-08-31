@@ -210,7 +210,7 @@ class TestDatabaseRestoreLogging(HttpCase):
     def test_restore_logs_exception_on_failure(self):
         with (
             patch(
-                "odoo.tools.config.configmanager.verify_admin_password",
+                "odoo.tools.config.configmanager.is_valid_admin_password",
                 return_value=False,
             ),
             patch("odoo.service.db.check_super"),

@@ -78,7 +78,7 @@ class IrUiView(models.Model):
             ) from err
 
     def save_oe_structure(self, el):
-        self.ensure_one()
+        self.check_singleton()
 
         if el.get("id") in self.key:
             return False
@@ -237,7 +237,7 @@ class IrUiView(models.Model):
         return ["style", "class", "target", "href"]
 
     def replace_arch_section(self, section_xpath, replacement, replace_tail=False):
-        self.ensure_one()
+        self.check_singleton()
         arch = etree.fromstring(self.arch.encode("utf-8"))
         if not section_xpath:
             root = arch
@@ -290,7 +290,7 @@ class IrUiView(models.Model):
         self.sudo().mapped("model_data_id").write({"noupdate": True})
 
     def save(self, value, xpath=None):
-        self.ensure_one()
+        self.check_singleton()
 
         arch_section = html.fromstring(value, parser=html.HTMLParser(encoding="utf-8"))
 
@@ -525,7 +525,7 @@ class IrUiView(models.Model):
         snippet_view.name = name
 
     @api.model
-    def delete_snippet(self, view_id, template_key):
+    def remove_snippet(self, view_id, template_key):
         snippet_view = self.browse(view_id)
         key = snippet_view.key.split(".")[1]
         custom_key = self._get_snippet_addition_view_key(template_key, key)

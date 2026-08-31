@@ -91,7 +91,7 @@ class WebClient(http.Controller):
                     }
                 )
 
-        return request.make_json_response(
+        return request.prepare_json_response(
             body,
             [
                 ("Cache-Control", f"public, max-age={http.STATIC_CACHE_LONG}"),
@@ -186,4 +186,4 @@ class WebClient(http.Controller):
                 files=len(data) if isinstance(data, list) else 0,
             )
 
-        return request.make_json_response(data)
+        return request.prepare_json_response(data)

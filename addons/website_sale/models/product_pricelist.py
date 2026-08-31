@@ -107,7 +107,7 @@ class ProductPricelist(models.Model):
 
         Change in this method should be reflected in `_get_website_pricelists_domain`.
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.company_id and self.company_id != website.company_id:
             return False
         return (self.active and self.website_id.id == website.id) or (
@@ -115,7 +115,7 @@ class ProductPricelist(models.Model):
         )
 
     def _is_available_in_country(self, country_code):
-        self.ensure_one()
+        self.check_singleton()
         if not country_code or not self.country_group_ids:
             return True
         return country_code in self.country_group_ids.country_ids.mapped("code")

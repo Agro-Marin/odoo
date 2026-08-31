@@ -50,7 +50,7 @@ class IapAccount(models.Model):
     )
 
     @api.constrains("warning_threshold", "warning_user_ids")
-    def validate_warning_alerts(self):
+    def check_warning_alerts(self):
         for account in self:
             if account.warning_threshold < 0:
                 raise UserError(_("Please set a positive email alert threshold."))

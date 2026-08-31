@@ -14,7 +14,7 @@ class ResUsers(models.Model):
         :return: A list of enabled authentication method types (e.g., ["webauthn", "totp", "password"]).
         :rtype: list[str]
         """
-        self.ensure_one()
+        self.check_singleton()
         auth_methods = []
         if self.auth_passkey_key_ids:
             auth_methods.append("webauthn")
@@ -33,7 +33,7 @@ class ResUsers(models.Model):
         :return: A dictionary of timeout types and values, as defined by `_get_lock_timeouts` on groups.
         :rtype: dict
         """
-        self.ensure_one()
+        self.check_singleton()
         # Take advantage of the ormcache of `self._get_group_ids()` to get the user groups and avoid queries
         return self.env["res.groups"].browse(self._get_group_ids())._get_lock_timeouts()
 

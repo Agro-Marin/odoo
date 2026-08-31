@@ -66,7 +66,7 @@ class IrAttachment(models.Model):
                 attachment.image_height = 0
 
     def _get_media_info(self):
-        self.ensure_one()
+        self.check_singleton()
         return self._read_format(['id', 'name', 'description', 'mimetype', 'checksum', 'url', 'type', 'res_id', 'res_model', 'public', 'access_token', 'image_src', 'image_width', 'image_height', 'original_id'])[0]
 
     def _can_bypass_rights_on_media_dialog(self, **attachment_data):

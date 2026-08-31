@@ -76,7 +76,7 @@ class OnboardingProgress(models.Model):
         It also has the responsibility of updating the 'just_done' state into
         'done' so that the 'just_done' states are only rendered once.
         """
-        self.ensure_one()
+        self.check_singleton()
         onboarding_states_values = {}
         progress_steps_to_consolidate = self.env["onboarding.progress.step"]
 

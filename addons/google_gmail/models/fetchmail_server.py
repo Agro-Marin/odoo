@@ -64,7 +64,7 @@ class FetchmailServer(models.Model):
 
         If the mail server is Gmail, we use the OAuth2 authentication protocol.
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.server_type == 'gmail':
             auth_string = self._generate_oauth2_string(self.user, self.google_gmail_refresh_token)
             connection.authenticate('XOAUTH2', lambda x: auth_string)
@@ -75,5 +75,5 @@ class FetchmailServer(models.Model):
         """Return which connection must be used for this mail server (IMAP or POP).
         The Gmail mail server used an IMAP connection.
         """
-        self.ensure_one()
+        self.check_singleton()
         return 'imap' if self.server_type == 'gmail' else super()._get_connection_type()

@@ -49,7 +49,7 @@ class BlogBlog(models.Model):
         """Temporary workaround to avoid spam. If someone replies on a channel
         through the 'Presentation Published' email, it should be considered as a
         note as we don't want all channel followers to be notified of this answer."""
-        self.ensure_one()
+        self.check_singleton()
         if parent_id:
             parent_message = self.env["mail.message"].sudo().browse(parent_id)
             if parent_message.subtype_id and parent_message.subtype_id == self.env.ref(
@@ -344,7 +344,7 @@ class BlogPost(models.Model):
     def _get_access_action(self, access_uid=None, force_website=False):
         """Instead of the classic form view, redirect to the post on website
         directly if user is an employee or if the post is published."""
-        self.ensure_one()
+        self.check_singleton()
         user = (
             self.env["res.users"].sudo().browse(access_uid)
             if access_uid
@@ -369,7 +369,7 @@ class BlogPost(models.Model):
         if not self:
             return groups
 
-        self.ensure_one()
+        self.check_singleton()
         if self.website_published:
             for _group_name, _group_method, group_data in groups:
                 group_data["has_button_access"] = True

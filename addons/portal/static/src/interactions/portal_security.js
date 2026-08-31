@@ -118,7 +118,7 @@ export class PortalSecurity extends Interaction {
                             this.waitFor(
                                 this.services.orm.call(
                                     "res.users.apikeys.description",
-                                    "make_key",
+                                    "action_generate_key",
                                     [wizardId],
                                 ),
                             ),

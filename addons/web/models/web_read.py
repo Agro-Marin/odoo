@@ -136,7 +136,7 @@ class Base(models.AbstractModel):
                 else:
                     self._check_concurrent_field_changes_multi(vals, known_values)
             elif last_write_date and "write_date" in self._fields:
-                self.ensure_one()
+                self.check_singleton()
                 self.env.cr.execute(
                     'SELECT write_date FROM "%s" WHERE id = %%s' % self._table,
                     (self.id,),
@@ -255,7 +255,7 @@ class Base(models.AbstractModel):
             return False
 
     def _check_concurrent_field_changes(self, vals, known_values):
-        self.ensure_one()
+        self.check_singleton()
         names = [
             n for n in self._get_fields_concurrency_checkable(vals) if n in known_values
         ]
@@ -744,7 +744,7 @@ class Base(models.AbstractModel):
 
         self.modified([field_name])
 
-        self._validate_fields([field_name])
+        self._check_fields([field_name])
 
         if self._check_company_auto:
             self._check_company([field_name])

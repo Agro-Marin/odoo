@@ -39,7 +39,7 @@ class SpreadsheetDashboardShare(models.Model):
         return consteq(access_token, self.access_token)
 
     def _check_dashboard_access(self, access_token):
-        self.ensure_one()
+        self.check_singleton()
         token_access = self._check_token(access_token)
         dashboard = self.dashboard_id.with_user(self.create_uid)
         user_access = dashboard.has_access("read")

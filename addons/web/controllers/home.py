@@ -141,9 +141,9 @@ class Home(http.Controller):
             ("X-Menus-Hash", current_hash),
         ]
         if hash and hash == current_hash:
-            return request.make_response("", headers, status=304)
+            return request.prepare_response("", headers, status=304)
         headers.append(("Content-Type", "application/json; charset=utf-8"))
-        return request.make_response(body, headers)
+        return request.prepare_response(body, headers)
 
     def _login_redirect(self, uid: int, redirect: str | None = None) -> str:
         return _get_login_redirect_url(uid, redirect)
@@ -289,17 +289,17 @@ class Home(http.Controller):
                 "Rejected /web/metrics scrape from %s: bad or missing bearer token",
                 request.httprequest.remote_addr,
             )
-            return request.make_response(
+            return request.prepare_response(
                 "", [("Cache-Control", "no-store")], status=401
             )
-        return request.make_response(
+        return request.prepare_response(
             render_prometheus(),
             [("Content-Type", METRICS_CONTENT_TYPE), ("Cache-Control", "no-store")],
             status=200,
         )
 
     def _health_response(self, payload: dict[str, Any], status: int) -> Response:
-        return request.make_response(
+        return request.prepare_response(
             json_dumps(payload),
             [
                 ("Content-Type", "application/json"),
@@ -314,7 +314,7 @@ class Home(http.Controller):
         robots_content = ["User-agent: *", "Disallow: /"]
         robots_content.extend(f"Allow: {route}" for route in allowed_routes)
 
-        return request.make_response(
+        return request.prepare_response(
             "\n".join(robots_content), [("Content-Type", "text/plain")]
         )
 

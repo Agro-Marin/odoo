@@ -178,7 +178,7 @@ class TestLivechatBasicFlowHttpCase(HttpCaseWithUserDemo, TestLivechatCommon):
         self.authenticate(self.operator.login, "ideboulonate")
 
         # Retrieve channels information, visitor info should be there
-        init_messaging = self.make_jsonrpc_request(
+        init_messaging = self.call_jsonrpc(
             f"{self.livechat_base_url}/mail/data",
             {"fetch_params": ["channels_as_member"]},
         )
@@ -189,7 +189,7 @@ class TestLivechatBasicFlowHttpCase(HttpCaseWithUserDemo, TestLivechatCommon):
 
         # Remove access to visitors and try again, visitors info shouldn't be included
         self.operator.group_ids -= self.group_livechat_user
-        init_messaging = self.make_jsonrpc_request(
+        init_messaging = self.call_jsonrpc(
             f"{self.livechat_base_url}/mail/data",
             {"fetch_params": ["channels_as_member"]},
         )
@@ -528,13 +528,13 @@ class TestLivechatBasicFlowHttpCase(HttpCaseWithUserDemo, TestLivechatCommon):
                 },
             ]
         )
-        result = self.make_jsonrpc_request(
+        result = self.call_jsonrpc(
             "/mail/action",
             {"fetch_params": [["init_livechat", self.livechat_channel.id]]},
             headers={"Referer": "/show"},
         )
         self.assertEqual(result["Store"]["livechat_available"], True)
-        result = self.make_jsonrpc_request(
+        result = self.call_jsonrpc(
             "/mail/action",
             {"fetch_params": [["init_livechat", self.livechat_channel.id]]},
             headers={"Referer": "/hide"},
@@ -545,7 +545,7 @@ class TestLivechatBasicFlowHttpCase(HttpCaseWithUserDemo, TestLivechatCommon):
         """Test livechat_visitor_id is sent with livechat channels data even when there is no
         visitor."""
         self.target_visitor = None
-        channel_data = self.make_jsonrpc_request(
+        channel_data = self.call_jsonrpc(
             "/im_livechat/get_session",
             {"channel_id": self.livechat_channel.id},
         )

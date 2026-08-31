@@ -17,7 +17,7 @@ class SaleOrder(models.Model):
 
         :param ProductProduct product: the product for which the unavailability is computed.
         """
-        self.ensure_one()
+        self.check_singleton()
         unavailable_qty = 0
         if product.is_kit:
             # Explode the kit to fetch the set of relevant components to track.

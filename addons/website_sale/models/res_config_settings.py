@@ -150,7 +150,7 @@ class ResConfigSettings(models.TransientModel):
         }
 
     def action_view_extra_info(self):
-        self.ensure_one()
+        self.check_singleton()
         # Add the "edit" parameter in the url to tell the controller
         # that we want to edit even if we are not in a payment flow
         return self.env["website"].get_client_action(
@@ -173,7 +173,7 @@ class ResConfigSettings(models.TransientModel):
     @api.readonly
     def action_view_product_feeds(self):
         """Open the list view to manage the feed specific to the current website."""
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": self.env._("Product Feeds"),
             "type": "ir.actions.act_window",

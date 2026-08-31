@@ -111,7 +111,7 @@ class IrModuleModule(models.Model):
         return records
 
     def _update_records(self, model_name, website):
-        self.ensure_one()
+        self.check_singleton()
 
         remaining = self._get_module_data(model_name)
         last_len = -1
@@ -170,7 +170,7 @@ class IrModuleModule(models.Model):
         self._theme_cleanup(model_name, website)
 
     def _post_copy(self, old_rec, new_rec):
-        self.ensure_one()
+        self.check_singleton()
         translated_fields = self._theme_translated_fields.get(old_rec._name, [])
         cur_lang = self.env.lang or "en_US"
         valid_langs = {code for code, _ in self.env["res.lang"].get_installed()} | {
@@ -255,7 +255,7 @@ class IrModuleModule(models.Model):
         if not self.env.user.has_group("website.group_website_restricted_editor"):
             raise werkzeug.exceptions.Forbidden
 
-        self.ensure_one()
+        self.check_singleton()
         model_sudo = self.env[model_name].sudo()
 
         if model_name in ("website.page", "website.menu"):
@@ -273,19 +273,19 @@ class IrModuleModule(models.Model):
         return None
 
     def _theme_get_upstream(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.upstream_dependencies(exclude_states=("",)).filtered(
             lambda x: x.name.startswith("theme_")
         )
 
     def _theme_get_downstream(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.downstream_dependencies().filtered(
             lambda x: x.name.startswith(self.name)
         )
 
     def _theme_get_stream_themes(self):
-        self.ensure_one()
+        self.check_singleton()
         all_mods = self + self._theme_get_downstream()
         for down_mod in self._theme_get_downstream() + self:
             for up_mod in down_mod._theme_get_upstream():
@@ -293,7 +293,7 @@ class IrModuleModule(models.Model):
         return all_mods
 
     def _theme_get_stream_website_ids(self):
-        self.ensure_one()
+        self.check_singleton()
         websites = self.env["website"]
         for website in websites.search([("theme_id", "!=", False)]):
             if self in website.theme_id._theme_get_stream_themes():
@@ -330,7 +330,7 @@ class IrModuleModule(models.Model):
         website.theme_id = False
 
     def button_choose_theme(self):
-        self.ensure_one()
+        self.check_singleton()
         website = self.env["website"].get_current_website()
 
         self._theme_remove(website)

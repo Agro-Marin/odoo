@@ -67,7 +67,7 @@ class ResUsers(models.Model):
         return True
 
     def _process_profile_validation_token(self, token, email):
-        self.ensure_one()
+        self.check_singleton()
         validation_token = self._generate_profile_token(self.id, email)
         if token == validation_token and self.karma == 0:
             return self.write({"karma": VALIDATION_KARMA_GAIN})

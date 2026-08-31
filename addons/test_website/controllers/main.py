@@ -42,25 +42,25 @@ class WebsiteTest(Home):
         sitemap=False,
     )
     def test_ignore_args_converter_only(self, a):
-        return request.make_response(json.dumps({"a": a, "kw": None}))
+        return request.prepare_response(json.dumps({"a": a, "kw": None}))
 
     @http.route(
         "/ignore_args/none", type="http", auth="public", website=True, sitemap=False
     )
     def test_ignore_args_none(self):
-        return request.make_response(json.dumps({"a": None, "kw": None}))
+        return request.prepare_response(json.dumps({"a": None, "kw": None}))
 
     @http.route(
         "/ignore_args/a", type="http", auth="public", website=True, sitemap=False
     )
     def test_ignore_args_a(self, a):
-        return request.make_response(json.dumps({"a": a, "kw": None}))
+        return request.prepare_response(json.dumps({"a": a, "kw": None}))
 
     @http.route(
         "/ignore_args/kw", type="http", auth="public", website=True, sitemap=False
     )
     def test_ignore_args_kw(self, a, **kw):
-        return request.make_response(json.dumps({"a": a, "kw": kw}))
+        return request.prepare_response(json.dumps({"a": a, "kw": kw}))
 
     @http.route(
         "/ignore_args/converter/<string:a>",
@@ -70,7 +70,7 @@ class WebsiteTest(Home):
         sitemap=False,
     )
     def test_ignore_args_converter(self, a, b="youhou", **kw):
-        return request.make_response(json.dumps({"a": a, "b": b, "kw": kw}))
+        return request.prepare_response(json.dumps({"a": a, "b": b, "kw": kw}))
 
     @http.route(
         "/ignore_args/converter/<string:a>/nokw",
@@ -80,7 +80,7 @@ class WebsiteTest(Home):
         sitemap=False,
     )
     def test_ignore_args_converter_nokw(self, a, b="youhou"):
-        return request.make_response(json.dumps({"a": a, "b": b}))
+        return request.prepare_response(json.dumps({"a": a, "b": b}))
 
     @http.route(
         "/multi_company_website",
@@ -90,7 +90,7 @@ class WebsiteTest(Home):
         sitemap=False,
     )
     def test_company_context(self):
-        return request.make_response(
+        return request.prepare_response(
             json.dumps(request.env.context.get("allowed_company_ids"))
         )
 
@@ -245,7 +245,7 @@ class WebsiteTest(Home):
         sitemap=False,
     )
     def get_method(self, **kw):
-        return request.make_response("get")
+        return request.prepare_response("get")
 
     @http.route(
         ["/post"],
@@ -256,7 +256,7 @@ class WebsiteTest(Home):
         sitemap=False,
     )
     def post_method(self, **kw):
-        return request.make_response("post")
+        return request.prepare_response("post")
 
     @http.route(
         ["/get_post"],
@@ -267,7 +267,7 @@ class WebsiteTest(Home):
         sitemap=False,
     )
     def get_post_method(self, **kw):
-        return request.make_response("get_post")
+        return request.prepare_response("get_post")
 
     @http.route(
         ["/get_post_nomultilang"],
@@ -279,7 +279,7 @@ class WebsiteTest(Home):
         sitemap=False,
     )
     def get_post_method_no_multilang(self, **kw):
-        return request.make_response("get_post_nomultilang")
+        return request.prepare_response("get_post_nomultilang")
 
     # Test Perfs
 
@@ -313,7 +313,7 @@ class WebsiteTest(Home):
         sitemap=False,
     )
     def test_model_converter_seoname(self, rec, **kw):
-        return request.make_response("ok")
+        return request.prepare_response("ok")
 
     @http.route(
         ["/test_website/model_item/<int:record_id>"],
@@ -367,7 +367,7 @@ class WebsiteTest(Home):
         sitemap=False,
     )
     def test_countries_308(self, **kwargs):
-        return request.make_response("ok")
+        return request.prepare_response("ok")
 
     # Test Sitemap
     @staticmethod
@@ -386,7 +386,7 @@ class WebsiteTest(Home):
         sitemap=sitemap_test,
     )
     def test_sitemap(self, rec=None, **kwargs):
-        return request.make_response("Sitemap Testing Page")
+        return request.prepare_response("Sitemap Testing Page")
 
     @http.route(
         '/test_model/<model("test.model"):test_model>',

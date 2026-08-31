@@ -226,7 +226,7 @@ These are the primary backend APIs consumed by the JS ORM service (`core/network
 
 | Method | Route | Auth | Handler | Purpose |
 |--------|-------|------|---------|---------|
-| HTTP GET | `/web/openapi.json` | user (readonly) | `openapi_json()` | OpenAPI 3.1 document generated live from the routing map by `odoo.http.openapi:openapi_from_map` with `typed_only=True`, so only `@route(typed=True)` endpoints are listed — never the full internal route map. Additionally gated on `base.group_system` inside the handler (403 otherwise): even the curated surface is deployment reconnaissance |
+| HTTP GET | `/web/openapi.json` | user (readonly) | `openapi_json()` | OpenAPI 3.1 document generated live from the routing map by `odoo.http.openapi:prepare_openapi_from_map` with `typed_only=True`, so only `@route(typed=True)` endpoints are listed — never the full internal route map. Additionally gated on `base.group_system` inside the handler (403 otherwise): even the curated surface is deployment reconnaissance |
 
 ## Route Count Summary
 

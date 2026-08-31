@@ -216,17 +216,17 @@ class TestAuthTimeoutHttp(HttpCase):
 
         cls.classPatch(TOTP, "match", match)
 
-        # Mock auth.passkey.key._verify_registration_options to accept the hard-coded registration during the tour
+        # Mock auth.passkey.key._get_registration_credential to accept the hard-coded registration during the tour
         cls.passkey_credential_id = "foo"
         cls.passkey_credential_id_base64url = (
             "Zm9v"  # bytes_to_base64url(b"foo") == "Zm9v"
         )
         PasskeyClass = cls.env.registry["auth.passkey.key"]
         origin_passkey_verify_registration_options = (
-            PasskeyClass._verify_registration_options
+            PasskeyClass._get_registration_credential
         )
 
-        def _verify_registration_options(self, registration):
+        def _get_registration_credential(self, registration):
             if registration.get("id") == cls.passkey_credential_id:
                 return {
                     "credential_id": cls.passkey_credential_id.encode(),
@@ -235,20 +235,20 @@ class TestAuthTimeoutHttp(HttpCase):
             return origin_passkey_verify_registration_options(self, registration)
 
         cls.classPatch(
-            PasskeyClass, "_verify_registration_options", _verify_registration_options
+            PasskeyClass, "_get_registration_credential", _get_registration_credential
         )
 
-        # Mock auth.passkey.key._verify_auth to accept the hard-coded authentication during the tour
-        origin_passkey_verify_auth = PasskeyClass._verify_auth
+        # Mock auth.passkey.key._get_new_sign_count to accept the hard-coded authentication during the tour
+        origin_passkey_verify_auth = PasskeyClass._get_new_sign_count
 
-        def _verify_auth(self, auth, public_key, sign_count):
+        def _get_new_sign_count(self, auth, public_key, sign_count):
             if (
                 auth.get("id") == cls.passkey_credential_id_base64url
             ):  # bytes_to_base64url(b"foo") == "Zm9v"
                 return 1
             return origin_passkey_verify_auth(self, auth, public_key, sign_count)
 
-        cls.classPatch(PasskeyClass, "_verify_auth", _verify_auth)
+        cls.classPatch(PasskeyClass, "_get_new_sign_count", _get_new_sign_count)
 
     def rpc(self, model, method, *args, **kwargs):
         return self.url_open(

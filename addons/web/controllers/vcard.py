@@ -43,7 +43,7 @@ class Partner(http.Controller):
                         used_names.add(candidate)
                         zipf.writestr(candidate, p._get_vcard_file())
                 zip_data = buffer.getvalue()
-                return request.make_response(
+                return request.prepare_response(
                     zip_data,
                     [
                         ("Content-Type", "application/zip"),
@@ -58,7 +58,7 @@ class Partner(http.Controller):
         if partner or partners:
             partner = partner or partners
             content = partner._get_vcard_file()
-            return request.make_response(
+            return request.prepare_response(
                 content,
                 [
                     ("Content-Type", "text/vcard"),

@@ -42,7 +42,7 @@ class TrackManifest(http.Controller):
             for size in icon_sizes
         ]
         body = json.dumps(manifest)
-        return request.make_response(
+        return request.prepare_response(
             body,
             [
                 ("Content-Type", "application/manifest+json"),
@@ -69,7 +69,7 @@ class TrackManifest(http.Controller):
             cdn_url = request.website.cdn_url.replace('"', "%22").replace("\x5c", "%5C")
             js_cdn_url = '"%s"' % cdn_url
         body = body.replace("__ODOO_CDN_URL__", js_cdn_url)
-        return request.make_response(
+        return request.prepare_response(
             body,
             [
                 ("Content-Type", "text/javascript"),

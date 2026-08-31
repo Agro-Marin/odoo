@@ -492,7 +492,7 @@ class ExportFormat:
             records.ids[:10] if ids else domain,
         )
 
-        return request.make_response(
+        return request.prepare_response(
             response_data,
             headers=[
                 (

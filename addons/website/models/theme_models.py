@@ -50,7 +50,7 @@ class ThemeIrAsset(models.Model):
     )
 
     def _convert_to_base_model(self, website, **kwargs):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": self.name,
             "key": self.key,
@@ -101,7 +101,7 @@ class ThemeIrUiView(models.Model):
     customize_show = fields.Boolean()
 
     def _convert_to_base_model(self, website, **kwargs):
-        self.ensure_one()
+        self.check_singleton()
         inherit = self.inherit_id
         if self.inherit_id and self.inherit_id._name == "theme.ir.ui.view":
             inherit = self.inherit_id.with_context(active_test=False).copy_ids.filtered(
@@ -158,7 +158,7 @@ class ThemeIrAttachment(models.Model):
     )
 
     def _convert_to_base_model(self, website, **kwargs):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "key": self.key,
             "public": True,
@@ -196,7 +196,7 @@ class ThemeWebsiteMenu(models.Model):
     )
 
     def _convert_to_base_model(self, website, **kwargs):
-        self.ensure_one()
+        self.check_singleton()
         page_id = self.page_id.copy_ids.filtered(lambda x: x.website_id == website)
 
         parent_id = False
@@ -245,7 +245,7 @@ class ThemeWebsitePage(models.Model):
     )
 
     def _convert_to_base_model(self, website, **kwargs):
-        self.ensure_one()
+        self.check_singleton()
         view_id = self.view_id.copy_ids.filtered(lambda x: x.website_id == website)
         if not view_id:
             return False

@@ -107,7 +107,7 @@ class AuthPasskeyKey(models.Model):
         return authentication_options
 
     @api.model
-    def _verify_auth(self, auth, public_key, sign_count):
+    def _get_new_sign_count(self, auth, public_key, sign_count):
         parsed_url = urlsplit(self.get_base_url())
         auth_verification = verify_authentication_response(
             credential=auth,
@@ -141,7 +141,7 @@ class AuthPasskeyKey(models.Model):
         return registration_options
 
     @api.model
-    def _verify_registration_options(self, registration):
+    def _get_registration_credential(self, registration):
         parsed_url = urlsplit(self.get_base_url())
         verification = verify_registration_response(
             credential=registration,
@@ -163,7 +163,7 @@ class AuthPasskeyKey(models.Model):
                 # See `res.users.write` and `_get_fields_invalidation`
                 # `self.env.user` is already sudo, so no need to re-apply `sudo` to get delete access right.
                 self.env.user.write({"auth_passkey_key_ids": [Command.delete(key.id)]})
-                new_token = self.env.user._compute_session_token(request.session.sid)
+                new_token = self.env.user._get_session_token(request.session.sid)
                 request.session.session_token = new_token
             else:
                 _logger.info(
@@ -201,8 +201,8 @@ class AuthPasskeyKeyCreate(models.TransientModel):
     def make_key(self, registration=None):
         # We add in these fields with JS, if we didn't give them default values we would get a XML validation warning.
         assert registration, "registration can not be empty"
-        self.ensure_one()
-        verification = request.env["auth.passkey.key"]._verify_registration_options(
+        self.check_singleton()
+        verification = request.env["auth.passkey.key"]._get_registration_credential(
             registration
         )
         # Force to go through `res.users.auth_passkey_key_ids` to trigger the session token cache invalidation
@@ -240,6 +240,6 @@ class AuthPasskeyKeyCreate(models.TransientModel):
             self.env.user.id,
             ip,
         )
-        new_token = self.env.user._compute_session_token(request.session.sid)
+        new_token = self.env.user._get_session_token(request.session.sid)
         request.session.session_token = new_token
         return True

@@ -78,7 +78,7 @@ class TestPortalHomeCounters(HttpCase):
         return has_placeholder, card_visible
 
     def _fetch_counters(self):
-        return self.make_jsonrpc_request("/my/counters", {"counters": [PROBE_COUNTER]})
+        return self.call_jsonrpc("/my/counters", {"counters": [PROBE_COUNTER]})
 
 
     def test_counter_card_stays_refreshable_after_being_cached(self):

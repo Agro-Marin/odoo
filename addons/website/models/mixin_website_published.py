@@ -51,7 +51,7 @@ class MixinWebsitePublished(models.AbstractModel):
         return False
 
     def website_publish_button(self):
-        self.ensure_one()
+        self.check_singleton()
         value = not self.website_published
         self.write({"website_published": value})
         return value

@@ -83,7 +83,7 @@ be right.
 `BaseModel.id` answers `_ids[0]`, so slugging a recordset silently produced a URL
 for whichever record came first. `website`'s override reads `seo_name` and *does*
 raise `Expected singleton` — the same mistake was loud or silent depending on
-which addons were installed. Now `ensure_one()` on both.
+which addons were installed. Now `check_singleton()` on both.
 → `TestSlug.test_slug_rejects_a_multi_record_set`
 
 ## 7. Emitting a trailing slash costs the visitor a redirect
@@ -110,7 +110,7 @@ takes a branch. Four found this way:
 | `redirect` | bound to the *model* method `ir.http._redirect`, which takes no `local=` — it could not be called the way production calls it |
 
 When adding an attribute to `MockRequest`, prefer binding the real
-`odoo.http.Request` method (`make_response`, `redirect`, `redirect_query` are
+`odoo.http.Request` method (`prepare_response`, `redirect`, `redirect_query` are
 self-contained) over inventing a stub.
 
 ## 9. `_url_localized` must never re-enter `ir.http._match`

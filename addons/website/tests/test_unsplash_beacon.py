@@ -3,10 +3,10 @@ import odoo.tests
 
 @odoo.tests.common.tagged("post_install", "-at_install")
 class TestUnsplashBeacon(odoo.tests.HttpCase):
-    def fetch_proxy(self, url):
+    def prepare_proxy_response(self, url):
         if "unsplash.com" in url:
-            return self.make_fetch_proxy_response('{"success": true}')
-        return super().fetch_proxy(url)
+            return self.prepare_proxy_response_from_content('{"success": true}')
+        return super().prepare_proxy_response(url)
 
     def test_01_beacon(self):
         self.env["ir.config_parameter"].sudo().set_param("unsplash.app_id", "123456")

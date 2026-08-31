@@ -102,7 +102,7 @@ class EventEvent(models.Model):
     # ------------------------------------------------------------
 
     def _has_published_track(self):
-        self.ensure_one()
+        self.check_singleton()
         return bool(self.track_ids.filtered("is_published"))
 
     # ------------------------------------------------------------
@@ -154,7 +154,7 @@ class EventEvent(models.Model):
         return res
 
     def _get_website_menu_entries(self):
-        self.ensure_one()
+        self.check_singleton()
         return super()._get_website_menu_entries() + [
             (_("Talks"), "#", False, 10, "track", False),
             (

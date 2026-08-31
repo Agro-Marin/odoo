@@ -24,7 +24,7 @@ class SaleOrder(models.Model):
             )
         )
 
-    def _verify_updated_quantity(
+    def _get_updated_quantity(
         self,
         order_line,
         product_id,
@@ -36,7 +36,7 @@ class SaleOrder(models.Model):
         **kwargs,
     ):
         """Restrict quantity updates for event tickets according to available seats."""
-        new_qty, warning = super()._verify_updated_quantity(
+        new_qty, warning = super()._get_updated_quantity(
             order_line,
             product_id,
             new_qty,

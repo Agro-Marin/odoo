@@ -123,7 +123,7 @@ class TestController(HttpCase):
 
     def test_04_admin_attachment(self):
         self.authenticate(self.admin, self.admin)
-        payload = self.build_rpc_payload({"name": "pixel", "data": self.pixel, "is_image": True})
+        payload = self.prepare_rpc_payload({"name": "pixel", "data": self.pixel, "is_image": True})
         response = self.url_open('/html_editor/attachment/add_data', data=json.dumps(payload), headers=self.headers)
         self.assertEqual(200, response.status_code)
         attachment = self.env['ir.attachment'].search([('name', '=', 'pixel')])

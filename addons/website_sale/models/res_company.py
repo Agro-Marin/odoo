@@ -9,7 +9,7 @@ class ResCompany(models.Model):
 
         We don't want the default website from the current company to be applied on every company
 
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :rtype: dict
         """

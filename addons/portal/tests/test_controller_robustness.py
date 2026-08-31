@@ -47,15 +47,13 @@ class TestPortalControllerRobustness(HttpCase):
     def test_address_archive_non_numeric_partner_id(self):
         self._login()
         with self.assertRaises(JsonRpcException) as capture:
-            self.make_jsonrpc_request(
-                "/my/address/archive", params={"partner_id": "abc"}
-            )
+            self.call_jsonrpc("/my/address/archive", params={"partner_id": "abc"})
         self.assertNotIn("ValueError", str(capture.exception))
 
     def test_chatter_fetch_unknown_model(self):
         self._login()
         with self.assertRaises(JsonRpcException) as capture:
-            self.make_jsonrpc_request(
+            self.call_jsonrpc(
                 "/mail/chatter_fetch",
                 params={"thread_model": "no.such.model", "thread_id": 1},
             )
@@ -64,7 +62,7 @@ class TestPortalControllerRobustness(HttpCase):
     def test_chatter_fetch_model_without_portal_chatter(self):
         self._login()
         with self.assertRaises(JsonRpcException) as capture:
-            self.make_jsonrpc_request(
+            self.call_jsonrpc(
                 "/mail/chatter_fetch",
                 params={"thread_model": "res.country", "thread_id": 1},
             )
@@ -102,5 +100,5 @@ class TestPortalControllerRobustness(HttpCase):
         for route, params in cases:
             with self.subTest(route=route):
                 with self.assertRaises(JsonRpcException) as capture:
-                    self.make_jsonrpc_request(route, params=params)
+                    self.call_jsonrpc(route, params=params)
                 self.assertNotIn("ValueError", str(capture.exception))

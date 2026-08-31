@@ -28,13 +28,13 @@ class SaleOrder(models.Model):
 
         return result
 
-    def _verify_updated_quantity(
+    def _get_updated_quantity(
         self, order_line, product_id, new_qty, uom_id, **kwargs
     ):
         """Forbid quantity updates on courses lines."""
         product = self.env["product.product"].browse(product_id)
         if product.service_tracking == "course" and new_qty > 1:
             return 1, _("You can only add a course once in your cart.")
-        return super()._verify_updated_quantity(
+        return super()._get_updated_quantity(
             order_line, product_id, new_qty, uom_id, **kwargs
         )

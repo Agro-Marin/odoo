@@ -134,7 +134,7 @@ class ProductFeed(models.Model):
         :return: The rendered feed compressed using gzip.
         :rtype: bytes
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.feed_cache or self.cache_expiry < fields.Datetime.now():
             # Lock the record to prevent concurrent rendering
@@ -157,7 +157,7 @@ class ProductFeed(models.Model):
         :return: The rendered XML feed.
         :rtype: str
         """
-        self.ensure_one()
+        self.check_singleton()
         # Set the language context for rendering.
         # Ensures all links, product names, descriptions, etc., are localized.
         self = self.with_context(lang=self.lang_id.code)

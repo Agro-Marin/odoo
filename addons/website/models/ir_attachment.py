@@ -25,8 +25,10 @@ class IrAttachment(models.Model):
         return super().create(vals_list)
 
     @api.model
-    def get_serving_groups(self):
-        return super().get_serving_groups() + ["website.group_website_designer"]
+    def get_groups_allowed_to_serve(self):
+        return super().get_groups_allowed_to_serve() + [
+            "website.group_website_designer"
+        ]
 
     def _get_serve_attachment(self, url, extra_domain=None, order=None):
         website = self.env["website"].get_current_website()

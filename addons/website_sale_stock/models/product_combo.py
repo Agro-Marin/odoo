@@ -9,13 +9,13 @@ class ProductCombo(models.Model):
         quantity. If one of the combo items has no max quantity, then the combo also has no max
         quantity.
 
-        Note: self.ensure_one()
+        Note: self.check_singleton()
 
         :param website website: The website for which to compute the max quantity.
         :return: The max quantity of the combo.
         :rtype: float | None
         """
-        self.ensure_one()
+        self.check_singleton()
         max_quantities = [
             item.product_id._get_max_quantity(website, sale_order, **kwargs)
             for item in self.combo_item_ids

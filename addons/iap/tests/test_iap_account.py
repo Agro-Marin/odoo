@@ -83,7 +83,7 @@ class TestIapAccount(TransactionCase):
     def test_write_warning_fields_notifies_iap(self):
         """Changing alert settings pushes the config to the IAP endpoint."""
         account = self.env["iap.account"].create({"service_id": self.service.id})
-        # The recipient must carry an email of its own: validate_warning_alerts
+        # The recipient must carry an email of its own: check_warning_alerts
         # refuses the write otherwise, and base.user_admin only has one when the
         # database was built with demo data.
         recipient = self.env["res.users"].create(
@@ -171,7 +171,7 @@ class TestIapAccount(TransactionCase):
             token: {
                 "balance": 12.3456,
                 # 0, not a positive value: no recipient is set on this
-                # account, and validate_warning_alerts now requires one
+                # account, and check_warning_alerts now requires one
                 # once the threshold is positive.
                 "warning_threshold": 0,
                 "registered": "registered",

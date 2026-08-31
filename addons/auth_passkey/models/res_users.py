@@ -67,7 +67,7 @@ class ResUsers(models.Model):
             if not passkey:
                 raise AccessDenied(_("Unknown passkey"))
             try:
-                new_sign_count = self.env["auth.passkey.key"]._verify_auth(
+                new_sign_count = self.env["auth.passkey.key"]._get_new_sign_count(
                     webauthn,
                     passkey.public_key,
                     passkey.sign_count,
@@ -86,8 +86,8 @@ class ResUsers(models.Model):
     def _get_fields_session_token(self):
         return super()._get_fields_session_token() | {"auth_passkey_key_ids"}
 
-    def _get_session_token_query_params(self):
-        params = super()._get_session_token_query_params()
+    def _prepare_session_token_query_params(self):
+        params = super()._prepare_session_token_query_params()
         params["select"] = SQL(
             "%s, ARRAY_AGG(key.id ORDER BY key.id DESC) FILTER (WHERE key.id IS NOT NULL) as auth_passkey_key_ids",
             params["select"],

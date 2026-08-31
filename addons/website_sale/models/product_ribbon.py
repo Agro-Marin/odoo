@@ -95,7 +95,7 @@ class ProductRibbon(models.Model):
         :return: Whether the ribbon matches the given product and price.
         :rtype: bool
         """
-        self.ensure_one()
+        self.check_singleton()
 
         # Check if a discount is applied to the product using a pricelist, comparison price, or
         # others.

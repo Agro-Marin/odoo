@@ -22,5 +22,5 @@ class LoyaltyProgram(models.Model):
             )
 
     def action_program_share(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.env["coupon.share"].create_share_action(program=self)

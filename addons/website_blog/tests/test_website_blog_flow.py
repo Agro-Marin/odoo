@@ -287,7 +287,7 @@ class TestWebsiteBlogTranslationFlow(HttpCase, TestWebsiteBlogCommon):
         self.assertEqual("All blogs", blog_post.with_context(lang=en_lang.code).content)
 
         # Test updating translation
-        payload = self.build_rpc_payload(
+        payload = self.prepare_rpc_payload(
             {
                 "model": blog_post._name,
                 "record_id": blog_post.id,

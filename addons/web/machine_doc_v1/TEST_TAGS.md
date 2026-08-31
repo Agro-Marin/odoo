@@ -25,7 +25,7 @@ Quick reference for running targeted subsets of `addons/web/tests/`.
 > whole tag to check one change.
 >
 > Counting basis: **tests as Odoo's loader collects them**
-> (`odoo.tests.loader.make_suite(['web'], '<tag>')`), which includes methods
+> (`odoo.tests.loader.prepare_suite(['web'], '<tag>')`), which includes methods
 > inherited from untagged base classes — deliberately *not* a textual count of
 > `def test_` inside `@tagged` classes, which undercounts. To reproduce a *run*:
 > `odoo-bin -d <db> --test-enable --test-tags <tag> --stop-after-init` and read

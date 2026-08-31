@@ -29,7 +29,7 @@ class EventBooth(models.Model):
         return action
 
     def _get_or_create_sponsor(self, vals):
-        self.ensure_one()
+        self.check_singleton()
         sponsor_id = (
             self.env["event.sponsor"]
             .sudo()

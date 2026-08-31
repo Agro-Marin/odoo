@@ -28,7 +28,7 @@ class ResLang(models.Model):
         if request and getattr(request, "is_frontend", True):
             if self.env.context.get("web_force_installed_langs"):
                 langs = sorted(
-                    map(dict, self._get_active_by("code").values()),
+                    map(dict, self._get_active_by_field("code").values()),
                     key=lambda lang: lang["name"],
                 )
             else:

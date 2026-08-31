@@ -53,7 +53,7 @@ class WebsiteVisitor(models.Model):
 
     def _add_viewed_product(self, product_id):
         """add a website_track with a page marked as viewed"""
-        self.ensure_one()
+        self.check_singleton()
         if (
             product_id
             and self.env["product.product"].browse(product_id)._is_variant_possible()

@@ -24,7 +24,7 @@ class TestAttachmentController(HttpCase):
             }
         )
         self.authenticate(self.portal_user.login, self.portal_user.login)
-        payload = self.build_rpc_payload(
+        payload = self.prepare_rpc_payload(
             {
                 "name": "pixel",
                 "data": self.pixel,
@@ -46,7 +46,7 @@ class TestAttachmentController(HttpCase):
 
     def test_02_admin_attachment(self):
         self.authenticate(self.admin_user.login, self.admin_user.login)
-        payload = self.build_rpc_payload(
+        payload = self.prepare_rpc_payload(
             {
                 "name": "pixel",
                 "data": self.pixel,

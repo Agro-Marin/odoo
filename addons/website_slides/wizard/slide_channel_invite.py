@@ -59,7 +59,7 @@ class SlideChannelInvite(models.TransientModel):
         depending on the value of enroll_mode. Archived members can be invited or enrolled.
         They will become 'invited', or another status if enrolled depending on their progress.
         Invited members can be reinvited, or enrolled depending on enroll_mode."""
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.partner_ids:
             raise UserError(_("Please select at least one recipient."))

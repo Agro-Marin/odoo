@@ -1904,7 +1904,7 @@ class Website(models.Model):
         )
 
     def get_cdn_url(self, uri):
-        self.ensure_one()
+        self.check_singleton()
         if not uri:
             return ""
         cdn_url = self.cdn_url
@@ -1950,13 +1950,13 @@ class Website(models.Model):
         return self.get_client_action(path)
 
     def _get_canonical_url(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.env["ir.http"]._url_localized(
             lang_code=request.lang.code, canonical_domain=self.get_base_url()
         )
 
     def _is_canonical_url(self):
-        self.ensure_one()
+        self.check_singleton()
         current_url = (
             request.httprequest.url_root[:-1]
             + request.httprequest.environ["REQUEST_URI"]
@@ -1966,7 +1966,7 @@ class Website(models.Model):
 
     @tools.ormcache("self.id")
     def _get_cached_values(self):
-        self.ensure_one()
+        self.check_singleton()
 
 
         self.fetch(
@@ -2280,7 +2280,7 @@ class Website(models.Model):
             subquery.add_where(SQL(" OR ").join(where_clauses))
             tbl_alias = model._table
             if rel_table:
-                rel_alias = subquery.make_alias(rel_table, rel_joinkey)
+                rel_alias = subquery.get_table_alias(rel_table, rel_joinkey)
                 subquery.add_join(
                     "JOIN",
                     rel_alias,
@@ -2411,7 +2411,7 @@ class Website(models.Model):
                             yield from re.findall(match_pattern, value)
 
     def _all_consents_granted(self):
-        self.ensure_one()
+        self.check_singleton()
         return not self.cookies_bar or self.env["ir.http"]._is_allowed_cookie(
             "optional"
         )

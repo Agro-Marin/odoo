@@ -152,7 +152,7 @@ class EventEvent(models.Model):
     @api.depends("registration_ids")
     @api.depends_context("uid")
     def _compute_is_participating(self):
-        participating_events = self._fetch_is_participating_events()
+        participating_events = self._get_participating_events()
         participating_events.is_participating = True
         (self - participating_events).is_participating = False
 
@@ -160,10 +160,10 @@ class EventEvent(models.Model):
     def _search_is_participating(self, operator, value):
         if operator != "in":
             return NotImplemented
-        return [("id", "in", self._fetch_is_participating_events().ids)]
+        return [("id", "in", self._get_participating_events().ids)]
 
     @api.model
-    def _fetch_is_participating_events(self):
+    def _get_participating_events(self):
         """Heuristic
 
         * public, no visitor: not participating as we have no information;
@@ -433,7 +433,7 @@ class EventEvent(models.Model):
           * parent_menu_type: menu_type of already created menu entry (used for
             making submenu of existing menu entry)
         """
-        self.ensure_one()
+        self.check_singleton()
         return [
             (
                 _("Home"),
@@ -511,7 +511,7 @@ class EventEvent(models.Model):
           the boolean field name)
         :param fmenu_type:
         """
-        self.ensure_one()
+        self.check_singleton()
         new_menu = None
 
         menu_data = [
@@ -616,13 +616,13 @@ class EventEvent(models.Model):
         return self._google_map_link(zoom=zoom)
 
     def _google_map_link(self, zoom=8):
-        self.ensure_one()
+        self.check_singleton()
         if self.address_id:
             return self.sudo().address_id.google_map_link(zoom=zoom)
         return None
 
     def _track_subtype(self, init_values):
-        self.ensure_one()
+        self.check_singleton()
         if init_values.keys() & {"is_published", "website_published"}:
             if self.is_published:
                 return self.env.ref(

@@ -16,7 +16,7 @@ from odoo.libs.filesystem import guess_mimetype
 from odoo.tools import file_open, file_path, replace_exceptions, str2bool
 from odoo.tools.assets.constants import ANY_UNIQUE
 from odoo.tools.image import image_guess_size_from_field_name
-from odoo.tools.misc import verify_limited_field_access_token
+from odoo.tools.misc import is_valid_limited_field_access_token
 
 _logger = logging.getLogger(__name__)
 
@@ -62,7 +62,7 @@ def _token_authorized_public(record, field, access_token) -> bool:
     if not access_token:
         return False
     return bool(
-        verify_limited_field_access_token(record, field, access_token, scope="binary")
+        is_valid_limited_field_access_token(record, field, access_token, scope="binary")
     )
 
 
@@ -410,7 +410,7 @@ class Binary(http.Controller):
                         "size": attachment.file_size,
                     }
                 )
-        return request.make_json_response(results)
+        return request.prepare_json_response(results)
 
     @http.route(
         [

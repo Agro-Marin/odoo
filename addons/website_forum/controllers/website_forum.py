@@ -304,7 +304,7 @@ class WebsiteForum(WebsiteProfile):
             fields=["id", "name"],
             limit=int(limit),
         )
-        return request.make_response(
+        return request.prepare_response(
             json.dumps(data), headers=[("Content-Type", "application/json")]
         )
 

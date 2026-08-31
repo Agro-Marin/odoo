@@ -177,7 +177,7 @@ class MailMessage(models.Model):
         return vals_list
 
     def _portal_message_format_attachments(self, attachment_values):
-        self.ensure_one()
+        self.check_singleton()
         safari = (
             request
             and request.httprequest.user_agent

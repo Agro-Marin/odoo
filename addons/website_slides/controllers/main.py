@@ -1866,7 +1866,7 @@ class WebsiteSlides(WebsiteProfile):
 
         try:
             survey_question = request.env["survey.question"].new(new_question_values)
-            survey_question._validate_fields(new_question_values.keys())
+            survey_question._check_fields(new_question_values.keys())
         except ValidationError as e:
             return {"error": e.args[0]}
 

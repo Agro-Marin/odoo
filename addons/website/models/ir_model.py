@@ -9,7 +9,7 @@ class Base(models.AbstractModel):
     def get_base_url(self):
         if not self:
             return super().get_base_url()
-        self.ensure_one()
+        self.check_singleton()
 
         if self._name == "website":
             return self.domain or super().get_base_url()

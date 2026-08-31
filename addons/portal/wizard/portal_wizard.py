@@ -152,7 +152,7 @@ class PortalWizardUser(models.TransientModel):
                 portal_wizard_user.is_portal = False
 
     def action_grant_access(self):
-        self.ensure_one()
+        self.check_singleton()
         self._assert_user_email_uniqueness()
 
         if self.is_portal or self.is_internal:
@@ -189,7 +189,7 @@ class PortalWizardUser(models.TransientModel):
         return self.action_refresh_modal()
 
     def action_revoke_access(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.is_portal:
             raise UserError(
                 _(
@@ -210,7 +210,7 @@ class PortalWizardUser(models.TransientModel):
         return self.action_refresh_modal()
 
     def action_invite_again(self):
-        self.ensure_one()
+        self.check_singleton()
         self._assert_user_email_uniqueness()
 
         if not self.is_portal:
@@ -245,7 +245,7 @@ class PortalWizardUser(models.TransientModel):
         )
 
     def _send_email(self):
-        self.ensure_one()
+        self.check_singleton()
 
         template = self.env.ref(
             "auth_signup.portal_set_password_email", raise_if_not_found=False
@@ -271,7 +271,7 @@ class PortalWizardUser(models.TransientModel):
         return True
 
     def _assert_user_email_uniqueness(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.email_state == "ko":
             raise UserError(
                 _('The contact "%s" does not have a valid email.', self.partner_id.name)
@@ -285,7 +285,7 @@ class PortalWizardUser(models.TransientModel):
             )
 
     def _update_partner_email(self):
-        self.ensure_one()
+        self.check_singleton()
         email_normalized = email_normalize(self.email)
         if (
             self.email_state == "ok"

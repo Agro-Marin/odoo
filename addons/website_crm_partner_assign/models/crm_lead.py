@@ -64,7 +64,7 @@ class CrmLead(models.Model):
             )
 
     def _get_partner_email_update(self, force_void=True):
-        self.ensure_one()
+        self.check_singleton()
         if self.env.user._is_portal() and self.partner_id.user_id:
             return False
         return super()._get_partner_email_update(force_void)
@@ -87,7 +87,7 @@ class CrmLead(models.Model):
         ]
         return fields_list
 
-    def assign_salesman_of_assigned_partner(self):
+    def update_salesman_of_assigned_partner(self):
         salesmans_leads = {}
         for lead in self:
             if lead.active and lead.probability < 100:
@@ -118,9 +118,9 @@ class CrmLead(models.Model):
                     ),
                 },
             )
-        return leads_with_country.assign_partner(partner_id=False)
+        return leads_with_country.update_assigned_partner(partner_id=False)
 
-    def assign_partner(self, partner_id=False):
+    def update_assigned_partner(self, partner_id=False):
         partner_dict = {}
         res = False
         if not partner_id:
@@ -136,14 +136,14 @@ class CrmLead(models.Model):
                 if tag_to_add:
                     lead.write({"tag_ids": [(4, tag_to_add.id, False)]})
                 continue
-            lead.assign_geo_localize(lead.partner_latitude, lead.partner_longitude)
+            lead.update_geo_location(lead.partner_latitude, lead.partner_longitude)
             partner = self.env["res.partner"].browse(partner_id)
             if partner.user_id:
                 lead._handle_salesmen_assignment(user_ids=partner.user_id.ids)
             lead.write({"partner_assigned_id": partner_id})
         return res
 
-    def assign_geo_localize(self, latitude=False, longitude=False):
+    def update_geo_location(self, latitude=False, longitude=False):
         if latitude and longitude:
             self.write({"partner_latitude": latitude, "partner_longitude": longitude})
             return True
@@ -179,7 +179,7 @@ class CrmLead(models.Model):
     def search_geo_partner(self):
         Partner = self.env["res.partner"]
         res_partner_ids = {}
-        self.assign_geo_localize()
+        self.update_geo_location()
         for lead in self:
             partner_ids = []
             if not lead.country_id:
@@ -387,12 +387,12 @@ class CrmLead(models.Model):
             values["tag_ids"] = [(4, tag_own.id, False)]
 
         lead = self.create(values)
-        lead.assign_salesman_of_assigned_partner()
+        lead.update_salesman_of_assigned_partner()
         lead.convert_opportunity(lead.partner_id)
         return {"id": lead.id}
 
     def _get_access_action(self, access_uid=None, force_website=False):
-        self.ensure_one()
+        self.check_singleton()
 
         user, record = self.env.user, self
         if access_uid:

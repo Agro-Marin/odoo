@@ -79,7 +79,7 @@ class WebsiteVisitorTestsLivechat(WebsiteVisitorTestsCommon):
 
         # Anonymous user
         self.url_open(self.tracked_page.url)  # visitor created
-        res_1 = self.make_jsonrpc_request(
+        res_1 = self.call_jsonrpc(
             "/im_livechat/get_session",
             {
                 "channel_id": livechat_channel.id,
@@ -92,7 +92,7 @@ class WebsiteVisitorTestsLivechat(WebsiteVisitorTestsCommon):
 
         # After login, the same visitor record is retained
         self._authenticate_via_web(self.user_portal.login, "portal")
-        res_2 = self.make_jsonrpc_request(
+        res_2 = self.call_jsonrpc(
             "/im_livechat/get_session",
             {
                 "channel_id": livechat_channel.id,

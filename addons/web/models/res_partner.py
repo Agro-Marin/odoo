@@ -56,7 +56,7 @@ class ResPartner(models.Model):
     _inherit = "res.partner"
 
     def _prepare_vcard(self) -> Any:
-        self.ensure_one()
+        self.check_singleton()
         vobject, VComponentProxy = _vobject()
         vcard = vobject.vCard()
         n = vcard.add("n")

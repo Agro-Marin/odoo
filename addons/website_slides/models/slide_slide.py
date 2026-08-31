@@ -842,7 +842,7 @@ class SlideSlide(models.Model):
         We only populate the field that are empty to avoid overriding user assigned values.
         The slide metadata are also fetched in create / write overrides to ensure consistency."""
 
-        self.ensure_one()
+        self.check_singleton()
         if (
             self.url
             or self.document_google_url
@@ -1036,7 +1036,7 @@ class SlideSlide(models.Model):
             and not self.env.context.get("install_mode")
             and not self.env.context.get("website_slides_skip_fetch_metadata")
         ):
-            # Per record: _get_external_metadata() is ensure_one(), so a
+            # Per record: _get_external_metadata() is check_singleton(), so a
             # multi-record write touching a url field raised "Expected
             # singleton" (reachable from list-view multi-edit). Applying one
             # slide's fetched title/duration to the whole set would be wrong
@@ -1098,7 +1098,7 @@ class SlideSlide(models.Model):
     # ---------------------------------------------------------
 
     def message_post(self, *, message_type="notification", **kwargs):
-        self.ensure_one()
+        self.check_singleton()
         if (
             message_type == "comment" and not self.channel_id.can_comment
         ):  # user comments have a restriction on karma
@@ -1107,7 +1107,7 @@ class SlideSlide(models.Model):
 
     def _get_access_action(self, access_uid=None, force_website=False):
         """Instead of the classic form view, redirect to website if it is published."""
-        self.ensure_one()
+        self.check_singleton()
         if force_website or self.website_published:
             return {
                 "type": "ir.actions.act_url",
@@ -1127,7 +1127,7 @@ class SlideSlide(models.Model):
         if not self:
             return groups
 
-        self.ensure_one()
+        self.check_singleton()
         if self.website_published:
             for _group_name, _group_method, group_data in groups:
                 group_data["has_button_access"] = True
@@ -1150,7 +1150,7 @@ class SlideSlide(models.Model):
         else bounds how many rows a caller can create.
         """
 
-        self.ensure_one()
+        self.check_singleton()
 
         url_entry = self._normalize_embed_url(url)
 
@@ -1384,7 +1384,7 @@ class SlideSlide(models.Model):
         rules, so "what is this attempt worth" had four answers that only
         happened to agree.
         """
-        self.ensure_one()
+        self.check_singleton()
         return [
             self.quiz_first_attempt_reward,
             self.quiz_second_attempt_reward,
@@ -1400,7 +1400,7 @@ class SlideSlide(models.Model):
           next one would earn. Off by one, which is exactly the distinction the
           four hand-written copies kept getting differently.
         """
-        self.ensure_one()
+        self.check_singleton()
         if not self.has_questions:
             return 0
         gains = self._get_quiz_gains()
@@ -1450,7 +1450,7 @@ class SlideSlide(models.Model):
         return True
 
     def action_view_embeds(self):
-        self.ensure_one()
+        self.check_singleton()
 
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "website_slides.slide_embed_action"
@@ -1623,7 +1623,7 @@ class SlideSlide(models.Model):
                 slide_metadata["image_1920"] = image
 
     def _get_external_metadata(self, image_url_only=False):
-        self.ensure_one()
+        self.check_singleton()
 
         slide_metadata = {}
         error = False
@@ -1660,7 +1660,7 @@ class SlideSlide(models.Model):
         :return a tuple (values, error) containing the values of the slide and a potential error
           (e.g: 'Video could not be found')"""
 
-        self.ensure_one()
+        self.check_singleton()
         response, error = self._get_external_json(
             "https://www.googleapis.com/youtube/v3/videos",
             params={
@@ -1735,7 +1735,7 @@ class SlideSlide(models.Model):
         :return a tuple (values, error) containing the values of the slide and a potential error
           (e.g: 'File could not be found')"""
 
-        self.ensure_one()
+        self.check_singleton()
         google_drive_values, error = self._get_external_json(
             "https://www.googleapis.com/drive/v2/files/%s" % self.google_drive_id,
             params={"projection": "BASIC", "key": self._get_google_app_key()},
@@ -1824,7 +1824,7 @@ class SlideSlide(models.Model):
         :return a tuple (values, error) containing the values of the slide and a potential error
           (e.g: 'Video could not be found')"""
 
-        self.ensure_one()
+        self.check_singleton()
         vimeo_values, error = self._get_external_json(
             "https://vimeo.com/api/oembed.json?%s" % urlencode({"url": self.video_url}),
             not_found_message=_(

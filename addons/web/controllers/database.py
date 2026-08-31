@@ -71,7 +71,7 @@ def render_database_manager(values: dict) -> Markup:
 
 class Database(http.Controller):
     def _handle_insecure_password(self, master_pwd: str) -> None:
-        if not (odoo.tools.config.verify_admin_password("admin") and master_pwd):
+        if not (odoo.tools.config.is_valid_admin_password("admin") and master_pwd):
             return
         remote_addr = request.httprequest.remote_addr
         if not _is_loopback(remote_addr):
@@ -91,7 +91,7 @@ class Database(http.Controller):
 
     def _render_template(self, **d) -> str:
         d.setdefault("manage", True)
-        d["insecure"] = odoo.tools.config.verify_admin_password("admin")
+        d["insecure"] = odoo.tools.config.is_valid_admin_password("admin")
         d["list_db"] = odoo.tools.config["list_db"]
         d["langs"] = odoo.service.db.exp_list_lang()
         d["countries"] = odoo.service.db.exp_list_countries()
@@ -319,7 +319,7 @@ class Database(http.Controller):
     )
     def change_password(self, master_pwd: str, master_pwd_new: str) -> str | Response:
         try:
-            if odoo.tools.config.verify_admin_password("admin"):
+            if odoo.tools.config.is_valid_admin_password("admin"):
                 remote_addr = request.httprequest.remote_addr
                 if not _is_loopback(remote_addr):
                     _logger.warning(

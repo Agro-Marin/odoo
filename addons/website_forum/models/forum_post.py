@@ -589,7 +589,7 @@ class ForumPost(models.Model):
 
     def _get_access_action(self, access_uid=None, force_website=False):
         """Instead of the classic form view, redirect to the post on the website directly"""
-        self.ensure_one()
+        self.check_singleton()
         if not force_website and self.state != "active":
             return super()._get_access_action(
                 access_uid=access_uid, force_website=force_website
@@ -861,7 +861,7 @@ class ForumPost(models.Model):
         return spams._mark_as_offensive(reason_id)
 
     def vote(self, upvote=True):
-        self.ensure_one()
+        self.check_singleton()
         Vote = self.env["forum.post.vote"]
         existing_vote = Vote.search(
             [("post_id", "=", self.id), ("user_id", "=", self.env.uid)]
@@ -881,7 +881,7 @@ class ForumPost(models.Model):
         """Tools to convert an answer (forum.post) to a comment (mail.message).
         The original post is unlinked and a new comment is posted on the question
         using the post create_uid as the comment's author."""
-        self.ensure_one()
+        self.check_singleton()
         if not self.parent_id:
             return self.env["mail.message"]
 
@@ -1005,11 +1005,11 @@ class ForumPost(models.Model):
         return result
 
     def _set_viewed(self):
-        self.ensure_one()
+        self.check_singleton()
         return self._increment_fields_skiplock("views")
 
     def _update_last_activity(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.sudo().write({"last_activity_date": fields.Datetime.now()})
 
     # ----------------------------------------------------------------------
@@ -1044,7 +1044,7 @@ class ForumPost(models.Model):
         if not self:
             return groups
 
-        self.ensure_one()
+        self.check_singleton()
         if self.state == "active":
             for _group_name, _group_method, group_data in groups:
                 group_data["has_button_access"] = True
@@ -1075,7 +1075,7 @@ class ForumPost(models.Model):
                 partner_ids += question_followers.ids
                 kwargs["partner_ids"] = partner_ids
 
-            self.ensure_one()
+            self.check_singleton()
             if not self.can_comment:
                 raise AccessError(
                     _("%d karma required to comment.", self.karma_comment)
@@ -1109,7 +1109,7 @@ class ForumPost(models.Model):
             str or None: Microdata in JSON format representing the post, or None
             if not applicable.
         """
-        self.ensure_one()
+        self.check_singleton()
         # Return if it's not a question.
         if self.parent_id:
             return None
@@ -1166,7 +1166,7 @@ class ForumPost(models.Model):
         return res
 
     def go_to_website(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.website_url:
             return False
         return self.env["website"].get_client_action(self.website_url)
@@ -1264,7 +1264,7 @@ class ForumPost(models.Model):
         intersection divided by sets union (and thus varies from 0 to 1, 1 being
         identical sets)."""
 
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.tag_ids:
             return self.env["forum.post"]

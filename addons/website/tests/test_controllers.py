@@ -188,7 +188,7 @@ class TestControllers(tests.HttpCase):
                 "website_published": True,
                 "website_path": "my_test_action",
                 "model_id": self.ref("base.model_res_partner"),
-                "code": """response = request.make_response("{'message': 'Succeeded'}")""",
+                "code": """response = request.prepare_response("{'message': 'Succeeded'}")""",
                 "state": "code",
                 "type": "ir.actions.server",
             }

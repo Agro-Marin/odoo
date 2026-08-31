@@ -40,7 +40,7 @@ class MixinWebsiteSeoMetadata(models.AbstractModel):
             )
 
     def _default_website_meta(self):
-        self.ensure_one()
+        self.check_singleton()
         company = request.website.company_id.sudo()
         title = request.website.name
         if "name" in self:

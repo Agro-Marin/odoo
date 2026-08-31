@@ -11,7 +11,7 @@ class Model(Controller):
         readonly=True,
     )
     def get_model_definitions(self, model_names: str, **kwargs) -> Response:
-        return request.make_response(
+        return request.prepare_response(
             dumps(
                 request.env["ir.model"]._get_definitions(loads(model_names)),
             ),

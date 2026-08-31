@@ -32,7 +32,7 @@ class ResUsersIdentitycheck(models.TransientModel):
             super()._check_identity()
 
     def action_use_password(self):
-        self.ensure_one()
+        self.check_singleton()
         self.auth_method = "password"
         self.password = ""
         return {

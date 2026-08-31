@@ -90,7 +90,7 @@ class TestPartnerAssign(TransactionCase):
             "Longitude is wrong: 3 < %s < 5" % partner_be.partner_longitude,
         )
 
-        lead.assign_partner()
+        lead.update_assigned_partner()
 
         self.assertEqual(
             lead.partner_assigned_id,
@@ -353,7 +353,7 @@ class TestPartnerLeadPortal(TestCrmCommon, HttpCase):
 
     def test_portal_post(self):
         self.authenticate(self.user_portal.login, self.user_portal.login)
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             route="/mail/message/post",
             params={
                 "thread_model": self.lead_portal._name,

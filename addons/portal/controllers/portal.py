@@ -461,7 +461,7 @@ class CustomerPortal(Controller):
             partner_sudo, **form_data
         )
 
-        return request.make_json_response(feedback_dict)
+        return request.prepare_json_response(feedback_dict)
 
     def _create_or_update_address(
         self,
@@ -938,7 +938,7 @@ class CustomerPortal(Controller):
         except UserError as e:
             return {"errors": {"password": str(e)}}
 
-        new_token = request.env.user._compute_session_token(request.session.sid)
+        new_token = request.env.user._get_session_token(request.session.sid)
         request.session.session_token = new_token
 
         return {"success": {"password": True}}
@@ -1092,7 +1092,7 @@ class CustomerPortal(Controller):
             report_ref, list(model.ids), data={"report_type": report_type}
         )[0]
         headers = self._get_http_headers(model, report_type, report, download)
-        return request.make_response(report, headers=list(headers.items()))
+        return request.prepare_response(report, headers=list(headers.items()))
 
     _REPORT_CONTENT_TYPES = {
         "pdf": "application/pdf",

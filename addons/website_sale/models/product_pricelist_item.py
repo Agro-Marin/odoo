@@ -12,7 +12,7 @@ class ProductPricelistItem(models.Model):
         if not self:
             return False
 
-        self.ensure_one()
+        self.check_singleton()
 
         return self.compute_price == "percentage" or (
             self.compute_price == "formula"

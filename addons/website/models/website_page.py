@@ -225,7 +225,7 @@ class WebsitePage(models.Model):
         return res
 
     def get_website_meta(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.view_id.get_website_meta()
 
     @api.model
@@ -321,10 +321,12 @@ class WebsitePage(models.Model):
 
         def filter_page(search, page, all_pages):
             Rule = page.env["ir.rule"].sudo(False)
-            if not page.filtered_domain(Rule._compute_domain("website.page", "read")):
+            if not page.filtered_domain(
+                Rule._get_domain_accessible_records("website.page", "read")
+            ):
                 return False
             if not page.view_id.filtered_domain(
-                Rule._compute_domain("ir.ui.view", "read")
+                Rule._get_domain_accessible_records("ir.ui.view", "read")
             ):
                 return False
             if search and with_description:
@@ -399,7 +401,7 @@ class WebsitePage(models.Model):
         )
 
     def _get_response(self, request):
-        self.ensure_one()
+        self.check_singleton()
         if self._allow_to_use_cache(request):
             try:
                 response, cache_key = self._get_response_cached(request)

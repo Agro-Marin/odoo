@@ -22,15 +22,15 @@ class ResPartner(models.Model):
         }
 
     def _can_edit_country(self):
-        self.ensure_one()
+        self.check_singleton()
         return True
 
     def can_edit_vat(self):
-        self.ensure_one()
+        self.check_singleton()
         return not self.parent_id
 
     def _can_be_edited_by_current_customer(self, **kwargs):
-        self.ensure_one()
+        self.check_singleton()
         return bool(self._filter_editable_by_current_customer(**kwargs))
 
     def _filter_editable_by_current_customer(self, **kwargs):

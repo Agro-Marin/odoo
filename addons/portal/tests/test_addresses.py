@@ -67,7 +67,7 @@ class TestPortalAddresses(BaseCommon, HttpCase):
     def test_country_info_includes_state_required(self):
         self.authenticate(self.portal_user.login, self.portal_user.login)
         country = self.quick_ref("base.us")
-        result = self.make_jsonrpc_request(
+        result = self.call_jsonrpc(
             f"/my/address/country_info/{country.id}",
             params={"address_type": "billing"},
         )
@@ -286,19 +286,19 @@ class TestPortalAddresses(BaseCommon, HttpCase):
         self.authenticate(self.account_a.login, self.account_a.login)
 
         with self.assertRaises(JsonRpcException):
-            self.make_jsonrpc_request(
+            self.call_jsonrpc(
                 self.archive_url,
                 params={"partner_id": self.portal_user.partner_id.id},
             )
 
         with self.assertRaises(JsonRpcException), mute_logger("odoo.http"):
-            self.make_jsonrpc_request(
+            self.call_jsonrpc(
                 self.archive_url,
                 params={"partner_id": self.account_a.partner_id.id},
             )
 
         with self.assertRaises(JsonRpcException):
-            self.make_jsonrpc_request(
+            self.call_jsonrpc(
                 self.archive_url,
                 params={"partner_id": self.account_b.partner_id.id},
             )
@@ -312,7 +312,7 @@ class TestPortalAddresses(BaseCommon, HttpCase):
             }
         )
         self.assertTrue(child_partner.active)
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             self.archive_url,
             params={"partner_id": child_partner.id},
         )

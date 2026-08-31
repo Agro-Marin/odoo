@@ -110,7 +110,7 @@ class SlideChannelPartner(models.Model):
         Counted in contents, never in the rounded percentage: the two must not
         be allowed to drift apart again (see _recompute_completion).
         """
-        self.ensure_one()
+        self.check_singleton()
         total_slides = self.channel_id.total_slides
         return bool(total_slides) and self.completed_slides_count >= total_slides
 
@@ -219,7 +219,7 @@ class SlideChannelPartner(models.Model):
 
     def _get_invitation_hash(self):
         """Returns the invitation hash of the attendee, used to access courses as invited / joined."""
-        self.ensure_one()
+        self.check_singleton()
         token = (self.partner_id.id, self.channel_id.id)
         return tools.hmac(self.env(su=True), "website_slides-channel-invite", token)
 

@@ -51,8 +51,8 @@ class IrActionsServer(models.Model):
                 action.website_url = False
 
     @api.model
-    def _get_eval_context(self, action):
-        eval_context = super()._get_eval_context(action)
+    def _prepare_eval_context(self, action):
+        eval_context = super()._prepare_eval_context(action)
         if action and action.state == "code":
             eval_context["request"] = request
             eval_context["json"] = json_scriptsafe

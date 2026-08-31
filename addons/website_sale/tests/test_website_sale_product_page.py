@@ -53,7 +53,7 @@ class TestWebsiteSaleProductPage(HttpCase, ProductVariantsCommon, WebsiteSaleCom
             subtype_xmlid="mail.mt_comment",
         )
         self.authenticate(manager.login, password)
-        self.make_jsonrpc_request(
+        self.call_jsonrpc(
             "/mail/message/reaction",
             {
                 "action": "add",

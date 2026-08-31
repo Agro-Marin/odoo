@@ -28,7 +28,7 @@ class ResPartner(models.Model):
     )
 
     def _get_signup_url(self):
-        self.ensure_one()
+        self.check_singleton()
         result = self.sudo()._get_signup_url_for_action()
         if any(u._is_internal() for u in self.user_ids if u != self.env.user):
             self.env["res.users"].check_access("write")
@@ -176,7 +176,7 @@ class ResPartner(models.Model):
         return res
 
     def _get_login_date(self):
-        self.ensure_one()
+        self.check_singleton()
         users_login_dates = self.user_ids.mapped("login_date")
         users_login_dates = list(filter(None, users_login_dates))  # remove falsy values
         if any(users_login_dates):
@@ -195,7 +195,7 @@ class ResPartner(models.Model):
         Since ``login_date`` is part of the payload, this token is
         invalidated as soon as the user logs in.
         """
-        self.ensure_one()
+        self.check_singleton()
         self = self.sudo()
         if not expiration:
             if self.signup_type == "reset":
@@ -215,7 +215,7 @@ class ResPartner(models.Model):
 
     @api.model
     def _get_partner_from_token(self, token):
-        if payload := tools.verify_hash_signed(self.sudo().env, "signup", token):
+        if payload := tools.resolve_hash_signed(self.sudo().env, "signup", token):
             partner_id, user_ids, login_date, signup_type = payload
             # login_date can be either an int or "None" as a string for signup
             partner = self.browse(partner_id)

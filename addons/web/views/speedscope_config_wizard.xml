@@ -7,7 +7,7 @@
         <div class="container-md p-0">
             <div class="o_form_view align-items-center">
                 <div class="row">
-                    <div class="col" t-if="profiles._compute_has_memory()">
+                    <div class="col" t-if="profiles._has_memory()">
                         <div class="o_form_sheet">
                             <form
                                 method="get"
