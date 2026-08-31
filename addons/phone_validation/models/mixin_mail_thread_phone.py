@@ -4,7 +4,7 @@ from odoo import _, api, fields, models
 from odoo.db.schema import create_index, index_exists
 from odoo.exceptions import AccessError, UserError
 from odoo.fields import Domain
-from odoo.tools import make_identifier, ormcache
+from odoo.tools import normalize_identifier, ormcache
 
 PHONE_REGEX_PATTERN = r"[\s\\./\(\)\-]"
 
@@ -49,7 +49,7 @@ class MixinMailThreadPhone(models.AbstractModel):
     @api.model
     @ormcache("self._table", cache="stable")
     def _phone_sanitized_search_index_exists(self):
-        index_name = make_identifier(f"{self._table}_phone_sanitized_partial_tgm")
+        index_name = normalize_identifier(f"{self._table}_phone_sanitized_partial_tgm")
         return index_exists(self.env.cr, index_name)
 
     @api.model
@@ -80,7 +80,7 @@ class MixinMailThreadPhone(models.AbstractModel):
             # The btree index covers operators '=' and '=like' with a known prefix
             create_index(
                 self.env.cr,
-                indexname=make_identifier(f"{self._table}_{fname}_partial_tgm"),
+                indexname=normalize_identifier(f"{self._table}_{fname}_partial_tgm"),
                 tablename=self._table,
                 expressions=[regex_expression],
                 where=f"{fname} IS NOT NULL",
@@ -89,7 +89,9 @@ class MixinMailThreadPhone(models.AbstractModel):
                 # The trigram index covers operators 'like', 'ilike' and '=like' starting with a wildcard
                 create_index(
                     self.env.cr,
-                    indexname=make_identifier(f"{self._table}_{fname}_partial_gin_idx"),
+                    indexname=normalize_identifier(
+                        f"{self._table}_{fname}_partial_gin_idx"
+                    ),
                     tablename=self._table,
                     method="gin",
                     expressions=[regex_expression + " gin_trgm_ops"],
@@ -200,11 +202,20 @@ class MixinMailThreadPhone(models.AbstractModel):
     def _compute_blacklisted(self):
         # TODO : Should remove the sudo as compute_sudo defined on methods.
         # But if user doesn't have access to mail.blacklist, doen't work without sudo().
-        blacklist = set(
-            self.env["phone.blacklist"]
-            .sudo()
-            .search([("number", "in", self.mapped("phone_sanitized"))])
-            .mapped("number")
+        # Only records that have a number: phone.blacklist._search_number rejects
+        # a falsy one, because Domain normalises `= ""` into `in [""]` and a falsy
+        # number would otherwise be derived from env.user. A record with none
+        # matches no entry anyway.
+        numbers = [number for number in self.mapped("phone_sanitized") if number]
+        blacklist = (
+            set(
+                self.env["phone.blacklist"]
+                .sudo()
+                .search([("number", "in", numbers)])
+                .mapped("number")
+            )
+            if numbers
+            else set()
         )
         number_fields = self._phone_get_number_fields()
         for record in self:
