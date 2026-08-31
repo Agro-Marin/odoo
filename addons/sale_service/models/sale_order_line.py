@@ -68,9 +68,12 @@ class SaleOrderLine(models.Model):
         if not self.env.context.get("with_price_unit"):
             return name_per_id
 
+        sorted_sols = sorted(self, key=lambda sol: (sol.order_id.id, sol.product_id.id))
         sols_list = [
             list(sols)
-            for dummy, sols in groupby(self, lambda sol: (sol.order_id, sol.product_id))
+            for dummy, sols in groupby(
+                sorted_sols, lambda sol: (sol.order_id, sol.product_id)
+            )
         ]
         for sols in sols_list:
             if len(sols) <= 1 or not all(sol.is_service for sol in sols):
