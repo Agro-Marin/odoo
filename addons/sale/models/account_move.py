@@ -8,7 +8,6 @@ class AccountMove(models.Model):
     _name = "account.move"
     _inherit = ["account.move", "mixin.utm"]
 
-
     campaign_id = fields.Many2one(ondelete="set null")
     medium_id = fields.Many2one(ondelete="set null")
     source_id = fields.Many2one(ondelete="set null")
@@ -56,19 +55,15 @@ class AccountMove(models.Model):
         help="0: SO not required or partially linked. 1: All lines linked",
     )
 
-
     def unlink(self):
         own_lines = self.line_ids
         downpayment_lines = own_lines.sale_line_ids.filtered(
-            lambda line: (
-                line.is_downpayment and line.invoice_line_ids <= own_lines
-            ),
+            lambda line: line.is_downpayment and line.invoice_line_ids <= own_lines,
         )
         res = super().unlink()
         if downpayment_lines:
             downpayment_lines.unlink()
         return res
-
 
     @api.depends("move_type", "partner_id")
     def _compute_invoice_user_id(self):
@@ -224,7 +219,6 @@ class AccountMove(models.Model):
                     warnings.add(product.display_name + " - " + product_msg)
             move.sale_warning_text = "\n".join(warnings)
 
-
     def action_cancel(self):
         res = super().action_cancel()
         self.line_ids.filtered("is_downpayment").sale_line_ids.filtered(
@@ -272,7 +266,9 @@ class AccountMove(models.Model):
     def action_view_source_sale_orders(self):
         self.ensure_one()
         source_orders = self.line_ids.sale_line_ids.order_id
-        result = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id("sale.action_sale_order")
+        result = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
+            "sale.action_sale_order"
+        )
         if len(source_orders) > 1:
             result["domain"] = [("id", "in", source_orders.ids)]
         elif len(source_orders) == 1:
@@ -351,7 +347,6 @@ class AccountMove(models.Model):
             cancel=cancel,
         )
 
-
     def _invoice_paid_hook(self):
         res = super()._invoice_paid_hook()
         todo = set()
@@ -400,7 +395,6 @@ class AccountMove(models.Model):
             exclude_amount += order_amount_company
         return exclude_amount
 
-
     def _is_downpayment(self):
         self.ensure_one()
         return (
@@ -437,9 +431,7 @@ class AccountMove(models.Model):
         # what knows that; reading `company_ids` in Python needs `sudo()` because
         # the reader may not see the companies behind the relation. Same shape as
         # account_move_line._compute_tax_ids.
-        company_domain = self.env["account.tax"]._check_company_domain(
-            self.company_id
-        )
+        company_domain = self.env["account.tax"]._check_company_domain(self.company_id)
         for line in self.invoice_line_ids.filtered(
             lambda ln: ln.display_type == "product",
         ):
