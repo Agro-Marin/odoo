@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { convertNumericToUnit, getHtmlStyle } from "@html_editor/utils/formatting";
-import { Component } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
 import {
     basicContainerBuilderComponentProps,
     useInputBuilderComponent,
@@ -14,6 +14,7 @@ import {
 } from "@html_builder/core/building_blocks/builder_text_input_base";
 import { useChildRef } from "@web/core/utils/hooks";
 import { pick } from "@web/core/utils/collections/objects";
+import { effect } from "@web/core/utils/reactive";
 
 export class BuilderNumberInput extends Component {
     static template = "html_builder.BuilderNumberInput";
@@ -50,7 +51,14 @@ export class BuilderNumberInput extends Component {
         });
         this.commit = commit;
         this.preview = preview;
-        this.state = state;
+        // `domState` is the committed value; `state` is what the template
+        // needs on every keystroke. Keeping them apart is what lets the unit
+        // react to a value the user is still typing.
+        this.domState = state;
+        this.state = useState({});
+        // The committed value still carries its unit ("5px"), so the only
+        // question it can answer is whether there is a value at all.
+        effect(({ value }) => (this.state.showUnit = !!value?.length), [state]);
 
         this.inputRef = useChildRef();
         this.debouncedCommitValue = useInputDebouncedCommit(this.inputRef);
@@ -160,7 +168,27 @@ export class BuilderNumberInput extends Component {
     }
 
     get displayValue() {
-        return this.formatRawValue(this.state.value);
+        return this.formatRawValue(this.domState.value);
+    }
+
+    /**
+     * A unit only means something next to a number. When the input is empty
+     * the placeholder speaks for it ("auto"), and "auto px" is not a value.
+     * What the user is typing has no unit on it yet, so unlike the committed
+     * value it has to parse as a number: "0x" gets no unit either.
+     *
+     * @param {string} value
+     */
+    setUnitVisibility(value) {
+        this.state.showUnit = value !== "" && !Number.isNaN(Number(value));
+    }
+
+    onInput(e) {
+        this.setUnitVisibility(e.target.value);
+    }
+
+    onChange(e) {
+        this.setUnitVisibility(e.target.value);
     }
 
     onKeydown(e) {
