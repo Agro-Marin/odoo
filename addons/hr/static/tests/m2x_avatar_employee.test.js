@@ -111,6 +111,69 @@ test("many2one in kanban view", async () => {
     );
 });
 
+test("many2one in kanban view with display_avatar_name", async () => {
+    const { env } = await makeMockServer();
+    const partnerId = env["res.partner"].create({ name: "Mario" });
+    const userId = env["res.users"].create({ partner_id: partnerId });
+    const employeeId = env["hr.employee.public"].create({
+        name: "Mario",
+        user_id: userId,
+        user_partner_id: partnerId,
+    });
+    env["m2x.avatar.employee"].create({
+        employee_id: employeeId,
+        employee_ids: [employeeId],
+    });
+    onRpc("has_group", () => false);
+    await mountView({
+        type: "kanban",
+        resModel: "m2x.avatar.employee",
+        arch: `<kanban>
+            <templates>
+                <t t-name="card">
+                    <field name="employee_id" widget="many2one_avatar_employee" options="{'display_avatar_name': True}"/>
+                </t>
+            </templates>
+        </kanban>`,
+    });
+    await waitFor(".o_m2o_avatar");
+    expect(".o_kanban_record:eq(0)").toHaveText("Mario");
+    // The name sits right next to the image, so the avatar needs its margin.
+    expect(".o_m2o_avatar > img:eq(0)").toHaveClass("me-2");
+});
+
+test("many2one in kanban view keeps a bare avatar unspaced", async () => {
+    const { env } = await makeMockServer();
+    const partnerId = env["res.partner"].create({ name: "Mario" });
+    const userId = env["res.users"].create({ partner_id: partnerId });
+    const employeeId = env["hr.employee.public"].create({
+        name: "Mario",
+        user_id: userId,
+        user_partner_id: partnerId,
+    });
+    env["m2x.avatar.employee"].create({
+        employee_id: employeeId,
+        employee_ids: [employeeId],
+    });
+    onRpc("has_group", () => false);
+    await mountView({
+        type: "kanban",
+        resModel: "m2x.avatar.employee",
+        arch: `<kanban>
+            <templates>
+                <t t-name="card">
+                    <field name="employee_id" widget="many2one_avatar_employee"/>
+                </t>
+            </templates>
+        </kanban>`,
+    });
+    await waitFor(".o_m2o_avatar");
+    // No name is rendered here, so there is nothing to space away from: a
+    // margin would only push the next cell around.
+    expect(".o_kanban_record:eq(0)").toHaveText("");
+    expect(".o_m2o_avatar > img:eq(0)").not.toHaveClass("me-2");
+});
+
 test("many2one: click on an employee not associated with a user", async () => {
     const { env } = await makeMockServer();
     const employeeId = env["hr.employee.public"].create({ name: "Mario" });

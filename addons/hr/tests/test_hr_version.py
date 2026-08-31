@@ -1,5 +1,7 @@
+from ast import literal_eval
 from datetime import date
 
+from lxml import etree
 from psycopg.errors import CheckViolation
 
 from odoo.exceptions import AccessError, ValidationError
@@ -895,3 +897,42 @@ class TestHrVersion(TestHrCommon):
             employee.version_ids.action_archive()
         with self.assertRaises(ValidationError):
             employee.version_ids.write({"employee_id": another_employee.id})
+
+    def test_open_version_form_view(self):
+        """An employee version must have a reachable form view.
+
+        `action_hr_version` lists versions without a form, and the list's own
+        `action_view_version` opens the *employee*, so the version's chatter and
+        its attachments had no route. The Contract Template form is the only
+        `hr.version` form there is, and its action is restricted to templates
+        (`employee_id = False`), so it cannot serve this either.
+        """
+        employee = self.env["hr.employee"].create(
+            {"name": "John Doe", "date_version": "2020-01-01"}
+        )
+        version = employee.version_id
+        self.assertTrue(version.employee_id)
+
+        action = version.action_open_version_form_view()
+        form_view = self.env.ref("hr.hr_contract_template_form_view")
+        self.assertEqual(action["res_model"], "hr.version")
+        self.assertEqual(action["res_id"], version.id)
+        self.assertEqual(action["views"], [[form_view.id, "form"]])
+
+        # The template action stays restricted to templates, so it is not the
+        # route to an employee's version.
+        template_action = self.env.ref("hr.action_hr_contract_templates")
+        self.assertEqual(
+            literal_eval(template_action.domain), [("employee_id", "=", False)]
+        )
+
+    def test_version_list_offers_the_form_button(self):
+        """The action lives on a button of the Employee Records list."""
+        arch = etree.fromstring(
+            self.env["hr.version"].get_view(
+                self.env.ref("hr.hr_version_list_view").id, "list"
+            )["arch"]
+        )
+        button = arch.xpath("//button[@name='action_open_version_form_view']")
+        self.assertTrue(button, "the Employee Records list must offer the button")
+        self.assertEqual(button[0].get("type"), "object")
