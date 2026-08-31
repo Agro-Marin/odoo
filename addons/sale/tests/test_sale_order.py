@@ -947,6 +947,38 @@ class TestSaleOrder(SaleCommon):
             msg="price_total should be equal to expected_total",
         )
 
+    def test_track_finalize_discard_keeps_other_records_pending_tracking(self):
+        """A single order's discarded tracking must not wipe the shared
+        per-model precommit dict other orders in the same transaction still
+        have pending tracked-field changes in."""
+        order_a, order_b = self.empty_order, self.sale_order
+        tracking_key = f"mail.tracking.{order_a._name}"
+        uid_key = f"mail.tracking.uid.{order_a._name}"
+        precommit_data = self.env.cr.precommit.data
+        precommit_data[tracking_key] = {
+            order_a.id: {"state": "draft"},
+            order_b.id: {"state": "draft"},
+        }
+        precommit_data[uid_key] = {
+            order_a.id: self.env.uid,
+            order_b.id: self.env.uid,
+        }
+
+        with patch.object(type(order_a), "_discard_tracking", return_value=True):
+            order_a.env.cache.set(order_a, order_a._fields["state"], order_a.state)
+            order_a._track_finalize()
+
+        self.assertNotIn(
+            order_a.id,
+            precommit_data.get(tracking_key, {}),
+            "the discarding order's own entry should be gone",
+        )
+        self.assertEqual(
+            precommit_data.get(tracking_key, {}).get(order_b.id),
+            {"state": "draft"},
+            "another order's pending tracking must survive the discard",
+        )
+
 
 @tagged("post_install", "-at_install")
 class TestSaleOrderInvoicing(AccountTestInvoicingCommon, SaleCommon):
