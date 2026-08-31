@@ -1492,3 +1492,22 @@ class TestResPartnerViewGroups(SaleCommon):
         self.assertIsNotNone(button)
         groups = set((button.get("groups") or "").split(","))
         self.assertIn("sales_team.group_sale_salesman", groups)
+
+
+@tagged("post_install", "-at_install")
+class TestPortalRulePermFlags(SaleCommon):
+    """The portal ir.rule perm_* flags must not silently grant write/create/
+    unlink at the rule level, even though the ACL currently blocks them too
+    (defense in depth, F05/F06)."""
+
+    def test_portal_rules_deny_write_create_unlink(self):
+        for xmlid in (
+            "sale.sale_order_rule_portal",
+            "sale.sale_order_line_rule_portal",
+        ):
+            rule = self.env.ref(xmlid)
+            with self.subTest(rule=xmlid):
+                self.assertTrue(rule.perm_read)
+                self.assertFalse(rule.perm_write)
+                self.assertFalse(rule.perm_create)
+                self.assertFalse(rule.perm_unlink)
