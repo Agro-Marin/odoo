@@ -37,7 +37,7 @@ class Account_Edi_Proxy_ClientUser(models.Model):
         Toggle the value of the ``active`` boolean field of the proxy_user,
         and handle sending the reactivate/deactivate requests to the IAP side.
         """
-        self.ensure_one()
+        self.check_singleton()
         server_url = self._get_proxy_urls()['l10n_it_edi'][self.edi_mode]
 
         if self.active:

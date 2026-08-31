@@ -5,7 +5,7 @@ class ResCompany(models.Model):
     _inherit = "res.company"
 
     def _localization_use_documents(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.chart_template == 'ec' or super()._localization_use_documents()
 
     def _is_latam(self):

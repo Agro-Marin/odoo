@@ -98,7 +98,7 @@ class ResPartner(models.Model):
 
     def action_validate_tin(self):
         """ Calling this action will reach our EDI proxy in order to validate the TIN against the provided identification information. """
-        self.ensure_one()
+        self.check_singleton()
         if not self._l10n_my_edi_get_tin_for_myinvois() or not self.l10n_my_identification_type or not self.l10n_my_identification_number:
             raise UserError(self.env._('In order to validate the TIN, you must provide the Identification type and number.'))
 
@@ -128,7 +128,7 @@ class ResPartner(models.Model):
 
     def _l10n_my_edi_get_tin_for_myinvois(self):
         """ Helper to return the VAT number relevant to the situation. """
-        self.ensure_one()
+        self.check_singleton()
         # When l10n_my_edi_malaysian_tin is set, it will be used instead of the VAT.
         # A user may want to keep the correct VAT on a foreign contact while also use myinvois with a malaysia TIN/Generic TIN
         # Using the Tax ID field also causes issue when account_vat is enabled, which block setting foreign VAT numbers.

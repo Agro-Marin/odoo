@@ -85,7 +85,7 @@ class PoSOrder(models.Model):
         return invoice_month
 
     def l10n_tw_edi_get_uniform_invoice(self):
-        self.ensure_one()
+        self.check_singleton()
         invoice = self.account_move
 
         if not invoice:

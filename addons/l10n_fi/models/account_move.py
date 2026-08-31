@@ -86,17 +86,17 @@ class AccountMove(models.Model):
         return "RF" + rf_check_digits + invoice_number
 
     def _get_invoice_reference_fi_rf_invoice(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.compute_payment_reference_finnish_rf(self.name)
 
     def _get_invoice_reference_fi_rf_partner(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.compute_payment_reference_finnish_rf(str(self.partner_id.id))
 
     def _get_invoice_reference_fi_invoice(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.compute_payment_reference_finnish(self.name)
 
     def _get_invoice_reference_fi_partner(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.compute_payment_reference_finnish(str(self.partner_id.id))

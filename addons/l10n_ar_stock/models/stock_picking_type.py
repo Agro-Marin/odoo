@@ -86,7 +86,7 @@ class StockPickingType(models.Model):
 
     # === INVERSE METHODS === #
 
-    def _ensure_l10n_ar_stock_sequence(self):
+    def _add_missing_l10n_ar_sequences(self):
         for picking_type in self:
             if not picking_type.l10n_ar_sequence_id:
 
@@ -100,11 +100,11 @@ class StockPickingType(models.Model):
     def _inverse_l10n_ar_delivery_sequence_prefix(self):
         for picking_type in self:
             if prefix := picking_type.l10n_ar_delivery_sequence_prefix:
-                picking_type._ensure_l10n_ar_stock_sequence()
+                picking_type._add_missing_l10n_ar_sequences()
                 picking_type.l10n_ar_sequence_id.prefix = f'{prefix}-'
 
     def _inverse_l10n_ar_next_delivery_number(self):
         for picking_type in self:
             if number := picking_type.l10n_ar_next_delivery_number:
-                picking_type._ensure_l10n_ar_stock_sequence()
+                picking_type._add_missing_l10n_ar_sequences()
                 picking_type.l10n_ar_sequence_id.number_next = number

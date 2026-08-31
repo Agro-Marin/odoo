@@ -11,9 +11,9 @@ class ResPartnerBank(models.Model):
     _inherit = 'res.partner.bank'
 
     @api.model
-    def _get_supported_account_types(self):
+    def _get_account_types_supported(self):
         """ Add new account type named cbu used in Argentina """
-        res = super()._get_supported_account_types()
+        res = super()._get_account_types_supported()
         res.append(('cbu', _('CBU')))
         return res
 

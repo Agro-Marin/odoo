@@ -30,7 +30,7 @@ class ResPartner(models.Model):
 
     def _l10n_it_edi_is_public_administration(self):
         """ Returns True if the destination of the FatturaPA belongs to the Public Administration. """
-        self.ensure_one()
+        self.check_singleton()
         return self.country_id.code == 'IT' and len(self.l10n_it_pa_index or '') == 6
 
     def _l10n_it_edi_get_values(self):
@@ -128,7 +128,7 @@ class ResPartner(models.Model):
             so we try and remove it if we can
         """
         if l10n_it_codice_fiscale is None:
-            self.ensure_one()
+            self.check_singleton()
             l10n_it_codice_fiscale = self.l10n_it_codice_fiscale
         if l10n_it_codice_fiscale:
             if codicefiscale._code_re.match(l10n_it_codice_fiscale):
@@ -149,7 +149,7 @@ class ResPartner(models.Model):
             self.l10n_it_codice_fiscale = False
 
     @api.constrains('l10n_it_codice_fiscale')
-    def validate_codice_fiscale(self):
+    def check_codice_fiscale(self):
         for record in self:
             if record.l10n_it_codice_fiscale and (not codicefiscale.is_valid(record.l10n_it_codice_fiscale) and not iva.is_valid(record.l10n_it_codice_fiscale)):
                 raise UserError(_("Invalid Codice Fiscale '%s': should be like 'MRTMTT91D08F205J' for physical person and '12345670546' for businesses.", record.l10n_it_codice_fiscale))

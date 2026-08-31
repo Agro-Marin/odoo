@@ -15,7 +15,7 @@ class AccountMove(models.Model):
         impact.
         """
         # OVERRIDE account
-        self.ensure_one()
+        self.check_singleton()
 
         # We only consider moves comprised of a single DGST line. (one invoice line, one tax)
         has_single_line = len(self.invoice_line_ids) == 1 and len(self.invoice_line_ids.tax_ids) == 1

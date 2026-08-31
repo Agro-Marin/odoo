@@ -58,7 +58,7 @@ class AccountTax(models.Model):
         """ Split payment means that the Public Administration buyer will pay VAT
             to the tax agency instead of the vendor
         """
-        self.ensure_one()
+        self.check_singleton()
 
         tax_tags = self._get_repartition_tags(is_refund=False, repartition_type='tax') | self._get_repartition_tags(is_refund=False, repartition_type='base')
         if not tax_tags:

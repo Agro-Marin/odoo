@@ -17,7 +17,7 @@ class L10nITPortalAccount(PortalAccount):
                 'l10n_it_codice_fiscale': address_values.get('l10n_it_codice_fiscale')
             })
             try:
-                partner_dummy.validate_codice_fiscale()
+                partner_dummy.check_codice_fiscale()
             except UserError as e:
                 invalid_fields.add('l10n_it_codice_fiscale')
                 error_messages.append(e.args)

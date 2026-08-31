@@ -8,16 +8,16 @@ class AccountMove(models.Model):
     _inherit = 'account.move'
 
     def _get_invoice_reference_se_ocr2(self, reference):
-        self.ensure_one()
+        self.check_singleton()
         return reference + luhn.calc_check_digit(reference)
 
     def _get_invoice_reference_se_ocr3(self, reference):
-        self.ensure_one()
+        self.check_singleton()
         reference = reference + str(len(reference) + 2)[:1]
         return reference + luhn.calc_check_digit(reference)
 
     def _get_invoice_reference_se_ocr4(self, reference):
-        self.ensure_one()
+        self.check_singleton()
 
         ocr_length = self.journal_id.l10n_se_invoice_ocr_length
 
@@ -29,27 +29,27 @@ class AccountMove(models.Model):
 
 
     def _get_invoice_reference_se_ocr2_invoice(self):
-        self.ensure_one()
+        self.check_singleton()
         return self._get_invoice_reference_se_ocr2(str(self.id))
 
     def _get_invoice_reference_se_ocr3_invoice(self):
-        self.ensure_one()
+        self.check_singleton()
         return self._get_invoice_reference_se_ocr3(str(self.id))
 
     def _get_invoice_reference_se_ocr4_invoice(self):
-        self.ensure_one()
+        self.check_singleton()
         return self._get_invoice_reference_se_ocr4(str(self.id))
 
     def _get_invoice_reference_se_ocr2_partner(self):
-        self.ensure_one()
+        self.check_singleton()
         return self._get_invoice_reference_se_ocr2(self.partner_id.ref if str(self.partner_id.ref).isdecimal() else str(self.partner_id.id))
 
     def _get_invoice_reference_se_ocr3_partner(self):
-        self.ensure_one()
+        self.check_singleton()
         return self._get_invoice_reference_se_ocr3(self.partner_id.ref if str(self.partner_id.ref).isdecimal() else str(self.partner_id.id))
 
     def _get_invoice_reference_se_ocr4_partner(self):
-        self.ensure_one()
+        self.check_singleton()
         return self._get_invoice_reference_se_ocr4(self.partner_id.ref if str(self.partner_id.ref).isdecimal() else str(self.partner_id.id))
 
     @api.onchange('partner_id')

@@ -69,10 +69,10 @@ class ResCompany(models.Model):
 
     def _l10n_my_edi_create_proxy_user(self):
         """ This method will create a new proxy user for the current company based on the selected mode, if no users already exists. """
-        self.ensure_one()
+        self.check_singleton()
         if not self.l10n_my_edi_proxy_user_id:
             self.env['account_edi_proxy_client.user']._register_proxy_user(self, 'l10n_my_edi', self.l10n_my_edi_mode)
 
     def _l10n_my_edi_enabled(self):
-        self.ensure_one()
+        self.check_singleton()
         return bool(self.sudo().l10n_my_edi_proxy_user_id)

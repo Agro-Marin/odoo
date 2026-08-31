@@ -70,7 +70,7 @@ class AccountMoveLine(models.Model):
                 line.l10n_in_hsn_code = line.product_id.l10n_in_hsn_code
 
     def _l10n_in_check_invalid_hsn_code(self):
-        self.ensure_one()
+        self.check_singleton()
         hsn_code = self.env['account.move']._l10n_in_extract_digits(self.l10n_in_hsn_code)
         if not hsn_code:
             return _("HSN code is not set in product line %(name)s", name=self.name)

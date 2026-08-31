@@ -74,7 +74,7 @@ class L10nInEwaybill(models.Model):
         return res
 
     def _generate_ewaybill_by_irn(self):
-        self.ensure_one()
+        self.check_singleton()
         self._log_retry_message_on_generate()
         self._lock_ewaybill()
         try:
@@ -102,7 +102,7 @@ class L10nInEwaybill(models.Model):
         self.env.cr.commit()
 
     def _get_edi_irn_number(self):
-        self.ensure_one()
+        self.check_singleton()
         l10n_in_edi_response_json = self.account_move_id._get_l10n_in_edi_response_json()
         if not l10n_in_edi_response_json:
             raise EWayBillError({
@@ -114,7 +114,7 @@ class L10nInEwaybill(models.Model):
         return l10n_in_edi_response_json['Irn']
 
     def _ewaybill_generate_by_irn(self, json_payload):
-        self.ensure_one()
+        self.check_singleton()
         if not self.company_id._l10n_in_edi_get_token():
             raise EWayBillError({
                 'error': [{

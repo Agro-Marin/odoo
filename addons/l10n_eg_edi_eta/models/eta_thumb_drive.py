@@ -26,7 +26,7 @@ class L10n_Eg_EdiThumbDrive(models.Model):
     )
 
     def action_sign_invoices(self, invoice_ids):
-        self.ensure_one()
+        self.check_singleton()
         sign_host = self._get_host()
 
         to_sign_dict = dict()
@@ -48,7 +48,7 @@ class L10n_Eg_EdiThumbDrive(models.Model):
         }
 
     def action_set_certificate_from_usb(self):
-        self.ensure_one()
+        self.check_singleton()
         sign_host = self._get_host()
 
         return {
@@ -64,7 +64,7 @@ class L10n_Eg_EdiThumbDrive(models.Model):
 
     def set_certificate(self, certificate):
         """ This is called from the browser to set the certificate"""
-        self.ensure_one()
+        self.check_singleton()
         self.certificate = certificate.encode()
         return True
 

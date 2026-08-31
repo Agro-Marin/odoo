@@ -109,7 +109,7 @@ class ResPartner(models.Model):
         return res
 
     def _set_l10n_in_pan_tan_from_vat(self):
-        self.ensure_one()
+        self.check_singleton()
         identifier = self.vat[2:12].upper()
         if pan.is_valid(identifier):
             self.l10n_in_pan_entity_id = self._l10n_in_search_create_pan_entity_from_vat(self.vat).id
@@ -125,7 +125,7 @@ class ResPartner(models.Model):
         return pan_entity
 
     def action_l10n_in_verify_gstin_status(self):
-        self.ensure_one()
+        self.check_singleton()
         self.check_access('write')
         if self.env.company.sudo().account_fiscal_country_id.code != 'IN':
             raise UserError(_('You must be logged in an Indian company to use this feature'))
@@ -252,7 +252,7 @@ class ResPartner(models.Model):
         return partner_data
 
     def action_update_state_as_per_gstin(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.check_vat_in(self.vat):
             state_id = self.env['res.country.state'].search([('l10n_in_tin', '=', self.vat[:2])], limit=1)
             self.state_id = state_id

@@ -26,14 +26,14 @@ class AccountMove(models.Model):
 
     def _get_name_invoice_report(self):
         # EXTENDS account
-        self.ensure_one()
+        self.check_singleton()
         if self.company_id.country_code == 'SA':
             return 'l10n_sa.l10n_sa_report_invoice_document'
         return super()._get_name_invoice_report()
 
     def _l10n_gcc_get_invoice_title(self):
         # EXTENDS l10n_gcc_invoice
-        self.ensure_one()
+        self.check_singleton()
         if self.company_id.country_code != "SA":
             return super()._l10n_gcc_get_invoice_title()
 
@@ -89,7 +89,7 @@ class AccountMove(models.Model):
         return res
 
     def get_l10n_sa_confirmation_datetime_sa_tz(self):
-        self.ensure_one()
+        self.check_singleton()
         return format_datetime(self.env, self.l10n_sa_confirmation_datetime, tz='Asia/Riyadh', dt_format='Y-MM-dd\nHH:mm:ss')
 
     def _l10n_sa_reset_confirmation_datetime(self):
@@ -97,7 +97,7 @@ class AccountMove(models.Model):
             move.l10n_sa_confirmation_datetime = False
 
     def _l10n_sa_get_adjustment_reason(self):
-        self.ensure_one()
+        self.check_singleton()
         readable_zatca_reason = dict(self._fields['l10n_sa_reason'].selection).get(self.l10n_sa_reason)
         return readable_zatca_reason if self.l10n_sa_show_reason else self.ref
 
@@ -109,7 +109,7 @@ class AccountMove(models.Model):
         return f'%Y-%m-%d{separator}%H:%M:%S'
 
     def _get_l10n_sa_totals(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             'total_amount': self.amount_total_signed,
             'total_tax': self.amount_tax_signed,
@@ -117,7 +117,7 @@ class AccountMove(models.Model):
 
     def _l10n_sa_is_legal(self):
         # Check if the document is legal in Saudi
-        self.ensure_one()
+        self.check_singleton()
         return self.company_id.country_id.code == 'SA' and self.state == 'posted' and self.l10n_sa_qr_code_str
 
     def write(self, vals):
@@ -134,7 +134,7 @@ class AccountMove(models.Model):
             Returns True if the customer is an individual, i.e: The invoice is B2C
         :return:
         """
-        self.ensure_one()
+        self.check_singleton()
 
         commercial_partner = self.partner_id.commercial_partner_id
         return bool(commercial_partner) and not commercial_partner.is_company

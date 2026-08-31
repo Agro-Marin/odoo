@@ -11,13 +11,13 @@ class ResPartnerBank(models.Model):
     aba_bsb = fields.Char(string='BSB', help='Bank State Branch code - needed if payment is to be made using ABA files')
 
     @api.model
-    def _get_supported_account_types(self):
-        rslt = super(ResPartnerBank, self)._get_supported_account_types()
+    def _get_account_types_supported(self):
+        rslt = super(ResPartnerBank, self)._get_account_types_supported()
         rslt.append(('aba', _('ABA')))
         return rslt
 
     @api.constrains('aba_bsb')
-    def _validate_aba_bsb(self):
+    def _check_aba_bsb(self):
         for record in self:
             if record.aba_bsb:
                 test_bsb = re.sub('( |-)', '', record.aba_bsb)

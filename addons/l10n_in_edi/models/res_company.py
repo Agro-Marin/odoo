@@ -34,7 +34,7 @@ class ResCompany(models.Model):
     # E-Invoice Business Methods
 
     def _l10n_in_edi_token_is_valid(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.l10n_in_edi_token and self.l10n_in_edi_token_validity > fields.Datetime.now()
 
     def _l10n_in_edi_get_token(self):

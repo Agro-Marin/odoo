@@ -538,7 +538,7 @@ class Picking(models.Model):
     def _l10n_ro_edi_stock_validate_fetch_data(self, errors=None):
         if errors is None:
             errors = []
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.company_id.l10n_ro_edi_access_token:
             errors.append(_('Romanian access token not found. Please generate or fill it in the settings.'))
@@ -560,7 +560,7 @@ class Picking(models.Model):
     ################################################################################
 
     def action_l10n_ro_edi_stock_send_etransport(self):
-        self.ensure_one()
+        self.check_singleton()
 
         send_type = self.env.context.get('l10n_ro_edi_stock_send_type', 'send')
         self._l10n_ro_edi_stock_send_etransport_document(send_type=send_type)
@@ -576,14 +576,14 @@ class Picking(models.Model):
         """
         Returns the most recently created document in l10n_ro_edi_stock_document_ids
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.l10n_ro_edi_stock_document_ids.sorted()[0] if self.l10n_ro_edi_stock_document_ids else None
 
     def _l10n_ro_edi_stock_get_all_documents(self, states):
         """
         Returns filtered documents by state
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if isinstance(states, str):
             states = [states]
@@ -594,13 +594,13 @@ class Picking(models.Model):
         """
         Returns the most recently created document with the given state
         """
-        self.ensure_one()
+        self.check_singleton()
         documents_in_state = self.l10n_ro_edi_stock_document_ids.filtered(lambda doc: doc.state == state).sorted()
 
         return documents_in_state and documents_in_state[0]
 
     def _l10n_ro_edi_stock_create_document_stock_sent(self, values: dict[str, object]):
-        self.ensure_one()
+        self.check_singleton()
         return self.env['l10n_ro_edi.document'].create({
             'picking_id': self.id,
             'state': 'stock_sent',
@@ -610,7 +610,7 @@ class Picking(models.Model):
         })
 
     def _l10n_ro_edi_stock_create_document_stock_sending_failed(self, values: dict[str, object]):
-        self.ensure_one()
+        self.check_singleton()
         document = self.env['l10n_ro_edi.document'].create({
             'picking_id': self.id,
             'state': 'stock_sending_failed',
@@ -626,7 +626,7 @@ class Picking(models.Model):
         return document
 
     def _l10n_ro_edi_stock_create_document_stock_validated(self, values: dict[str, object]):
-        self.ensure_one()
+        self.check_singleton()
         return self.env['l10n_ro_edi.document'].create({
             'picking_id': self.id,
             'state': 'stock_validated',
@@ -644,7 +644,7 @@ class Picking(models.Model):
         Send the eTransport document to anaf
         :param send_type: 'send' (initial sending of document) | 'amend' (correct the already sent document)
         """
-        self.ensure_one()
+        self.check_singleton()
 
         data = {
             'partner_id': self.partner_id,
@@ -901,5 +901,5 @@ class Picking(models.Model):
         """
         Reports an unknown document state from anaf to the user in the chatter
         """
-        self.ensure_one()
+        self.check_singleton()
         self.message_post(body=_("Unhandled eTransport document state: %(state)s", state=state))

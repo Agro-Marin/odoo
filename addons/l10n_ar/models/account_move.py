@@ -90,7 +90,7 @@ class AccountMove(models.Model):
 
     def _get_concept(self):
         """ Method to get the concept of the invoice considering the type of the products on the invoice """
-        self.ensure_one()
+        self.check_singleton()
         invoice_lines = self.invoice_line_ids.filtered(lambda x: x.display_type not in NON_ACCOUNTABLE_DISPLAY_TYPES)
         product_types = set([x.product_id.type for x in invoice_lines if x.product_id])
         consumable = {'consu'}
@@ -130,7 +130,7 @@ class AccountMove(models.Model):
             and self.move_type in ['in_refund', 'out_refund']
 
     def _get_l10n_latam_documents_domain(self):
-        self.ensure_one()
+        self.check_singleton()
         domain = super()._get_l10n_latam_documents_domain()
         if self.journal_id.company_id.account_fiscal_country_id.code == "AR":
             letters = self.journal_id._get_journal_letter(counterpart_partner=self.partner_id.commercial_partner_id)
@@ -294,7 +294,7 @@ class AccountMove(models.Model):
     def _l10n_ar_get_amounts(self, company_currency=False):
         """ Method used to prepare data to present amounts and taxes related amounts when creating an
         electronic invoice for argentinean and the txt files for digital VAT books. Only take into account the argentinean taxes """
-        self.ensure_one()
+        self.check_singleton()
         amount_field = company_currency and 'balance' or 'amount_currency'
         # if we use balance we need to correct sign (on price_subtotal is positive for refunds and invoices)
         sign = -1 if self.is_inbound() else 1
@@ -369,7 +369,7 @@ class AccountMove(models.Model):
         return res if res else []
 
     def _get_name_invoice_report(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.l10n_latam_use_documents and self.company_id.account_fiscal_country_id.code == 'AR':
             return 'l10n_ar.report_invoice_document'
         return super()._get_name_invoice_report()
@@ -403,7 +403,7 @@ class AccountMove(models.Model):
         A refund whose document type is also usable as an invoice is printed
         with every amount negated -- see _l10n_ar_is_refund_invoice.
         """
-        self.ensure_one()
+        self.check_singleton()
         # deepcopy: tax_totals is a computed field and the adjustment below
         # rewrites it in place; mutating the cached value would leak the
         # flipped signs into every other reader in this transaction.
@@ -472,7 +472,7 @@ class AccountMove(models.Model):
         return results
 
     def _l10n_ar_include_vat(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.l10n_latam_document_type_id.l10n_ar_letter in ['B', 'C', 'X', 'R']
 
     @api.model

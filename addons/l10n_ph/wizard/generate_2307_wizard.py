@@ -20,7 +20,7 @@ class L10n_Ph_2307Wizard(models.TransientModel):
         This website will then generate a BIR 2307 format excel file for uploading to the
         PH government.
         """
-        self.ensure_one()
+        self.check_singleton()
 
         self.xls_file = base64.b64encode(utils._export_bir_2307('Form2307', self.moves_to_export))
 

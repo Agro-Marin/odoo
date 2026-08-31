@@ -6,5 +6,5 @@ class ResCompany(models.Model):
 
     def _localization_use_documents(self):
         """ This method is to be inherited by localizations and return True if localization use documents """
-        self.ensure_one()
+        self.check_singleton()
         return False

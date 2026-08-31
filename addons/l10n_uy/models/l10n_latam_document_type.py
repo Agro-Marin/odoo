@@ -8,7 +8,7 @@ class L10n_LatamDocumentType(models.Model):
 
     def _format_document_number(self, document_number):
         """ format and validate the document_number"""
-        self.ensure_one()
+        self.check_singleton()
         if self.country_id.code != "UY":
             return super()._format_document_number(document_number)
 

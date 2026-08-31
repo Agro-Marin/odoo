@@ -89,7 +89,7 @@ class AccountMove(models.Model):
 
     def _l10n_ro_edi_get_pre_send_errors(self, xml_data):
         """Compute all possible common errors before sending the XML to the SPV"""
-        self.ensure_one()
+        self.check_singleton()
         errors = []
         if self.state != "posted":
             errors.append(_("Only posted entries can be sent to SPV."))
@@ -117,7 +117,7 @@ class AccountMove(models.Model):
         :param xml_data: string of the xml data to be sent
         :return: the `list` of errors that occured during the sending and processing of data, if any
         """
-        self.ensure_one()
+        self.check_singleton()
         if errors := self._l10n_ro_edi_get_pre_send_errors(xml_data):
             self.message_post(
                 body=_("The invoice is not ready to be sent: %s", ", ".join(errors))

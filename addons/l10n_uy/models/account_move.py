@@ -33,7 +33,7 @@ class AccountMove(models.Model):
 
     def _get_l10n_latam_documents_domain(self):
         """ If this is a reversal or debit, suggest only related subtypes """
-        self.ensure_one()
+        self.check_singleton()
         domain = super()._get_l10n_latam_documents_domain()
         if self.country_code == "UY" and (original_move := self.reversed_entry_id or self.debit_origin_id):
             matching_subtype_codes = [

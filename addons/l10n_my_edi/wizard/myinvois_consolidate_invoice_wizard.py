@@ -37,7 +37,7 @@ class MyInvoisConsolidateInvoiceWizard(models.TransientModel):
 
         Note that doing so lock the cancelled invoice into its cancelled state.
         """
-        self.ensure_one()
+        self.check_singleton()
         myinvois_document_vals = self._get_myinvois_document_vals()
         if myinvois_document_vals:
             myinvois_documents = self.env["myinvois.document"].create(myinvois_document_vals)
@@ -54,7 +54,7 @@ class MyInvoisConsolidateInvoiceWizard(models.TransientModel):
         records inbetween the provided dates.
         :return: A list of dicts used to create the consolidated invoices.
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.consolidation_type == 'invoice':
             # We will support it soon, but not now. So we put the bases for it, but it won't be available to use yet.
             # consolidation_type will never be 'invoice' unless custom code/actions are used.

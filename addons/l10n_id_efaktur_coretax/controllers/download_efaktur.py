@@ -21,9 +21,9 @@ class EfakturDownloadController(http.Controller):
         assert all(attachment.res_id and attachment.res_model == 'l10n_id_efaktur_coretax.document' for attachment in attachments)
         if len(attachments) == 1:
             headers = _get_headers(attachments.name, attachments.mimetype, attachments.raw)
-            return request.make_response(attachments.raw, headers)
+            return request.prepare_response(attachments.raw, headers)
         else:
             filename = _('efaktur') + '.zip'
             content = attachments._prepare_zip_from_attachments()
             headers = _get_headers(filename, 'zip', content)
-            return request.make_response(content, headers)
+            return request.prepare_response(content, headers)

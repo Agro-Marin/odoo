@@ -18,7 +18,7 @@ class L10n_LatamDocumentType(models.Model):
     )
 
     def _format_document_number(self, document_number):
-        self.ensure_one()
+        self.check_singleton()
         if self.country_id != self.env.ref("base.ec"):
             return super()._format_document_number(document_number)
         if not document_number:

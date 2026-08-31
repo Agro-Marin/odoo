@@ -33,12 +33,12 @@ class ResCompany(models.Model):
             company.force_restrictive_audit_trail |= company.country_code == 'DE'
 
     @api.constrains('state_id', 'l10n_de_stnr')
-    def _validate_l10n_de_stnr(self):
+    def _check_l10n_de_stnr(self):
         for record in self:
             record.get_l10n_de_stnr_national()
 
     def get_l10n_de_stnr_national(self):
-        self.ensure_one()
+        self.check_singleton()
         national_steuer_nummer = None
 
         if self.l10n_de_stnr and self.country_code == 'DE':

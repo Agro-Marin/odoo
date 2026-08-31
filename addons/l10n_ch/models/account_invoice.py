@@ -49,7 +49,7 @@ class AccountMove(models.Model):
         and pad the unused spaces on the left of this number with zeros.
         The last digit is a checksum (mod10r).
         """
-        self.ensure_one()
+        self.check_singleton()
         if (
             self.partner_bank_id.l10n_ch_qr_iban
             and self.l10n_ch_is_qr_valid
@@ -74,14 +74,14 @@ class AccountMove(models.Model):
         """This sets the QRR reference number as
         `Payment Reference` of the invoice when invoice's journal is using Switzerland's communication standard
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.get_l10n_ch_qrr_number()
 
     def _get_invoice_reference_ch_partner(self):
         """This sets the QRR reference number as
         `Payment Reference` of the invoice when invoice's journal is using Switzerland's communication standard
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.get_l10n_ch_qrr_number()
 
     @api.model

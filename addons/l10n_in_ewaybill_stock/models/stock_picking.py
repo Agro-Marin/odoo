@@ -16,7 +16,7 @@ class StockPicking(models.Model):
         return self.env.ref('l10n_in_ewaybill.l10n_in_ewaybill_form_action')._get_action_dict()
 
     def action_l10n_in_ewaybill_create(self):
-        self.ensure_one()
+        self.check_singleton()
         if product_with_no_hsn := self.move_ids.mapped('product_id').filtered(lambda p: not p.l10n_in_hsn_code):
             raise UserError(
                 _("Please set HSN code in below products: \n%s", '\n'.join(product_with_no_hsn.mapped('name'))))
@@ -36,7 +36,7 @@ class StockPicking(models.Model):
         return action
 
     def action_view_l10n_in_ewaybill(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self._get_l10n_in_ewaybill_form_action()
         action['res_id'] = self.l10n_in_ewaybill_ids and self.l10n_in_ewaybill_ids[0].id
         return action

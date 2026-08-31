@@ -8,7 +8,7 @@ class AccountMoveLine(models.Model):
 
     def _l10n_id_coretax_build_invoice_line_vals(self, vals):
         """ Fill in the vals['lines'] with some information regarding each invoice line"""
-        self.ensure_one()
+        self.check_singleton()
         idr = self.env.ref('base.IDR')
 
         if float_compare(self.price_subtotal, 0.0, precision_rounding=self.currency_id.rounding) < 0:

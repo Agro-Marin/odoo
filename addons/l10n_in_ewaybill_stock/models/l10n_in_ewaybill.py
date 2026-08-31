@@ -40,7 +40,7 @@ class L10nInEwaybill(models.Model):
         return ['account_move_id', 'picking_id']
 
     def _get_ewaybill_company(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.picking_id:
             return self.picking_id.company_id
         return super()._get_ewaybill_company()
@@ -51,7 +51,7 @@ class L10nInEwaybill(models.Model):
         :return: {'document_number': document_number, 'document_date': document_date}
         :rtype: dict
         """
-        self.ensure_one()
+        self.check_singleton()
         if picking_id := self.picking_id:
             return {
                 'document_number': picking_id.name,
@@ -60,7 +60,7 @@ class L10nInEwaybill(models.Model):
         return super()._get_ewaybill_document_details()
 
     def _get_seller_buyer_details(self):
-        self.ensure_one()
+        self.check_singleton()
         if picking_id := self.picking_id:
             if self._is_incoming():
                 seller_buyer_details = {
@@ -88,7 +88,7 @@ class L10nInEwaybill(models.Model):
         return super()._get_seller_buyer_details()
 
     def _is_incoming(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.picking_id:
             return self.picking_id.picking_type_id.code == 'incoming'
         return super()._is_incoming()
@@ -107,7 +107,7 @@ class L10nInEwaybill(models.Model):
                 )
 
     def action_reset_to_pending(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.picking_id:
             if self.state not in ('cancel', 'challan'):
                 raise UserError(_(
@@ -123,7 +123,7 @@ class L10nInEwaybill(models.Model):
             return super().action_reset_to_pending()
 
     def action_set_to_challan(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.state != 'pending':
             raise UserError(_(
                 "The challan can only be generated in the Pending state."
@@ -133,7 +133,7 @@ class L10nInEwaybill(models.Model):
         })
 
     def action_print(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.state == 'generated':
             return super().action_print()
         if self.state != 'challan':

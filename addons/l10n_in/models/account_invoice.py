@@ -386,7 +386,7 @@ class AccountMove(models.Model):
                 move.l10n_in_display_higher_tcs_button = False
 
     def action_l10n_in_withholding_entries(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             'name': "TDS Entries",
             'type': 'ir.actions.act_window',
@@ -396,7 +396,7 @@ class AccountMove(models.Model):
         }
 
     def action_l10n_in_apply_higher_tax(self):
-        self.ensure_one()
+        self.check_singleton()
         invalid_lines = self._get_l10n_in_invalid_tax_lines()
         for line in invalid_lines:
             updated_tax_ids = []
@@ -413,7 +413,7 @@ class AccountMove(models.Model):
                 line.write({'tax_ids': [Command.clear()] + [Command.set(updated_tax_ids)]})
 
     def _get_l10n_in_invalid_tax_lines(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.country_code == 'IN' and not self.commercial_partner_id.l10n_in_pan_entity_id:
             lines = self.env['account.move.line']
             for line in self.invoice_line_ids:
@@ -426,7 +426,7 @@ class AccountMove(models.Model):
             return lines
 
     def _get_sections_aggregate_sum_by_pan(self, section_alert, commercial_partner_id):
-        self.ensure_one()
+        self.check_singleton()
         month_start_date, month_end_date = get_month(self.date)
         company_fiscalyear_dates = self.company_id.sudo().compute_fiscalyear_dates(self.date)
         fiscalyear_start_date, fiscalyear_end_date = company_fiscalyear_dates['date_from'], company_fiscalyear_dates['date_to']
@@ -463,7 +463,7 @@ class AccountMove(models.Model):
         return aggregate_result
 
     def _l10n_in_is_warning_applicable(self, section_id):
-        self.ensure_one()
+        self.check_singleton()
         match section_id.tax_source_type:
             case 'tcs':
                 return self.company_id.l10n_in_tcs_feature and self.journal_id.type == 'sale'
@@ -541,11 +541,11 @@ class AccountMove(models.Model):
         return self.env['account.move.line'].browse(tcs_applicable_lines)
 
     def l10n_in_verify_partner_gstin_status(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.with_company(self.company_id).partner_id.action_l10n_in_verify_gstin_status()
 
     def _get_name_invoice_report(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.country_code == 'IN':
             return 'l10n_in.l10n_in_report_invoice_document_inherit'
         return super()._get_name_invoice_report()
@@ -590,15 +590,15 @@ class AccountMove(models.Model):
     def _l10n_in_get_warehouse_address(self):
         """Return address where goods are delivered/received for Invoice/Bill"""
         # TO OVERRIDE
-        self.ensure_one()
+        self.check_singleton()
         return False
 
     def _can_be_unlinked(self):
-        self.ensure_one()
+        self.check_singleton()
         return (self.country_code != 'IN' or not self.posted_before) and super()._can_be_unlinked()
 
     def _generate_qr_code(self, silent_errors=False):
-        self.ensure_one()
+        self.check_singleton()
         if self.company_id.country_code == 'IN' and self.company_id.l10n_in_upi_id:
             payment_url = 'upi://pay?pa=%s&pn=%s&am=%s&tr=%s&tn=%s' % (
                 self.company_id.l10n_in_upi_id,
@@ -611,7 +611,7 @@ class AccountMove(models.Model):
         return super()._generate_qr_code(silent_errors)
 
     def _l10n_in_get_hsn_summary_table(self):
-        self.ensure_one()
+        self.check_singleton()
         base_lines, _tax_lines = self._get_rounded_base_and_tax_lines()
         display_uom = self.env.user.has_group('uom.group_uom')
         return self.env['account.tax']._l10n_in_get_hsn_summary_table(base_lines, display_uom)
@@ -668,7 +668,7 @@ class AccountMove(models.Model):
         )
 
     def _get_l10n_in_seller_buyer_party(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "seller_details": self.company_id.partner_id,
             "dispatch_details": self._l10n_in_get_warehouse_address() or self.company_id.partner_id,
@@ -736,7 +736,7 @@ class AccountMove(models.Model):
         moves.line_ids._set_l10n_in_gstr_section(tax_tags_dict)
 
     def _get_l10n_in_invoice_label(self):
-        self.ensure_one()
+        self.check_singleton()
         exempt_types = {'exempt', 'nil_rated', 'non_gst'}
         if self.country_code != 'IN' or not self.is_sale_document(include_receipts=False):
             return

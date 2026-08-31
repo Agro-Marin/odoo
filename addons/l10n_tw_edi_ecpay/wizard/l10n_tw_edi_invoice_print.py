@@ -33,7 +33,7 @@ class L10nTwEDIInvoicePrint(models.TransientModel):
     l10n_tw_edi_is_b2b = fields.Boolean(string="Is B2B", related="invoice_id.l10n_tw_edi_is_b2b")
 
     def button_print(self):
-        self.ensure_one()
+        self.check_singleton()
 
         json_data = {
             "MerchantID": self.invoice_id.company_id.sudo().l10n_tw_edi_ecpay_merchant_id,

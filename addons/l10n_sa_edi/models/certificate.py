@@ -18,7 +18,7 @@ class CertificateCertificate(models.Model):
     _inherit = 'certificate.certificate'
 
     def _l10n_sa_get_issuer_name(self):
-        self.ensure_one()
+        self.check_singleton()
         cert = x509.load_pem_x509_certificate(base64.b64decode(self.pem_certificate))
         return ', '.join([s.rfc4514_string() for s in cert.issuer.rdns[::-1]])
 

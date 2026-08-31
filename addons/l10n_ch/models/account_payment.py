@@ -27,7 +27,7 @@ class AccountPayment(models.Model):
         210000000003139471430009017
         21 00000 00003 13947 14300 09017
         """
-        self.ensure_one()
+        self.check_singleton()
         if not payment_reference:
             return False
         ref = payment_reference.replace(' ', '')

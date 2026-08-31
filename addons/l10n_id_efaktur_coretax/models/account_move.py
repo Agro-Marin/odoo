@@ -202,7 +202,7 @@ class AccountMove(models.Model):
                 if digits:
                     move.l10n_id_coretax_add_info_08 = f"TD.005{digits[-2:]}"
 
-    def _validate_tax_groups(self):
+    def _check_tax_groups(self):
         err_messages = []
         allowed_codes = {'01', '02', '03', '04', '05', '06', '09', '10'}
         must_be_zero_codes = {'07', '08'}
@@ -310,7 +310,7 @@ class AccountMove(models.Model):
                     err_messages.append(_("Invoice %s doesn't contain the Additional info and Facility Stamp yet (Kode 08)", record.name))
 
         # Check tax groups
-        err_messages.extend(self._validate_tax_groups())
+        err_messages.extend(self._check_tax_groups())
 
         if err_messages:
             err_messages = [_('Unable to download E-faktur for the following reason(s):')] + err_messages
@@ -347,7 +347,7 @@ class AccountMove(models.Model):
 
     def _l10n_id_coretax_build_invoice_vals(self, vals):
         """ Fill in vals with invoice-related information """
-        self.ensure_one()
+        self.check_singleton()
 
         partner = self.commercial_partner_id
         trx_code = self.l10n_id_kode_transaksi

@@ -254,7 +254,7 @@ class AccountMove(models.Model):
           "HR00 {BrOznRacOznPosPrOznNapUr}"
         where slashes are removed per Croatian banking conventions.
         """
-        self.ensure_one()
+        self.check_singleton()
         # Check if invoice has fiscalization number, company is in Croatia, and partner is in Croatia
         if (
             self.company_id.country_code == "HR"
@@ -293,7 +293,7 @@ class AccountMove(models.Model):
         return super()._post_entries()
 
     def l10n_hr_edi_mer_action_reject(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": self.env._("Reject MojEracun invoice"),
             "type": "ir.actions.act_window",
@@ -310,7 +310,7 @@ class AccountMove(models.Model):
         """
         Fetch and update the status of a single document on MojEracun.
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.is_sale_document():
             response_mer = _mer_api_query_document_process_status_outbox(
                 self.company_id, electronic_id=self.l10n_hr_mer_document_eid

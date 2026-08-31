@@ -80,7 +80,7 @@ class AccountMove(models.Model):
 
     #  Action Methods
     def action_export_l10n_in_edi_content_json(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             'type': 'ir.actions.act_url',
             'url': f'/web/content/account.move/{self.id}/l10n_in_edi_content'
@@ -128,7 +128,7 @@ class AccountMove(models.Model):
         return res
 
     def _l10n_in_edi_need_cancel_request(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.country_code == 'IN'
             and not self.env.context.get('l10n_in_edi_force_cancel')
@@ -142,7 +142,7 @@ class AccountMove(models.Model):
 
     # Indian E-invoice Business Methods
     def _l10n_in_check_einvoice_eligible(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.company_id.l10n_in_edi_feature
             and self.journal_id.type == 'sale'
@@ -159,7 +159,7 @@ class AccountMove(models.Model):
         )
 
     def _get_l10n_in_edi_response_json(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.l10n_in_edi_attachment_id:
             return json.loads(self.l10n_in_edi_attachment_id.sudo().raw.decode("utf-8"))
         return {}
@@ -192,7 +192,7 @@ class AccountMove(models.Model):
         return message
 
     def _l10n_in_edi_send_invoice(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.l10n_in_edi_error:
             # make sure to clear the error before sending again
             self.l10n_in_edi_error = False
@@ -594,7 +594,7 @@ class AccountMove(models.Model):
         return json_payload
 
     def _l10n_in_edi_generate_invoice_json(self):
-        self.ensure_one()
+        self.check_singleton()
         tax_details = self._l10n_in_prepare_tax_details()
         seller_buyer = self._get_l10n_in_seller_buyer_party()
         tax_details_by_code = self._get_l10n_in_tax_details_by_line_code(tax_details['tax_details'])

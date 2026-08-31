@@ -6,7 +6,7 @@ class ResCompany(models.Model):
 
     def _localization_use_documents(self):
         # OVERRIDE
-        self.ensure_one()
+        self.check_singleton()
         return self.chart_template == 'pe' or super()._localization_use_documents()
 
     def _is_latam(self):

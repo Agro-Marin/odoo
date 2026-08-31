@@ -191,7 +191,7 @@ class ResCompany(models.Model):
                 company.l10n_it_tax_representative_partner_id = False
 
     def _l10n_it_get_edi_company(self):
-        self.ensure_one()
+        self.check_singleton()
         if (
             self.root_id.id != self.id
             and self.l10n_it_codice_fiscale == self.root_id.l10n_it_codice_fiscale

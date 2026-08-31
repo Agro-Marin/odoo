@@ -54,7 +54,7 @@ class ResConfigSettings(models.TransientModel):
 
     def action_view_company_form(self):
         """ This will be used to ease the configuration by allowing to quickly access the company. """
-        self.ensure_one()
+        self.check_singleton()
         return {
             'type': 'ir.actions.act_window',
             'res_id': self.env.company.id,

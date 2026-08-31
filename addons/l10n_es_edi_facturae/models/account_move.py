@@ -13,10 +13,10 @@ from odoo.exceptions import UserError
 from odoo.libs.xml import (
     XmlSigError,
     canonicalize_signed_info,
-    fill_reference_digests,
+    update_reference_digests,
 )
 from odoo.tools import SQL, date_utils, float_compare, float_repr, float_round
-from odoo.tools.xml_utils import cleanup_xml_node, find_xml_value
+from odoo.tools.xml_utils import cleanup_xml_node, get_xml_value
 
 from odoo.addons.l10n_es_edi_facturae.xml_utils import NS_MAP
 
@@ -438,7 +438,7 @@ class AccountMove(models.Model):
         }
 
     def _l10n_es_edi_facturae_get_default_enable(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             not self.invoice_pdf_report_id
             and not self.l10n_es_edi_facturae_xml_id
@@ -449,11 +449,11 @@ class AccountMove(models.Model):
         )  # We only enable Facturae if a certificate is valid or has been valid (which will raise an error)
 
     def _l10n_es_edi_facturae_get_filename(self):
-        self.ensure_one()
+        self.check_singleton()
         return f"{self.name.replace('/', '_')}_facturae_signed.xml"
 
     def _l10n_es_edi_facturae_get_tax_period(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.env["res.company"].fields_get(["account_return_periodicity"]):
             period_start, period_end = self.env.ref(
                 "l10n_es_reports.es_mod303_tax_return_type"
@@ -510,7 +510,7 @@ class AccountMove(models.Model):
         return invoices_refunded_mapping
 
     def _l10n_es_edi_facturae_get_corrective_data(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.move_type.endswith("refund"):
             if not self.reversed_entry_id:
                 raise UserError(
@@ -540,7 +540,7 @@ class AccountMove(models.Model):
         return {}
 
     def _l10n_es_edi_facturae_get_administrative_centers(self, partner):
-        self.ensure_one()
+        self.check_singleton()
         administrative_centers = []
         for ac in partner.child_ids.filtered(lambda p: p.type == "facturae_ac"):
             ac_template = {
@@ -567,7 +567,7 @@ class AccountMove(models.Model):
         return administrative_centers
 
     def _l10n_es_edi_facturae_get_tax_node_from_tax_data(self, values, round=False):
-        self.ensure_one()
+        self.check_singleton()
         tax = values["grouping_key"]
         prefix = "" if round else "raw_"
         tax_sign = -1 if tax.amount < 0.0 else 1
@@ -597,7 +597,7 @@ class AccountMove(models.Model):
         Convert the payments terms to a list of <Installment> elements to be used in the
         <PaymentDetails> node of the Facturae XML generation.
         """
-        self.ensure_one()
+        self.check_singleton()
         installments = []
         if self.is_inbound() and self.partner_bank_id:
             for payment_term in self.line_ids.filtered(
@@ -622,7 +622,7 @@ class AccountMove(models.Model):
 
         :return: A tuple containing the Face items, the taxes and the invoice totals data.
         """
-        self.ensure_one()
+        self.check_singleton()
         invoice_ref = self.ref and self.ref[:20]
         line = base_line["record"]
         tax_details = base_line["tax_details"]
@@ -716,7 +716,7 @@ class AccountMove(models.Model):
                     name["surname"] = name_split[-1]
             return name
 
-        self.ensure_one()
+        self.check_singleton()
         company = self.company_id
         partner = self.commercial_partner_id
 
@@ -901,7 +901,7 @@ class AccountMove(models.Model):
         :return: rendered xml file string.
         :rtype:  str
         """
-        self.ensure_one()
+        self.check_singleton()
         company = self.company_id
         template_values, signature_values = self._l10n_es_edi_facturae_export_facturae()
         xml_content = cleanup_xml_node(
@@ -979,13 +979,13 @@ class AccountMove(models.Model):
         return None
 
     def _import_extract_partner_values(self, party_node):
-        name = find_xml_value(".//CorporateName|.//Name", party_node)
-        first_surname = find_xml_value(".//FirstSurname", party_node)
-        second_surname = find_xml_value(".//SecondSurname", party_node)
-        phone = find_xml_value(".//Telephone", party_node)
-        mail = find_xml_value(".//ElectronicMail", party_node)
-        country_code = find_xml_value(".//CountryCode", party_node)
-        vat = find_xml_value(".//TaxIdentificationNumber", party_node)
+        name = get_xml_value(".//CorporateName|.//Name", party_node)
+        first_surname = get_xml_value(".//FirstSurname", party_node)
+        second_surname = get_xml_value(".//SecondSurname", party_node)
+        phone = get_xml_value(".//Telephone", party_node)
+        mail = get_xml_value(".//ElectronicMail", party_node)
+        country_code = get_xml_value(".//CountryCode", party_node)
+        vat = get_xml_value(".//TaxIdentificationNumber", party_node)
 
         full_name = " ".join(
             part for part in [name, first_surname, second_surname] if part
@@ -1030,7 +1030,7 @@ class AccountMove(models.Model):
         logs = []
 
         # ==== move_type ====
-        invoice_total = find_xml_value(".//InvoiceTotal", tree)
+        invoice_total = get_xml_value(".//InvoiceTotal", tree)
         is_refund = float(invoice_total) < 0 if invoice_total else False
         if is_refund:
             invoice.move_type = (
@@ -1049,7 +1049,7 @@ class AccountMove(models.Model):
             )
 
         # ==== currency_id ====
-        invoice_currency_code = find_xml_value(".//InvoiceCurrencyCode", tree)
+        invoice_currency_code = get_xml_value(".//InvoiceCurrencyCode", tree)
         if invoice_currency_code:
             currency = self.env["res.currency"].search(
                 [("name", "=", invoice_currency_code)], limit=1
@@ -1066,15 +1066,15 @@ class AccountMove(models.Model):
                 )
 
         # ==== invoice date ====
-        if issue_date := find_xml_value(".//IssueDate", tree):
+        if issue_date := get_xml_value(".//IssueDate", tree):
             invoice.invoice_date = issue_date
 
         # ==== invoice_date_due ====
-        if end_date := find_xml_value(".//InstallmentDueDate", tree):
+        if end_date := get_xml_value(".//InstallmentDueDate", tree):
             invoice.invoice_date_due = end_date
 
         # ==== ref ====
-        if invoice_number := find_xml_value(".//InvoiceNumber", tree):
+        if invoice_number := get_xml_value(".//InvoiceNumber", tree):
             invoice.ref = invoice_number
 
         # ==== narration ====
@@ -1106,7 +1106,7 @@ class AccountMove(models.Model):
             line_vals = {"move_id": invoice.id}
 
             # ==== name ====
-            if item_description := find_xml_value(".//ItemDescription", line):
+            if item_description := get_xml_value(".//ItemDescription", line):
                 product = self._search_product_for_import(item_description)
                 if product:
                     line_vals["product_id"] = product.id
@@ -1117,10 +1117,10 @@ class AccountMove(models.Model):
                 line_vals["name"] = item_description
 
             # ==== quantity ====
-            line_vals["quantity"] = find_xml_value(".//Quantity", line) or 1
+            line_vals["quantity"] = get_xml_value(".//Quantity", line) or 1
 
             # ==== price_unit ====
-            price_unit = find_xml_value(".//UnitPriceWithoutTax", line)
+            price_unit = get_xml_value(".//UnitPriceWithoutTax", line)
             line_vals["price_unit"] = (
                 ref_multiplier * float(price_unit) if price_unit else 1.0
             )
@@ -1161,13 +1161,13 @@ class AccountMove(models.Model):
     ):
         logs = []
         for tax_node in tax_nodes:
-            tax_rate = find_xml_value(".//TaxRate", tax_node)
+            tax_rate = get_xml_value(".//TaxRate", tax_node)
             if tax_rate:
                 # Since the 'TaxRate' node isn't guaranteed to be a percentage, we can find out by
                 # applying the tax rate on the taxable base, and if it's equal to the tax amount
                 # then we can say this is a percentage, otherwise a fixed amount.
-                taxable_base = find_xml_value(".//TaxableBase/TotalAmount", tax_node)
-                tax_amount = find_xml_value(".//TaxAmount/TotalAmount", tax_node)
+                taxable_base = get_xml_value(".//TaxableBase/TotalAmount", tax_node)
+                tax_amount = get_xml_value(".//TaxAmount/TotalAmount", tax_node)
                 is_fixed = False
 
                 if (
@@ -1262,7 +1262,7 @@ class AccountMove(models.Model):
         :return: The signed XML data string.
         :rtype: str
         """
-        self.ensure_one()
+        self.check_singleton()
         certificates_sudo = (
             self.company_id.sudo().l10n_es_edi_facturae_certificate_ids.filtered(
                 "is_valid"
@@ -1313,7 +1313,7 @@ class AccountMove(models.Model):
         # dsig raises XmlSigError to stay Odoo-free; surface it as a UserError
         # here, keeping the URI/node detail that makes it diagnosable.
         try:
-            fill_reference_digests(signature.find("ds:SignedInfo", namespaces=NS_MAP))
+            update_reference_digests(signature.find("ds:SignedInfo", namespaces=NS_MAP))
         except XmlSigError as err:
             raise UserError(str(err)) from err  # pylint: disable=missing-gettext
 
@@ -1329,7 +1329,7 @@ class AccountMove(models.Model):
 
     def _get_invoice_legal_documents(self, filetype, allow_fallback=False):
         # EXTENDS 'account'
-        self.ensure_one()
+        self.check_singleton()
         if filetype == "facturae":
             if facturae_attachment := self.l10n_es_edi_facturae_xml_id:
                 return {

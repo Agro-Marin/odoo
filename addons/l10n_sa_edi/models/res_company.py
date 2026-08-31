@@ -41,9 +41,9 @@ class ResCompany(models.Model):
                     journal.message_post(body=_("ZATCA API Mode changed to %s", api_mode))
         return super().write(vals)
 
-    def _get_company_address_field_names(self):
+    def _get_address_field_names(self):
         """ Override to add ZATCA specific address fields """
-        return super()._get_company_address_field_names() + \
+        return super()._get_address_field_names() + \
             ['l10n_sa_edi_building_number', 'l10n_sa_edi_plot_identification']
 
     def _inverse_l10n_sa_edi_building_number(self):
@@ -74,7 +74,7 @@ class ResCompany(models.Model):
                 BR-KSA-40
             See https://zatca.gov.sa/ar/RulesRegulations/Taxes/Documents/20210528_ZATCA_Electronic_Invoice_XML_Implementation_Standard_vShared.pdf
         """
-        self.ensure_one()
+        self.check_singleton()
         if not self.vat:
             return False
         return len(self.vat) == 15 and bool(re.match(r'^3\d{13}3$', self.vat))

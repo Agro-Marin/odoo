@@ -126,8 +126,8 @@ class ResCompany(models.Model):
         :param document: a dictionary of MER and fiscalization related values for the document
         :return: `True` if the document was saved, `False` if it was not
         """
-        self.ensure_one()
-        original_document_id = self.env['account.edi.xml.ubl_hr']._retrieve_rejection_reference(attachment)
+        self.check_singleton()
+        original_document_id = self.env['account.edi.xml.ubl_hr']._get_rejection_reference(attachment)
         if original_document_id == 'not_found':
             _logger.error("Failed to find origin document for rejection note %s", document['mer_document_eid'])
             return False

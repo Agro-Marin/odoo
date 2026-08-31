@@ -13,7 +13,7 @@ class AccountJournal(models.Model):
         """
         Returns the order reference to be used for the payment, respecting the QRR standard.
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.invoice_reference_model == "ch":
             # converting the sale order name into a unique number. Letters are converted to their base10 value
             invoice_ref = "".join(

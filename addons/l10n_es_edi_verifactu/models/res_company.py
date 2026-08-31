@@ -45,7 +45,7 @@ class ResCompany(models.Model):
         For the SOAP endpoints see:
         https://prewww2.aeat.es/static_files/common/internet/dep/aplicaciones/es/aeat/tikeV1.0/cont/ws/SistemaFacturacion.wsdl
         """
-        self.ensure_one()
+        self.check_singleton()
         wsdl_base = {
             'url': 'https://prewww2.aeat.es/static_files/common/internet/dep/aplicaciones/es/aeat/tikeV1.0/cont/ws/SistemaFacturacion.wsdl',
             'service': 'sfVerifactu',
@@ -67,7 +67,7 @@ class ResCompany(models.Model):
         return endpoints
 
     def _l10n_es_edi_verifactu_get_certificate(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.env['certificate.certificate'].search(
             [('company_id', '=', self.id), ('scope', '=', 'verifactu')],
             order='date_end desc',
@@ -75,7 +75,7 @@ class ResCompany(models.Model):
         )
 
     def _l10n_es_edi_verifactu_get_chain_sequence(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.l10n_es_edi_verifactu_chain_sequence_id:
             self_sudo = self.sudo()
             self_sudo.l10n_es_edi_verifactu_chain_sequence_id = self_sudo.env['ir.sequence'].create({
@@ -87,7 +87,7 @@ class ResCompany(models.Model):
         return self.l10n_es_edi_verifactu_chain_sequence_id
 
     def _l10n_es_edi_verifactu_get_last_document(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.env['l10n_es_edi_verifactu.document'].search(
             [
                 ('chain_index', '!=', False),

@@ -39,7 +39,7 @@ class AccountMove(models.Model):
         links with the sale order(s).  We assume that the first picking was invoiced first. (FIFO)
         :return: a dictionary with as key the picking and value the invoice line numbers (by counting)
         """
-        self.ensure_one()
+        self.check_singleton()
         # We don't consider returns/credit notes as we suppose they will lead to more deliveries/invoices as well
         if self.move_type != "out_invoice" or self.state != 'posted':
             return {}
@@ -93,7 +93,7 @@ class AccountMove(models.Model):
             invoice.l10n_it_ddt_count = 0
 
     def get_linked_ddts(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             'type': 'ir.actions.act_window',
             'view_mode': 'list,form',

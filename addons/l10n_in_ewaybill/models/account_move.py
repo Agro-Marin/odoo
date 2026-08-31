@@ -22,7 +22,7 @@ class AccountMove(models.Model):
         return self.env.ref('l10n_in_ewaybill.l10n_in_ewaybill_form_action')._get_action_dict()
 
     def action_l10n_in_ewaybill_create(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.l10n_in_ewaybill_ids:
             raise UserError(_("Ewaybill already created for this move."))
         action = self._get_l10n_in_ewaybill_form_action()
@@ -30,7 +30,7 @@ class AccountMove(models.Model):
         return action
 
     def action_view_l10n_in_ewaybill(self):
-        self.ensure_one()
+        self.check_singleton()
         action = self._get_l10n_in_ewaybill_form_action()
         action['res_id'] = self.l10n_in_ewaybill_ids and self.l10n_in_ewaybill_ids[0].id
         return action

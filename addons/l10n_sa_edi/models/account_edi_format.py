@@ -219,7 +219,7 @@ class AccountEdiFormat(models.Model):
             Generate a ZATCA compliant UBL file, make API calls to authenticate, sign and include QR Code and
             Cryptographic Stamp, then create an attachment with the final contents of the UBL file
         """
-        self.ensure_one()
+        self.check_singleton()
 
         # Prepare UBL invoice values and render XML file
         unsigned_xml = xml_content or self._l10n_sa_generate_zatca_template(invoice)
@@ -371,7 +371,7 @@ class AccountEdiFormat(models.Model):
         """
             Override to add ZATCA edi checks on required invoices
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.code != 'sa_zatca':
             return super()._is_required_for_invoice(invoice)
 
@@ -436,14 +436,14 @@ class AccountEdiFormat(models.Model):
         """
             Override to add a check on edi document format code
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.code == 'sa_zatca' or super()._needs_web_services()
 
     def _is_compatible_with_journal(self, journal):
         """
             Override to add a check on journal type & country code (SA)
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.code != 'sa_zatca':
             return super()._is_compatible_with_journal(journal)
         return journal.type == 'sale' and journal.country_code == 'SA'
@@ -457,7 +457,7 @@ class AccountEdiFormat(models.Model):
 
     def _get_move_applicability(self, move):
         # EXTENDS account_edi
-        self.ensure_one()
+        self.check_singleton()
         if self.code != 'sa_zatca' or move.country_code != 'SA' or move.move_type not in ('out_invoice', 'out_refund'):
             return super()._get_move_applicability(move)
 
@@ -472,7 +472,7 @@ class AccountEdiFormat(models.Model):
         :param pdf_writer: The pdf writer with the invoice pdf content loaded.
         :param edi_document: The edi document to be added to the pdf file.
         """
-        self.ensure_one()
+        self.check_singleton()
         super()._prepare_invoice_report(pdf_writer, edi_document)
         if self.code != 'sa_zatca' or edi_document.move_id.country_code != 'SA':
             return

@@ -136,7 +136,7 @@ class NemhandelRegistration(models.TransientModel):
         - Calls /activate_participant to mark the EDI user as nemhandel user
         - Sends an SMS code
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if self.l10n_dk_nemhandel_proxy_state != 'not_registered':
             raise UserError(_('Cannot register a user with a %s application', self.l10n_dk_nemhandel_proxy_state))
@@ -174,7 +174,7 @@ class NemhandelRegistration(models.TransientModel):
         """
         The user is registered on the Nemhandel network, i.e. can receive documents from other Nemhandel participants.
         """
-        self.ensure_one()
+        self.check_singleton()
         try:
             self.edi_user_id._nemhandel_register_as_receiver()
         except (UserError, AccountEdiProxyError) as e:
@@ -204,7 +204,7 @@ class NemhandelRegistration(models.TransientModel):
         Action for the user to be able to update their contact details any time
         Calls /update_user on the iap server
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.contact_email:
             raise ValidationError(_("Contact email and phone number are required."))
@@ -225,7 +225,7 @@ class NemhandelRegistration(models.TransientModel):
         Request user verification via SMS
         Calls the /send_verification_code to activate the participant and send the 6-digit verification code
         """
-        self.ensure_one()
+        self.check_singleton()
         self.edi_user_id._call_nemhandel_proxy(
             endpoint='/api/nemhandel/1/send_verification_code',
             params={
@@ -242,7 +242,7 @@ class NemhandelRegistration(models.TransientModel):
         Calls /verify_phone_number to compare user's input and the
         code generated on the IAP server
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.l10n_dk_nemhandel_proxy_state != 'in_verification':
             raise ValidationError(_("Please first verify your phone number by clicking on 'Send a registration code by SMS'."))
 
@@ -275,7 +275,7 @@ class NemhandelRegistration(models.TransientModel):
         """
         Deregister the edi user from Nemhandel network
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if self.edi_user_id:
             self.edi_user_id._nemhandel_deregister_participant()

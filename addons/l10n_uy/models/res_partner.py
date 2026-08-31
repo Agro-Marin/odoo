@@ -73,7 +73,7 @@ class ResPartner(models.Model):
 
         Return: False is not valid, True is valid
         """
-        self.ensure_one()
+        self.check_singleton()
 
         # The VAT must consist only numbers (format could have these characters ":., " we can skip them later)
         invalid_chars = re.findall(r"[^0-9:., \-]", self.vat)

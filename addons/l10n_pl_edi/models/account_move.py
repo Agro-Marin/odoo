@@ -74,7 +74,7 @@ class AccountMove(models.Model):
         """
         Determines the specific TRodzajFaktury for KSeF.
         """
-        self.ensure_one()
+        self.check_singleton()
 
         # 1. Handle Corrections (Credit Notes)
         if self.move_type == 'out_refund':
@@ -113,7 +113,7 @@ class AccountMove(models.Model):
         Returns a list of related invoice numbers for ZAL and ROZ types.
         Safely checks for Sale Order links.
         """
-        self.ensure_one()
+        self.check_singleton()
         ksef_type = self._l10n_pl_edi_get_ksef_invoice_type()
         related_numbers = OrderedSet()
 
@@ -136,7 +136,7 @@ class AccountMove(models.Model):
         """
         Prepares a dictionary of values to be passed to the QWeb template.
         """
-        self.ensure_one()
+        self.check_singleton()
 
         def get_vat_country(vat):
             if not vat or vat[:2].isdecimal():
@@ -291,14 +291,14 @@ class AccountMove(models.Model):
         """
         Renders the QWeb template, removes empty lines.
         """
-        self.ensure_one()
+        self.check_singleton()
         qweb_template = self.env.ref('l10n_pl_edi.fa3_xml_template')
         ksef_values = self._l10n_pl_edi_get_xml_values()
         xml_content = self.env['ir.qweb']._render(qweb_template.id, ksef_values)
         return "\n".join([line for line in xml_content.splitlines() if line.strip()])
 
     def _l10n_pl_edi_generate_qr_link(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.l10n_pl_edi_attachment_file:
             mode = self.env['ir.config_parameter'].sudo().get_param('l10n_pl_edi_ksef.mode', 'prod')
             base_link = "https://qr.ksef.mf.gov.pl/invoice/" if mode == 'prod' else "https://qr-test.ksef.mf.gov.pl/invoice/"
@@ -311,7 +311,7 @@ class AccountMove(models.Model):
         return ""
 
     def _l10n_pl_edi_generate_qr(self):
-        self.ensure_one()
+        self.check_singleton()
         return base64.b64encode(
             self.env['ir.actions.report'].barcode(
                 barcode_type='QR',
@@ -341,7 +341,7 @@ class AccountMove(models.Model):
         }
 
     def action_l10n_pl_edi_update_invoice_status(self):
-        self.ensure_one()
+        self.check_singleton()
 
         self.env['res.company']._with_locked_records(self)
 
@@ -400,7 +400,7 @@ class AccountMove(models.Model):
         }
 
     def action_l10n_pl_edi_get_invoice_UPO(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.l10n_pl_edi_ref:
             raise UserError(self.env._("This invoice does not have a KSeF Invoice Reference Number. It may not have been sent yet."))
 

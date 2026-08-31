@@ -399,7 +399,7 @@ class AccountEdiFormat(models.Model):
 
     def _get_move_applicability(self, move):
         # EXTENDS account_edi
-        self.ensure_one()
+        self.check_singleton()
         if self.code != 'eg_eta':
             return super()._get_move_applicability(move)
 

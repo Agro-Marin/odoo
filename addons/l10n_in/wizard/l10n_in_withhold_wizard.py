@@ -224,9 +224,9 @@ class L10n_InWithholdWizard(models.TransientModel):
 
     # ===== MOVE CREATION METHODS =====
     def action_create_and_post_withhold(self):
-        self.ensure_one()
+        self.check_singleton()
         withholding_account_id = self.company_id.l10n_in_withholding_account_id
-        self._validate_withhold_data_on_post(withholding_account_id)
+        self._check_withhold_data_on_post(withholding_account_id)
 
         # Withhold creation and posting
         vals = self._prepare_withhold_header()
@@ -310,6 +310,6 @@ class L10n_InWithholdWizard(models.TransientModel):
 
         return vals
 
-    def _validate_withhold_data_on_post(self, withholding_account_id):
+    def _check_withhold_data_on_post(self, withholding_account_id):
         if not withholding_account_id:
             raise UserError(_("Please configure the withholding account from the settings"))

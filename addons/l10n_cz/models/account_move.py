@@ -23,7 +23,7 @@ class AccountMove(models.Model):
                 move.date = move.taxable_supply_date
 
     def _get_invoice_currency_rate_date(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.country_code == 'CZ' and self.taxable_supply_date:
             return self.taxable_supply_date
         return super()._get_invoice_currency_rate_date()

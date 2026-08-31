@@ -51,7 +51,7 @@ class AccountJournal(models.Model):
         with him. This method is used to populate document types on journals and also to filter document types on
         specific invoices to/from customer/supplier
         """
-        self.ensure_one()
+        self.check_singleton()
         letters_data = {
             'issued': {
                 '1': ['A', 'B', 'E', 'M'],
@@ -94,7 +94,7 @@ class AccountJournal(models.Model):
         return letters
 
     def _get_journal_codes_domain(self):
-        self.ensure_one()
+        self.check_singleton()
         return self._get_codes_per_journal_type(self.l10n_ar_afip_pos_system)
 
     @api.model

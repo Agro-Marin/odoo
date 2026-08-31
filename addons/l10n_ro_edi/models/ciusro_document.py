@@ -38,7 +38,7 @@ class L10n_Ro_EdiDocument(models.Model):
 
     def action_l10n_ro_edi_fetch_status(self):
         """ Fetch the latest response from E-Factura about the XML sent """
-        self.ensure_one()
+        self.check_singleton()
         # Do the batch fetch process on a single invoice/document
         self.invoice_id._l10n_ro_edi_fetch_invoice_sent_documents()
 
@@ -46,7 +46,7 @@ class L10n_Ro_EdiDocument(models.Model):
         """ Download the sent attachment in case if no status have been received from ANAF.
             Otherwise, download the received successful signature XML file from E-Factura.
         """
-        self.ensure_one()
+        self.check_singleton()
         attachment_sudo = self.env['ir.attachment'].sudo().search([
             ('res_model', '=', self._name),
             ('res_field', '=', 'attachment'),

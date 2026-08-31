@@ -209,7 +209,7 @@ class AccountMove(models.Model):
 
     def _skip_format_document_number(self):
         """Hook to be overridden in localisation"""
-        self.ensure_one()
+        self.check_singleton()
         return False
 
     def _get_starting_sequence(self):
@@ -292,7 +292,7 @@ class AccountMove(models.Model):
                 )
 
     def _get_l10n_latam_documents_domain(self):
-        self.ensure_one()
+        self.check_singleton()
         internal_types = []
         invoice_type = self.move_type
         if invoice_type in ["out_refund", "in_refund"]:

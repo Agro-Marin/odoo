@@ -5,13 +5,13 @@ class ResPartner(models.Model):
     _inherit = 'res.partner'
 
     def _l10n_es_is_foreign(self):
-        self.ensure_one()
+        self.check_singleton()
 
         return self.country_id.code not in ('ES', False) or (self.vat or '').startswith("ESN")
 
     def _l10n_es_edi_get_partner_info(self):
         """ Used in SII and Veri*factu"""
-        self.ensure_one()
+        self.check_singleton()
         eu_country_codes = set(self.env.ref('base.europe').country_ids.mapped('code'))
 
         partner_info = {}

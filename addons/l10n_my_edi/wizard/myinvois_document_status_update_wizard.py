@@ -23,7 +23,7 @@ class MyInvoisStatusUpdateWizard(models.TransientModel):
     )
 
     def button_request_update(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.reason.strip():
             raise UserError(self.env._('You must provide a reason for updating the document.'))
 

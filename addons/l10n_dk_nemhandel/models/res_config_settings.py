@@ -31,7 +31,7 @@ class ResConfigSettings(models.TransientModel):
     # -------------------------------------------------------------------------
 
     def action_view_nemhandel_form(self):
-        self.ensure_one()
+        self.check_singleton()
         registration_wizard = self.env['nemhandel.registration'].create({'company_id': self.company_id.id})
         registration_action = registration_wizard._action_view_nemhandel_form(reopen=False)
         return registration_action
@@ -42,7 +42,7 @@ class ResConfigSettings(models.TransientModel):
         Action for the user to be able to update their contact details any time
         Calls /update_user on the iap server
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.nemhandel_contact_email:
             raise ValidationError(_("Contact email is required"))
@@ -62,7 +62,7 @@ class ResConfigSettings(models.TransientModel):
         """
         Deregister the edi user from Nemhandel network
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if self.nemhandel_edi_user:
             self.nemhandel_edi_user._nemhandel_deregister_participant()

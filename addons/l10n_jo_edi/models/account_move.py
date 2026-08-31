@@ -136,7 +136,7 @@ class AccountMove(models.Model):
         return {'type': 'ir.actions.act_url', 'url': '/web/content/?' + params, 'target': 'new'}
 
     def _l10n_jo_qr_code_src(self):
-        self.ensure_one()
+        self.check_singleton()
         encoded_params = urlencode({
             'barcode_type': 'QR',
             'quiet': 0,
@@ -147,7 +147,7 @@ class AccountMove(models.Model):
         return f'/report/barcode/?{encoded_params}'
 
     def _is_sales_refund(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.company_id.l10n_jo_edi_taxpayer_type == 'sales' and self.move_type == 'out_refund'
 
     def _get_invoice_scope_code(self):
@@ -192,13 +192,13 @@ class AccountMove(models.Model):
 
     def _get_name_invoice_report(self):
         # EXTENDS account
-        self.ensure_one()
+        self.check_singleton()
         if self.l10n_jo_edi_state in ['sent', 'demo'] and self.l10n_jo_edi_xml_attachment_id:
             return 'l10n_jo_edi.report_invoice_document'
         return super()._get_name_invoice_report()
 
     def _l10n_jo_build_jofotara_headers(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             'Client-Id': self.sudo().company_id.l10n_jo_edi_client_identifier,
             'Secret-Key': self.sudo().company_id.l10n_jo_edi_secret_key,
@@ -224,7 +224,7 @@ class AccountMove(models.Model):
         return dict_response
 
     def _submit_to_jofotara(self):
-        self.ensure_one()
+        self.check_singleton()
         headers = self._l10n_jo_build_jofotara_headers()
         xml_invoice = self.env['account.edi.xml.ubl_21.jo']._export_invoice(self)[0]
         params = {'invoice': base64.b64encode(xml_invoice).decode()}
@@ -309,7 +309,7 @@ class AccountMove(models.Model):
         self.l10n_jo_edi_state = 'demo' if self.env.company.l10n_jo_edi_demo_mode else 'sent'
 
     def _l10n_jo_edi_send(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.env['res.company']._with_locked_records(records=self, allow_raising=False):
             return
         if error_message := self._l10n_jo_validate_config() or self._l10n_jo_validate_fields() or self._submit_to_jofotara():

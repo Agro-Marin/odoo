@@ -5,7 +5,7 @@ class AccountMove(models.Model):
     _inherit = "account.move"
 
     def _get_l10n_latam_documents_domain(self):
-        self.ensure_one()
+        self.check_singleton()
         result = super()._get_l10n_latam_documents_domain()
         if self.company_id.country_id.code != "PE" or not self.l10n_latam_use_documents or self.journal_id.type != "sale":
             return result

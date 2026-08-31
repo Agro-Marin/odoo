@@ -64,7 +64,7 @@ class MyInvoisDocumentPoS(models.Model):
 
     def _get_starting_sequence(self):
         """ In the PoS, a document represents a Consolidated INVoice. """
-        self.ensure_one()
+        self.check_singleton()
         if not self.pos_order_ids:
             return super()._get_starting_sequence()
 
@@ -76,7 +76,7 @@ class MyInvoisDocumentPoS(models.Model):
 
     def action_view_linked_orders(self):
         """ Return the action used to open the order(s) linked to the selected consolidated invoice. """
-        self.ensure_one()
+        self.check_singleton()
         if self.linked_order_count == 1:
             action_vals = {
                 'type': 'ir.actions.act_window',
@@ -173,7 +173,7 @@ class MyInvoisDocumentPoS(models.Model):
 
         :return: True if this invoice is a consolidated invoice or the refund of one.
         """
-        self.ensure_one()
+        self.check_singleton()
         # Note that all documents linked to a PoS order are consolidated invoices, even it there is
         # only one order.
         return super()._is_consolidated_invoice() or self.pos_order_ids

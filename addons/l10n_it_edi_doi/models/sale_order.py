@@ -65,7 +65,7 @@ class SaleOrder(models.Model):
                 continue
 
             declaration = self.env['l10n_it_edi_doi.declaration_of_intent']\
-                ._fetch_valid_declaration_of_intent(order.company_id, partner, order.currency_id, order.l10n_it_edi_doi_date)
+                ._get_valid_declaration_of_intent(order.company_id, partner, order.currency_id, order.l10n_it_edi_doi_date)
             order.l10n_it_edi_doi_id = declaration
 
     @api.depends('l10n_it_edi_doi_id', 'tax_totals', 'line_ids', 'line_ids.qty_invoiced')
@@ -198,7 +198,7 @@ class SaleOrder(models.Model):
                 raise ValidationError('\n'.join(errors))
 
     def action_view_declaration_of_intent(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             'name': _("Declaration of Intent for %s", self.display_name),
             'type': 'ir.actions.act_window',

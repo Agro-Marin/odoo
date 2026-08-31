@@ -63,7 +63,7 @@ class AccountPayment(models.Model):
         self._l10n_latam_check_split_move()
 
     def _get_latam_checks(self):
-        self.ensure_one()
+        self.check_singleton()
         if self._is_latam_check_payment(check_subtype='new_check'):
             return self.l10n_latam_new_check_ids
         elif self._is_latam_check_payment(check_subtype='move_check'):
@@ -192,7 +192,7 @@ class AccountPayment(models.Model):
             (split_move_counterpart_line + payment_liquidity_line).reconcile()
 
     def _l10n_latam_check_unlink_split_move(self):
-        self.ensure_one()
+        self.check_singleton()
         for check in self.l10n_latam_new_check_ids:
             if self.move_id == check.outstanding_line_id.move_id:
                 check.outstanding_line_id = False
@@ -275,5 +275,5 @@ class AccountPayment(models.Model):
                 payment.destination_account_id = payment.company_id.transfer_account_id.id
 
     def _is_latam_check_transfer(self):
-        self.ensure_one()
+        self.check_singleton()
         return not self.partner_id and self.destination_account_id == self.company_id.transfer_account_id

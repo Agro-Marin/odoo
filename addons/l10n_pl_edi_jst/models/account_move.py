@@ -8,7 +8,7 @@ class AccountMove(models.Model):
 
     def _l10n_pl_edi_get_xml_values(self):
         """Prepares a dictionary of values to be passed to the QWeb template."""
-        self.ensure_one()
+        self.check_singleton()
         xml_values = super()._l10n_pl_edi_get_xml_values()
 
         def get_address(partner):

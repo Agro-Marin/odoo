@@ -90,7 +90,7 @@ class ResPartner(models.Model):
         """Maps Odoo identification types to Ecuadorian ones.
         Useful for document type domains, electronic documents, ats, others.
         """
-        self.ensure_one()
+        self.check_singleton()
 
         id_types_by_xmlid = {
             'l10n_ec.ec_dni': 'cedula',  # DNI

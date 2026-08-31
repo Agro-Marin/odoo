@@ -14,7 +14,7 @@ class HrLeave(models.Model):
     l10n_in_contains_sandwich_leaves = fields.Boolean()
 
     def _l10n_in_get_default_leave_hours(self):
-        self.ensure_one()
+        self.check_singleton()
         calendar = self.employee_id.resource_calendar_id or self.env.company.resource_calendar_id
         if not calendar:
             return 0.0
@@ -30,7 +30,7 @@ class HrLeave(models.Model):
         return data.get("hours", 0.0) if data else 0.0
 
     def _l10n_in_is_full_day_request(self, hours=None, default_hours=None):
-        self.ensure_one()
+        self.check_singleton()
         default_hours = default_hours or self._l10n_in_get_default_leave_hours()
         hours = hours if hours is not None else (self.number_of_hours or 0.0)
         if self.leave_type_request_unit == 'hour':
@@ -170,7 +170,7 @@ class HrLeave(models.Model):
         return indian_leaves, leaves_dates_by_employee, public_holidays_dates_by_company
 
     def _l10n_in_apply_sandwich_rule(self, public_holidays_date_by_company, leaves_dates_by_employee):
-        self.ensure_one()
+        self.check_singleton()
         if not (self.request_date_from and self.request_date_to):
             return 0
 

@@ -262,7 +262,7 @@ class ResPartner(models.Model):
     def button_nemhandel_check_partner_endpoint(self, company=None):
         """ A basic check for whether a participant is reachable at the given identifier_type and identifier_value
         """
-        self.ensure_one()
+        self.check_singleton()
         if not company:
             company = self.env.company
 
@@ -277,7 +277,7 @@ class ResPartner(models.Model):
 
     @handle_demo
     def _get_nemhandel_verification_state(self, invoice_edi_format):
-        self.ensure_one()
+        self.check_singleton()
         if not self.nemhandel_identifier_type or not self.nemhandel_identifier_value or invoice_edi_format != 'oioubl_21':
             return 'not_verified'
 

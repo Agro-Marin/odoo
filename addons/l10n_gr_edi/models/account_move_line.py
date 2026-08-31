@@ -149,7 +149,7 @@ class AccountMoveLine(models.Model):
                 line.l10n_gr_edi_available_cls_vat = False
 
     def _l10n_gr_edi_get_preferred_classification_id(self, with_category=False):
-        self.ensure_one()
+        self.check_singleton()
         if with_category:  # for _compute_l10n_gr_edi_cls_type
             domain = [
                 ("l10n_gr_edi_inv_type", "=", self.move_id.l10n_gr_edi_inv_type),

@@ -16,7 +16,7 @@ class ResConfigSettings(models.TransientModel):
 
     def button_l10n_ro_edi_generate_token(self):
         """ Redirects to controllers/main.py ~ `authorize` method """
-        self.ensure_one()
+        self.check_singleton()
         return {
             'type': 'ir.actions.act_url',
             'url': '/l10n_ro_edi/authorize/%s' % self.company_id.id,

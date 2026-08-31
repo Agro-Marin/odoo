@@ -118,7 +118,7 @@ class AccountPaymentRegister(models.TransientModel):
         return payment_vals
 
     def _get_conversion_rate(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.currency_id != self.company_id.currency_id:
             return self.env['res.currency']._get_conversion_rate(
                 self.currency_id,

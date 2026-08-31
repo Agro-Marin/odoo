@@ -80,7 +80,7 @@ class AccountPayment(models.Model):
         Any time a line is edited, we want to check if we need to recompute the placeholders.
         The idea is to try and display accurate placeholders on lines whose tax have a sequence set.
         """
-        self.ensure_one()
+        self.check_singleton()
         if (
             not self.display_withholding
             or not self.withholding_line_ids._need_update_withholding_lines_placeholder()

@@ -15,7 +15,7 @@ class CertificateCertificate(models.Model):
     )
 
     def _l10n_es_edi_facturae_get_issuer(self):
-        self.ensure_one()
+        self.check_singleton()
 
         cert = x509.load_pem_x509_certificate(base64.b64decode(self.pem_certificate))
         issuer_key_priority = {

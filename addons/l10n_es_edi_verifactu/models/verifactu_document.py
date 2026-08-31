@@ -187,7 +187,7 @@ class L10nEsEdiVerifactuDocument(models.Model):
                 raise UserError(_("You cannot delete Veri*Factu Documents that are part of the chain of all Veri*Factu Documents."))
 
     def _get_document_dict(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.json_attachment_id:
             return {}
         json_data = self.json_attachment_id.raw
@@ -294,7 +294,7 @@ class L10nEsEdiVerifactuDocument(models.Model):
         return False
 
     def _get_qr_code_img_url(self):
-        self.ensure_one()
+        self.check_singleton()
         record_identifier = self._get_record_identifier()
         if not record_identifier or self.document_type != 'submission':
             # We take the values from the record identifier.

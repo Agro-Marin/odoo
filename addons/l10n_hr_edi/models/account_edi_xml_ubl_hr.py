@@ -392,7 +392,7 @@ class AccountEdiXmlUBLHR(models.AbstractModel):
                 })
         return line_values
 
-    def _retrieve_rejection_reference(self, attachment):
+    def _get_rejection_reference(self, attachment):
         string_to_find = b'Rejected</cbc:StatusReasonCode>'
         if string_to_find in attachment['raw']:
             tree = etree.fromstring(attachment['raw'])

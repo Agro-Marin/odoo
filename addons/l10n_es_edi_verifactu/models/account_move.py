@@ -118,7 +118,7 @@ class AccountMove(models.Model):
         In `_check_record_values` of model 'l10n_es_edi_verifactu.document' we check:
         There is only a single Veri*Factu Tax Applicability on the whole move.
         """
-        self.ensure_one()
+        self.check_singleton()
         if not self.l10n_es_edi_verifactu_required:
             return False
 
@@ -148,7 +148,7 @@ class AccountMove(models.Model):
         """
         Currently we only support a single Clave Regimen per Veri*Factu document.
         """
-        self.ensure_one()
+        self.check_singleton()
 
         tax_applicability = self._l10n_es_edi_verifactu_get_tax_applicability()
         if not tax_applicability:
@@ -295,7 +295,7 @@ class AccountMove(models.Model):
         self._l10n_es_edi_verifactu_mark_for_next_batch(cancellation=True)
 
     def _l10n_es_edi_verifactu_check(self, cancellation=False):
-        self.ensure_one()
+        self.check_singleton()
         errors = []
 
         if self.state != "posted":
@@ -320,7 +320,7 @@ class AccountMove(models.Model):
         return errors
 
     def _l10n_es_edi_verifactu_get_record_values(self, cancellation=False):
-        self.ensure_one()
+        self.check_singleton()
 
         company = self.company_id
         document_type = "cancellation" if cancellation else "submission"

@@ -68,7 +68,7 @@ class AccountMove(models.Model):
                 continue
 
             declaration = self.env['l10n_it_edi_doi.declaration_of_intent']\
-                ._fetch_valid_declaration_of_intent(move.company_id, partner, move.currency_id, move.l10n_it_edi_doi_date)
+                ._get_valid_declaration_of_intent(move.company_id, partner, move.currency_id, move.l10n_it_edi_doi_date)
             move.l10n_it_edi_doi_id = declaration
 
     @api.depends('l10n_it_edi_doi_id', 'tax_totals', 'move_type')
@@ -200,7 +200,7 @@ class AccountMove(models.Model):
         return super()._post_entries()
 
     def action_view_declaration_of_intent(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             'name': _("Declaration of Intent for %s", self.display_name),
             'type': 'ir.actions.act_window',

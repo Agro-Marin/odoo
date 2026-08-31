@@ -17,7 +17,7 @@ class AccountMove(models.Model):
 
         :return: the formatted structured reference string (SI01...)
         """
-        self.ensure_one()
+        self.check_singleton()
         p3 = str(self.partner_id.id)
         return self._prepare_invoice_reference(p3)
 
@@ -33,7 +33,7 @@ class AccountMove(models.Model):
 
         :return: the formatted structured reference string (SI01...)
         """
-        self.ensure_one()
+        self.check_singleton()
         match = re.search(r'(\d+)$', self.name or '')
         p3 = str(int(match.group(1))) if match else '0'
         return self._prepare_invoice_reference(p3)

@@ -31,7 +31,7 @@ class AccountEdiProxyClientUser(models.Model):
 
     @handle_demo
     def _call_nemhandel_proxy(self, endpoint, params=None):
-        self.ensure_one()
+        self.check_singleton()
         if self.proxy_type != 'nemhandel':
             raise UserError(_('EDI user should be of type Nemhandel'))
 
@@ -141,7 +141,7 @@ class AccountEdiProxyClientUser(models.Model):
         :param uuid: the UUID of the Nemhandel document
         :return: `True` if the document was saved, `False` if it was not
         """
-        self.ensure_one()
+        self.check_singleton()
         journal = journal or self.company_id.nemhandel_purchase_journal_id
         if not journal:
             return False
@@ -313,7 +313,7 @@ class AccountEdiProxyClientUser(models.Model):
                 edi_user.company_id.l10n_dk_nemhandel_proxy_state = proxy_user['nemhandel_state']
 
     def _get_nemhandel_company_details(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             'nemhandel_company_name': self.company_id.display_name,
             'nemhandel_company_cvr': self.company_id.vat[2:] if self.company_id.vat[:2].isalpha() else self.company_id.vat,
@@ -325,7 +325,7 @@ class AccountEdiProxyClientUser(models.Model):
         }
 
     def _nemhandel_register_as_receiver(self):
-        self.ensure_one()
+        self.check_singleton()
 
         company = self.company_id
 
@@ -344,7 +344,7 @@ class AccountEdiProxyClientUser(models.Model):
         company.l10n_dk_nemhandel_proxy_state = 'receiver'
 
     def _nemhandel_deregister_participant(self):
-        self.ensure_one()
+        self.check_singleton()
 
         if self.company_id.l10n_dk_nemhandel_proxy_state == 'receiver':
             # fetch all documents and message statuses before unlinking the edi user
@@ -365,7 +365,7 @@ class AccountEdiProxyClientUser(models.Model):
         self.unlink()
 
     def _generate_nemhandel_webhook_token(self):
-        self.ensure_one()
+        self.check_singleton()
         expiration = 30 * 24  # in 30 days
         msg = [self.id, self.company_id._get_nemhandel_webhook_endpoint()]
         payload = tools.hash_sign(self.sudo().env, 'account_nemhandel_webhook', msg, expiration_hours=expiration)
@@ -374,7 +374,7 @@ class AccountEdiProxyClientUser(models.Model):
     @api.model
     def _get_nemhandel_user_from_token(self, token: str, url: str):
         try:
-            if not (payload := tools.verify_hash_signed(self.sudo().env, 'account_nemhandel_webhook', token)):
+            if not (payload := tools.resolve_hash_signed(self.sudo().env, 'account_nemhandel_webhook', token)):
                 return None
         except ValueError:
             return None

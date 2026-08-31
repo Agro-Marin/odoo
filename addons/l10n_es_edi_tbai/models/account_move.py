@@ -173,7 +173,7 @@ class AccountMove(models.Model):
 
     def _l10n_es_tbai_lock_move(self):
         """ Acquire a write lock on the invoices in self. """
-        self.ensure_one()
+        self.check_singleton()
         try:
             self.lock_for_update()
         except LockError:
@@ -184,7 +184,7 @@ class AccountMove(models.Model):
     # -------------------------------------------------------------------------
 
     def l10n_es_tbai_resend_bill(self):
-        self.ensure_one()
+        self.check_singleton()
         self.l10n_es_tbai_post_document_id = False
         if error := self.with_context(batuz_correction=True)._l10n_es_tbai_post():
             error = error + "\n\n" + _("Be careful if you modified this vendor bill, "
@@ -226,7 +226,7 @@ class AccountMove(models.Model):
                 raise UserError(edi_document.response_message)
 
     def _l10n_es_tbai_post(self):
-        self.ensure_one()
+        self.check_singleton()
 
         # Avoid the move to be sent if it is being modified by a parallel transaction (for example reset to draft)
         # It will also avoid the move to be sent by different parallel transactions
@@ -283,7 +283,7 @@ class AccountMove(models.Model):
         }
 
     def _l10n_es_tbai_get_invoice_values(self, cancel=False):
-        self.ensure_one()
+        self.check_singleton()
         base_amls = self.line_ids.filtered(lambda x: x.display_type == 'product')
         base_lines = [self._prepare_product_base_line_for_taxes_computation(x) for x in base_amls]
         for base_line in base_lines:
@@ -351,7 +351,7 @@ class AccountMove(models.Model):
         return values
 
     def _l10n_es_tbai_get_vendor_bill_tax_values(self):
-        self.ensure_one()
+        self.check_singleton()
         results = defaultdict(lambda: {'base_amount': 0.0, 'tax_amount': 0.0})
         amount_total = 0.0
         for line in self.line_ids.filtered(lambda l: l.display_type in ('product', 'tax')):

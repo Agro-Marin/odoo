@@ -67,7 +67,7 @@ class L10n_Hu_EdiTax_Audit_Export(models.TransientModel):
             self.filename = f'export_{name_from.replace("/", "")}_{name_to.replace("/", "")}.zip'
 
     def action_export(self):
-        self.ensure_one()
+        self.check_singleton()
         domain = [
             ('move_type', 'in', ('out_invoice', 'out_refund')),
             ('state', '=', 'posted'),

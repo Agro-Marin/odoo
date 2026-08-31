@@ -127,7 +127,7 @@ class ResCompany(models.Model):
 <strong>{tr_no_license}</strong>''').format(tr_no_license=self.env._('TicketBAI is not configured'))
 
     def _get_l10n_es_tbai_license_dict(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.l10n_es_tbai_is_enabled:
             if self.l10n_es_tbai_test_env:  # test env: each agency has its test license
                 license_key = self.l10n_es_tbai_tax_agency
@@ -162,5 +162,5 @@ class ResCompany(models.Model):
         return self.env['l10n_es_edi_tbai.document'].search(domain, limit=1, order='chain_index desc')
 
     def _l10n_es_freelancer(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.vat and re.fullmatch(r"(ES)?(\d{8}[A-Z]|[X-Z].*)", self.vat) or False

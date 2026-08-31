@@ -133,7 +133,7 @@ class L10n_LatamCheck(models.Model):
             (void_move.line_ids[1] + rec.outstanding_line_id).reconcile()
 
     def _get_last_operation(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             (self.payment_id + self.operation_ids)
             .filtered(lambda x: x.state not in ["draft", "canceled"])
@@ -159,14 +159,14 @@ class L10n_LatamCheck(models.Model):
                 rec.current_journal_id = False
 
     def button_open_payment(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.payment_id._get_records_action()
 
     def button_open_check_operations(self):
         """Redirect the user to the invoice(s) paid by this payment.
         :return:    An action on account.move.
         """
-        self.ensure_one()
+        self.check_singleton()
         operations = (self.operation_ids + self.payment_id).filtered(
             lambda x: x.state not in ["draft", "canceled"]
         )
@@ -189,12 +189,12 @@ class L10n_LatamCheck(models.Model):
         return action
 
     def action_show_reconciled_move(self):
-        self.ensure_one()
+        self.check_singleton()
         move = self._get_reconciled_move()
         return move._get_records_action()
 
     def action_show_journal_entry(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.outstanding_line_id.move_id._get_records_action()
 
     def _get_reconciled_move(self):

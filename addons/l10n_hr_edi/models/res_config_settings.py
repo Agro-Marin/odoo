@@ -19,9 +19,9 @@ class ResConfigSettings(models.TransientModel):
     # -------------------------------------------------------------------------
 
     def button_l10n_hr_activate_mojeracun(self):
-        self.ensure_one()
+        self.check_singleton()
         self.company_id._l10n_hr_activate_mojeracun()
 
     def button_l10n_hr_deactivate_mojeracun(self):
-        self.ensure_one()
+        self.check_singleton()
         self.company_id.l10n_hr_mer_connection_state = 'inactive'

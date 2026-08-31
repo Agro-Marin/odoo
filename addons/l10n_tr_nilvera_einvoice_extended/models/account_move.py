@@ -80,7 +80,7 @@ class AccountMove(models.Model):
             record.l10n_tr_exemption_code_id = False
 
     def _get_partner_l10n_tr_nilvera_customer_alias_name(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.l10n_tr_is_export_invoice:
             return self.company_id.l10n_tr_nilvera_export_alias
         return super()._get_partner_l10n_tr_nilvera_customer_alias_name()

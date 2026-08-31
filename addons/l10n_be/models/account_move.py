@@ -25,7 +25,7 @@ class AccountMove(models.Model):
             If no reference is set for the partner, its id in the database will
             be used.
         """
-        self.ensure_one()
+        self.check_singleton()
         bbacomm = (re.sub(r'\D', '', self.partner_id.ref or '') or str(self.partner_id.id))[-10:].rjust(10, '0')
         base = int(bbacomm)
         mod = base % 97 or 97
@@ -39,7 +39,7 @@ class AccountMove(models.Model):
             For instance, if an invoice is issued with id 654, the check number
             is 72 so the reference will be '+++000/0000/65472+++'.
         """
-        self.ensure_one()
+        self.check_singleton()
         base = self.id
         bbacomm = str(base).rjust(10, '0')
         base = int(bbacomm)

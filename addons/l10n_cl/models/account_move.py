@@ -15,7 +15,7 @@ class AccountMove(models.Model):
         related='l10n_latam_document_type_id.internal_type', string='L10n Latam Internal Type')
 
     def _get_l10n_latam_documents_domain(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.journal_id.company_id.account_fiscal_country_id != self.env.ref('base.cl') or not \
                 self.l10n_latam_use_documents:
             return super()._get_l10n_latam_documents_domain()
@@ -135,7 +135,7 @@ class AccountMove(models.Model):
         return where_string, param
 
     def _get_name_invoice_report(self):
-        self.ensure_one()
+        self.check_singleton()
         if (
             self.l10n_latam_use_documents and self.company_id.account_fiscal_country_id.code == "CL"
             and (
@@ -150,7 +150,7 @@ class AccountMove(models.Model):
         return formatLang(self.env, value, currency_obj=currency)
 
     def _l10n_cl_get_invoice_totals_for_report(self):
-        self.ensure_one()
+        self.check_singleton()
         include_sii = self._l10n_cl_include_sii()
         tax_totals = self.tax_totals
         if not include_sii:
@@ -167,7 +167,7 @@ class AccountMove(models.Model):
         return tax_totals
 
     def _l10n_cl_include_sii(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.l10n_latam_document_type_id.code in ['39', '41', '110', '111', '112', '34']
 
     def _is_manual_document_number(self):
@@ -179,7 +179,7 @@ class AccountMove(models.Model):
         """
         This method is used to calculate the amount and taxes required in the Chilean localization electronic documents.
         """
-        self.ensure_one()
+        self.check_singleton()
         global_discounts = self.invoice_line_ids.filtered(lambda x: x.price_subtotal < 0)
         export = self.l10n_latam_document_type_id._is_doc_type_export()
         main_currency = self.company_id.currency_id if not export else self.currency_id
@@ -257,7 +257,7 @@ class AccountMove(models.Model):
         The need of the tax is not just the amount, but the code of the tax, the percentage amount and the amount
         :return:
         """
-        self.ensure_one()
+        self.check_singleton()
         tax = [{'tax_code': line.tax_line_id.l10n_cl_sii_code,
                 'tax_name': line.tax_line_id.name,
                 'tax_base': abs(sum(self.invoice_line_ids.filtered(

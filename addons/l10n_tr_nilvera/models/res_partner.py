@@ -89,7 +89,7 @@ class ResPartner(models.Model):
             )
 
     def _check_nilvera_customer(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.vat:
             return
 

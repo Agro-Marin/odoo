@@ -71,7 +71,7 @@ class ResCompany(models.Model):
         To be called just after processing the json response from https://logincert.anaf.ro/anaf-oauth2/v1/token
         This method reads and process the json, and writes the token fields on the company.
         """
-        self.ensure_one()
+        self.check_singleton()
         if 'access_token' not in response_json or 'refresh_token' not in response_json:
             raise ValidationError(_("Token not found.\nResponse: %s", response_json))
 
@@ -96,7 +96,7 @@ class ResCompany(models.Model):
         Uses the saved client_id, client_secret, and refresh_token on the company (self)
         to make request to the SPV and renew the company's token fields.
         """
-        self.ensure_one()
+        self.check_singleton()
         if not self.l10n_ro_edi_client_id or not self.l10n_ro_edi_client_secret:
             raise UserError(_("Client ID and Client Secret field must be filled."))
         if not self.l10n_ro_edi_refresh_token:

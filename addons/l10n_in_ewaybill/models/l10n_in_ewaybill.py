@@ -156,7 +156,7 @@ class L10nInEwaybill(models.Model):
         :return: {'document_number': document_number, 'document_date': document_date}
         :rtype: dict
         """
-        self.ensure_one()
+        self.check_singleton()
         move = self.account_move_id
         return {
             'document_number':  move.is_purchase_document(True) and move.ref or move.name,
@@ -164,11 +164,11 @@ class L10nInEwaybill(models.Model):
         }
 
     def _get_ewaybill_company(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.account_move_id.company_id
 
     def _get_seller_buyer_details(self):
-        self.ensure_one()
+        self.check_singleton()
         move = self.account_move_id
         if move.is_outbound():
             return {
@@ -183,7 +183,7 @@ class L10nInEwaybill(models.Model):
         return move._get_l10n_in_seller_buyer_party()
 
     def _is_incoming(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.account_move_id.is_outbound()
 
     # -------------- Compute Methods ----------------
@@ -269,7 +269,7 @@ class L10nInEwaybill(models.Model):
             ewaybill.vehicle_type = 'O'
 
     def action_export_content_json(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             'type': 'ir.actions.act_url',
             'url': '/web/content/l10n.in.ewaybill/%s/content' % self.id
@@ -282,13 +282,13 @@ class L10nInEwaybill(models.Model):
             ewaybill._generate_ewaybill()
 
     def action_cancel_ewaybill(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.env['l10n.in.ewaybill.cancel'].with_context(
             default_l10n_in_ewaybill_id=self.id
         )._get_records_action(name=_("Cancel Ewaybill"), target='new')
 
     def action_reset_to_pending(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.state != 'cancel':
             raise UserError(_("Only Cancelled E-waybill can be resent."))
         self.write({
@@ -299,7 +299,7 @@ class L10nInEwaybill(models.Model):
         })
 
     def action_print(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.state in ['pending', 'cancel']:
             raise UserError(_("Please generate the E-Waybill to print it."))
 
@@ -525,7 +525,7 @@ class L10nInEwaybill(models.Model):
             ))
 
     def _generate_ewaybill(self):
-        self.ensure_one()
+        self.check_singleton()
         self._log_retry_message_on_generate()
         ewb_api = EWayBillApi(self.company_id)
         self._lock_ewaybill()
@@ -716,7 +716,7 @@ class L10nInEwaybill(models.Model):
         In any case this method should not be removed
         see https://github.com/odoo/upgrade/pull/6624 for futher information
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.attachment_id:
             try:
                 res_json = json.loads(self.attachment_id.raw.decode("utf-8"))
@@ -734,7 +734,7 @@ class L10nInEwaybill(models.Model):
             })
 
     def _generate_and_attach_pdf(self, doc_label):
-        self.ensure_one()
+        self.check_singleton()
         pdf_content = self.env['ir.actions.report']._render_qweb_pdf(
             'l10n_in_ewaybill.report_ewaybill', res_ids=[self.id])[0]
         attachment = self.env['ir.attachment'].create({

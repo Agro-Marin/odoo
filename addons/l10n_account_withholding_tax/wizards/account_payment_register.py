@@ -175,7 +175,7 @@ class AccountPaymentRegister(models.TransientModel):
         Any time a line is edited, we want to check if we need to recompute the placeholders.
         The idea is to try and display accurate placeholders on lines whose tax have a sequence set.
         """
-        self.ensure_one()
+        self.check_singleton()
         if (
             not self.display_withholding
             or not self.can_edit_wizard
@@ -226,7 +226,7 @@ class AccountPaymentRegister(models.TransientModel):
         Returns the total amount of the first batch, in the currency of the wizard.
         This information can be used to determine if we are doing a partial payment or not.
         """
-        self.ensure_one()
+        self.check_singleton()
         if not self.can_edit_wizard:
             return 0.0
 

@@ -143,14 +143,14 @@ class AccountMove(models.Model):
     # --------------
 
     def action_l10n_my_edi_update_status(self):
-        self.ensure_one()
+        self.check_singleton()
         self.l10n_my_edi_document_ids._get_active_myinvois_document(including_in_progress=True).action_update_submission_status()
 
     def action_invoice_sent(self):
         """ The wizard should not be available for invoices sent to MyInvois but not yet validated.
         This is because before validation the ID used for the QR code is not available and the user should NOT send the invoice yet.
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if self.l10n_my_edi_state == 'in_progress':
             raise UserError(self.env._('You cannot send invoices that are currently being validated.\nPlease wait for the validation to complete.'))
@@ -207,7 +207,7 @@ class AccountMove(models.Model):
         """
         Helper to retrieve the proxy user related to the company of the record.
         """
-        self.ensure_one()
+        self.check_singleton()
         company = self.company_id or self.env.company
         return company.sudo().l10n_my_edi_proxy_user_id
 
@@ -229,7 +229,7 @@ class AccountMove(models.Model):
                 )
 
     def _generate_myinvois_qr_code(self):
-        self.ensure_one()
+        self.check_singleton()
 
         myinvois_document = self._get_active_myinvois_document()
         if not myinvois_document or not myinvois_document.myinvois_document_long_id:

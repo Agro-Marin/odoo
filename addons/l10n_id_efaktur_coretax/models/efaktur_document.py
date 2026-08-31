@@ -45,7 +45,7 @@ class EfakturDocument(models.Model):
 
     def _generate_xml(self, regenerate=False):
         """ Generate the XML file as content and save it as attachment in this record"""
-        self.ensure_one()
+        self.check_singleton()
 
         # invalid journal entries to generate efaktur
         no_trx_code_entries = self.invoice_ids.filtered(lambda x: not x.l10n_id_kode_transaksi)

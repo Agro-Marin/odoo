@@ -196,12 +196,12 @@ class MyInvoisDocument(models.Model):
 
     def _get_starting_sequence(self):
         """ Defines the default sequence to use by MyInvois Documents. """
-        self.ensure_one()
+        self.check_singleton()
         return "MYINV/%04d/00000" % self.myinvois_issuance_date.year
 
     def _get_last_sequence_domain(self, relaxed=False):
         """ Returns the SQL WHERE statement to use when fetching the latest record with the same sequence, and its params. """
-        self.ensure_one()
+        self.check_singleton()
         if not self.myinvois_issuance_date:
             return "WHERE FALSE", {}
         where_string = "WHERE name != '/'"
@@ -303,7 +303,7 @@ class MyInvoisDocument(models.Model):
 
     def action_cancel_submission(self):
         """ Cancel the document on the platform. """
-        self.ensure_one()
+        self.check_singleton()
         return self._action_myinvois_update_document(new_status='cancelled')
 
     def action_show_myinvois_documents(self):
@@ -339,7 +339,7 @@ class MyInvoisDocument(models.Model):
         Typically, the one linked to the record's company.
         :return: The proxy user that should be used to send the record to MyInvois.
         """
-        self.ensure_one()
+        self.check_singleton()
         company = self.company_id or self.env.company
 
         proxy_user = company.sudo().l10n_my_edi_proxy_user_id
@@ -467,7 +467,7 @@ class MyInvoisDocument(models.Model):
 
     def _generate_myinvois_qr_code(self):
         """ Generate the qr code for which can be used to access this document. """
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.myinvois_document_long_id:  # Only valid invoices have a long id
             return None
@@ -506,7 +506,7 @@ class MyInvoisDocument(models.Model):
 
         :return: The rounded base lines to be used when exporting the document.
         """
-        self.ensure_one()
+        self.check_singleton()
         # Refunds of consolidated invoices are treated as regular invoice besides for the fixed customer.
         if self._is_consolidated_invoice():
             AccountTax = self.env['account.tax']
@@ -615,7 +615,7 @@ class MyInvoisDocument(models.Model):
 
         :return: True if this invoice is a consolidated invoice or the refund of one.
         """
-        self.ensure_one()
+        self.check_singleton()
         return len(self.invoice_ids) > 1
 
     def _is_consolidated_invoice_refund(self):
@@ -652,8 +652,8 @@ class MyInvoisDocument(models.Model):
         :param record: The record from which to get the base lines.
         :return: The rounder base line for the provided record.
         """
-        self.ensure_one()
-        record.ensure_one()
+        self.check_singleton()
+        record.check_singleton()
         base_lines = []
         if record and record._name == 'account.move':
             base_lines, _tax_lines = record._get_rounded_base_and_tax_lines()
@@ -879,7 +879,7 @@ class MyInvoisDocument(models.Model):
 
     def _myinvois_generate_xml_file(self):
         """ Generate the xml file representing this record(s) attached to this document. """
-        self.ensure_one()
+        self.check_singleton()
         builder = self.env['account.edi.xml.ubl_myinvois_my']
         # 1. Validate the structure of the taxes
         self._check_taxes()
@@ -933,7 +933,7 @@ class MyInvoisDocument(models.Model):
 
         This helper will raise if the status cannot be updated.
         """
-        self.ensure_one()
+        self.check_singleton()
         if not self.myinvois_validation_time:
             return
 
@@ -970,7 +970,7 @@ class MyInvoisDocument(models.Model):
         There is no "Rejected" status on the platform. The document stays as 'valid' until action is taken by the vendor.
         At that point, the invoice will be cancelled if need be by the call to _myinvois_set_state.
         """
-        self.ensure_one()
+        self.check_singleton()
         self.env['res.company']._with_locked_records(self)
         proxy_user = self._myinvois_get_proxy_user()
 
@@ -1024,7 +1024,7 @@ class MyInvoisDocument(models.Model):
             self.invoice_ids._l10n_my_edi_cancel_moves()
 
     def _myinvois_set_validation_fields(self, validation_result):
-        self.ensure_one()
+        self.check_singleton()
         if self.myinvois_state != 'valid':
             return
 
@@ -1041,7 +1041,7 @@ class MyInvoisDocument(models.Model):
         Fetches and update the status of a single document.
         More efficient than using the submission status endpoint.
         """
-        self.ensure_one()
+        self.check_singleton()
         proxy_user = self._myinvois_get_proxy_user()
 
         self.env['res.company']._with_locked_records(self)

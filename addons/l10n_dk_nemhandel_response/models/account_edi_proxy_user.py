@@ -9,7 +9,7 @@ class AccountEdiProxyClientUser(models.Model):
     _inherit = 'account_edi_proxy_client.user'
 
     def _nemhandel_send_response(self, reference_moves, status, note=False):
-        self.ensure_one()
+        self.check_singleton()
         reference_moves = reference_moves.filtered(lambda rm: rm.nemhandel_message_uuid and rm.partner_id.nemhandel_response_support)
         if not reference_moves:
             return
@@ -75,7 +75,7 @@ class AccountEdiProxyClientUser(models.Model):
         return blr_status, note
 
     def _nemhandel_process_new_messages(self, messages):
-        self.ensure_one()
+        self.check_singleton()
         processed_uuids = []
         other_messages = {}
         origin_message_uuids = [content['origin_message_uuid'] for content in messages.values()]
@@ -138,7 +138,7 @@ class AccountEdiProxyClientUser(models.Model):
         return processed_uuids + other_uuids, moves
 
     def _nemhandel_get_documents_for_status(self, batch_size):
-        self.ensure_one()
+        self.check_singleton()
         documents = super()._nemhandel_get_documents_for_status(batch_size)
         if len(documents) > batch_size:
             return documents
@@ -153,7 +153,7 @@ class AccountEdiProxyClientUser(models.Model):
         return documents + list(edi_user_responses)
 
     def _nemhandel_process_messages_status(self, messages, uuid_to_record):
-        self.ensure_one()
+        self.check_singleton()
         processed_message_uuids = []
         other_messages = {}
         for uuid, content in messages.items():

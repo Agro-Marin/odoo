@@ -25,7 +25,7 @@ class AccountMoveReversal(models.TransientModel):
 
     @api.model
     def _reverse_type_map(self, move_type):
-        self.ensure_one()
+        self.check_singleton()
         match = {
             'entry': 'entry',
             'out_invoice': 'out_refund',

@@ -81,7 +81,7 @@ class ResCompany(models.Model):
             res_config_id.execute()
 
     def _l10n_hu_edi_get_credentials_dict(self):
-        self.ensure_one()
+        self.check_singleton()
         credentials_dict = {
             'vat': self.vat,
             'mode': self.l10n_hu_edi_server_mode,

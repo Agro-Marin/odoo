@@ -176,7 +176,7 @@ class L10n_It_Edi_DoiDeclaration_Of_Intent(models.Model):
             :param float not_yet_invoiced:  The `declaration.not_yet_invoiced` amount when including the document.
             :return str:                    The warning message to be shown.
         """
-        self.ensure_one()
+        self.check_singleton()
         updated_remaining = self.threshold - invoiced - not_yet_invoiced
         if self.currency_id.compare_amounts(updated_remaining, 0) >= 0:
             return ''
@@ -233,7 +233,7 @@ class L10n_It_Edi_DoiDeclaration_Of_Intent(models.Model):
         return errors
 
     @api.model
-    def _fetch_valid_declaration_of_intent(self, company, partner, currency, date):
+    def _get_valid_declaration_of_intent(self, company, partner, currency, date):
         """
         Fetch a declaration of intent that is valid for the specified `company`, `partner`, `date` and `currency`
         and has not reached the threshold yet.
@@ -283,7 +283,7 @@ class L10n_It_Edi_DoiDeclaration_Of_Intent(models.Model):
                 record.state = 'terminated'
 
     def action_view_sale_order_ids(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             'name': _("Sales Orders using Declaration of Intent %s", self.display_name),
             'type': 'ir.actions.act_window',
@@ -297,7 +297,7 @@ class L10n_It_Edi_DoiDeclaration_Of_Intent(models.Model):
         }
 
     def action_view_invoice_ids(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             'name': _("Invoices using Declaration of Intent %s", self.display_name),
             'type': 'ir.actions.act_window',

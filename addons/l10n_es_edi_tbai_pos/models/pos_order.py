@@ -67,7 +67,7 @@ class PosOrder(models.Model):
         if not self.l10n_es_tbai_is_required:
             return super()._process_saved_order(draft)
 
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.to_invoice and self.amount_total > self.company_id.l10n_es_simplified_invoice_limit:
             raise UserError(self.env._("Please create an invoice for an amount over %s.", self.company_id.l10n_es_simplified_invoice_limit))
@@ -114,7 +114,7 @@ class PosOrder(models.Model):
 
     def get_l10n_es_pos_tbai_qrurl(self):
         """ Retrieve the QR Code from the related ticketbai document . """
-        self.ensure_one()
+        self.check_singleton()
 
         edi_document = self.account_move.l10n_es_tbai_post_document_id or self.l10n_es_tbai_post_document_id
         if edi_document and edi_document.state == 'accepted':
@@ -131,7 +131,7 @@ class PosOrder(models.Model):
             raise UserError(error)
 
     def _l10n_es_tbai_post(self):
-        self.ensure_one()
+        self.check_singleton()
 
         if self.l10n_es_tbai_post_document_id and self.l10n_es_tbai_post_document_id.state == 'rejected':
             self.l10n_es_tbai_post_document_id.sudo().unlink()
@@ -164,7 +164,7 @@ class PosOrder(models.Model):
     # -------------------------------------------------------------------------
 
     def _l10n_es_tbai_get_values(self):
-        self.ensure_one()
+        self.check_singleton()
 
         base_lines = self.lines._prepare_tax_base_line_values()
         for base_line in base_lines:

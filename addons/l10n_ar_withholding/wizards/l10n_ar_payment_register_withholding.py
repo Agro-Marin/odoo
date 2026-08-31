@@ -25,7 +25,7 @@ class L10n_ArPaymentRegisterWithholding(models.TransientModel):
     amount = fields.Monetary(required=True, compute='_compute_amount', store=True, readonly=False)
 
     def _tax_compute_all_helper(self):
-        self.ensure_one()
+        self.check_singleton()
         # Computes the withholding tax amount provided a base and a tax
         # It is equivalent to: amount = self.base * self.tax_id.amount / 100
 

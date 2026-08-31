@@ -6,7 +6,7 @@ from lxml import etree
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import cleanup_xml_node
-from odoo.tools.xml_utils import find_xml_value
+from odoo.tools.xml_utils import get_xml_value
 
 from odoo.addons.account_edi_ubl_cii.models.account_edi_xml_ubl_20 import UBL_NAMESPACES
 
@@ -187,7 +187,7 @@ class StockPicking(models.Model):
         return error_messages or False
 
     def _l10n_tr_validate_edispatch_fields(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.state not in {'assigned', 'done'}:
             return {
                 'invalid_transfer_state': {
@@ -277,7 +277,7 @@ class StockPicking(models.Model):
         ).l10n_tr_nilvera_dispatch_state = 'sent'
 
     def _get_tag_text(self, xpath, tree, default=''):
-        return find_xml_value(xpath, tree, UBL_NAMESPACES) or default
+        return get_xml_value(xpath, tree, UBL_NAMESPACES) or default
 
     def _get_partner_vals_from_xml(self, tree, xpath):
         party = tree.find(xpath, namespaces=UBL_NAMESPACES)

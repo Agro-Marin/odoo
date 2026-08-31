@@ -43,7 +43,7 @@ class ResPartner(models.Model):
     @api.depends('vat', 'l10n_latam_identification_type_id')
     def _compute_l10n_ar_vat(self):
         """ We add this computed field that returns cuit (VAT AR) or nothing if this one is not set for the partner.
-        This Validation can be also done by calling ensure_vat() method that returns the cuit (VAT AR) or error if this
+        This Validation can be also done by calling get_l10n_ar_vat() method that returns the cuit (VAT AR) or error if this
         one is not found """
         recs_ar_vat = self.filtered(lambda x: x.l10n_latam_identification_type_id.l10n_ar_afip_code == '80' and x.vat)
         for rec in recs_ar_vat:
@@ -70,14 +70,14 @@ class ResPartner(models.Model):
     def _commercial_fields(self):
         return super()._commercial_fields() + ['l10n_ar_afip_responsibility_type_id']
 
-    def ensure_vat(self):
+    def get_l10n_ar_vat(self):
         """ This method is a helper that returns the VAT number is this one is defined if not raise an UserError.
 
         VAT is not mandatory field but for some Argentinean operations the VAT is required, for eg  validate an
         electronic invoice, build a report, etc.
 
         This method can be used to validate is the VAT is proper defined in the partner """
-        self.ensure_one()
+        self.check_singleton()
         if not self.l10n_ar_vat:
             raise UserError(_('No VAT configured for partner [%i] %s', self.id, self.name))
         return self.l10n_ar_vat
@@ -89,7 +89,7 @@ class ResPartner(models.Model):
         return frontend_writable_fields
 
     def _get_validation_module(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.l10n_latam_identification_type_id.l10n_ar_afip_code in ['80', '86']:
             return stdnum.ar.cuit
         elif self.l10n_latam_identification_type_id.l10n_ar_afip_code == '96':
@@ -123,7 +123,7 @@ class ResPartner(models.Model):
     def _get_id_number_sanitize(self):
         """ Sanitize the identification number. Return the digits/integer value of the identification number
         If not vat number defined return 0 """
-        self.ensure_one()
+        self.check_singleton()
         if not self.vat:
             return 0
         if self.l10n_latam_identification_type_id.l10n_ar_afip_code in ['80', '86']:

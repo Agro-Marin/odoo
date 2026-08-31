@@ -106,7 +106,7 @@ class AccountTax(models.Model):
         taxes_to_be_cleared.l10n_it_withholding_reason = False
 
     @api.constrains('amount', 'l10n_it_withholding_type', 'l10n_it_withholding_reason', 'l10n_it_pension_fund_type')
-    def _validate_withholding(self):
+    def _check_withholding(self):
         for tax in self:
             if tax.l10n_it_withholding_type and tax.amount >= 0:
                 raise ValidationError(_("Tax '%s' has a withholding type so the amount must be negative.", tax.name))

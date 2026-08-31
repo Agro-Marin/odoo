@@ -48,7 +48,7 @@ class ResPartner(models.Model):
         compute='_compute_l10n_es_edi_facturae_residence_type', store=False, readonly=True,)
 
     @api.constrains('l10n_es_edi_facturae_ac_physical_gln')
-    def _validate_l10n_es_edi_facturae_ac_physical_gln(self):
+    def _check_l10n_es_edi_facturae_ac_physical_gln(self):
         for p in self:
             if not p.l10n_es_edi_facturae_ac_physical_gln:
                 continue
@@ -56,7 +56,7 @@ class ResPartner(models.Model):
                 raise ValidationError(_('The Physical GLN entered is not valid.'))
 
     @api.constrains('l10n_es_edi_facturae_ac_logical_operational_point')
-    def _validate_l10n_es_edi_facturae_ac_logical_operational_point(self):
+    def _check_l10n_es_edi_facturae_ac_logical_operational_point(self):
         for p in self:
             if not p.l10n_es_edi_facturae_ac_logical_operational_point:
                 continue

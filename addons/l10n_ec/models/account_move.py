@@ -145,7 +145,7 @@ class AccountMove(models.Model):
         return documents_allowed
 
     def _get_l10n_latam_documents_domain(self):
-        self.ensure_one()
+        self.check_singleton()
         domain = super()._get_l10n_latam_documents_domain()
         if self.country_code == 'EC' and self.l10n_latam_use_documents:
             if self.debit_origin_id:  # show/hide the debit note document type
@@ -199,7 +199,7 @@ class AccountMove(models.Model):
         If a Credit Note is created from a Vendor Bill and the partner_id != "EC",
         we want to allow the user to allocate any number without following the EC format.
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.country_code == 'EC':
             return (
                     self.l10n_latam_document_type_id.internal_type in ('credit_note', 'debit_note')

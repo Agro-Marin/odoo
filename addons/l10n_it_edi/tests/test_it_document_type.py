@@ -19,7 +19,7 @@ class TestItDocumentType(TestItEdi):
         move_debit_note_wiz.create_debit()
 
         debit_note = self.env['account.move'].search([('debit_origin_id', '=', original_move.id)])
-        debit_note.ensure_one()
+        debit_note.check_singleton()
 
         # when debit note is created, it has no document type
         self.assertFalse(debit_note.l10n_it_document_type)

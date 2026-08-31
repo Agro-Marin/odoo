@@ -426,12 +426,12 @@ class AccountMove(models.Model):
 
     def _get_partner_l10n_tr_nilvera_customer_alias_name(self):
         # Allows overriding the default customer alias with a custom one.
-        self.ensure_one()
+        self.check_singleton()
         return self.partner_id.l10n_tr_nilvera_customer_alias_id.name
 
     def _get_invoice_nilvera_pdf_report_filename(self):
         """ Get the filename of the Nilvera PDF invoice report. """
-        self.ensure_one()
+        self.check_singleton()
         return f"{self._get_move_display_name().replace(' ', '_').replace('/', '_')}_einvoice.pdf"
 
     # -------------------------------------------------------------------------

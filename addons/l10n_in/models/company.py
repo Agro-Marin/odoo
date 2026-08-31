@@ -169,7 +169,7 @@ class ResCompany(models.Model):
                 company.l10n_in_is_gst_registered = company.partner_id.check_vat_in(company.vat)
 
     def action_update_state_as_per_gstin(self):
-        self.ensure_one()
+        self.check_singleton()
         self.partner_id.action_update_state_as_per_gstin()
 
     def _check_tax_return_configuration(self):

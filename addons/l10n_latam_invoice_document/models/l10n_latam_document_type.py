@@ -30,7 +30,7 @@ class L10n_LatamDocumentType(models.Model):
         * making validations on the document_number. If it is wrong it should raise an exception
         * format the document_number against a pattern and return it
         """
-        self.ensure_one()
+        self.check_singleton()
         return document_number
 
     @api.depends('code')

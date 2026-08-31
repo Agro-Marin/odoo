@@ -31,7 +31,7 @@ class AccountMove(models.Model):
     def _l10n_gcc_get_invoice_title(self):
         # DEPRECATED - to be removed in master
         # EXTENDS l10n_gcc_invoice
-        self.ensure_one()
+        self.check_singleton()
         if self.company_id.country_code == 'SA' and self._l10n_sa_is_simplified():
             return self.env._('Simplified Tax Invoice')
 
@@ -43,7 +43,7 @@ class AccountMove(models.Model):
             Returns True if the customer is an individual, i.e: The invoice is B2C
         :return:
         """
-        self.ensure_one()
+        self.check_singleton()
 
         commercial_partner = self.partner_id.commercial_partner_id
         return bool(commercial_partner) and not commercial_partner.is_company
@@ -99,7 +99,7 @@ class AccountMove(models.Model):
         """
             Make sure credit/debit notes have a either a reveresed move or debited move or a customer reference
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.debit_origin_id or self.reversed_entry_id or self.ref
 
     @api.model
@@ -192,7 +192,7 @@ class AccountMove(models.Model):
             It is necessary to save the signature as it changes everytime it is generated and both the signing and the
             QR code expect to have the same, identical signature.
         """
-        self.ensure_one()
+        self.check_singleton()
         edi_format = self.env.ref('l10n_sa_edi.edi_sa_zatca')
         # Build the dict of values to be used for generating the Invoice XML content
         # Set Invoice field values required for generating the XML content, hash and signature
@@ -209,7 +209,7 @@ class AccountMove(models.Model):
         """
             Save submitted invoice XML hash in case of either Rejection or Acceptance.
         """
-        self.ensure_one()
+        self.check_singleton()
         bootstrap_cls, title, subtitle, content = ("success", _("Success: Invoice accepted by ZATCA"), "", "" if (not error or not response_data) else response_data)
         status_code = response_data.get('status_code')
         attachment = False
@@ -280,7 +280,7 @@ class AccountMove(models.Model):
         )
 
     def _is_l10n_sa_eligibile_invoice(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.is_invoice() and self.l10n_sa_confirmation_datetime and self.country_code == 'SA'
 
     def _l10n_sa_is_legal(self):
@@ -288,7 +288,7 @@ class AccountMove(models.Model):
         # Accounts for both ZATCA phases
         # Phase 1: no documents
         # Phase 2: checks the state of documents
-        self.ensure_one()
+        self.check_singleton()
         result = super()._l10n_sa_is_legal()
         zatca_document = self.edi_document_ids.filtered(lambda d: d.edi_format_id.code == 'sa_zatca')
         return result or (self.company_id.country_id.code == 'SA' and zatca_document and self.edi_state == "sent")
@@ -325,7 +325,7 @@ class AccountMove(models.Model):
         return super()._prepare_tax_lines_for_taxes_computation(tax_amls, round_from_tax_lines)
 
     def _get_l10n_sa_totals(self):
-        self.ensure_one()
+        self.check_singleton()
         invoice_node = self.env['account.edi.xml.ubl_21.zatca']._get_invoice_node({'invoice': self})
         return {
             'total_amount': invoice_node['cac:LegalMonetaryTotal']['cbc:TaxInclusiveAmount']['_text'],
@@ -343,7 +343,7 @@ class AccountMove(models.Model):
         """
             Action to show the chain head of the invoice
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.l10n_sa_edi_chain_head_id._get_records_action(name=_("Chain Head"))
 
 
@@ -358,7 +358,7 @@ class AccountMoveLine(models.Model):
             Any line that has a negative amount and is not linked to a down-payment is considered as a
             global discount line. These can be created either manually, or through a promotions program.
         """
-        self.ensure_one()
+        self.check_singleton()
         return not self._get_downpayment_lines() and self.price_subtotal < 0
 
     @api.depends('price_subtotal', 'price_total')

@@ -127,7 +127,7 @@ class AccountMove(models.Model):
         super()._compute_expected_currency_rate()
 
     def _get_invoice_currency_rate_date(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.country_code == 'HU' and self.delivery_date:
             return self.delivery_date
         return super()._get_invoice_currency_rate_date()
@@ -237,7 +237,7 @@ class AccountMove(models.Model):
 
     def _l10n_hu_edi_get_valid_actions(self):
         """ If any NAV 3.0 flows are applicable to the given invoice, return them, else None. """
-        self.ensure_one()
+        self.check_singleton()
         valid_actions = []
         if (
             self.country_code == 'HU'
@@ -279,7 +279,7 @@ class AccountMove(models.Model):
             and we want exactly 404.87, i.e. the rate given by the MNB of Hungary, to avoid NAV error
             upon XML submission.
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.env['res.currency']._get_conversion_rate(
             from_currency=self.currency_id,
             to_currency=self.env.ref('base.HUF'),
@@ -289,7 +289,7 @@ class AccountMove(models.Model):
 
     def _l10n_hu_edi_set_chain_index(self):
         """ Set the l10n_hu_invoice_chain_index field. """
-        self.ensure_one()
+        self.check_singleton()
         base_invoice = self._l10n_hu_get_chain_base()
         if base_invoice == self:
             self.l10n_hu_invoice_chain_index = -1  # -1 indicates a base invoice (0 indicates the chain index was not set).
@@ -624,7 +624,7 @@ class AccountMove(models.Model):
                 for message in processing_result.get('business_validation_messages', []) + processing_result.get('technical_validation_messages', [])
             ]
 
-        self.ensure_one()
+        self.check_singleton()
 
         if processing_result['invoice_status'] in ['RECEIVED', 'PROCESSING', 'SAVED']:
             # The invoice/annulment has not been processed yet.
@@ -1013,7 +1013,7 @@ class AccountMove(models.Model):
     # === PDF generation === #
 
     def _get_name_invoice_report(self):
-        self.ensure_one()
+        self.check_singleton()
         return 'l10n_hu_edi.report_invoice_document' if self.country_code == 'HU' else super()._get_name_invoice_report()
 
     def _l10n_hu_get_invoice_totals_for_report(self):
@@ -1028,7 +1028,7 @@ class AccountMove(models.Model):
                 if key in keys_to_invert
             })
 
-        self.ensure_one()
+        self.check_singleton()
         tax_totals = self.tax_totals
         if not tax_totals:
             return tax_totals

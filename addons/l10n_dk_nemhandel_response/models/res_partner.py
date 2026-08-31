@@ -20,7 +20,7 @@ class ResPartner(models.Model):
             )
 
     def _nemhandel_fill_participant_supported_documents(self):
-        self.ensure_one()
+        self.check_singleton()
         edi_identification = f"{self.nemhandel_identifier_type}:{self.nemhandel_identifier_value}".lower()
         participant_info = self._nemhandel_lookup_participant(edi_identification)
         if not participant_info:
@@ -30,7 +30,7 @@ class ResPartner(models.Model):
     @handle_demo
     def button_nemhandel_check_partner_endpoint(self, company=None):
         # EXTENDS l10n_dk_nemhandel
-        self.ensure_one()
+        self.check_singleton()
         super().button_nemhandel_check_partner_endpoint(company)
 
         if not company:

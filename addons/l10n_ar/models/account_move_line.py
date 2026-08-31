@@ -5,7 +5,7 @@ class AccountMoveLine(models.Model):
     _inherit = 'account.move.line'
 
     def _l10n_ar_prices_and_taxes(self):
-        self.ensure_one()
+        self.check_singleton()
         invoice = self.move_id
         include_vat = invoice._l10n_ar_include_vat()
 

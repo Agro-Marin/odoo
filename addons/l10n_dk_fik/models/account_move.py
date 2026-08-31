@@ -9,7 +9,7 @@ class AccountMove(models.Model):
     _inherit = "account.move"
 
     def _get_invoice_reference_dk_fik(self, prefix, max_digits):
-        self.ensure_one()
+        self.check_singleton()
         invoice_digits = re.sub(r"\D", "", self.name or "") or str(self.id)
         if len(invoice_digits) > max_digits:
             raise ValidationError(

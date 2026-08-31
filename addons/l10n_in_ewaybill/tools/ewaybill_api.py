@@ -46,7 +46,7 @@ class EWayBillError(Exception):
 class EWayBillApi:
 
     def __init__(self, company):
-        company.ensure_one()
+        company.check_singleton()
         self.company = company
         self.env = self.company.env
 

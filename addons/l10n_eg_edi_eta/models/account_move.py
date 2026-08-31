@@ -162,7 +162,7 @@ class AccountMove(models.Model):
     def action_get_eta_invoice_pdf(self):
         """This is a pdf with the structure from the government.  While we can use our own format,
         some clients appreciate this to verify that all the data is there in case of confusion."""
-        self.ensure_one()
+        self.check_singleton()
         eta_invoice_pdf = self.env["account.edi.format"]._l10n_eg_get_eta_invoice_pdf(
             self
         )
@@ -178,7 +178,7 @@ class AccountMove(models.Model):
 
     def _l10n_eg_edi_exchange_currency_rate(self):
         """Calculate the rate based on the balance and amount_currency, so we recuperate the one used at the time"""
-        self.ensure_one()
+        self.check_singleton()
         from_currency = self.currency_id
         to_currency = self.company_id.currency_id
         if from_currency != to_currency and self.invoice_line_ids:

@@ -168,7 +168,7 @@ class StockPickingBatch(models.Model):
 
     def action_done(self):
         # EXTENDS 'stock_picking_batch'
-        self.ensure_one()
+        self.check_singleton()
         self._check_company()
 
         self.picking_ids.with_context(l10n_ro_edi_stock_validate_carrier=True)._l10n_ro_edi_stock_validate_carrier()
@@ -188,7 +188,7 @@ class StockPickingBatch(models.Model):
     def _l10n_ro_edi_stock_validate_fetch_data(self, errors=None):
         if errors is None:
             errors = []
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.company_id.l10n_ro_edi_access_token:
             errors.append(_('Romanian access token not found. Please generate or fill it in the settings.'))
@@ -210,7 +210,7 @@ class StockPickingBatch(models.Model):
     ################################################################################
 
     def action_l10n_ro_edi_stock_send_etransport(self):
-        self.ensure_one()
+        self.check_singleton()
 
         send_type = self.env.context.get('l10n_ro_edi_stock_send_type', 'send')
         self._l10n_ro_edi_stock_send_etransport_document(send_type=send_type)
@@ -223,11 +223,11 @@ class StockPickingBatch(models.Model):
     ################################################################################
 
     def _l10n_ro_edi_stock_get_current_document(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.l10n_ro_edi_stock_document_ids.sorted()[0] if self.l10n_ro_edi_stock_document_ids else None
 
     def _l10n_ro_edi_stock_get_all_documents(self, states):
-        self.ensure_one()
+        self.check_singleton()
 
         if isinstance(states, str):
             states = [states]
@@ -235,13 +235,13 @@ class StockPickingBatch(models.Model):
         return self.l10n_ro_edi_stock_document_ids.filtered(lambda doc: doc.state in states)
 
     def _l10n_ro_edi_stock_get_last_document(self, state):
-        self.ensure_one()
+        self.check_singleton()
         documents_in_state = self.l10n_ro_edi_stock_document_ids.filtered(lambda doc: doc.state == state).sorted()
 
         return documents_in_state and documents_in_state[0]
 
     def _l10n_ro_edi_stock_create_document_stock_sent(self, values: dict[str, object]):
-        self.ensure_one()
+        self.check_singleton()
         return self.env['l10n_ro_edi.document'].create({
             'batch_id': self.id,
             'state': 'stock_sent',
@@ -251,7 +251,7 @@ class StockPickingBatch(models.Model):
         })
 
     def _l10n_ro_edi_stock_create_document_stock_sending_failed(self, values: dict[str, object]):
-        self.ensure_one()
+        self.check_singleton()
         document = self.env['l10n_ro_edi.document'].create({
             'batch_id': self.id,
             'state': 'stock_sending_failed',
@@ -267,7 +267,7 @@ class StockPickingBatch(models.Model):
         return document
 
     def _l10n_ro_edi_stock_create_document_stock_validated(self, values: dict[str, object]):
-        self.ensure_one()
+        self.check_singleton()
         return self.env['l10n_ro_edi.document'].create({
             'batch_id': self.id,
             'state': 'stock_validated',
@@ -285,7 +285,7 @@ class StockPickingBatch(models.Model):
         Send the eTransport document to anaf
         :param send_type: 'send' (initial sending of document) | 'amend' (correct the already sent document)
         """
-        self.ensure_one()
+        self.check_singleton()
 
         data = {
             'partner_id': self.picking_ids[0].partner_id,
@@ -421,5 +421,5 @@ class StockPickingBatch(models.Model):
     ################################################################################
 
     def _l10n_ro_edi_stock_report_unhandled_document_state(self, state: str):
-        self.ensure_one()
+        self.check_singleton()
         self.message_post(body=_("Unhandled eTransport document state: %(state)s", state=state))

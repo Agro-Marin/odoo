@@ -282,7 +282,7 @@ class AccountMove(models.Model):
 
     def _l10n_gr_edi_eligible_for_mydata(self):
         """Shorthand for getting the eligibility of the current move to send to myDATA."""
-        self.ensure_one()
+        self.check_singleton()
         return all(
             (
                 self.country_code == "GR",
@@ -292,14 +292,14 @@ class AccountMove(models.Model):
 
     def _get_name_invoice_report(self):
         # EXTENDS account
-        self.ensure_one()
+        self.check_singleton()
         if self.l10n_gr_edi_state == "invoice_sent":
             return "l10n_gr_edi.report_invoice_document"
         return super()._get_name_invoice_report()
 
     def _l10n_gr_edi_get_extra_invoice_report_values(self):
         """Get the values used to render the invoice PDF."""
-        self.ensure_one()
+        self.check_singleton()
         document = self._l10n_gr_edi_get_transmission("invoice")
 
         if document.state == "accepted":
@@ -349,7 +349,7 @@ class AccountMove(models.Model):
         :param dict values: dictionary where the address values will be added
         :rtype: dict[str, str|int]
         """
-        self.ensure_one()
+        self.check_singleton()
         issuer_not_from_greece = self.company_id.country_code != "GR"
         inv_type_allows_counterpart = (
             self.l10n_gr_edi_inv_type not in TYPES_WITH_FORBIDDEN_COUNTERPART
@@ -429,7 +429,7 @@ class AccountMove(models.Model):
         :param dict values:
         :rtype: dict[str, list[dict]]
         """
-        self.ensure_one()
+        self.check_singleton()
         values.update({"payment_details": []})
         payment_terms = self.line_ids.filtered(
             lambda line: line.display_type == "payment_term"
@@ -667,7 +667,7 @@ class AccountMove(models.Model):
         Try to catch all possible errors before sending to myDATA.
         Returns an error dictionary in the format of Actionable Error JSON.
         """
-        self.ensure_one()
+        self.check_singleton()
         errors = {}
         error_action_company = {
             "action_text": _("View Company"),
@@ -813,7 +813,7 @@ class AccountMove(models.Model):
         return errors
 
     def _l10n_gr_edi_get_pre_error_string(self):
-        self.ensure_one()
+        self.check_singleton()
         pre_error = self._l10n_gr_edi_get_pre_error_dict()
         error_messages = (error_val["message"] for error_val in pre_error.values())
         return "\n".join(error_messages)
@@ -864,7 +864,7 @@ class AccountMove(models.Model):
 
     def _l10n_gr_edi_get_transmission(self, kind: str):
         """The most recent transmission of this kind, settled or not."""
-        self.ensure_one()
+        self.check_singleton()
         return self.transmission_ids.filtered(
             lambda transmission: transmission.document_kind == f"mydata.{kind}"
         ).sorted(key="id", reverse=True)[:1]
@@ -875,7 +875,7 @@ class AccountMove(models.Model):
         A settled transmission is never reused or removed: what was sent and
         what came back is the record, and a resend is a second ask.
         """
-        self.ensure_one()
+        self.check_singleton()
         latest = self._l10n_gr_edi_get_transmission(kind)
         if latest and not latest.is_settled:
             return latest

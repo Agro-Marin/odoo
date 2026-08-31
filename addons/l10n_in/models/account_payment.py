@@ -21,7 +21,7 @@ class AccountPayment(models.Model):
                 payment.l10n_in_total_withholding_amount = 0.0
 
     def action_l10n_in_withholding_entries(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             'name': "TDS Entries",
             'type': 'ir.actions.act_window',

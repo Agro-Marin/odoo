@@ -93,7 +93,7 @@ class AccountMove(models.Model):
         return errors
 
     def _l10n_ke_fiscal_device_details_filled(self):
-        self.ensure_one()
+        self.check_singleton()
         # If the company is configured for OSCU, don't block the Send & Print.
         if self.company_id.l10n_ke_oscu_is_active:
             return True
@@ -230,7 +230,7 @@ class AccountMove(models.Model):
             required for the fiscal device to open an invoice, add lines and
             subsequently close it.
         """
-        self.ensure_one()
+        self.check_singleton()
         msgs = self._l10n_ke_cu_open_invoice_message()
         msgs += self._l10n_ke_cu_lines_messages()
         # Command: Close fiscal reciept (0x38)

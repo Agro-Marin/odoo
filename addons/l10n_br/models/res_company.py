@@ -10,7 +10,7 @@ class ResCompany(models.Model):
     l10n_br_nire_code = fields.Char(string="NIRE", help="State Commercial Identification Number. Should contain 11 digits.")
 
     def _localization_use_documents(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.chart_template == 'br' or super()._localization_use_documents()
 
     def _is_latam(self):

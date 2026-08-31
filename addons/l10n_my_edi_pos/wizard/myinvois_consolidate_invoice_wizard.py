@@ -29,7 +29,7 @@ class MyInvoisConsolidateInvoiceWizard(models.TransientModel):
         records inbetween the provided dates.
         :return: A list of dicts used to create the consolidated invoices.
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.consolidation_type == 'pos':
             orders_to_consolidate = self.env['pos.order'].search([
                 ("state", "=", "done"),

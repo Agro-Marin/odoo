@@ -115,7 +115,7 @@ class AccountMove(models.Model):
         return super().action_draft()
 
     def _l10n_rs_edi_send(self, send_to_cir):
-        self.ensure_one()
+        self.check_singleton()
         self.env['res.company']._with_locked_records(self)
         xml, errors = self.env['account.edi.xml.ubl.rs']._export_invoice(self)
         if errors:
@@ -150,7 +150,7 @@ class AccountMove(models.Model):
         return xml, error_message
 
     def _l10n_rs_edi_get_attachment_values(self, xml):
-        self.ensure_one()
+        self.check_singleton()
         return {
             'name': self._l10n_rs_edi_get_xml_attachment_name(),
             'mimetype': 'application/xml',

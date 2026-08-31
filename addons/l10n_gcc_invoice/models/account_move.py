@@ -18,14 +18,14 @@ class AccountMove(models.Model):
     narration = fields.Html(translate=True)
 
     def _get_name_invoice_report(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.company_id.country_id and 'GCC' in self.company_id.country_id.country_group_codes:
             return 'l10n_gcc_invoice.l10n_gcc_report_invoice_document'
         return super()._get_name_invoice_report()
 
     def _l10n_gcc_get_invoice_title(self):
         """To be overriden by inheriting modules implementing a custom invoice title"""
-        self.ensure_one()
+        self.check_singleton()
         return False
 
     def _num2words(self, number, lang):
@@ -92,7 +92,7 @@ class AccountMoveLine(models.Model):
 
     def _get_child_lines(self):
         # EXTENDS account
-        self.ensure_one()
+        self.check_singleton()
         res = super()._get_child_lines()
 
         for line in res:

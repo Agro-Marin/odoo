@@ -5,7 +5,7 @@ class StockMove(models.Model):
     _inherit = "stock.move"
 
     def _l10n_in_get_product_price_unit(self):
-        self.ensure_one()
+        self.check_singleton()
         if line_id := self.purchase_line_id:
             if qty := line_id.product_qty:
                 company_id = line_id.company_id
@@ -20,7 +20,7 @@ class StockMove(models.Model):
         return super()._l10n_in_get_product_price_unit()
 
     def _l10n_in_get_product_tax(self):
-        self.ensure_one()
+        self.check_singleton()
         if line_id := self.purchase_line_id:
             return {
                 'is_from_order': True,

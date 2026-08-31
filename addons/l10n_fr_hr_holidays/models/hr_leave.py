@@ -17,14 +17,14 @@ class HrLeave(models.Model):
         # - there is only one employee affected by the leave
         # - the company is french
         # - the leave_type is the reference leave_type of that company
-        self.ensure_one()
+        self.check_singleton()
         return self.employee_id and \
                self.company_id.country_id.code == 'FR' and \
                self.resource_calendar_id != self.company_id.resource_calendar_id and \
                self.holiday_status_id == self.company_id._get_fr_reference_leave_type()
 
     def _get_fr_date_from_to(self, date_from, date_to):
-        self.ensure_one()
+        self.check_singleton()
         # What we need to compute is how much we will need to push date_to in order to account for the lost days
         # This gets even more complicated in two_weeks_calendars
 

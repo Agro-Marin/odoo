@@ -26,7 +26,7 @@ class PosSession(models.Model):
     _inherit = "pos.session"
 
     def _check_session_timing(self):
-        self.ensure_one()
+        self.check_singleton()
         return True
 
     def open_frontend_cb(self):
@@ -135,7 +135,7 @@ class PosOrder(models.Model):
 
     def _get_new_hash(self):
         """Returns the hash to write on pos orders when they get posted"""
-        self.ensure_one()
+        self.check_singleton()
         # build and return the hash
         computed_hash = self._compute_hash(
             self.previous_order_id.l10n_fr_hash if self.previous_order_id else ""
@@ -152,7 +152,7 @@ class PosOrder(models.Model):
     def _compute_hash(self, previous_hash):
         """Computes the hash of the record given as self, based on the hash
         of the previous record in the company's securisation sequence given as parameter"""
-        self.ensure_one()
+        self.check_singleton()
         hash_string = sha256(
             (previous_hash + self.l10n_fr_string_to_hash).encode("utf-8")
         )

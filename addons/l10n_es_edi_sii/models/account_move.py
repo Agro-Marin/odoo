@@ -34,7 +34,7 @@ class AccountMove(models.Model):
                                            and has_tax
 
     def _l10n_es_is_dua(self):
-        self.ensure_one()
+        self.check_singleton()
         return any(t.l10n_es_type == 'dua' for t in self.invoice_line_ids.tax_ids.flatten_taxes_hierarchy())
 
     def _check_edi_documents_for_reset_to_draft(self):

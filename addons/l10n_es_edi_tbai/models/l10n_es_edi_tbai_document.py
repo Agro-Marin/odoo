@@ -13,7 +13,7 @@ from odoo import _, api, fields, models, release
 from odoo.exceptions import UserError
 from odoo.libs.datetime import timezone
 from odoo.libs.numbers import float_repr, float_round
-from odoo.libs.xml import canonicalize_signed_info, fill_reference_digests
+from odoo.libs.xml import canonicalize_signed_info, update_reference_digests
 from odoo.tools import get_lang
 from odoo.tools.xml_utils import cleanup_xml_node
 
@@ -161,7 +161,7 @@ class L10n_Es_Edi_TbaiDocument(models.Model):
     # -------------------------------------------------------------------------
 
     def _post_to_web_service(self, values):
-        self.ensure_one()
+        self.check_singleton()
 
         error = self._check_can_post(values)
         if error:
@@ -338,7 +338,7 @@ class L10n_Es_Edi_TbaiDocument(models.Model):
     L10N_ES_TBAI_VERSION = 1.2
 
     def _generate_xml(self, values):
-        self.ensure_one()
+        self.check_singleton()
 
         def format_float(value, precision_digits=2):
             rounded_value = float_round(value, precision_digits=precision_digits)
@@ -689,7 +689,7 @@ class L10n_Es_Edi_TbaiDocument(models.Model):
         return xml_doc
 
     def _sign_sale_document(self, xml_root):
-        self.ensure_one()
+        self.check_singleton()
 
         company = self.company_id
         certificate_sudo = company.sudo().l10n_es_tbai_certificate_id
@@ -732,7 +732,7 @@ class L10n_Es_Edi_TbaiDocument(models.Model):
         xml_root.append(xml_sig)
 
         # Compute digest values for references
-        fill_reference_digests(xml_sig.find("SignedInfo", namespaces=NS_MAP), algorithm='sha256')
+        update_reference_digests(xml_sig.find("SignedInfo", namespaces=NS_MAP), algorithm='sha256')
 
         # Sign (writes into SignatureValue)
         signed_info_xml = xml_sig.find('SignedInfo', namespaces=NS_MAP)
@@ -763,7 +763,7 @@ class L10n_Es_Edi_TbaiDocument(models.Model):
     @api.model
     def _get_tbai_sequence_and_number_purchase(self):
         ''' Get the numbers in the case of vendor bills of Bizkaia'''
-        self.ensure_one()
+        self.check_singleton()
         original_vendor_bill = self.env['account.move'].search([('l10n_es_tbai_post_document_id', '=', self.id)],
                                                                limit=1)
         if original_vendor_bill and self.is_cancel: # Normally it should be is_cancel in this case
@@ -796,7 +796,7 @@ class L10n_Es_Edi_TbaiDocument(models.Model):
 
     def _get_tbai_sequence_and_number(self):
         """Get the TicketBAI sequence a number values for this invoice."""
-        self.ensure_one()
+        self.check_singleton()
         return self._get_tbai_seq_from_name(self.name)
 
     def _get_tbai_signature_and_date(self):
@@ -805,7 +805,7 @@ class L10n_Es_Edi_TbaiDocument(models.Model):
         Should only be called for a "post" document (is_cancel==False).
         The registration date is the date the document was registered into the govt's TicketBAI servers.
         """
-        self.ensure_one()
+        self.check_singleton()
         vals = self._get_values_from_xml({
             'signature': './/{http://www.w3.org/2000/09/xmldsig#}SignatureValue',
             'registration_date': './/CabeceraFactura//FechaExpedicionFactura'
@@ -818,7 +818,7 @@ class L10n_Es_Edi_TbaiDocument(models.Model):
 
     def _get_tbai_id(self):
         """Get the TicketBAI ID (TBAID) as defined in the TicketBAI doc."""
-        self.ensure_one()
+        self.check_singleton()
         if not self._is_in_chain():
             return ''
 
@@ -835,7 +835,7 @@ class L10n_Es_Edi_TbaiDocument(models.Model):
 
     def _get_tbai_qr(self):
         """Returns the URL for the document's QR code.  We can not use url_encode because it escapes / e.g."""
-        self.ensure_one()
+        self.check_singleton()
         if not self._is_in_chain():
             return ''
 
@@ -868,7 +868,7 @@ class L10n_Es_Edi_TbaiDocument(models.Model):
 
     def _get_xml(self):
         """Returns the XML object representing the document."""
-        self.ensure_one()
+        self.check_singleton()
         doc = self.xml_attachment_id
         if not doc:
             return None

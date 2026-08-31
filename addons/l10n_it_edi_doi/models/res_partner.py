@@ -12,7 +12,7 @@ class ResPartner(models.Model):
     )
 
     def l10n_it_edi_doi_action_view_declarations(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             'name': _("Declaration of Intent of %s", self.display_name),
             'type': 'ir.actions.act_window',

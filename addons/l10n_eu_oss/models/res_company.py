@@ -178,7 +178,7 @@ class ResCompany(models.Model):
                             })
 
     def _get_repartition_lines_oss(self):
-        self.ensure_one()
+        self.check_singleton()
         oss_account, oss_tags = self._get_oss_account(), self._get_oss_tags()
         repartition_line_ids = {}
         for doc_type, rep_type in product(('invoice', 'refund'), ('base', 'tax')):
@@ -189,7 +189,7 @@ class ResCompany(models.Model):
         return repartition_line_ids['invoice'], repartition_line_ids['refund']
 
     def _get_oss_account(self):
-        self.ensure_one()
+        self.check_singleton()
         if not (oss_account := self.env.ref(f'l10n_eu_oss.oss_tax_account_company_{self.id}', raise_if_not_found=False)):
             oss_account = self._create_oss_account()
         return oss_account
@@ -257,7 +257,7 @@ class ResCompany(models.Model):
         return mapping
 
     def _get_country_from_vat(self):
-        self.ensure_one()
+        self.check_singleton()
         country = None
         # Try to use the VAT country if vat is set and easily guessable
         if self.vat:

@@ -215,7 +215,7 @@ class AccountMove(models.Model):
 
     def _l10n_vn_edi_fetch_invoice_file_data(self, file_format):
         """ Helper to try fetching a few time in case the files are not yet ready. """
-        self.ensure_one()
+        self.check_singleton()
         files_data, error_message = self._l10n_vn_edi_try_fetch_invoice_file_data(file_format)
 
         if error_message:
@@ -234,7 +234,7 @@ class AccountMove(models.Model):
         """
         Query sinvoice in order to fetch the data representation of the invoice, either zip or pdf.
         """
-        self.ensure_one()
+        self.check_singleton()
         if not self._l10n_vn_edi_is_sent():
             return {}, _("In order to download the invoice's PDF file, you must first send it to SInvoice")
 
@@ -263,7 +263,7 @@ class AccountMove(models.Model):
 
         Returns a list of tuple with both file names, mimetype, content and the field it should be stored in.
         """
-        self.ensure_one()
+        self.check_singleton()
         files_data, error_message = self._l10n_vn_edi_fetch_invoice_file_data('ZIP')
         if error_message:
             return files_data, error_message
@@ -291,7 +291,7 @@ class AccountMove(models.Model):
 
         Returns a tuple with the pdf name, mimetype, content and field.
         """
-        self.ensure_one()
+        self.check_singleton()
         file_data, error_message = self._l10n_vn_edi_fetch_invoice_file_data('PDF')
         if error_message:
             return file_data, error_message
@@ -398,7 +398,7 @@ class AccountMove(models.Model):
 
     def _l10n_vn_edi_check_invoice_configuration(self):
         """ Some checks that are used to avoid common errors before sending the invoice. """
-        self.ensure_one()
+        self.check_singleton()
         company = self.company_id
         commercial_partner = self.commercial_partner_id
         errors = []
@@ -433,7 +433,7 @@ class AccountMove(models.Model):
         Handles lookup on the system in order to ensure that the invoice was not sent successfully yet in case of
         timeout or other unforeseen error.
         """
-        self.ensure_one()
+        self.check_singleton()
 
         # == Lock ==
         self.env['res.company']._with_locked_records(self)
@@ -481,7 +481,7 @@ class AccountMove(models.Model):
 
     def _l10n_vn_edi_cancel_invoice(self, reason, agreement_document_name, agreement_document_date):
         """ Send a request to cancel the invoice. """
-        self.ensure_one()
+        self.check_singleton()
 
         # == Lock ==
         self.env['res.company']._with_locked_records(self)
@@ -555,7 +555,7 @@ class AccountMove(models.Model):
     def _l10n_vn_edi_generate_invoice_json(self):
         """ Return the dict of data that will be sent to the api in order to create the invoice. """
         # We leave the summarized information computation to SInvoice.
-        self.ensure_one()
+        self.check_singleton()
         # This MUST match chronologically with the sequence they generate on their system, which is why it is set to now.
         self.l10n_vn_edi_issue_date = fields.Datetime.now()
         json_values = {}
@@ -569,7 +569,7 @@ class AccountMove(models.Model):
 
     def _l10n_vn_edi_add_general_invoice_information(self, json_values):
         """ General invoice information, such as the model number, invoice symbol, type, date of issues, ... """
-        self.ensure_one()
+        self.check_singleton()
         invoice_data = {
             'transactionUuid': str(uuid.uuid4()),
             'invoiceType': self.l10n_vn_edi_invoice_symbol.invoice_template_id.template_invoice_type,
@@ -618,7 +618,7 @@ class AccountMove(models.Model):
 
     def _l10n_vn_edi_add_buyer_information(self, json_values):
         """ Create and return the buyer information for the current invoice. """
-        self.ensure_one()
+        self.check_singleton()
 
         commercial_partner_phone = self.commercial_partner_id.phone and self._l10n_vn_edi_format_phone_number(self.commercial_partner_id.phone)
         buyer_information = {
@@ -643,7 +643,7 @@ class AccountMove(models.Model):
 
     def _l10n_vn_edi_add_seller_information(self, json_values):
         """ Create and return the seller information for the current invoice. """
-        self.ensure_one()
+        self.check_singleton()
         company_phone = self.company_id.phone and self._l10n_vn_edi_format_phone_number(self.company_id.phone)
         seller_information = {
             'sellerLegalName': self.company_id.name,
@@ -673,7 +673,7 @@ class AccountMove(models.Model):
 
     def _l10n_vn_edi_add_payment_information(self, json_values):
         """ Create and return the payment information for the current invoice. Not fully supported. """
-        self.ensure_one()
+        self.check_singleton()
         json_values['payments'] = [{
             # We need to provide a value but when we send the invoice, we may not have this information.
             # According to VN laws, if the payment method has not been determined, we can fill in TM/CK.
@@ -683,7 +683,7 @@ class AccountMove(models.Model):
 
     def _l10n_vn_edi_add_item_information(self, json_values):
         """ Create and return the items information for the current invoice. """
-        self.ensure_one()
+        self.check_singleton()
         items_information = []
         code_map = {
             'product': 1,
@@ -726,7 +726,7 @@ class AccountMove(models.Model):
 
     def _l10n_vn_edi_add_tax_breakdowns(self, json_values):
         """ Create and return the tax breakdown of the current invoice. """
-        self.ensure_one()
+        self.check_singleton()
 
         def grouping_key_generator(base_line, tax_data):
             # Requirement is to generate a tax breakdown per taxPercentage
@@ -748,7 +748,7 @@ class AccountMove(models.Model):
 
     def _l10n_vn_edi_lookup_invoice(self):
         """ Lookup on invoice, returning its current details on SInvoice. """
-        self.ensure_one()
+        self.check_singleton()
         access_token, error = self._l10n_vn_edi_get_access_token()
         if error:
             return {}, error
@@ -769,7 +769,7 @@ class AccountMove(models.Model):
 
     def _l10n_vn_edi_get_access_token(self):
         """ Return an access token to be used to contact the API. Either take a valid stored one or get a new one. """
-        self.ensure_one()
+        self.check_singleton()
         credentials_company = self._l10n_vn_edi_get_credentials_company()
         # First, check if we have a token stored and if it is still valid.
         if credentials_company.l10n_vn_edi_token and credentials_company.l10n_vn_edi_token_expiry > datetime.now():
@@ -839,7 +839,7 @@ class AccountMove(models.Model):
 
     def _l10n_vn_edi_is_sent(self):
         """ Small helper that returns true if self has been sent to sinvoice. """
-        self.ensure_one()
+        self.check_singleton()
         sent_statuses = {'sent', 'payment_state_to_update', 'canceled', 'adjusted', 'replaced'}
         return self.l10n_vn_edi_invoice_state in sent_statuses
 

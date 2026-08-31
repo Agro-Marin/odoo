@@ -64,7 +64,7 @@ class ResConfigSettings(models.TransientModel):
         """
             Orchestrates the entire authentication flow using the service.
         """
-        self.ensure_one()
+        self.check_singleton()
 
         vat = self.company_id.vat
         if not vat or not vat.startswith('PL'):

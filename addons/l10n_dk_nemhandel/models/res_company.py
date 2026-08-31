@@ -56,7 +56,7 @@ class ResCompany(models.Model):
             raise ValidationError(_("Please install the phonenumbers library."))
 
     def _sanitize_nemhandel_phone_number(self, phone_number=None):
-        self.ensure_one()
+        self.check_singleton()
 
         error_message = _(
             "Please enter the phone number in the correct international format.\n"
@@ -141,10 +141,10 @@ class ResCompany(models.Model):
     # -------------------------------------------------------------------------
 
     def _get_nemhandel_edi_mode(self):
-        self.ensure_one()
+        self.check_singleton()
         config_param = self.env['ir.config_parameter'].sudo().get_param('l10n_dk_nemhandel.edi.mode')
         return self.sudo().nemhandel_edi_user.edi_mode or config_param or 'prod'
 
     def _get_nemhandel_webhook_endpoint(self):
-        self.ensure_one()
+        self.check_singleton()
         return urljoin(self.get_base_url(), '/nemhandel/webhook')

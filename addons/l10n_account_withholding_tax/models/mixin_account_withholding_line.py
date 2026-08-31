@@ -309,7 +309,7 @@ class MixinAccountWithholdingLine(models.AbstractModel):
         Convert self to a tax base line using the correct structure needed for tax computation.
         This is used when preparing the journal items representing the withholding lines in the final payment entry.
         """
-        self.ensure_one()
+        self.check_singleton()
         company = self.company_id
         currency = self.comodel_currency_id
         conversion_date = self.comodel_date
@@ -439,7 +439,7 @@ class MixinAccountWithholdingLine(models.AbstractModel):
 
     def _get_grouping_key(self):
         """ Helper returning the grouping key for this line; should match what is done in _prepare_withholding_lines_commands. """
-        self.ensure_one()
+        self.check_singleton()
         # /!\ Please keep this aligned with _prepare_withholding_lines_commands to ensure correct computation.
         return frozendict({
             'name': self.name,

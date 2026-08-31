@@ -269,7 +269,7 @@ class AccountMove(models.Model):
         """
         Check the tax type and special tax type on the invoice lines
         """
-        self.ensure_one()
+        self.check_singleton()
         product_lines = self.invoice_line_ids.filtered(lambda line: line.display_type == "product")
         errors = []
         # Invoice lines without tax or having multiple taxes are not allowed
@@ -341,7 +341,7 @@ class AccountMove(models.Model):
             - special_tax_type (int): The special tax type code.
             - is_zero_tax_rate (bool): True if it is zero tax rate.
         """
-        self.ensure_one()
+        self.check_singleton()
         product_lines = self.invoice_line_ids.filtered(lambda line: line.display_type == "product")
         # Create a set of tax types on invoice lines to check if there are multiple tax types or specific tax type on the invoice lines
         invoice_lines_tax_types = set(product_lines.tax_ids.mapped('l10n_tw_edi_tax_type'))
@@ -371,7 +371,7 @@ class AccountMove(models.Model):
         """
         Convert currency to TWD if the currency is not TWD
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.currency_id.name == "TWD":
             return amount
         return self.currency_id._convert(amount, self.env.ref("base.TWD"), self.company_id, self.invoice_date or self.date, round=False)
@@ -410,7 +410,7 @@ class AccountMove(models.Model):
         return cleaned_number
 
     def _l10n_tw_edi_check_before_generate_invoice_json(self):
-        self.ensure_one()
+        self.check_singleton()
         errors = []
         if not self.company_id.sudo().l10n_tw_edi_ecpay_merchant_id:
             errors.append(self.env._("Please fill in the ECpay API information in the Setting!"))
@@ -460,7 +460,7 @@ class AccountMove(models.Model):
                     )
 
     def _l10n_tw_edi_prepare_item_list(self, json_data, is_allowance=False):
-        self.ensure_one()
+        self.check_singleton()
         item_list = []
         sale_amount = 0
         tax_amount = 0
@@ -565,7 +565,7 @@ class AccountMove(models.Model):
             json_data["TaxAmount"] = self.company_id.currency_id.round(tax_amount) if tax_type != "4" else 0
 
     def _l10n_tw_edi_generate_invoice_json(self):
-        self.ensure_one()
+        self.check_singleton()
         self._l10n_tw_edi_check_before_generate_invoice_json()
         tax_type, special_tax_type, is_zero_tax_rate = self._l10n_tw_edi_determine_tax_types()
         self.l10n_tw_edi_related_number = base64.urlsafe_b64encode(uuid.uuid4().bytes)[:20]
@@ -612,7 +612,7 @@ class AccountMove(models.Model):
         return json_data
 
     def _l10n_tw_edi_check_before_generate_issue_allowance_json(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.l10n_tw_edi_ecpay_invoice_id:
             raise UserError(self.env._(
                 "You cannot issue an allowance for invoice %(invoice_number)s as it was not sent to Ecpay. ",
@@ -628,7 +628,7 @@ class AccountMove(models.Model):
                                        notify_way=self.l10n_tw_edi_allowance_notify_way))
 
     def _l10n_tw_edi_generate_issue_allowance_json(self):
-        self.ensure_one()
+        self.check_singleton()
         self._l10n_tw_edi_check_before_generate_issue_allowance_json()
         json_data = {
             "MerchantID": self.company_id.sudo().l10n_tw_edi_ecpay_merchant_id,
@@ -686,7 +686,7 @@ class AccountMove(models.Model):
         """
         Issuing an e-invoice by calling the Ecpay API and update the invoicing result in Odoo
         """
-        self.ensure_one()
+        self.check_singleton()
         # Ensure to lock the records that will be sent, to avoid risking sending them twice.
         self.env["res.company"]._with_locked_records(self)
 
@@ -718,7 +718,7 @@ class AccountMove(models.Model):
         """
         Searching the e-invoice information from Ecpay API and update the invoice information in Odoo
         """
-        self.ensure_one()
+        self.check_singleton()
         # Ensure to lock the records that will be sent, to avoid risking sending them twice.
         self.env["res.company"]._with_locked_records(self)
 
@@ -748,7 +748,7 @@ class AccountMove(models.Model):
         """
         Cancelling the e-invoice by calling the Ecpay API and update the invoice information in Odoo
         """
-        self.ensure_one()
+        self.check_singleton()
 
         # Ensure to lock the records that will be sent, to avoid risking sending them twice.
         self.env["res.company"]._with_locked_records(self)
@@ -797,7 +797,7 @@ class AccountMove(models.Model):
             get his/her agreement
             ONce the customer clicks the link, an allowance will be issued instantly
         """
-        self.ensure_one()
+        self.check_singleton()
 
         # Ensure to lock the records that will be sent, to avoid risking sending them twice.
         self.env["res.company"]._with_locked_records(self)
@@ -824,7 +824,7 @@ class AccountMove(models.Model):
         )
 
     def _l10n_tw_edi_print_invoice(self):
-        self.ensure_one()
+        self.check_singleton()
         if self.l10n_tw_edi_state not in ['invoiced', 'valid'] or not self.l10n_tw_edi_ecpay_invoice_id or not (self.l10n_tw_edi_is_print or self.l10n_tw_edi_is_b2b):
             raise UserError(self.env._(
                 "You cannot print an invoice that was not sent to Ecpay, without the print flag, "

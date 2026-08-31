@@ -10,7 +10,7 @@ class PosSession(models.Model):
     _inherit = "pos.session"
 
     def l10n_tw_edi_check_mobile_barcode(self, text):
-        self.ensure_one()
+        self.check_singleton()
         json_data = {
             "MerchantID": self.company_id.sudo().l10n_tw_edi_ecpay_merchant_id,
             "BarCode": text,
@@ -20,7 +20,7 @@ class PosSession(models.Model):
             raise UserError(self.env._("Mobile barcode is invalid!"))
 
     def l10n_tw_edi_check_love_code(self, text):
-        self.ensure_one()
+        self.check_singleton()
         json_data = {
             "MerchantID": self.company_id.sudo().l10n_tw_edi_ecpay_merchant_id,
             "LoveCode": text,

@@ -434,7 +434,7 @@ class AccountMove(models.Model):
         Attaches the XML file to the invoice.
         Sends the invoice to the SdI.
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if errors := self._l10n_it_edi_export_data_check():
             messages = []
@@ -480,7 +480,7 @@ class AccountMove(models.Model):
         self.is_move_sent = True
 
     def action_check_l10n_it_edi(self):
-        self.ensure_one()
+        self.check_singleton()
         if (
             not self.l10n_it_edi_transaction
             and self.l10n_it_edi_state not in WAITING_STATES
@@ -498,7 +498,7 @@ class AccountMove(models.Model):
 
     def _get_invoice_legal_documents(self, filetype, allow_fallback=False):
         # EXTENDS 'account'
-        self.ensure_one()
+        self.check_singleton()
         if filetype == "fatturapa":
             if fatturapa_attachment := self.l10n_it_edi_attachment_file:
                 return {
@@ -537,7 +537,7 @@ class AccountMove(models.Model):
     # -------------------------------------------------------------------------
 
     def _l10n_it_edi_ready_for_xml_export(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.state == "posted"
             and self.company_id.account_fiscal_country_id.code == "IT"
@@ -548,7 +548,7 @@ class AccountMove(models.Model):
     def _l10n_it_edi_add_base_lines_xml_values(
         self, base_lines_aggregated_values, is_downpayment
     ):
-        self.ensure_one()
+        self.check_singleton()
         quantita_pd = min(
             self.env["account.move.line"]._fields["quantity"].get_digits(self.env)[1], 8
         )
@@ -663,7 +663,7 @@ class AccountMove(models.Model):
     def _l10n_it_edi_get_tax_lines_xml_values(
         self, base_lines_aggregated_values, values_per_grouping_key
     ):
-        self.ensure_one()
+        self.check_singleton()
         tax_lines = []
         for values in values_per_grouping_key.values():
             grouping_key = values["grouping_key"]
@@ -823,7 +823,7 @@ class AccountMove(models.Model):
                 or tax.l10n_it_pension_fund_type == "TC07",
             }
 
-        self.ensure_one()
+        self.check_singleton()
 
         # Flags
         is_self_invoice = self.l10n_it_edi_is_self_invoice
@@ -1132,7 +1132,7 @@ class AccountMove(models.Model):
         be mixed in the same invoice, because the TipoDocumento depends on which which kind
         of product is bought and it's unambiguous.
         """
-        self.ensure_one()
+        self.check_singleton()
         scopes = []
         for line in self.invoice_line_ids.filtered(
             lambda l: (
@@ -1160,7 +1160,7 @@ class AccountMove(models.Model):
         that are phisically in Italy but are in a VAT deposit, meaning that the goods
         have not passed customs.
         """
-        self.ensure_one()
+        self.check_singleton()
         invoice_lines_tags = self.line_ids.tax_tag_ids
         it_tax_report_vj3_lines = self.env["account.report.line"].search(
             [
@@ -1181,7 +1181,7 @@ class AccountMove(models.Model):
         Only invoices under the threshold of 400 Euroes are allowed, to avoid this tool
         be abused for bigger transactions, that would enable less transparency to tax institutions.
         """
-        self.ensure_one()
+        self.check_singleton()
         template_reference = self.env.ref(
             "l10n_it_edi.account_invoice_it_simplified_FatturaPA_export",
             raise_if_not_found=False,
@@ -1209,7 +1209,7 @@ class AccountMove(models.Model):
         This function returns a boolean value based on the comparison of the lines values with a product.
         If one line has the tag for professional fee then we return True
         """
-        self.ensure_one()
+        self.check_singleton()
         professional_fee_tag = self.env.ref(
             "l10n_it_edi.l10n_it_edi_professional_fees_tag", raise_if_not_found=False
         )
@@ -2667,7 +2667,7 @@ class AccountMove(models.Model):
         return etree.tostring(xml_node, xml_declaration=True, encoding="UTF-8")
 
     def _l10n_it_edi_get_attachment_values(self, pdf_values=None):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "name": self._l10n_it_edi_generate_filename(),
             "type": "binary",
@@ -2830,7 +2830,7 @@ class AccountMove(models.Model):
         * error:         An eventual error.
         """
         proxy_user = self.company_id.l10n_it_edi_proxy_user_id
-        proxy_user.ensure_one()
+        proxy_user.check_singleton()
         if proxy_user.edi_mode == "demo":
             return {"id_transaction": "demo"}
         server_url = proxy_user._get_server_url()
@@ -2970,7 +2970,7 @@ class AccountMove(models.Model):
         Computes whether the EDI Proxy Server is to be acked,
         and whether the id_transaction has to be reset.
         """
-        self.ensure_one()
+        self.check_singleton()
         state_map = {
             "not_found": False,
             "awaiting_outcome": "processing",
@@ -3013,7 +3013,7 @@ class AccountMove(models.Model):
         Eventually post the message.
         Commit the transaction.
         """
-        self.ensure_one()
+        self.check_singleton()
         old_state = self.l10n_it_edi_state
         new_state = transformed_notification["l10n_it_edi_state"]
         self.write(
@@ -3038,7 +3038,7 @@ class AccountMove(models.Model):
         """The status change will be notified in the chatter of the move.
         Compute the message from the notification information coming from the EDI Proxy Server
         """
-        self.ensure_one()
+        self.check_singleton()
         partner = self.commercial_partner_id
         partner_name = partner.display_name
         filename = transformed_notification["filename"]

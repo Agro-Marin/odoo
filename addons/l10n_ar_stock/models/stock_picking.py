@@ -42,7 +42,7 @@ class StockPicking(models.Model):
         """
         Create the delivery guide number and store CAI data for the stock picking.
         """
-        self.ensure_one()
+        self.check_singleton()
 
         if not self.l10n_ar_delivery_guide_number:
             picking_type = self.picking_type_id
@@ -63,7 +63,7 @@ class StockPicking(models.Model):
         """
         Send the delivery guide to the partner.
         """
-        self.ensure_one()
+        self.check_singleton()
         if not self.partner_id.email:
             raise UserError(_("The partner does not have an email address."))
         template = self.env.ref('l10n_ar_stock.email_template_ar_remitos_delivery_guide')

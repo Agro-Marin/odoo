@@ -12,7 +12,7 @@ class AccountMoveLine(models.Model):
         the method _l10n_cl_get_line_amounts, which is the same method used to calculate
         the values for the XML (DTE) file
         """
-        self.ensure_one()
+        self.check_singleton()
         invoice = self.move_id
         included_taxes = self.tax_ids.filtered(lambda x: x.l10n_cl_sii_code == 14) if self.move_id._l10n_cl_include_sii() else self.tax_ids
         if not included_taxes:

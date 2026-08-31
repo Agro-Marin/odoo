@@ -45,7 +45,7 @@ class AccountMoveSendWizard(models.TransientModel):
 
     def action_send_and_print(self, allow_fallback_pdf=False):
         # EXTENDS 'account'
-        self.ensure_one()
+        self.check_singleton()
         if self.sending_methods and 'nemhandel' in self.sending_methods:
             move = self.move_id.with_company(self.move_id.company_id)
             if move.partner_id.commercial_partner_id.nemhandel_verification_state != 'valid':

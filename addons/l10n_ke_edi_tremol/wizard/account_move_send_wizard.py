@@ -7,7 +7,7 @@ class AccountMoveSendWizard(models.TransientModel):
 
     def action_send_and_print(self, allow_fallback_pdf=False):
         # EXTENDS account - prevent Send & Print if KE invoices aren't validated and no fallback is allowed.
-        self.ensure_one()
+        self.check_singleton()
         if not allow_fallback_pdf:
             if warning_moves := self._get_l10n_ke_edi_tremol_warning_moves(self.move_id):
                 raise UserError(self._get_l10n_ke_edi_tremol_warning_message(warning_moves))

@@ -10,7 +10,7 @@ class ResCompany(models.Model):
     l10n_in_ewaybill_feature = fields.Boolean(string="E-Waybill")
 
     def _l10n_in_ewaybill_token_is_valid(self):
-        self.ensure_one()
+        self.check_singleton()
         return (
             self.l10n_in_ewaybill_auth_validity
             and self.l10n_in_ewaybill_auth_validity > fields.Datetime.now()

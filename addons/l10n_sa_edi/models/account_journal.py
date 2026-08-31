@@ -105,7 +105,7 @@ class AccountJournal(models.Model):
             Helper function to know if the required CSIDs have been obtained, and the compliance checks have been
             completed
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.sudo().l10n_sa_production_csid_json
 
     def _l10n_sa_api_onboard_sanity_checks(self):
@@ -135,7 +135,7 @@ class AccountJournal(models.Model):
         """
             Generate a CSR for the Journal to be used for the Onboarding process and Invoice submissions
         """
-        self.ensure_one()
+        self.check_singleton()
         if any(not self.company_id[f] for f in self._l10n_sa_csr_required_fields()):
             raise UserError(
                 _(
@@ -170,7 +170,7 @@ class AccountJournal(models.Model):
                 2.  Perform the Compliance Checks
                 3.  Get the Production CSID
         """
-        self.ensure_one()
+        self.check_singleton()
         # we want to perform sanity checks to ensure that the journal is ready to be onboarded
         # If the check fails, we do not want to revoke the existing PCSID because the user might still need it to post hanging invoices
         self._l10n_sa_api_onboard_sanity_checks()
@@ -285,7 +285,7 @@ class AccountJournal(models.Model):
             We read each one of these files separately, sign them, then process them through the Compliance Checks API.
         """
 
-        self.ensure_one()
+        self.check_singleton()
         self_sudo = self.sudo()
         if self.country_code != 'SA':
             raise UserError(_("Please change the (%s)'s country to Saudi Arabia and try again.", self.company_id.name))
@@ -351,7 +351,7 @@ class AccountJournal(models.Model):
         """
             Onboarding method to create or reset ICV sequence for the journal
         """
-        self.ensure_one()
+        self.check_singleton()
         if self.l10n_sa_chain_sequence_id:
             self.l10n_sa_chain_sequence_id.number_next = 1
             message = _("Journal re-onboarded with ZATCA successfully")
@@ -361,7 +361,7 @@ class AccountJournal(models.Model):
         self.message_post(body=message)
 
     def _l10n_sa_edi_create_new_chain(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.env['ir.sequence'].create({
             'name': f'ZATCA account move sequence for Journal {self.name} (id: {self.id})',
             'code': f'l10n_sa_edi.account.move.{self.id}',
@@ -370,7 +370,7 @@ class AccountJournal(models.Model):
         })
 
     def _l10n_sa_edi_get_next_chain_index(self):
-        self.ensure_one()
+        self.check_singleton()
         if not self.l10n_sa_chain_sequence_id:
             self.l10n_sa_chain_sequence_id = self._l10n_sa_edi_create_new_chain()
         return self.l10n_sa_chain_sequence_id.next_by_id()
@@ -381,7 +381,7 @@ class AccountJournal(models.Model):
         That invoice may have been received by the govt or not (eg. in case of a timeout).
         Only upon confirmed reception/refusal of that invoice can another one be posted.
         """
-        self.ensure_one()
+        self.check_singleton()
         return self.env['account.move'].search(
             [
                 ('journal_id', '=', self.id),
@@ -397,7 +397,7 @@ class AccountJournal(models.Model):
             API call to the Compliance CSID API to generate a CCSID certificate, password and compliance request_id
             Requires a CSR token and a One Time Password (OTP)
         """
-        self.ensure_one()
+        self.check_singleton()
         if not otp:
             raise UserError(_("The OTP is invalid. Please try again."))
         if not self.l10n_sa_csr:
@@ -424,7 +424,7 @@ class AccountJournal(models.Model):
             API call to the Production CSID API to renew a PCSID certificate, password and production request_id
             Requires an expired Production CSIDPCSID_data
         """
-        self.ensure_one()
+        self.check_singleton()
         auth_data = PCSID_data
         # For renewal, the sandbox API expects a specific Username/Password, which are set in the SANDBOX_AUTH dict
         if self.company_id.l10n_sa_api_mode == 'sandbox':
@@ -501,7 +501,7 @@ class AccountJournal(models.Model):
         """
             Generate company Production CSID data
         """
-        self.ensure_one()
+        self.check_singleton()
         return (
             self._l10n_sa_api_renew_production_CSID(csid_data, otp)
             if renew
@@ -512,7 +512,7 @@ class AccountJournal(models.Model):
         """
             Get CSIDs required to perform ZATCA api calls, and regenerate them if they need to be regenerated.
         """
-        self.ensure_one()
+        self.check_singleton()
         self_sudo = self.sudo()
         if not self_sudo.l10n_sa_production_csid_json or not self_sudo.l10n_sa_production_csid_certificate_id:
             raise UserError(str(ERROR_MESSAGE))
@@ -606,7 +606,7 @@ class AccountJournal(models.Model):
         return 'Basic ' + b64encode(auth_str.encode()).decode()
 
     def _l10n_sa_load_edi_demo_data(self):
-        self.ensure_one()
+        self.check_singleton()
         self.company_id.l10n_sa_private_key_id = self.env['certificate.key']._generate_ec_private_key(self.company_id)
         self.write({
             'l10n_sa_compliance_checks_passed': True,

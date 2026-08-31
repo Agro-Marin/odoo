@@ -35,7 +35,7 @@ class L10n_IdQrisTransaction(models.Model):
     def _get_record(self):
         """ Get the backend invoice record that the qris transaction is handling
         To be overriden in other modules"""
-        self.ensure_one()
+        self.check_singleton()
         if self.model != 'account.move':
             return
         return self.env['account.move'].browse(int(self.model_id)).exists()
