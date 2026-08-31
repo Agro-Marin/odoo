@@ -137,7 +137,7 @@ class SaleAdvancePaymentInv(models.TransientModel):
             "views": [(False, "list"), (False, "form")],
             "res_model": "account.move",
             "domain": [
-                ("line_ids.sale_line_id.order_id", "in", self.sale_order_ids.ids),
+                ("line_ids.sale_line_ids.order_id", "in", self.sale_order_ids.ids),
                 ("state", "=", "draft"),
             ],
         }
