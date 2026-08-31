@@ -479,7 +479,7 @@ class TestAccountReport(AccountTestInvoicingCommon):
         report.flush_recordset()
         report.copy()  # warm
 
-        with self.assertQueryCount(default=15, accountman=15):
+        with self.assertQueryCount(default=10, accountman=10):
             copied = report.copy()
             copied.flush_recordset()
 
@@ -587,3 +587,258 @@ class TestAccountReport(AccountTestInvoicingCommon):
         self.assertEqual(line.expression_ids._get_cross_report_id(), target.id)
         line.expression_ids.subformula = "cross_report(account.generic_tax_report)"
         self.assertEqual(line.expression_ids._get_cross_report_id(), target.id)
+
+    def test_a_root_report_cannot_become_a_variant_itself(self):
+        root = self._create_report("Chain Root")
+        self._create_report("Chain Variant", root_report_id=root.id)
+        other = self._create_report("Chain Other")
+        with self.assertRaisesRegex(ValidationError, "root report of"):
+            root.root_report_id = other
+
+    def test_a_section_cannot_gain_sections_of_its_own(self):
+        main = self._create_report("Nest Main")
+        middle = self._create_report("Nest Middle")
+        leaf = self._create_report("Nest Leaf")
+        main.section_report_ids = middle
+        with self.assertRaisesRegex(ValidationError, "cannot have sections themselves"):
+            middle.section_report_ids = leaf
+
+    def test_grouping_a_line_that_already_has_children_stays_allowed(self):
+        # The constraint message reads as if this were forbidden, and guarding it
+        # refuses seven subtests of account_reports' test_all_reports_generation,
+        # which sets user_groupby on Bank Reconciliation lines that have children.
+        # Only the other direction -- a child under a grouped line -- is enforced.
+        report = self._create_report("Groupby Late")
+        parent = self._create_line(report, "parent", "account_codes", "400")
+        self._create_line(
+            report, "child", "account_codes", "401", parent_id=parent.id, sequence=2
+        )
+        parent.user_groupby = "partner_id"
+        report.flush_recordset()
+        self.assertEqual(parent.user_groupby, "partner_id")
+        with self.assertRaisesRegex(ValidationError, "both children and a groupby"):
+            self._create_line(
+                report,
+                "late child",
+                "account_codes",
+                "402",
+                parent_id=parent.id,
+                sequence=3,
+            )
+
+    def test_renumbering_a_report_is_not_refused_for_a_half_applied_state(self):
+        # The report builder saves a drag as one Command.update per line, applied one
+        # line write at a time. A per-line ordering check sees the parent already
+        # moved and the child not yet, and refuses an ordering that is legal once the
+        # write finishes. This is what keeps the check on line_ids.
+        report = self._create_report("Reseq Legal")
+        parent = self._create_line(report, "parent", "account_codes", "400", sequence=1)
+        child = self._create_line(
+            report, "child", "account_codes", "401", parent_id=parent.id, sequence=2
+        )
+        report.flush_recordset()
+
+        report.write(
+            {
+                "line_ids": [
+                    Command.update(parent.id, {"sequence": 4}),
+                    Command.update(child.id, {"sequence": 5}),
+                ]
+            }
+        )
+        report.flush_recordset()
+        self.assertEqual(parent.sequence, 4)
+        self.assertEqual(child.sequence, 5)
+        self.assertEqual(report.line_ids.ids, [parent.id, child.id])
+
+    def test_a_child_placed_before_its_parent_is_still_refused(self):
+        report = self._create_report("Reseq Illegal")
+        parent = self._create_line(report, "parent", "account_codes", "400", sequence=5)
+        child = self._create_line(
+            report, "child", "account_codes", "401", parent_id=parent.id, sequence=6
+        )
+        report.flush_recordset()
+        with self.assertRaisesRegex(ValidationError, "parent must always come first"):
+            report.write({"line_ids": [Command.update(child.id, {"sequence": 1})]})
+
+    def test_a_formula_shortcut_owns_the_figure_type_it_wrote(self):
+        report = self._create_report("Shortcut Figure")
+        line = self.env["account.report.line"].create(
+            {
+                "name": "shortcut",
+                "report_id": report.id,
+                "external_formula": "percentage",
+            }
+        )
+        self.assertEqual(line.expression_ids.figure_type, "percentage")
+        line.account_codes_formula = "400"
+        self.assertEqual(line.expression_ids.engine, "account_codes")
+        self.assertFalse(
+            line.expression_ids.figure_type,
+            "the percentage figure type belonged to the external shortcut",
+        )
+
+    def test_copying_a_report_whose_lines_were_built_by_a_shortcut(self):
+        # copy_data used to pick the non-stored shortcut fields up out of the cache,
+        # so the copied line re-ran the inverse and _copy_hierarchy then created a
+        # second balance expression on it. Warm and cold cache have to agree.
+        report = self._create_report(
+            "Shortcut Copy", country_id=self.env.ref("base.us").id
+        )
+        self.env["account.report.line"].create(
+            {
+                "name": "tagline",
+                "report_id": report.id,
+                "code": "SC0",
+                "tax_tags_formula": "SCTAG",
+            }
+        )
+        report.flush_recordset()
+
+        warm = report.copy()
+        self.assertEqual(
+            [(x.label, x.engine, x.formula) for x in warm.line_ids.expression_ids],
+            [("balance", "tax_tags", "SCTAG")],
+        )
+
+        self.env.invalidate_all()
+        cold = self.env["account.report"].browse(report.id).copy()
+        self.assertEqual(
+            [(x.label, x.engine, x.formula) for x in cold.line_ids.expression_ids],
+            [("balance", "tax_tags", "SCTAG")],
+        )
+
+    def test_the_ordering_check_reads_the_sequences_just_written(self):
+        # line_ids is served from cache in the order it was loaded, so the check has
+        # to re-sort on the written values -- an unsorted walk lets a child that now
+        # precedes its parent through.
+        report = self._create_report("Order Cache")
+        parent = self._create_line(report, "parent", "account_codes", "400", sequence=1)
+        child = self._create_line(
+            report, "child", "account_codes", "401", parent_id=parent.id, sequence=2
+        )
+        report.flush_recordset()
+        self.assertEqual(report.line_ids.ids, [parent.id, child.id])
+        with self.assertRaisesRegex(ValidationError, "parent must always come first"):
+            report.write({"line_ids": [Command.update(child.id, {"sequence": 0})]})
+
+    def test_copying_a_report_rewrites_aggregation_codes_without_a_second_write(self):
+        report = self._create_report("Copy Write Count")
+        self._create_line(report, "base", "account_codes", "400", code="CWC0")
+        for index in range(1, 6):
+            self._create_line(
+                report,
+                f"agg{index}",
+                "aggregation",
+                "CWC0.balance",
+                code=f"CWC{index}",
+                sequence=index,
+            )
+        report.flush_recordset()
+        report.copy()  # warm
+
+        with self.assertQueryCount(default=6, accountman=6):
+            copied = report.copy()
+            copied.flush_recordset()
+
+        aggregations = copied.line_ids.expression_ids.filtered(
+            lambda x: x.engine == "aggregation"
+        )
+        self.assertEqual(len(aggregations), 5)
+        self.assertEqual(set(aggregations.mapped("formula")), {"CWC0_COPY.balance"})
+
+    def test_option_filters_do_not_search_the_client_actions_of_a_plain_report(self):
+        root = self._create_report("Filter Cost Root")
+        variant = self._create_report("Filter Cost Variant", root_report_id=root.id)
+        variant.flush_recordset()
+        with self.assertQueryCount(default=3, accountman=3):
+            variant.root_report_id = False
+            variant.flush_recordset()
+
+    def test_a_line_code_cannot_hold_a_character_no_formula_can_spell(self):
+        report = self._create_report("Code Charset")
+        for bad_code in ("VA1.4", "A B", "A+B", "A(B)", "A/B", "A*B", "A-B"):
+            with self.assertRaisesRegex(
+                ValidationError, "cannot contain", msg=bad_code
+            ):
+                self._create_line(
+                    report, bad_code, "account_codes", "400", code=bad_code
+                )
+        line = self._create_line(report, "ok", "account_codes", "400", code="VA1_4")
+        self.assertEqual(line.code, "VA1_4")
+
+    def test_an_expression_label_cannot_hold_such_a_character_either(self):
+        report = self._create_report("Label Charset")
+        line = self._create_line(report, "labelled", "account_codes", "400", code="LBL")
+        with self.assertRaisesRegex(ValidationError, "cannot contain"):
+            self.env["account.report.expression"].create(
+                {
+                    "report_line_id": line.id,
+                    "label": "net.total",
+                    "engine": "account_codes",
+                    "formula": "401",
+                }
+            )
+
+    def test_a_subformula_is_normalised_like_a_formula(self):
+        report = self._create_report("Subformula Strip")
+        target = self.env.ref("account.generic_tax_report")
+        line = self._create_line(
+            report, "agg", "aggregation", "SFN0.balance", code="SFN0"
+        )
+        expression = line.expression_ids
+        for written, stored in (
+            (f"  cross_report({target.id})  ", f"cross_report({target.id})"),
+            (f"cross_report(  {target.id}  )", f"cross_report( {target.id} )"),
+        ):
+            expression.subformula = written
+            self.assertEqual(expression.subformula, stored)
+            self.assertEqual(expression._get_cross_report_id(), target.id)
+
+    def test_moving_an_expression_off_tax_tags_releases_its_tag(self):
+        report = self._create_report(
+            "Engine Move", country_id=self.env.ref("base.us").id
+        )
+        line = self.env["account.report.line"].create(
+            {"name": "tagged", "report_id": report.id, "tax_tags_formula": "ENGMOVE"}
+        )
+        report.flush_recordset()
+
+        def tags():
+            return (
+                self.env["account.account.tag"]
+                .with_context(active_test=False)
+                .search([("name", "=", "ENGMOVE"), ("applicability", "=", "taxes")])
+            )
+
+        self.assertTrue(tags(), "the shortcut creates the tag")
+        line.expression_ids.write({"engine": "account_codes", "formula": "400"})
+        report.flush_recordset()
+        self.assertFalse(
+            tags(),
+            "nothing can reach the tag once the engine moved, so it is released here",
+        )
+
+    def test_a_tag_another_expression_still_names_survives_an_engine_move(self):
+        report = self._create_report(
+            "Engine Move Shared", country_id=self.env.ref("base.us").id
+        )
+        keeper = self.env["account.report.line"].create(
+            {"name": "keeper", "report_id": report.id, "tax_tags_formula": "SHAREDMOVE"}
+        )
+        mover = self.env["account.report.line"].create(
+            {"name": "mover", "report_id": report.id, "tax_tags_formula": "-SHAREDMOVE"}
+        )
+        report.flush_recordset()
+        mover.expression_ids.write({"engine": "account_codes", "formula": "400"})
+        report.flush_recordset()
+        self.assertTrue(
+            keeper.expression_ids._get_matching_tags(),
+            "the other expression still names it with a sign",
+        )
+
+    def test_a_report_column_cannot_be_orphaned(self):
+        with self.assertRaises(Exception):
+            self.env["account.report.column"].create(
+                {"name": "orphan", "expression_label": "balance"}
+            )

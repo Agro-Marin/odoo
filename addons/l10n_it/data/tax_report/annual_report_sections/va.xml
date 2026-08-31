@@ -37,7 +37,7 @@
                                     <record id="tax_annual_report_line_va1_4" model="account.report.line">
                                         <field name="name">VAT/2023 declaration credit transferred</field>
                                         <field name="name@it">Credito dichiarazione IVA/2023 ceduto</field>
-                                        <field name="code">VA1.4</field>
+                                        <field name="code">VA1_4</field>
                                         <field name="expression_ids">
                                             <record id="tax_annual_report_line_va1_4_extval" model="account.report.expression">
                                                 <field name="label">balance</field>
