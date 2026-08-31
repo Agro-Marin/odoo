@@ -190,7 +190,7 @@ class SmsSms(models.Model):
         if not records:
             return
 
-        records._send(unlink_failed=False, unlink_sent=True, raise_exception=False)
+        records.send(unlink_failed=False, unlink_sent=True, raise_exception=False)
         self.env["ir.cron"]._commit_progress(
             len(records),
             remaining=self.search_count(domain) if len(records) == batch_size else 0,
