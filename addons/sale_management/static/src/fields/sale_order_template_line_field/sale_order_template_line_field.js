@@ -5,6 +5,10 @@ import {
     SectionAndNoteListRenderer,
     getSectionRecords,
 } from "@account/components/section_and_note_fields_backend/section_and_note_fields_backend";
+import {
+    getRecordsToRecompute,
+    handleQuantityAdjustment,
+} from "@sale_management/fields/section_optional_line_utils";
 import { makeContext } from "@web/core/context";
 import { x2ManyCommands } from "@web/core/network";
 import { registry } from "@web/core/registry";
@@ -152,121 +156,20 @@ export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRendere
     }
 
     /**
-     * Builds a map of records whose optional state needs to be recomputed
-     * after a record is moved within the list.
-     *
-     * The map’s keys are record IDs, and values represent their current
-     * `is_optional` collapse state as determined by `shouldCollapse()`.
-     *
-     * @param {Object} record - The record being moved.
-     * @param {number|string} targetId - The ID of the record that serves as the new drop target.
-     * @returns {Map<number|string, boolean>} A map of record IDs to their recomputed optional states.
+     * @see getRecordsToRecompute in section_optional_line_utils.js — shared
+     * with the sale_order_line_field patch, which used to carry a
+     * byte-for-byte copy of this method.
      */
     _getRecordsToRecompute(record, targetId) {
-        const optionalStateMap = new Map();
-
-        if (this.isSection(record)) {
-            // If a section or subsection is moved
-            let currentIndex = this.props.list.records.findIndex(
-                (r) => r.id === record.id,
-            );
-            let targetIndex = this.props.list.records.findIndex(
-                (r) => r.id === targetId,
-            );
-            if (currentIndex > targetIndex) {
-                //When moving up, recompute:
-                // 1. All records under the moved section.
-                // 2. All records between the new and old positions.
-                for (let i = currentIndex; i > targetIndex; i--) {
-                    if (!this.props.list.records[i].data.display_type) {
-                        optionalStateMap.set(
-                            this.props.list.records[i].id,
-                            this.shouldCollapse(
-                                this.props.list.records[i],
-                                "is_optional",
-                            ),
-                        );
-                    }
-                }
-                for (const sectionRecord of getSectionRecords(
-                    this.props.list,
-                    record,
-                )) {
-                    if (!sectionRecord.data.display_type) {
-                        optionalStateMap.set(
-                            sectionRecord.id,
-                            this.shouldCollapse(sectionRecord, "is_optional"),
-                        );
-                    }
-                }
-            } else {
-                //When moving down, recompute:
-                // 1. All records under sections between the old and new positions.
-                // 2. All records between the old and new positions (skipping overlaps).
-                for (let i = currentIndex; i <= targetIndex; i++) {
-                    if (this.isSection(this.props.list.records[i])) {
-                        for (const sectionRecord of getSectionRecords(
-                            this.props.list,
-                            this.props.list.records[i],
-                        )) {
-                            if (
-                                !optionalStateMap.has(sectionRecord.id) &&
-                                !sectionRecord.data.display_type
-                            ) {
-                                optionalStateMap.set(
-                                    sectionRecord.id,
-                                    this.shouldCollapse(sectionRecord, "is_optional"),
-                                );
-                            }
-                        }
-                    }
-
-                    // we must skip overlapping records
-                    if (
-                        !optionalStateMap.has(this.props.list.records[i].id) &&
-                        !this.props.list.records[i].data.display_type
-                    ) {
-                        optionalStateMap.set(
-                            this.props.list.records[i].id,
-                            this.shouldCollapse(
-                                this.props.list.records[i],
-                                "is_optional",
-                            ),
-                        );
-                    }
-                }
-            }
-        } else if (!record.data.display_type) {
-            // If a regular record is moved compute its own optional state
-            optionalStateMap.set(record.id, this.shouldCollapse(record, "is_optional"));
-        }
-
-        return optionalStateMap;
+        return getRecordsToRecompute(this, record, targetId);
     }
 
+    /**
+     * @see handleQuantityAdjustment in section_optional_line_utils.js —
+     * shared with the sale_order_line_field patch, same as above.
+     */
     async _handleQuantityAdjustment(recordMap) {
-        const commands = [];
-
-        for (const [recordId, wasOptional] of recordMap.entries()) {
-            const record = this.props.list.records.find((r) => r.id === recordId);
-            const isOptional = this.shouldCollapse(record, "is_optional");
-
-            if (wasOptional && !isOptional && !record.data.product_uom_qty) {
-                commands.push(
-                    x2ManyCommands.update(listId(record), {
-                        product_uom_qty: 1,
-                    }),
-                );
-            } else if (!wasOptional && isOptional) {
-                commands.push(
-                    x2ManyCommands.update(listId(record), {
-                        product_uom_qty: 0,
-                    }),
-                );
-            }
-        }
-
-        await this.props.list.applyCommands(commands, { sort: true });
+        return handleQuantityAdjustment(this, recordMap);
     }
 }
 export class SaleOrderTemplateLineOne2Many extends SectionAndNoteFieldOne2Many {
