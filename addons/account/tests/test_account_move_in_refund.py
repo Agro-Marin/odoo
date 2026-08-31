@@ -30,7 +30,9 @@ class TestAccountMoveInRefundOnchanges(AccountTestInvoicingCommon):
             "price_unit": 800.0,
             "price_subtotal": 800.0,
             "price_total": 920.0,
-            "tax_ids": cls.product_a.supplier_taxes_id.ids,
+            "tax_ids": cls.product_a.supplier_taxes_id.filtered(
+                lambda t: cls.invoice.company_id in t.company_ids
+            ).ids,
             "tax_line_id": False,
             "currency_id": cls.company_data["currency"].id,
             "amount_currency": -800.0,
@@ -49,7 +51,9 @@ class TestAccountMoveInRefundOnchanges(AccountTestInvoicingCommon):
             "price_unit": 160.0,
             "price_subtotal": 160.0,
             "price_total": 208.0,
-            "tax_ids": cls.product_b.supplier_taxes_id.ids,
+            "tax_ids": cls.product_b.supplier_taxes_id.filtered(
+                lambda t: cls.invoice.company_id in t.company_ids
+            ).ids,
             "tax_line_id": False,
             "currency_id": cls.company_data["currency"].id,
             "amount_currency": -160.0,
@@ -165,7 +169,9 @@ class TestAccountMoveInRefundOnchanges(AccountTestInvoicingCommon):
                     "price_unit": 160.0,
                     "price_subtotal": 160.0,
                     "price_total": 208.0,
-                    "tax_ids": self.product_b.supplier_taxes_id.ids,
+                    "tax_ids": self.product_b.supplier_taxes_id.filtered(
+                        lambda t: self.env.company in t.company_ids
+                    ).ids,
                     "amount_currency": -160.0,
                     "credit": 160.0,
                 },
@@ -530,7 +536,6 @@ class TestAccountMoveInRefundOnchanges(AccountTestInvoicingCommon):
             ],
             self.move_vals,
         )
-
 
         self.company_data["company"].country_id = self.env.ref("base.us")
 

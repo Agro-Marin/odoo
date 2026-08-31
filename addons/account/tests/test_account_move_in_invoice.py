@@ -34,7 +34,9 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
             "price_unit": 800.0,
             "price_subtotal": 800.0,
             "price_total": 920.0,
-            "tax_ids": cls.product_a.supplier_taxes_id.ids,
+            "tax_ids": cls.product_a.supplier_taxes_id.filtered(
+                lambda t: cls.invoice.company_id in t.company_ids
+            ).ids,
             "tax_line_id": False,
             "currency_id": cls.company_data["currency"].id,
             "amount_currency": 800.0,
@@ -53,7 +55,9 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
             "price_unit": 160.0,
             "price_subtotal": 160.0,
             "price_total": 208.0,
-            "tax_ids": cls.product_b.supplier_taxes_id.ids,
+            "tax_ids": cls.product_b.supplier_taxes_id.filtered(
+                lambda t: cls.invoice.company_id in t.company_ids
+            ).ids,
             "tax_line_id": False,
             "currency_id": cls.company_data["currency"].id,
             "amount_currency": 160.0,
@@ -206,7 +210,9 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
                     "price_unit": 160.0,
                     "price_subtotal": 160.0,
                     "price_total": 208.0,
-                    "tax_ids": self.product_b.supplier_taxes_id.ids,
+                    "tax_ids": self.product_b.supplier_taxes_id.filtered(
+                        lambda t: self.env.company in t.company_ids
+                    ).ids,
                     "amount_currency": 160.0,
                     "debit": 160.0,
                 },
@@ -924,7 +930,6 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
             ],
             self.move_vals,
         )
-
 
         self.company_data["company"].country_id = self.env.ref("base.us")
 
@@ -1766,9 +1771,7 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
                 ],
             }
         )
-        action_register_payment = (
-            move.action_force_register_payment()
-        )
+        action_register_payment = move.action_force_register_payment()
         self.assertTrue(action_register_payment)
         wizard = (
             self.env[action_register_payment["res_model"]]
@@ -3598,9 +3601,7 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
             uom_gram,
             "the Units seller shares no reference unit with kg and must be skipped",
         )
-        self.assertAlmostEqual(
-            line.price_unit, 0.1, msg="100/kg restated per gram"
-        )
+        self.assertAlmostEqual(line.price_unit, 0.1, msg="100/kg restated per gram")
 
     def test_vendor_uom_falls_back_to_the_product_unit(self):
         uom_unit = self.env.ref("uom.product_uom_unit")
