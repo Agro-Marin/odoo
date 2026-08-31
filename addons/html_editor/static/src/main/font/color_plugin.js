@@ -55,6 +55,7 @@ const COLOR_COMBINATION_SELECTOR = COLOR_COMBINATION_CLASSES.map((c) => `.${c}`)
  * @typedef {((color: string, mode: "color" | "backgroundColor") => void)[]} color_apply_overrides
  * @typedef {((color: string, mode: "color" | "backgroundColor") => string)[]} apply_background_color_processors
  * @typedef {((color: string) => string)[]} get_background_color_processors
+ * @typedef {((element: HTMLElement) => HTMLElement)[]} before_color_element_processors
  * @typedef {((el: HTMLElement, actionParam: string) => string)[]} color_combination_getters
  */
 
@@ -83,9 +84,23 @@ export class ColorPlugin extends Plugin {
         remove_all_formats_handlers: this.removeAllColor.bind(this),
         color_combination_getters: getColorCombinationFromClass,
 
-        has_format_predicates: [
-            (node) => hasColor(closestElement(node), "color"),
-            (node) => hasColor(closestElement(node), "backgroundColor"),
+        can_remove_format_predicates: [
+            (targetedNodes) => {
+                if (
+                    targetedNodes.some((node) => hasColor(closestElement(node), "color"))
+                ) {
+                    return true;
+                }
+            },
+            (targetedNodes) => {
+                if (
+                    targetedNodes.some((node) =>
+                        hasColor(closestElement(node), "backgroundColor"),
+                    )
+                ) {
+                    return true;
+                }
+            },
         ],
         format_class_predicates: (className) =>
             TEXT_CLASSES_REGEX.test(className) || BG_CLASSES_REGEX.test(className),
@@ -504,6 +519,9 @@ export class ColorPlugin extends Plugin {
      * @param {'color'|'backgroundColor'} mode
      */
     colorElement(element, color, mode) {
+        for (const processor of this.getResource("before_color_element_processors")) {
+            element = processor(element);
+        }
         const parts = backgroundImageCssToParts(element.style["background-image"]);
         const oldClassName = element.getAttribute("class") || "";
 

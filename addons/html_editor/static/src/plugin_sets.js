@@ -2,6 +2,7 @@
 import { CaptionPlugin } from "@html_editor/others/embedded_components/plugins/caption_plugin/caption_plugin";
 import { SyntaxHighlightingPlugin } from "@html_editor/others/embedded_components/plugins/syntax_highlighting_plugin/syntax_highlighting_plugin";
 import { TableOfContentPlugin } from "@html_editor/others/embedded_components/plugins/table_of_content_plugin/table_of_content_plugin";
+import { DatePlugin } from "./others/embedded_components/plugins/date_plugin/date_plugin.js";
 import { ToggleBlockPlugin } from "@html_editor/others/embedded_components/plugins/toggle_block_plugin/toggle_block_plugin";
 import { EmbeddedVideoPlugin } from "@html_editor/others/embedded_components/plugins/video_plugin/embedded_video_plugin";
 
@@ -34,6 +35,7 @@ import { EmojiPlugin } from "./main/emoji_plugin.js";
 import { FeffPlugin } from "./main/feff_plugin.js";
 import { ColorPlugin } from "./main/font/color_plugin.js";
 import { ColorUIPlugin } from "./main/font/color_ui_plugin.js";
+import { ContrastPlugin } from "./main/font/contrast_plugin.js";
 import { FontFamilyPlugin } from "./main/font/font_family_plugin.js";
 import { FontPlugin } from "./main/font/font_plugin.js";
 import { HintPlugin } from "./main/hint_plugin.js";
@@ -65,6 +67,7 @@ import { SelectionPlaceholderPlugin } from "./main/selection_placeholder_plugin.
 import { SeparatorPlugin } from "./main/separator_plugin.js";
 import { StarPlugin } from "./main/star_plugin.js";
 import { TableAlignPlugin } from "./main/table/table_align_plugin.js";
+import { TableBorderPlugin } from "./main/table/table_border_plugin.js";
 import { TablePlugin } from "./main/table/table_plugin.js";
 import { TableResizePlugin } from "./main/table/table_resize_plugin.js";
 import { TableUIPlugin } from "./main/table/table_ui_plugin.js";
@@ -108,6 +111,7 @@ export const MAIN_PLUGINS = [
     ChatGPTTranslatePlugin,
     ColorPlugin,
     ColorUIPlugin,
+    ContrastPlugin,
     SeparatorPlugin,
     ColumnPlugin,
     EmojiPlugin,
@@ -123,6 +127,7 @@ export const MAIN_PLUGINS = [
     StarPlugin,
     TablePlugin,
     TableAlignPlugin,
+    TableBorderPlugin,
     TableUIPlugin,
     TabulationPlugin,
     ToolbarPlugin,
@@ -160,6 +165,7 @@ export const COLLABORATION_PLUGINS = [
 
 export const EMBEDDED_COMPONENT_PLUGINS = [
     EmbeddedComponentPlugin,
+    DatePlugin,
     TableOfContentPlugin,
     ToggleBlockPlugin,
     EmbeddedVideoPlugin,
