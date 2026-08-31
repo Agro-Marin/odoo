@@ -660,7 +660,7 @@ class ResPartner(models.Model):
             if vats and any(vat in vat_by_value for vat in vats):
                 country_id = partner.country_id.id if partner.country_id else None
                 company_id = partner.company_id.id if partner.company_id else None
-                partner.same_vat_partner_id = _get_duplicate_partner(
+                partner.same_vat_partner_id = _find_duplicate(
                     partner_id,
                     vats,
                     vat_by_value,
@@ -677,7 +677,7 @@ class ResPartner(models.Model):
             ):
                 country_id = partner.country_id.id if partner.country_id else None
                 company_id = partner.company_id.id if partner.company_id else None
-                partner.same_company_registry_partner_id = _get_duplicate_partner(
+                partner.same_company_registry_partner_id = _find_duplicate(
                     partner_id,
                     [partner.company_registry],
                     reg_by_value,

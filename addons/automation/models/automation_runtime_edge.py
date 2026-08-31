@@ -42,7 +42,7 @@ class AutomationRuntimeEdge(models.Model):
     condition_expr = fields.Char(readonly=True)
 
     def _is_satisfied(self):
-        self.ensure_one()
+        self.check_singleton()
         state = self.source_line_id.state
         if state not in SETTLED_STATES:
             return False
@@ -55,7 +55,7 @@ class AutomationRuntimeEdge(models.Model):
         return self._is_expression_truthy()
 
     def _is_expression_truthy(self):
-        self.ensure_one()
+        self.check_singleton()
         runtime = self.runtime_id
         context = {
             "runtime": runtime,

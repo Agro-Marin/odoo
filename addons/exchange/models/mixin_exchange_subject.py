@@ -49,7 +49,7 @@ class MixinExchangeSubject(models.AbstractModel):
             record.exchange_state = record._get_exchange_state()
 
     def action_view_transmissions(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "name": self.env._("Transmissions"),
@@ -65,7 +65,7 @@ class MixinExchangeSubject(models.AbstractModel):
         )
 
     def _get_exchange_channel_of(self, protocol: str):
-        self.ensure_one()
+        self.check_singleton()
         company = self.company_id or self.env.company
         channels = self.env["exchange.channel"]
         for domain in (
@@ -86,7 +86,7 @@ class MixinExchangeSubject(models.AbstractModel):
         ]
 
     def _get_exchange_state(self) -> str:
-        self.ensure_one()
+        self.check_singleton()
         transmissions = self.transmission_ids
         if not transmissions:
             return "none"
@@ -113,7 +113,7 @@ class MixinExchangeSubject(models.AbstractModel):
     def _prepare_transmission_vals(
         self, intent: str, channel=None, kind: str = ""
     ) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         channel = channel or self._get_exchange_channel()
         if not channel:
             raise UserError(
@@ -142,13 +142,13 @@ class MixinExchangeSubject(models.AbstractModel):
         return values
 
     def _add_transmission(self, intent: str = "issue", channel=None, kind: str = ""):
-        self.ensure_one()
+        self.check_singleton()
         return self.env["exchange.transmission"].create(
             self._prepare_transmission_vals(intent, channel=channel, kind=kind),
         )
 
     def _get_settled_transmission(self, intent: str, kind: str = ""):
-        self.ensure_one()
+        self.check_singleton()
         return self.transmission_ids.filtered(
             lambda transmission: (
                 transmission.intent == intent

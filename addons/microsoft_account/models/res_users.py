@@ -51,7 +51,7 @@ class ResUsers(models.Model):
         caller means: disconnecting sets both to False, and that has to clear
         them rather than read as "leave this one alone".
         """
-        self.ensure_one()
+        self.check_singleton()
         values = {}
         if access_token is not _UNSET:
             values['oauth_access_token'] = access_token or False

@@ -624,7 +624,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                 min(p1.id)
         """)
 
-        self._add_merge_lines_from_query(query)
+        self._process_query(query)
 
         for line in self.line_ids:
             self._merge_duplicate_group(literal_eval(line.aggr_ids))

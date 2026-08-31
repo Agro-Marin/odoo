@@ -574,7 +574,7 @@ class ApiEventLog(models.Model):
 
     @api.job(channel="api_transport_inbound", max_retries=0)
     def _job_process_inbound(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         channel = self.channel_id
         if not hasattr(channel, "_run_queued_event"):
             self.mark_failed(

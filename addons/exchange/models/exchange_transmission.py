@@ -284,7 +284,7 @@ class ExchangeTransmission(models.Model):
         return sorted(subjects, key=lambda subject: subject[1])
 
     def _get_protocol(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.channel_id._get_protocol()
 
     # ACTION METHODS
@@ -297,7 +297,7 @@ class ExchangeTransmission(models.Model):
             transmission._read_verdict()
 
     def action_view_subject(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "res_model": self.subject_id._name,
@@ -308,7 +308,7 @@ class ExchangeTransmission(models.Model):
     # EXCHANGE METHODS
 
     def _send(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         self._send_many()
 
     def _claim(self):
@@ -378,7 +378,7 @@ class ExchangeTransmission(models.Model):
             transmission._apply(verdict)
 
     def _read_verdict(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if self.state != "sent":
             return
         verdict = self._get_protocol()._read_verdict(self)
@@ -386,7 +386,7 @@ class ExchangeTransmission(models.Model):
             self._apply(verdict)
 
     def _apply(self, verdict: Verdict) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if verdict.is_settled:
             self._settle(verdict)
             return
@@ -404,7 +404,7 @@ class ExchangeTransmission(models.Model):
         self._add_response(verdict)
 
     def _settle(self, verdict: Verdict) -> None:
-        self.ensure_one()
+        self.check_singleton()
         values = {
             "state": verdict.state,
             "date_settled": fields.Datetime.now(),
@@ -420,7 +420,7 @@ class ExchangeTransmission(models.Model):
         self.subject_id._on_transmission_settled(self)
 
     def _schedule_retry(self, message: str) -> None:
-        self.ensure_one()
+        self.check_singleton()
         channel = self.channel_id
         attempt = self.retry_count + 1
         if not channel.should_retry(attempt):
@@ -455,7 +455,7 @@ class ExchangeTransmission(models.Model):
         return fields.Datetime.now() + timedelta(seconds=retry_after)
 
     def _add_attachment(self, document) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if self.attachment_id:
             return
         self.attachment_id = self.env["ir.attachment"].create(
@@ -469,7 +469,7 @@ class ExchangeTransmission(models.Model):
         )
 
     def _add_response(self, verdict: Verdict) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if not verdict.response:
             return
         self.response_attachment_id = self.env["ir.attachment"].create(

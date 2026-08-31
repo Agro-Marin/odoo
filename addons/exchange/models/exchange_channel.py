@@ -159,7 +159,7 @@ class ExchangeChannel(models.Model):
     # ACTION METHODS
 
     def action_view_transmissions(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "name": self.env._("Transmissions"),
@@ -170,11 +170,11 @@ class ExchangeChannel(models.Model):
         }
 
     def action_test_connection(self) -> dict:
-        self.ensure_one()
+        self.check_singleton()
         return self.endpoint_id.action_test_connection()
 
     def action_read_inbox(self) -> None:
-        self.ensure_one()
+        self.check_singleton()
         if not self.is_inbox_enabled:
             raise UserError(
                 self.env._("Channel %(name)s holds no inbox to read.", name=self.name),
@@ -184,11 +184,11 @@ class ExchangeChannel(models.Model):
     # TRANSPORT METHODS
 
     def should_retry(self, attempt_number: int) -> bool:
-        self.ensure_one()
+        self.check_singleton()
         return self.endpoint_id.should_retry(attempt_number)
 
     def calculate_retry_delay(self, attempt_number: int) -> int:
-        self.ensure_one()
+        self.check_singleton()
         return self.endpoint_id.calculate_retry_delay(attempt_number)
 
     def _enqueue_send(self, delay: int | None = None) -> None:
@@ -222,19 +222,19 @@ class ExchangeChannel(models.Model):
         `_schedule_retry` records the attempt against each transmission, applies
         the endpoint's own backoff, and re-enqueues.
         """
-        self.ensure_one()
+        self.check_singleton()
         self.env["exchange.transmission"].search(
             [("channel_id", "=", self.id), ("state", "=", "queued")],
         )._send_many()
 
     def _get_api_client(self, credential=None):
-        self.ensure_one()
+        self.check_singleton()
         return self.endpoint_id._get_api_client(credential=credential)
 
     # EXCHANGE METHODS
 
     def _get_protocol(self):
-        self.ensure_one()
+        self.check_singleton()
         return self.env["exchange.protocol"]._get_protocol(self.protocol)
 
     def _read_inbox(self) -> None:

@@ -121,7 +121,7 @@ class ResPartnerAgeRange(models.Model):
             )
 
     def action_open_partners(self):
-        self.ensure_one()
+        self.check_singleton()
         return {
             "type": "ir.actions.act_window",
             "name": self.display_name,

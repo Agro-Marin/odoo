@@ -101,14 +101,14 @@ class ResPartnerIdentifierType(models.Model):
         """Check `value` against this type, raising ValidationError if it fails.
 
         Three stages, cheapest first: the format, then a rule named after the
-        code, then whatever a localization adds by overriding `_validate_hook`.
+        code, then whatever a localization adds by overriding `_check_hook`.
         The code-specific rule is looked up as `_check_<code>` on this model,
         the same dispatch `account_vat` uses for `check_vat_xx`, so a
         localization adds one method instead of editing this one.
 
         :return: the normalized value
         """
-        self.ensure_one()
+        self.check_singleton()
         normalized = self._normalize(value)
         if not normalized:
             raise ValidationError(
@@ -133,10 +133,10 @@ class ResPartnerIdentifierType(models.Model):
                     name=self.display_name,
                 )
             )
-        self._validate_hook(normalized)
+        self._check_hook(normalized)
         return normalized
 
-    def _validate_hook(self, normalized):
+    def _check_hook(self, normalized):
         """Extension point for rules that need more than a true/false answer."""
 
     @api.model

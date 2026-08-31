@@ -77,7 +77,7 @@ class ResUsersSettings(models.Model):
         caller means: `_set_google_auth_tokens(False, False, 0)` disconnects, and
         that has to clear both rather than read as "leave these alone".
         """
-        self.ensure_one()
+        self.check_singleton()
         values = {}
         if access_token is not _UNSET:
             values['oauth_access_token'] = access_token or False

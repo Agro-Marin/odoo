@@ -150,7 +150,7 @@ class IrActionsServer(models.Model):
                 )
 
     def _get_wait_delta(self):
-        self.ensure_one()
+        self.check_singleton()
         return datetime.timedelta(**{self.wait_unit: self.wait_delay})
 
     def _get_predecessors(self):
