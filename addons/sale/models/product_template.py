@@ -72,13 +72,13 @@ class ProductTemplate(models.Model):
 
     @api.constrains("company_id")
     def _check_sale_product_company(self):
-        products_by_compagny = defaultdict(lambda: self.env["product.template"])
+        products_by_company = defaultdict(lambda: self.env["product.template"])
         for product in self:
             if not product.product_variant_ids or not product.company_id:
                 continue
-            products_by_compagny[product.company_id] |= product
+            products_by_company[product.company_id] |= product
 
-        for target_company, products in products_by_compagny.items():
+        for target_company, products in products_by_company.items():
             subquery_products = (
                 self.env["product.product"]
                 .sudo()

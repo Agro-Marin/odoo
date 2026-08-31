@@ -1314,6 +1314,29 @@ class TestSalesTeam(SaleCommon):
         with self.assertRaises(ValidationError):
             self.sale_order.prepayment_percent = 1.01
 
+    def test_action_view_source_sale_orders_single_order(self):
+        """action_view_source_sale_orders() must resolve the sale order form
+        view instead of raising when the xmlid is looked up (F10)."""
+        self.sale_order.action_confirm()
+        invoice = self.sale_order._create_invoices()
+        action = invoice.action_view_source_sale_orders()
+        self.assertEqual(action["res_id"], self.sale_order.id)
+        view_id, view_mode = action["views"][0]
+        self.assertEqual(view_mode, "form")
+        self.assertTrue(view_id)
+
+    def test_check_sale_product_company_blocks_restricting_used_product(self):
+        other_company = self.env["res.company"].create({"name": "Other Co"})
+        product = self.env["product.product"].create({"name": "Shared product"})
+        self.env["sale.order.line"].create(
+            {
+                "order_id": self.sale_order.id,
+                "product_id": product.id,
+            }
+        )
+        with self.assertRaises(ValidationError):
+            product.product_tmpl_id.company_id = other_company
+
     def test_qty_transferred_on_creation(self):
         sale_order = self.env["sale.order"].create(
             {
