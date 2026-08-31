@@ -136,7 +136,7 @@ class CrmTeam(models.Model):
                 _('Cannot delete default team "%(name)s"', name=protected[0].name)
             )
 
-    @api.depends("sequence")
+    @api.depends()
     def _compute_is_membership_multi(self):
         self.is_membership_multi = self._is_membership_multi()
 
