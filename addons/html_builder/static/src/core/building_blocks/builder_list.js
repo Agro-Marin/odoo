@@ -6,10 +6,43 @@ import {
     useInputBuilderComponent,
 } from "@html_builder/core/utils";
 import { isSmallInteger } from "@html_builder/utils/utils";
-import { Component, onWillUpdateProps, useRef } from "@odoo/owl";
+import { Component, onMounted, onPatched, onWillUpdateProps, useRef } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { _t } from "@web/core/translation";
 import { useSortable } from "@web/core/utils/dnd";
+
+/**
+ * Moves the focus into the input of the row that was just appended, caret at
+ * the end of its value, so the user can type without clicking first.
+ *
+ * The count is seeded on mount rather than at zero: a list that already has
+ * rows must not have its last input grabbed by the first unrelated re-render.
+ *
+ * @param {{ el: HTMLElement | null }} ref a ref on the element holding the rows
+ */
+function useAutoFocusNewItem(ref) {
+    const countRows = () => ref.el?.querySelectorAll(".o_row_draggable").length || 0;
+    let rowCount = 0;
+    onMounted(() => {
+        rowCount = countRows();
+    });
+    onPatched(() => {
+        const previousRowCount = rowCount;
+        rowCount = countRows();
+        if (rowCount <= previousRowCount) {
+            return;
+        }
+        const newRowEl = ref.el.querySelectorAll(".o_row_draggable")[rowCount - 1];
+        const inputEl = newRowEl?.querySelector("input, textarea");
+        if (!inputEl) {
+            return;
+        }
+        inputEl.focus();
+        if (!["checkbox", "number"].includes(inputEl.type)) {
+            inputEl.selectionStart = inputEl.selectionEnd = inputEl.value.length;
+        }
+    });
+}
 
 export class BuilderList extends Component {
     static template = "html_builder.BuilderList";
@@ -56,7 +89,9 @@ export class BuilderList extends Component {
     setup() {
         this.validateProps();
         this.dropdown = useDropdownState();
+        this.tableRef = useRef("table");
         useBuilderComponent();
+        useAutoFocusNewItem(this.tableRef);
         const { state, commit, preview } = useInputBuilderComponent({
             id: this.props.id,
             defaultValue: this.parseDisplayValue([]),
@@ -75,7 +110,7 @@ export class BuilderList extends Component {
         if (this.props.sortable) {
             useSortable({
                 enable: () => this.props.sortable,
-                ref: useRef("table"),
+                ref: this.tableRef,
                 elements: ".o_row_draggable",
                 handle: ".o_handle_cell",
                 cursor: "grabbing",

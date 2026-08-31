@@ -382,3 +382,24 @@ test("can add item with string and integer ids", async () => {
     }
     expect(".we-bg-options-container .bl-dropdown-toggle").toHaveProperty("disabled");
 });
+
+test("focuses the input of the row that was just added", async () => {
+    addBuilderOption(
+        class extends BaseOptionComponent {
+            static selector = ".test-options-target";
+            static template = xml`<BuilderList
+                          dataAttributeAction="'list'"
+                          itemShape="{ value: 'text' }"
+                          default="{'value': 'a thing'}"
+                      />`;
+        }
+    );
+    await setupHTMLBuilder(`<div class="test-options-target">b</div>`);
+    await contains(":iframe .test-options-target").click();
+
+    await contains(".we-bg-options-container .builder_list_add_item").click();
+    expect(".we-bg-options-container .o_row_draggable:nth-of-type(1) input").toBeFocused();
+
+    await contains(".we-bg-options-container .builder_list_add_item").click();
+    expect(".we-bg-options-container .o_row_draggable:nth-of-type(2) input").toBeFocused();
+});
