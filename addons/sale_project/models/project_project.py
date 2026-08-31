@@ -521,9 +521,7 @@ class ProjectProject(models.Model):
             self._get_sale_order_item_ids(domain_per_model, limit, offset)
         )
 
-    def _get_sale_order_item_ids(
-        self, domain_per_model=None, limit=None, offset=None
-    ):
+    def _get_sale_order_item_ids(self, domain_per_model=None, limit=None, offset=None):
         if not self or not self.filtered("allow_billable"):
             return []
         query = self._get_sale_order_items_query(domain_per_model)
