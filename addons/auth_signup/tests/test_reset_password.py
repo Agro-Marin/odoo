@@ -2,8 +2,8 @@ from contextlib import contextmanager
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
 
-from odoo import http
-from odoo.exceptions import UserError
+from odoo import Command, http
+from odoo.exceptions import AccessError, UserError
 from odoo.tests.common import HttpCase
 
 from odoo.addons.mail.models.mail_mail import MailDeliveryError
@@ -131,3 +131,57 @@ class TestResetPassword(HttpCase):
         # To check private method _action_reset_password() raises MailDeliveryError when there is no valid smtp server
         with self.assertRaises(MailDeliveryError):
             self.test_user._action_reset_password()
+
+    def test_get_reset_password_link(self):
+        """An administrator can obtain the reset link directly, for when the
+        mail server is down or was never configured."""
+        link = self.test_user.get_reset_password_link()
+
+        self.assertIn("/web/reset_password", link)
+        self.assertEqual(self.test_user.partner_id.signup_type, "reset")
+
+        query = parse_qs(urlsplit(link).query)
+        self.assertNotIn("signup_email", query, "a reset link, not a signup link")
+        self.assertEqual(
+            self.env["res.partner"]._signup_retrieve_partner(query["token"][0]),
+            self.test_user.partner_id,
+            "the link must carry a token that resolves back to the user's partner",
+        )
+
+        # Refusing to act on yourself is what stops the button from becoming a
+        # way to hand your own account over to whoever is watching the screen.
+        admin = self.env.ref("base.user_admin")
+        with self.assertRaises(UserError):
+            admin.with_user(admin).get_reset_password_link()
+
+        self.test_user.active = False
+        with self.assertRaises(UserError):
+            self.test_user.get_reset_password_link()
+
+    def test_get_reset_password_link_requires_admin(self):
+        """A non-administrator is refused BEFORE signup_type is rewritten.
+
+        The order matters. `signup_prepare` flips the partner to 'reset', and
+        because our tokens are signed payloads derived from signup_type rather
+        than a stored column, that flip silently converts a pending invitation
+        into a password reset and changes the route of the link already mailed
+        out. A guard that only fires once `_get_signup_url` is reached would let
+        any internal user do that to anybody.
+        """
+        outsider = self.env["res.users"].create(
+            {
+                "login": "outsider",
+                "name": "Outsider",
+                "group_ids": [Command.set([self.env.ref("base.group_user").id])],
+            }
+        )
+        self.test_user.partner_id.signup_prepare(signup_type="signup")
+
+        with self.assertRaises(AccessError):
+            self.test_user.with_user(outsider).get_reset_password_link()
+
+        self.assertEqual(
+            self.test_user.partner_id.signup_type,
+            "signup",
+            "a refused caller must not have rewritten the signup type",
+        )

@@ -30,10 +30,12 @@ class ResPartner(models.Model):
     def _get_signup_url(self):
         self.check_singleton()
         result = self.sudo()._get_signup_url_for_action()
-        if any(u._is_internal() for u in self.user_ids if u != self.env.user):
-            self.env["res.users"].check_access("write")
-        if any(u._is_portal() for u in self.user_ids if u != self.env.user):
-            self.env["res.partner"].check_access("write")
+        internal_users = self.user_ids.filtered(lambda u: u._is_internal())
+        if internal_users:
+            internal_users.check_access("write")
+        portal_users = self.user_ids.filtered(lambda u: u._is_portal())
+        if portal_users:
+            portal_users.partner_id.check_access("write")
         return result.get(self.id, False)
 
     def _get_signup_url_for_action(
