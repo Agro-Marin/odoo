@@ -1153,7 +1153,24 @@ Versions:
                     _("This modification is not allowed in the current state.")
                 )
 
-    def _check_validity(self):
+    def _check_validity(self, collect_invalid=False):
+        """Check every leave against the allocations that must cover it.
+
+        Returns the employees whose allocation cannot cover their request.
+        By default there are none, because the first one found aborts the
+        whole set -- which is what a single request wants. The batch wizard
+        passes collect_invalid so that one employee short of days does not
+        cost everybody else their time off; it drops those leaves and tells
+        the user who was left out.
+        """
+        invalid_employees = self.env["hr.employee"]
+
+        def reject(employee, message):
+            nonlocal invalid_employees
+            if not collect_invalid:
+                raise ValidationError(message)
+            invalid_employees |= employee
+
         sorted_leaves = defaultdict(lambda: self.env["hr.leave"])
         for leave in self:
             sorted_leaves[(leave.holiday_status_id, leave.date_from.date())] |= leave
@@ -1171,19 +1188,22 @@ Versions:
                     if is_cancellation:
                         continue
                     if not leave_data[employee][0][1]["max_leaves"]:
-                        raise ValidationError(
+                        reject(
+                            employee,
                             _(
                                 "You do not have any allocation for this time off type.\n"
                                 "Please request an allocation before submitting your time off request."
-                            )
+                            ),
                         )
+                        continue
                     if (
                         leave_data[employee]
                         and leave_data[employee][0][1]["virtual_remaining_leaves"]
                         < -max_excess
                     ):
-                        raise ValidationError(
-                            _("There is no valid allocation to cover that request.")
+                        reject(
+                            employee,
+                            _("There is no valid allocation to cover that request."),
                         )
                 continue
 
@@ -1200,25 +1220,29 @@ Versions:
                     and leave_data[employee][0][1]["virtual_excess_data"]
                 )
                 if not leave_data[employee][0][1]["max_leaves"]:
-                    raise ValidationError(
+                    reject(
+                        employee,
                         _(
                             "You do not have any allocation for this time off type.\n"
                             "Please request an allocation before submitting your time off request."
-                        )
+                        ),
                     )
+                    continue
                 if not previous_emp_data and not emp_data:
                     continue
                 if previous_emp_data != emp_data and len(emp_data) >= len(
                     previous_emp_data
                 ):
-                    raise ValidationError(
-                        _("There is no valid allocation to cover that request.")
+                    reject(
+                        employee,
+                        _("There is no valid allocation to cover that request."),
                     )
         is_leave_user = self.env.user.has_group("hr_holidays.group_hr_holidays_user")
         if not is_leave_user and any(leave.has_mandatory_day for leave in self):
             raise ValidationError(
                 _("You are not allowed to request time off on a Mandatory Day")
             )
+        return invalid_employees
 
     ####################################################
     # ORM Overrides methods
@@ -1371,8 +1395,25 @@ Versions:
         holidays = super(
             HrLeave, self.with_context(mail_create_nosubscribe=True)
         ).create(vals_list)
-        holidays._check_validity()
+        uncovered_employees = holidays._check_validity(
+            collect_invalid=self.env.context.get("multi_leave_request", False)
+        )
+        if uncovered_employees:
+            uncovered_leaves = holidays.filtered(
+                lambda leave: leave.employee_id in uncovered_employees
+            )
+            holidays -= uncovered_leaves
+            uncovered_leaves.unlink()
         self._invalidate_allocation_computes()
+
+        if not self.env.context.get("leave_fast_create") and not self.env.context.get(
+            "import_file"
+        ):
+            to_notify = holidays.filtered(
+                lambda leave: leave.holiday_status_id.notify_time_off_officers
+            )
+            if to_notify:
+                to_notify.sudo()._notify_time_off_officers()
 
         for holiday in holidays:
             if not self.env.context.get("leave_fast_create"):
@@ -2246,6 +2287,50 @@ is approved, validated or refused."
                     partner_ids=[recipient],
                     subject=_("Your Time Off"),
                 )
+
+    def _notify_time_off_officers(self):
+        """Notify every time off officer of the employee's company.
+
+        The recipients come from the officer group rather than from a list
+        kept on the leave type, so appointing an officer is enough for them
+        to start receiving these: nothing has to be edited type by type.
+        """
+        officers = self.env.ref("hr_holidays.group_hr_holidays_user").all_user_ids
+        for leave in self:
+            recipients = officers.filtered_domain(
+                [("company_ids", "in", leave.employee_company_id.ids)]
+            )
+            if not recipients:
+                continue
+            body = Markup(
+                "<p>%(intro)s</p>"
+                "<ul>"
+                "<li><strong>%(employee_label)s:</strong> %(employee)s</li>"
+                "<li><strong>%(type_label)s:</strong> %(type)s</li>"
+                "<li><strong>%(period_label)s:</strong> %(date_from)s to %(date_to)s</li>"
+                "<li><strong>%(duration_label)s:</strong> %(duration)s</li>"
+                "</ul>"
+            ) % {
+                "intro": _("A new time off request has been submitted."),
+                "employee_label": _("Employee"),
+                "employee": leave.employee_id.name,
+                "type_label": _("Type"),
+                "type": leave.holiday_status_id.name,
+                "period_label": _("Period"),
+                "date_from": format_date(self.env, leave.request_date_from),
+                "date_to": format_date(self.env, leave.request_date_to),
+                "duration_label": _("Duration"),
+                "duration": leave.duration_display or "",
+            }
+            leave.message_notify(
+                partner_ids=recipients.partner_id.ids,
+                subject=_(
+                    "New Time Off Request: %(leave_type)s",
+                    leave_type=leave.holiday_status_id.name,
+                ),
+                body=body,
+                email_layout_xmlid="mail.mail_notification_layout",
+            )
 
     def _track_subtype(self, init_values):
         if "state" in init_values and self.state == "validate":

@@ -922,3 +922,54 @@ class TestAllocations(TestHrHolidaysCommon):
         self.assertEqual(allocation_5_days.state, "validate")
         allocation_3_days.action_refuse()
         self.assertEqual(allocation_3_days.state, "refuse")
+
+    def test_refused_allocation_is_frozen(self):
+        """A refused allocation cannot be edited from either form.
+
+        The list already treats refuse as terminal; the form did not, and a
+        refused allocation can still be approved (_get_next_states_by_state
+        allows refuse -> validate), so an amount edited while refused would be
+        granted by whoever revives it.
+        """
+        allocation = self.env["hr.leave.allocation"].create(
+            {
+                "name": "Refused later on",
+                "employee_id": self.employee_emp_id,
+                "holiday_status_id": self.leave_type.id,
+                "number_of_days": 3,
+            }
+        )
+        allocation.state = "refuse"
+
+        for view in (
+            "hr_holidays.hr_leave_allocation_view_form",
+            "hr_holidays.hr_leave_allocation_view_form_manager",
+        ):
+            with self.subTest(view=view):
+                with self.assertRaises(
+                    AssertionError,
+                    msg=f"{view} still lets a refused allocation be re-sized",
+                ):
+                    with Form(allocation, view=view) as form:
+                        form.number_of_days_display = 99
+                with self.assertRaises(AssertionError):
+                    with Form(allocation, view=view) as form:
+                        form.holiday_status_id = self.leave_type
+
+    def test_refused_allocation_title_is_frozen(self):
+        """The manager form replaces the title field, and its replacement kept
+        no readonly of its own."""
+        allocation = self.env["hr.leave.allocation"].create(
+            {
+                "name": "Refused later on",
+                "employee_id": self.employee_emp_id,
+                "holiday_status_id": self.leave_type.id,
+                "number_of_days": 3,
+            }
+        )
+        allocation.state = "refuse"
+        with self.assertRaises(AssertionError):
+            with Form(
+                allocation, view="hr_holidays.hr_leave_allocation_view_form_manager"
+            ) as form:
+                form.name = "renamed while refused"

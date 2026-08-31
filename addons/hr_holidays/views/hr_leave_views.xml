@@ -46,6 +46,12 @@
                     string="Waiting For Me"
                     name="waiting_for_me_manager"
                     groups="hr_holidays.group_hr_holidays_user"/>
+                <filter string="Missing Document" name="missing_document"
+                    domain="[
+                        ('holiday_status_id.support_document', '=', True),
+                        ('attachment_ids', '=', False),
+                    ]"
+                    help="Requests whose type asks for a supporting document but that carry none"/>
                 <separator/>
                 <filter domain="[('state', '=', 'confirm')]" string="First Approval" name="approve"/>
                 <filter domain="[('state', '=', 'validate1')]" string="Second Approval" name="second_approval"/>
@@ -473,7 +479,7 @@
         <field name="mode">primary</field>
         <field name="priority">17</field>
         <field name="arch" type="xml">
-            <xpath expr="//field[@widget='many2one_avatar_employee']" position="attributes"> 
+            <xpath expr="//field[@widget='many2one_avatar_employee']" position="attributes">
                 <attribute name="readonly">0</attribute>
             </xpath>
             <field name="holiday_status_id" position="before">
