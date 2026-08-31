@@ -1590,6 +1590,23 @@ jobs:
           rc=$?
           set -e
           exit $rc
+      - name: Run orphaned @api.depends ratchet
+        id: orphan_depends
+        # ADR-0085. @api.depends is read off the method a field names as its
+        # compute; on any other method it is accepted by Python, by ruff and by
+        # the registry, and does nothing. The field it was meant for then
+        # declares no dependency and answers with whatever it computed first.
+        # Syntactic on purpose: a registry reading needs a database and reports a
+        # different number per module set -- the account-only registry this was
+        # developed against measured 0 while the tree held eight.
+        run: |
+          set +e
+          python tooling/architecture/orphan_depends.py | tee /tmp/orphan_depends.log
+          python tooling/architecture/orphan_depends.py --count \
+            | xargs python tooling/ratchet/ratchet.py orphandepends --count
+          rc=$?
+          set -e
+          exit $rc
       - name: Run field-hook purity ratchet
         id: hook_purity
         # ADR-0051. ADR-0049 fixes what a hook is called; this asks whether it is

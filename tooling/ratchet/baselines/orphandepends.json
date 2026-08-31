@@ -1,0 +1,5 @@
+{
+  "count": 8,
+  "measured_at": "9ad2dee9e740b60e0e788edb65bbff4988851801",
+  "note": "ADR-0085, first bank. Eight methods carry @api.depends that no field wires, in fleet, mrp, maintenance, hr, pos_sale, pos_self_order and l10n_account_withholding_tax. account.move.line's was the ninth and is fixed in 6e5bc8b00fb; the rest each need a decision about what the field was meant to be, which is not the work of installing the check."
+}

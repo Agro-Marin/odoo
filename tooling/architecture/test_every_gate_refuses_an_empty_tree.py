@@ -55,6 +55,7 @@ GATES = {
     "order_line_qty": ["--count"],
     "translation_catalog": ["--count"],
     "compute_context_deps": ["--count"],
+    "orphan_depends": ["--count"],
     "format_literals": ["--count"],
     "env_surface_check": ["--check"],
     "env_model_surface_check": ["--check"],
