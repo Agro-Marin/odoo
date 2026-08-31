@@ -4,6 +4,7 @@ import { Plugin } from "@html_editor/plugin";
 import { formatDate, formatDateTime, parseDateTime } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
+
 import { DateTimeFieldOption } from "./date_time_field_option.js";
 
 const { DateTime } = luxon;
@@ -26,7 +27,8 @@ export class DateTimeFieldPlugin extends Plugin {
 export class FieldDateTimeAction extends BuilderAction {
     static id = "fieldDateTime";
     getValue({ editingElement }) {
-        const { modifiedDate, oeOriginal, oeOriginalWithFormat } = editingElement.dataset;
+        const { modifiedDate, oeOriginal, oeOriginalWithFormat } =
+            editingElement.dataset;
         let dateTime = "";
         if (modifiedDate) {
             // Once this action has run, the element's own text is the value.
