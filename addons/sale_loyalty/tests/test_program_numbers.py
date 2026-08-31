@@ -324,14 +324,7 @@ class TestSaleCouponProgramNumbers(TestSaleCouponNumbersCommon):
         self.env["ir.config_parameter"].set_param(
             "loyalty.compute_all_discount_product_ids", "enabled"
         )
-        # Create taxes
-        self.tax_15pc_excl = self.env["account.tax"].create(
-            {
-                "name": "15% Tax excl",
-                "amount_type": "percent",
-                "amount": 15,
-            }
-        )
+        # Create taxes (tax_15pc_excl is the shared fixture from TestSaleCouponCommon)
         self.tax_50pc_excl = self.env["account.tax"].create(
             {
                 "name": "50% Tax excl",
@@ -2666,14 +2659,7 @@ class TestSaleCouponProgramNumbers(TestSaleCouponNumbersCommon):
         )
 
         order = self.empty_order
-        # Create taxes
-        self.tax_15pc_excl = self.env["account.tax"].create(
-            {
-                "name": "15% Tax excl",
-                "amount_type": "percent",
-                "amount": 15,
-            }
-        )
+        # Create taxes (tax_15pc_excl is the shared fixture from TestSaleCouponCommon)
         self.tax_10_fixed = self.env["account.tax"].create(
             {
                 "name": "10$ Fixed tax",
@@ -2735,14 +2721,7 @@ class TestSaleCouponProgramNumbers(TestSaleCouponNumbersCommon):
         )
 
         order = self.empty_order
-        # Create taxes
-        self.tax_15pc_excl = self.env["account.tax"].create(
-            {
-                "name": "15% Tax excl",
-                "amount_type": "percent",
-                "amount": 15,
-            }
-        )
+        # Create taxes (tax_15pc_excl is the shared fixture from TestSaleCouponCommon)
         self.tax_10_fixed = self.env["account.tax"].create(
             {
                 "name": "10$ Fixed tax",
