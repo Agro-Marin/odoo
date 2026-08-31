@@ -6,12 +6,13 @@ import {
     manuallyDispatchProgrammaticEvent,
     pointerUp,
     press,
+    queryAllTexts,
     queryOne,
     waitFor,
     waitForNone,
 } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { contains } from "@web/../tests/web_test_helpers";
+import { contains, patchTranslations } from "@web/../tests/web_test_helpers";
 
 import { base64Img, setupEditor } from "./_helpers/editor.js";
 import {
@@ -709,4 +710,30 @@ test("Correctly determine the mimetype of an image with wrong extension", async 
     imageEl.setAttribute("src", imgSrc);
     const mimetype = await getFetchedMimetype(imageEl);
     expect(mimetype).toBe("image/png");
+});
+
+test("the image padding and size labels are translated", async () => {
+    patchTranslations({
+        html_editor: {
+            None: "Ninguno",
+            Small: "Pequeño",
+            Default: "Predeterminado",
+        },
+    });
+    await setupEditor(`
+        <img class="img-fluid test-image" src="${base64Img}">
+    `);
+    await click("img.test-image");
+    await waitFor(".o-we-toolbar");
+
+    await click(".o-we-toolbar [name='image_padding'] .dropdown-toggle");
+    await animationFrame();
+    expect(queryAllTexts(".image_padding_selector .dropdown-item").slice(0, 2)).toEqual([
+        "Ninguno",
+        "Pequeño",
+    ]);
+
+    await click(".o-we-toolbar [name='image_size'] .dropdown-toggle");
+    await animationFrame();
+    expect(queryAllTexts(".image_size_selector .dropdown-item")[0]).toBe("Predeterminado");
 });
