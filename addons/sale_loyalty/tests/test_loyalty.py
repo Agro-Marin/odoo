@@ -1861,6 +1861,10 @@ class TestLoyalty(TestSaleCouponCommon):
             }
         )
         sale_order.action_view_reward_wizard()
+        self.assertFalse(
+            sale_order.line_ids.filtered("reward_id"),
+            "The expired ewallet should not have been auto-applied as a reward",
+        )
         sale_order._update_programs_and_rewards()
         claimable_rewards = sale_order._get_claimable_rewards()
         self.assertFalse(claimable_rewards.get(self.ewallet))
