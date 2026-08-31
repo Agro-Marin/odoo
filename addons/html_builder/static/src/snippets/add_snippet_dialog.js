@@ -36,6 +36,7 @@ export class AddSnippetDialog extends Component {
             groupSelected: this.props.selectedSnippet.groupName,
             showIframe: false,
             hasNoSearchResults: false,
+            isMobilePreviewMode: false,
         });
         this.snippetViewerProps = {
             state: this.state,
@@ -151,6 +152,10 @@ export class AddSnippetDialog extends Component {
         metaElement.content = scheme;
         iframeDocument.head.appendChild(metaElement);
         iframeDocument.body.parentElement.classList.add("o_add_snippets_preview--" + scheme);
+    }
+
+    toggleMobilePreview() {
+        this.state.isMobilePreviewMode = !this.state.isMobilePreviewMode;
     }
 
     /**

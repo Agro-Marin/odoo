@@ -1,6 +1,18 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <templates xml:space="preserve">
 
+<t t-name="html_builder.AddSnippetDialog.header" t-inherit="web.Dialog.header" t-inherit-mode="primary">
+    <xpath expr="//h4[hasclass('modal-title')]" position="after">
+        <button class="btn border-0 d-flex align-items-center"
+                t-on-click="toggleMobilePreview"
+                t-att-class="{ 'text-success': state.isMobilePreviewMode }"
+                title="Toggle Mobile Preview"
+                aria-label="Toggle Mobile Preview">
+            <i class="fa-solid fa-mobile-screen-button fa-2x"/>
+        </button>
+    </xpath>
+</t>
+
 <t t-name="html_builder.AddSnippetDialog">
     <Dialog
         title.translate="Insert a block"
@@ -8,6 +20,15 @@
         footer="false"
         size="'xl'"
         modalRef="modalRef">
+        <t t-set-slot="header" t-slot-scope="scope">
+            <t t-call="html_builder.AddSnippetDialog.header">
+                <t t-set="fullscreen" t-value="scope.isFullscreen"/>
+                <t t-set="isClosing" t-value="scope.isClosing"/>
+                <t t-set="title" t-value="scope.title"/>
+                <t t-set="titleId" t-value="scope.titleId"/>
+                <t t-set="dismiss" t-value="() => scope.close({ dismiss: true })"/>
+            </t>
+        </t>
         <div class="overflow-hidden w-100">
             <div class="d-flex w-100 h-100 vertical flex-row">
                 <aside class="border-end overflow-auto">
@@ -59,7 +80,10 @@
                             role="tabpanel"
                             t-att-aria-labelledby="'tab_' + state.groupSelected"
                             t-att-id="'tabpanel_' + state.groupSelected"
-                            t-att-class="state.showIframe ? 'show' : '' "
+                            t-att-class="{
+                                'show': state.showIframe,
+                                'o_is_mobile_preview': state.isMobilePreviewMode
+                            }"
                             src="about:blank"
                             height="333%" width="333%"/>
                 </div>
