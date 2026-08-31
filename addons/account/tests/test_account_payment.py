@@ -17,12 +17,8 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
 
         cls.other_currency = cls.setup_other_currency("EUR")
 
-        cls.payment_debit_account_id = (
-            cls.inbound_payment_channel.payment_account_id
-        )
-        cls.payment_credit_account_id = (
-            cls.outbound_payment_channel.payment_account_id
-        )
+        cls.payment_debit_account_id = cls.inbound_payment_channel.payment_account_id
+        cls.payment_credit_account_id = cls.outbound_payment_channel.payment_account_id
 
         cls.bank_journal_1 = cls.company_data["default_journal_bank"]
         cls.bank_journal_2 = cls.company_data["default_journal_bank"].copy()
@@ -138,17 +134,11 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
 
     def test_payment_move_sync_update_journal_custom_accounts(self):
         outstanding_payment_A = self.inbound_payment_channel.payment_account_id
-        outstanding_payment_B = (
-            self.inbound_payment_channel.payment_account_id.copy()
-        )
+        outstanding_payment_B = self.inbound_payment_channel.payment_account_id.copy()
         journal_A = self.company_data["default_journal_bank"]
-        journal_A.inbound_payment_channel_ids.payment_account_id = (
-            outstanding_payment_A
-        )
+        journal_A.inbound_payment_channel_ids.payment_account_id = outstanding_payment_A
         journal_B = self.company_data["default_journal_bank"].copy()
-        journal_B.inbound_payment_channel_ids.payment_account_id = (
-            outstanding_payment_B
-        )
+        journal_B.inbound_payment_channel_ids.payment_account_id = outstanding_payment_B
 
         pay_form = Form(
             self.env["account.payment"].with_context(
@@ -695,9 +685,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         )
 
     def test_reconciliation_with_old_oustanding_account(self):
-        outstanding_account_2 = (
-            self.inbound_payment_channel.payment_account_id.copy()
-        )
+        outstanding_account_2 = self.inbound_payment_channel.payment_account_id.copy()
 
         payment = self.env["account.payment"].create(
             {
@@ -753,9 +741,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
                 else self.bank_journal_1
             )
             payment.journal_id = other_journal
-            self.assertEqual(
-                payment.payment_channel_id.journal_id.id, other_journal.id
-            )
+            self.assertEqual(payment.payment_channel_id.journal_id.id, other_journal.id)
 
             payment.journal_id = default_journal
             self.assertEqual(
@@ -843,9 +829,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         )
         self.company_data[
             "default_journal_bank"
-        ].inbound_payment_channel_ids.payment_account_id = self.env[
-            "account.account"
-        ]
+        ].inbound_payment_channel_ids.payment_account_id = self.env["account.account"]
         invoice2 = invoice1.copy()
         invoice2.action_post()
         self.env["account.payment.register"].with_context(
@@ -886,9 +870,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
 
         self.company_data[
             "default_journal_bank"
-        ].inbound_payment_channel_ids.payment_account_id = self.env[
-            "account.account"
-        ]
+        ].inbound_payment_channel_ids.payment_account_id = self.env["account.account"]
 
         invoice_1 = self.env["account.move"].create(
             [
@@ -954,6 +936,145 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         payment.write({"memo": "Updated Memo"})
 
         self.assertEqual(payment.move_id.ref, payment.memo)
+
+    def test_mandatory_entry_survives_an_ordinary_edit(self):
+        """A payment whose entry is mandatory keeps booking one after any edit.
+
+        `outstanding_account_id` is a stored compute. It used to be written over
+        in `create()`, so the next write that retriggered the compute cleared it,
+        `_generate_journal_entry` filtered the payment out, and the payment posted
+        with no journal items at all -- silently, because `_check_move_id` was
+        conditioned on the same field.
+        """
+        journal = self.company_data["default_journal_bank"]
+        # The defect only shows where the channel names no account of its own,
+        # which is what makes the fallback in `_compute_outstanding_account_id`
+        # the sole source of the value.
+        (
+            journal.inbound_payment_channel_ids | journal.outbound_payment_channel_ids
+        ).payment_account_id = False
+        payment_model = self.env["account.payment"].with_context(
+            force_payment_move=True
+        )
+        vals = {
+            "payment_type": "inbound",
+            "partner_type": "customer",
+            "partner_id": self.partner_a.id,
+            "journal_id": self.company_data["default_journal_bank"].id,
+            "amount": 100.0,
+        }
+        edits = [
+            ("no edit", {}),
+            ("payment_type", {"payment_type": "outbound"}),
+            ("journal_id, same value", {"journal_id": vals["journal_id"]}),
+            ("partner_type", {"partner_type": "supplier"}),
+        ]
+        for label, edit in edits:
+            with self.subTest(label):
+                payment = payment_model.create(dict(vals))
+                self.assertTrue(
+                    payment.outstanding_account_id,
+                    "the compute owes a mandatory entry an outstanding account",
+                )
+                payment.write(edit)
+                self.assertTrue(
+                    payment.outstanding_account_id,
+                    f"{label} cleared the outstanding account",
+                )
+                payment.action_post()
+                self.assertTrue(
+                    payment.move_id, f"{label} left the payment with no entry"
+                )
+                self.assertTrue(
+                    payment.move_id.line_ids,
+                    f"{label} left the payment with an empty entry",
+                )
+
+    def test_mandatory_entry_follows_the_payment_type(self):
+        """The outstanding account is recomputed, not preserved.
+
+        Preserving the value written at create would keep an inbound payment's
+        debit account on a payment the user has since turned outbound.
+        """
+        journal = self.company_data["default_journal_bank"]
+        (
+            journal.inbound_payment_channel_ids | journal.outbound_payment_channel_ids
+        ).payment_account_id = False
+        payment = (
+            self.env["account.payment"]
+            .with_context(force_payment_move=True)
+            .create(
+                {
+                    "payment_type": "inbound",
+                    "partner_type": "customer",
+                    "partner_id": self.partner_a.id,
+                    "journal_id": journal.id,
+                    "amount": 100.0,
+                }
+            )
+        )
+        inbound_account = payment.outstanding_account_id
+        payment.write({"payment_type": "outbound"})
+        self.assertTrue(payment.outstanding_account_id)
+        self.assertNotEqual(
+            payment.outstanding_account_id,
+            inbound_account,
+            "an outbound payment settles through the credit account",
+        )
+
+    def test_reconciled_invoices_type_counts_distinct_types(self):
+        """Two credit notes are still credit notes.
+
+        `mapped()` returns a list with duplicates, so testing its length asked
+        "is there exactly one invoice", and a payment against two credit notes
+        labelled its stat button "2 Invoice".
+        """
+        refunds = self.env["account.move"]
+        for amount in (30.0, 31.0, 32.0):
+            refunds |= self.init_invoice(
+                "out_refund", post=True, amounts=[amount], taxes=[]
+            )
+        for count in (1, 2, 3):
+            with self.subTest(credit_notes=count):
+                payment = self.env["account.payment"].create(
+                    {
+                        "payment_type": "outbound",
+                        "partner_type": "customer",
+                        "partner_id": self.partner_a.id,
+                        "journal_id": self.company_data["default_journal_bank"].id,
+                        "amount": 50.0,
+                        "invoice_ids": [Command.set(refunds[:count].ids)],
+                    }
+                )
+                self.assertEqual(payment.reconciled_invoices_type, "credit_note")
+
+    def test_force_balance_refuses_to_be_discarded(self):
+        """`force_balance` sets the liquidity balance; write-offs derive it."""
+        payment = self.env["account.payment"].create(
+            {
+                "payment_type": "inbound",
+                "partner_type": "customer",
+                "partner_id": self.partner_a.id,
+                "journal_id": self.company_data["default_journal_bank"].id,
+                "amount": 100.0,
+            }
+        )
+        line_vals = payment._prepare_move_lines_per_type(force_balance=999.0)
+        self.assertEqual(line_vals["liquidity_lines"][0]["balance"], 999.0)
+        with self.assertRaises(ValueError):
+            payment._prepare_move_lines_per_type(
+                write_off_line_vals=[
+                    {
+                        "name": "write-off",
+                        "account_id": payment.destination_account_id.id,
+                        "partner_id": self.partner_a.id,
+                        "currency_id": payment.currency_id.id,
+                        "amount_currency": -10.0,
+                        "balance": -10.0,
+                    }
+                ],
+                force_balance=999.0,
+            )
 
     def test_payment_state_with_unreconciliable_outstanding_account(self):
         unreconciliable_account = self.env["account.account"].create(
@@ -1067,9 +1188,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
 
         with assert_paid_hook_call("without oustanding"):
             if self.env["account.move"]._get_invoice_in_payment_state() != "in_payment":
-                self.skipTest(
-                    "Accounting not installed"
-                )
+                self.skipTest("Accounting not installed")
             invoice = self.init_invoice(
                 "out_invoice", post=True, amounts=[1000.0], taxes=[]
             )
@@ -1088,9 +1207,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
 
         with assert_paid_hook_call("with mixed oustanding"):
             if self.env["account.move"]._get_invoice_in_payment_state() != "in_payment":
-                self.skipTest(
-                    "Accounting not installed"
-                )
+                self.skipTest("Accounting not installed")
             invoice = self.init_invoice(
                 "out_invoice", post=True, amounts=[1000.0], taxes=[]
             )

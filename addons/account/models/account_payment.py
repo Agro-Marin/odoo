@@ -1,7 +1,8 @@
+from collections import defaultdict
 from itertools import zip_longest
 
 from odoo import Command, _, api, fields, models
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import MissingError, UserError, ValidationError
 from odoo.tools import SQL
 
 _SQL_RECONCILED_INVOICES_PER_PAYMENT = """
@@ -22,7 +23,7 @@ _SQL_RECONCILED_INVOICES_PER_PAYMENT = """
                 part.credit_move_id = counterpart_line.id
             JOIN account_move invoice ON invoice.id = counterpart_line.move_id
             JOIN account_account account ON account.id = line.account_id
-            WHERE account.account_type IN ('asset_receivable', 'liability_payable')
+            WHERE account.account_type = ANY(%(account_types)s)
                 AND payment.id = ANY(%(payment_ids)s)
                 AND line.id != counterpart_line.id
                 AND invoice.move_type = ANY(%(move_types)s)
@@ -46,11 +47,25 @@ _SQL_RECONCILED_STATEMENT_LINES_PER_PAYMENT = """
                 OR
                 part.credit_move_id = counterpart_line.id
             WHERE account.id = payment.outstanding_account_id
-                AND payment.id IN %(payment_ids)s
+                AND payment.id = ANY(%(payment_ids)s)
                 AND line.id != counterpart_line.id
                 AND counterpart_line.statement_line_id IS NOT NULL
             GROUP BY payment.id
 """
+
+# Every account `_seek_for_lines` consults to bucket a move's lines. The three
+# stored computes that call it must all be invalidated by all of them, so the set
+# is written once here rather than restated -- and drifting -- in each @api.depends.
+_SEEK_FOR_LINES_DEPENDS = (
+    "move_id.line_ids.account_id",
+    "outstanding_account_id",
+    "payment_channel_id.payment_account_id",
+    "journal_id.default_account_id",
+    "journal_id.inbound_payment_channel_ids.payment_account_id",
+    "journal_id.outbound_payment_channel_ids.payment_account_id",
+    "company_id.transfer_account_id",
+)
+
 
 class AccountPayment(models.Model):
     _name = "account.payment"
@@ -117,7 +132,11 @@ class AccountPayment(models.Model):
         store=True,
         compute="_compute_reconciliation_status",
     )
-    is_sent = fields.Boolean(string="Is Sent", readonly=True, copy=False)
+    is_sent = fields.Boolean(
+        string="Is Sent",
+        readonly=True,
+        copy=False,
+    )
     available_partner_bank_ids = fields.Many2many(
         comodel_name="res.partner.bank",
         compute="_compute_available_partner_bank_ids",
@@ -137,9 +156,9 @@ class AccountPayment(models.Model):
     paired_internal_transfer_payment_id = fields.Many2one(
         "account.payment",
         index="btree_not_null",
+        copy=False,
         help="When an internal transfer is posted, a paired payment is created. "
         "They are cross referenced through this field",
-        copy=False,
     )
 
     payment_channel_id = fields.Many2one(
@@ -316,9 +335,14 @@ class AccountPayment(models.Model):
         store=True,
     )
     duplicate_payment_ids = fields.Many2many(
-        comodel_name="account.payment", compute="_compute_duplicate_payment_ids"
+        comodel_name="account.payment",
+        compute="_compute_duplicate_payment_ids",
     )
-    attachment_ids = fields.One2many("ir.attachment", "res_id", string="Attachments")
+    attachment_ids = fields.One2many(
+        "ir.attachment",
+        "res_id",
+        string="Attachments",
+    )
 
     _check_amount_not_negative = models.Constraint(
         "CHECK(amount >= 0.0)",
@@ -337,28 +361,35 @@ class AccountPayment(models.Model):
         self.check_singleton()
 
         empty = self.env["account.move.line"]
-        buckets = ([], [], [])
+        liquidity_ids, counterpart_ids, other_ids = [], [], []
         valid_account_types = self._get_valid_payment_account_types()
         liquidity_accounts = self._get_valid_liquidity_accounts()
         for line in self.move_id.line_ids:
             if line.account_id in liquidity_accounts:
-                buckets[0].append(line.id)
+                liquidity_ids.append(line.id)
             elif (
                 line.account_id.account_type in valid_account_types
                 or line.account_id == line.company_id.transfer_account_id
             ):
-                buckets[1].append(line.id)
+                counterpart_ids.append(line.id)
             else:
-                buckets[2].append(line.id)
+                other_ids.append(line.id)
 
-        lines = [empty.browse(bucket) for bucket in buckets]
-        if len(lines[2]) == 1:
-            for i in (0, 1):
-                if not lines[i]:
-                    lines[i] = lines[2]
-                    lines[2] = empty
+        liquidity = empty.browse(liquidity_ids)
+        counterpart = empty.browse(counterpart_ids)
+        other = empty.browse(other_ids)
 
-        return lines
+        # An entry booked by hand against an account the channel does not name
+        # still has one line playing each role. With exactly one unclassified
+        # line, adopt it into whichever role is vacant -- liquidity first, and
+        # never into both.
+        if len(other) == 1:
+            if not liquidity:
+                liquidity, other = other, empty
+            elif not counterpart:
+                counterpart, other = other, empty
+
+        return [liquidity, counterpart, other]
 
     def _get_valid_liquidity_accounts(self):
         self.check_singleton()
@@ -432,6 +463,12 @@ class AccountPayment(models.Model):
     ):
         self.check_singleton()
 
+        if force_balance is not None and write_off_line_vals:
+            raise ValueError(
+                "force_balance sets the liquidity balance outright and cannot be "
+                "combined with write_off_line_vals, which derive it."
+            )
+
         if not self.outstanding_account_id:
             raise UserError(
                 _(
@@ -449,16 +486,22 @@ class AccountPayment(models.Model):
         write_off_amount_currency = sum(x["amount_currency"] for x in write_off_lines)
         write_off_balance = sum(x["balance"] for x in write_off_lines)
 
-        withholding_lines = self._prepare_move_withholding_lines({})
+        sign = -1 if self.payment_type == "outbound" else 1
+        liquidity_amount_currency = sign * self.amount
+
+        # This hook runs before the liquidity balance exists, because the balance
+        # is what its lines reduce. It gets the two values settled by then: the
+        # label every line of the entry carries, and the gross amount in the
+        # payment's own currency. Its siblings below take a balance as well.
+        withholding_lines = self._prepare_move_withholding_lines(
+            {"name": line_name, "amount_currency": liquidity_amount_currency}
+        )
         withholding_amount_currency = sum(
             x["amount_currency"] for x in withholding_lines
         )
         withholding_balance = sum(x["balance"] for x in withholding_lines)
 
-        sign = -1 if self.payment_type == "outbound" else 1
-        liquidity_amount_currency = sign * self.amount
-
-        if not write_off_line_vals and force_balance is not None:
+        if force_balance is not None:
             liquidity_balance = sign * abs(force_balance)
         else:
             liquidity_balance = self.currency_id._convert(
@@ -517,20 +560,19 @@ class AccountPayment(models.Model):
     @api.depends("move_id.name", "state", "company_id", "date")
     def _compute_name(self):
         for payment in self:
-            if (
-                payment.id
-                and (
-                    not payment.name
-                    or (payment.move_id and payment.name != payment.move_id.name)
-                )
-                and payment.state in ("in_process", "paid")
+            # Assigning on no branch is deliberate: a draft payment has no number
+            # yet, and a settled one keeps the number it was given. The ORM leaves
+            # an unassigned stored compute at its stored value, which is the two
+            # cases this wants.
+            if not payment.id or payment.state not in ("in_process", "paid"):
+                continue
+            if payment.name and (
+                not payment.move_id or payment.name == payment.move_id.name
             ):
-                payment.name = payment.move_id.name or self.env[
-                    "ir.sequence"
-                ].with_company(payment.company_id).next_by_code(
-                    "account.payment",
-                    sequence_date=payment.date,
-                )
+                continue
+            payment.name = payment.move_id.name or self.env["ir.sequence"].with_company(
+                payment.company_id
+            ).next_by_code("account.payment", sequence_date=payment.date)
 
     @api.depends("company_id", "partner_id", "payment_type")
     def _compute_journal_id(self):
@@ -581,6 +623,8 @@ class AccountPayment(models.Model):
         "reconciled_invoice_ids.payment_state",
         "reconciled_bill_ids.payment_state",
         "move_id.line_ids.amount_residual",
+        "move_id.line_ids.account_id.reconcile",
+        *_SEEK_FOR_LINES_DEPENDS,
     )
     def _compute_state(self):
         for payment in self:
@@ -610,13 +654,11 @@ class AccountPayment(models.Model):
     @api.depends(
         "move_id.line_ids.amount_residual",
         "move_id.line_ids.amount_residual_currency",
-        "move_id.line_ids.account_id",
         "state",
         "amount",
         "currency_id",
         "company_id.currency_id",
-        "outstanding_account_id",
-        "journal_id.default_account_id",
+        *_SEEK_FOR_LINES_DEPENDS,
     )
     def _compute_reconciliation_status(self):
         for pay in self:
@@ -689,13 +731,13 @@ class AccountPayment(models.Model):
 
     @api.depends(
         "move_id.line_ids.balance",
-        "move_id.line_ids.account_id",
         "amount",
         "payment_type",
         "currency_id",
         "date",
         "company_id",
         "company_currency_id",
+        *_SEEK_FOR_LINES_DEPENDS,
     )
     def _compute_amount_company_currency_signed(self):
         for payment in self:
@@ -741,40 +783,30 @@ class AccountPayment(models.Model):
     @api.depends("available_payment_channel_ids", "partner_id", "company_id")
     def _compute_payment_channel_id(self):
         for pay in self:
-            available_payment_channels = pay.available_payment_channel_ids
+            available = pay.available_payment_channel_ids
+            available_ids = set(available.ids)
             partner = pay.partner_id.with_company(pay.company_id)
-            inbound_payment_method = partner.property_inbound_payment_channel_id
-            outbound_payment_method = partner.property_outbound_payment_channel_id
-            if (
-                pay.payment_type == "inbound"
-                and inbound_payment_method.id in available_payment_channels.ids
-            ):
-                pay.payment_channel_id = inbound_payment_method
-            elif (
-                pay.payment_type == "outbound"
-                and outbound_payment_method.id in available_payment_channels.ids
-            ):
-                pay.payment_channel_id = outbound_payment_method
-            elif pay.payment_channel_id.id in available_payment_channels.ids:
+            preferred = self.env["account.payment.channel"]
+            if pay.payment_type in ("inbound", "outbound"):
+                preferred = partner[f"property_{pay.payment_type}_payment_channel_id"]
+            if preferred.id in available_ids:
+                pay.payment_channel_id = preferred
+            elif pay.payment_channel_id.id in available_ids:
                 continue
-            elif available_payment_channels:
-                pay.payment_channel_id = available_payment_channels[0]._origin
+            elif available:
+                pay.payment_channel_id = available[0]._origin
             else:
                 pay.payment_channel_id = False
 
     @api.depends("payment_type", "journal_id", "currency_id")
     def _compute_available_payment_channel_ids(self):
         for pay in self:
-            pay.available_payment_channel_ids = (
-                pay.journal_id._get_available_payment_channels(pay.payment_type)
-            )
-            to_exclude = pay._get_payment_method_codes_to_exclude()
-            if to_exclude:
-                pay.available_payment_channel_ids = (
-                    pay.available_payment_channel_ids.filtered(
-                        lambda x, to_exclude=to_exclude: x.code not in to_exclude
-                    )
+            channels = pay.journal_id._get_available_payment_channels(pay.payment_type)
+            if to_exclude := pay._get_payment_method_codes_to_exclude():
+                channels = channels.filtered(
+                    lambda x, to_exclude=to_exclude: x.code not in to_exclude
                 )
+            pay.available_payment_channel_ids = channels
 
     def _get_available_journals(self, company):
         return self.env["account.journal"].search(
@@ -809,14 +841,36 @@ class AccountPayment(models.Model):
     @api.depends("journal_id.currency_id", "company_id.currency_id")
     def _compute_currency_id(self):
         for pay in self:
-            pay.currency_id = (
-                pay.journal_id.currency_id or pay.company_id.currency_id
-            )
+            pay.currency_id = pay.journal_id.currency_id or pay.company_id.currency_id
 
-    @api.depends("payment_channel_id")
+    def _outstanding_account_is_mandatory(self):
+        # Without the Accounting app there is no `in_payment` state for an invoice
+        # to sit in, so a settlement that books no entry is indistinguishable from
+        # one settled outside Odoo -- the entry is mandatory, and the account comes
+        # from the chart when the channel names none. The bank-reconciliation
+        # widget forces the same for a payment it is about to match.
+        return (
+            bool(self.env.context.get("force_payment_move"))
+            or not self.env["account.move"]._has_full_accounting()
+        )
+
+    @api.depends("payment_channel_id", "payment_type", "company_id")
     def _compute_outstanding_account_id(self):
+        mandatory = self._outstanding_account_is_mandatory()
+        fallback = {}
         for pay in self:
-            pay.outstanding_account_id = pay.payment_channel_id.payment_account_id
+            account = pay.payment_channel_id.payment_account_id
+            if not account and mandatory:
+                key = (pay.company_id, pay.payment_type)
+                if key not in fallback:
+                    fallback[key] = pay._get_outstanding_account(pay.payment_type)
+                account = fallback[key]
+            if not account and pay.move_id:
+                # The entry already books this settlement against an outstanding
+                # account; clearing the column would orphan it from its own lines,
+                # which `_seek_for_lines` then buckets as an ordinary counterpart.
+                continue
+            pay.outstanding_account_id = account
 
     @api.depends("journal_id", "partner_id", "partner_type")
     def _compute_destination_account_id(self):
@@ -839,25 +893,19 @@ class AccountPayment(models.Model):
                 )
             return fallback_account[key]
 
+        account_by_partner_type = {
+            "customer": ("property_account_receivable_id", "asset_receivable"),
+            "supplier": ("property_account_payable_id", "liability_payable"),
+        }
         for pay in self:
-            if pay.partner_type == "customer":
-                if pay.partner_id:
-                    pay.destination_account_id = pay.partner_id.with_company(
-                        pay.company_id
-                    ).property_account_receivable_id
-                else:
-                    pay.destination_account_id = _fallback(
-                        pay.company_id, "asset_receivable"
-                    )
-            elif pay.partner_type == "supplier":
-                if pay.partner_id:
-                    pay.destination_account_id = pay.partner_id.with_company(
-                        pay.company_id
-                    ).property_account_payable_id
-                else:
-                    pay.destination_account_id = _fallback(
-                        pay.company_id, "liability_payable"
-                    )
+            if pay.partner_type not in account_by_partner_type:
+                continue
+            property_name, account_type = account_by_partner_type[pay.partner_type]
+            pay.destination_account_id = (
+                pay.partner_id.with_company(pay.company_id)[property_name]
+                if pay.partner_id
+                else _fallback(pay.company_id, account_type)
+            )
 
     @api.depends(
         "partner_bank_id",
@@ -883,6 +931,7 @@ class AccountPayment(models.Model):
             SQL(
                 _SQL_RECONCILED_INVOICES_PER_PAYMENT,
                 payment_ids=stored_payments.ids,
+                account_types=self._get_valid_payment_account_types(),
                 move_types=list(
                     self.env["account.move"].get_sale_types(True)
                     + self.env["account.move"].get_purchase_types(True)
@@ -895,7 +944,7 @@ class AccountPayment(models.Model):
             self.env.execute_query(
                 SQL(
                     _SQL_RECONCILED_STATEMENT_LINES_PER_PAYMENT,
-                    payment_ids=tuple(stored_payments.ids),
+                    payment_ids=stored_payments.ids,
                 )
             )
         )
@@ -929,35 +978,39 @@ class AccountPayment(models.Model):
             stored_payments
         )
 
-        for pay in self:
-            pay.reconciled_invoice_ids = pay.invoice_ids.filtered(
-                lambda m: m.is_sale_document(True)
-            )
-            pay.reconciled_bill_ids = pay.invoice_ids.filtered(
-                lambda m: m.is_purchase_document(True)
-            )
-
-        sale_types = self.env["account.move"].get_sale_types(True)
-        for payment_id, invoice_ids, move_type in invoices_per_payment:
-            pay = self.browse(payment_id)
-            invoices = self.env["account.move"].browse(invoice_ids)
-            if move_type in sale_types:
-                pay.reconciled_invoice_ids |= invoices
-            else:
-                pay.reconciled_bill_ids |= invoices
-
         query_res = self._get_reconciled_statement_lines_per_payment(stored_payments)
+        sale_types = self.env["account.move"].get_sale_types(True)
+
+        # Every set is resolved in Python before anything is assigned. Writing one
+        # of these fields marks it modified, and `account.move.payment_state`
+        # depends on `reconciled_payment_ids.state`, which the ORM can only invert
+        # by searching -- so each assignment walks back into `account.move` and,
+        # from there, into this compute again. Reading a field back mid-compute to
+        # `|=` it, or to derive another, pays for that walk a second time.
+        invoices_by_payment = defaultdict(list)
+        bills_by_payment = defaultdict(list)
+        for payment_id, invoice_ids, move_type in invoices_per_payment:
+            target = (
+                invoices_by_payment if move_type in sale_types else bills_by_payment
+            )
+            target[payment_id].extend(invoice_ids)
 
         for pay in self:
-            statement_line_ids = query_res.get(pay.id, [])
-            pay.reconciled_statement_line_ids = [Command.set(statement_line_ids)]
-            if (
-                len(pay.reconciled_invoice_ids.mapped("move_type")) == 1
-                and pay.reconciled_invoice_ids[0].move_type == "out_refund"
-            ):
-                pay.reconciled_invoices_type = "credit_note"
-            else:
-                pay.reconciled_invoices_type = "invoice"
+            invoices = pay.invoice_ids.filtered(lambda m: m.is_sale_document(True))
+            bills = pay.invoice_ids.filtered(lambda m: m.is_purchase_document(True))
+            invoices |= self.env["account.move"].browse(
+                invoices_by_payment.get(pay.id, ())
+            )
+            bills |= self.env["account.move"].browse(bills_by_payment.get(pay.id, ()))
+
+            pay.reconciled_invoice_ids = invoices
+            pay.reconciled_bill_ids = bills
+            pay.reconciled_statement_line_ids = [Command.set(query_res.get(pay.id, []))]
+            pay.reconciled_invoices_type = (
+                "credit_note"
+                if set(invoices.mapped("move_type")) == {"out_refund"}
+                else "invoice"
+            )
 
     def _compute_payment_receipt_title(self):
         self.payment_receipt_title = _("Payment Receipt")
@@ -981,10 +1034,21 @@ class AccountPayment(models.Model):
     def _search_reconciled_move_ids(self, operator, value, move_filter=None):
         if operator not in ("in", "="):
             return NotImplemented
-        moves = self.env["account.move"].browse(value).exists()
-        if move_filter is not None:
-            moves = moves.filtered(move_filter)
-        return [("id", "in", moves.reconciled_payment_ids.ids)]
+
+        def payment_ids(moves):
+            if move_filter is not None:
+                moves = moves.filtered(move_filter)
+            return moves.reconciled_payment_ids.ids
+
+        # The dependency walk inverts this field by searching, so it lands here
+        # once per record of every recompute -- an unconditional exists() was half
+        # of this compute's queries. Pay for it only when an id is actually gone.
+        moves = self.env["account.move"].browse(value)
+        try:
+            ids = payment_ids(moves)
+        except MissingError:
+            ids = payment_ids(moves.exists())
+        return [("id", "in", ids)]
 
     def _search_reconciled_invoice_ids(self, operator, value):
         return self._search_reconciled_move_ids(
@@ -1003,16 +1067,18 @@ class AccountPayment(models.Model):
         if not payments:
             return {}
 
-        used_fields = (
+        # The columns the query compares between the two sides. `state` is not one
+        # of them -- it is read off `duplicate_payment` alone -- but it still has
+        # to reach the database, so the two lists are not the same list.
+        matched_fields = (
             "company_id",
             "partner_id",
             "date",
-            "state",
             "amount",
             "payment_type",
             "currency_id",
         )
-        self.flush_model(used_fields)
+        self.flush_model((*matched_fields, "state"))
 
         payment_table_and_alias = SQL("account_payment AS payment")
         if not self.ids:
@@ -1022,7 +1088,7 @@ class AccountPayment(models.Model):
                     self[field_name], self
                 )
                 or None
-                for field_name in used_fields
+                for field_name in matched_fields
             }
             values["id"] = self._origin.id or 0
             casted_values = SQL(", ").join(
@@ -1068,9 +1134,11 @@ class AccountPayment(models.Model):
 
     def _inverse_memo(self):
         for payment in self:
-            move = payment.move_id
-            if move:
-                move.ref = payment.memo
+            # Deliberately not guarded on the move's state: a posted entry's ref
+            # follows the memo (test_payment_memo_account_move_ref_inverse) while
+            # its line labels do not, because posted journal items must not change
+            # under an edit. The two diverging is the intended trade.
+            payment.move_id.ref = payment.memo
 
     @api.constrains("payment_channel_id")
     def _check_payment_channel_id(self):
@@ -1095,7 +1163,10 @@ class AccountPayment(models.Model):
             if (
                 payment.state not in ("draft", "canceled")
                 and not payment.move_id
-                and payment.outstanding_account_id
+                and (
+                    payment.outstanding_account_id
+                    or payment._outstanding_account_is_mandatory()
+                )
             ):
                 raise ValidationError(
                     _(
@@ -1105,52 +1176,44 @@ class AccountPayment(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        write_off_line_vals_list = []
-        force_balance_vals_list = []
-        linecomplete_line_vals_list = []
-
-        for vals in vals_list:
-            write_off_line_vals_list.append(vals.pop("write_off_line_vals", None))
-
-            force_balance_vals_list.append(vals.pop("force_balance", None))
-
-            linecomplete_line_vals_list.append(vals.pop("line_ids", None))
+        entry_vals_list = [
+            (
+                vals.pop("write_off_line_vals", None),
+                vals.pop("force_balance", None),
+                vals.pop("line_ids", None),
+            )
+            for vals in vals_list
+        ]
 
         payments = super().create(vals_list)
 
-        # A settlement books a journal entry when its channel carries an
-        # outstanding account. Without the Accounting app there is no
-        # reconciliation surface to hold one that nobody booked, so the account
-        # is forced rather than left to the channel; the bank-reconciliation
-        # widget forces it too, for a payment it is about to match.
-        entry_is_mandatory = not self.env["account.move"]._has_full_accounting()
-        entry_is_forced = bool(self.env.context.get("force_payment_move"))
-
-        for i, (pay, vals) in enumerate(zip(payments, vals_list, strict=True)):
-            if entry_is_forced or (
-                entry_is_mandatory and not pay.outstanding_account_id
-            ):
-                outstanding_account = pay._get_outstanding_account(pay.payment_type)
-                pay.outstanding_account_id = outstanding_account.id
-
+        for pay, vals, (write_off_line_vals, force_balance, line_ids) in zip(
+            payments, vals_list, entry_vals_list, strict=True
+        ):
             if (
-                write_off_line_vals_list[i] is not None
-                or force_balance_vals_list[i] is not None
-                or linecomplete_line_vals_list[i] is not None
+                write_off_line_vals is None
+                and force_balance is None
+                and line_ids is None
             ):
-                pay._generate_journal_entry(
-                    write_off_line_vals=write_off_line_vals_list[i],
-                    force_balance=force_balance_vals_list[i],
-                    line_ids=linecomplete_line_vals_list[i],
-                )
-                if move_vals := {
-                    fname: value
-                    for fname, value in vals.items()
-                    if self._fields[fname].related
-                    and (self._fields[fname].related or "").split(".")[0] == "move_id"
-                }:
-                    pay.move_id.write(move_vals)
+                continue
+            pay._generate_journal_entry(
+                write_off_line_vals=write_off_line_vals,
+                force_balance=force_balance,
+                line_ids=line_ids,
+            )
+            if move_vals := pay._move_vals_from_related(vals):
+                pay.move_id.write(move_vals)
         return payments
+
+    def _move_vals_from_related(self, vals):
+        # A related field pointing at the move is written through its inverse by
+        # `super().create()`, when `move_id` is still empty -- so the value is
+        # dropped there and has to be re-applied once the entry exists.
+        return {
+            fname: value
+            for fname, value in vals.items()
+            if (self._fields[fname].related or "").split(".")[0] == "move_id"
+        }
 
     def _get_outstanding_account(self, payment_type):
         account_ref = (
@@ -1194,16 +1257,9 @@ class AccountPayment(models.Model):
             payment.display_name = payment.name or _("Draft Payment")
 
     def copy_data(self, default=None):
-        default = dict(default or {})
-        vals_list = super().copy_data(default)
+        vals_list = super().copy_data(dict(default or {}))
         for payment, vals in zip(self, vals_list, strict=True):
-            vals.update(
-                {
-                    "journal_id": payment.journal_id.id,
-                    "payment_channel_id": payment.payment_channel_id.id,
-                    **(vals or {}),
-                }
-            )
+            vals.setdefault("payment_channel_id", payment.payment_channel_id.id)
         return vals_list
 
     def _message_mail_after_hook(self, mails):
@@ -1219,7 +1275,7 @@ class AccountPayment(models.Model):
         return super()._message_mail_after_hook(mails)
 
     @api.model
-    def _reconcile_line_commands(self, lines, line_vals):
+    def _prepare_line_commands(self, lines, line_vals):
         commands = []
         for line, vals in zip_longest(lines, line_vals):
             if line is not None and vals is not None:
@@ -1267,10 +1323,10 @@ class AccountPayment(models.Model):
                 write_off_line_vals=write_off_line_vals
             )
             line_ids_commands = [
-                *self._reconcile_line_commands(
+                *self._prepare_line_commands(
                     liquidity_lines, line_vals_per_type.get("liquidity_lines", [])
                 ),
-                *self._reconcile_line_commands(
+                *self._prepare_line_commands(
                     counterpart_lines, line_vals_per_type.get("counterpart_lines", [])
                 ),
                 *(Command.delete(line.id) for line in writeoff_lines),
@@ -1315,19 +1371,17 @@ class AccountPayment(models.Model):
     def _generate_journal_entry(
         self, write_off_line_vals=None, force_balance=None, line_ids=None
     ):
+        if len(self) > 1 and (write_off_line_vals or force_balance or line_ids):
+            raise ValueError(
+                "write_off_line_vals, force_balance and line_ids describe one "
+                "entry and cannot be applied to a recordset."
+            )
         need_move = self.filtered(lambda p: not p.move_id and p.outstanding_account_id)
-        assert len(self) == 1 or (
-            not write_off_line_vals and not force_balance and not line_ids
-        )
 
         move_vals = [
             pay._generate_move_vals(write_off_line_vals, force_balance, line_ids)
             for pay in need_move
         ]
-        # The move's name depends on whether it is a payment's entry, and the
-        # edge only exists once the payment is written below -- so the sequence
-        # is told directly. `_get_last_sequence_domain` has always accepted this
-        # key; nothing used it while the move carried a column of its own.
         moves = self.env["account.move"].with_context(is_payment=True).create(move_vals)
         for pay, move in zip(need_move, moves, strict=True):
             pay.write({"move_id": move.id, "state": "in_process"})
@@ -1397,10 +1451,13 @@ class AccountPayment(models.Model):
         self.state = "rejected"
 
     def action_cancel(self):
+        # `self.move_id` is read once, before the unlink: reading it again after
+        # would re-resolve a many2one whose rows have just been deleted.
+        moves = self.move_id
+        draft_moves = moves.filtered(lambda m: m.state == "draft")
         self.state = "canceled"
-        draft_moves = self.move_id.filtered(lambda m: m.state == "draft")
+        (moves - draft_moves).action_cancel()
         draft_moves.unlink()
-        (self.move_id - draft_moves).action_cancel()
 
     def button_request_cancel(self):
         return self.move_id.button_request_cancel()
@@ -1419,9 +1476,7 @@ class AccountPayment(models.Model):
 
     def button_open_bills(self):
         self.check_singleton()
-        return self.reconciled_bill_ids.with_context(
-            create=False
-        )._get_records_action(
+        return self.reconciled_bill_ids.with_context(create=False)._get_records_action(
             name=_("Paid Bills"),
         )
 
@@ -1435,14 +1490,9 @@ class AccountPayment(models.Model):
 
     def button_open_journal_entry(self):
         self.check_singleton()
-        return {
-            "name": _("Journal Entry"),
-            "type": "ir.actions.act_window",
-            "res_model": "account.move",
-            "context": {"create": False},
-            "view_mode": "form",
-            "res_id": self.move_id.id,
-        }
+        return self.move_id.with_context(create=False)._get_records_action(
+            name=_("Journal Entry"),
+        )
 
 
 class AccountMove(models.Model):
