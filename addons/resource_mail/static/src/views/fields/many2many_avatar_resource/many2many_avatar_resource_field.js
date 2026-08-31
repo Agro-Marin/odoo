@@ -55,11 +55,11 @@ const WithResourceFieldMixin = (T) => class ResourceFieldMixin extends T {
     getTagProps(record) {
         return {
             ...super.getTagProps(...arguments),
-            icon: record.data.resource_type === "user" ? null : "fa-wrench",
+            icon: record.data.resource_type === "user" ? undefined : "fa-wrench",
             colorIndex: record.data.color,
             img: record.data.resource_type === "user"
                 ? `/web/image/${this.relation}/${record.resId}/avatar_128`
-                : null,
+                : false,
         };
     }
 };
