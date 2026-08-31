@@ -50,6 +50,37 @@ class TestPriceRuleName(TransactionCase):
         self.assertIn("times weight", rule.name)
 
     def test_name_carries_condition(self):
-        """The label starts with the rule's if-condition."""
+        """The label starts with the rule's if-condition, unit included."""
         rule = self._rule(list_base_price=5.0, operator=">=", max_value=3.0)
-        self.assertIn("if weight >= 3.00 then", rule.name)
+        self.assertIn(
+            "if weight >= 3.00 %s then" % self.carrier.weight_uom_name, rule.name
+        )
+
+    def test_name_carries_the_volume_unit(self):
+        """A volume rule reads in the volume unit, not the weight one."""
+        rule = self._rule(variable="volume", list_base_price=5.0)
+        self.assertIn(
+            "if volume <= 10.00 %s then" % self.carrier.volume_uom_name, rule.name
+        )
+
+    def test_name_carries_both_units_for_weight_times_volume(self):
+        """A weight * volume rule spells out both units."""
+        rule = self._rule(variable="wv", list_base_price=5.0)
+        self.assertIn(
+            "if wv <= 10.00 %s * %s then"
+            % (self.carrier.weight_uom_name, self.carrier.volume_uom_name),
+            rule.name,
+        )
+
+    def test_name_carries_the_currency_for_a_price_rule(self):
+        """A price rule reads in the carrier's currency."""
+        rule = self._rule(variable="price", list_base_price=5.0)
+        self.assertIn(
+            "if price <= 10.00 %s then" % self.carrier.currency_id.symbol, rule.name
+        )
+
+    def test_name_omits_the_unit_when_the_variable_has_none(self):
+        """A quantity rule has no unit to show, and must not print a stand-in."""
+        rule = self._rule(variable="quantity", list_base_price=5.0)
+        self.assertIn("if quantity <= 10.00 then", rule.name)
+        self.assertNotIn("False", rule.name)
