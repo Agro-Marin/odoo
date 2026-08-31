@@ -375,6 +375,45 @@ class MixinHrIndividualSkill(models.AbstractModel):
             Command.update(skill.id, {"valid_to": yesterday}) for skill in to_archive
         ]
 
+    def _search_live_skills_for(self, vals_list, linked_ids_of):
+        """Stored skills that the pending values could collide with.
+
+        "Live" means still valid, plus every certification when the model lets
+        the user set a validity period, because two certifications differing only
+        in their dates are allowed to coexist and both have to be seen.
+        """
+        validity_domain = Domain.OR(
+            [
+                Domain("valid_to", "=", False),
+                Domain("valid_to", ">=", fields.Date.today()),
+            ]
+        )
+        if self._can_edit_certification_validity_period():
+            validity_domain = Domain.OR(
+                [validity_domain, Domain("is_certification", "=", True)]
+            )
+        linked_field = self._linked_field_name()
+        return self.env[self._name].search(
+            Domain.AND(
+                [
+                    Domain.OR(
+                        [
+                            Domain.AND(
+                                [
+                                    Domain(linked_field, "in", linked_ids_of(vals)),
+                                    Domain(
+                                        "skill_id", "=", vals.get("skill_id", False)
+                                    ),
+                                ]
+                            )
+                            for vals in vals_list
+                        ]
+                    ),
+                    validity_domain,
+                ]
+            )
+        )
+
     def _create_individual_skills(self, vals_list, individuals=None):
         can_edit_certification_validity_period = (
             self._can_edit_certification_validity_period()
@@ -390,39 +429,7 @@ class MixinHrIndividualSkill(models.AbstractModel):
         skills_to_archive = self.env[self._name]
         vals_to_return = []
 
-        validity_domain = Domain.OR(
-            [
-                Domain("valid_to", "=", False),
-                Domain("valid_to", ">=", fields.Date.today()),
-            ]
-        )
-
-        if can_edit_certification_validity_period:
-            validity_domain = Domain.OR(
-                [
-                    validity_domain,
-                    Domain("is_certification", "=", True),
-                ]
-            )
-
-        existing_skills_domain = Domain.AND(
-            [
-                Domain.OR(
-                    [
-                        Domain.AND(
-                            [
-                                Domain(linked_field, "in", linked_ids_of(vals)),
-                                Domain("skill_id", "=", vals.get("skill_id", False)),
-                            ]
-                        )
-                        for vals in vals_list
-                    ]
-                ),
-                validity_domain,
-            ]
-        )
-
-        existing_skills = self.env[self._name].search(existing_skills_domain)
+        existing_skills = self._search_live_skills_for(vals_list, linked_ids_of)
         existing_skills_grouped = existing_skills.grouped(
             lambda skill: (skill[linked_field].id, skill.skill_id.id)
         )

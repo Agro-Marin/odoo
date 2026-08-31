@@ -130,31 +130,67 @@ class HrEmployee(models.Model):
         return super().write(vals)
 
     @api.model
+    def _get_required_certifications_by_job(self):
+        """Map each job to {(skill, level): summary} for what it requires today."""
+        required = defaultdict(dict)
+        jobs = self.env["hr.job"].search(
+            [("current_job_skill_ids", "any", [("is_certification", "=", True)])]
+        )
+        for job in jobs:
+            for cert in job.current_job_skill_ids.filtered("is_certification"):
+                required[job][(cert.skill_id, cert.skill_level_id)] = (
+                    f"{cert.skill_id.name}: {cert.skill_level_id.name}"
+                )
+        return required
+
+    @api.model
+    def _get_certification_expiry_by_employee(self, employees):
+        """Map each employee to {(skill, level): valid_to} for the certifications held.
+
+        ``valid_to`` is False for one that never expires, and the latest expiry
+        among those already lapsed when none is still valid. Grouping by
+        (employee, skill, level) rather than assigning per row matters because an
+        employee may legitimately hold both a lapsed certification and its
+        renewal, and last-write-wins picks whichever was iterated last.
+        """
+        today = fields.Date.today()
+        held = self.env["hr.employee.skill"].search(
+            Domain.AND(
+                [
+                    Domain("employee_id", "in", employees.ids),
+                    Domain("is_certification", "=", True),
+                ],
+            ),
+        )
+        expiry = defaultdict(dict)
+        grouped = held.grouped(
+            lambda skill: (skill.employee_id, skill.skill_id, skill.skill_level_id)
+        )
+        for (employee, skill, level), certifications in grouped.items():
+            current = certifications.filtered(
+                lambda c: not c.valid_to or c.valid_to >= today
+            )
+            if current:
+                without_expiry = current.filtered(lambda c: not c.valid_to)
+                valid_to = False if without_expiry else max(current.mapped("valid_to"))
+            else:
+                valid_to = max(certifications.mapped("valid_to"))
+            expiry[employee][(skill, level)] = valid_to
+        return expiry
+
+    @api.model
     def _add_certification_activity_to_employees(self):
         today = fields.Date.today()
         three_months_later = today + relativedelta(months=3)
         return_val = self.env["mail.activity"]
 
-        jobs_with_certification = self.env["hr.job"].search(
-            [("current_job_skill_ids", "any", [("is_certification", "=", True)])]
-        )
-        if not jobs_with_certification:
-            return return_val
-
-        job_skill_level_mapping = defaultdict(dict)
-
-        for job in jobs_with_certification:
-            for cert in job.current_job_skill_ids.filtered("is_certification"):
-                key = (cert.skill_id, cert.skill_level_id)
-                summary = f"{cert.skill_id.name}: {cert.skill_level_id.name}"
-                job_skill_level_mapping[job][key] = summary
-
+        job_skill_level_mapping = self._get_required_certifications_by_job()
         if not job_skill_level_mapping:
             return return_val
 
         employee_domain = Domain.AND(
             [
-                Domain("job_id", "in", jobs_with_certification.ids),
+                Domain("job_id", "in", [job.id for job in job_skill_level_mapping]),
                 Domain.OR(
                     [
                         Domain("user_id", "!=", False),
@@ -168,33 +204,7 @@ class HrEmployee(models.Model):
         if not employees:
             return return_val
 
-        emp_skills = self.env["hr.employee.skill"].search(
-            Domain.AND(
-                [
-                    Domain("employee_id", "in", employees.ids),
-                    Domain("is_certification", "=", True),
-                ],
-            ),
-        )
-
-        employee_cert_data = defaultdict(dict)
-        emp_skills_by_key = dict(
-            emp_skills.grouped(
-                lambda es: (es.employee_id, es.skill_id, es.skill_level_id)
-            )
-        )
-        for (employee, skill_id, skill_level_id), certs in emp_skills_by_key.items():
-            current_certs = certs.filtered(
-                lambda c: not c.valid_to or c.valid_to >= today
-            )
-            if current_certs:
-                without_expiry = current_certs.filtered(lambda c: not c.valid_to)
-                valid_to = (
-                    False if without_expiry else max(current_certs.mapped("valid_to"))
-                )
-            else:
-                valid_to = max(certs.mapped("valid_to"))
-            employee_cert_data[employee][(skill_id, skill_level_id)] = valid_to
+        employee_cert_data = self._get_certification_expiry_by_employee(employees)
 
         existing_activities = self.env["mail.activity"].search(
             Domain.AND(
