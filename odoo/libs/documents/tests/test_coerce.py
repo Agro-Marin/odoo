@@ -76,7 +76,9 @@ class TestNormalizeNumber(unittest.TestCase):
         self.assertEqual(normalize_number("$1,234.56", symbols=SYMBOLS), "1234.56")
 
     def test_scientific_notation_is_expanded(self):
-        self.assertEqual(float(normalize_number("1.5e3", symbols=SYMBOLS)), 1500.0)
+        expanded = normalize_number("1.5e3", symbols=SYMBOLS)
+        assert expanded is not None
+        self.assertEqual(float(expanded), 1500.0)
 
     def test_not_a_number(self):
         self.assertIsNone(normalize_number("n/a", symbols=SYMBOLS))

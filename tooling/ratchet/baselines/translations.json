@@ -1,5 +1,5 @@
 {
-  "count": 404,
-  "measured_at": "0c82bbec0c7c5f99668b376d9b5d0de79b55de3e",
-  "note": "Re-exported the .pot catalogues of html_editor, iap, mrp, pos_hr, product_expiry, project and purchase, which were stale against the tree. 509 -> 404. Twelve of the 105 were strings written since the 497 floor was banked at e84f2893593 -- the gate is explicit that a new string is exported, not floored -- and the other 93 were catalogue drift the same seven modules had already accumulated, project.pot most of all, whose field labels never caught up with the fork step_id/date_end renames."
+  "count": 371,
+  "measured_at": "6137c6abfcf6509f286ad624300a789fd0b2e00a",
+  "note": "Re-measured after rebasing this branch a second time, onto origin/19.0-marin at 8781de80114 (nine further commits). The upstream side had moved both of these itself -- the .pot re-export took translations well below its floor and the manifest canonicalisation took lint_manifest_shape below its own -- so neither side's figure described the merged tree and both were re-derived at HEAD."
 }

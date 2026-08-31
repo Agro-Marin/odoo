@@ -182,7 +182,9 @@ class TestTheAuditFoundThese(unittest.TestCase):
 
         payload = {f"k{i}": f"v{i}" for i in range(6000)}
         doc = Document(_json.dumps(payload).encode(), "application/json", "big.json")
-        self.assertEqual(len(doc.data_dict), 6000)
+        rows = doc.data_dict
+        assert rows is not None
+        self.assertEqual(len(rows), 6000)
 
     def test_a_large_xml_document_still_parses(self):
         source = ("<r>" + "".join(f"<i>{i}</i>" for i in range(6000)) + "</r>").encode()

@@ -1,5 +1,5 @@
 {
-  "count": 598,
-  "measured_at": "6947192edca463e8ac654a71cbf25365664c7d06",
-  "note": "Core reaches zero: 618 -> 598. All twenty are `odoo/addons` -- the 26 modules the core package ships -- and every one was non-canonical KEY ORDER alone; no unknown key and no redundant default was found in any of them.\n\nFixed by the gate's own fixer, `_sort_manifests.py`, run over `odoo/addons`. It rewrote 22 files against 20 violations: `test_data_module_install` and `test_mimetypes` were already in canonical key order and only gained the one-entry-per-line list form the fixer emits, so they moved the diff without moving the count.\n\nVerified at the CI scope -- `--addons-path=odoo/addons,addons -i test_lint --test-enable --test-tags /test_lint` -- over a `git archive HEAD` tree carrying only this change: 1 failure, 0 errors of 246 tests, and the one failure is this floor asking to be banked. The remaining 598 are all in `addons/`, which this change does not touch."
+  "count": 596,
+  "measured_at": "6137c6abfcf6509f286ad624300a789fd0b2e00a",
+  "note": "Re-measured after rebasing this branch a second time, onto origin/19.0-marin at 8781de80114 (nine further commits). The upstream side had moved both of these itself -- the .pot re-export took translations well below its floor and the manifest canonicalisation took lint_manifest_shape below its own -- so neither side's figure described the merged tree and both were re-derived at HEAD."
 }
