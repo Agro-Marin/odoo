@@ -82,9 +82,11 @@ class ResourceCalendarLeaves(models.Model):
         previous_durations = leaves.mapped("number_of_days")
         previous_states = leaves.mapped("state")
         self.env.add_to_compute(self.env["hr.leave"]._fields["number_of_days"], leaves)
-        self.env.add_to_compute(
-            self.env["hr.leave"]._fields["duration_display"], leaves
-        )
+        # add_to_compute only schedules that one field: it does not walk the
+        # dependency graph, so anything computed *from* number_of_days keeps its
+        # cached value.  Saying it moved is what refreshes duration_display and
+        # any future reader of the duration.
+        leaves.modified(["number_of_days"])
         leaves.sudo().write(
             {
                 "state": "confirm",
@@ -211,6 +213,15 @@ class ResourceCalendarLeaves(models.Model):
         self._reevaluate_leaves(time_domain_dict)
 
         return res
+
+    def load_public_holidays(self):
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Load Public Holidays"),
+            "res_model": "load.public.holiday.wizard",
+            "view_mode": "form",
+            "target": "new",
+        }
 
     @api.depends("holiday_id.employee_id.company_id")
     def _compute_company_id(self):

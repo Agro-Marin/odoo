@@ -6,6 +6,8 @@ from . import test_hr_holidays_cancel_leave
 from . import test_hr_holidays_tour
 from . import test_hr_leave_type
 from . import test_accrual_allocations
+from . import test_accrual_level_export
+from . import test_accrual_yearly_gain
 from . import test_change_department
 from . import test_leave_requests
 from . import test_out_of_office
@@ -13,6 +15,8 @@ from . import test_company_leave
 from . import test_res_partner
 from . import test_mandatory_days
 from . import test_global_leaves
+from . import test_load_public_holidays
+from . import test_user_local_dates
 from . import test_uninstall
 from . import test_holidays_calendar
 from . import test_holidays_mail
@@ -23,8 +27,10 @@ from . import test_multicompany
 from . import test_timeoff_event
 from . import test_working_hours
 from . import test_dashboard
+from . import test_duration_display_language
 from . import test_expiring_leaves
 from . import test_hr_departure_wizard
+from . import test_time_off_smart_button
 from . import test_time_off_card_tour
 from . import test_hr_leave_type_tour
 from . import test_time_off_graph_view_tour

@@ -473,7 +473,7 @@
         <field name="mode">primary</field>
         <field name="priority">17</field>
         <field name="arch" type="xml">
-            <xpath expr="//field[@widget='many2one_avatar_employee']" position="attributes"> 
+            <xpath expr="//field[@widget='many2one_avatar_employee']" position="attributes">
                 <attribute name="readonly">0</attribute>
             </xpath>
             <field name="holiday_status_id" position="before">
@@ -584,6 +584,7 @@
                     <button type="action"
                         name="%(hr_holidays.action_hr_leave_generate_multi_wizard)d"
                         string="New Group Time Off" class="btn btn-secondary"
+                        invisible="context.get('default_employee_id', False)"
                         groups="hr_holidays.group_hr_holidays_responsible" display="always"
                     />
                     <button type="object"
@@ -819,6 +820,7 @@
             'search_default_waiting_for_me_manager': 2,
             'search_default_current_year': 3,
             'hide_employee_name': 1,
+            'is_management_related': True,
             }</field>
         <field name="domain">[('employee_id.company_id', 'in', allowed_company_ids)]</field>
         <field name="help" type="html">
