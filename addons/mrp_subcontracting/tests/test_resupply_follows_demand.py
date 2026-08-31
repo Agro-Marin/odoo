@@ -1,5 +1,3 @@
-"""The component supply of a subcontracting production must follow its demand."""
-
 import unittest
 
 from odoo.tests import Form, tagged
@@ -12,11 +10,6 @@ class TestResupplyFollowsDemand(TestMrpSubcontractingCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Every case here drives the demand from a purchase order, but this
-        # module depends on `mrp` alone. Installed against its declared
-        # dependencies the whole class errored on KeyError: 'purchase.order';
-        # it only ever passed because purchase happens to be installed
-        # alongside. Same guard shape as test_subcontracting.py.
         if "purchase.order" not in cls.env:
             raise unittest.SkipTest(
                 "purchase is not installed: this class drives demand from a"
@@ -95,13 +88,6 @@ class TestResupplyFollowsDemand(TestMrpSubcontractingCommon):
         self.assertEqual(self._resupplied(production, self.comp1), 4)
 
     def test_recording_down_then_back_up_does_not_resupply_twice(self):
-        """The production shrinks and grows again; the components were sent once.
-
-        This is what a delta against the *previous demand* cannot see: the climb back
-        looks exactly like a fresh increase. Measured against what the upstream moves
-        carry, there is nothing missing. Toggling repeatedly used to add the difference
-        every single time -- 3, then 5, then 6.
-        """
         order = self._order(3)
         production = self._production()
         receipt_move = order.picking_ids.move_ids.filtered(lambda m: m.is_subcontract)
@@ -116,11 +102,6 @@ class TestResupplyFollowsDemand(TestMrpSubcontractingCommon):
             )
 
     def test_recording_a_quantity_does_not_order_more(self):
-        """The suppression this reuses exists for exactly this case.
-
-        A subcontractor telling us what they actually produced rescales the production,
-        but is not a reason to resupply them again.
-        """
         order = self._order(3)
         production = self._production()
         self.assertEqual(self._resupplied(production, self.comp1), 3)

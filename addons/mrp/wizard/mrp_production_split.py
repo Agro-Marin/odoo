@@ -115,11 +115,6 @@ class MrpProductionSplit(models.TransientModel):
                 )
 
     def action_split(self):
-        # The "Split" button is only `invisible="not valid_details"` in the
-        # view -- a client-side gate a direct/RPC call bypasses. Left
-        # unchecked, under-summed details make `_get_split_amounts` append an
-        # extra leftover production, and the `zip(strict=True)` below raises
-        # a raw `ValueError` instead of this clean error.
         if not self.valid_details:
             raise UserError(
                 _(

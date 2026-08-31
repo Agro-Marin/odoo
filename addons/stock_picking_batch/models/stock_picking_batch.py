@@ -133,11 +133,9 @@ class StockPickingBatch(models.Model):
             estimated_shipping_weight = 0
             estimated_shipping_volume = 0
             done_package_ids = set()
-            # packs
             for pack in batch.move_line_ids.result_package_id:
                 p_type = pack.package_type_id
                 if pack.shipping_weight:
-                    # shipping_weight was computed, so base_weight should be included.
                     estimated_shipping_weight += pack.shipping_weight
                     done_package_ids.add(pack.id)
                 elif p_type:
@@ -145,7 +143,6 @@ class StockPickingBatch(models.Model):
                     estimated_shipping_volume += (
                         p_type.packaging_length * p_type.width * p_type.height
                     ) / 1000.0**3
-            # move without packs
             for move_line in batch.picking_ids.move_ids.move_line_ids:
                 if move_line.result_package_id.id in done_package_ids:
                     continue
@@ -164,7 +161,6 @@ class StockPickingBatch(models.Model):
 
         for batch in self:
             domain_states = list(allowed_picking_states)
-            # Allows to add draft pickings only if batch is in draft as well.
             if batch.state == "draft":
                 domain_states.append("draft")
             domain = [
@@ -212,10 +208,8 @@ class StockPickingBatch(models.Model):
         for batch in batchs:
             if not batch.picking_ids:
                 continue
-            # Cancels automatically the batch picking if all its transfers are cancelled.
             if all(picking.state == "cancel" for picking in batch.picking_ids):
                 batch.state = "cancel"
-            # Batch picking is marked as done if all its not canceled transfers are done.
             elif all(
                 picking.state in ["done", "cancel"] for picking in batch.picking_ids
             ):
@@ -245,9 +239,6 @@ class StockPickingBatch(models.Model):
             if move_lines_to_unlink:
                 move_lines_to_unlink.unlink()
 
-    # -------------------------------------------------------------------------
-    # CRUD
-    # -------------------------------------------------------------------------
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
@@ -300,11 +291,7 @@ class StockPickingBatch(models.Model):
         if any(batch.state == "done" for batch in self):
             raise UserError(_("You cannot delete Done batch transfers."))
 
-    # -------------------------------------------------------------------------
-    # Action methods
-    # -------------------------------------------------------------------------
     def action_confirm(self):
-        """Sanity checks, confirm the pickings and mark the batch as confirmed."""
         self.check_singleton()
         if not self.picking_ids:
             raise UserError(_("You have to set some pickings to batch."))
@@ -341,7 +328,6 @@ class StockPickingBatch(models.Model):
 
         self.check_singleton()
         self._check_company()
-        # Empty 'assigned' or 'waiting for another operation' pickings will be removed from the batch when it is validated.
         pickings = self.mapped("picking_ids").filtered(
             lambda picking: picking.state not in ("done", "cancel")
         )
@@ -355,15 +341,13 @@ class StockPickingBatch(models.Model):
 
         empty_pickings = pickings.filtered(has_no_quantity)
 
-        # Run sanity_check as a batch and ignore the one in button_validate() since it is done here.
         pickings._sanity_check()
         context = {
-            "skip_sanity_check": True,  # Skip sanity_check in pickings button_validate()
-            "pickings_to_detach": empty_waiting_pickings.ids,  # Remove 'waiting' pickings from the batch
-            "batches_to_validate": self.ids,  # Skip current batch in auto_wave
+            "skip_sanity_check": True,
+            "pickings_to_detach": empty_waiting_pickings.ids,
+            "batches_to_validate": self.ids,
         }
         if len(empty_pickings) != len(pickings):
-            # If some pickings are at least partially done, other pickings (empty & waiting) will be removed from batch without being cancelled in case of no backorder
             pickings -= empty_pickings
             context["pickings_to_detach"] += empty_pickings.ids
 
@@ -399,9 +383,6 @@ class StockPickingBatch(models.Model):
     def action_put_in_pack(
         self, *, package_id=False, package_type_id=False, package_name=False
     ):
-        """Action to put move lines with 'Done' quantities into a new pack
-        This method follows same logic to stock.picking.
-        """
         self.check_singleton()
         if self.state not in ("done", "cancel"):
             return self.move_line_ids.action_put_in_pack(
@@ -558,9 +539,6 @@ class StockPickingBatch(models.Model):
             },
         }
 
-    # -------------------------------------------------------------------------
-    # Miscellaneous
-    # -------------------------------------------------------------------------
     @api.model
     def _prepare_name(self, picking_type, sequence_code, company_id):
         sequence = (
@@ -590,7 +568,6 @@ class StockPickingBatch(models.Model):
         return super()._track_subtype(init_values)
 
     def _is_picking_auto_mergeable(self, picking):
-        """Verifies if a picking can be safely inserted into the batch without violating auto_batch_constrains."""
         res = True
         if self.picking_type_id.batch_max_lines:
             res = res and (
@@ -606,7 +583,6 @@ class StockPickingBatch(models.Model):
     def _is_line_auto_mergeable(
         self, num_of_moves=False, num_of_pickings=False, weight=False
     ):
-        """Verifies if a line can be safely inserted into the wave without violating auto_batch_constrains."""
         self.check_singleton()
         res = True
         if num_of_moves:

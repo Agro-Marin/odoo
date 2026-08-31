@@ -10,7 +10,6 @@ class StockMoveLine(models.Model):
         current_location_id = self.location_id
         res = super()._onchange_serial_number()
         if res and not self.lot_name and current_location_id.is_subcontract():
-            # we want to avoid auto-updating source location in this case + change the warning message
             self.location_id = current_location_id
             res["warning"]["message"] = (
                 res["warning"]["message"].split("\n\n", 1)[0]
@@ -23,11 +22,6 @@ class StockMoveLine(models.Model):
 
     def write(self, vals):
         res = super().write(vals)
-        # `exists()`, because a move line write can DELETE members of `self`:
-        # stock's reservation engine settles an over-allocation by unlinking
-        # competing reservations, and a line of this very batch can be among them.
-        # Reading `self.move_id` off the pre-write recordset then dereferences a
-        # row that is gone.
         survivors = self.exists()
         if not self.env.context.get("mrp_subcontracting") and (
             "quantity" in vals or "lot_id" in vals

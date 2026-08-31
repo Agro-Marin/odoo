@@ -6,9 +6,6 @@ class TestAnalyticAccount(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # The group 'mrp.group_mrp_routings' is required to make the field
-        # 'workorder_ids' visible in the view of 'mrp.production'. The subviews
-        #  of `workorder_ids` must be present in many tests to create records.
         cls.env.user.group_ids += cls.env.ref(
             "analytic.group_analytic_accounting"
         ) + cls.env.ref("mrp.group_mrp_routings")
@@ -34,10 +31,6 @@ class TestAnalyticAccount(TransactionCase):
         )
 
     def test_mandatory_analytic_plan_bom(self):
-        """
-        Tests that the distribution validation is correctly evaluated
-        The BOM creation should not be constrained by any analytic applicability rule.
-        """
         bom = self.env["mrp.bom"].create(
             {
                 "product_tmpl_id": self.product.product_tmpl_id.id,
@@ -55,10 +48,6 @@ class TestAnalyticAccount(TransactionCase):
         self.assertTrue(bom_2)
 
     def test_mandatory_analytic_plan_workcenter(self):
-        """
-        Tests that the distribution validation is correctly evaluated
-        The Workcenter creation should not be constrained by any analytic applicability rule.
-        """
         workcenter = self.env["mrp.workcenter"].create(
             {
                 "name": "Great Workcenter",
@@ -80,8 +69,6 @@ class TestAnalyticAccount(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestAnalyticAccountSmartButtons(TransactionCase):
-    """Counters and smart-button actions of manufacturing analytic accounts."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -106,8 +93,6 @@ class TestAnalyticAccountSmartButtons(TransactionCase):
                 ],
             },
         )
-        # production_ids / bom_ids are plain many2many on the account side:
-        # link from there instead of through a non-existent inverse field.
         cls.account.bom_ids = [Command.link(cls.bom.id)]
 
     def _make_production(self):
@@ -123,7 +108,6 @@ class TestAnalyticAccountSmartButtons(TransactionCase):
         return production
 
     def test_counters_reflect_linked_records(self):
-        """The BoM and production counters follow their linked records."""
         self.assertEqual(self.account.bom_count, 1)
         self.assertEqual(self.account.production_count, 0)
 
@@ -133,7 +117,6 @@ class TestAnalyticAccountSmartButtons(TransactionCase):
         self.assertEqual(self.account.production_count, 1)
 
     def test_single_record_actions_open_the_form(self):
-        """With one linked record the action opens it directly in form view."""
         production = self._make_production()
 
         bom_action = self.account.action_view_mrp_bom()
@@ -145,7 +128,6 @@ class TestAnalyticAccountSmartButtons(TransactionCase):
         self.assertEqual(mo_action["res_id"], production.id)
 
     def test_multi_record_action_opens_the_list(self):
-        """With several linked records the action falls back to the list."""
         first = self._make_production()
         second = self._make_production()
 
@@ -160,8 +142,6 @@ class TestAnalyticAccountSmartButtons(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestWipEntryProductionLinks(TransactionCase):
-    """WIP journal entries keep, count and open their source MOs."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -198,7 +178,6 @@ class TestWipEntryProductionLinks(TransactionCase):
         cls.entry = cls.env["account.move"].create({"move_type": "entry"})
 
     def test_count_follows_linked_productions(self):
-        """The counter tracks the MOs the WIP entry was based on."""
         self.assertEqual(self.entry.wip_production_count, 0)
 
         self.entry.wip_production_ids = [Command.set(self.productions.ids)]
@@ -206,7 +185,6 @@ class TestWipEntryProductionLinks(TransactionCase):
         self.assertEqual(self.entry.wip_production_count, 2)
 
     def test_links_survive_duplication(self):
-        """Copying a WIP entry carries its source MOs over."""
         self.entry.wip_production_ids = [Command.set(self.productions.ids)]
 
         copied = self.entry.copy()
@@ -214,7 +192,6 @@ class TestWipEntryProductionLinks(TransactionCase):
         self.assertEqual(copied.wip_production_ids, self.productions)
 
     def test_action_opens_form_or_list_by_count(self):
-        """One MO opens in form, several open as a named list."""
         self.entry.wip_production_ids = [Command.set(self.productions[0].ids)]
         single = self.entry.action_view_wip_production()
         self.assertEqual(single["view_mode"], "form")

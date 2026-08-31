@@ -13,11 +13,6 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
         cls.dropship_route = cls.env.ref("stock_dropshipping.route_drop_shipping")
 
     def test_dropship_with_different_suppliers(self):
-        """
-        Suppose a kit with 3 components supplied by 3 vendors
-        When dropshipping this kit, if 2 components are delivered and if the last
-        picking is cancelled, we should consider the kit as fully delivered.
-        """
         partners = self.env["res.partner"].create(
             [{"name": "Vendor %s" % i} for i in range(4)]
         )
@@ -74,25 +69,18 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
         purchase_orders.action_confirm()
         self.assertEqual(sale_order.line_ids.qty_transferred, 0)
 
-        # Deliver the first one
         picking = sale_order.picking_ids.filtered(lambda p: p.partner_id == partners[0])
         picking.button_validate()
         self.assertEqual(sale_order.line_ids.qty_transferred, 0)
 
-        # Deliver the third one
         picking = sale_order.picking_ids.filtered(lambda p: p.partner_id == partners[2])
         picking.button_validate()
         self.assertEqual(sale_order.line_ids.qty_transferred, 0)
 
-        # Cancel the second one
         sale_order.picking_ids[1].action_cancel()
         self.assertEqual(sale_order.line_ids.qty_transferred, 1)
 
     def test_return_kit_and_delivered_qty(self):
-        """
-        Sell a kit thanks to the dropshipping route, return it then deliver it again
-        The delivered quantity should be correctly computed
-        """
         compo, kit = self.env["product.product"].create(
             [
                 {
@@ -170,18 +158,6 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
             )
 
     def test_partial_return_kit_and_delivered_qty(self):
-        """
-        Suppose a kit with 4x the same dropshipped component
-        Suppose a complex delivery process:
-            - Deliver 2 (with backorder)
-            - Return 2
-            - Deliver 1 (with backorder)
-            - Deliver 1 (process "done")
-            - Deliver 1 (from the return)
-            - Deliver 1 (from the return)
-        The test checks the all-or-nothing policy of the delivered quantity
-        This quantity should be 1.0 after the last delivery
-        """
         compo, kit = self.env["product.product"].create(
             [
                 {
@@ -236,7 +212,6 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
             sale_order.line_ids.qty_transferred, 0.0, "Delivered components: 2/4"
         )
 
-        # Create a return of picking01 (with both components)
         return_form = Form(
             self.env["stock.return.picking"].with_context(
                 active_id=picking01.id, active_model="stock.picking"
@@ -270,7 +245,6 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
             sale_order.line_ids.qty_transferred, 0.0, "Delivered components: 2/4"
         )
 
-        # Create a return of return01 (with 1 component)
         return_form = Form(
             self.env["stock.return.picking"].with_context(
                 active_id=return01.id, active_model="stock.picking"
@@ -288,7 +262,6 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
             sale_order.line_ids.qty_transferred, 0.0, "Delivered components: 3/4"
         )
 
-        # Create a second return of return01 (with 1 component, the last one)
         return_form = Form(
             self.env["stock.return.picking"].with_context(
                 active_id=return01.id, active_model="stock.picking"
@@ -307,9 +280,6 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
         )
 
     def test_cancelled_picking_and_delivered_qty(self):
-        """
-        The delivered quantity should be zero if all SM are cancelled
-        """
         compo, kit = self.env["product.product"].create(
             [
                 {
@@ -358,10 +328,6 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
         self.assertEqual(sale_order.line_ids.qty_transferred, 0.0)
 
     def test_sale_kit_with_dropshipped_component(self):
-        """
-        The test checks the delivered quantity of a kit when one of the
-        components is dropshipped
-        """
         compo01, compo02, kit = self.env["product.product"].create(
             [
                 {
@@ -419,7 +385,6 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
         self.assertEqual(sale_order.line_ids.qty_transferred, 1.0)
 
     def test_kit_dropshipped_change_qty_SO(self):
-        # Create BoM
         product_a, product_b, final_product = self.env["product.product"].create(
             [
                 {
@@ -455,7 +420,6 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
             }
         )
 
-        # Create sale order
         partner = self.env["res.partner"].create(
             {
                 "name": "Testing Man",
@@ -480,9 +444,6 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
         self.assertEqual(sol.purchase_line_ids.mapped("product_qty"), [10, 10])
 
     def test_dropship_move_lines_have_bom_line_id(self):
-        """When selling a dropshipped kit, ensure that the move lines have a correctly
-        assigned bom_line_id
-        """
         compo, kit = self.env["product.product"].create(
             [
                 {
@@ -520,7 +481,6 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
 
         picking = sale_order.picking_ids
         picking.button_validate()
-        # The bom_line_id on the stock move should be set
         compo_move = sale_order.line_ids.move_ids.filtered(
             lambda sm: sm.product_id == compo
         )

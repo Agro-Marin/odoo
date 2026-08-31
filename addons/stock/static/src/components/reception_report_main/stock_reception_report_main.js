@@ -49,7 +49,6 @@ export class ReceptionReportMain extends Component {
                         parsedIds instanceof Array ? parsedIds : [parsedIds],
                     ];
                 } catch (error) {
-                    // Restored from a URL someone edited; fall through to the
                     console.warn("[stock] unreadable reception report ids:", error);
                 }
             }

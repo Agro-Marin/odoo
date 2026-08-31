@@ -11,23 +11,19 @@ class StockWarehouse(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         res = super().create(vals_list)
-        # if new warehouse has resupply enabled, enable global route
         if any(vals.get("subcontracting_to_resupply", False) for vals in vals_list):
             res.update_global_route_dropship_subcontractor()
         return res
 
     def write(self, vals):
         res = super().write(vals)
-        # if all warehouses have resupply disabled, disable global route, until its enabled on a warehouse
         if "subcontracting_to_resupply" in vals or "active" in vals:
             if "subcontracting_to_resupply" in vals:
-                # ignore when warehouse archived since it will auto-archive all of its rules
                 self._update_dropship_subcontract_rules()
             self.update_global_route_dropship_subcontractor()
         return res
 
     def _update_dropship_subcontract_rules(self):
-        """update (archive/unarchive) any warehouse subcontracting location dropship rules"""
         subcontracting_locations = self._get_subcontracting_locations()
         route_id = self._get_or_create_global_route(
             "stock_dropshipping.route_drop_shipping",
@@ -62,9 +58,6 @@ class StockWarehouse(models.Model):
             "stock_dropshipping.route_drop_shipping",
             _("Dropship Subcontractor on Order"),
         )
-        # if route has no pull rules, it means all warehouses have Dropship Subcontractor disabled
-        # Pick type is per company so we need to check rules per company to archive it, however
-        # the route is global so we need to check all rules regardless of company
         all_rules = route_id.sudo().rule_ids.filtered(lambda r: r.active)
         for company in self.company_id:
             company_rules = all_rules.filtered(

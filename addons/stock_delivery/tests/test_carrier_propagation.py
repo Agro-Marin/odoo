@@ -12,10 +12,8 @@ class TestCarrierPropagation(TransactionCase):
         super().setUpClass()
         cls.warehouse = cls.env.ref("stock.warehouse0")
 
-        # Set Warehouse as multi steps delivery
         cls.warehouse.delivery_steps = "pick_pack_ship"
 
-        # Create a delivery product and its carrier
         cls.ProductProduct = cls.env["product.product"]
         cls.SaleOrder = cls.env["sale.order"]
         cls.StockMove = cls.env["stock.move"]
@@ -65,12 +63,6 @@ class TestCarrierPropagation(TransactionCase):
         )
 
     def test_carrier_no_propagation(self):
-        """
-        Set the carrier propagation to False on stock.rule
-        Create a Sale Order, confirm it
-        Check that the carrier is set on the OUT
-        Check that the carrier is not set on the PACK
-        """
         self.rule_pack.propagate_carrier = False
 
         so = self.SaleOrder.create(
@@ -102,7 +94,6 @@ class TestCarrierPropagation(TransactionCase):
         )
         choose_delivery_carrier = delivery_wizard.save()
         choose_delivery_carrier.button_confirm()
-        # Confirm the SO
         so.action_confirm()
 
         pick = so.picking_ids
@@ -113,12 +104,6 @@ class TestCarrierPropagation(TransactionCase):
         self.assertFalse(pack.carrier_id)
 
     def test_carrier_propagation(self):
-        """
-        Set the carrier propagation to True on stock.rule
-        Create a Sale Order, confirm it
-        Check that the carrier is set on the OUT
-        Check that the carrier is set on the PACK
-        """
         self.rule_pack.propagate_carrier = True
 
         for product in [self.super_product, self.mto_product]:
@@ -151,7 +136,6 @@ class TestCarrierPropagation(TransactionCase):
             )
             choose_delivery_carrier = delivery_wizard.save()
             choose_delivery_carrier.button_confirm()
-            # Confirm the SO
             so.action_confirm()
 
             pick = so.picking_ids
@@ -166,8 +150,6 @@ class TestCarrierPropagation(TransactionCase):
             self.assertEqual(self.normal_delivery, ship.carrier_id)
 
     def test_carrier_propagation_with_all_pull_rules(self):
-        """Ensure that the carrier is propagated in pickings through all pull rules
-        where 'propagate_carrier' is enabled."""
         delivery_route_rules = self.warehouse.delivery_route_id.rule_ids
         delivery_route_rules[0].location_dest_id = self.rule_pack.location_src_id
         delivery_route_rules.action = "pull"
@@ -206,10 +188,6 @@ class TestCarrierPropagation(TransactionCase):
         )
 
     def test_route_based_on_carrier_delivery(self):
-        """
-        Check that the route on the sale order line is selected as per the first priority even if route on shipping mehod is present
-        Also, Check that the route on the shipping method is selected if there is no route selected on sale order line
-        """
         route1 = self.env["stock.route"].create(
             {
                 "name": "Route1",
@@ -292,7 +270,6 @@ class TestCarrierPropagation(TransactionCase):
             sale_order1.picking_ids.location_id, route1.rule_ids.location_src_id
         )
 
-        # check route without add in sale order line
         sale_order2 = self.SaleOrder.create(
             {
                 "partner_id": self.partner_propagation.id,
@@ -326,13 +303,6 @@ class TestCarrierPropagation(TransactionCase):
         )
 
     def test_carrier_picking_batch_validation(self):
-        """
-        Create 2 delivery orders with carriers. Make them respectively
-        valid and invalid on the carrier side. Validate the pickings in batch
-        Since the pickings are processed unbatched on the carrier side the
-        "UserError" of the invalid picking can not be raised and should be
-        replaced by a warning activity.
-        """
         self.warehouse.delivery_steps = "ship_only"
         alien = self.env["res.users"].create(
             {
@@ -377,7 +347,6 @@ class TestCarrierPropagation(TransactionCase):
             choose_delivery_carrier.button_confirm()
 
         def fail_send_to_shipper(pick):
-            # side effect to throw an error for a given picking but resolve the normal call for the other
             def _throw_error_on_chosen_picking(self):
                 if self == pick:
                     raise UserError(
@@ -389,7 +358,6 @@ class TestCarrierPropagation(TransactionCase):
 
         sale_orders.action_confirm()
         for i in range(len(sale_orders)):
-            # check that a delivery was created for the associated carrier
             self.assertEqual(
                 sale_orders[i].picking_ids.carrier_id.id, sale_orders[i].carrier_id.id
             )
@@ -400,7 +368,6 @@ class TestCarrierPropagation(TransactionCase):
             picking_class + ".send_to_shipper", new=fail_send_to_shipper(pickings[1])
         ):
             pickings.with_user(alien).button_validate()
-        # both pickings should be validated but and activity should have been created for the invalid picking
         self.assertEqual(pickings.mapped("state"), ["done", "done"])
         self.assertTrue(
             self.env["mail.activity"].search(

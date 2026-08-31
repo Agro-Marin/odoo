@@ -5,7 +5,6 @@ class ProductProduct(models.Model):
     _inherit = "product.product"
 
     def _compute_bom_price(self, bom, boms_to_recompute=False, byproduct_bom=False):
-        """Add the price of the subcontracting supplier if it exists with the bom configuration."""
         price = super()._compute_bom_price(bom, boms_to_recompute, byproduct_bom)
         if bom and bom.type == "subcontract":
             seller = self._select_seller(

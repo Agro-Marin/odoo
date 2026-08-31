@@ -123,23 +123,6 @@ class MrpRoutingWorkcenter(models.Model):
             )
 
     def _get_recent_workorders(self):
-        """The last `time_mode_batch` done work orders of each of these operations.
-
-        A top-N-per-group, which is why this used to be one `search(limit=N)` per
-        operation -- 50 of the 59 queries a list of fifty computed operations cost.
-        `ROW_NUMBER() OVER (PARTITION BY operation_id ...)` answers it for the whole
-        set at once, and the operations are grouped by `time_mode_batch` so the
-        per-group N is a constant inside each query: one query per *distinct batch
-        size*, which is one in every configuration that leaves the default alone.
-
-        Built on `_search`'s own query rather than a hand-written FROM, so the
-        record rules on `mrp.workorder` still apply -- the ranking is wrapped
-        around what the ORM would have selected, not substituted for it.
-
-        :return: ``{operation id: mrp.workorder recordset}``, in the same
-            `date_end desc, id desc` order the per-operation search returned, and
-            empty for an operation with no history.
-        """
         Workorder = self.env["mrp.workorder"]
         result = {operation.id: Workorder for operation in self}
         if not self:
@@ -239,19 +222,11 @@ class MrpRoutingWorkcenter(models.Model):
                 "quantity", operation.bom_id.product_qty or 1
             )
             unit = self.env.context.get("unit", operation.bom_id.product_uom_id)
-            # workcenter_id is required, so a SAVED operation always has one --
-            # but a new record from a form view has not been given one yet, and
-            # _get_capacity is a singleton method. These are the values it
-            # returns when no capacity line matches: the default capacity, and
-            # time_start/time_stop, which read 0.0 off an empty workcenter.
             if workcenter:
                 (capacity, setup, cleanup) = workcenter._get_capacity(
                     product, unit, operation.bom_id.product_qty or 1
                 )
             else:
-                # workcenter_id is required, so only a not-yet-saved form record
-                # reaches here. These are what _get_capacity returns when no
-                # capacity line matches, read off an empty workcenter.
                 capacity = operation.bom_id.product_qty or 1
                 setup = cleanup = 0.0
             operation.cycle_number = float_round(
@@ -294,9 +269,6 @@ class MrpRoutingWorkcenter(models.Model):
 
     @api.constrains("blocked_by_operation_ids", "bom_id")
     def _check_blocked_by_same_bom(self):
-        # The field's `domain=` restricts the widget to same-BoM operations,
-        # but a domain is a client-side filter only -- a programmatic write
-        # can still link operations across two unrelated BoMs.
         for operation in self:
             other_boms = operation.blocked_by_operation_ids.bom_id - operation.bom_id
             if other_boms:
@@ -312,10 +284,6 @@ class MrpRoutingWorkcenter(models.Model):
         )._update_outdated_bom_in_productions()
         return res
 
-    #: Fields whose change actually affects routing/costing and therefore
-    #: warrants re-flagging the BoM's in-progress productions as outdated.
-    #: Mirrors `mrp.bom._OUTDATING_FIELDS` -- a purely cosmetic write (e.g.
-    #: renaming the operation) must not outdate anything.
     _OUTDATING_FIELDS = (
         "workcenter_id",
         "time_mode",
@@ -352,9 +320,6 @@ class MrpRoutingWorkcenter(models.Model):
         byproduct_lines = self.env["mrp.bom.byproduct"].search(
             [("operation_id", "in", self.ids)]
         )
-        # Snapshot which lines pointed here before clearing the link, so
-        # `action_unarchive` can restore it -- mirroring `archived_with_bom`
-        # for the operation/BoM pair.
         for op, lines in bom_lines.grouped("operation_id").items():
             op.archived_bom_line_ids = lines
         for op, lines in byproduct_lines.grouped("operation_id").items():
@@ -406,8 +371,6 @@ class MrpRoutingWorkcenter(models.Model):
         }
 
     def _skip_bom_line(self, product, never_attribute_values=False):
-        # An operation that is not active applies to nothing, which is the one
-        # clause an operation adds to the shared variant rule.
         self.check_singleton()
         if not self.active:
             return True

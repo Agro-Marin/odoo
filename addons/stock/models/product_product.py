@@ -57,9 +57,6 @@ class QuantityScope(NamedTuple):
     move_in_done: Domain
     move_out_done: Domain
     dates_in_the_past: bool
-    # Set when a lot/owner/package filter is active: the move-level domains above
-    # can only ask whether a move has *a* matching line, so rewinding a past date
-    # from them counts the whole move. See `_quantity_line_leaves`.
     move_in_done_lines: Domain | None = None
     move_out_done_lines: Domain | None = None
 
@@ -815,26 +812,6 @@ class ProductProduct(models.Model):
         return quant, move_in, move_out
 
     def _quantity_line_leaves(self, filters):
-        """The per-line counterparts of the `move_line_ids.*` leaves above.
-
-        Those leaves are *any*-semantics: they select a move that has at least one
-        matching line. That is the right question for "does this move concern the
-        lot/owner/package", and the wrong one for "how much of it does", because
-        `_read_quantities` then sums the **whole** move. A receipt of 10 owned plus
-        5 consigned units contributed all 15 to an owner-scoped rewind while its
-        quants contributed only the 10 owned, so `qty_available` at a past date came
-        back at -5 for a product that had never been short. `stock_account` seeds the
-        AVCO replay from exactly that number, and a negative seed makes the
-        accumulator discard the value it was seeded with -- silently understating
-        stock value by the consigned quantity times the seeded cost.
-
-        Only the historical branch is corrected here. The `todo` domains sum
-        `product_qty` (demand) on moves whose lines may not cover it yet, so
-        measuring them from lines would understate a forecast rather than fix it.
-
-        :return: ``(in_leaves, out_leaves)``, each a `Domain` on `stock.move.line`,
-            or ``(None, None)`` when no line-level filter is active.
-        """
         in_leaves = Domain.TRUE
         out_leaves = Domain.TRUE
         narrowed = False
@@ -850,8 +827,6 @@ class ProductProduct(models.Model):
             out_leaves &= leaf
             narrowed = True
         if filters.package_id is not None:
-            # The package a line puts goods into on the way in, and takes them out
-            # of on the way out -- as the move-level leaves above already say.
             in_leaves &= Domain([("result_package_id", "=", filters.package_id)])
             out_leaves &= Domain([("package_id", "=", filters.package_id)])
             narrowed = True
@@ -980,10 +955,6 @@ class ProductProduct(models.Model):
         moves_in_res_past = defaultdict(float)
         moves_out_res_past = defaultdict(float)
         if scope.dates_in_the_past and scope.move_in_done_lines is not None:
-            # A lot/owner/package filter is active, so the whole move is the wrong
-            # unit of measurement -- sum the matching lines instead. Their
-            # `quantity_product_uom` is stored and already in the product's UoM,
-            # so this also drops the per-group conversion below.
             MoveLine = self.env["stock.move.line"]
             for target, domain in (
                 (moves_in_res_past, scope.move_in_done_lines),

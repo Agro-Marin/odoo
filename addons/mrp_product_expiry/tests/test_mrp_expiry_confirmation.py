@@ -1,9 +1,6 @@
 from odoo.fields import Command
 from odoo.tests import TransactionCase, tagged
 
-# subir-cobertura for the manufacturing expiry-confirmation flow: the expired-lot
-# check, its context builder, and the confirmation wizard description.
-
 
 @tagged("post_install", "-at_install")
 class TestMrpExpiryConfirmation(TransactionCase):
@@ -29,13 +26,11 @@ class TestMrpExpiryConfirmation(TransactionCase):
         )
 
     def test_check_expired_lots_skipped_by_context(self):
-        """The expired-lot check is bypassed once the user confirmed."""
         self.assertFalse(
             self.production.with_context(skip_expired=True)._check_expired_lots()
         )
 
     def test_expired_context_targets_production_and_lots(self):
-        """The expiry wizard context carries the production and lot defaults."""
         ctx = self.production._get_expired_context([self.lot_1.id, self.lot_2.id])
         self.assertEqual(ctx["default_production_ids"], self.production.ids)
         self.assertEqual(
@@ -43,7 +38,6 @@ class TestMrpExpiryConfirmation(TransactionCase):
         )
 
     def test_wizard_description_lists_multiple_lots(self):
-        """With several expired lots the wizard shows the list and generic text."""
         wizard = self.env["expiry.picking.confirmation"].create(
             {
                 "production_ids": [Command.set(self.production.ids)],
@@ -54,7 +48,6 @@ class TestMrpExpiryConfirmation(TransactionCase):
         self.assertIn("expired components", wizard.description)
 
     def test_wizard_description_names_single_lot(self):
-        """With a single expired lot the wizard names that lot in the message."""
         wizard = self.env["expiry.picking.confirmation"].create(
             {
                 "production_ids": [Command.set(self.production.ids)],

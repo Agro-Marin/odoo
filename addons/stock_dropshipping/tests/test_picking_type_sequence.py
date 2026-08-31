@@ -3,16 +3,6 @@ from odoo.tests import TransactionCase, tagged
 
 @tagged("post_install", "-at_install")
 class TestDropshipPickingTypeSequence(TransactionCase):
-    """`warehouse_id` moves by compute here, and the prefix has to follow it.
-
-    `stock` alone cannot stage this: its `_compute_warehouse_id` depends on
-    `company_id`, and `_check_company_change` forbids moving a type between
-    companies, so the field only ever settles at create time. This module adds
-    `default_location_src_id` and `default_location_dest_id` to that compute,
-    which is what makes an ordinary location write hand a warehouse-less
-    operation type a warehouse -- with no `warehouse_id` anywhere in the payload.
-    """
-
     def test_a_warehouse_arriving_by_compute_carries_the_prefix_with_it(self):
         company = self.env["res.company"].create({"name": "Late Warehouse Co"})
         self.env.flush_all()
@@ -49,7 +39,6 @@ class TestDropshipPickingTypeSequence(TransactionCase):
         )
         self.env.flush_all()
 
-        # No `warehouse_id` in this payload. The compute puts one there anyway.
         picking_type.write({"default_location_src_id": warehouse.lot_stock_id.id})
         self.env.flush_all()
         picking_type.invalidate_recordset()

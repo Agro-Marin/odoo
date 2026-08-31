@@ -129,15 +129,6 @@ class TestPickingTypeSequence(TestStockCommon):
         self.assertEqual(custom.sequence_id.name, "Renamed WH Sequence CUS2")
 
     def test_two_types_of_one_warehouse_may_share_a_prefix(self):
-        """The database no longer refuses a shared prefix within a warehouse.
-
-        ``_sequence_code_uniq`` was dropped: this deployment carries warehouses
-        whose operation types have collided for years -- warehouse 104 alone has
-        five active types coded INTWH, each with thousands of transfers behind
-        it -- so the index could never be created and every upgrade warned about
-        it. The guard that remains is ``_onchange_sequence_code``, which still
-        warns a user typing a prefix another type already holds.
-        """
         first = self._new_type(warehouse_id=self.warehouse.id, sequence_code="DUP")
         second = self._new_type(
             warehouse_id=self.warehouse.id,

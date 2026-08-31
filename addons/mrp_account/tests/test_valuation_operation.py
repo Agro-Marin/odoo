@@ -1,15 +1,12 @@
-"""Implementation of "INVENTORY VALUATION TESTS (With valuation layers)" spreadsheet."""
-
 from odoo.tests import Form
 
 from odoo.addons.mrp_account.tests.common import TestBomPriceOperationCommon
 
-PRICE = 718.75 + 2 * 321.25 - 100  # component price + operations - glass cost
+PRICE = 718.75 + 2 * 321.25 - 100
 
 
 class TestMrpValuationOperationStandard(TestBomPriceOperationCommon):
     def test_fifo_byproduct(self):
-        """Check that a MO byproduct with a cost share calculates correct svl"""
         self.glass.categ_id = self.category_fifo
         self.glass.qty_available = 0
         self.scrap_wood.categ_id = self.category_avco

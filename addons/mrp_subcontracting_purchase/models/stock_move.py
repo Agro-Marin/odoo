@@ -26,7 +26,6 @@ class StockMove(models.Model):
         old_extra = self.production_id.extra_cost
         new_extra_cost = (bill_data["value"] + po_data["value"]) / quantity
 
-        # Recompute finished_move price based on quotation and invoice
         value = (self.price_unit - old_extra + new_extra_cost) * self.quantity
         return {
             "value": value,

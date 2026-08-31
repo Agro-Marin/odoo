@@ -49,9 +49,7 @@ class SaleOrderLine(models.Model):
                     break
 
     def _get_procurement_qty(self, previous_product_qty=False):
-        # People without purchase rights should be able to do this operation
         purchase_lines_sudo = self.sudo().purchase_line_ids
-        # We make sure that it's not a kit with dropshipped components
         if (
             any(
                 pol._is_dropshipped() and pol.state != "cancel"
@@ -72,11 +70,6 @@ class SaleOrderLine(models.Model):
 
     @api.depends("purchase_line_count")
     def _compute_product_readonly(self):
-        """Extend product_readonly for lines with purchase order lines.
-
-        For users in the purchase group, a line becomes readonly once it has
-        associated purchase order lines (e.g. dropshipped products).
-        """
         super()._compute_product_readonly()
         if self.env.user.has_group("purchase.group_purchase_user"):
             for line in self:

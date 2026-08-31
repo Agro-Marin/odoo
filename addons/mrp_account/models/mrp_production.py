@@ -25,9 +25,6 @@ class MrpProduction(models.Model):
                 production.display_name
             )
             for workorder in production.workorder_ids:
-                # Every set of analytic lines, not just the project one: naming
-                # a single field left the work centre's own lines carrying the
-                # order's old name for good.
                 analytic_lines = workorder._get_analytic_lines()
                 analytic_lines.ref = production.display_name
                 analytic_lines.name = _("[WC] %s", workorder.display_name)
@@ -58,13 +55,6 @@ class MrpProduction(models.Model):
         return action
 
     def _cal_price(self, consumed_moves):
-        """Price the finished move and every byproduct that carries a cost share.
-
-        `_get_value_from_production` values a production move at
-        ``quantity * price_unit`` and nothing else, so a move this method leaves
-        unpriced enters stock at zero. Every move with a share is therefore
-        priced here, in both cost methods.
-        """
         super()._cal_price(consumed_moves)
 
         finished_move = self.move_finished_ids.filtered(
@@ -96,10 +86,6 @@ class MrpProduction(models.Model):
             lambda m: m.product_id.cost_method in ("fifo", "average")
         )
         currency = self.company_id.currency_id
-        # A byproduct valued at standard enters stock at its own price whatever
-        # the order cost, so its share is a variance rather than a slice of
-        # `total_cost` -- and only the moves priced *from* the total have to add
-        # back up to it.
         standard_byproducts = byproduct_moves - priced_byproducts
         for byproduct in standard_byproducts:
             byproduct.price_unit = byproduct.product_id.standard_price
@@ -116,8 +102,6 @@ class MrpProduction(models.Model):
             finished_move.price_unit = self.product_id.standard_price
             return True
         finished_move.check_singleton()
-        # Derived by subtraction, not from its own share: rounding each unit
-        # price on its own left a cent in the production account per order.
         finished_move.price_unit = shared_value / quantity
         return True
 
@@ -127,13 +111,6 @@ class MrpProduction(models.Model):
         return res
 
     def _get_labour_amounts_per_account(self, product_accounts):
-        """Labour to charge per expense account, and the work orders behind each.
-
-        The per-account amounts are rounded so their sum is exactly
-        ``currency.round(total labour)`` -- the same figure `_cal_price`
-        capitalises into the finished move. Rounding each account on its own
-        leaves a residual that never clears out of the production account.
-        """
         self.check_singleton()
         currency = self.company_id.currency_id
         raw_amounts = defaultdict(float)
@@ -211,10 +188,6 @@ class MrpProduction(models.Model):
                     }
                 )
             )
-            # The expense line for a work centre whose account *is* the
-            # production account is indistinguishable from the balancing line by
-            # account, so the two are paired positionally -- by creation order,
-            # which is the order `line_ids` was built in above.
             expense_lines = account_move.line_ids.sorted("id")[: len(charged)]
             for line, (account, _amount) in zip(expense_lines, charged, strict=True):
                 workorders[account].time_ids.write({"account_move_line_id": line.id})

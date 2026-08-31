@@ -43,9 +43,6 @@ class TestPacking(TestPackingCommon):
         )
 
     def test_put_in_pack_weight_wizard(self):
-        """Check that de default weight is correctly set by default when using the 'stock.put.in.pack' wizard.
-        This purpose of this wizard is to set the delivery package type and weight before validating the package.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.product_aw, self.stock_location, 20.0
         )
@@ -84,22 +81,18 @@ class TestPacking(TestPackingCommon):
                 "picked": True,
             }
         )
-        self.assertEqual(picking_ship.shipping_weight, 13.5)  # 2.4 * 5 + 0.3 * 5
+        self.assertEqual(picking_ship.shipping_weight, 13.5)
         pack_action = picking_ship.action_put_in_pack()
         pack_action_ctx = pack_action["context"]
         pack_action_model = pack_action["res_model"]
 
-        # We make sure the correct action was returned
         self.assertEqual(pack_action_model, "stock.put.in.pack")
 
-        # We instanciate the wizard with the context of the action and check that the
-        # default weight was set.
         pack_wiz = (
             self.env["stock.put.in.pack"].with_context(pack_action_ctx).create({})
         )
         self.assertEqual(pack_wiz.shipping_weight, 13.5)
 
-        # unpick the move lines and check that the weight is correctly updated
         move_line.write({"picked": False})
 
         pack_action = picking_ship.action_put_in_pack()
@@ -114,10 +107,9 @@ class TestPacking(TestPackingCommon):
         pack_wiz.shipping_weight = 5
         pack_wiz.action_put_in_pack()
 
-        self.assertEqual(picking_ship.shipping_weight, 17)  # 2.4 * 5 + 5
+        self.assertEqual(picking_ship.shipping_weight, 17)
 
     def test_pack_in_pack_weight_wizard(self):
-        """Check that de default weight is correctly set by default when using the 'stock.put.in.pack' wizard on packages."""
         package_type = self.env["stock.package.type"].create({"name": "Locked Box"})
         self.env["stock.quant"]._update_available_quantity(
             self.product_aw, self.stock_location, 5.0
@@ -153,40 +145,34 @@ class TestPacking(TestPackingCommon):
             }
         )
         delivery.action_confirm()
-        self.assertEqual(delivery.shipping_weight, 13.5)  # 2.4 * 5 + 0.3 * 5
+        self.assertEqual(delivery.shipping_weight, 13.5)
 
-        # Picks the first product (aw) and put it in a pack
         delivery.move_ids.filtered(
             lambda m: m.product_id == self.product_aw
         ).picked = True
         wizard = Form.from_action(self.env, delivery.action_put_in_pack())
-        self.assertEqual(wizard.shipping_weight, 12)  # 2.4 * 5
+        self.assertEqual(wizard.shipping_weight, 12)
         wizard.package_type_id = package_type
         wizard.shipping_weight = 15
         wizard.save().action_put_in_pack()
-        self.assertEqual(delivery.shipping_weight, 16.5)  # 15 + 0.3 * 5
+        self.assertEqual(delivery.shipping_weight, 16.5)
 
-        # Picks the second product (bw) and put in in a pack
         delivery.move_ids.picked = True
         wizard = Form.from_action(self.env, delivery.action_put_in_pack())
-        self.assertEqual(wizard.shipping_weight, 1.5)  # 0.3 * 5
+        self.assertEqual(wizard.shipping_weight, 1.5)
         wizard.package_type_id = package_type
         wizard.shipping_weight = 3
         wizard.save().action_put_in_pack()
-        self.assertEqual(delivery.shipping_weight, 18)  # 15 + 3
+        self.assertEqual(delivery.shipping_weight, 18)
 
-        # Pack both packages into a new package
         wizard = Form.from_action(self.env, delivery.action_put_in_pack())
-        self.assertEqual(wizard.shipping_weight, 18)  # 15 + 3
+        self.assertEqual(wizard.shipping_weight, 18)
         wizard.package_type_id = package_type
         wizard.shipping_weight = 20
         wizard.save().action_put_in_pack()
         self.assertEqual(delivery.shipping_weight, 20)
 
     def test_send_to_shipper_without_sale_order(self):
-        """
-        Check we can validate delivery with a delivery carrier set when it isn't linked to a sale order
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.product_aw, self.stock_location, 20.0
         )
@@ -219,10 +205,8 @@ class TestPacking(TestPackingCommon):
         self.assertEqual(picking_ship.state, "done")
 
     def test_multistep_delivery_tracking(self):
-        # Set Warehouse as multi steps delivery
         self.warehouse.delivery_steps = "pick_pack_ship"
 
-        # Create and confirm the SO
         so = self.env["sale.order"].create(
             {
                 "name": "Sale order",
@@ -259,7 +243,6 @@ class TestPacking(TestPackingCommon):
             self.product_aw, self.stock_location, 20.0
         )
 
-        # Confirm the picking and send to shipper
         picking_ship = so.picking_ids.filtered(
             lambda p: p.picking_type_id.name == "Pick"
         )
@@ -268,7 +251,6 @@ class TestPacking(TestPackingCommon):
         picking_ship.move_ids.picked = True
         picking_ship.button_validate()
 
-        # Mock carrier shipping method
         with patch(
             "odoo.addons.stock_delivery.models.delivery_carrier.DeliveryCarrier.fixed_send_shipping",
             return_value=[{"exact_price": 0, "tracking_number": "666"}],
@@ -279,12 +261,6 @@ class TestPacking(TestPackingCommon):
             self.assertEqual(p.carrier_tracking_ref, "666")
 
     def test_batch_picking_delivery(self):
-        """
-        Check that when Put in Pack is called for batch pickings (i.e. faked with multi-record action
-        calling to avoid extra batch+delivery module for just a test) then:
-         - Same delivery carrier = works
-         - Different delivery carriers = UserError
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 4.0
         )
@@ -322,11 +298,8 @@ class TestPacking(TestPackingCommon):
             }
         )
 
-        # Test that differing carrier + put in pack = UserError
         delivery_2 = delivery_1.copy({"carrier_id": test_carrier.id})
         ml_1.copy({"picking_id": delivery_2.id, "quantity": 1})
-        # recreate the `action_put_in_pack`` steps so we don't have to add test to new module for batch pickings
-        # to use batch version of method (which bypass the check_singleton() check in the stock_picking action)
         move_lines_to_pack, __ = (
             delivery_1 | delivery_2
         ).move_line_ids._get_lines_and_packages_to_pack()
@@ -338,7 +311,6 @@ class TestPacking(TestPackingCommon):
         with self.assertRaises(UserError):
             move_lines_to_pack._pre_put_in_pack_hook()
 
-        # Test that same carrier + put in pack = OK!
         delivery_2.carrier_id = delivery_1.carrier_id
         move_lines_to_pack, __ = (
             delivery_1 | delivery_2
@@ -362,9 +334,6 @@ class TestPacking(TestPackingCommon):
         )
 
     def test_picking_access_error_on_package(self):
-        """In a multi-company environment, a reusable package which is used by 2+ companies can cause access errors
-        on a company's picking history when it is in an in-use state (waiting to be unpacked)
-        """
         company_a_user = self.env["res.users"].create(
             {
                 "name": "test user company a",
@@ -483,9 +452,6 @@ class TestPacking(TestPackingCommon):
         self.assertTrue(res)
 
     def test_put_in_pack_applies_only_to_selected_move_line(self):
-        """Ensure that the 'Put in Pack' action applies only to the selected
-        stock move line, without affecting other move lines in the same picking.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.product_aw, self.stock_location, 5.0
         )
@@ -527,7 +493,6 @@ class TestPacking(TestPackingCommon):
         pack_action = move_line_1.action_put_in_pack()
         pack_action_ctx = pack_action["context"]
         pack_action_model = pack_action["res_model"]
-        # Ensure the correct wizard action is returned
         self.assertEqual(pack_action_model, "stock.put.in.pack")
         pack_wiz = (
             self.env["stock.put.in.pack"].with_context(pack_action_ctx).create({})
@@ -561,14 +526,6 @@ class TestPacking(TestPackingCommon):
             ]
         )
 
-        # Content of packages:
-        # Pallet              (base  10kg) -> 46kg
-        # └ 1x Product B      (1*5 =  5kg)
-        # └ Big Box           (base   4kg) -> 31kg
-        #   └ Box A           (base   1kg) -> 11kg
-        #     └ 5x Product A  (5*2 = 10kg)
-        #   └ Box B           (base   1kg) -> 16kg
-        #     └ 3x Product B  (3*5 = 15kg)
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 5, package_id=boxA
         )
@@ -586,7 +543,6 @@ class TestPacking(TestPackingCommon):
         self.assertEqual(big_box.weight, 31)
         self.assertEqual(pallet.weight, 46)
 
-        # Now check that the weight is correctly computed for ongoing pickings
         delivery = self.env["stock.picking"].create(
             {
                 "picking_type_id": self.warehouse.out_type_id.id,
@@ -626,15 +582,7 @@ class TestPacking(TestPackingCommon):
             package_type_id=pallet_type.id
         )
 
-        self.assertEqual(
-            res_boxA.with_context(picking_id=delivery.id).weight, 5
-        )  # 1 + 2 * 2 = 5kg
-        self.assertEqual(
-            res_boxB.with_context(picking_id=delivery.id).weight, 11
-        )  # 1 + 2 * 5 = 11kg
-        self.assertEqual(
-            res_big_box.with_context(picking_id=delivery.id).weight, 20
-        )  # 4 + 5 + 11 = 20kg
-        self.assertEqual(
-            res_pallet.with_context(picking_id=delivery.id).weight, 30
-        )  # 10 + 20 = 30kg
+        self.assertEqual(res_boxA.with_context(picking_id=delivery.id).weight, 5)
+        self.assertEqual(res_boxB.with_context(picking_id=delivery.id).weight, 11)
+        self.assertEqual(res_big_box.with_context(picking_id=delivery.id).weight, 20)
+        self.assertEqual(res_pallet.with_context(picking_id=delivery.id).weight, 30)

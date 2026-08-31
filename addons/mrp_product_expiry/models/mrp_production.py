@@ -11,13 +11,8 @@ class MrpProduction(models.Model):
         return super().pre_button_mark_done()
 
     def _check_expired_lots(self):
-        # We use the 'skip_expired' context key to avoid to make the check when
-        # user already confirmed the wizard about using expired lots.
         if self.env.context.get("skip_expired"):
             return False
-        # The same predicate the delivery side uses: one definition of "these goods
-        # must not be used", so a component that raises the confirmation here is the
-        # same component a transfer would refuse to ship.
         expired_lot_ids = self.move_raw_ids.move_line_ids._filtered_expired().lot_id.ids
         if expired_lot_ids:
             return {

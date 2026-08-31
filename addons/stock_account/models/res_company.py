@@ -71,32 +71,7 @@ class ResCompany(models.Model):
         }
 
     def _close_stock_valuation(self, at_date=None, auto_post=False):
-        """Create -- and optionally post -- this company's closing entry.
-
-        :return: the `account.move`, or an empty recordset when there was nothing
-            to close.
-
-        Split out of `action_close_stock_valuation` so a caller that is not a
-        button can tell "nothing to do" from "it failed". The cron used to go
-        through the action, so the first company with a quiet period raised its
-        `UserError` out of the loop: every later company was skipped and the
-        transaction rolled back, discarding the closings already computed.
-        """
         self.check_singleton()
-        # One closing at a time per company. The draft-closing logic below is the
-        # guard against booking a period twice, and it only works against entries
-        # it can SEE: two callers running together each read a snapshot with no
-        # pending draft, and neither `account.move` INSERT conflicts with the
-        # other, so no serialization failure stops them. Both close, both compute
-        # from the same cursor -- "the latest posted one is the cursor the next
-        # closing starts from" -- and the period is booked twice. The cron and the
-        # Close button are exactly that pair, and month-end is when both are
-        # likeliest to run.
-        #
-        # `UserError` rather than a silent skip because both callers already
-        # handle it correctly: the cron logs the company as skipped and carries
-        # on, and the button tells the accountant instead of appearing to do
-        # nothing.
         if not self.try_lock_for_update(allow_referencing=True):
             raise UserError(
                 _(
@@ -106,19 +81,6 @@ class ResCompany(models.Model):
             )
         if at_date and isinstance(at_date, str):
             at_date = fields.Date.from_string(at_date)
-        # A draft closing is a claim on its period, and what to do with it depends
-        # on whether it was ever posted.
-        #
-        # Never posted: it is a proposal the user has not accepted, so this call
-        # supersedes it. Recomputing beside it would book the period twice --
-        # `_get_location_valuation_vals` sums moves since the cursor and cannot see
-        # that a draft already covers them, while `_get_stock_valuation_account_vals`
-        # nets only against *posted* book value.
-        #
-        # Posted and reset to draft: the entry has been part of the books and may
-        # have been reset deliberately, so it is not ours to discard. Hand it back;
-        # the user reposts or deletes it. Recomputing here, then reposting it, put
-        # an inventory-loss account at 80 for a true loss of 40.
         pending = self.env["account.move"].search(
             [
                 ("is_stock_valuation_closing", "=", True),
@@ -128,8 +90,6 @@ class ResCompany(models.Model):
             order="date desc, id desc",
         )
         if reset := pending.filtered("posted_before"):
-            # Deliberately not auto-posted: its figures were computed when it was
-            # created, and posting a stale draft books an old period as today's.
             _logger.info(
                 "Stock valuation closing for company %s has a previously-posted entry"
                 " %s back in draft; not computing another.",
@@ -173,10 +133,6 @@ class ResCompany(models.Model):
             "date": at_date or fields.Date.today(),
             "ref": _("Stock Closing"),
             "is_stock_valuation_closing": True,
-            # What this entry actually covered, so the next closing can start
-            # exactly here. `date` alone cannot say: it is a *date*, and a closing
-            # run today aggregates today's moves, every one of which is after
-            # today's midnight -- so a same-day re-close counted them again.
             "stock_valuation_closing_cutoff": (
                 fields.Datetime.to_datetime(at_date)
                 if at_date
@@ -193,10 +149,6 @@ class ResCompany(models.Model):
             account_move._post()
         return account_move
 
-    # Public names, called only from this module and its report. `@api.private`
-    # is what `coding_guidelines.rst` 10.1 prescribes for retrofitting an
-    # already-public name: it closes the RPC surface across the whole MRO without
-    # renaming a method any customisation may already call.
     @api.private
     def stock_value(self, accounts_by_product=None, at_date=None):
         self.check_singleton()
@@ -245,7 +197,6 @@ class ResCompany(models.Model):
 
         vals_list = self._get_location_valuation_vals(at_date)
         if vals_list:
-            # Needed directly since it will impact the accounting stock valuation.
             aml_vals_list += vals_list
 
         vals_list = self._get_stock_valuation_account_vals(
@@ -265,8 +216,6 @@ class ResCompany(models.Model):
     def _cron_post_stock_valuation(self):
         today = fields.Date.today()
         periods = ["daily"]
-        # `relativedelta(day=31)` clamps to the month's last day, so this reads
-        # "today is the last day of the month".
         if today == today + relativedelta(day=31):
             periods.append("monthly")
         domain = Domain(
@@ -277,9 +226,6 @@ class ResCompany(models.Model):
         )
         companies = self.env["res.company"].search(domain)
         for company in companies:
-            # Isolate each company: a quiet period is normal and no longer raises,
-            # but a misconfigured journal or valuation account still does, and one
-            # company's configuration must not cost every other company its close.
             try:
                 with self.env.cr.savepoint():
                     company._close_stock_valuation(auto_post=True)
@@ -344,10 +290,6 @@ class ResCompany(models.Model):
             moves_base_domain &= Domain([("date", ">", last_closing_date)])
         if at_date:
             moves_base_domain &= Domain([("date", "<=", at_date)])
-        # Named from the accounted location's point of view, which is the opposite
-        # of the move's: a move *out* of company stock is what puts value *into*
-        # the location's account, and vice versa. The old names said `in` for the
-        # `is_out` filter and read as a bug on every visit.
         into_location_domain = (
             Domain(
                 [
@@ -452,9 +394,6 @@ class ResCompany(models.Model):
     def _get_continental_realtime_variation_vals(
         self, accounts_by_product, at_date=None, extra_aml_vals_list=None
     ):
-        """In continental perpetual the inventory variation is never posted.
-        This method compute the variation for a period and post it.
-        """
         extra_balance = self._get_extra_balance(extra_aml_vals_list)
 
         reference_date = at_date or fields.Date.today()
@@ -494,9 +433,6 @@ class ResCompany(models.Model):
             )
             if at_date:
                 current_balance_domain &= Domain([("date", "<=", at_date)])
-            # Aggregate in SQL rather than loading every posted line on the
-            # variation account for the period, as `stock_accounting_value` above
-            # already does.
             [(existing_balance,)] = self.env["account.move.line"]._read_group(
                 current_balance_domain, aggregates=["balance:sum"]
             )
@@ -539,28 +475,7 @@ class ResCompany(models.Model):
         ]
 
     def _get_last_closing_date(self):
-        """The date the next closing starts from: the latest posted closing entry.
-
-        The cursor used to be a comma-separated list of at most ten `account.move`
-        ids in an `ir.config_parameter`. That storage had no foreign key, no
-        `ondelete` and a cap, so the cursor could be *lost*: resetting the only
-        recorded closing to draft made this return False, and
-        `_get_location_valuation_vals` then dropped its `date >` filter and
-        re-aggregated every move since the beginning of time. Re-posting the draft
-        entry afterwards left the reclassification booked twice.
-
-        A flag on `account.move` cannot be lost: the history is unbounded, the
-        entry carries its own company, and a deleted entry takes its cursor with
-        it -- which is the correct behaviour, not a silent reset to "never closed".
-        """
         self.check_singleton()
-        # Any surviving closing entry is a cursor, draft ones included. Requiring
-        # `posted` reopened the very hole the storage change closed: a closing
-        # reset to draft stopped being a cursor, the next close re-aggregated the
-        # whole history, and re-posting the first entry booked the period twice
-        # (measured: an inventory-loss account at 80 for a true loss of 40).
-        # A *deleted* closing does move the cursor back, which is correct -- the
-        # period it covered is genuinely unaccounted for again.
         closing = self.env["account.move"].search(
             [
                 ("is_stock_valuation_closing", "=", True),
@@ -574,10 +489,6 @@ class ResCompany(models.Model):
             return False
         if closing.stock_valuation_closing_cutoff:
             return closing.stock_valuation_closing_cutoff
-        # Entries predating the cutoff field: reconstruct the instant from the
-        # state-change tracking message, as this method always did, and fall back
-        # to the entry's date. Both are approximations; every closing written from
-        # now on carries the exact figure above.
         am_state_field = (
             self.env["ir.model.fields"]
             .sudo()
@@ -595,8 +506,6 @@ class ResCompany(models.Model):
 
     def _set_category_defaults(self, changed_fields=None):
         super()._set_category_defaults(changed_fields)
-        # sudo: as in the base method, the company-wide ir.default needs
-        # group_system while creating or writing the company does not
         IrDefault = self.env["ir.default"].sudo()
         for company in self:
             if changed_fields is None or "inventory_valuation" in changed_fields:

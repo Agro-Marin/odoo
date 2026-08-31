@@ -25,8 +25,6 @@ class StockMove(models.Model):
             defaults["additional"] = True
             defaults["product_uom_qty"] = 0.0
         elif production.state != "cancel":
-            # `draft` is what `_autoconfirm_production` looks for: a line added to
-            # a live order is confirmed with the order's next transition, not now.
             defaults["state"] = "draft"
             defaults["product_uom_qty"] = 0.0
         return defaults
@@ -135,16 +133,6 @@ class StockMove(models.Model):
     )
 
     def _get_production(self):
-        """The manufacturing order this move belongs to, whichever side it is on.
-
-        A move is normally on one side only -- a component
-        (`raw_material_production_id`) or an output (`production_id`). It can
-        carry both: scrapping a component from an order leaves the order on both
-        fields, and so does moving an output into the component list. When it
-        does, `_one_production` holds that the two name the *same* order, which
-        is why this can pick either and why thirteen call sites were free to
-        spell the choice in whichever order they happened to.
-        """
         self.check_singleton()
         return self.raw_material_production_id or self.production_id
 
@@ -208,13 +196,6 @@ class StockMove(models.Model):
     )
     def _compute_description_picking(self):
         super()._compute_description_picking()
-        # "Kit - 2/3" numbers the kit's components, so both numbers have to come
-        # from a population the record fixes. Counting `self` made them depend on
-        # the compute batch instead: read together the three components of a kit
-        # report 1/3, 2/3, 3/3, and the same move read alone -- its own form, one
-        # `read` over one id -- reported 1/1. The document is the population; the
-        # BoM is not, because a line can produce no move at all (a service line,
-        # an attribute-skipped line) and would still be counted.
         siblings = (
             self
             | self.picking_id.move_ids
@@ -225,8 +206,6 @@ class StockMove(models.Model):
         for bom in present_lines.bom_id:
             if bom.type != "phantom":
                 continue
-            # In the BoM's own order, not the order the moves arrived in: read
-            # alone, a move put its own line first and called itself 1 of 3.
             line_ids = [line.id for line in bom.bom_line_ids if line in present_lines]
             total = len(line_ids)
             for i, line_id in enumerate(line_ids):
@@ -300,10 +279,6 @@ class StockMove(models.Model):
         "unbuild_id.name",
     )
     def _compute_reference(self):
-        # Accumulating the handled moves with `|=` rebuilt the whole id tuple on
-        # every iteration (`union` is `OrderedSet(self._ids + other._ids)`), which
-        # is quadratic: 448 ms at 6400 moves against 1.1 ms for collecting ids and
-        # browsing once.
         ids_to_super = []
         for move in self:
             source = move.unbuild_id or move._get_production()
@@ -323,15 +298,6 @@ class StockMove(models.Model):
                 move.reference_ids = [Command.set(production.reference_ids.ids)]
 
     def _get_qty_to_process(self):
-        """How much of this move the order still expects, for what it is producing.
-
-        `should_consume_qty` is this answer for a component. `mrp.production.
-        _inverse_qty_producing` needs the same answer for a by-product, which carries
-        `production_id` instead, and `_onchange_product_uom_qty` needs it for the
-        move being edited -- so all three wrote the formula out, with the same
-        rounding, in three places. One copy means `unit_factor`'s dependencies only
-        have to be right here.
-        """
         self.check_singleton()
         production = self._get_production()
         if not production or not self.product_uom_id:
@@ -347,10 +313,6 @@ class StockMove(models.Model):
         "product_uom_id",
     )
     def _compute_should_consume_qty(self):
-        # The formula reads `unit_factor` and `qty_produced`; neither used to be
-        # declared, and the field is not stored, so a value cached before either
-        # moved survived the transaction -- measured at 10.0 against a truth of
-        # 3.33.
         for move in self:
             move.should_consume_qty = (
                 move._get_qty_to_process() if move.raw_material_production_id else 0.0
@@ -421,9 +383,6 @@ class StockMove(models.Model):
                         self.env["uom.uom"].browse(vals.get("product_uom_id")),
                     )
                 vals["picked"] = True
-        # Browsing each order on its own gave it a prefetch set of one, so the six
-        # reads below cost one round trip per order: 183 queries against 105 for
-        # forty orders in one call. One browse for all of them is constant.
         production_ids = OrderedSet()
         location_ids = OrderedSet()
         for values in vals_list:
@@ -473,15 +432,6 @@ class StockMove(models.Model):
 
     @api.model
     def _is_quantity_edited(self, demand, quantity, uom):
-        """Did the user record something other than what the order asked for?
-
-        Comparing the two floats with `!=` answered yes for quantities that are the
-        same to the unit's precision: seven UoM pairs in a stock database round-trip
-        to a value one bit away from where they started -- `Units` through
-        `Pack of 6` turns 3.6666666666666665 into 3.666666666666666, and a component
-        recorded at exactly its demand was filed as manually consumed. With no
-        demand to compare against there is nothing to match, so it is an edit.
-        """
         if not uom or demand is None:
             return True
         return uom.compare(demand, quantity) != 0
@@ -489,14 +439,6 @@ class StockMove(models.Model):
     def write(self, vals):
         moves_to_rereserve = self.env["stock.move"]
         if "product_id" in vals:
-            # Changing the product of a live output move has to reach its move
-            # lines, which still hold the old product. This used to copy the move,
-            # confirm the copy and `unlink()` the original -- inside `write`, which
-            # left every caller up the MRO holding a deleted id: with `sale_stock`
-            # installed its own `write` iterates `self` right after `super()` and
-            # died with MissingError. Releasing the reservation and writing the
-            # product in place reaches the same move lines and keeps the record the
-            # caller was given.
             moves_to_rereserve = self.filtered(
                 lambda m: (
                     m.product_id.id != vals.get("product_id")
@@ -515,7 +457,6 @@ class StockMove(models.Model):
         if "product_uom_qty" in vals and "move_line_ids" in vals:
             move_line_vals = vals.pop("move_line_ids")
             super().write({"move_line_ids": move_line_vals})
-        # Only `_run_procurement` reads this, and only for a demand change.
         old_demand = (
             {move.id: move.product_uom_qty for move in self}
             if "product_uom_qty" in vals
@@ -540,9 +481,6 @@ class StockMove(models.Model):
     def _run_procurement(self, old_qties=False):
         procurements = []
         old_qties = old_qties or {}
-        # `set` here handed `browse` its own iteration order rather than `self`'s,
-        # so the procurements were built in an order the caller never chose. The
-        # file already imports `OrderedSet` and uses it in `action_explode`.
         to_assign_ids = OrderedSet()
         proc_move = OrderedSet()
         self._adjust_procure_method()
@@ -613,11 +551,6 @@ class StockMove(models.Model):
 
     def _action_assign(self, force_qty=False):
         res = super()._action_assign(force_qty=force_qty)
-        # Only a component's lines carry an order and a work order. The filter used
-        # to admit output moves too and then wrote `raw_material_production_id.id`,
-        # which is empty for them -- selecting records in order to store two falsy
-        # values. Grouping by what is written turns one write per move into one per
-        # (order, work order) pair.
         lines_by_owner = defaultdict(list)
         for move in self.filtered("raw_material_production_id"):
             if move.move_line_ids:
@@ -652,13 +585,6 @@ class StockMove(models.Model):
         )
 
     def _is_explodable(self):
-        """May this move be replaced by the components of its kit?
-
-        A move with no operation type is on no document that could carry the
-        components -- unless it is a scrap, or the caller has said it will place
-        them itself. And an order's own output is what that order produces; it is
-        never a kit to take apart here.
-        """
         self.check_singleton()
         if not self.picking_type_id and not (
             self.env.context.get("is_scrap")
@@ -670,14 +596,6 @@ class StockMove(models.Model):
         )
 
     def _get_kit_boms(self):
-        """The kit BoM of every move here, keyed by product.
-
-        `_bom_find` takes a recordset and returns a dict -- it is built to be asked
-        once. Asked once per move it cost three calls and about five queries per
-        kit; hoisting it took `action_confirm` over forty kit moves from 503
-        queries to 269, with the resulting moves byte-identical. `stock.rule.run`
-        already groups by company this way for the other half of kit explosion.
-        """
         boms = {}
         moves_by_company = defaultdict(list)
         for move in self:
@@ -698,9 +616,6 @@ class StockMove(models.Model):
         moves_ids_to_return = OrderedSet()
         moves_ids_to_unlink = OrderedSet()
         phantom_moves_vals_list = []
-        # One explosion scratch for the batch, and for the recursion below, which
-        # inherits it through `self.env`: `_explode` is asked once per *move*, and
-        # forty moves of the same kit resolved that kit's closure forty times.
         self = self.with_context(
             bom_cost_share_cache=self.env["mrp.bom"]._explosion_scratch()
         )
@@ -763,11 +678,6 @@ class StockMove(models.Model):
         return action
 
     def _action_add_from_catalog(self, child_field):
-        """Open the product catalog against one of the order's move lists.
-
-        The two buttons below differ only in which list they fill; the order they
-        fill it on is the same lookup either way.
-        """
         production = self.env["mrp.production"].browse(self.env.context.get("order_id"))
         return production.with_context(
             child_field=child_field
@@ -818,10 +728,6 @@ class StockMove(models.Model):
             )
             if not cancelled_dests.picking_id:
                 continue
-            # Two output moves of one order reach the same key, and plain
-            # assignment let the second drop the first's cancellations from the
-            # note. `_log_activity_get_documents`, which this stands in for,
-            # accumulates.
             key = (production, production.user_id or self.env.user)
             documents[key] = documents.get(key, self.browse()) | cancelled_dests
         return self.env["mixin.stock.activity"]._log_activity(
@@ -856,13 +762,6 @@ class StockMove(models.Model):
         }
 
     def _prepare_phantom_moves_vals(self, exploded_lines_data):
-        """Move vals for every component this kit move explodes into.
-
-        This was three methods deep -- one looping the lines, one wrapping
-        `copy_data`, one building the defaults -- with the middle returning a list
-        `copy_data` guarantees is one element long, so its caller looped over it to
-        set a single key.
-        """
         self.check_singleton()
         record_what_was_done = self.product_uom_id.is_zero(
             self.product_uom_qty
@@ -1009,7 +908,6 @@ class StockMove(models.Model):
 
     def _update_candidate_moves_list(self, candidate_moves_set):
         super()._update_candidate_moves_list(candidate_moves_set)
-        # `self.product_id` inside the lambda was re-mapped once per candidate.
         products = self.product_id
         for production in self.raw_material_production_id:
             candidate_moves_set.add(
@@ -1059,7 +957,6 @@ class StockMove(models.Model):
         return bool(bom_line and bom_line.operation_id)
 
     def _is_consumption_covered(self):
-        """Is enough of this component on hand for what the order is producing?"""
         self.check_singleton()
         uom = self.product_uom_id
         if (
@@ -1075,11 +972,6 @@ class StockMove(models.Model):
         res = super()._get_relevant_state_among_moves()
         if res != "partially_available":
             return res
-        # `super()` decided from the moves that are still live. Judging the lift
-        # over `self` instead let a *cancelled* component -- which requires nothing
-        # and which `super()` had already set aside -- veto it: two orders whose
-        # remaining component was reserved identically read Ready and Not Ready
-        # depending only on whether a sibling had been cancelled or deleted.
         moves = self.filtered(lambda m: m.state not in ("cancel", "done"))
         if moves.raw_material_production_id and all(
             move._is_consumption_covered() for move in moves

@@ -105,9 +105,6 @@ class TestAccountMove(TestStockValuationCommon):
         self.assertEqual(len(invoice.mapped("line_ids.currency_id")), 2)
 
     def test_storno_accounting(self):
-        """Storno accounting uses negative numbers on debit/credit to cancel other moves.
-        This test checks that we do the same for the anglosaxon lines when storno is enabled.
-        """
         self._use_multi_currencies([("2017-01-01", 2.0)])
 
         product = self.product_standard_auto
@@ -140,7 +137,6 @@ class TestAccountMove(TestStockValuationCommon):
         self.assertEqual(expense_line.credit, 0)
 
     def test_standard_manual_tax_edit(self):
-        """Test manually editing tax amount, cogs creation should not reset tax amount"""
         product = self.product_standard_auto
         product.lst_price = 100
         move_form = Form(
@@ -158,7 +154,6 @@ class TestAccountMove(TestStockValuationCommon):
         self.assertEqual(invoice.amount_untaxed, 100)
         self.assertEqual(invoice.amount_tax, 15)
 
-        # simulate manual tax edit via widget
         tax_totals = invoice.tax_totals
         tax_totals["subtotals"][0]["tax_groups"][0]["tax_amount_currency"] = 14.0
         invoice.tax_totals = tax_totals
@@ -176,14 +171,6 @@ class TestAccountMove(TestStockValuationCommon):
         self.assertEqual(invoice.amount_tax, 14)
 
     def test_basic_bill(self):
-        """
-        When billing a storable product with a basic category (manual
-        valuation), the account used should be the expenses one. This test
-        checks the flow with two companies:
-        - One that existed before the installation of `stock_account` (to test
-        the post-install hook)
-        - One created after the module installation
-        """
         self.env.user.company_ids |= self.other_company
 
         for company in self.company | self.other_company:
@@ -208,7 +195,6 @@ class TestAccountMove(TestStockValuationCommon):
             )
 
     def test_cogs_analytic_accounting(self):
-        """Check analytic distribution is correctly propagated to COGS lines"""
         product = self.product_standard_auto
         default_plan = self.env["account.analytic.plan"].create(
             {
@@ -250,7 +236,6 @@ class TestAccountMove(TestStockValuationCommon):
         )
 
     def test_cogs_account_branch_company(self):
-        """Check branch company accounts are selected"""
         product = self.product_standard_auto
         branch = self.branch
         test_account = (
@@ -336,10 +321,6 @@ class TestAccountMove(TestStockValuationCommon):
 
     @freeze_time("2020-01-22")
     def test_backdate_picking_with_lock_date(self):
-        """
-        Check that pickings can not be backdate or validated prior to the
-        fiscal and hard lock date.
-        """
         self.env["account.lock_exception"].search([]).sudo().unlink()
         lock_date = fields.Date.from_string("2011-01-01")
         prior_to_lock_date = fields.Datetime.add(lock_date, days=-1)
@@ -370,7 +351,6 @@ class TestAccountMove(TestStockValuationCommon):
         )
         receipts.action_confirm()
         receipt_done.button_validate()
-        # Check that the purchase, sale and tax lock dates do not impose any restrictions
         self.env.company.write(
             {
                 "sale_lock_date": lock_date,
@@ -378,11 +358,9 @@ class TestAccountMove(TestStockValuationCommon):
                 "tax_lock_date": lock_date,
             }
         )
-        # Receipts can be backdated
         receipt.date_planned = prior_to_lock_date
         receipt_done.date_done = prior_to_lock_date
 
-        # Check that the fiscal year lock date imposes restrictions
         self.env.company.write(
             {
                 "sale_lock_date": False,
@@ -391,35 +369,25 @@ class TestAccountMove(TestStockValuationCommon):
                 "fiscalyear_lock_date": lock_date,
             }
         )
-        # A validated receipt cannot be backdated prior to lock date
         receipt.date_planned = post_to_lock_date
         receipt_done.date_done = post_to_lock_date
-        # Lock dates should not affect an un-validated receipt's scheduled date:
-        # it has produced no accounting entries yet, so there is nothing to lock.
         receipt.date_planned = prior_to_lock_date
         with self.assertRaises(UserError):
             receipt_done.date_done = prior_to_lock_date
 
-        # Check that the hard lock date imposes restrictions
         self.env.company.write(
             {
                 "fiscalyear_lock_date": False,
                 "hard_lock_date": lock_date,
             }
         )
-        # A validated receipt cannot be backdated prior to lock date
         receipt.date_planned = post_to_lock_date
         receipt_done.date_done = post_to_lock_date
-        # Same as above: the un-validated receipt's scheduled date stays free.
         receipt.date_planned = prior_to_lock_date
         with self.assertRaises(UserError):
             receipt_done.date_done = prior_to_lock_date
 
     def test_invoice_with_journal_item_without_label(self):
-        """Test posting an invoice whose invoice lines have no label.
-        The 'name' field is optional on account.move.line and should be
-        handled safely when generating accounting entries.
-        """
         move = self.env["account.move"].create(
             {
                 "move_type": "out_invoice",
@@ -435,7 +403,5 @@ class TestAccountMove(TestStockValuationCommon):
             }
         )
         move.action_post()
-        # name should remain falsy on the invoice line
         self.assertFalse(move.invoice_line_ids.name)
-        # ensure the invoice is posted successfully
         self.assertEqual(move.state, "posted")

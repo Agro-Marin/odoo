@@ -24,7 +24,6 @@ class TestProductivityDuration(common.TestMrpCommon):
         cls.productive = cls.env.ref("mrp.block_reason7")
 
     def _open_workorder(self):
-        """A confirmed work order on this test's work centre."""
         production = self.env["mrp.production"].create(
             {"product_id": self.product_4.id, "product_qty": 1}
         )
@@ -126,11 +125,6 @@ class TestProductivityDuration(common.TestMrpCommon):
         )
 
     def test_two_open_timers_for_one_worker_are_refused(self):
-        # Build the work order rather than `search([], limit=1)` for one: the
-        # search returns an empty set when the database happens to hold no work
-        # order, `_check_open_time_ids` returns early on an empty
-        # `workorder_id`, and the test then passed by asserting nothing. It
-        # fails that way on a clean checkout today.
         workorder = self._open_workorder()
         self.env["mrp.workcenter.productivity"].create(
             {

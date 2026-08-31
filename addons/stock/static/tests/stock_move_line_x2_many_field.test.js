@@ -59,11 +59,6 @@ test("updateDirtyQuantsData skips the RPC when nothing is dirty", async () => {
 
 test("_unsavedQtyDelta is 0 for an unchanged quantity and the delta for an edited one", async () => {
     const field = await makeField([]);
-    // Reading the public pair, an untouched line subtracts a number from itself
-    // and gives 0. The private pair it replaced gave NaN, because a line with no
-    // pending edit has no `_changes.quantity` to subtract. Both are falsy and
-    // every caller only tests that, so this asserts the number as well as its
-    // truthiness -- 0 is the answer a caller reading the delta should get.
     expect(field._unsavedQtyDelta(moveLine({ resId: 1, quantity: 5 }))).toBe(0);
     expect(
         field._unsavedQtyDelta(moveLine({ resId: 1, quantity: 3, savedQuantity: 5 })),

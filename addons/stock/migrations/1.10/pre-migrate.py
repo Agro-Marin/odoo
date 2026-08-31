@@ -1,14 +1,3 @@
-r"""Pre-migration: ``stock.picking.search_date_category`` is now ``date_category``.
-
-The field moved onto ``mixin.date.category``, which declares it once for every
-consumer instead of each model declaring its own. Naming it for what it holds
-makes the existing ``_search_date_category`` its correctly-named search hook
-(ADR-0049) -- the same rename ``repair`` 1.2 and ``mrp`` 2.4 carry.
-
-Carried at 1.10 rather than 1.8 because both merge parents had already shipped
-a 1.8 and a 1.9 for other work.
-"""
-
 OLD = "search_date_category"
 NEW = "date_category"
 MODEL = "stock.picking"

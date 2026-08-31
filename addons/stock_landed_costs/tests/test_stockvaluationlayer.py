@@ -1,5 +1,3 @@
-"""Implementation of "INVENTORY VALUATION TESTS (With valuation layers)" spreadsheet."""
-
 import time
 from unittest import skip
 
@@ -101,7 +99,6 @@ class TestStockValuationLCCommon(TestStockLandedCostsCommon):
         create_picking=False,
         product_uom_id=False,
     ):
-        """Helper to create and validate a receipt move."""
         unit_cost = unit_cost or product.standard_price
         in_move = self.env["stock.move"].create(
             {
@@ -141,7 +138,6 @@ class TestStockValuationLCCommon(TestStockLandedCostsCommon):
     def _make_out_move(
         self, product, quantity, force_assign=None, create_picking=False
     ):
-        """Helper to create and validate a delivery move."""
         out_move = self.env["stock.move"].create(
             {
                 "product_id": product.id,
@@ -248,11 +244,9 @@ class TestStockValuationLCFIFO(TestStockValuationLCCommon):
         in_svl = self.product1.stock_valuation_layer_ids.sorted()[-1]
 
         self.assertEqual(out_svl.value, -250)
-        # 15 * 16.66
         self.assertAlmostEqual(in_svl.value, 250.0, 2)
 
     def test_rounding_1(self):
-        """3@100, out 1, out 1, out 1"""
         move1 = self._make_in_move(self.product1, 3, unit_cost=20, create_picking=True)
         self._make_lc(move1, 40)
         self._make_out_move(self.product1, 1)
@@ -267,7 +261,6 @@ class TestStockValuationLCFIFO(TestStockValuationLCCommon):
         self.assertEqual(self.product1.quantity_svl, 0)
 
     def test_rounding_2(self):
-        """3@98, out 1, out 1, out 1"""
         move1 = self._make_in_move(self.product1, 3, unit_cost=20, create_picking=True)
         self._make_lc(move1, 38)
         move2 = self._make_out_move(self.product1, 1)
@@ -278,12 +271,11 @@ class TestStockValuationLCFIFO(TestStockValuationLCCommon):
         self.assertEqual(move3.stock_valuation_layer_ids.value, -32.67)
         self.assertAlmostEqual(
             move4.stock_valuation_layer_ids.value, -32.66, delta=0.01
-        )  # self.env.company.currency_id.round(-32.66) -> -32.660000000000004
+        )
         self.assertEqual(self.product1.value_svl, 0)
         self.assertEqual(self.product1.quantity_svl, 0)
 
     def test_rounding_3(self):
-        """3@4.85, out 1, out 1, out 1"""
         move1 = self._make_in_move(self.product1, 3, unit_cost=1, create_picking=True)
         self._make_lc(move1, 1.85)
         self._make_out_move(self.product1, 1)
@@ -312,12 +304,8 @@ class TestStockValuationLCFIFO(TestStockValuationLCCommon):
         self.assertEqual(move2.stock_valuation_layer_ids.value, -115)
 
     def test_landed_cost_different_uom(self):
-        """
-        Check that the SVL is correctly updated with the landed cost divided by the quantity in the product UOM.
-        """
         uom_gram = self.env.ref("uom.product_uom_gram")
         uom_kgm = self.env.ref("uom.product_uom_kgm")
-        # the product uom is in gram but the transfer is in kg
         self.product1.uom_id = uom_gram
         move1 = self._make_in_move(
             self.product1, 1, unit_cost=10, create_picking=True, product_uom_id=uom_kgm
@@ -372,10 +360,6 @@ class TestStockValuationLCAVCO(TestStockValuationLCCommon):
         self.assertEqual(self.product1.quantity_svl, 19)
 
     def test_lc_generated_from_bill_multi_comapnies(self):
-        """
-        In a multi-company environment:
-        Confirm PO, receive products, post bill and generate LC
-        """
         company = self.env.company
         self.env.user.company_id = self.env["res.company"].create(
             {
@@ -435,12 +419,8 @@ class TestStockValuationLCFIFOVB(TestStockValuationLCCommon):
         cls.product1.product_tmpl_id.categ_id.property_valuation = "real_time"
 
     def test_vendor_bill_flow_anglo_saxon_1(self):
-        """In anglo saxon accounting, receive 10@10 and invoice. Then invoice 1@50 as a landed costs
-        and create a linked landed costs record.
-        """
         self.env.company.anglo_saxon_accounting = True
 
-        # Create an RFQ for self.product1, 10@10
         rfq = Form(self.env["purchase.order"])
         rfq.partner_id = self.vendor1
 
@@ -453,7 +433,6 @@ class TestStockValuationLCFIFOVB(TestStockValuationLCCommon):
         rfq = rfq.save()
         rfq.action_confirm()
 
-        # Process the receipt
         receipt = rfq.picking_ids
         receipt.button_validate()
         self.assertEqual(rfq.line_ids.qty_transferred, 10)
@@ -465,7 +444,6 @@ class TestStockValuationLCFIFOVB(TestStockValuationLCCommon):
         self.assertEqual(valuation_aml.debit, 100)
         self.assertEqual(valuation_aml.credit, 0)
 
-        # Create a vendor bill for the RFQ
         vb = rfq.create_invoice()
         vb.invoice_date = vb.date
         vb.action_post()
@@ -477,8 +455,6 @@ class TestStockValuationLCFIFOVB(TestStockValuationLCCommon):
         self.assertEqual(payable_aml.debit, 0)
         self.assertEqual(payable_aml.credit, 100)
 
-        # Create a vendor bill for a landed cost product, post it and validate a landed cost
-        # linked to this vendor bill. LC; 1@50
         lcvb = Form(
             self.env["account.move"].with_context(default_move_type="in_invoice")
         )
@@ -515,7 +491,6 @@ class TestStockValuationLCFIFOVB(TestStockValuationLCCommon):
         self.assertEqual(valuation_aml.debit, 50)
         self.assertEqual(valuation_aml.credit, 0)
 
-        # Check reconciliation of input aml of lc
         lc_input_aml = lc.account_move_id.line_ids.filtered(
             lambda aml: aml.account_id == self.company_data["default_account_stock_in"]
         )
@@ -525,12 +500,8 @@ class TestStockValuationLCFIFOVB(TestStockValuationLCCommon):
         self.assertEqual(self.product1.value_svl, 150)
 
     def test_vendor_bill_flow_anglo_saxon_2(self):
-        """In anglo saxon accounting, receive 10@10 and invoice with the addition of 1@50 as a
-        landed costs and create a linked landed costs record.
-        """
         self.env.company.anglo_saxon_accounting = True
 
-        # Create an RFQ for self.product1, 10@10
         rfq = Form(self.env["purchase.order"])
         rfq.partner_id = self.vendor1
 
@@ -543,7 +514,6 @@ class TestStockValuationLCFIFOVB(TestStockValuationLCCommon):
         rfq = rfq.save()
         rfq.action_confirm()
 
-        # Process the receipt
         receipt = rfq.picking_ids
         receipt.button_validate()
         self.assertEqual(rfq.line_ids.qty_transferred, 10)
@@ -555,7 +525,6 @@ class TestStockValuationLCFIFOVB(TestStockValuationLCCommon):
         self.assertEqual(valuation_aml.debit, 100)
         self.assertEqual(valuation_aml.credit, 0)
 
-        # Create a vendor bill for the RFQ and add to it the landed cost
         vb = Form(self.env["account.move"].with_context(default_move_type="in_invoice"))
         vb.partner_id = self.vendor1
         vb.invoice_date = vb.date
@@ -572,19 +541,14 @@ class TestStockValuationLCFIFOVB(TestStockValuationLCCommon):
         lc = lc.save()
         lc.button_validate()
 
-        # Check reconciliation of input aml of lc
         lc_input_aml = lc.account_move_id.line_ids.filtered(
             lambda aml: aml.account_id == self.company_data["default_account_stock_in"]
         )
         self.assertTrue(len(lc_input_aml.full_reconcile_id), 1)
 
     def test_vendor_bill_flow_continental_1(self):
-        """In continental accounting, receive 10@10 and invoice. Then invoice 1@50 as a landed costs
-        and create a linked landed costs record.
-        """
         self.env.company.anglo_saxon_accounting = False
 
-        # Create an RFQ for self.product1, 10@10
         rfq = Form(self.env["purchase.order"])
         rfq.partner_id = self.vendor1
 
@@ -597,7 +561,6 @@ class TestStockValuationLCFIFOVB(TestStockValuationLCCommon):
         rfq = rfq.save()
         rfq.action_confirm()
 
-        # Process the receipt
         receipt = rfq.picking_ids
         receipt.button_validate()
         self.assertEqual(rfq.line_ids.qty_transferred, 10)
@@ -609,7 +572,6 @@ class TestStockValuationLCFIFOVB(TestStockValuationLCCommon):
         self.assertEqual(valuation_aml.debit, 100)
         self.assertEqual(valuation_aml.credit, 0)
 
-        # Create a vebdor bill for the RFQ
         vb = rfq.create_invoice()
         vb.invoice_date = vb.date
         vb.action_post()
@@ -622,8 +584,6 @@ class TestStockValuationLCFIFOVB(TestStockValuationLCCommon):
         self.assertEqual(payable_aml.debit, 0)
         self.assertEqual(payable_aml.credit, 100)
 
-        # Create a vendor bill for a landed cost product, post it and validate a landed cost
-        # linked to this vendor bill. LC; 1@50
         lcvb = Form(
             self.env["account.move"].with_context(default_move_type="in_invoice")
         )
@@ -664,7 +624,6 @@ class TestStockValuationLCFIFOVB(TestStockValuationLCCommon):
         self.assertEqual(self.product1.value_svl, 150)
 
     def test_create_landed_cost_from_bill_multi_currencies(self):
-        # create a vendor bill in EUR where base currency in USD
         company = self.env.user.company_id
         currency_grp = self.env.ref("base.group_multi_currency")
         self.env.user.write({"group_ids": [(4, currency_grp.id)]})
@@ -805,10 +764,6 @@ class TestAccountInvoicingWithCOA(TestStockValuationLCCommon):
         return po, receipt
 
     def test_fifo_return_twice_and_bill_with_landed_cost_and_multi_currency(self):
-        """This check ensure that the landed cost does not prevent '_generate_price_difference_vals' to compute
-        the correct 'quantity already out' when handling a Return of a Return of a Receipt.
-        An inccorect value of 'quantity already out' would generate COGS lines in the vendor bill.
-        """
         self.product1.categ_id.property_cost_method = "fifo"
         self.product1.categ_id.property_valuation = "real_time"
         self.eur.active = True

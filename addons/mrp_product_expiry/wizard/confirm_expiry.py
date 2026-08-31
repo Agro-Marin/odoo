@@ -11,13 +11,11 @@ class ExpiryPickingConfirmation(models.TransientModel):
         manufacturing = self.filtered(lambda wizard: wizard.production_ids)
         for wizard in manufacturing:
             if wizard.show_lots:
-                # For multiple expired lots, they are listed in the wizard view.
                 wizard.description = self.env._(
                     "You are going to use some expired components."
                     "\nDo you confirm you want to proceed?"
                 )
             else:
-                # For one expired lot, its name is written in the wizard message.
                 wizard.description = self.env._(
                     "You are going to use the component %(product_name)s, %(lot_name)s which is expired."
                     "\nDo you confirm you want to proceed?",

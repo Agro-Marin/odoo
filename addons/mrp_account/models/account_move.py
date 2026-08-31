@@ -21,9 +21,6 @@ class AccountMove(models.Model):
     )
 
     def copy(self, default=None):
-        # `copy=True` would make duplicating an entry read `mrp.production`,
-        # which an accountant need not have access to; carry the link by hand
-        # under sudo instead.
         records = super().copy(default)
         for record, source in zip(records.sudo(), self.sudo(), strict=True):
             record.wip_production_ids = source.wip_production_ids
@@ -57,7 +54,6 @@ class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
 
     def _get_invoiced_qty_per_product(self):
-        # Replace the kit-type products with their components
         qties = defaultdict(float)
         res = super()._get_invoiced_qty_per_product()
         invoiced_products = self.env["product.product"].concat(*res.keys())

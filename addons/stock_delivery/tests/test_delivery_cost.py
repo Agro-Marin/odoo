@@ -4,7 +4,6 @@ from odoo.tests import Form, common
 @common.tagged("post_install", "-at_install")
 class TestDeliveryCost(common.TransactionCase):
     def test_delivery_real_cost(self):
-        """Ensure that the price is correctly set on the delivery line in the case of a Back Order"""
         self.partner_18 = self.env["res.partner"].create({"name": "My Test Customer"})
         self.product_4 = self.env["product.product"].create(
             {"name": "A product to deliver", "weight": 1.0}
@@ -74,14 +73,11 @@ class TestDeliveryCost(common.TransactionCase):
         picking.move_ids[0].quantity = 1.0
         self.assertGreater(picking.shipping_weight, 0.0)
 
-        # Confirm picking for one quantiy and create a back order for the second
         picking.move_ids.picked = True
         picking._action_done()
         self.assertEqual(picking.carrier_price, 40.0)
-        # Check that the delivery cost (previously set to 0) has been correctly updated
         self.assertEqual(delivery_line.price_unit, picking.carrier_price)
 
-        # Confirm the back order
         bo = picking.backorder_ids
         bo.move_ids[0].quantity = 1.0
         self.assertGreater(bo.shipping_weight, 0.0)

@@ -34,12 +34,13 @@ class StockMove(models.Model):
         help="The current value of the move. It's zero if the move is not valued.",
     )
     value_justification = fields.Text(
-        "Value Description", compute="_compute_value_justification"
+        "Value Description",
+        compute="_compute_value_justification",
     )
     value_computed_justification = fields.Text(
-        "Computed Value Description", compute="_compute_value_justification"
+        "Computed Value Description",
+        compute="_compute_value_justification",
     )
-    # Useful for testing and custom valuation
     value_manual = fields.Monetary(
         "Manual Value",
         currency_field="company_currency_id",
@@ -47,21 +48,30 @@ class StockMove(models.Model):
         inverse="_inverse_value_manual",
     )
     standard_price = fields.Float(
-        compute="_compute_standard_price", string="Standard Price"
+        compute="_compute_standard_price",
+        string="Standard Price",
     )
 
-    # To remove and only use value
     price_unit = fields.Float("Price Unit")
     is_in = fields.Boolean(
-        string="Is Incoming (valued)", compute="_compute_is_in", store=True
+        string="Is Incoming (valued)",
+        compute="_compute_is_in",
+        store=True,
     )
     is_out = fields.Boolean(
-        string="Is Outgoing (valued)", compute="_compute_is_out", store=True
+        string="Is Outgoing (valued)",
+        compute="_compute_is_out",
+        store=True,
     )
     is_dropship = fields.Boolean(
-        string="Is Dropship", compute="_compute_is_dropship", store=True
+        string="Is Dropship",
+        compute="_compute_is_dropship",
+        store=True,
     )
-    is_valued = fields.Boolean(string="Is Valued", compute="_compute_is_valued")
+    is_valued = fields.Boolean(
+        string="Is Valued",
+        compute="_compute_is_valued",
+    )
     valued_qty = fields.Float(
         string="Valued Quantity",
         compute="_compute_valued_qty",
@@ -82,9 +92,15 @@ class StockMove(models.Model):
         compute="_compute_remaining_value",
     )
 
-    analytic_account_line_ids = fields.Many2many("account.analytic.line", copy=False)
+    analytic_account_line_ids = fields.Many2many(
+        "account.analytic.line",
+        copy=False,
+    )
     account_move_id = fields.Many2one(
-        "account.move", "Valuation Entry", copy=False, index="btree_not_null"
+        "account.move",
+        "Valuation Entry",
+        copy=False,
+        index="btree_not_null",
     )
 
     def _search_remaining_qty(self, operator, value):
@@ -102,15 +118,6 @@ class StockMove(models.Model):
             products = self.env["product.product"].search(
                 [("is_storable", "=", True), ("qty_available", ">", 0)]
             )
-        # A product with no valued incoming move has an empty FIFO stack, so
-        # walking it can only return nothing. Dropping those costs one grouped
-        # query and saves a paged stack search per product skipped.
-        #
-        # What remains is still O(products): `_get_remaining_moves` walks each
-        # product's stack individually (~5 queries each, measured over 40
-        # products), which is inherent to deriving `remaining_qty` in Python.
-        # Making this filter cheap on a real catalogue needs the field itself
-        # redesigned -- stored, or resolved in SQL -- not a narrower prefilter.
         if products:
             products = products.browse(
                 product.id
@@ -162,39 +169,19 @@ class StockMove(models.Model):
                 continue
             move.is_dropship = move._is_dropshipped() or move._is_dropshipped_returned()
 
-    # Depend on the flags actually read, not on their inputs: `is_in`/`is_out` are
-    # stored and are deliberately re-derived outside the dependency graph by
-    # `_recompute_valuation_flags`, which `state`/`move_line_ids` cannot see.
     @api.depends("is_in", "is_out")
     def _compute_is_valued(self):
         for move in self:
             move.is_valued = move.is_in or move.is_out
 
-    # Same `depends` as `is_in` / `is_out`, deliberately: this is the quantity
-    # `value` was computed over, so the two must be re-derived together or the
-    # stored pair stops describing the same set of lines.
     @api.depends("state", "move_line_ids")
     def _compute_valued_qty(self):
         for move in self:
             move.valued_qty = move._get_valued_qty() if move.state == "done" else 0.0
 
     def _recompute_valuation_flags(self):
-        """Re-derive `is_in` / `is_out` / `is_dropship` / `valued_qty` for done moves.
-
-        These are stored so that what a move was at completion stays stable and
-        cheap to search on, and their `depends` deliberately do not track the move
-        line fields that `_is_in()` / `_is_out()` read -- a write to any of those
-        would otherwise re-classify historical moves and silently restate past
-        valuations. Call this from the places that knowingly change such a field on
-        a done move, so the re-classification happens where it is intended.
-        """
         for field_name in ("is_in", "is_out", "is_dropship", "valued_qty"):
             self.env.add_to_compute(self._fields[field_name], self)
-        # `is_valued` is a plain compute over the three above. Its dependency is
-        # registered, but it does not survive their *deferred* recompute -- a value
-        # cached before this call stays cached -- so drop it by hand. Without this a
-        # move could report `is_valued` True while `is_in`/`is_out` had both gone
-        # False, and `_should_create_account_move` reads `is_valued`.
         self.invalidate_recordset(["is_valued"])
 
     @api.depends("value")
@@ -209,12 +196,6 @@ class StockMove(models.Model):
         for move in self:
             if not move.is_in:
                 if move.is_out:
-                    # Outgoing moves have their own, much shorter derivation (see
-                    # `_set_value`), so running the incoming pipeline over them
-                    # would describe steps that never ran. They still need to say
-                    # something: the "Adjust Valuation" dialog shows this field,
-                    # and a blank panel was the only sign the user got that an
-                    # adjustment had gone nowhere.
                     move.value_justification = move._get_out_value_justification()
                 continue
             move.value_justification = move._get_value_data()["description"]
@@ -246,11 +227,6 @@ class StockMove(models.Model):
             if not move.is_in:
                 move.remaining_value = 0
                 continue
-            # Both terms in the product's UoM: `remaining_qty` is, and `value` is
-            # the value of `_get_valued_qty()` units. Dividing by `quantity` (the
-            # move's UoM) inflated the ratio by the conversion factor -- a partly
-            # consumed "Pack of 6" receipt reported 180 of remaining value where
-            # 30 was left.
             valued_qty = move._get_valued_qty()
             ratio = move.remaining_qty / valued_qty if valued_qty else 0
             if move.product_id.cost_method == "fifo":
@@ -266,9 +242,6 @@ class StockMove(models.Model):
         for move in self:
             if move.value_manual == move.value:
                 continue
-            # sudo: `product.value` is restricted to stock managers, but a value
-            # adjustment can be triggered by an account user editing the move; every
-            # other `product.value` create-site is sudoed for the same reason.
             self.env["product.value"].sudo().create(
                 {
                     "move_id": move.id,
@@ -295,9 +268,6 @@ class StockMove(models.Model):
         return action
 
     def _action_done(self, cancel_backorder=False):
-        # Use _is_out() instead of is_out since the move is not done
-        # It's called before action_done since we need the current fifo
-        # stack. Limitation when validating at same time out and ins
         moves_out = self.filtered(lambda m: m._is_out())
         moves_out._set_value()
         moves = super()._action_done(cancel_backorder=cancel_backorder)
@@ -307,7 +277,6 @@ class StockMove(models.Model):
             std_price_incremental_recompute=not moves_out
         )._set_value()
         moves._create_account_move()
-        # Update standard price on outgoing fifo or lot valuated average products
         moves_out.product_id.filtered(
             lambda p: (
                 p.cost_method == "fifo"
@@ -318,17 +287,6 @@ class StockMove(models.Model):
         return moves
 
     def _get_valuation_accounts(self, cache=None):
-        """This move's product accounts, resolved at most once per key.
-
-        `_get_product_accounts` reads company-dependent fields and runs the fiscal
-        position mapping, and its answer varies over
-        `(product template, company, fiscal position)` and nothing else -- yet a
-        batch validation asked for it three times per move (twice through
-        `_get_stock_journal`, once through `_get_account_move_line_vals`). Ten
-        moves of one product cost 30 resolutions of one answer.
-
-        :param cache: caller-owned dict reused across a batch; omit for a one-off.
-        """
         self.check_singleton()
         template = self.product_id.product_tmpl_id
         key = (template.id, self.company_id.id)
@@ -340,28 +298,12 @@ class StockMove(models.Model):
         return accounts
 
     def _get_stock_journal(self, accounts=None):
-        """The journal this move's valuation entry belongs in.
-
-        Resolved through `_get_product_accounts()`, so a category-level
-        `property_stock_journal` is honoured. It used to be read straight off the
-        company here, which meant the category setting worked for manufacturing
-        entries (`mrp_account`, the only other reader of the key) and was silently
-        dropped for every ordinary stock move.
-        """
         self.check_singleton()
         if accounts is None:
             accounts = self._get_valuation_accounts()
         return accounts["stock_journal"] or self.company_id.account_stock_journal_id
 
     def _create_account_move(self):
-        """Create the valuation entries for the moves of `self`.
-
-        One entry is created per (company, accounting partner, journal): the
-        partner sits on the entry header and the journal may differ per product
-        category, so a batch spanning several companies, customers or categories --
-        an ordinary multi-picking validation -- cannot be expressed as a single
-        entry.
-        """
         accounts_cache = {}
         moves_by_entry = defaultdict(lambda: self.env["stock.move"])
         for move in self:
@@ -438,10 +380,6 @@ class StockMove(models.Model):
         source_acc = self.location_id.valuation_account_id
         dest_acc = self.location_dest_id.valuation_account_id
         if source_acc and dest_acc:
-            # Both sides carry their own account, so the value moves straight from
-            # one to the other and the product's stock valuation account is not
-            # involved. Previously only the source branch ran and the destination
-            # account was dropped from the entry without a word.
             debit_acc, credit_acc = dest_acc, source_acc
         elif source_acc:
             debit_acc = accounts["stock_valuation"]
@@ -450,10 +388,6 @@ class StockMove(models.Model):
             debit_acc = dest_acc
             credit_acc = accounts["stock_valuation"]
         if not debit_acc or not credit_acc:
-            # `_should_create_account_move` only checks that a *location* has an
-            # account, so the product's could still be missing. Left unchecked this
-            # reached the database as `account_id = NULL` and came back as a check
-            # constraint violation that poisoned the transaction.
             raise UserError(
                 self.env._(
                     "No stock valuation account is configured for product"
@@ -488,7 +422,6 @@ class StockMove(models.Model):
         return {}
 
     def _get_price_unit(self):
-        """Returns the unit price to value this stock move"""
         if len(self.product_id) > 1:
             return 0
         total_value = sum(self.mapped("value"))
@@ -496,8 +429,6 @@ class StockMove(models.Model):
         return total_value / total_qty if total_qty else 0
 
     def _get_cogs_price_unit(self, quantity=0):
-        """Returns the COGS unit price to value this stock move
-        quantity should be given in product uom"""
 
         if len(self.product_id) > 1:
             return 0
@@ -518,23 +449,8 @@ class StockMove(models.Model):
             return self.product_id.standard_price
 
     def _set_value(self, correction_quantity=None):
-        """Set the value of the move.
-
-        :param correction_quantity: if set, it means that the valued quantity of the move
-            has been changed by this amount, **in the product's UoM** (can be positive or
-            negative). In that case, we just update the value of the move based on the ratio
-            of extra_quantity / quantity. It only applies on out_move since their value is
-            computed during action_done, and it's used to get a more accurate value for COGS.
-            In case of in move correction, you have to call _set_value without arguments.
-        """
         fifo_qty_processed = defaultdict(float)
 
-        # Pre-scan manual valuations for the whole batch in one query: manual
-        # `product.value` overrides are rare, so this lets `_get_manual_value`
-        # skip its per-move search for every move that has none (the vast
-        # majority) instead of one query per move. The map holds an entry for
-        # every scanned move (False = no manual value), so a move absent from
-        # the map is treated as "unknown" and still searched.
         if self:
             present = {
                 move.id
@@ -546,10 +462,6 @@ class StockMove(models.Model):
             self = self.with_context(_manual_value_prescan=prescan)
 
         for company, moves in self.grouped("company_id").items():
-            # Reset per company: these drive `_update_standard_price` below, which
-            # writes the company-dependent `standard_price`. Accumulating them across
-            # the loop would recompute (and overwrite) an earlier company's products
-            # under this company's scope.
             products_to_recompute = set()
             lots_to_recompute = set()
             extra_value_by_product = defaultdict(float)
@@ -557,7 +469,6 @@ class StockMove(models.Model):
 
             for move in moves:
                 move = move.with_company(company.id)
-                # Incoming moves
                 if move.is_dropship or move.is_in:
                     products_to_recompute.add(move.product_id.id)
                     if move.product_id.lot_valuated:
@@ -575,39 +486,21 @@ class StockMove(models.Model):
                         self.env.context.get("std_price_incremental_recompute")
                         and move.product_id.is_storable
                     ):
-                        # fast path: add extra_value/extra_qty to standard price (only realtime)
                         extra_value_by_product[move.product_id] += move.value
                         extra_qty_by_product[move.product_id] += move._get_valued_qty()
                     continue
-                # Outgoing moves
                 if not move._is_out():
                     if not (move.is_in or move.is_dropship) and move.value:
-                        # The move is no longer valued in either direction: its
-                        # lines were unpicked, re-owned or re-routed. Leaving the
-                        # old value behind kept it in the periodic close and in the
-                        # AVCO replay, describing move lines that no longer
-                        # qualify -- stock on hand valued at 0, or an average cost
-                        # inflated by value carrying no quantity.
                         move.value = 0
                         products_to_recompute.add(move.product_id.id)
                         if move.product_id.lot_valuated:
                             lots_to_recompute.update(move.move_line_ids.lot_id.ids)
                     continue
-                # A manual `product.value` naming this move overrides the computed
-                # cost basis, exactly as it does for an incoming move through
-                # `_get_value_data`. Outgoing moves used never to consult it: the
-                # "Adjust Valuation" dialog is bound to every stock.move and the
-                # Valuation list shows both directions, so the write was accepted
-                # and then silently discarded by the branches below.
                 manual_data = move.sudo()._get_manual_value(move._get_valued_qty())
                 if manual_data["quantity"]:
                     move.value = manual_data["value"]
                     continue
                 if correction_quantity:
-                    # Both terms in the product's UoM, and both counting only the
-                    # lines the value was computed over: `move.quantity` is the
-                    # move's UoM and includes unpicked and consigned lines, which
-                    # `correction_quantity` (and `value`) exclude.
                     previous_qty = move._get_valued_qty() - correction_quantity
                     ratio = correction_quantity / previous_qty if previous_qty else 0
                     move.value += ratio * move.value
@@ -615,11 +508,6 @@ class StockMove(models.Model):
                 if move.product_id.lot_valuated:
                     value = 0.0
                     for move_line in move.move_line_ids:
-                        # Fall back to the product's average cost when the lot has no
-                        # cost basis of its own (e.g. a lot never received, hence still
-                        # at a 0 standard price). Otherwise the move would be valued at
-                        # 0, understating COGS and overstating the remaining on-hand
-                        # value / average cost.
                         lot_price = move_line.lot_id.standard_price
                         if not lot_price:
                             lot_price = move.product_id.standard_price
@@ -636,7 +524,6 @@ class StockMove(models.Model):
                 else:
                     move.value = move.product_id.standard_price * move._get_valued_qty()
 
-            # Recompute the standard price
             self.env["product.product"].browse(products_to_recompute).with_company(
                 company
             )._update_standard_price(
@@ -660,16 +547,6 @@ class StockMove(models.Model):
         at_date=False,
         ignore_manual_update=False,
     ):
-        """Returns the value and the quantity valued on the move
-        In priority order:
-        - Take value from accounting documents (invoices, bills)
-        - Take value from quotations + landed costs
-        - Take value from product cost
-
-        Forced standard price is useful when we have to get the value
-        of a move in the past with the standard price at that time.
-        """
-        # TODO: Make multi
         self.check_singleton()
 
         valued_qty = remaining_qty = self._get_valued_qty()
@@ -679,7 +556,6 @@ class StockMove(models.Model):
 
         if not ignore_manual_update:
             manual_data = self._get_manual_value(remaining_qty, at_date)
-            # A manual value covers the whole move, extra costs included.
             if manual_data["quantity"]:
                 add_extra_value = False
             value += manual_data["value"]
@@ -687,7 +563,6 @@ class StockMove(models.Model):
             if manual_data.get("description"):
                 descriptions.append(manual_data["description"])
 
-        # 1. take from Invoice/Bills
         if remaining_qty:
             account_data = self._get_value_from_account_move(remaining_qty, at_date)
             value += account_data["value"]
@@ -702,7 +577,6 @@ class StockMove(models.Model):
             if production_data.get("description"):
                 descriptions.append(production_data["description"])
 
-        # 2. from SO/PO lines
         if remaining_qty:
             quotation_data = self._get_value_from_quotation(remaining_qty, at_date)
             value += quotation_data["value"]
@@ -710,7 +584,6 @@ class StockMove(models.Model):
             if quotation_data.get("description"):
                 descriptions.append(quotation_data["description"])
 
-        # 3. from returns
         if remaining_qty:
             return_data = self._get_value_from_returns(remaining_qty, at_date)
             value += return_data["value"]
@@ -718,7 +591,6 @@ class StockMove(models.Model):
             if return_data.get("description"):
                 descriptions.append(return_data["description"])
 
-        # 4. standard_price
         if remaining_qty:
             std_price_data = self._get_value_from_std_price(
                 remaining_qty, forced_std_price, at_date
@@ -739,7 +611,6 @@ class StockMove(models.Model):
         }
 
     def _get_out_value_justification(self):
-        """How an outgoing move's value was arrived at, mirroring `_set_value`."""
         self.check_singleton()
         quantity = self._get_valued_qty()
         manual_data = self.sudo()._get_manual_value(quantity)
@@ -773,10 +644,6 @@ class StockMove(models.Model):
 
     def _get_manual_value(self, quantity, at_date=None):
         valuation_data = dict(VALUATION_DICT)
-        # Fast path: when `_set_value` pre-scanned the batch and this move has
-        # no manual `product.value`, skip the per-move search. Only valid with
-        # no `at_date` filter (the scan ignores dates) and only for scanned
-        # moves (`prescan.get` is None for moves outside the scan).
         if not at_date:
             prescan = self.env.context.get("_manual_value_prescan")
             if prescan is not None and prescan.get(self.id) is False:
@@ -829,15 +696,9 @@ class StockMove(models.Model):
 
     def _get_value_from_std_price(self, quantity, std_price=False, at_date=None):
         if at_date and self.product_id.cost_method == "standard":
-            # `_get_standard_price_at_date` already falls back to `standard_price`
-            # when it finds no history, so consulting `standard_price` first only
-            # made the historical lookup unreachable -- pricing the past at today's
-            # cost, which is the later information an at-date replay exists to
-            # exclude.
             std_price = std_price or self.product_id._get_standard_price_at_date(
                 at_date
             )
-        # If multiple lots keep standard_price from product
         elif self.product_id.lot_valuated and len(self.lot_ids) == 1:
             std_price = self.lot_ids.standard_price
         elif (
@@ -845,11 +706,6 @@ class StockMove(models.Model):
             and at_date
             and self.product_id.cost_method in ("fifo", "average")
         ):
-            # The stored value is the record of what this move was worth when it
-            # was done, so it is the cost that applied at `at_date`. `average` was
-            # missing here, so an AVCO in-move with no bill, quotation or return
-            # fell through to today's `standard_price` and a later price change
-            # silently restated the historical valuation.
             valued_qty = self._get_valued_qty()
             if valued_qty:
                 std_price = self.value / valued_qty
@@ -867,18 +723,6 @@ class StockMove(models.Model):
         return dict(VALUATION_DICT)
 
     def _get_valued_move_lines(self, incoming, lot=None):
-        """The `stock.move.line` records of `self` crossing a valuation boundary.
-
-        One implementation for both directions: they differ only in which side of
-        the boundary the goods come from. Kept as a single method because the two
-        used to be copies that had drifted -- the outgoing one accumulated with
-        `res |= move_line` inside the loop, making it quadratic in the number of
-        lines (measured 3.9x its twin at 1600 lines, and still widening).
-
-        :param incoming: True for lines entering the valued perimeter, False for
-            lines leaving it.
-        :returns: a `stock.move.line` recordset
-        """
         res = OrderedSet()
         for move_line in self.move_line_ids:
             if lot and move_line.lot_id != lot:
@@ -898,46 +742,20 @@ class StockMove(models.Model):
         return self.env["stock.move.line"].browse(res)
 
     def _get_in_move_lines(self, lot=None):
-        """Returns the `stock.move.line` records of `self` considered as incoming.
-
-        :returns: a `stock.move.line` recordset
-        """
         return self._get_valued_move_lines(True, lot=lot)
 
     def _is_in(self):
-        """Check if the move should be considered as entering the company so that the cost method
-        will be able to apply the correct logic.
-
-        :returns: True if the move is entering the company else False
-        :rtype: bool
-        """
         self.check_singleton()
         return self._get_in_move_lines() and not self._is_dropshipped_returned()
 
     def _get_out_move_lines(self, lot=None):
-        """Returns the `stock.move.line` records of `self` considered as outgoing.
-
-        :returns: a `stock.move.line` recordset
-        """
         return self._get_valued_move_lines(False, lot=lot)
 
     def _is_out(self):
-        """Check if the move should be considered as leaving the company so that the cost method
-        will be able to apply the correct logic.
-
-        :returns: True if the move is leaving the company else False
-        :rtype: bool
-        """
         self.check_singleton()
         return self._get_out_move_lines() and not self._is_dropshipped()
 
     def _is_dropshipped(self):
-        """Check if the move should be considered as a dropshipping move so that the cost method
-        will be able to apply the correct logic.
-
-        :returns: True if the move is a dropshipping one else False
-        :rtype: bool
-        """
         self.check_singleton()
         return (
             self.location_id.usage == "supplier"
@@ -951,12 +769,6 @@ class StockMove(models.Model):
         )
 
     def _is_dropshipped_returned(self):
-        """Check if the move should be considered as a returned dropshipping move so that the cost
-        method will be able to apply the correct logic.
-
-        :returns: True if the move is a returned dropshipping one else False
-        :rtype: bool
-        """
         self.check_singleton()
         return (
             self.location_id.usage == "customer"
@@ -989,8 +801,6 @@ class StockMove(models.Model):
                 unit_amount = self.product_uom_id._compute_quantity(
                     self.quantity, self.product_id.uom_id
                 )
-                # Falsy in FIFO but since it's an estimation we don't require exact correct cost. Otherwise
-                # we would have to recompute all the analytic estimation at each out.
                 amount = unit_amount * self.product_id.standard_price
             else:
                 return False
@@ -1028,9 +838,6 @@ class StockMove(models.Model):
         }
 
     def _should_create_account_move(self):
-        """Determines if an account move should be created for this move.
-        :return: True if an account move should be created, False otherwise.
-        """
         self.check_singleton()
         return bool(
             self.product_id.is_storable
@@ -1046,20 +853,13 @@ class StockMove(models.Model):
         )
 
     def _should_exclude_for_valuation(self):
-        """Determines if this move should be excluded from valuation based on its partner.
-        :return: True if the move's restrict_partner_id is different from the company's partner (indicating
-                it should be excluded from valuation), False otherwise.
-        """
         self.check_singleton()
         return (
             self.restrict_partner_id
             and self.restrict_partner_id != self.company_id.partner_id
         )
 
-    def _get_related_invoices(self):  # To be overridden in purchase and sale_stock
-        """This method is overrided in both purchase and sale_stock modules to adapt
-        to the way they mix stock moves with invoices.
-        """
+    def _get_related_invoices(self):
         return self.env["account.move"]
 
     def _get_valued_consigned_qty(self):

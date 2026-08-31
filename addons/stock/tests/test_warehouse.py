@@ -2305,7 +2305,7 @@ class TestWarehouse(TestStockCommon):
         self.env.flush_all()
         expected = third.in_type_id.color
 
-        first.unlink()  # frees a lower color, so a fresh allocation would differ
+        first.unlink()
         self.env.flush_all()
 
         stale = third.out_type_id

@@ -47,14 +47,10 @@ class StockLot(models.Model):
     )
     @api.depends_context("to_date", "company", "warehouse_id")
     def _compute_value(self):
-        """Compute totals of multiple svl related values"""
         company_id = self.env.company
         self.company_currency_id = company_id.currency_id
         at_date = fields.Datetime.to_datetime(self.env.context.get("to_date"))
 
-        # AVCO lots are collected per product and replayed together below: one pass
-        # over a product's moves values all of its lots, where a pass per lot costs
-        # a full round of queries each.
         avco_lots_by_product = defaultdict(lambda: self.env["stock.lot"])
         quantities_by_lot_id = {}
         for lot in self:
@@ -78,9 +74,6 @@ class StockLot(models.Model):
                 lot.total_value = lot.standard_price * qty_valued
                 lot.avg_cost = lot.standard_price
             elif valuated_product.cost_method == "average":
-                # Key on the bare product: a recordset hashes on its ids alone, so
-                # keying on `valuated_product` would collapse the per-lot contexts
-                # onto whichever lot landed in the dict first.
                 avco_lots_by_product[lot.product_id] |= lot
             else:
                 fifo_value = valuated_product.with_context(
@@ -134,10 +127,6 @@ class StockLot(models.Model):
         return res
 
     def _update_standard_price(self):
-        # TODO: Add extra value and extra quantity kwargs to avoid total recomputation
-        # AVCO lots are replayed per product in one pass, as in `_compute_value`:
-        # this runs on every receipt of a lot-valuated product, so a pass per lot
-        # would put a full round of queries per lot on the validation path.
         avco_lots_by_product = defaultdict(lambda: self.env["stock.lot"])
         for lot in self:
             lot = lot.with_context(disable_auto_revaluation=True)
@@ -162,11 +151,6 @@ class StockLot(models.Model):
                 lot.standard_price = unit_cost_by_lot_id.get(lot.id, 0)
 
     def _change_standard_price(self, old_price):
-        """Helper to create the stock valuation layers and the account moves
-        after an update of standard price.
-
-        :param old_price: mapping ``{lot: previous standard price}``
-        """
         product_values = []
         for lot in self:
             lot_old_price = old_price.get(lot)
@@ -181,8 +165,6 @@ class StockLot(models.Model):
                     "product_id": product.id,
                     "lot_id": lot.id,
                     "value": lot.standard_price,
-                    # Company-dependent price -> stamp the company it was written
-                    # under, not the product's. See ProductProduct._change_standard_price.
                     "company_id": self.env.company.id,
                     "date": fields.Datetime.now(),
                     "description": _(
@@ -195,7 +177,6 @@ class StockLot(models.Model):
                 }
             )
 
-        # Records a price the caller just wrote; must not re-trigger the recompute.
         self.env["product.value"].sudo().with_context(
             disable_auto_revaluation=True
         ).create(product_values)

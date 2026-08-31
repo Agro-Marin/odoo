@@ -9,12 +9,6 @@ class MrpWorkorder(models.Model):
     )
 
     def _analytic_line_fields(self):
-        """Fields holding this work order's analytic lines.
-
-        A module that adds a second set -- `project_mrp_account` adds the
-        project's -- extends this instead of the teardown, the rename and the
-        distribution guard separately.
-        """
         return ["wc_analytic_account_line_ids"]
 
     def _get_analytic_lines(self):
@@ -55,16 +49,6 @@ class MrpWorkorder(models.Model):
         }
 
     def _create_or_update_analytic_entry(self):
-        """Charge each work order's machine cost to its analytic accounts.
-
-        The hours and the rate are the ones `_get_cost` bills, not the work
-        centre's current ones: a finished work order keeps the rate it ran at,
-        and one costed as estimated is billed its expected duration. Reading
-        `workcenter_id.costs_hour` and the raw `duration` instead let the
-        analytic lines and the journal entry disagree -- re-rating a work centre
-        after the fact restated the analytic side and left the accounting side
-        alone.
-        """
         for wo in self.sudo():
             if not wo.id:
                 continue

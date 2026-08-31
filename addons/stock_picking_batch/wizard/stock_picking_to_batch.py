@@ -44,7 +44,6 @@ class StockPickingToBatch(models.TransientModel):
             notification_title = _("The following batch transfer has been updated")
 
         pickings.write({"batch_id": batch.id})
-        # you have to set some pickings to batch before confirm it.
         if self.mode == "new" and not self.is_create_draft:
             batch.action_confirm()
         return {

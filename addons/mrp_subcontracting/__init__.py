@@ -20,8 +20,6 @@ def uninstall_hook(env):
         warehouses.subcontracting_resupply_type_id | warehouses.subcontracting_type_id
     )
     operations_type_to_remove.active = False
-    # Fail unlink means that the route is used somewhere (e.g. route_id on stock.rule). In this case
-    # we don't try to do anything.
     try:
         with env.cr.savepoint():
             subcontracting_routes.unlink()

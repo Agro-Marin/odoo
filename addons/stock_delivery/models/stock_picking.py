@@ -22,9 +22,13 @@ class StockPicking(models.Model):
             ]._get_weight_uom_name_from_ir_config_parameter()
 
     carrier_price = fields.Float(string="Shipping Cost")
-    delivery_type = fields.Selection(related="carrier_id.delivery_type", readonly=True)
+    delivery_type = fields.Selection(
+        related="carrier_id.delivery_type",
+        readonly=True,
+    )
     allowed_carrier_ids = fields.Many2many(
-        "delivery.carrier", compute="_compute_allowed_carrier_ids"
+        "delivery.carrier",
+        compute="_compute_allowed_carrier_ids",
     )
     carrier_id = fields.Many2one(
         "delivery.carrier",
@@ -69,10 +73,6 @@ class StockPicking(models.Model):
         "move_ids.product_id.volume",
     )
     def _compute_allowed_carrier_ids(self):
-        # The carrier search depends on the company and nothing else, so it
-        # runs once per distinct company instead of once per picking. Reading
-        # the field across a picking list: 28 queries for 20 pickings before,
-        # 9 after, and flat from there.
         Carrier = self.env["delivery.carrier"]
         carriers_by_company = {
             company: Carrier.search(Carrier._check_company_domain(company))
@@ -142,10 +142,6 @@ class StockPicking(models.Model):
         if res is not True:
             return res
         for picking in self:
-            # `_prepare_new_picking_vals` is used to propagate the carrier before a picking is created (i.e. carrier is set on an SO).
-            # Whereas this case handles the propagation of carrier after the picking validation as the carrier maybe set
-            # at later stages as well, specifically at the picking level rather than on the Sales Order.
-            # This ensures the behavior is consistent across all scenarios (push + pull, all pull, and all push rules).
             if picking.carrier_id:
                 picking._get_next_transfers().filtered(
                     lambda p: (
@@ -177,10 +173,6 @@ class StockPicking(models.Model):
         )
 
     def _send_confirmation_email(self):
-        # The carrier's API processes validity checks and parcels generation one picking at a time.
-        # However, since a UserError of any of the picking will cause a rollback of the entire batch
-        # on Odoo's side and since pickings that were already processed on the carrier's side must
-        # stay validated, UserErrors might need to be replaced by activity warnings.
 
         processed_carrier_picking = False
 
@@ -199,7 +191,6 @@ class StockPicking(models.Model):
                     processed_carrier_picking = True
             except UserError as e:
                 if processed_carrier_picking:
-                    # We can not raise a UserError at this point
                     exception_message = str(e)
                     pick.message_post(
                         body=exception_message, message_type="notification"
@@ -273,7 +264,6 @@ class StockPicking(models.Model):
         self._add_delivery_cost_to_so()
 
     def _check_carrier_details_compliance(self):
-        """Hook to check if a delivery is compliant in regard of the carrier."""
         return
 
     def print_return_label(self):
@@ -292,7 +282,6 @@ class StockPicking(models.Model):
     def _prepare_sale_delivery_line_vals(self):
         return {
             "price_unit": self.carrier_price,
-            # remove the estimated price from the description
             "name": self.carrier_id.with_context(lang=self.partner_id.lang).name,
         }
 

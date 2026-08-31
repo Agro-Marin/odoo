@@ -33,17 +33,14 @@ export class StockValuationReportController {
             kwargs,
         );
         this.data = res.data;
-        // Prepare the "Inventory Loss" lines.
         if (this.data.inventory_loss) {
             for (const line of this.data.inventory_loss.lines) {
                 line.account = this.data.accounts_by_id[line.account_id];
             }
         }
-        // Prepare "Stock Variation" lines.
         for (const line of this.data.stock_variation.lines) {
             line.account = this.data.accounts_by_id[line.account_id];
         }
-        // Prepare the "Initial Balance" lines.
         this.data.initial_balance.lines = [];
         for (const [accountId, data] of Object.entries(
             this.data.initial_balance.lines_by_account_id,
@@ -55,7 +52,6 @@ export class StockValuationReportController {
                 account_id: accountId,
             });
         }
-        // Prepare the "Ending Stock" lines.
         this.data.ending_stock.lines = [];
         for (const [accountId, data] of Object.entries(
             this.data.ending_stock.lines_by_account_id,
@@ -75,7 +71,6 @@ export class StockValuationReportController {
         await this.loadReportData();
     }
 
-    // Actions -----------------------------------------------------------------
     async actionGenerateEntry() {
         const args = [[this.companyId]];
         const date = serializeDate(this.state.date);

@@ -71,7 +71,6 @@ class TestStockLandedCostsLots(TestLotValuation):
             }
         )
 
-        # Confirm and assign picking
         (picking_1 | picking_2).action_confirm()
         picking_1.move_ids.move_line_ids = [Command.clear()] + [
             Command.create(
@@ -114,7 +113,6 @@ class TestStockLandedCostsLots(TestLotValuation):
             if valuation.cost_line_id.name == "equal split":
                 self.assertEqual(valuation.additional_landed_cost, 5)
 
-        # I check that the landed cost is now "Closed" and that it has an accounting entry
         self.assertEqual(lc.state, "done")
         self.assertTrue(lc.account_move_id)
         self.assertEqual(len(lc.account_move_id.line_ids), 4)
@@ -202,7 +200,6 @@ class TestStockLandedCostsLots(TestLotValuation):
                 },
             ],
         )
-        # out move with 2 units of product 2 in each lot, so 11.3 * 2 = 22.6
         outs = self._make_out_move(
             product2, 4, lot_ids=[lot_product_b[0], lot_product_b[1]]
         )
@@ -225,12 +222,6 @@ class TestStockLandedCostsLots(TestLotValuation):
         )
 
     def test_landed_cost_when_partially_sold(self):
-        """
-        check that the landed costs split correctly between lot/ serial numbers
-        when some lot/serial number are empty (no share of the landed cost for those)
-        or when some have a portion of their quantity already sold (check that it uses the
-        remaining quantity)
-        """
         product1 = self.env["product.product"].create(
             {
                 "name": "product2",
@@ -241,7 +232,6 @@ class TestStockLandedCostsLots(TestLotValuation):
             }
         )
         product1.categ_id.property_cost_method = "fifo"
-        # acquire 5 products
         picking_1 = self.env["stock.picking"].create(
             {
                 "picking_type_id": self.env.ref("stock.picking_type_in").id,
@@ -262,7 +252,6 @@ class TestStockLandedCostsLots(TestLotValuation):
             }
         )
         picking_1.action_confirm()
-        # split in lots
         picking_1.move_ids.move_line_ids = [Command.clear()] + [
             Command.create(
                 {
@@ -277,13 +266,11 @@ class TestStockLandedCostsLots(TestLotValuation):
         ]
         picking_1.move_ids.picked = True
         picking_1.button_validate()
-        # deliver 2 products
         (lot1, lot2, lot3, lot4) = picking_1.move_ids.move_line_ids.mapped(
             "lot_id"
         ).sorted("id")
         self._make_out_move(product1, quantity=2, lot_ids=[lot1, lot2])
 
-        # add the landed cost
         lc_form = Form(self.env["stock.landed.cost"])
         lc_form.picking_ids = picking_1
         with lc_form.cost_lines.new() as cost_line:
@@ -292,7 +279,6 @@ class TestStockLandedCostsLots(TestLotValuation):
         lc = lc_form.save()
         lc.compute_landed_cost()
         lc.button_validate()
-        # check it was correctly split
         self.assertRecordValues(
             lc.stock_valuation_layer_ids.sorted("id"),
             [

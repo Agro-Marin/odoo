@@ -58,7 +58,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         )
 
     def test_bom_overview_availability(self):
-        # Create routes for components and the main product
         self.comp2.bom_ids.unlink()
         self.env["product.supplierinfo"].create(
             {
@@ -88,7 +87,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         self.bom.produce_delay = 1
         self.bom.days_to_prepare_mo = 3
 
-        # Add 4 units of each component to subcontractor's location
         subcontractor_location = self.env.company.subcontracting_location_id
         self.env["stock.quant"]._update_available_quantity(
             self.comp1, subcontractor_location, 4
@@ -97,7 +95,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
             self.comp2, subcontractor_location, 4
         )
 
-        # Generate a report for 3 products: all products should be ready for production
         bom_data = self.env["report.mrp.report_bom_structure"]._get_report_data(
             self.bom.id, 3
         )
@@ -107,7 +104,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
             self.assertEqual(component["quantity_on_hand"], 4)
             self.assertEqual(component["availability_state"], "available")
 
-        # Generate a report for 5 products: only 4 products should be ready for production
         bom_data = self.env["report.mrp.report_bom_structure"]._get_report_data(
             self.bom.id, 5
         )
@@ -125,7 +121,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
             {"route_ids": [Command.link(resupply_sub_on_order_route.id)]}
         )
 
-        # I create a draft Purchase Order for first in move for 10 kg at 50 euro
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.subcontractor_partner1.id,
@@ -154,9 +149,8 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         self.assertEqual(po_action2, po)
 
     def test_decrease_qty(self):
-        """Tests when a PO for a subcontracted product has its qty decreased after confirmation"""
 
-        self.finished.seller_ids.price = 50.0  # to merge the neg move
+        self.finished.seller_ids.price = 50.0
         product_qty = 5.0
         po = self.env["purchase.order"].create(
             {
@@ -191,7 +185,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
             "Qty of subcontracted product to produce is incorrect",
         )
 
-        # create a neg qty to proprogate to receipt
         lower_qty = product_qty - 1.0
         po.line_ids.product_qty = lower_qty
         sub_mos = receipt._get_subcontract_production()
@@ -209,7 +202,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
             "Qty of subcontract MO should update (none validated yet)",
         )
 
-        # increase qty again
         po.line_ids.product_qty = product_qty
         sub_mos = receipt._get_subcontract_production()
         self.assertEqual(
@@ -221,7 +213,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
             len(sub_mos), 1, "The subcontracted mo should have been updated"
         )
 
-        # check that a neg qty can't proprogate once receipt is done
         for move in receipt.move_ids:
             move.move_line_ids.quantity = move.product_qty
         receipt.move_ids.picked = True
@@ -230,11 +221,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         self.assertEqual(sub_mos.state, "done")
 
     def test_purchase_and_return01(self):
-        """
-        The user buys 10 x a subcontracted product P. He receives the 10
-        products and then does a return with 3 x P. The test ensures that the
-        final received quantity is correctly computed
-        """
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.subcontractor_partner1.id,
@@ -280,12 +266,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         self.assertEqual(po.line_ids.qty_transferred, 7.0)
 
     def test_purchase_and_return02(self):
-        """
-        The user buys 10 x a subcontracted product P. He receives the 10
-        products and then does a return with 3 x P (with the flag to_refund
-        disabled and the subcontracting location as return location). The test
-        ensures that the final received quantity is correctly computed
-        """
         grp_multi_loc = self.env.ref("stock.group_stock_multi_locations")
         self.env.user.write({"group_ids": [(4, grp_multi_loc.id)]})
 
@@ -341,15 +321,13 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         with po_form.line_ids.new() as po_line:
             po_line.product_id = self.finished
             po_line.product_qty = 2
-            po_line.price_unit = 50  # should be 70
+            po_line.price_unit = 50
         po = po_form.save()
         po.action_confirm()
-        # create bill
         po.create_invoice()
         aml = self.env["account.move.line"].search(
             [("purchase_line_ids", "in", po.line_ids.ids)]
         )
-        # add 50 per unit ( 50 x 1 ) = 50 extra valuation
         aml.price_unit = 60
         aml.move_id.invoice_date = Date.today()
         aml.move_id.action_post()
@@ -367,23 +345,14 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
             ],
         )
 
-        # receive subcontracted product (MO will be done)
         receipt = po.picking_ids
         receipt.move_ids.picked = True
         receipt.button_validate()
-        # Total value of subcontracted product = 60 new price + components (20 + 40)
         self.assertEqual(self.finished.total_value, 180)
         self.assertEqual(self.finished.standard_price, 90)
         amls = self.env["account.move.line"].search(
             [("product_id", "in", (self.comp1 | self.comp2 | self.finished).ids)]
         )
-        # Sorted, because the search order does not separate two components
-        # booked by the same journal entry: the comp1 pair and the comp2 pair
-        # swap places as soon as another installed module changes the order the
-        # consumption moves are created in, and this assertion is about the
-        # amounts, not about that order. Measured: identical values, comp2's
-        # pair ahead of comp1's, with the enterprise and agromarin layers
-        # installed alongside.
         rank = {self.comp1.id: 0, self.comp2.id: 1, self.finished.id: 2}
         amls = amls.sorted(lambda line: (rank[line.product_id.id], line.debit))
         self.assertRecordValues(
@@ -435,9 +404,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         )
 
     def test_subcontracting_resupply_price_diff(self):
-        """Test that the price difference is correctly computed when a subcontracted
-        product is resupplied.
-        """
         (self.comp1 | self.comp2 | self.finished).categ_id = self.category_standard_auto
 
         stock_price_diff_acc_id = self.env["account.account"].create(
@@ -456,7 +422,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         self.comp2.standard_price = 20.0
         self.finished.standard_price = 100
 
-        # Create a PO for 1 finished product.
         po_form = Form(self.env["purchase.order"])
         po_form.partner_id = self.subcontractor_partner1
         with po_form.line_ids.new() as po_line:
@@ -483,16 +448,12 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         invoice.invoice_line_ids.quantity = 1
         invoice.action_post()
 
-        # price diff line should be 50 - 100 + 10 + 20
         price_diff_line = invoice.line_ids.filtered(
             lambda m: m.account_id == stock_price_diff_acc_id
         )
         self.assertEqual(price_diff_line.credit, 20)
 
     def test_subcontracting_multi_currency_price_diff(self):
-        """Ensure the price difference lines are computed correctly when the company
-        currency and invoice currency differ
-        """
         currency_grp = self.env.ref("base.group_multi_currency")
         self.env.user.write({"group_ids": [(4, currency_grp.id)]})
 
@@ -533,16 +494,12 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
             }
         )
 
-        # Create a PO for 1 finished product.
         po_form = Form(self.env["purchase.order"])
         po_form.partner_id = self.subcontractor_partner1
         po_form.currency_id = mock_currency
         with po_form.line_ids.new() as po_line:
             po_line.product_id = self.finished
             po_line.product_qty = 1
-            # Ideally, 100 - 10 - 20 = 70 USD
-            # We will create a price diff of 10 USD
-            # 60 USD * 2 = 120 MC
             po_line.price_unit = 120
         po = po_form.save()
         po.action_confirm()
@@ -558,18 +515,12 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         invoice.invoice_line_ids.quantity = 1
         invoice.action_post()
 
-        # price diff line should be 100 - 60 - 10 - 20
         price_diff_line = invoice.line_ids.filtered(
             lambda m: m.account_id == stock_price_diff_acc_id
         )
         self.assertEqual(price_diff_line.credit, 10)
 
     def test_subcontract_product_price_change(self):
-        """Create a PO for subcontracted product, receive the product (finish MO),
-        create vendor bill and edit the product price, confirm the bill.
-        An extra SVL should be created to correct the valuation of the product
-        Also check account move data for real time inventory
-        """
         (self.comp1 | self.comp2 | self.finished).categ_id = self.category_fifo_auto
         purchase = self.env["purchase.order"].create(
             {
@@ -588,29 +539,21 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
             }
         )
         purchase.action_confirm()
-        # receive subcontracted product (MO will be done)
         receipt = purchase.picking_ids
         receipt.move_ids.picked = True
         receipt.button_validate()
         self.assertEqual(self.finished.total_value, 130)
-        # create bill
         purchase.create_invoice()
         aml = self.env["account.move.line"].search(
             [("purchase_line_ids", "in", purchase.line_ids.ids)]
         )
-        # add 50 per unit ( 50 x 1 ) = 50 extra valuation
         aml.price_unit = 150
         aml.move_id.invoice_date = Date.today()
         aml.move_id.action_post()
-        # Total value of subcontracted product should be updated by the invoice
         self.assertEqual(self.finished.total_value, 180)
         self.assertEqual(self.finished.standard_price, 180)
 
     def test_return_and_decrease_pol_qty(self):
-        """
-        Buy and receive 10 subcontracted products. Return one. Then adapt the
-        demand on the PO to 9.
-        """
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.subcontractor_partner1.id,
@@ -653,10 +596,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         self.assertEqual(pol.product_qty, 9.0)
         self.assertEqual(len(po.picking_ids), 2)
         warehouse = po.picking_ids.move_ids.warehouse_id
-        # Sorted, because `assertRecordValues` compares position by position while
-        # `picking_ids.move_ids` yields whatever order the *pickings* are in -- and the
-        # return picking sorts ahead of the receipt it came from. By id is the order the
-        # rows are written in: the receipt, then the return taken out of it.
         self.assertRecordValues(
             po.picking_ids.move_ids.sorted("id"),
             [
@@ -674,9 +613,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         )
 
     def test_subcontracting_lead_days(self):
-        """Test the lead days computation for subcontracting. Subcontracting delay =
-        max(Vendor lead time, Manufacturing lead time + DTPMO) + Days to Purchase
-        """
         rule = self.env["stock.rule"].search(
             [
                 ("action", "=", "buy"),
@@ -686,7 +622,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         )
 
         self.company.days_to_purchase = 2
-        # Case 1 Vendor lead time >= Manufacturing lead time + DTPMO
         seller = self.env["product.supplierinfo"].create(
             {
                 "product_tmpl_id": self.finished.product_tmpl_id.id,
@@ -702,7 +637,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         self.assertEqual(
             delays["total_delay"], seller.delay + self.company.days_to_purchase
         )
-        # Case 2 Vendor lead time < Manufacturing lead time + DTPMO
         self.bom.produce_delay = 5
         self.bom.days_to_prepare_mo = 6
         delays, _ = rule._get_lead_days(self.finished, supplierinfo=seller)
@@ -714,11 +648,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         )
 
     def test_subcontracting_lead_days_on_overview(self):
-        """Test on the BOM overview, the lead days and resupply availability are
-        correctly computed. The dtpmo on the bom should be used for the lead days,
-        while the resupply availability should be based on the calculated dtpmo.
-        """
-        # should be added in all cases
         self.company.days_to_purchase = 5
         self.comp2.bom_ids.unlink()
 
@@ -747,7 +676,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         self.bom.produce_delay = 10
         self.bom.days_to_prepare_mo = 0
 
-        # Case 1: Vendor lead time >= Manufacturing lead time + DTPMO on BOM
         bom_data = self.env["report.mrp.report_bom_structure"]._get_bom_data(
             self.bom, self.warehouse, self.finished
         )
@@ -756,10 +684,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
             15 + 5 + 0,
             "Lead time = Purchase lead time(finished) + Days to Purchase + DTPMO on BOM",
         )
-        # Resupply delay = 0 (received from MRP, where route type != "manufacture")
-        # Vendor lead time = 10 (finished product supplier delay)
-        # Manufacture lead time = 10 (BoM.produce_delay)
-        # Max purchase component delay = max delay(comp1, comp2) + days_to_purchase = 20
         self.assertEqual(
             bom_data["resupply_avail_delay"],
             0 + 10 + 20 + 5,
@@ -767,7 +691,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
             " + Max purchase component delay + Days to Purchase",
         )
 
-        # Case 2: Vendor lead time < Manufacturing lead time + DTPMO on BOM
         self.bom.action_compute_bom_days()
         self.assertEqual(
             self.bom.days_to_prepare_mo,
@@ -776,7 +699,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         )
 
         self.bom.days_to_prepare_mo = 10
-        # Temp increase BoM.produce_delay, to check if it is now used in the final calculation
         self.bom.produce_delay = 30
 
         bom_data = self.env["report.mrp.report_bom_structure"]._get_bom_data(
@@ -787,28 +709,21 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
             30 + 5 + 10,
             "Lead time = Manufacturing lead time + Days to Purchase + DTPMO on BOM",
         )
-        # Resupply delay = 0 (received from MRP, where route type != "manufacture")
-        # Vendor lead time = 15 (finished product supplier delay)
-        # Manufacture lead time = 30 (BoM.produce_delay)
-        # Max purchase component delay = max delay(comp1, comp2) + days_to_purchase = 15
         self.assertEqual(
             bom_data["resupply_avail_delay"],
             0 + 30 + 15 + 5,
             "Resupply avail delay = Resupply delay + Max(Vendor lead time, Manufacture lead time)"
             " + Max purchase component delay + Days to Purchase",
         )
-        # Continue the test with the original produce_delay
         self.bom.produce_delay = 10
 
-        # Update stock for components, calculate DTPMO should be 0
         self.env["stock.quant"]._update_available_quantity(
             self.comp1, self.company.subcontracting_location_id, 100
         )
         self.env["stock.quant"]._update_available_quantity(
             self.comp2, self.company.subcontracting_location_id, 100
         )
-        self.env.invalidate_all()  # invalidate cache to get updated qty_available
-        # Case 1: Vendor lead time >= Manufacturing lead time + DTPMO on BOM
+        self.env.invalidate_all()
         self.bom.days_to_prepare_mo = 2
         bom_data = self.env["report.mrp.report_bom_structure"]._get_bom_data(
             self.bom, self.warehouse, self.finished
@@ -820,7 +735,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         )
         for component in bom_data["components"]:
             self.assertEqual(component["availability_state"], "available")
-        # Case 2: Vendor lead time < Manufacturing lead time + DTPMO on BOM
         self.bom.action_compute_bom_days()
         self.assertEqual(
             self.bom.days_to_prepare_mo,
@@ -839,7 +753,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
             self.assertEqual(component["availability_state"], "available")
 
     def test_resupply_order_buy_mto(self):
-        """Test a subcontract component can has resupply on order + buy + mto route"""
         mto_route = self.env.ref("stock.route_warehouse0_mto")
         mto_route.active = True
         resupply_sub_on_order_route = self.env["stock.route"].search(
@@ -893,18 +806,15 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
             ressuply_pick.move_ids.mapped("product_id"), self.comp1 | self.comp2
         )
 
-        # should have create a purchase order for the components
         comp_po = self.env["purchase.order"].search(
             [("partner_id", "=", self.vendor.id)]
         )
         self.assertEqual(len(comp_po.line_ids), 2)
         self.assertEqual(comp_po.line_ids.mapped("product_id"), self.comp1 | self.comp2)
-        # confirm the po should create stock moves linked to the resupply
         comp_po.action_confirm()
         comp_receipt = comp_po.picking_ids
         self.assertEqual(comp_receipt.move_ids.move_dest_ids, ressuply_pick.move_ids)
 
-        # validate the comp receipt should reserve the resupply
         self.assertEqual(ressuply_pick.state, "waiting")
         comp_receipt.move_ids.quantity = 1
         comp_receipt.move_ids.picked = True
@@ -912,9 +822,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         self.assertEqual(ressuply_pick.state, "assigned")
 
     def test_update_qty_purchased_with_subcontracted_product(self):
-        """
-        Test That we can update the quantity of a purchase order line with a subcontracted product
-        """
         mto_route = self.env.ref("stock.route_warehouse0_mto")
         mto_route.active = True
         self.comp2.bom_ids.unlink()
@@ -955,7 +862,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         self.assertEqual(len(po.picking_ids), 1)
         picking = po.picking_ids
         picking.move_ids.quantity = 2.0
-        # When we validate the picking manually, we create a backorder.
         Form.from_action(self.env, picking.button_validate()).save().process()
         self.assertEqual(len(po.picking_ids), 2)
         picking.backorder_ids.action_cancel()
@@ -964,17 +870,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         self.assertEqual(po.line_ids.product_qty, 2.0)
 
     def test_mrp_report_bom_structure_subcontracting_quantities(self):
-        """Testing quantities and availablility states in subcontracted BoM report
-        1. Create a BoM of a finished product with a single component
-        2. Update the on hand quantity of BoM to 100
-        3. Move 20 components to subcontracting location
-        4. Check that the free/on-hand quantity of component is 100 (sum of warehouse stock and subcontracting location stock)
-        5. Check that producible quantity of 'Product' is equal to only subcontractor location stock
-        6. Check availability states when:
-            6a. Search quantity <= subcontractor quantity: component is available
-            6b. Subcontractor quantity <= search quantity <= total quantity: component is available
-            6c. Total quantity < search quantity: component is unavailable
-        """
         search_qty_less_than_or_equal_moved = 10
         moved_quantity_to_subcontractor = 20
         total_component_quantity = 100
@@ -1015,7 +910,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         self.env["stock.quant"]._update_available_quantity(
             component, self.warehouse.lot_stock_id, total_component_quantity
         )
-        # Check quantity was updated
         self.assertEqual(component.qty_available_virtual, total_component_quantity)
         self.assertEqual(component.qty_available, total_component_quantity)
 
@@ -1080,9 +974,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
             report_values["lines"]["components"][0]["stock_avail_state"], "unavailable"
         )
 
-    # TODO: po_lead doesn't exist anymore, remove?
     def test_bom_overview_availability_po_lead(self):
-        # Create routes for components and the main product
         self.comp2.bom_ids.unlink()
         self.env["product.supplierinfo"].create(
             {
@@ -1109,7 +1001,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         self.bom.produce_delay = 1
         self.bom.days_to_prepare_mo = 3
 
-        # Add 4 units of each component to subcontractor's location
         subcontractor_location = self.env.company.subcontracting_location_id
         self.env["stock.quant"]._update_available_quantity(
             self.comp1, subcontractor_location, 4
@@ -1118,7 +1009,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
             self.comp2, subcontractor_location, 4
         )
 
-        # Generate a report for 3 products: all products should be ready for production
         bom_data = self.env["report.mrp.report_bom_structure"]._get_report_data(
             self.bom.id, 3
         )
@@ -1128,7 +1018,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
             self.assertEqual(component["quantity_on_hand"], 4)
             self.assertEqual(component["availability_state"], "available")
 
-        # Generate a report for 5 products: only 4 products should be ready for production
         bom_data = self.env["report.mrp.report_bom_structure"]._get_report_data(
             self.bom.id, 5
         )
@@ -1139,13 +1028,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
             self.assertEqual(component["availability_state"], "estimated")
 
     def test_location_after_dest_location_update_backorder_production(self):
-        """
-        Buy 2 subcontracted products.
-        Receive 1 product after changing the destination location.
-        Create a backorder.
-        Receive the last one.
-        Check the locations.
-        """
         grp_multi_loc = self.env.ref("stock.group_stock_multi_locations")
         self.env.user.write({"group_ids": [Command.link(grp_multi_loc.id)]})
         subcontract_loc = self.env.company.subcontracting_location_id
@@ -1156,7 +1038,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
                 "location_id": self.warehouse.lot_stock_id.id,
             }
         )
-        # buy 2 subcontracted products
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.subcontractor_partner1.id,
@@ -1176,18 +1057,13 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         po.action_confirm()
 
         receipt = po.picking_ids
-        # receive 1 subcontracted product
         receipt.move_ids.quantity = 1
         receipt_form = Form(receipt)
-        # change the destination location
         receipt_form.location_dest_id = final_loc
         receipt_form.save()
-        # change the destination location on the move line too
         receipt.move_line_ids.location_dest_id = final_loc
-        # create the backorder
         Form.from_action(self.env, receipt.button_validate()).save().process()
         backorder = receipt.backorder_ids
-        # test the stock quantities after receiving 1 product
         stock_quants = self.env["stock.quant"].search(
             [("product_id", "=", self.finished.id)]
         )
@@ -1203,10 +1079,8 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
             stock_quants.filtered(lambda q: q.location_id == production_loc).quantity,
             -1.0,
         )
-        # receive the last subcontracted product
         backorder.move_ids.quantity = 1
         backorder.button_validate()
-        # test the final stock quantities
         stock_quants = self.env["stock.quant"].search(
             [("product_id", "=", self.finished.id)]
         )
@@ -1224,9 +1098,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         )
 
     def test_return_subcontracted_product_to_supplier_location(self):
-        """
-        Test that we can return subcontracted product to the supplier location.
-        """
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.subcontractor_partner1.id,
@@ -1249,7 +1120,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         picking = po.picking_ids
         picking.button_validate()
         self.assertEqual(picking.state, "done")
-        # create a return to the vendor location
         supplier_location = self.env.ref("stock.stock_location_suppliers")
         return_form = Form(
             self.env["stock.return.picking"].with_context(
@@ -1264,9 +1134,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         self.assertEqual(return_picking.state, "done")
 
     def test_global_horizon_days_affect_lead_time(self):
-        """Don't count global horizon days more than once, make sure a PO generated from
-        replenishment/orderpoint has a sensible planned reception date.
-        """
         wh = self.warehouse
         self.finished.seller_ids.delay = 0
         orderpoint = self.env["stock.warehouse.orderpoint"].create(
@@ -1320,10 +1187,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
 
     @freeze_time("2000-05-01")
     def test_mrp_subcontract_modify_date(self):
-        """Ensure consistent results when modifying date fields of a weakly-linked reception and
-        manufacturing order. Additionally, modifying `date_start` directly on an MO has a
-        well-defined result.
-        """
         self.bom_finished2.produce_delay = 35
         po = self.env["purchase.order"].create(
             {
@@ -1363,8 +1226,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         self.assertEqual(mo.date_start, original_mo_start_date)
 
     def test_create_invoice_with_subcontracted_tracked_products(self):
-        """Ensure that invoice creation doesn't trigger an error
-        with subcontracted tracked products."""
         todo_nb = 5
         self.finished2.tracking = "serial"
         self.finished2.bill_policy = "ordered"

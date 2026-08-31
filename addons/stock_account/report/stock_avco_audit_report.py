@@ -9,28 +9,29 @@ class StockAverageCostReport(models.AbstractModel):
     _auto = False
     _name = "stock.avco.report"
     _description = "Stock AVCO Justifier"
-    # `id` is negated for product.value rows to stay unique across the UNION, so it
-    # must never be used as a chronological tiebreak -- it would order adjustments
-    # backwards and push all of them ahead of same-instant moves. `res_id` cannot
-    # break ties across the two sources either (independent sequences), hence
-    # `replay_rank`: at an equal timestamp the engine treats a revaluation as
-    # landing after the move (`_run_average_batch` skips moves whose
-    # `date <= product.value.date`), so the audit has to replay them in that order
-    # or it would justify a different figure than the one actually stored.
     _order = "date desc, replay_rank desc, res_id desc"
-    # Ascending counterpart of `_order`, used to replay the history forwards.
     _REPLAY_ORDER = "date, replay_rank, res_id"
 
     date = fields.Datetime(string="Date", required=True)
     replay_rank = fields.Integer(string="Replay Rank", required=True)
     res_id = fields.Integer(string="Resource ID", required=True)
     user_id = fields.Many2one("res.users", string="User", required=True)
-    company_id = fields.Many2one("res.company", string="Company", required=True)
+    company_id = fields.Many2one(
+        "res.company",
+        string="Company",
+        required=True,
+    )
     currency_id = fields.Many2one(
-        "res.currency", related="company_id.currency_id", string="Currency"
+        "res.currency",
+        related="company_id.currency_id",
+        string="Currency",
     )
 
-    product_id = fields.Many2one("product.product", string="Product", required=True)
+    product_id = fields.Many2one(
+        "product.product",
+        string="Product",
+        required=True,
+    )
 
     reference = fields.Char(string="Reference", required=True)
     description = fields.Text(string="Description", required=True)
@@ -48,18 +49,25 @@ class StockAverageCostReport(models.AbstractModel):
     value = fields.Float(string="Value", required=True)
 
     added_value = fields.Float(
-        string="Added Value", compute="_compute_cumulative_fields"
+        string="Added Value",
+        compute="_compute_cumulative_fields",
     )
     total_quantity = fields.Float(
-        string="Total Quantity", compute="_compute_cumulative_fields"
+        string="Total Quantity",
+        compute="_compute_cumulative_fields",
     )
     total_value = fields.Float(
-        string="Total Value", compute="_compute_cumulative_fields"
+        string="Total Value",
+        compute="_compute_cumulative_fields",
     )
-    avco_value = fields.Float(string="AVCO Value", compute="_compute_cumulative_fields")
+    avco_value = fields.Float(
+        string="AVCO Value",
+        compute="_compute_cumulative_fields",
+    )
 
     justification = fields.Text(
-        string="Justification", compute="_compute_justification"
+        string="Justification",
+        compute="_compute_justification",
     )
 
     def init(self):
@@ -140,24 +148,9 @@ WHERE
         self.env.cr.execute(query)
 
     def _search(self, domain, *args, **kwargs):
-        # This model is `_auto = False`, so the ORM's automatic flush -- which
-        # targets the searched model -- flushes nothing at all. The view joins
-        # stock_move, product_value, product_template, product_category,
-        # res_company, stock_picking and uom_uom, and the cost-method filter reads
-        # product_category, so a partial flush still hides rows: an unflushed
-        # `property_cost_method` reads as NULL and silently drops every move for
-        # that category. Flush everything -- this report exists to justify a
-        # valuation, so reading around pending writes defeats its purpose.
         self.env.flush_all()
         return super()._search(domain, *args, **kwargs)
 
-    # A running total depends on every earlier row of the same product and
-    # company, which no `depends` path can name. What it *can* name is the data
-    # the view is built from, and that is what actually moves these figures: a
-    # move's value or the flags that put it in the view at all. Without any
-    # `depends` the ORM cached the running totals for the life of the
-    # transaction, so a report re-read after a validation showed the figures from
-    # before it -- in the one screen whose job is to justify the current cost.
     @api.depends(
         "value",
         "quantity",
@@ -169,9 +162,6 @@ WHERE
     )
     def _compute_cumulative_fields(self):
         pages_by_key = self.grouped(lambda m: (m.product_id, m.company_id))
-        # One `(product, company)` pair per page group, not their cross product:
-        # a page showing two products of two companies asked for all four
-        # combinations, three of which it had no row for.
         total_records_grouped = (
             self.env["stock.avco.report"]
             .search(
@@ -194,9 +184,6 @@ WHERE
             total_records = total_records_grouped.get(key, self.browse()).sorted(
                 self._REPLAY_ORDER
             )
-            # Replay the same AVCO recurrence as the live valuation engine
-            # (product._run_average_batch) via the shared accumulator, so the audit
-            # figures cannot drift from the actual valuation.
             avco = AvcoAccumulator(uom=records.product_id.uom_id)
             added_value = 0.0
             for record in total_records:

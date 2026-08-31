@@ -3,8 +3,6 @@ from odoo.exceptions import ValidationError
 
 
 class MixinBomComponent(models.AbstractModel):
-    """A quantity of a product on a BoM: a component line or a by-product."""
-
     _name = "mixin.bom.component"
     _inherit = ["mixin.bom.variant.line"]
     _description = "A quantity of a product on a BoM"
@@ -12,17 +10,26 @@ class MixinBomComponent(models.AbstractModel):
     _order = "sequence, id"
     _check_company_auto = True
 
-    #: one2many on `mrp.bom` that holds records of this model
     _bom_child_field = None
 
     product_id = fields.Many2one(
-        "product.product", "Product", required=True, check_company=True, index=True
+        "product.product",
+        "Product",
+        required=True,
+        check_company=True,
+        index=True,
     )
     company_id = fields.Many2one(
-        related="bom_id.company_id", store=True, index=True, readonly=True
+        related="bom_id.company_id",
+        store=True,
+        index=True,
+        readonly=True,
     )
     product_qty = fields.Float(
-        "Quantity", default=1.0, digits="Product Unit", required=True
+        "Quantity",
+        default=1.0,
+        digits="Product Unit",
+        required=True,
     )
     product_uom_id = fields.Many2one(
         "uom.uom",
@@ -34,10 +41,12 @@ class MixinBomComponent(models.AbstractModel):
         precompute=True,
     )
     sequence = fields.Integer(
-        "Sequence", help="Gives the sequence order when displaying."
+        "Sequence",
+        help="Gives the sequence order when displaying.",
     )
     allowed_operation_ids = fields.One2many(
-        "mrp.routing.workcenter", related="bom_id.operation_ids"
+        "mrp.routing.workcenter",
+        related="bom_id.operation_ids",
     )
     operation_id = fields.Many2one(
         "mrp.routing.workcenter",
@@ -53,13 +62,6 @@ class MixinBomComponent(models.AbstractModel):
 
     @api.depends("product_id")
     def _compute_product_uom_id(self):
-        """Stamp the product's own unit.
-
-        `precompute=True` makes this run before the INSERT, so a row created
-        without a unit never touches the database with the wrong one. It
-        replaces a `default=` that returned whichever `uom.uom` had the lowest
-        id -- a value the unit-consistency constraint below then rejected.
-        """
         for record in self:
             record.product_uom_id = record.product_id.uom_id
 
@@ -75,11 +77,6 @@ class MixinBomComponent(models.AbstractModel):
                 raise ValidationError(record._get_uom_mismatch_message())
 
     def _get_uom_mismatch_message(self):
-        """The sentence for a unit that does not measure the product's own.
-
-        A hook rather than a class attribute because the string has to be a
-        literal at the call site for `babel` to extract it.
-        """
         raise NotImplementedError
 
     def action_add_from_catalog(self):
@@ -94,8 +91,6 @@ class MixinBomComponent(models.AbstractModel):
         self.product_id.check_singleton()
         return {
             **self[0].bom_id._get_product_price_and_data(self[0].product_id),
-            # Converted to the product's own unit, not to each line's: summing
-            # 1 kg and 500 g in their own units reports 501.
             "quantity": sum(
                 self.mapped(
                     lambda line: line.product_uom_id._compute_quantity_report(

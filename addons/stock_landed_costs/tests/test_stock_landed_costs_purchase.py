@@ -17,7 +17,6 @@ class TestLandedCosts(TestStockLandedCostsCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Create picking incoming shipment
         cls.picking_in = cls.Picking.create(
             {
                 "partner_id": cls.supplier_id,
@@ -47,7 +46,6 @@ class TestLandedCosts(TestStockLandedCostsCommon):
                 "location_dest_id": cls.warehouse.lot_stock_id.id,
             }
         )
-        # Create picking outgoing shipment
         cls.picking_out = cls.Picking.create(
             {
                 "partner_id": cls.customer_id,
@@ -69,29 +67,10 @@ class TestLandedCosts(TestStockLandedCostsCommon):
         )
 
     def test_00_landed_costs_on_incoming_shipment(self):
-        """Test landed cost on incoming shipment"""
-        #
-        # (A) Purchase product
-
-        #         Services           Quantity       Weight      Volume
-        #         -----------------------------------------------------
-        #         1. Refrigerator         5            10          1
-        #         2. Oven                 10           20          1.5
-
-        # (B) Add some costs on purchase
-
-        #         Services           Amount     Split Method
-        #         -------------------------------------------
-        #         1.labour            10        By Equal
-        #         2.brokerage         150       By Quantity
-        #         3.transportation    250       By Weight
-        #         4.packaging         20        By Volume
 
         self.landed_cost.categ_id.property_valuation = "real_time"
 
-        # Process incoming shipment
         income_ship = self._process_incoming_shipment()
-        # Create landed costs
         stock_landed_cost = self._create_landed_costs(
             {
                 "equal_price_unit": 10,
@@ -101,7 +80,6 @@ class TestLandedCosts(TestStockLandedCostsCommon):
             },
             income_ship,
         )
-        # Compute landed costs
         stock_landed_cost.compute_landed_cost()
 
         valid_vals = {
@@ -114,9 +92,7 @@ class TestLandedCosts(TestStockLandedCostsCommon):
             "by_volume_oven": 15.0,
         }
 
-        # Check valuation adjustment line recognized or not
         self._validate_additional_landed_cost_lines(stock_landed_cost, valid_vals)
-        # Validate the landed cost.
         stock_landed_cost.button_validate()
 
         self.assertRecordValues(
@@ -146,29 +122,10 @@ class TestLandedCosts(TestStockLandedCostsCommon):
             raise unittest.SkipTest(
                 "Skip this test as it works only with `generic_coa`"
             )
-        # Test landed cost on incoming shipment
-        #
-        # (A) Purchase product
-
-        #         Services           Quantity       Weight      Volume
-        #         -----------------------------------------------------
-        #         1. Refrigerator         5            10          1
-        #         2. Oven                 10           20          1.5
-
-        # (B) Add some costs on purchase
-
-        #         Services           Amount     Split Method
-        #         -------------------------------------------
-        #         1.labour            10        By Equal
-        #         2.brokerage         150       By Quantity
-        #         3.transportation    250       By Weight
-        #         4.packaging         20        By Volume
 
         self.product_refrigerator.write({"categ_id": self.categ_manual_periodic.id})
         self.product_oven.write({"categ_id": self.categ_manual_periodic.id})
-        # Process incoming shipment
         income_ship = self._process_incoming_shipment()
-        # Create landed costs
         stock_landed_cost = self._create_landed_costs(
             {
                 "equal_price_unit": 10,
@@ -178,7 +135,6 @@ class TestLandedCosts(TestStockLandedCostsCommon):
             },
             income_ship,
         )
-        # Compute landed costs
         stock_landed_cost.compute_landed_cost()
 
         valid_vals = {
@@ -191,50 +147,16 @@ class TestLandedCosts(TestStockLandedCostsCommon):
             "by_volume_oven": 15.0,
         }
 
-        # Check valuation adjustment line recognized or not
         self._validate_additional_landed_cost_lines(stock_landed_cost, valid_vals)
-        # Validate the landed cost.
         stock_landed_cost.button_validate()
         self.assertFalse(stock_landed_cost.account_move_id)
 
     def test_01_negative_landed_costs_on_incoming_shipment(self):
-        """Test negative landed cost on incoming shipment"""
-        #
-        # (A) Purchase Product
-
-        #         Services           Quantity       Weight      Volume
-        #         -----------------------------------------------------
-        #         1. Refrigerator         5            10          1
-        #         2. Oven                 10           20          1.5
-
-        # (B) Sale refrigerator's part of the quantity
-
-        # (C) Add some costs on purchase
-
-        #         Services           Amount     Split Method
-        #         -------------------------------------------
-        #         1.labour            10        By Equal
-        #         2.brokerage         150       By Quantity
-        #         3.transportation    250       By Weight
-        #         4.packaging         20        By Volume
-
-        # (D) Decrease cost that already added on purchase
-        #         (apply negative entry)
-
-        #         Services           Amount     Split Method
-        #         -------------------------------------------
-        #         1.labour            -5        By Equal
-        #         2.brokerage         -50       By Quantity
-        #         3.transportation    -50       By Weight
-        #         4.packaging         -5        By Volume
 
         self.landed_cost.categ_id.property_valuation = "real_time"
 
-        # Process incoming shipment
         income_ship = self._process_incoming_shipment()
-        # Refrigerator outgoing shipment.
         self._process_outgoing_shipment()
-        # Apply landed cost for incoming shipment.
         stock_landed_cost = self._create_landed_costs(
             {
                 "equal_price_unit": 10,
@@ -244,7 +166,6 @@ class TestLandedCosts(TestStockLandedCostsCommon):
             },
             income_ship,
         )
-        # Compute landed costs
         stock_landed_cost.compute_landed_cost()
         valid_vals = {
             "equal": 5.0,
@@ -255,15 +176,12 @@ class TestLandedCosts(TestStockLandedCostsCommon):
             "by_volume_refrigerator": 5.0,
             "by_volume_oven": 15.0,
         }
-        # Check valuation adjustment line recognized or not
         self._validate_additional_landed_cost_lines(stock_landed_cost, valid_vals)
-        # Validate the landed cost.
         stock_landed_cost.button_validate()
         self.assertTrue(
             stock_landed_cost.account_move_id,
             "Landed costs should be available account move lines",
         )
-        # Create negative landed cost for previously incoming shipment.
         stock_negative_landed_cost = self._create_landed_costs(
             {
                 "equal_price_unit": -5,
@@ -273,7 +191,6 @@ class TestLandedCosts(TestStockLandedCostsCommon):
             },
             income_ship,
         )
-        # Compute negative landed costs
         stock_negative_landed_cost.compute_landed_cost()
         valid_vals = {
             "equal": -2.5,
@@ -284,11 +201,9 @@ class TestLandedCosts(TestStockLandedCostsCommon):
             "by_volume_refrigerator": -1.25,
             "by_volume_oven": -3.75,
         }
-        # Check valuation adjustment line recognized or not
         self._validate_additional_landed_cost_lines(
             stock_negative_landed_cost, valid_vals
         )
-        # Validate the landed cost.
         stock_negative_landed_cost.button_validate()
         self.assertEqual(
             stock_negative_landed_cost.state,
@@ -421,20 +336,13 @@ class TestLandedCosts(TestStockLandedCostsCommon):
         )
 
     def _process_incoming_shipment(self):
-        """Two product incoming shipment."""
-        # Confirm incoming shipment.
         self.picking_in.action_confirm()
-        # Transfer incoming shipment
         self.picking_in.button_validate()
         return self.picking_in
 
     def _process_outgoing_shipment(self):
-        """One product Outgoing shipment."""
-        # Confirm outgoing shipment.
         self.picking_out.action_confirm()
-        # Product assign to outgoing shipments
         self.picking_out.action_assign()
-        # Transfer picking.
 
         self.picking_out.button_validate()
 
@@ -553,7 +461,6 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         self.product1.product_tmpl_id.categ_id.property_valuation = "real_time"
         stock_valuation_account = self.company_data["default_account_stock_valuation"]
 
-        # Create PO
         po_form = Form(self.env["purchase.order"])
         po_form.partner_id = self.env["res.partner"].create({"name": "vendor"})
         with po_form.line_ids.new() as po_line:
@@ -563,12 +470,10 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         order = po_form.save()
         order.action_confirm()
 
-        # Receive the goods
         receipt = order.picking_ids[0]
         receipt.move_ids.quantity = 1
         receipt.button_validate()
 
-        # Check SVL and AML
         svl = self.env["stock.valuation.layer"].search(
             [("stock_move_id", "=", receipt.move_ids.id)]
         )
@@ -578,7 +483,6 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         )
         self.assertAlmostEqual(aml.debit, 455)
 
-        # Create and validate LC
         lc = self.env["stock.landed.cost"].create(
             {
                 "picking_ids": [(6, 0, [receipt.id])],
@@ -600,7 +504,6 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         lc.compute_landed_cost()
         lc.button_validate()
 
-        # Check LC, SVL and AML
         self.assertAlmostEqual(lc.valuation_adjustment_lines.final_cost, 554)
         svl = self.env["stock.valuation.layer"].search(
             [("stock_move_id", "=", receipt.move_ids.id)], order="id desc", limit=1
@@ -611,7 +514,6 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         )
         self.assertAlmostEqual(aml.debit, 99)
 
-        # Create an invoice with the same price
         move_form = Form(
             self.env["account.move"].with_context(default_move_type="in_invoice")
         )
@@ -623,7 +525,6 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         move = move_form.save()
         move.action_post()
 
-        # Check nothing was posted in the stock valuation account.
         price_diff_aml = self.env["account.move.line"].search(
             [("account_id", "=", stock_valuation_account.id), ("move_id", "=", move.id)]
         )
@@ -634,8 +535,6 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         )
 
     def test_lc_with_avco_ordered_qty_backorder(self):
-        """Make sure the landed cost added in invoices are taken into account to compute product
-        cost even in 'Ordered Quantity' invoice policy."""
         self.env.company.anglo_saxon_accounting = True
         self.landed_cost.split_method_landed_cost = "by_quantity"
         product2 = self.env["product.product"].create(
@@ -726,7 +625,6 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         self.landed_cost.categ_id.property_cost_method = "fifo"
         self.landed_cost.categ_id.property_valuation = "real_time"
 
-        # Create PO
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -767,7 +665,6 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         po.create_invoice()
         bill = po.invoice_ids
 
-        # Create and validate LC
         lc = self.env["stock.landed.cost"].create(
             {
                 "picking_ids": [(6, 0, [receipt.id])],
@@ -799,7 +696,6 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
                 ],
             }
         )
-        # Post the bill
         bill.landed_costs_ids = [(6, 0, lc.id)]
         bill.invoice_date = Date.today()
         bill.with_user(user)._post()
@@ -810,10 +706,6 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         self.assertTrue(landed_cost_aml.reconciled)
 
     def test_lc_with_avco_ordered_qty_invoice_receipt_order(self):
-        """When using an invoicing policy that permits invoicing prior to reception, stock moves
-        for products using dynamic cost methods should account for LCs associated with the order
-        from which the move was derived.
-        """
         self.env.company.anglo_saxon_accounting = True
         self.product1.bill_policy = "ordered"
         self.product1.categ_id.write(
@@ -884,11 +776,6 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         self.assertEqual(product.standard_price, 1.81)
 
     def test_landed_costs_avco_invoice_before_receipt(self):
-        """
-        Test the application of landed costs on a product with average cost (AVCO) method
-        when the bill is created and validated before the receipt and the landed costs are
-        not yet created on the bill.
-        """
 
         self.env.company.anglo_saxon_accounting = True
         self.product1.bill_policy = "ordered"
@@ -939,7 +826,6 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         receipt.move_ids.quantity = 1
         receipt.button_validate()
 
-        # Ensure that the product cost has not been updated yet
         assert receipt.move_ids[0].stock_valuation_layer_ids[0].unit_cost == 10
 
         action = bill.button_create_landed_costs()
@@ -948,11 +834,9 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         lc = lc_form.save()
         lc.button_validate()
 
-        # 35 = Product price (10) + landed cost price (25)
         self.assertEqual(product.standard_price, 35)
 
     def test_refund_landed_cost_creates_negative_valuation(self):
-        """Ensure landed cost created from a vendor refund is negative and reduces valuation."""
         self.env.company.anglo_saxon_accounting = True
         product = self.env["product.product"].create(
             {
@@ -1046,10 +930,6 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         self.assertEqual(lc.stock_valuation_layer_ids.value, -20)
 
     def test_landed_cost_avco_partial_bill_rounding(self):
-        """Tests landed cost calculation for an AVCO product with partial
-        billing and backorders, ensuring correct stock valuation and handling
-        of rounding with decimal precision.
-        """
         decimal_price = self.env.ref("product.decimal_price")
         decimal_price.digits = 5
         decimal_product_uom = self.env.ref("uom.decimal_product_uom")
@@ -1098,7 +978,6 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         picking = purchase_order.picking_ids[0]
         picking.action_assign()
 
-        # Receive 70 items and create a backorder
         picking.move_ids.quantity = 70
         picking.button_validate()
         picking._action_done()
@@ -1136,7 +1015,6 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         )
         self.assertAlmostEqual(purchase_order.line_ids[0].qty_invoiced, 70)
 
-        # Add a landed cost to the first picking
         landed_cost = self.env["stock.landed.cost"].create(
             {
                 "picking_ids": [(6, 0, [picking.id])],
@@ -1158,7 +1036,6 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         landed_cost.compute_landed_cost()
         landed_cost.button_validate()
 
-        # Create a draft bill for the remaining 120 units
         bill2 = purchase_order.create_invoice()
         bill2.invoice_date = fields.Date.today()
         self.assertAlmostEqual(
@@ -1177,12 +1054,10 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
             msg="Total 190 units should be invoiced on PO line.",
         )
 
-        # Receive the remaining 120 quantities in the backorder.
         backorder_picking.action_assign()
         backorder_picking.move_ids[0].quantity = 120
-        backorder_picking.button_validate()  # This should not create another backorder
+        backorder_picking.button_validate()
 
-        # Check that the valuation layers of the backorder matches the bill
         svl_backorder_receipt = self.env["stock.valuation.layer"].search(
             [
                 ("product_id", "=", self.product1.id),
@@ -1192,7 +1067,6 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
 
         self.assertEqual(len(svl_backorder_receipt), 1)
         self.assertAlmostEqual(svl_backorder_receipt.quantity, 120)
-        # The unit cost for AVCO on receipt is taken from the purchase order line price.
         self.assertAlmostEqual(
             svl_backorder_receipt.unit_cost,
             110,
@@ -1200,15 +1074,8 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         )
         self.assertAlmostEqual(svl_backorder_receipt.value, 120 * 110)
 
-        # Final check on product's AVCO and total quantity/value
-        # Total quantity received is 120 + 70 = 190
         self.assertAlmostEqual(self.product1.qty_available, 190)
 
-        # For AVCO, the standard_price should reflect the average. Since all units came at
-        # the same price, it's 110, plus the landed cost (95 / 190)
-        # 110 + 95 / 190 = 110.5
         self.assertAlmostEqual(self.product1.standard_price, 110.5)
 
-        # Check total value in SVL:
-        # 120 * 110 + 95 + 70 * 110 = 20995
         self.assertAlmostEqual(self.product1.value_svl, 20995)

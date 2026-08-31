@@ -56,15 +56,6 @@ class LocationHardeningCase(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestPutawayBatchHonoursItsOwnPlacements(LocationHardeningCase):
-    """A batch places several quantities without writing anything between them.
-
-    Everything it reads from the database is therefore constant across the
-    batch, and the quantities it has already placed are the only new
-    information there is. The quantity capacity has always seen them, through
-    `additional_qty`; the weight capacity did not, because it read
-    `forecast_weight` from a query that cannot see rows nobody has written.
-    """
-
     def _create_putaway_scenario(self, name, category_vals=None, capacity_qty=None):
         category = self.env["stock.storage.category"].create(
             {"name": name, **(category_vals or {})},
@@ -159,9 +150,6 @@ class TestPutawayBatchHonoursItsOwnPlacements(LocationHardeningCase):
 
     def test_the_batch_does_not_cost_more_the_longer_it_gets(self):
         view, __, product = self._create_putaway_scenario("W4", {"max_weight": 1000.0})
-        # One throwaway placement first: the very first call of the transaction
-        # pays for registry-level lookups that no later one repeats, and that
-        # warm-up is not what this test is about.
         view._get_putaway_strategy_batch(product, [1.0])
         counts = {}
         for length in (1, 5, 20):
@@ -179,13 +167,6 @@ class TestPutawayBatchHonoursItsOwnPlacements(LocationHardeningCase):
         )
 
     def test_a_caller_supplied_additional_qty_is_not_counted_as_weight(self):
-        """`additional_qty` may describe rows that already exist.
-
-        `_generate_serial_move_line_commands` passes the quantities of the move
-        lines it is *reusing*, and those lines are in the database with no
-        `exclude_sml_ids` to take them back out, so their weight is already in
-        `forecast_weight`. Only what the batch places itself is missing.
-        """
         product = self._create_product("Seeded", weight=2.0)
         scan = PutawayScan(product, {7: 100.0})
         self.assertEqual(scan.placed[7], 100.0)
@@ -210,8 +191,6 @@ class TestArchivingCannotBeWaivedFromTheContext(LocationHardeningCase):
         with self.assertRaises(UserError):
             self.parent.write({"active": False})
         with self.assertRaises(UserError):
-            # The old sentinel was a plain context key, so any call_kw could set
-            # it. It now names an unforgeable marker and a bare True is inert.
             self.parent.with_context(do_not_check_quant=True).write({"active": False})
         with self.assertRaises(UserError):
             self.parent.with_context(stock_location_active_cascade=True).write(
@@ -233,12 +212,6 @@ class TestArchivingCannotBeWaivedFromTheContext(LocationHardeningCase):
             self.assertTrue(location.active, f"{location.name} stayed archived")
 
     def test_a_transit_location_holding_stock_refuses_to_archive(self):
-        """`is_empty` calls transit stocked; the archive guard used not to.
-
-        The list view shows `is_empty` for `internal` and `transit` alike, so a
-        transit location holding stock is one the interface calls occupied while
-        it archived without complaint.
-        """
         transit = self._create_location("Transit Box", usage="transit")
         self.Quant._update_available_quantity(self.product, transit, 12)
         self.env.flush_all()
@@ -336,14 +309,6 @@ class TestIsEmptyTracksItsQuants(LocationHardeningCase):
 
 @tagged("post_install", "-at_install")
 class TestTheDestinationDomainIsBuiltOnce(LocationHardeningCase):
-    """`_quantity_domains` and `_blocked_quantity_domains` shared a shape.
-
-    Both ask "where is this move going" -- `location_dest_id` once done,
-    `location_final_id or location_dest_id` while not -- and differed only in
-    what they asked of the field. The tests below pin the shape rather than the
-    spelling, so the single builder cannot drift from what the two produced.
-    """
-
     def test_the_outbound_half_is_the_negation_of_the_inbound_one(self):
         Move = self.env["stock.move"]
         ids = self.stock_location.ids
@@ -382,11 +347,6 @@ class TestTheDestinationDomainIsBuiltOnce(LocationHardeningCase):
 @tagged("post_install", "-at_install")
 class TestTheReservedBreakdownIsKeyedByUnit(LocationHardeningCase):
     def test_two_units_sharing_a_name_stay_separate(self):
-        """`uom.name` is translatable and not unique.
-
-        Keying the breakdown by it merged distinct units into one bucket and
-        made the dictionary depend on the acting user's language.
-        """
         reference = self.env["uom.uom"].search([], limit=1)
         twin = self.env["uom.uom"].create(
             {
@@ -441,20 +401,6 @@ class TestUsageConversionAsksOnce(LocationHardeningCase):
 
 @tagged("post_install", "-at_install")
 class TestTheBlockSurvivesAQuantIdWrite(LocationHardeningCase):
-    """`stock.move.line.write` expands `quant_id` into the quant's own fields.
-
-    `_prepare_quant_vals` injects every `RESERVATION_KEY_FIELDS` value,
-    `location_id` among them, so a write naming only `quant_id` relocates the
-    line without ever saying so in the vals it arrived with. The guard that
-    decides whether to re-check the block was computed from those un-expanded
-    vals, so naming the location was refused while naming a quant that lives
-    there was not.
-
-    The asymmetry is the finding, which is why the control below is not
-    optional: a run in which nothing raises could equally mean the location was
-    never blocking.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -486,10 +432,6 @@ class TestTheBlockSurvivesAQuantIdWrite(LocationHardeningCase):
                 ("product_id", "=", cls.blocked_product.id),
             ],
         )
-        # Every attempt runs as a real user, never as the test environment's
-        # superuser. `_check_blocked_outgoing` returns immediately on `env.su`,
-        # so a superuser fixture makes the whole class pass while enforcing
-        # nothing -- which is what the control below exists to expose.
         cls.stock_user = cls.env["res.users"].create(
             {
                 "name": "Hardening Stock User",
@@ -510,7 +452,6 @@ class TestTheBlockSurvivesAQuantIdWrite(LocationHardeningCase):
         cls.env.flush_all()
 
     def test_the_fixture_is_not_a_superuser(self):
-        """Guards the guard: `_check_blocked_outgoing` no-ops under `env.su`."""
         self.assertFalse(self._reserved_line().env.su)
         self.assertEqual(
             self.blocked_location.effective_block_type,
@@ -518,15 +459,6 @@ class TestTheBlockSurvivesAQuantIdWrite(LocationHardeningCase):
         )
 
     def _reserved_line(self):
-        """A freshly reserved line, never one a previous attempt has touched.
-
-        `_check_blocked_outgoing` runs *after* `super().write()`, so a refused
-        write has already changed the record and is undone only by the rollback
-        the exception triggers. Reusing a line across attempts therefore makes
-        the second attempt compare against the first one's leftovers, and the
-        block appears to hold for a reason that has nothing to do with the code
-        under test.
-        """
         picking = self.env["stock.picking"].create(
             {
                 "picking_type_id": self.warehouse.out_type_id.id,
@@ -561,11 +493,6 @@ class TestTheBlockSurvivesAQuantIdWrite(LocationHardeningCase):
             self._reserved_line().write({"quant_id": self.blocked_quant.id})
 
     def test_the_same_holds_through_web_save(self):
-        """`web_save` is the call the client actually sends.
-
-        Asserting only on `write` leaves room for "that shape never reaches the
-        server".
-        """
         with self.assertRaises(UserError):
             self._reserved_line().web_save(
                 {"quant_id": self.blocked_quant.id},
@@ -573,7 +500,6 @@ class TestTheBlockSurvivesAQuantIdWrite(LocationHardeningCase):
             )
 
     def test_creating_a_line_on_a_blocked_quant_is_still_refused(self):
-        """Correct before the fix, and a careless fix could regress it."""
         line = self._reserved_line()
         with self.assertRaises(UserError):
             self.env["stock.move.line"].with_user(self.stock_user).create(
@@ -588,7 +514,6 @@ class TestTheBlockSurvivesAQuantIdWrite(LocationHardeningCase):
             )
 
     def test_an_unblocked_quant_is_still_reachable_by_quant_id(self):
-        """The fix must not turn the guard into a refusal of everything."""
         free_quant = self.env["stock.quant"].search(
             [
                 ("location_id", "=", self.free_location.id),
@@ -602,19 +527,6 @@ class TestTheBlockSurvivesAQuantIdWrite(LocationHardeningCase):
 
 @tagged("post_install", "-at_install")
 class TestTheProductGuardReadsTheStoredState(LocationHardeningCase):
-    """`_check_write_allowed` used to trust a `state` the caller supplied.
-
-    `state` is `related="move_id.state", store=True`, so a move-less line's
-    stored value is always False and the "draft" escape hatch could never open
-    from real data. It opened only when the caller put `state` into the same
-    vals — which any authenticated stock user can do over RPC, and which no
-    shipped screen does.
-
-    It matters because `product_id` is absent from `RESTOCK_TRIGGER_FIELDS`, so
-    `_resync_reservation` never follows the change: the old product keeps a
-    reservation nothing points at, and it outlives the line's own deletion.
-    """
-
     def setUp(self):
         super().setUp()
         self.plain_user = self.env["res.users"].create(
@@ -668,7 +580,6 @@ class TestTheProductGuardReadsTheStoredState(LocationHardeningCase):
             )
 
     def test_a_move_bound_line_is_refused_with_or_without_a_supplied_state(self):
-        """Move-bound lines were never exposed — `ml.move_id` short-circuits."""
         picking = self.env["stock.picking"].create(
             {
                 "picking_type_id": self.env.ref("stock.picking_type_in").id,
@@ -703,7 +614,6 @@ class TestTheProductGuardReadsTheStoredState(LocationHardeningCase):
                 line.write(vals)
 
     def test_writing_the_same_product_is_still_allowed(self):
-        """The guard fires on a *change*, not on the field's presence."""
         line = self._moveless_line()
         line.write({"product_id": self.first.id, "quantity": 2})
         self.assertEqual(line.quantity, 2)

@@ -1,10 +1,3 @@
-"""Work order behaviour that had no test until it was found broken.
-
-Each test here pins one defect and fails without its fix.  Where two readings
-of a rule were possible the test says which one is the rule and why, because
-the other reading is the one someone will reach for next.
-"""
-
 from datetime import datetime
 
 from odoo import Command, fields
@@ -59,9 +52,7 @@ class TestWorkorderAudit(TransactionCase):
         self.env.flush_all()
         return mo
 
-    # ------------------------------------------------------------------
     def test_replanning_an_unconflicted_workorder_keeps_its_slot(self):
-        """Replan must be idempotent: a work order does not collide with itself."""
         mo = self._mo(tag="R")
         mo.button_plan()
         self.env.flush_all()
@@ -77,22 +68,6 @@ class TestWorkorderAudit(TransactionCase):
         )
 
     def _open_timers(self, workorders):
-        """One open timer per work order, for the acting user.
-
-        Not `button_start()`.  Whether starting a work order opens a timer at
-        all is the layer's decision, and `mrp` spells that decision out as
-        `_should_start_timer()`: `mrp` answers True and opens one for
-        `self.env.user`, `mrp_workorder` answers False and opens one per
-        logged-in *employee* from the shop floor instead.  That module is
-        `auto_install: ["mrp"]`, so it is installed in every database of this
-        workspace, and a test that reaches the timers through the button is
-        really asserting which modules are installed.
-
-        What these tests pin is what `mrp` does with the timers once they
-        exist, which holds in both layers, so they open them through the model.
-        `test_button_start_opens_a_timer_when_the_layer_wants_one` below is
-        where the button's own contract is pinned.
-        """
         return self.env["mrp.workcenter.productivity"].create(
             [
                 wo._prepare_timeline_vals(wo.duration, fields.Datetime.now())
@@ -262,19 +237,10 @@ class TestWorkorderAudit(TransactionCase):
         )
 
     def test_a_derived_state_cannot_be_set_by_hand(self):
-        """`blocked` is derived, so `set_state` refuses it.
-
-        Making a manual `blocked` survive instead would mean giving `state` an
-        override escape from its own compute; refusing it keeps one owner for
-        the value.  What is not an option is the third behaviour, which is what
-        the list dropdown used to offer: accept the write and silently undo it
-        on the next change to any input of the ready quantity.
-        """
         mo = self._mo(tag="B")
         wo = mo.workorder_ids
         with self.assertRaises(UserError):
             wo.set_state("blocked")
-        # `ready` is still settable: for a cancelled work order it is the release.
         wo.action_cancel()
         self.env.flush_all()
         self.assertEqual(wo.state, "cancel")
@@ -284,14 +250,6 @@ class TestWorkorderAudit(TransactionCase):
         self.assertEqual(wo.state, "ready")
 
     def test_writing_both_dates_moves_the_workorder(self):
-        """Writing both dates means move, not resize.
-
-        `mrp_workorder.TestWorkOrderProcess.test_planning_8` writes both dates
-        to move a work order out of a midday break and asserts its duration
-        survives, so the end handed in is discarded on purpose.  Pinned here
-        with the escape hatch that makes an exact span expressible, which is
-        the part that was missing rather than wrong.
-        """
         mo = self._mo(tag="X")
         wo = mo.workorder_ids
         wo.write({"date_start": datetime(2026, 9, 1, 8, 0), "duration_expected": 60})
@@ -299,7 +257,6 @@ class TestWorkorderAudit(TransactionCase):
         wo.invalidate_recordset()
         duration = wo.duration_expected
 
-        # Both dates => move: the duration is preserved, the end re-derived.
         wo.write(
             {
                 "date_start": datetime(2026, 9, 2, 9, 0),
@@ -312,7 +269,6 @@ class TestWorkorderAudit(TransactionCase):
         self.assertEqual(wo.duration_expected, duration, "a move must keep the length")
         self.assertNotEqual(wo.date_end, datetime(2026, 9, 2, 18, 0))
 
-        # Passing duration_expected alongside them sets the span verbatim.
         wo.write(
             {
                 "date_start": datetime(2026, 9, 3, 8, 0),
@@ -339,16 +295,6 @@ class TestWorkorderAudit(TransactionCase):
         )
 
     def test_a_double_booked_workorder_is_never_silent(self):
-        """A work order planned onto an occupied slot must say so.
-
-        Not that the popover and the planner give the *same* answer: making
-        them agree would mean deleting `_get_conflicted_workorder_ids` and
-        flipping a semantics `mrp_workorder` pins deliberately ("Shouldn't have
-        a conflict because wo1 is in progress"), which is a product decision.
-        What is pinned here is narrower: a work order double-booked onto a
-        running one's slot -- a slot `_get_first_available_slot` refuses
-        outright -- must not be silent, and it was.
-        """
         mo_a = self._mo(tag="CA")
         mo_a.button_plan()
         self.env.flush_all()

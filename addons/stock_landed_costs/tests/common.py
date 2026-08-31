@@ -8,13 +8,11 @@ class TestStockLandedCostsCommon(ValuationReconciliationTestCommon):
     def setUpClass(cls):
         super().setUpClass()
 
-        # Objects
         cls.Product = cls.env["product.product"]
         cls.Picking = cls.env["stock.picking"]
         cls.Move = cls.env["stock.move"]
         cls.LandedCost = cls.env["stock.landed.cost"]
         cls.CostLine = cls.env["stock.landed.cost.lines"]
-        # References
         cls.warehouse = cls.company_data["default_warehouse"]
         cls.supplier_id = cls.env["res.partner"].create({"name": "My Test Supplier"}).id
         cls.customer_id = cls.env["res.partner"].create({"name": "My Test Customer"}).id
@@ -35,7 +33,6 @@ class TestStockLandedCostsCommon(ValuationReconciliationTestCommon):
                 "type": "general",
             }
         )
-        # Create product refrigerator & oven
         cls.product_refrigerator = cls.Product.create(
             {
                 "name": "Refrigerator",
@@ -56,7 +53,6 @@ class TestStockLandedCostsCommon(ValuationReconciliationTestCommon):
                 "categ_id": cls.categ_real_time.id,
             }
         )
-        # Create service type product 1.Labour 2.Brokerage 3.Transportation 4.Packaging
         cls.landed_cost = cls.Product.create(
             {
                 "name": "Landed Cost",

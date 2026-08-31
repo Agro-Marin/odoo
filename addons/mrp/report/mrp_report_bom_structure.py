@@ -1363,8 +1363,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 ).time_total
                 for workcenter in workcenters
             },
-            # The operations already simulated occupy their work centres for the rest
-            # of this walk, so each is offered the calendar it would really see.
             extra_leaves_by_workcenter=simulated_leaves_per_workcenter,
         )
         if best is None:

@@ -3,13 +3,6 @@ from odoo.tests.common import TransactionCase
 
 
 class TestBlockedLocationMigration(TransactionCase):
-    """stock 1.13 carries the absorbed addon's data fixes. It is the only place
-    that repairs a database the addon left inconsistent, and the repair it makes
-    is one raw SQL cannot: the gates all read effective_block_type, a stored
-    recursive compute, so clearing block_type without recomputing the subtree
-    leaves a location enforcing a block it no longer declares.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -77,8 +70,6 @@ class TestBlockedLocationMigration(TransactionCase):
         shelf = self.Location.create(
             {"name": "Migration Shelf", "location_id": stock_location.id},
         )
-        # The block a raw writer applied without the compute ever running: the
-        # location declares a quarantine that nothing enforces.
         self._force(shelf, block_type="hard", effective_block_type="none")
 
         self._migrate()

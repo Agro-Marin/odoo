@@ -59,13 +59,6 @@ class TestOrderpointAudit(TransactionCase):
         return self.env["product.product"].create(values)
 
     def _unsuppliable_location(self, name):
-        """A location no rule can reach, so procurement for it genuinely fails.
-
-        A product carrying no route is not unreplenishable: the warehouse's own
-        reception route supplies its stock location whatever the product's routes
-        say. Only a destination outside every route's reach has no rule at all --
-        and unlike "product without a vendor", it needs nothing beyond `stock`.
-        """
         root = self.env["stock.location"].create(
             {"name": f"{name} Root", "usage": "view", "location_id": False},
         )
@@ -808,18 +801,6 @@ class TestOrderpointAudit(TransactionCase):
             )
 
     def test_one_unreplenishable_orderpoint_does_not_silence_the_whole_batch(self):
-        """A batch that loses one orderpoint still orders for the others.
-
-        `_run_procurement_batch` runs the whole batch inside one savepoint, so a
-        single `ProcurementException` rolls back the orders that *did* succeed;
-        the retry loop exists to re-run the survivors. It could not: `failed` was
-        built as `self.concat(...)`, and `concat` prepends `self` -- the entire
-        batch -- so `orderpoints -= failed` emptied the set and the loop ended
-        after the round it had just discarded. One orderpoint nothing could supply
-        therefore stopped every other orderpoint in the database from ordering,
-        silently: the `if not failed` guard that logs it can never fire while
-        `self` is non-empty.
-        """
         good = self._product("Audit Batch Good")
         bad = self._product("Audit Batch Bad", suppliable=False)
         orderpoints = self._orderpoint(good, trigger="auto") + self._orderpoint(

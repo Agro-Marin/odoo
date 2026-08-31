@@ -7,21 +7,6 @@ from odoo.tests.common import TransactionCase
 class TestBatchPicking(TransactionCase):
     @classmethod
     def setUpClass(cls):
-        """Create 3 standard pickings and reserve them to have some move lines.
-        The setup data looks like this:
-        Picking1                Picking2                Picking3
-            ProductA                ProductA                ProductB
-                Lot1: 5 units           Lot4: 5 units           SN6 : 1 unit
-                Lot2: 5 units                                   SN7 : 1 unit
-                Lot3: 5 units                                   SN8 : 1 unit
-            ProductB                                            SN9 : 1 unit
-                SN1 : 1 unit                                    SN10: 1 unit
-                SN2 : 1 unit
-                SN3 : 1 unit
-                SN4 : 1 unit
-                SN5 : 1 unit
-        The picking_internal is the same as Picking1 move-wise, only using a different picking_type so it doesn't get auto-batched with the other pickings.
-        """
         super().setUpClass()
         cls.stock_location = cls.env.ref("stock.stock_location_stock")
         cls.customer_location = cls.env.ref("stock.stock_location_customers")
@@ -192,7 +177,6 @@ class TestBatchPicking(TransactionCase):
         cls.picking_internal.action_confirm()
 
     def test_creation_from_lines(self):
-        """Select all the move_lines and create a wave from them"""
         all_lines = self.all_pickings.move_line_ids
         res_dict = all_lines.action_view_add_to_wave()
         res_dict["context"] = {
@@ -212,7 +196,6 @@ class TestBatchPicking(TransactionCase):
         self.assertEqual(wave.user_id, self.user_demo)
 
     def test_creation_from_pickings(self):
-        """Select all the picking_ids and create a wave from them"""
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "stock_picking_batch.stock_add_to_wave_action_stock_picking"
         )
@@ -308,7 +291,6 @@ class TestBatchPicking(TransactionCase):
         wave = self.env["stock.picking.batch"].search([("is_wave", "=", True)])
         self.assertTrue(wave)
 
-        # Original picking lost a stock move
         self.assertTrue(move.picking_id)
         self.assertFalse(move.picking_id == self.picking_client_1)
         self.assertTrue(self.picking_client_1.move_ids)
@@ -341,7 +323,6 @@ class TestBatchPicking(TransactionCase):
         self.assertTrue(wave)
         self.assertTrue(wave.picking_type_id)
 
-        # Original picking lost a stock move
         self.assertTrue(move.picking_id)
         self.assertTrue(move.picking_id == self.picking_internal)
         self.assertFalse(lines.move_id == move)
@@ -460,23 +441,11 @@ class TestBatchPicking(TransactionCase):
         self.assertEqual(ml2.picking_id.move_ids.product_uom_qty, 0)
 
     def test_wave_picking_vals_link_each_line_once(self):
-        """A partial wave links each line once, not once per move it splits.
-
-        `_prepare_wave_picking_vals` walks the picking's moves to decide which
-        are relinked whole and which are split, but the LINES going to the wave
-        do not vary with that walk -- `line_by_move` partitions them. Emitting
-        the link list inside the move loop made it quadratic: the picking below
-        has 2 moves and 8 lines, so it produced 16 link commands where 8 say
-        the same thing. The end state was right, which is why nothing caught it;
-        a picking with 40 moves and 200 lines would have built 8000.
-        """
         lines = self.picking_client_1.move_line_ids
         moves = lines.move_id
         self.assertEqual(len(moves), 2, "the fixture is 2 moves")
         self.assertEqual(len(lines), 8, "the fixture is 8 lines")
 
-        # Leave one line behind so the picking is split rather than relinked
-        # whole -- the branch that builds move_line_ids at all.
         waved = lines[:-1]
         wave = self.env["stock.picking.batch"].create(
             {
@@ -524,14 +493,6 @@ class TestBatchPicking(TransactionCase):
             wizard.attach_pickings()
 
     def test_not_assign_to_wave(self):
-        """Picking
-        - Move line A 5 from Container to Cust -> Going to a wave picking
-        - Move line A 5 from Container to Cust -> Validate
-        ---------------------------------------------
-        Create
-        - Move A 5 from Container to Cust
-        Check it creates a new picking and it's not assign to the wave
-        """
         location = self.env["stock.location"].create(
             {"name": "Container", "location_id": self.stock_location.id}
         )
@@ -588,9 +549,6 @@ class TestBatchPicking(TransactionCase):
         )
 
     def test_operation_type_in_wave(self):
-        """
-        Check that the operation type of the picking is set correclty in the wave.
-        """
         warehouse = self.env["stock.warehouse"].search([], limit=1)
         warehouse.reception_steps = "three_steps"
         self.productA = self.env["product.product"].create(
@@ -651,11 +609,6 @@ class TestBatchPicking(TransactionCase):
         self.assertEqual(wave.picking_type_id, move_line.picking_type_id)
 
     def test_validatation_of_partially_empty_picking(self):
-        """
-        Check that you can validate a wave transfer containing an empty picking,
-        that the picking stays unchanged (except for the 'picked' state of the move)
-        and is removed from the transfer
-        """
         self.productA.tracking = "none"
         self.productB.tracking = "none"
         (picking_1, picking_2) = self.env["stock.picking"].create(
@@ -711,12 +664,7 @@ class TestBatchPicking(TransactionCase):
         )
 
     def test_add_partially_assigned_move_to_batch(self):
-        """
-        Checks that a picking is linked to the wave transfer in case all of its
-        moves are to be linked with the wave transfer.
-        """
         picking = self.picking_internal
-        # update a move for the moved qty to be less than the initial demand
         picking.move_ids[0].quantity = 10.0
         self.assertRecordValues(
             picking.move_ids,
@@ -734,22 +682,14 @@ class TestBatchPicking(TransactionCase):
         wizard_form = Form.from_action(self.env, res_dict)
         wizard_form.mode = "new"
         wizard_form.save().attach_pickings()
-        # check that the picking was added to the wave transfer
         wave = picking.batch_id.filtered(lambda b: b.is_wave)
         self.assertTrue(wave)
-        # check that the lines are still linked to the original picking
         self.assertEqual(lines.move_id.picking_id, picking)
-        # check that no other picking was added to the wave transfer
         self.assertEqual(wave.move_ids, picking.move_ids)
 
     def test_dont_add_empty_move_to_batch(self):
-        """
-        Checks that a picking is not linked to the wave transfer in case one
-        of its move is not to be linked with the wave transfer.
-        """
         picking = self.picking_internal
         move_1, move_2 = picking.move_ids
-        # update a move for the moved qty to 0
         move_1.quantity = 0
         self.assertRecordValues(
             picking.move_ids,
@@ -767,21 +707,15 @@ class TestBatchPicking(TransactionCase):
         wizard_form = Form.from_action(self.env, res_dict)
         wizard_form.mode = "new"
         wizard_form.save().attach_pickings()
-        # check that a new picking was added to the wave transfer
         new_picking = move_2.picking_id
         self.assertIsNot(picking, new_picking)
         wave = new_picking.batch_id.filtered(lambda b: b.is_wave)
         self.assertTrue(wave)
         self.assertEqual(wave.move_ids, move_2)
-        # check that the original picking was not added to a wave transfer
         self.assertFalse(picking.batch_id.filtered(lambda b: b.is_wave))
         self.assertEqual(picking.move_ids, move_1)
 
     def test_validate_wave_with_zero_qty_picking(self):
-        """
-        Check that we can validate a wave transfer containing a picking without quantity.
-        In that case, the picking remains unchanged and is removed from the wave
-        """
         (self.productA | self.productB).tracking = "none"
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 10.0

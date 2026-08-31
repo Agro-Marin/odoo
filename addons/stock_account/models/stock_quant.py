@@ -8,7 +8,9 @@ class StockQuant(models.Model):
     _inherit = "stock.quant"
 
     value = fields.Monetary(
-        "Value", compute="_compute_value", groups="stock.group_stock_manager"
+        "Value",
+        compute="_compute_value",
+        groups="stock.group_stock_manager",
     )
     currency_id = fields.Many2one(
         "res.currency",
@@ -39,10 +41,6 @@ class StockQuant(models.Model):
             )
 
     def _should_exclude_for_valuation(self):
-        """
-        Determines if a quant should be excluded from valuation based on its ownership.
-        :return: True if the quant should be excluded from valuation, False otherwise.
-        """
         self.check_singleton()
         return bool(self.owner_id and self.owner_id != self.company_id.partner_id)
 
@@ -68,17 +66,8 @@ class StockQuant(models.Model):
                 and not quant.product_id.uom_id.is_zero(quant.quantity)
             )
         )
-        # A quant is worth its share of the value its product (or lot) holds in its
-        # company, so resolve that share once per (company, product, lot) rather than
-        # once per quant -- and resolve a whole company at a time, because
-        # `_with_valuation_context()` runs a location search that depends only on the
-        # company, and `total_value` values every product of its prefetch set in one
-        # pass.
         totals_by_key = {}
         for company, company_quants in valued_quants.grouped("company_id").items():
-            # A lot-valuated product can still hold a quant with no lot (the guard on
-            # enabling the flag only covers the stock present at the time), and that
-            # quant is valued against the product, exactly as below.
             lot_quants = company_quants.filtered(
                 lambda quant: quant.product_id.lot_valuated and quant.lot_id
             )
@@ -89,12 +78,6 @@ class StockQuant(models.Model):
                 )
 
             products = (company_quants - lot_quants).product_id.with_company(company)
-            # Ask for THIS company's value, not `total_value`: that field
-            # deliberately sums every company in `env.companies` (and converts into
-            # `env.company`'s currency), so dividing it by one company's quantity
-            # gave every company's quant the whole group's value -- two companies
-            # holding 100 and 500 both reported 600, and the list view's total
-            # showed 1200.
             scoped = products._scoped_for_company(company)
             qty_by_product_id = {
                 product.id: product.qty_available for product in scoped
@@ -116,8 +99,6 @@ class StockQuant(models.Model):
             quant.value = quant.quantity * value / quantity
 
     def _read_group_select(self, aggregate_spec, query):
-        # flag value as aggregatable, and manually sum the values from the
-        # records in the group
         if aggregate_spec in ("value:sum", "value:sum_currency"):
             return super()._read_group_select("id:recordset", query)
         return super()._read_group_select(aggregate_spec, query)
@@ -171,11 +152,4 @@ class StockQuant(models.Model):
 
     @api.model
     def _get_inventory_fields_countable(self):
-        """Let an inventory-mode `create` carry the accounting date.
-
-        Renamed with the base method: the old `_get_inventory_fields_write` name
-        promised a write allowlist that `write()` never consulted, so this override
-        only ever affected creation -- which is what it is for. `accounting_date` was
-        never blocked on write either way; that path gates on a deny-list.
-        """
         return super()._get_inventory_fields_countable() + ["accounting_date"]

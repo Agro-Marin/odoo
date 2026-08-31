@@ -34,11 +34,6 @@ class TestStockMoveAudit20260831(TransactionCase):
         )
 
     def _lattice(self, depth, width):
-        """A chain whose every level takes every move of the level above.
-
-        Two moves sharing all their origins is what `_split` leaves behind, so
-        this is the shape a repeatedly-backordered chain converges on.
-        """
         product = self._product(f"lattice-{depth}-{width}")
         shelves = self.env["stock.location"].create(
             [
@@ -87,9 +82,6 @@ class TestStockMoveAudit20260831(TransactionCase):
     def test_the_upstream_walk_costs_one_call_per_edge(self):
         depth, width = 8, 2
         top, __ = self._lattice(depth, width)
-        # The walk enters the root and every move of the levels below it that
-        # still has live origins, and calls once per origin of each. One call
-        # per edge, plus the root -- against 2**depth for one call per path.
         entered = 1 + (depth - 2) * width
         calls = self._count_upstream_calls(top)
         self.assertLessEqual(
@@ -110,7 +102,6 @@ class TestStockMoveAudit20260831(TransactionCase):
         )
 
     def test_the_upstream_walk_still_reports_every_move_it_walked(self):
-        """The renderer prints `visited` as the impacted transfers."""
         top, layers = self._lattice(6, 2)
         walks = []
 
@@ -228,7 +219,6 @@ class TestStockMoveAudit20260831(TransactionCase):
         )
 
     def test_availability_reads_one_quantity_in_the_products_unit(self):
-        """Both halves of the in/out arithmetic must use the same conversion."""
         dozens = self.env.ref("uom.product_uom_dozen")
         units = self.env.ref("uom.product_uom_unit")
         product = self._product(

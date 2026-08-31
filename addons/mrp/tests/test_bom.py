@@ -4266,12 +4266,6 @@ class TestBoMComponentChatter(TestMrpCommon):
 
 @tagged("post_install", "-at_install")
 class TestBoMAuditFixes(TestMrpCommon):
-    """Regressions for the defects the 2026-08-22 mrp.bom audit reproduced.
-
-    Each test was checked against the code *before* its fix: a regression test
-    that passes on the broken version is worth nothing.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -4289,15 +4283,7 @@ class TestBoMAuditFixes(TestMrpCommon):
             }
         )
 
-    # ── copy() ────────────────────────────────────────────────────
-
     def _bom_with_three_operations(self):
-        """Operations whose `_order` rank is the reverse of their creation order.
-
-        That is the whole precondition: `operation_ids` comes back in `_order`
-        from the database and in insertion order from a warm cache, and the
-        mapping used to pair the two positionally.
-        """
         finished = self._product("COPY-FIN")
         workcenter = self.env["mrp.workcenter"].search([], limit=1)
         bom = self.env["mrp.bom"].create(
@@ -4359,8 +4345,6 @@ class TestBoMAuditFixes(TestMrpCommon):
         self._assert_copy_is_faithful(bom, bom.copy())
 
     def test_copy_keeps_operations_paired_with_a_warm_cache(self):
-        # Fails before the fix: every line's operation is swapped and the
-        # dependency edge comes out reversed.
         bom = self._bom_with_three_operations()
         self._assert_copy_is_faithful(bom, bom.copy())
 
@@ -4382,15 +4366,7 @@ class TestBoMAuditFixes(TestMrpCommon):
         for source, copied in zip(sources, copies, strict=True):
             self._assert_copy_is_faithful(source, copied)
 
-    # ── the cycle check ───────────────────────────────────────────
-
     def test_cycle_check_is_linear_in_a_shared_component_graph(self):
-        """A diamond DAG has exponentially many paths and linearly many nodes.
-
-        Walking paths took 2.7 s at 18 levels and quadrupled per level; the
-        assertion is on the query count, which grows with nodes either way, and
-        on the wall clock only as a floor loose enough not to be flaky.
-        """
         below = [self._product(f"LADDER-leaf{j}") for j in range(2)]
         levels = 14
         for i in reversed(range(levels)):
@@ -4421,11 +4397,6 @@ class TestBoMAuditFixes(TestMrpCommon):
         )
 
     def test_cycle_check_sees_a_bom_that_is_not_the_selected_one(self):
-        """The cycle lives only in the BoM `_bom_find` does *not* pick.
-
-        `_bom_find(F)` selects the low-sequence BoM, so the selected graph is
-        acyclic; the other BoM for F closes a cycle and is still selectable.
-        """
         products = {
             name: self._product(f"SEL-{name}") for name in ("R", "C", "M", "F", "L")
         }
@@ -4451,8 +4422,6 @@ class TestBoMAuditFixes(TestMrpCommon):
         with self.assertRaises(exceptions.ValidationError):
             make("F", "C", 99)
 
-    # ── display_name ──────────────────────────────────────────────
-
     def test_display_name_follows_the_quantity_and_the_unit(self):
         product = self._product("DN-P")
         bom = (
@@ -4475,9 +4444,6 @@ class TestBoMAuditFixes(TestMrpCommon):
         )
 
     def test_the_orderpoint_list_shows_the_bom_quantity(self):
-        """The shipped list also reads `bom_id_placeholder`, whose compute reads
-        `display_name` with no context. Without `depends_context` that poisons
-        the cache and the suffix never renders."""
         product = self._product("DN-OP")
         bom = self.env["mrp.bom"].create(
             {"product_tmpl_id": product.product_tmpl_id.id, "product_qty": 5.0}
@@ -4507,8 +4473,6 @@ class TestBoMAuditFixes(TestMrpCommon):
         )["records"][0]
         self.assertIn("(5.0 Units)", record["bom_id"]["display_name"])
 
-    # ── the replenishment button ──────────────────────────────────
-
     def test_set_bom_button_is_hidden_for_the_bom_already_set(self):
         product = self._product("SB-P")
         bom = self.env["mrp.bom"].create(
@@ -4525,13 +4489,10 @@ class TestBoMAuditFixes(TestMrpCommon):
                 "bom_id": bom.id,
             }
         )
-        # Reading the flag context-free first is what used to poison it.
         self.assertTrue(bom.show_set_bom_button)
         self.assertFalse(
             bom.with_context(orderpoint_id=orderpoint.id).show_set_bom_button
         )
-
-    # ── the catalog payload ───────────────────────────────────────
 
     def test_catalog_quantity_is_summed_in_the_products_own_unit(self):
         flour = self._product("CAT-FLOUR", self.kg)
@@ -4565,8 +4526,6 @@ class TestBoMAuditFixes(TestMrpCommon):
             {"product_tmpl_id": self._product("CAT-D").product_tmpl_id.id}
         )
         self.assertEqual(bom._default_order_line_values("bom_line_ids")["quantity"], 0)
-
-    # ── by-product guards ─────────────────────────────────────────
 
     def test_a_byproduct_quantity_cannot_be_negative(self):
         finished = self._product("NEG-F")
@@ -4604,8 +4563,6 @@ class TestBoMAuditFixes(TestMrpCommon):
         )
         self.assertEqual(bom.byproduct_ids.cost_share, 0)
 
-    # ── create / name_create ──────────────────────────────────────
-
     def test_create_links_every_bom_to_the_parent_production(self):
         cake = self._product("PP-CAKE")
         production = self.env["mrp.production"].create(
@@ -4642,8 +4599,6 @@ class TestBoMAuditFixes(TestMrpCommon):
         self.assertEqual(label, bom.display_name)
         self.assertIn("MY-REF", label)
 
-    # ── the reference the user typed ──────────────────────────────
-
     def test_changing_the_product_keeps_a_typed_reference(self):
         first = self._product("REF-A")
         second = self._product("REF-B")
@@ -4653,8 +4608,6 @@ class TestBoMAuditFixes(TestMrpCommon):
         form.code = "MY-OWN-REF"
         form.product_tmpl_id = second.product_tmpl_id
         self.assertEqual(form.code, "MY-OWN-REF")
-
-    # ── archiving ─────────────────────────────────────────────────
 
     def test_unarchiving_a_bom_leaves_a_retired_operation_retired(self):
         workcenter = self.env["mrp.workcenter"].search([], limit=1)
@@ -4672,8 +4625,6 @@ class TestBoMAuditFixes(TestMrpCommon):
         bom.action_archive()
         bom.action_unarchive()
         self.assertEqual(bom.operation_ids.mapped("name"), ["Keep"])
-
-    # ── outdated production flags ─────────────────────────────────
 
     def test_an_order_on_an_archived_variant_is_still_flagged(self):
         attribute = self.env["product.attribute"].create(
@@ -4733,8 +4684,6 @@ class TestBoMAuditFixes(TestMrpCommon):
             "an order on an archived variant matched neither domain",
         )
 
-    # ── the sub BoM shown on a line ───────────────────────────────
-
     def test_child_bom_id_is_scoped_to_the_boms_company(self):
         other_company = self.env["res.company"].create({"name": "CHILD-CO2"})
         shared = self._product("CHILD-SHARED")
@@ -4765,10 +4714,7 @@ class TestBoMAuditFixes(TestMrpCommon):
         parent.bom_line_ids.invalidate_recordset()
         self.assertEqual(parent.bom_line_ids.child_bom_id, mine)
 
-    # ── the shared variant rule ───────────────────────────────────
-
     def test_one_skip_rule_serves_lines_byproducts_and_operations(self):
-        """The three row models answer the variant question with one body."""
         mixin = type(self.env["mixin.bom.variant.line"])
         for model in ("mrp.bom.line", "mrp.bom.byproduct"):
             self.assertIs(
@@ -4776,7 +4722,6 @@ class TestBoMAuditFixes(TestMrpCommon):
                 mixin._skip_bom_line,
                 f"{model} should inherit the shared rule, not carry a copy",
             )
-        # The operation adds exactly one clause and delegates the rest.
         operation = type(self.env["mrp.routing.workcenter"])._skip_bom_line
         self.assertIsNot(operation, mixin._skip_bom_line)
         for model in ("mrp.bom.line", "mrp.bom.byproduct", "mrp.routing.workcenter"):
@@ -4784,10 +4729,7 @@ class TestBoMAuditFixes(TestMrpCommon):
             self.assertIn("bom_product_template_attribute_value_ids", fields)
             self.assertIn("possible_bom_product_template_attribute_value_ids", fields)
 
-    # ── explode ───────────────────────────────────────────────────
-
     def test_explode_resolves_the_kit_closure_level_by_level(self):
-        """One search per level, not one per node."""
 
         def kit(depth, width, tag):
             product = self._product(f"{tag}-d{depth}")
@@ -4827,7 +4769,6 @@ class TestBoMAuditFixes(TestMrpCommon):
         )
 
     def test_explode_skips_restricted_lines_without_resolving_them(self):
-        """The closure must apply the same variant rule the walk does."""
         attribute = self.env["product.attribute"].create(
             {
                 "name": "EXP-OPT",
@@ -4870,8 +4811,6 @@ class TestBoMAuditFixes(TestMrpCommon):
         bom = self.env["mrp.bom"]._bom_find(variant, bom_type="phantom")[variant]
         _boms, lines = bom._explode(variant, 1.0)
         self.assertEqual([line.product_id for line, _vals in lines], [kept])
-
-    # ── _bom_find's tie-break ─────────────────────────────────────
 
     def _variant_pair(self, tag):
         attribute = self.env["product.attribute"].create(
@@ -4924,7 +4863,6 @@ class TestBoMAuditFixes(TestMrpCommon):
         self.assertEqual(found[second], template_bom)
 
     def test_bom_find_agrees_with_itself_one_product_at_a_time(self):
-        """The single-product fast path and the batch path are one contract."""
         template, variants = self._variant_pair("TIE3")
         Bom = self.env["mrp.bom"]
         Bom.create(

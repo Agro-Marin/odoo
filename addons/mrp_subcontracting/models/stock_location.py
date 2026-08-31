@@ -22,7 +22,6 @@ class StockLocation(models.Model):
                 )
 
     def _filter_putaway_access(self):
-        """Use sudo mode for subcontractor"""
         if self.env.user.partner_id.is_subcontractor:
             return self.sudo()
         else:

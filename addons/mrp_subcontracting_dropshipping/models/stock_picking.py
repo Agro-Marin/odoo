@@ -25,11 +25,6 @@ class StockPicking(models.Model):
             subcontract_move.location_dest_id.usage == "customer"
             or subcontract_move.location_dest_id.is_subcontract()
         ):
-            # If the if-condition is respected, it means that `subcontract_move` is not
-            # related to a specific warehouse. This can happen if, for instance, the user
-            # confirms a PO with a subcontracted product that should be delivered to a
-            # customer (dropshipping). In that case, we can use a default warehouse to
-            # get the picking type
             default_warehouse = self.env["stock.warehouse"].search(
                 [("company_id", "=", subcontract_move.company_id.id)], limit=1
             )

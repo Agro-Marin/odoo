@@ -11,7 +11,7 @@ export class SubcontractingPortalWebClient extends Component {
     static template = "mrp_subcontracting.SubcontractingPortalWebClient";
     static props = {};
     setup() {
-        window.parent.document.body.style.margin = "0"; // remove the margin in the parent body
+        window.parent.document.body.style.margin = "0";
         this.actionService = useService('action');
         useOwnDebugContext({ categories: ["default"] });
         useEffect(
@@ -44,9 +44,6 @@ export class SubcontractingPortalWebClient extends Component {
      * @param {MouseEvent} ev
      */
      onGlobalClick(ev) {
-        // When a ctrl-click occurs inside an <a href/> element
-        // we let the browser do the default behavior and
-        // we do not want any other listener to execute.
         if (
             ev.ctrlKey &&
             ((ev.target instanceof HTMLAnchorElement && ev.target.href) ||
@@ -57,4 +54,3 @@ export class SubcontractingPortalWebClient extends Component {
         }
     }
 }
-

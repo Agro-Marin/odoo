@@ -34,12 +34,6 @@ class StockLocation(models.Model):
         positive_operator = (operator == "=" and value) or (
             operator == "!=" and not value
         )
-        # Mirror `_should_be_valued()` exactly. It is company-agnostic, so scoping
-        # the search to `env.companies` made the field answer one thing when read
-        # and another when searched -- a location of another company computed True
-        # yet no search would return it. Callers needing a company scope add their
-        # own filter (`_with_valuation_context` already does), and the guard in
-        # `ProductTemplate.write` genuinely wants every company's stock.
         domain = Domain(
             [
                 ("company_id", "!=", False),
@@ -50,17 +44,11 @@ class StockLocation(models.Model):
             return domain
         return ~domain
 
-    # `_should_be_valued()` reads exactly these two. Without them the field was a
-    # compute nothing invalidated: a location switched to `inventory` usage kept
-    # reporting True for the rest of the transaction.
     @api.depends("company_id", "usage")
     def _compute_is_valued_internal(self):
         for location in self:
             location.is_valued_internal = location._should_be_valued()
 
     def _should_be_valued(self):
-        """This method returns a boolean reflecting whether the products stored in `self` should
-        be considered when valuating the stock of a company.
-        """
         self.check_singleton()
         return bool(self.company_id) and self.usage in ["internal", "transit"]

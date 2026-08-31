@@ -56,15 +56,12 @@ class TestBomPriceCommon(TestStockValuationCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Required for `product_uom_id ` to be visible in the view
         cls.env.user.group_ids += cls.env.ref("uom.group_uom")
-        # Required for `product_id ` to be visible in the view
         cls.env.user.group_ids += cls.env.ref("product.group_product_variant")
         cls.Product = cls.env["product.product"]
         cls.Bom = cls.env["mrp.bom"]
         cls.prod_location = cls.warehouse._get_production_location()
 
-        # Products.
         cls.dining_table = cls._create_product(
             "Dining Table", 1000, quantity=0, category=cls.category_fifo_auto
         )
@@ -75,18 +72,7 @@ class TestBomPriceCommon(TestStockValuationCommon):
             "Glass", 100, quantity=0, category=cls.category_avco_auto
         )
 
-        # Unit of Measure.
         cls.dozen = cls.env.ref("uom.product_uom_dozen")
-
-        # Bills Of Materials.
-        # -------------------------------------------------------------------------------
-        # Cost of BoM (Dining Table 1 Unit)
-        # Component Cost =  Table Head   1 Unit * 300 = 300 (468.75 from it's components)
-        #                   Screw        5 Unit *  10 =  50
-        #                   Leg          4 Unit *  25 = 100
-        #                   Glass        1 Unit * 100 = 100
-        # Total = 550 [718.75 if components of Table Head considered] (for 1 Unit)
-        # -------------------------------------------------------------------------------
 
         bom_form = Form(cls.Bom)
         bom_form.product_id = cls.dining_table
@@ -108,21 +94,10 @@ class TestBomPriceCommon(TestStockValuationCommon):
             line.product_qty = 1
         cls.bom_1 = bom_form.save()
 
-        # Table Head's components.
         cls.plywood_sheet = cls._create_product("Plywood Sheet", 200)
         cls.bolt = cls._create_product("Bolt", 10)
         cls.colour = cls._create_product("Colour", 100)
         cls.corner_slide = cls._create_product("Corner Slide", 25)
-
-        # -----------------------------------------------------------------
-        # Cost of BoM (Table Head 1 Dozen)
-        # Component Cost =  Plywood Sheet   12 Unit * 200 = 2400
-        #                   Bolt            60 Unit *  10 =  600
-        #                   Colour          12 Unit * 100 = 1200
-        #                   Corner Slide    57 Unit * 25  = 1425
-        #                                           Total = 5625
-        #                          1 Unit price (5625/12) =  468.75
-        # -----------------------------------------------------------------
 
         bom_form2 = Form(cls.Bom)
         bom_form2.product_id = cls.table_head
@@ -147,8 +122,6 @@ class TestBomPriceCommon(TestStockValuationCommon):
 
 
 class TestBomPriceOperationCommon(TestBomPriceCommon):
-    """Common bom setup with workorder operations"""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -183,29 +156,6 @@ class TestBomPriceOperationCommon(TestBomPriceCommon):
             }
         )
 
-        # -----------------------------------------------------------------
-        # Dinning Table Operation Cost(1 Unit)
-        # -----------------------------------------------------------------
-        # Operation cost calculate for 1 units
-        # Cutting        (15 + 15 + (20 * 100/80) / 60) * 100 =   91.67
-        # Drilling       (15 + 15 + (25 * 100/80) / 60) * 100 =  102.08
-        # Fitting        (15 + 15 + (30 * 100/80) / 60) * 100 =  112.50
-        # Table Capacity (3 operations * (2 + 1)  / 60) * 100 =   15.00
-        # ----------------------------------------
-        # Operation Cost  1 unit = 321.25
-        # -----------------------------------------------------------------
-
-        # --------------------------------------------------------------------------
-        # Table Head Operation Cost (1 Dozen)
-        # --------------------------------------------------------------------------
-        # Operation cost calculate for 1 dozens
-        # Cutting        (15 + 15 + (20 * 1 * 100/80) / 60) * 100 =   91.67
-        # Drilling       (15 + 15 + (25 * 1 * 100/80) / 60) * 100 =  102.08
-        # Fitting        (15 + 15 + (30 * 1 * 100/80) / 60) * 100 =  112.50
-        # Table Capacity (3 operations * (2 + 1)      / 60) * 100 =   15.00
-        # ----------------------------------------
-        # Operation Cost 1 dozen (306.25 + 15 = 321.25 per dozen) and 25.52 for 1 Unit
-        # --------------------------------------------------------------------------
         cls.bom_1.write(
             {
                 "operation_ids": [
@@ -285,18 +235,8 @@ class TestBomPriceOperationCommon(TestBomPriceCommon):
             }
         )
 
-        # byproduct
-
-        # Cost Breakdown.
-        # -------------------------------------------------------------------------------
-        # Total Cost of BoM = 550 [718.75 if components of Table Head considered] (for 1 Unit)
-        # Dining Table 1 Unit = 1 - (25 + 50) / 100 * 550 = 0.25 * 550 = 137.5
-        # Scrap Wood 1 Unit = (25 + 50) / 100 * 550 / (8 units + 12 units) = 20.625
-        # -------------------------------------------------------------------------------
-
         cls.scrap_wood = cls._create_product("Scrap Wood", 30, quantity=0)
 
-        # different byproduct line uoms => 20 total units with a total of 75% of cost share
         cls.bom_1.write(
             {
                 "byproduct_ids": [

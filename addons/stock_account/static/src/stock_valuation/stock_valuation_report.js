@@ -55,12 +55,10 @@ export class StockValuationReport extends Component {
         return { label: _t("Accrual"), lines: [], value: 0 };
     }
 
-    // Getters -----------------------------------------------------------------
     get data() {
         return this.controller.data || {};
     }
 
-    // On Click Methods --------------------------------------------------------
     async openAccountMoves(accountIds = false) {
         const action = await this.actionService.loadAction(
             "account.action_account_moves_all",

@@ -6,8 +6,6 @@ from .common import TestStockLandedCostsCommon
 
 @tagged("post_install", "-at_install")
 class TestLandedCostLifecycle(TestStockLandedCostsCommon):
-    """stock.landed.cost record-level helpers: total amount and draft removal."""
-
     def _landed_cost(self, price_units):
         return self.env["stock.landed.cost"].create(
             {
@@ -30,12 +28,10 @@ class TestLandedCostLifecycle(TestStockLandedCostsCommon):
         )
 
     def test_compute_total_amount_sums_cost_lines(self):
-        """amount_total is the sum of the cost lines' price units."""
         landed_cost = self._landed_cost([30.0, 20.0])
         self.assertAlmostEqual(landed_cost.amount_total, 50.0, places=2)
 
     def test_unlink_draft_cancels_then_removes(self):
-        """Unlinking a draft landed cost cancels it and deletes the record."""
         landed_cost = self._landed_cost([10.0])
         self.assertEqual(landed_cost.state, "draft")
         landed_cost.unlink()

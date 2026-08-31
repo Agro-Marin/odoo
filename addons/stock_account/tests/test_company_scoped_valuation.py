@@ -1,11 +1,3 @@
-"""Valuation must depend on the data, not on the session.
-
-Every test here pins a defect where a figure was drawn from `env.companies` (the
-set of companies the user happens to have enabled in the switcher) instead of
-`env.company` (the company that owns the stock), or where a per-company write was
-fed from a deliberately cross-company aggregate.
-"""
-
 from datetime import timedelta
 
 from freezegun import freeze_time
@@ -31,8 +23,6 @@ class TestCompanyScopedValuation(TestStockValuationCommon):
         cls.both_companies = [cls.company.id, cls.company_b.id]
 
     def _shared_categ(self, name, cost_method):
-        """A category configured identically in both companies, as a product
-        shared across companies requires."""
         categ = self.env["product.category"].create({"name": name})
         for company in (self.company, self.company_b):
             categ.with_company(company).property_cost_method = cost_method
@@ -52,8 +42,6 @@ class TestCompanyScopedValuation(TestStockValuationCommon):
     def _prepare_receipt(
         self, product, company, location, picking_type, qty, unit_cost
     ):
-        """A confirmed, picked receipt that has NOT been done yet, so callers can
-        validate several of them in one batch."""
         move = (
             self.env["stock.move"]
             .with_company(company)
@@ -104,12 +92,7 @@ class TestCompanyScopedValuation(TestStockValuationCommon):
             unit_cost,
         )
 
-    # ------------------------------------------------------------------
-    # `product.value` is per company
-    # ------------------------------------------------------------------
     def test_manual_revaluation_does_not_cross_companies(self):
-        """`_get_last_product_value` runs sudo, so it must filter on the company
-        itself: the record rule cannot do it."""
         product = self._shared_product("Shared", self._shared_categ("avco", "average"))
         product.with_company(self.company_b).standard_price = 100
         product.with_company(self.company).standard_price = 10
@@ -122,7 +105,6 @@ class TestCompanyScopedValuation(TestStockValuationCommon):
         )
 
     def test_other_company_revaluation_does_not_move_our_inventory_value(self):
-        """Reading the valuation report in B must not see A's revaluation."""
         product = self._shared_product("Shared", self._shared_categ("avco", "average"))
         product.with_company(self.company_b).standard_price = 100
         self._receive_b(product, 10, 100)
@@ -138,9 +120,6 @@ class TestCompanyScopedValuation(TestStockValuationCommon):
             "company A's revaluation wrote down company B's inventory",
         )
 
-    # ------------------------------------------------------------------
-    # FIFO stack is per company
-    # ------------------------------------------------------------------
     def test_fifo_stack_ignores_other_companies_receipts(self):
         product = self._shared_product("Fifo", self._shared_categ("fifo", "fifo"))
         self._receive_b(product, 10, 999)
@@ -167,8 +146,6 @@ class TestCompanyScopedValuation(TestStockValuationCommon):
             )
 
     def test_fifo_cogs_is_independent_of_enabled_companies(self):
-        """A delivery must be valued the same however many companies the user
-        has ticked in the session switcher."""
         product = self._shared_product("Fifo", self._shared_categ("fifo", "fifo"))
         self._receive_b(product, 10, 999)
         self._receive_a(product, 10, 10)
@@ -198,12 +175,7 @@ class TestCompanyScopedValuation(TestStockValuationCommon):
         out._action_done()
         self.assertEqual(out.value, 100, "COGS drawn from company B's receipt")
 
-    # ------------------------------------------------------------------
-    # `standard_price` is per company
-    # ------------------------------------------------------------------
     def test_standard_price_is_not_blended_across_companies(self):
-        """`total_value` is deliberately a cross-company aggregate; it must not
-        reach the company-dependent `standard_price`."""
         product = self._shared_product("Fifo", self._shared_categ("fifo", "fifo"))
         self._receive_b(product, 10, 999)
         self._receive_a(product, 10, 10)
@@ -229,8 +201,6 @@ class TestCompanyScopedValuation(TestStockValuationCommon):
         )
 
     def test_set_value_does_not_recompute_another_companys_products(self):
-        """`_set_value` groups by company; the per-company accumulators must not
-        carry over between iterations."""
         categ = self._shared_categ("avco", "average")
         product_a = self._shared_product("Only in A", categ)
         product_b = self._shared_product("Only in B", categ)
@@ -262,9 +232,6 @@ class TestCompanyScopedValuation(TestStockValuationCommon):
 @tagged("post_install", "-at_install")
 class TestValuationAccountMoveBatching(TestStockValuationCommon):
     def test_one_entry_per_partner(self):
-        """A batch validation spanning several customers must produce one
-        valuation entry per accounting partner, not crash on a multi-record
-        `partner_id`."""
         account = self._use_inventory_location_accounting()
         self.customer_location.valuation_account_id = account.id
         product = self.env["product.product"].create(
@@ -344,8 +311,6 @@ class TestAvcoAuditReportOrdering(TestStockValuationCommon):
         return rows.sorted(self.env["stock.avco.report"]._REPLAY_ORDER)
 
     def test_adjustments_replay_in_chronological_order(self):
-        """`product.value` rows carry a negated id so they stay unique across the
-        UNION; that id must never act as the chronological tiebreak."""
         product = self._avco_product("Audited")
         day1 = fields.Datetime.now() - timedelta(days=3)
         day2 = fields.Datetime.now() - timedelta(days=2)
@@ -371,10 +336,6 @@ class TestAvcoAuditReportOrdering(TestStockValuationCommon):
         )
 
     def test_same_instant_revaluation_replays_after_the_move(self):
-        """When a revaluation and a move share a timestamp the engine treats the
-        revaluation as the later event (`_run_average_batch` skips moves whose
-        `date <= product.value.date`); the audit must agree or it justifies a
-        different figure than the one stored."""
         product = self._avco_product("Same instant")
         instant = fields.Datetime.now() - timedelta(days=1)
         with freeze_time(instant):
@@ -395,8 +356,6 @@ class TestAvcoAuditReportOrdering(TestStockValuationCommon):
         )
 
     def test_pending_records_are_visible_to_the_replay(self):
-        """The view is `_auto = False`, so `search()` flushes a model with no
-        table; the replay has to flush the source tables itself."""
         categ = self.env["product.category"].create({"name": "avco"})
         categ.property_cost_method = "average"
         categ.property_valuation = "periodic"
@@ -421,14 +380,6 @@ class TestAvcoAuditReportOrdering(TestStockValuationCommon):
 
 @tagged("post_install", "-at_install")
 class TestValuationBatching(TestStockValuationCommon):
-    """Valuing a catalogue must not cost a fixed number of queries per product.
-
-    `_run_average_batch` walks every product's moves in one ordered pass; if it
-    ever reverts to a pass per product, each product costs its own round of
-    move/move-line fetches and closing a real catalogue becomes tens of
-    thousands of queries.
-    """
-
     def _seed(self, categ, count, offset):
         products = self.env["product.product"].create(
             [
@@ -463,9 +414,6 @@ class TestValuationBatching(TestStockValuationCommon):
         self._seed(categ, 40, 1)
         large = self._stock_value_query_count()
 
-        # Five times the catalogue must not cost anything like five times the
-        # queries. The bound is deliberately loose -- it is here to catch a
-        # return to per-product batching, not to pin an exact number.
         self.assertLess(
             large,
             small * 2,
@@ -476,12 +424,6 @@ class TestValuationBatching(TestStockValuationCommon):
 
 @tagged("post_install", "-at_install")
 class TestLotValuationBatching(TestStockValuationCommon):
-    """Valuing many lots must give the same answer as valuing them one by one.
-
-    `_run_average_batch` replays all of a product's lots in a single pass over its
-    moves; this pins that result against the one-lot-at-a-time path it replaced.
-    """
-
     def setUp(self):
         super().setUp()
         self.categ = self.env["product.category"].create({"name": "avco lots"})
@@ -514,9 +456,6 @@ class TestLotValuationBatching(TestStockValuationCommon):
         return {lot.id: (lot.avg_cost, lot.total_value) for lot in self.lots}
 
     def _one_by_one(self):
-        """Value each lot in isolation. Re-browsing is what makes this different
-        from `_batched`: iterating a recordset keeps the prefetch set, so the
-        compute would still receive -- and batch -- all six lots."""
         result = {}
         for lot_id in self.lots.ids:
             self.lots.invalidate_recordset()
@@ -546,8 +485,6 @@ class TestLotValuationBatching(TestStockValuationCommon):
             self.assertAlmostEqual(
                 batch_value, single_value, places=6, msg=f"{lot.name} total_value"
             )
-        # The comparison is only meaningful if the lots do not all carry the same
-        # cost: identical values would match under any amount of cross-lot bleed.
         self.assertGreater(
             len({round(cost, 6) for cost, _value in batched.values()}),
             1,
@@ -560,8 +497,6 @@ class TestLotValuationBatching(TestStockValuationCommon):
         self._make_in_move(self.product, 12, unit_cost=10, lot_ids=self.lots)
         self._make_in_move(self.product, 6, unit_cost=40, lot_ids=self.lots[:3])
         batched = self._assert_batched_matches_single()
-        # Lots that only received at 10 must stay at 10; the ones that also
-        # received at 40 must sit strictly above it.
         self.assertAlmostEqual(batched[self.lots[5].id][0], 10, places=6)
         self.assertGreater(batched[self.lots[0].id][0], 10)
 
@@ -569,8 +504,6 @@ class TestLotValuationBatching(TestStockValuationCommon):
         self._make_in_move(self.product, 12, unit_cost=10, lot_ids=self.lots)
         self._make_in_move(self.product, 12, unit_cost=25, lot_ids=self.lots[:4])
         self._make_out_move(self.product, 4, lot_ids=self.lots[:2])
-        # A manual revaluation on one lot only: the batched pass must seed that
-        # lot from it and leave the others on their own history.
         self.lots[0].standard_price = 99
         self._assert_batched_matches_single()
 
@@ -605,11 +538,6 @@ class TestLotValuationBatching(TestStockValuationCommon):
 
 @tagged("post_install", "-at_install")
 class TestQuantValuationBatching(TestStockValuationCommon):
-    """`stock.quant.value` is a Python aggregate (the field is not stored), so the
-    grouped Inventory Valuation list resolves it for every quant in the group.
-    It must resolve a whole company at a time, not a quant -- or a product -- at
-    a time."""
-
     def _avco_categ(self):
         categ = self.env["product.category"].create({"name": "avco quants"})
         categ.property_cost_method = "average"
@@ -646,9 +574,6 @@ class TestQuantValuationBatching(TestStockValuationCommon):
         categ = self._avco_categ()
         small = self._read_group_query_count(self._seed(categ, 10, 0))
         large = self._read_group_query_count(self._seed(categ, 40, 1))
-        # Resolving per company costs the same for 10 or 40 products, so the bound
-        # is tight enough to also catch a regression to per-product resolution
-        # (which measured 39 -> 70 for these two sizes).
         self.assertLess(
             large,
             small * 1.5,
@@ -657,9 +582,6 @@ class TestQuantValuationBatching(TestStockValuationCommon):
         )
 
     def test_lot_valuated_product_with_an_unlotted_quant(self):
-        """A lot-valuated product can still carry a quant with no lot: the guard on
-        enabling the flag only inspects the stock present at that moment. Such a
-        quant is valued against the product, so it must not be looked up as a lot."""
         categ = self._avco_categ()
         product = self.env["product.product"].create(
             {
@@ -676,7 +598,6 @@ class TestQuantValuationBatching(TestStockValuationCommon):
             {"name": "L1", "product_id": product.id, "company_id": self.company.id}
         )
         self._make_in_move(product, 10, unit_cost=10, lot_ids=lot)
-        # A quant that carries no lot, alongside the lotted stock.
         unlotted = self.env["stock.quant"].create(
             {
                 "product_id": product.id,
@@ -688,11 +609,6 @@ class TestQuantValuationBatching(TestStockValuationCommon):
         self.env.flush_all()
         self.env.invalidate_all()
 
-        # Must resolve through the product path without a KeyError. The unlotted
-        # quant takes its share of the product's value spread over all on-hand
-        # quantity -- the lot holds 10 units worth 100 and the quant adds 5 unvalued
-        # units, so 5 * 100 / 15. This is the pre-batching result, pinned here
-        # because the quant is easy to route down the lot path by mistake.
         quants = self.env["stock.quant"].search([("product_id", "=", product.id)])
         self.assertIn(unlotted, quants)
         values = {quant.id: quant.value for quant in quants}
@@ -706,11 +622,6 @@ class TestQuantValuationBatching(TestStockValuationCommon):
 
 @tagged("post_install", "-at_install")
 class TestValuationScopeReuse(TestStockValuationCommon):
-    """`_with_valuation_context()` resolves the company's valued locations with a
-    search. Loops that value product after product re-enter it constantly, so it
-    has to be free once the recordset already carries the scope -- and it must
-    still re-derive when the company changes."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -758,13 +669,6 @@ class TestValuationScopeReuse(TestStockValuationCommon):
 
 @tagged("post_install", "-at_install")
 class TestDoneMoveLineRevaluation(TestStockValuationCommon):
-    """`is_in` / `is_out` / `is_dropship` are stored as of completion and their
-    `depends` deliberately ignore the move line fields `_is_in()` / `_is_out()`
-    read -- otherwise any write to a line would re-classify historical moves and
-    restate past valuations. The places that knowingly change such a field on a
-    done move must re-derive them, or they decide whether to revalue from a stale
-    classification."""
-
     def _avco_product(self, name):
         categ = self.env["product.category"].create({"name": f"reval {name}"})
         categ.property_cost_method = "average"
@@ -784,8 +688,6 @@ class TestDoneMoveLineRevaluation(TestStockValuationCommon):
         return product.with_company(self.company).sudo().total_value
 
     def test_marking_a_done_receipt_as_consigned_removes_its_value(self):
-        """Consignment stock is not owned, so a receipt corrected to name a
-        third-party owner must stop contributing to the valuation."""
         product = self._avco_product("Consigned later")
         self._make_in_move(product, 10, unit_cost=10)
         consigned = self._make_in_move(product, 10, unit_cost=50)
@@ -806,8 +708,6 @@ class TestDoneMoveLineRevaluation(TestStockValuationCommon):
         )
 
     def test_clearing_the_owner_brings_a_receipt_back_into_the_valuation(self):
-        """The reverse correction: goods first booked as consignment turn out to
-        be owned."""
         product = self._avco_product("Owned later")
         self._make_in_move(product, 10, unit_cost=10)
         consigned = self._make_in_move(

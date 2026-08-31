@@ -9,8 +9,6 @@ patch(BomOverviewSpecialLine.prototype, {
         this.actionService = useService("action");
     },
 
-    //---- Handlers ----
-
     async goToSubcontractor() {
         return this.actionService.doAction({
             type: "ir.actions.act_window",
@@ -23,8 +21,6 @@ patch(BomOverviewSpecialLine.prototype, {
             },
         });
     },
-
-    //---- Getters ----
 
     get subcontracting() {
         return this.props.data.subcontracting || {};

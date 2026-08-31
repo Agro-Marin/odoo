@@ -21,8 +21,6 @@ class MixinDateCategory(models.AbstractModel):
         ("after", None, _lt("After"), "future"),
     )
 
-    # The column each consumer buckets. `stock.picking` sets `date_planned`,
-    # `repair.order` `schedule_date`, `mrp.production` `date_start`.
     _date_category_field = None
 
     date_category = fields.Selection(

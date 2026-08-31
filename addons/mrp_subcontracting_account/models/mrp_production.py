@@ -12,7 +12,6 @@ class MrpProduction(models.Model):
                 and x.quantity > 0
             )
         )
-        # Take the price unit of the reception move
         last_done_receipt = finished_move.move_dest_ids.filtered(
             lambda m: m.state == "done"
         )[-1:]

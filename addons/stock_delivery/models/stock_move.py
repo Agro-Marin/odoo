@@ -14,9 +14,6 @@ class StockMove(models.Model):
 
     def _auto_init(self):
         if not column_exists(self.env.cr, "stock_move", "weight"):
-            # In case of a big database with a lot of stock moves, the RAM gets exhausted
-            # To prevent a process from being killed We create the column 'weight' manually
-            # Then we do the computation in a query by multiplying product weight with qty
             create_column(self.env.cr, "stock_move", "weight", "numeric")
             self.env.cr.execute("""
                 UPDATE stock_move move
@@ -49,8 +46,6 @@ class StockMove(models.Model):
         carrier_tracking_ref = self.move_orig_ids.picking_id.filtered(
             "carrier_tracking_ref"
         )[:1].carrier_tracking_ref
-        # check if the previous picking have a carrier_id, then take carrier from that
-        # earlier we were taking carrier from sale but since carrier can be changed or updated in next steps so now we take carrier from prev picking
         if len(self.move_orig_ids.picking_id.carrier_id) == 1:
             carrier_id = self.move_orig_ids.picking_id.carrier_id.id
         if carrier_id:
@@ -85,8 +80,6 @@ class StockMoveLine(models.Model):
         for move_line in self:
             sale_line_id = move_line.move_id.sale_line_id
             if sale_line_id and sale_line_id.product_id == move_line.product_id:
-                # Compute the total price (tax included) for the actually delivered quantity
-                # using the same tax logic as the sale order line and purchase order line.
                 base_line = sale_line_id._prepare_base_line_for_taxes_computation()
                 qty = move_line.product_uom_id._compute_quantity(
                     move_line.quantity, sale_line_id.product_uom_id
@@ -100,7 +93,6 @@ class StockMoveLine(models.Model):
                     tax_results["raw_total_included_currency"]
                 )
             else:
-                # For kits, use the regular unit price
                 unit_price = move_line.product_id.list_price
                 qty = move_line.product_uom_id._compute_quantity(
                     move_line.quantity, move_line.product_id.uom_id
@@ -109,12 +101,6 @@ class StockMoveLine(models.Model):
         super()._compute_sale_price()
 
     def _get_aggregated_product_quantities(self, **kwargs):
-        """Return aggregated product quantities extended with hs_code.
-
-        :param kwargs: forwarded to the parent aggregation method
-        :return: mapping of aggregation key to values dict (parent's values plus hs_code)
-        :rtype: dict
-        """
         aggregated_move_lines = super()._get_aggregated_product_quantities(**kwargs)
         for aggregated_move_line in aggregated_move_lines:
             hs_code = aggregated_move_lines[aggregated_move_line][
@@ -150,17 +136,12 @@ class StockMoveLine(models.Model):
 
     def _get_package_carrier_type_for_pack(self):
         if len(self.carrier_id) > 1 or any(not ml.carrier_id for ml in self):
-            # avoid (duplicate) costs for products
             raise UserError(
                 self.env._(
                     "You cannot pack products into the same package when they have different carriers (i.e. check that all of their transfers have a carrier assigned and are using the same carrier)."
                 )
             )
 
-        # As we pass the `delivery_type` ('fixed' or 'base_on_rule' by default) in a key that
-        # corresponds to the `package_carrier_type` (defaults to 'none'), we do a conversion.
-        # No need to convert for other carriers as the `delivery_type` and
-        # `package_carrier_type` will be the same in these cases.
         package_carrier_type = self.carrier_id.delivery_type
         if package_carrier_type in ["fixed", "base_on_rule"]:
             package_carrier_type = "none"

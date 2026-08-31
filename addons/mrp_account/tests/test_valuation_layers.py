@@ -1,10 +1,8 @@
-"""Implementation of "INVENTORY VALUATION TESTS (With valuation layers)" spreadsheet."""
-
 from odoo.tests import Form
 
 from odoo.addons.mrp_account.tests.common import TestBomPriceCommon
 
-PRICE = 718.75 - 100  # total price minus glass
+PRICE = 718.75 - 100
 
 
 class TestMrpValuationStandard(TestBomPriceCommon):
@@ -51,22 +49,13 @@ class TestMrpValuationStandard(TestBomPriceCommon):
         self.assertEqual(self.dining_table.total_value, (2 * PRICE + 10 + 20) / 2)
 
     def test_fifo_unbuild(self):
-        """This test creates an MO and then creates an unbuild
-        orders and checks the stock valuation.
-        """
         self.glass.categ_id = self.category_fifo
-        # ---------------------------------------------------
-        #       MO
-        # ---------------------------------------------------
         self._make_in_move(self.glass, 1, 10)
         self._make_in_move(self.glass, 1, 20)
         mo = self._create_mo(self.bom_1, 1)
         self._produce(mo)
         mo.button_mark_done()
         self.assertEqual(self.glass.total_value, 20)
-        # ---------------------------------------------------
-        #       Unbuild
-        # ---------------------------------------------------
         unbuild_form = Form(self.env["mrp.unbuild"])
         unbuild_form.mo_id = mo
         unbuild_form.save().action_unbuild()
@@ -225,7 +214,6 @@ class TestMrpValuationStandard(TestBomPriceCommon):
         self._make_out_move(self.dining_table, 1)
         self.assertEqual(self.dining_table.total_value, PRICE + 100)
 
-        # Update component price
         self.glass.standard_price = 0
 
         self._make_in_move(self.glass, 3)
@@ -296,11 +284,6 @@ class TestMrpValuationStandard(TestBomPriceCommon):
         self.assertEqual(self.dining_table.total_value, (2 * PRICE + 30) / 2)
 
     def test_validate_draft_kit(self):
-        """
-        Create a draft receipt, add a kit to its move lines and directly
-        validate it. From client side, such a behaviour is possible with
-        the Barcode app.
-        """
         self.plywood_sheet.qty_available = 0
         self.plywood_sheet.categ_id = self.category_avco
 
@@ -332,12 +315,8 @@ class TestMrpValuationStandard(TestBomPriceCommon):
         self.assertEqual(self.plywood_sheet.total_value, 2400)
 
     def test_production_account_00(self):
-        """Create move into/out of a production location, test we create account
-        entries with the Production Cost account.
-        """
         self.dining_table.categ_id.property_cost_method = "standard"
 
-        # move into production location
         self._make_out_move(
             self.dining_table, 1, location_dest_id=self.prod_location.id
         )
@@ -346,7 +325,6 @@ class TestMrpValuationStandard(TestBomPriceCommon):
         self.assertEqual(in_aml.debit, 1000)
         self.assertEqual(in_aml.product_id, self.dining_table)
 
-        # move out of production location
         self._make_in_move(self.dining_table, 1, location_id=self.prod_location.id)
 
         out_aml = self._get_production_cost_move_lines() - in_aml
@@ -354,9 +332,6 @@ class TestMrpValuationStandard(TestBomPriceCommon):
         self.assertEqual(in_aml.product_id, self.dining_table)
 
     def test_average_cost_unbuild_component_change_move_qty(self):
-        """
-        Ensures that we can modify the quantity on the stock move of the components after an unbuild
-        """
         mo = self._create_mo(self.bom_1, 1)
         self._produce(mo)
         mo.button_mark_done()
@@ -365,7 +340,6 @@ class TestMrpValuationStandard(TestBomPriceCommon):
         wizard.product_qty = 1
         unbuild = wizard.save()
         unbuild.action_validate()
-        # check that changing the quantity on the move form does not create an error
         comp_move = mo.unbuild_ids.produce_line_ids.filtered(
             lambda move: move.product_id.id == self.glass.id
         )

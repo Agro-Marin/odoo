@@ -159,9 +159,6 @@ class MrpUnbuild(models.Model):
 
     @api.depends("mo_id", "product_id", "company_id")
     def _compute_bom_id(self):
-        # `_bom_find` already answers for a whole recordset, and the answer depends
-        # on the company: grouping by it turns one search per order into one per
-        # company, which on a list of unbuild orders is one search flat.
         orders_without_mo = self.filtered(lambda order: not order.mo_id)
         boms_by_company = {
             company.id: self.env["mrp.bom"]._bom_find(
@@ -181,13 +178,6 @@ class MrpUnbuild(models.Model):
             if order.mo_id and order.mo_id.product_id:
                 order.product_id = order.mo_id.product_id
 
-    # The `1.0` below used to be the field's `default`, which made this compute dead
-    # on the create path: `_add_missing_default_values` puts the default in `vals`,
-    # and a precomputed field already present in `vals` is not computed. So the form
-    # offered the order's produced quantity while `create({"mo_id": ...})` -- the API,
-    # an import, another module -- recorded 1. Assigning it here instead leaves the
-    # two agreeing. `mo_id.qty_produced` and the tracking are read and so are
-    # declared; neither was, and the field is stored.
     @api.depends("mo_id", "mo_id.qty_produced", "has_tracking")
     def _compute_product_qty(self):
         for order in self:
@@ -356,10 +346,6 @@ class MrpUnbuild(models.Model):
                     move_line_vals_list.append(move_line_vals)
                     needed_quantity -= taken_quantity
                     qty_already_used[move_line] += taken_quantity
-            # Created per move, not per line and not deferred to the end: one
-            # INSERT instead of one per line, while `move.quantity` -- which is
-            # summed from exactly these lines -- is still what the `+=` below
-            # expects to read.
             if move_line_vals_list:
                 unbuild_lines |= self.env["stock.move.line"].create(move_line_vals_list)
             if (
@@ -371,10 +357,6 @@ class MrpUnbuild(models.Model):
             ):
                 move.quantity += needed_quantity
 
-        # One strategy run over every line this unbuild made. `_apply_putaway_strategy`
-        # seeds `excluded_smls` with the whole set it is given and discards each entry
-        # as it places it, so a line placed alone had all of its siblings counted
-        # against the destination rather than only the ones already placed.
         unbuild_lines._apply_putaway_strategy()
 
         (finished_moves | consume_moves | produce_moves).picked = True

@@ -22,7 +22,6 @@ export class StockValuationReportLine extends Component {
         this.state = useState({ displaySublines: this.hasSublines });
     }
 
-    // Getters -----------------------------------------------------------------
     get accounts() {
         if (!this.hasSublines) {
             return [];
@@ -78,7 +77,6 @@ export class StockValuationReportLine extends Component {
         return props;
     }
 
-    // On Click Methods --------------------------------------------------------
     onClick() {
         this.props.onClickMethod && this.props.onClickMethod(this.accounts);
     }

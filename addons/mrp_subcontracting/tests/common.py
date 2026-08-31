@@ -8,7 +8,6 @@ class TestMrpSubcontractingCommon(TransactionCase):
         cls.env.ref("base.group_user").write(
             {"implied_ids": [(4, cls.env.ref("stock.group_production_lot").id)]}
         )
-        # 1: Create a subcontracting partner
         main_partner = cls.env["res.partner"].create({"name": "main_partner"})
         cls.subcontractor_partner1 = cls.env["res.partner"].create(
             {
@@ -16,7 +15,6 @@ class TestMrpSubcontractingCommon(TransactionCase):
                 "parent_id": main_partner.id,
             }
         )
-        # 2. Create a BOM of subcontracting type
         cls.product_category = cls.env.ref("product.product_category_goods")
         cls.comp1 = cls.env["product.product"].create(
             {
@@ -58,7 +56,6 @@ class TestMrpSubcontractingCommon(TransactionCase):
             }
         )
 
-        # Create a BoM for cls.comp2
         cls.comp2comp = cls.env["product.product"].create(
             {
                 "name": "component for Component2",
@@ -74,9 +71,6 @@ class TestMrpSubcontractingCommon(TransactionCase):
         cls.comp2_bom = bom_form.save()
 
     def _setup_category_stock_journals(self):
-        """
-        Sets up the all category with some stock accounts.
-        """
         a_val = self.env["account.account"].create(
             [
                 {

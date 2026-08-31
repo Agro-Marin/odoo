@@ -13,7 +13,6 @@ from odoo.addons.mrp_account.tests.common import (
 
 class TestMrpAccount(TestBomPriceCommon):
     def test_00_production_order_with_accounting(self):
-        # Inventory Product Table
         quants = (
             self.env["stock.quant"]
             .with_context(inventory_mode=True)
@@ -56,7 +55,6 @@ class TestMrpAccount(TestBomPriceCommon):
             lambda x: x.state == "done"
         ).value
 
-        # 1 table head at 468.75 + 4 table leg at 25 + 1 glass at 100 + 5 screw at 10 + 1*20 (extra cost)
         self.assertEqual(move_value, 738.75, "Thing should have the correct price")
 
     def test_stock_user_without_account_permissions_can_create_bom(self):
@@ -70,16 +68,12 @@ class TestMrpAccount(TestBomPriceCommon):
         bom_form.product_id = self.dining_table
 
     def test_two_productions_unbuild_one_sell_other_fifo(self):
-        """Unbuild orders, when supplied with a specific MO record, should restrict their value
-        consumption to moves originating from that MO record.
-        """
         mo_1 = self._create_mo(self.bom_1, 1)
         mo_1.action_confirm()
         mo_1.action_assign()
         mo_1.button_mark_done()
         self.assertRecordValues(
             self.env["stock.move"].search([("product_id", "=", self.dining_table.id)]),
-            # MO_1
             [{"remaining_qty": 1.0, "value": 718.75}],
         )
 
@@ -92,7 +86,6 @@ class TestMrpAccount(TestBomPriceCommon):
             self.env["stock.move"].search([("product_id", "=", self.dining_table.id)]),
             [
                 {"remaining_qty": 1.0, "value": 718.75},
-                # MO_2 new value to reflect change of component's `standard_price`
                 {"remaining_qty": 1.0, "value": 918.75},
             ],
         )
@@ -108,7 +101,6 @@ class TestMrpAccount(TestBomPriceCommon):
             [
                 {"remaining_qty": 0.0, "value": 718.75, "quantity": 1.0},
                 {"remaining_qty": 1.0, "value": 918.75, "quantity": 1.0},
-                # Unbuild move value is derived from MO_2, as precised on the unbuild form
                 {"remaining_qty": 0.0, "value": 718.75, "quantity": 1.0},
             ],
         )
@@ -119,20 +111,14 @@ class TestMrpAccount(TestBomPriceCommon):
                 {"remaining_qty": 0.0, "value": 718.75, "quantity": 1.0},
                 {"remaining_qty": 0.0, "value": 918.75, "quantity": 1.0},
                 {"remaining_qty": 0.0, "value": 718.75, "quantity": 1.0},
-                # Out move value is derived from MO_1, the only candidate origin with some `remaining_qty`
                 {"remaining_qty": 0.0, "value": 918.75, "quantity": 1.0},
             ],
         )
 
     def test_unbuild_account_00(self):
-        """Test when after unbuild, the journal entries are the reversal of the
-        journal entries created when produce the product.
-        """
-        # build
         production = self._create_mo(self.bom_1, 1)
         production.button_mark_done()
 
-        # finished product move
         productA_debit_line = self.env["account.move.line"].search(
             [("product_id", "=", self.dining_table.id), ("credit", "=", 0)]
         )
@@ -141,7 +127,6 @@ class TestMrpAccount(TestBomPriceCommon):
         )
         self.assertEqual(productA_debit_line.account_id, self.account_stock_valuation)
         self.assertEqual(productA_credit_line.account_id, self.account_production)
-        # one of component move
         productB_debit_line = self.env["account.move.line"].search(
             [("product_id", "=", self.glass.id), ("credit", "=", 0)]
         )
@@ -151,10 +136,8 @@ class TestMrpAccount(TestBomPriceCommon):
         self.assertEqual(productB_debit_line.account_id, self.account_production)
         self.assertEqual(productB_credit_line.account_id, self.account_stock_valuation)
 
-        # unbuild
         Form.from_action(self.env, production.button_unbuild()).save().action_validate()
 
-        # finished product move
         productA_debit_line = self.env["account.move.line"].search(
             [
                 ("product_id", "=", self.dining_table.id),
@@ -171,7 +154,6 @@ class TestMrpAccount(TestBomPriceCommon):
         )
         self.assertEqual(productA_debit_line.account_id, self.account_production)
         self.assertEqual(productA_credit_line.account_id, self.account_stock_valuation)
-        # component move
         productB_debit_line = self.env["account.move.line"].search(
             [
                 ("product_id", "=", self.glass.id),
@@ -190,7 +172,6 @@ class TestMrpAccount(TestBomPriceCommon):
         self.assertEqual(productB_credit_line.account_id, self.account_production)
 
     def test_mo_overview_comp_different_uom(self):
-        """Test that the overview takes into account the uom of the component in the price computation"""
         self.screw.uom_id = self.env.ref("uom.product_uom_pack_6")
         self.bom_1.bom_line_ids.filtered(
             lambda l: l.product_id == self.screw
@@ -226,29 +207,17 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
             "Initial price of the Product should be 1000",
         )
         self.dining_table.button_bom_cost()
-        # Total cost of Dining Table = (550) + Total cost of operations (321.25) = 871.25
-        # byproduct have 1%+12% of cost share so the final cost is 757.99
         self.assertEqual(
             float_round(self.dining_table.standard_price, precision_digits=2), 757.99
         )
         self.Product.browse(
             [self.dining_table.id, self.table_head.id]
         ).action_bom_cost()
-        # Total cost of Dining Table = (718.75) + Total cost of all operations (321.25 + 25.52) = 1065.52
-        # byproduct have 1%+12% of cost share so the final cost is 927
         self.assertEqual(
             float_compare(self.dining_table.standard_price, 927, precision_digits=2), 0
         )
 
     def test_labor_cost_posting_is_not_rounded_incorrectly(self):
-        """Labour is rounded once, over the whole order, not once per work order.
-
-        Every work order here costs 0.005033, and each is charged to the same
-        expense account. Rounding them one at a time and adding the results
-        posted 0.01 per work order -- 0.06 against a true 0.0302, twice the
-        labour actually incurred.
-        """
-        # Build
         self.glass.qty_available = 1
         self.workcenter.costs_hour = 0.01
         production = self._create_mo(self.bom_1, 1)
@@ -270,7 +239,6 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
         )
 
     def test_02_compute_byproduct_price(self):
-        """Test BoM cost when byproducts with cost share"""
 
         self.assertEqual(
             self.dining_table.standard_price,
@@ -282,7 +250,6 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
             30,
             "Initial price of the By-Product should be 30",
         )
-        # bom price is 871.25. Byproduct cost share is 12%+1% = 13% -> 113.26 for 8+12 units -> 5.66
         self.scrap_wood.button_bom_cost()
         self.assertAlmostEqual(
             self.scrap_wood.standard_price,
@@ -291,13 +258,9 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
         )
 
     def test_wip_accounting_00(self):
-        """Test that posting a WIP accounting entry works as expected.
-        WIP MO = MO with some time completed on WOs and/or 'consumed' components
-        """
         self.glass.qty_available = 2
         mo = self._create_mo(self.bom_1, 1, confirm=False)
 
-        # post a WIP for an invalid MO, i.e. draft/cancelled/done results in a "Manual Entry"
         wizard = Form(
             self.env["mrp.account.wip.accounting"].with_context({"active_ids": [mo.id]})
         )
@@ -356,7 +319,6 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
             ],
         )
 
-        # post a WIP for a valid MO - no WO time completed or components consumed => nothing to debit/credit
         mo.action_confirm()
         wizard = Form(
             self.env["mrp.account.wip.accounting"].with_context({"active_ids": [mo.id]})
@@ -416,7 +378,6 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
             ],
         )
 
-        # WO time completed + components consumed
         mo_form = Form(mo)
         mo_form.qty_producing = mo.product_qty
         mo = mo_form.save()
@@ -494,12 +455,10 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
             ],
         )
 
-        # Multi-records case
         previous_wip_ids = wip_entries1.ids + wip_empty_entries.ids
         mo_2 = self._create_mo(self.bom_1, 1, confirm=False)
         mos = mo | mo_2
 
-        # Draft MOs should be ignored when selecting multiple MOs
         wizard = Form(
             self.env["mrp.account.wip.accounting"].with_context({"active_ids": mos.ids})
         )
@@ -563,7 +522,6 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
         )
         previous_wip_ids += wip_entries2.ids
 
-        # MOs' WIP amounts should be aggregated
         mo_2.action_confirm()
         mo_2.qty_producing = mo_2.product_qty
         wizard = Form(
@@ -631,7 +589,6 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
         )
         previous_wip_ids += wip_entries3.ids
 
-        # Done MO should be ignored
         mo_2.move_raw_ids.picked = True
         mo_2.button_mark_done()
         wizard = Form(
@@ -700,7 +657,6 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
         )
         previous_wip_ids += wip_entries4.ids
 
-        # WO time completed + components consumed, but WIP date is for before they were done => nothing to debit/credit
         wizard = Form(
             self.env["mrp.account.wip.accounting"].with_context({"active_ids": [mo.id]})
         )
@@ -759,43 +715,27 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
         )
 
     def test_labor_cost_balancing(self):
-        """When the workcenter_cost ends up like x.xx5 with a currency rounding of 0.01,
-        the valuation 'account.move' was unbalanced.
-        This happened because the credit value rounded up twice, and instead of having -0.005 + 0.005 => 0,
-        we had -0 + 0.01 => +0.01, which made the credit differ from the debit by 0.01.
-        This test ensures that if the workcenter_cost is rounded to 0.01, then the credit value is correctly
-        decremented by 0.01.
-        """
-        # Build
         self.dining_table.categ_id = self.category_avco_auto
         self.glass.qty_available = 1
         production = self._create_mo(self.bom_1, 1)
         production.qty_producing = 1
         workorder = production.workorder_ids
-        workorder.duration = 0.03  # ~= 2 seconds (1.8 seconds exactly)
-        workorder.time_ids.write(
-            {"duration": 0.03}
-        )  # Ensure that the duration is correct
-        self.assertEqual(
-            workorder._get_cost(), (len(workorder) * 2 / 3600) * 100
-        )  # 2 seconds at $100/h
+        workorder.duration = 0.03
+        workorder.time_ids.write({"duration": 0.03})
+        self.assertEqual(workorder._get_cost(), (len(workorder) * 2 / 3600) * 100)
 
         production.move_raw_ids.picked = True
         production.button_mark_done()
 
-        # value = finished product value + labour cost - byproduct cost share
         account_move = production.move_finished_ids.account_move_id
         self.assertRecordValues(
             account_move.line_ids,
             [
-                {"credit": 625.6, "debit": 0.00},  # Credit Line
-                {"credit": 0.00, "debit": 625.6},  # Debit Line
+                {"credit": 625.6, "debit": 0.00},
+                {"credit": 0.00, "debit": 625.6},
             ],
         )
         labour_move = workorder.time_ids.account_move_line_id.move_id
-        # The whole order's labour, rounded once: rounding each work order on
-        # its own gave 0.36 against a true 0.3333, and the 0.03 difference from
-        # the 0.33 `_cal_price` capitalised stayed in the production account.
         self.assertRecordValues(
             labour_move.line_ids,
             [
@@ -810,14 +750,12 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
         )
 
     def test_labor_cost_over_consumption(self):
-        """Test the labour accounting entries creation is independent of consumption variation"""
         self.glass.qty_available = 1
         production = self._create_mo(self.bom_1, 1)
         production.workorder_ids.duration = 60
 
         production.qty_producing = 1
 
-        # overconsume one component to get a warning wizard
         production.move_raw_ids[0].quantity += 2
 
         production.move_raw_ids.picked = True
@@ -865,28 +803,22 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
         )
 
     def test_estimated_cost_valuation(self):
-        """Test that operations with 'estimated' cost correctly compute the cost.
-        The cost should be equal to workcenter.costs_hour * workorder.duration_expected."""
         mo = self._create_mo(self.bom_1, 1)
         self.bom_1.operation_ids.cost_mode = "actual"
         mo.workorder_ids.duration = 60
         self.assertEqual(mo.workorder_ids._get_cost(), 600)
 
-        # Cost should stay the same for a done MO if nothing else is changed
         mo.move_raw_ids.picked = True
         mo.button_mark_done()
         self.workcenter.costs_hour = 333
         self.assertEqual(mo.workorder_ids._get_cost(), 600)
 
     def test_mo_without_finished_moves(self):
-        """Test that a MO without finished moves can post inventory and be completed."""
         mo = self._create_mo(self.bom_1, 1)
         workorder = mo.workorder_ids
         workorder.duration = 60
         self.assertEqual(workorder._get_cost(), 600)
-        # Simulate missing finished moves
         mo.move_finished_ids.unlink()
-        # Post inventory and complete MO
         mo.move_raw_ids.picked = True
         mo.button_mark_done()
         self.assertEqual(mo.state, "done")

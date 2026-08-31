@@ -11,9 +11,7 @@ from odoo.addons.stock_landed_costs.tests.common import TestStockLandedCostsComm
 @skip("Temporary to fast merge new valuation")
 class TestStockLandedCostsRounding(TestStockLandedCostsCommon):
     def test_stock_landed_costs_rounding(self):
-        # In order to test the rounding in landed costs feature of stock, I create 2 landed cost
 
-        # Define undivisible units
         product_uom_unit_round_1 = self.env.ref("uom.product_uom_unit")
         product_uom_unit_round_1.write(
             {
@@ -21,8 +19,6 @@ class TestStockLandedCostsRounding(TestStockLandedCostsCommon):
             }
         )
 
-        # I create 2 products with different cost prices and configure them for real_time
-        # valuation and real price costing method
         product_landed_cost_3 = self.env["product.product"].create(
             {
                 "name": "LC product 3",
@@ -58,7 +54,6 @@ class TestStockLandedCostsRounding(TestStockLandedCostsCommon):
             list(self.env["stock.picking"].fields_get())
         )
 
-        # I create 2 pickings moving those products
         vals = dict(
             picking_default_vals,
             name="LC_pick_3",
@@ -106,8 +101,6 @@ class TestStockLandedCostsRounding(TestStockLandedCostsCommon):
         vals = picking_landed_cost_4._convert_to_write(picking_landed_cost_4._cache)
         picking_landed_cost_4 = self.env["stock.picking"].create(vals)
 
-        # We perform all the tests for LC_pick_3
-        # I receive picking LC_pick_3, and check how many quants are created
         picking_landed_cost_3.move_ids.price_unit = 1.0
         picking_landed_cost_3.action_confirm()
         picking_landed_cost_3.action_assign()
@@ -120,7 +113,6 @@ class TestStockLandedCostsRounding(TestStockLandedCostsCommon):
             }
         )
 
-        # I create a landed cost for picking 3
         default_vals = self.env["stock.landed.cost"].default_get(
             list(self.env["stock.landed.cost"].fields_get())
         )
@@ -140,28 +132,21 @@ class TestStockLandedCostsRounding(TestStockLandedCostsCommon):
         vals = stock_landed_cost_2._convert_to_write(stock_landed_cost_2._cache)
         stock_landed_cost_2 = self.env["stock.landed.cost"].create(vals)
 
-        # I compute the landed cost using Compute button
         stock_landed_cost_2.compute_landed_cost()
 
-        # I check the valuation adjustment lines
         for valuation in stock_landed_cost_2.valuation_adjustment_lines:
             self.assertEqual(valuation.additional_landed_cost, 15)
 
-        # I confirm the landed cost
         stock_landed_cost_2.button_validate()
 
-        # I check that the landed cost is now "Closed" and that it has an accounting entry
         self.assertEqual(stock_landed_cost_2.state, "done")
         self.assertTrue(stock_landed_cost_2.account_move_id)
 
-        # We perform all the tests for LC_pick_4
-        # I receive picking LC_pick_4, and check how many quants are created
         picking_landed_cost_4.move_ids.price_unit = 17.0 / 12.0
         picking_landed_cost_4.action_confirm()
         picking_landed_cost_4.action_assign()
         picking_landed_cost_4._action_done()
 
-        # I create a landed cost for picking 4
         default_vals = self.env["stock.landed.cost"].default_get(
             list(self.env["stock.landed.cost"].fields_get())
         )
@@ -181,23 +166,17 @@ class TestStockLandedCostsRounding(TestStockLandedCostsCommon):
         vals = stock_landed_cost_3._convert_to_write(stock_landed_cost_3._cache)
         stock_landed_cost_3 = self.env["stock.landed.cost"].create(vals)
 
-        # I compute the landed cost using Compute button
         stock_landed_cost_3.compute_landed_cost()
 
-        # I check the valuation adjustment lines
         for valuation in stock_landed_cost_3.valuation_adjustment_lines:
             self.assertEqual(valuation.additional_landed_cost, 11)
 
-        # I confirm the landed cost
         stock_landed_cost_3.button_validate()
 
-        # I check that the landed cost is now "Closed" and that it has an accounting entry
         self.assertEqual(stock_landed_cost_3.state, "done")
         self.assertTrue(stock_landed_cost_3.account_move_id)
 
     def test_stock_landed_costs_rounding_02(self):
-        """The landed costs should be correctly computed, even when the decimal accuracy
-        of the deciaml price is increased."""
         self.env.ref("product.decimal_price").digits = 4
 
         fifo_pc = self.env["product.category"].create(
@@ -263,20 +242,6 @@ class TestStockLandedCostsRounding(TestStockLandedCostsCommon):
         )
 
     def test_stock_landed_costs_rounding_03(self):
-        """
-        Storable AVCO product
-        Receive:
-            5 @ 5
-            5 @ 8
-            5 @ 7
-            20 @ 7.33
-        Add landed cost of $5 to each receipt (except the first one)
-        Deliver:
-            23
-            2
-            10
-        At the end, the SVL value should be zero
-        """
         self.product_a.is_storable = True
         self.product_a.categ_id.property_cost_method = "average"
 
@@ -377,10 +342,6 @@ class TestStockLandedCostsRounding(TestStockLandedCostsCommon):
         self.assertEqual(self.product_a.value_svl, 0)
 
     def test_lc_cost_split_cumulative_rounding_diff(self):
-        """Ensure that the sum total difference of all rounding operations during the splitting of
-        an LC cost allots a sensible value to each cost line.
-        I.e., we don't end up with one line which bears the brunt of this difference.
-        """
         product = self.env["product.product"].create(
             {
                 "name": "product",

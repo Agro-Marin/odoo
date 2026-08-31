@@ -16,15 +16,6 @@ class TestSubcontractingDropshippingFlows(
         cls.warehouse.subcontracting_to_resupply = True
 
     def test_mrp_subcontracting_dropshipping_1(self):
-        """Mark the subcontracted product with the route dropship and add the
-        subcontractor as seller. The component has the routes 'MTO', 'Replenish
-        on order' and 'Buy'. Also another partner is set as vendor on the comp.
-        Create a SO and check that:
-        - Delivery between subcontractor and customer for subcontracted product.
-        - Delivery for the component to the subcontractor for the specified wh.
-        - Po created for the component.
-        """
-        # self.warehouse.manufacture_pull_id.route_id.write({'sequence': 20})
         self.env.ref("stock.route_warehouse0_mto").active = True
         mto_route = self.env["stock.route"].search(
             [("name", "=", "Replenish on Order (MTO)")]
@@ -35,7 +26,6 @@ class TestSubcontractingDropshippingFlows(
 
         partner = self.env["res.partner"].create({"name": "Toto"})
 
-        # Create a receipt picking from the subcontractor
         so_form = Form(self.env["sale.order"].sudo())
         so_form.partner_id = partner
         so_form.warehouse_id = self.warehouse
@@ -45,7 +35,6 @@ class TestSubcontractingDropshippingFlows(
         so = so_form.save()
         so.action_confirm()
 
-        # Pickings should directly be created
         po = self.env["purchase.order"].search([("origin", "ilike", so.name)])
         self.assertTrue(po)
 
@@ -93,11 +82,6 @@ class TestSubcontractingDropshippingFlows(
         self.assertTrue(po)
 
     def test_mrp_subcontracting_purchase_2(self):
-        """Let's consider a subcontracted BOM with 1 component. Tick "Resupply Subcontractor on Order" on the component and set a supplier on it.
-        Purchase 1 BOM to the subcontractor. Confirm the purchase and change the purchased quantity to 2.
-        Check that 2 components are delivered to the subcontractor
-        """
-        # Purchase 1 BOM to the subcontractor
         po = Form(self.env["purchase.order"])
         po.partner_id = self.subcontractor_partner1
         po.picking_type_id = self.warehouse.in_type_id
@@ -106,12 +90,9 @@ class TestSubcontractingDropshippingFlows(
             po_line.product_qty = 1
             po_line.price_unit = 100
         po = po.save()
-        # Confirm the purchase
         po.action_confirm()
-        # Check one delivery order with the component has been created for the subcontractor
         mo = self.env["mrp.production"].search([("bom_id", "=", self.bom.id)])
         self.assertEqual(mo.state, "confirmed")
-        # Check that 1 delivery with 1 component for the subcontractor has been created
         picking_delivery = mo.picking_ids
         wh = picking_delivery.picking_type_id.warehouse_id
         self.assertEqual(len(picking_delivery), 1)
@@ -123,14 +104,7 @@ class TestSubcontractingDropshippingFlows(
             picking_delivery.partner_id, self.subcontractor_partner1.parent_id
         )
 
-        # Change the purchased quantity to 2
         po.line_ids.write({"product_qty": 2})
-        # Two components must reach the subcontractor -- which is what this test is
-        # named for. It used to look for them on a *second* production: upstream splits
-        # one for the added quantity, while `_sync_subcontracting_productions` scales
-        # the existing one ("for untracked moves there will always be only 1
-        # production"). Asserting the mechanism rather than the outcome is what let the
-        # resupply sit at 1 while the production said 2.
         productions = self.env["mrp.production"].search([("bom_id", "=", self.bom.id)])
         self.assertEqual(productions, mo, "the production is scaled, not duplicated")
         self.assertEqual(mo.product_qty, 2)
@@ -150,13 +124,6 @@ class TestSubcontractingDropshippingFlows(
         self.assertEqual(sum(comp1_moves.mapped("product_qty")), 2)
 
     def test_dropshipped_component_and_sub_location(self):
-        """
-        Suppose:
-            - a subcontracted product and a component dropshipped to the subcontractor
-            - the location of the subcontractor is a sub-location of the main subcontrating location
-        This test ensures that the PO that brings the component to the subcontractor has a correct
-        destination address
-        """
         subcontract_location = self.subcontractor_partner1.property_stock_subcontractor
         self.subcontractor_partner1.parent_id = False
         sub_location = self.env["stock.location"].create(
@@ -192,12 +159,6 @@ class TestSubcontractingDropshippingFlows(
         self.assertEqual(dropship_po.dest_address_id, self.subcontractor_partner1)
 
     def test_po_to_customer(self):
-        """
-        Create and confirm a PO with a subcontracted move. The picking type of
-        the PO is 'Dropship' and the delivery address a customer. Then, process
-        a return with the stock location as destination and another return with
-        the supplier as destination
-        """
         grp_multi_loc = self.env.ref("stock.group_stock_multi_locations")
         self.env.user.write({"group_ids": [(4, grp_multi_loc.id)]})
 
@@ -243,7 +204,6 @@ class TestSubcontractingDropshippingFlows(
         self.assertEqual(mo.state, "done")
         self.assertEqual(po.line_ids.qty_transferred, 2)
 
-        # return 1 x P_finished to the stock location
         return_form = Form(
             self.env["stock.return.picking"].with_context(
                 active_ids=delivery.ids,
@@ -272,7 +232,6 @@ class TestSubcontractingDropshippingFlows(
             "One product has been returned to the stock location, so we should still consider it as received",
         )
 
-        # return 1 x P_finished to the supplier location
         return_form = Form(
             self.env["stock.return.picking"].with_context(
                 active_ids=delivery.ids,
@@ -295,11 +254,6 @@ class TestSubcontractingDropshippingFlows(
         self.assertEqual(po.line_ids.qty_transferred, 1)
 
     def test_po_to_subcontractor(self):
-        """
-        Create and confirm a PO with a subcontracted move. The bought product is
-        also a component of another subcontracted product. The picking type of
-        the PO is 'Dropship' and the delivery address is the other subcontractor
-        """
         subcontractor = self.env["res.partner"].create({"name": "Subcontractor"})
 
         component = self.env["product.product"].create(
@@ -359,12 +313,6 @@ class TestSubcontractingDropshippingFlows(
         self.assertEqual(po.line_ids.qty_transferred, 1.0)
 
     def test_subcontracted_bom_routes(self):
-        """
-        Take two BoM having those components. One being subcontracted and the other not.
-         - Compo RR : Buy & Reordering rule to resupply subcontractor.
-         - Compo DROP : Buy & Dropship.
-        Check that depending on the context, the right route is shown on the report.
-        """
         route_buy = self.env.ref("purchase_stock.route_warehouse0_buy")
         dropship_route = self.env["stock.route"].search(
             [("name", "=", "Dropship")], limit=1
@@ -427,7 +375,6 @@ class TestSubcontractingDropshippingFlows(
                 ]
             ]
         )
-        # Need to add the subcontractor as Vendor to have the bom read as subcontracted.
         self.comp1.write(
             {
                 "seller_ids": [
@@ -605,10 +552,6 @@ class TestSubcontractingDropshippingFlows(
         )
 
     def test_portal_subcontractor_record_production_with_dropship(self):
-        """
-        Check that a portal subcontractor is able to set serial numbers for
-        the final product (with a dropshipped component).
-        """
 
         portal_user = self.env["res.users"].create(
             {
@@ -658,12 +601,10 @@ class TestSubcontractingDropshippingFlows(
         subcontracted_mo = self.env["mrp.production"].search(
             [("bom_id", "=", self.bom.id)], limit=1
         )
-        # confirm the po to resuply the subcontractor
         po_dropship_subcontractor = self.env["purchase.order"].search(
             [("partner_id", "=", self.vendor.id)], limit=1
         )
         po_dropship_subcontractor.action_confirm()
-        # check that the dropship is linked to the subcontracted MO
         self.assertEqual(
             po_dropship_subcontractor.picking_ids.picking_type_id,
             self.company.dropship_subcontractor_pick_type_id,
@@ -671,7 +612,6 @@ class TestSubcontractingDropshippingFlows(
         self.assertEqual(
             po_dropship_subcontractor.picking_ids, subcontracted_mo.picking_ids
         )
-        # check that your subcontractor is able to modify the lot of the finished product
         action = (
             subcontracted_mo.incoming_picking.with_user(portal_user)
             .with_context(is_subcontracting_portal=True)
@@ -679,7 +619,6 @@ class TestSubcontractingDropshippingFlows(
         )
         move = po.picking_ids[0].move_ids.with_user(portal_user)
         move_form = Form(move.with_context(action["context"]), view=action["view_id"])
-        # Registering components for the first manufactured product
         with move_form.move_line_ids.edit(0) as ml:
             ml.lot_id = finished_serial
         move_form.save()

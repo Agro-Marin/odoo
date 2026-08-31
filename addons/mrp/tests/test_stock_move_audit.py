@@ -1,9 +1,3 @@
-"""Regression tests for the `mrp` layer of `stock.move`.
-
-Every test here was run against the commit before its fix and fails there; a
-regression test that passes on the broken code is worth nothing.
-"""
-
 from odoo import Command
 from odoo.exceptions import ValidationError
 from odoo.tests import tagged
@@ -56,8 +50,6 @@ class TestStockMoveAudit(TestMrpCommon):
         production.action_confirm()
         return production
 
-    # A move that carries both sides carries the same order on both
-
     def test_a_move_carrying_both_sides_names_one_order(self):
         component = self._make_product("Audit One Side Component")
         bom = self._make_bom(self.finished, [(component, 1.0)])
@@ -65,9 +57,6 @@ class TestStockMoveAudit(TestMrpCommon):
         other = self._confirmed_order(bom)
         raw_move = production.move_raw_ids
 
-        # Both sides pointing at the same order is a shape the tree produces --
-        # scrapping a component, moving an output into the component list -- and
-        # `_get_production` is free to answer with either.
         raw_move.production_id = production.id
         self.env.flush_all()
         self.assertEqual(raw_move._get_production(), production)
@@ -82,8 +71,6 @@ class TestStockMoveAudit(TestMrpCommon):
             with self.env.cr.savepoint():
                 raw_move.production_id = other.id
                 self.env.flush_all()
-
-    # Changing a by-product must not delete the record the caller holds
 
     def test_changing_a_by_product_keeps_the_move_the_caller_was_given(self):
         component = self._make_product("Audit Swap Component")
@@ -116,8 +103,6 @@ class TestStockMoveAudit(TestMrpCommon):
             "replace-the-move version was written for",
         )
 
-    # A cancelled component requires nothing, so it cannot hold the order back
-
     def test_a_cancelled_component_does_not_hold_the_order_back(self):
         kept = self._make_product("Audit Kept Component")
         cancelled = self._make_product("Audit Cancelled Component")
@@ -126,10 +111,6 @@ class TestStockMoveAudit(TestMrpCommon):
         states = {}
         for drop in ("delete", "cancel"):
             production = self._confirmed_order(bom, qty=10.0)
-            # Exactly one unit, in the order's own source location: enough for the
-            # single unit being produced, not enough for the whole order, so the
-            # move sits at `partially_available` and `super()` reaches the branch
-            # this test is about.
             self.env["stock.quant"]._update_available_quantity(
                 kept, production.location_src_id, 1
             )
@@ -160,8 +141,6 @@ class TestStockMoveAudit(TestMrpCommon):
             "reads Ready without it",
         )
 
-    # "Manual consumption" means the recorded quantity differs from the demand
-
     def test_a_quantity_that_matches_the_demand_is_not_a_manual_edit(self):
         component = self._make_product("Audit Rounding Component")
         bom = self._make_bom(self.finished, [(component, 1.0)])
@@ -170,8 +149,6 @@ class TestStockMoveAudit(TestMrpCommon):
         uom = raw_move.product_uom_id
 
         demand = raw_move.product_uom_qty
-        # A quantity one bit away from the demand and equal to it at the unit's
-        # precision -- what a UoM round-trip produces.
         recorded = demand - 1e-15
         self.assertEqual(
             uom.compare(demand, recorded),
@@ -200,8 +177,6 @@ class TestStockMoveAudit(TestMrpCommon):
             raw_move.manual_consumption,
             "a genuinely different quantity is still a manual edit",
         )
-
-    # A kit component is numbered the same however it is read
 
     def test_kit_components_are_numbered_the_same_alone_or_together(self):
         kit = self._make_product("Audit Kit")
@@ -232,9 +207,6 @@ class TestStockMoveAudit(TestMrpCommon):
         )
         picking.action_confirm()
         moves = picking.move_ids.sorted("id")
-        # `action_explode` writes `description_picking`, which fires its inverse and
-        # pins `description_picking_manual`, so this path carries no numbering at
-        # all. Number them by hand through the procurement path's own compute.
         moves.description_picking_manual = False
         self.env.flush_all()
         self.env.invalidate_all()
@@ -258,8 +230,6 @@ class TestStockMoveAudit(TestMrpCommon):
                 "and the answer must not depend on how many siblings the reader "
                 "happened to ask for",
             )
-
-    # `should_consume_qty` follows every field its formula reads
 
     def test_should_consume_qty_follows_the_quantity_already_produced(self):
         component = self._make_product("Audit Consume Component")
@@ -292,8 +262,6 @@ class TestStockMoveAudit(TestMrpCommon):
             "either moved survived the transaction",
         )
 
-    # One formula for "what the order still expects of this move"
-
     def test_the_quantity_to_process_has_one_definition(self):
         component = self._make_product("Audit Formula Component")
         bom = self._make_bom(self.finished, [(component, 3.0)])
@@ -313,8 +281,6 @@ class TestStockMoveAudit(TestMrpCommon):
                 * raw_move.unit_factor
             ),
         )
-
-    # Cancelling two outputs of one order reports both
 
     def test_cancelling_two_outputs_of_one_order_reports_both(self):
         component = self._make_product("Audit Log Component")
@@ -367,8 +333,6 @@ class TestStockMoveAudit(TestMrpCommon):
             "let the second drop the first's cancellations from the note",
         )
 
-    # Neither hot path scales its reads with the number of records
-
     def test_exploding_kits_does_not_scale_the_bom_lookup(self):
         def confirm_kits(count, tag):
             kits = []
@@ -417,9 +381,6 @@ class TestStockMoveAudit(TestMrpCommon):
         few = confirm_kits(2, "Few")
         many = confirm_kits(10, "Many")
 
-        # `explode()` legitimately looks up one BoM per kit it walks, so the count
-        # cannot be flat. What must not scale is `action_explode`'s own lookup,
-        # which used to add two further calls per move on top of that.
         self.assertLessEqual(
             many - few,
             10 - 2,
@@ -462,9 +423,6 @@ class TestStockMoveAudit(TestMrpCommon):
         few = create_for(2)
         many = create_for(20)
 
-        # `create` itself does some per-move work whatever we do here, so the count
-        # cannot be flat either. What must not appear is the extra round trip per
-        # *order* that browsing each one alone was paying.
         self.assertLess(
             many - few,
             2 * (20 - 2),

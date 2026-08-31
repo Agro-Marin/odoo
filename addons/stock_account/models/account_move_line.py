@@ -4,7 +4,7 @@ from odoo import api, fields, models
 class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
 
-    cogs_origin_id = fields.Many2one(  # technical field used to keep track in the originating line of the anglo-saxon lines
+    cogs_origin_id = fields.Many2one(
         comodel_name="account.move.line",
         copy=False,
         index="btree_not_null",
@@ -55,10 +55,8 @@ class AccountMoveLine(models.Model):
         return -price_unit if self.move_id.move_type == "in_refund" else price_unit
 
     def _get_cogs_value(self):
-        """Get the COGS price unit in the product's default unit of measure."""
         self.check_singleton()
 
-        # Use original invoice price_unit if there is one and product is not fifo
         if self.product_id.cost_method in ["standard", "average"]:
             original_lines = self._get_lines_from_original_invoice()
             original_line = original_lines and original_lines[0]

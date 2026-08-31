@@ -371,13 +371,6 @@ class StockWarehouseOrderpoint(models.Model):
 
     @api.constrains("product_id")
     def _check_product_is_not_kit(self):
-        # `_get_kit_domain`, not a fourth hand-spelled copy. The company here
-        # is the orderpoint's own rather than the environment's, which is why
-        # the helper takes one. The `active` clause it gains is a no-op under
-        # the default context -- `search_count` filters archived rows itself --
-        # and matters only when the write that triggers this constraint carries
-        # `active_test=False`, where the copy refused a reordering rule over a
-        # phantom BoM nothing will ever explode.
         Bom = self.env["mrp.bom"]
         domain = Bom._get_kit_domain(self.company_id) & (
             Domain("product_id", "in", self.product_id.ids)

@@ -22,7 +22,6 @@ class SaleOrder(models.Model):
         sol = super()._create_delivery_line(carrier, price_unit)
         context = {}
         if self.partner_id:
-            # set delivery detail in the customer language
             context["lang"] = self.partner_id.lang
         if carrier.invoice_policy == "real":
             sol.update(
@@ -38,7 +37,6 @@ class SaleOrder(models.Model):
         del context
         return sol
 
-    # to remove in master
     def _format_currency_amount(self, amount):
         pre = post = ""
         if self.currency_id.position == "before":

@@ -6,11 +6,6 @@ from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 class ValuationReconciliationTestCommon(AccountTestInvoicingCommon):
-    """Base class for tests checking interim accounts reconciliation works
-    in anglosaxon accounting. It sets up everything we need in the tests, and is
-    extended in both sale_stock and purchase modules to run the 'true' tests.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -58,7 +53,6 @@ class ValuationReconciliationTestCommon(AccountTestInvoicingCommon):
     def collect_company_accounting_data(cls, company):
         company_data = super().collect_company_accounting_data(company)
 
-        # Create stock config.
         company_data.update(
             {
                 "default_account_stock_valuation": cls.env["account.account"]

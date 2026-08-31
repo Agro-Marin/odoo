@@ -67,15 +67,6 @@ CONTEXT_BLOCK_SKIP_HOOKS = "stock_blocked_skip_hooks"
 CONTEXT_BLOCK_BYPASS = "bypass_blocked_locations"
 
 INTERNAL_CONTEXT_FLAG = object()
-"""Marker proving a blocking context key was set here and not by an RPC caller.
-
-Every gate around a blocked location keys off the context, and the web client
-controls the context of every ``call_kw``. A plain ``True`` therefore lets anyone
-forge ``stock_blocked_completing`` and walk stock out of a soft-blocked location.
-A module-level object is unforgeable across the JSON boundary, stays hashable so
-``Environment`` is still cached, and is stable so ``with_context`` does not churn
-environments.
-"""
 
 
 def is_internal_flag(context, key):
@@ -83,23 +74,10 @@ def is_internal_flag(context, key):
 
 
 def internal_payload(value):
-    """Wrap a value so a context key can carry data AND prove it is internal.
-
-    ``is_internal_flag`` only answers yes/no, so a key that must also carry a
-    payload cannot use it -- and hand-rolling the identity check per call site
-    is how one of the five blocking keys ended up on a private protocol the
-    shared helper silently reports as forged. Pair this with
-    ``read_internal_payload``.
-    """
     return (INTERNAL_CONTEXT_FLAG, value)
 
 
 def read_internal_payload(context, key, default=None):
-    """Return the payload stored by ``internal_payload``, or ``default``.
-
-    ``default`` is what an untrusted or absent value collapses to, so it must
-    stay distinguishable from a legitimately empty payload.
-    """
     stored = context.get(key)
     if (
         isinstance(stored, tuple)

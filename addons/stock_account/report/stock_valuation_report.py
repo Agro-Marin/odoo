@@ -18,15 +18,10 @@ class StockValuationReport(models.AbstractModel):
 
     def _get_report_data(self, date=False, product_category=False):
         company = self.env.company
-        # Check if date is a string instance
         if isinstance(date, str):
             date = fields.Date.from_string(date)
         if date == fields.Date.context_today(self):
             date = False
-        # PERF: only products holding stock contribute to the valuation. Match the
-        # context used by total_value so qty_available scopes to valued internal locations.
-        # Lot-valuated products are kept regardless because their value is summed from lots.
-        # sudo: qty_available expands kit BoMs (mrp.bom) which accounting users cannot read.
         valued_product_context = (
             self.env["product.product"]
             .sudo()
@@ -77,7 +72,6 @@ class StockValuationReport(models.AbstractModel):
             ),
         }
 
-        # Compute Opening Balance values and Ending Stock values.
         for account in accounts:
             opening_balance = accounting_data.get(account, 0)
             ending_balance = inventory_data.get(account, 0)
@@ -93,7 +87,6 @@ class StockValuationReport(models.AbstractModel):
                     ending_balance
                 )
 
-        # Get accounting data.
         stock_valuation_account_vals = company.with_context(
             inventory_data=inventory_data
         )._get_stock_valuation_account_vals(
@@ -108,8 +101,6 @@ class StockValuationReport(models.AbstractModel):
         }
 
         if self._must_include_inventory_loss():
-            # Compute Inventory Loss values. Only the inventory-usage locations are
-            # relevant here, so this valuation is computed lazily inside the guard.
             location_valuation_vals = company._get_location_valuation_vals(
                 date,
                 location_domain=[("usage", "=", "inventory")],
@@ -139,7 +130,6 @@ class StockValuationReport(models.AbstractModel):
             ]
             report_data["inventory_loss"] = inventory_loss
 
-        # Compute Stock Variation values.
         stock_variation = {
             "label": _("Stock Variation"),
             "value": 0,

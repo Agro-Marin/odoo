@@ -16,9 +16,7 @@ class MrpProduction(models.Model):
         inverse="_inverse_move_line_raw_ids",
         compute="_compute_move_line_raw_ids",
     )
-    subcontracting_has_been_recorded = fields.Boolean(
-        "Has been recorded?", copy=False
-    )  # TODO: remove in master
+    subcontracting_has_been_recorded = fields.Boolean("Has been recorded?", copy=False)
     subcontractor_id = fields.Many2one(
         "res.partner",
         string="Subcontractor",
@@ -163,23 +161,6 @@ class MrpProduction(models.Model):
         return self.move_finished_ids.move_dest_ids.filtered(lambda m: m.is_subcontract)
 
     def _get_covered_component_qties(self):
-        """How much of each component's demand is already covered, per raw move id.
-
-        In the shape `stock.move._run_procurement` wants for `old_qties`: what it is
-        asked to leave alone, so that it procures the remainder.
-
-        For a component fed by a chain, that is what the upstream moves actually carry --
-        not the demand this production had a moment ago. The difference matters when a
-        subcontractor records less and then records the full quantity again: the demand
-        drops and climbs back, while the components were sent once and still cover it.
-        Read as a delta against the previous demand, the climb looked like a fresh
-        increase and shipped the difference a second time, every time.
-
-        A component with no upstream move is supplied by something that is not a move --
-        a purchase order line, most often -- which these links cannot see and must not be
-        judged from. Those keep the previous demand, which is what `mrp`'s own
-        quantity-change path already uses for them.
-        """
         covered = {}
         for production in self:
             for raw in production.move_raw_ids:

@@ -1502,7 +1502,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         return made
 
     def _availability_state_by_scan(self, value):
-        """What _search_components_availability_state did before it pre-filtered."""
         open_orders = self.env["mrp.production"].search(
             [("state", "in", ("confirmed", "progress", "to_close"))]
         )
@@ -1732,8 +1731,6 @@ class TestMrpAuditFixes(TestMrpCommon):
             "property_stock_production, with no company fallback",
         )
 
-        # the compute, which is what an unsaved form row shows and what a move
-        # linked to the order after the fact gets
         linked = self.env["stock.move"].create(
             {
                 "product_id": component.id,
@@ -2008,16 +2005,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
 
     def test_reservation_state_follows_the_bom_it_asks_about(self):
-        """`reservation_state` is stored, and its inputs include the BoM.
-
-        On `partially_available` raw moves the compute asks the BoM whether it is
-        happy to start (`ready_to_produce == 'asap'`) and, if so, whether the
-        *first operation's* components are reserved.  Neither `bom_id.
-        ready_to_produce` nor the operation the moves hang off was declared, so
-        flipping the BoM left a wrong value on disk: the order below reads
-        `confirmed` and stays there, while recomputing by hand answers
-        `assigned`.
-        """
         first, second, finished = self.env["product.product"].create(
             [
                 {"name": "Ready First", "is_storable": True},
@@ -2093,22 +2080,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
 
     def test_one_bom_is_exploded_once_for_a_whole_batch_of_orders(self):
-        """Twenty orders on one BoM resolve its kit closure once, not twenty times.
-
-        `_get_moves_raw_values` is called one order at a time by
-        `_compute_move_raw_ids` and by `_get_consumption_issues`, and `_explode`
-        opened a fresh scratch per call, so `_get_kit_closure` re-ran `_bom_find`
-        once per *order* at every level of the kit tree.
-
-        The scratch could not be shared even when a caller passed one: it is a
-        dict, an empty dict is falsy, and `_explode` reached for it with
-        `context.get(...) or ExplodeScratch()` -- which replaces the caller's
-        exactly while it is still empty, and it can only stop being empty through
-        the object that was just replaced.
-
-        Measured as a marginal cost rather than an absolute count, so a cheaper
-        explosion elsewhere cannot make the assertion vacuous.
-        """
         kit_component, leaf, finished = self.env["product.product"].create(
             [
                 {"name": "Batch Kit", "is_storable": True},
@@ -2168,12 +2139,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
 
     def test_show_lot_ids_follows_its_components_tracking(self):
-        """The lot column is shown when a component is tracked -- as of now.
-
-        `_compute_show_lot_ids` reads `move_raw_ids.product_id.tracking` and
-        declared only the moves, so switching a component to serial tracking left
-        the column hidden: the field is not stored, and nothing invalidated it.
-        """
         component, finished = self.env["product.product"].create(
             [
                 {"name": "Lot Column Component", "is_storable": True},
@@ -2204,15 +2169,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
 
     def test_splitting_two_orders_of_one_group_numbers_them_apart(self):
-        """One call may split several orders that share a production group.
-
-        `_create_split_backorders` read the group's high-water backorder sequence
-        inside its per-order loop, and the backorders are only created *after* it,
-        so the second order could not see the sequences the first had already
-        claimed. Both got the same number and therefore the same name, which the
-        `mrp_production_name_uniq` index rejects: a UniqueViolation out of one
-        Mark Done over an order and its own backorder, not a wrong number.
-        """
         component, finished = self.env["product.product"].create(
             [
                 {"name": "Split Seq Component", "is_storable": True},
@@ -2258,13 +2214,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
 
     def test_the_kit_closure_memo_is_keyed_on_the_company_that_resolved_it(self):
-        """`_bom_find_domain` reads `context["company_id"]` when it is handed a falsy
-        company -- which `_get_kit_closure` passes for every company-less parent BoM.
-
-        The memo those closures are cached on is keyed on the BoM, so without the
-        company in the key one reader's answer is served to the next: measured, the
-        second company got the first company's kit resolution.
-        """
         other = self.env["res.company"].create({"name": "Kit Memo Co"})
         kit, first, second, finished = self.env["product.product"].create(
             [
@@ -2315,15 +2264,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.assertNotEqual(*resolved.values())
 
     def test_the_unbuild_bom_lookup_is_the_same_answer_in_a_batch(self):
-        """`_compute_bom_id` now asks `_bom_find` once per company instead of once per
-        order, which moves it off the `len(products) == 1` branch onto the batched one.
-
-        A characterisation test, not a regression test: it passes on the per-record
-        code too, and is here to hold the property that change *relies* on -- that
-        the two branches of `_bom_find` answer the same thing, including where a
-        variant BoM and a template-wide BoM compete on sequence, which is the case
-        the batched branch resolves through its own template fallback map.
-        """
         attribute = self.env["product.attribute"].create(
             {
                 "name": "Unbuild Batch Size",
@@ -2379,7 +2319,6 @@ class TestMrpAuditFixes(TestMrpCommon):
                 ]
             )
             products |= template.product_variant_ids
-        # a product with no BoM at all has to survive the grouped lookup too
         products |= self.env["product.product"].create(
             {"name": "Unbuild No Bom", "is_storable": True}
         )
@@ -2403,18 +2342,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.assertTrue(any(one_at_a_time), "the fixture must resolve at least one BoM")
 
     def test_production_capacity_counts_the_components_that_have_stock(self):
-        """`production_capacity` answers "how many can I actually make".
-
-        It filtered its raw moves on `product_id.type != "consu"`. In 19.0 `type` is
-        consu / service / combo and stockability is `is_storable`, so that test
-        selected services and combos -- which have no `qty_available`, and which
-        `_get_moves_raw_values` never builds a raw move for in the first place. The
-        filter matched nothing, the branch under it was dead, and the field returned
-        `product_qty` unchanged: 1000 producible against 7 components in stock.
-
-        `mrp_report_bom_structure._compute_current_production_capacity` is the same
-        question asked of the BoM, and it has always filtered on `is_storable`.
-        """
         component, finished = self.env["product.product"].create(
             [
                 {"name": "Capacity Component", "is_storable": True},
@@ -2451,7 +2378,6 @@ class TestMrpAuditFixes(TestMrpCommon):
             "14 components at 2 per unit is 7 units, not the 1000 asked for",
         )
 
-        # and it must follow the stock it is reporting on
         self.env["stock.quant"]._update_available_quantity(
             component, warehouse.lot_stock_id, 6.0
         )
@@ -2459,15 +2385,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.assertEqual(production.production_capacity, 10.0)
 
     def test_changing_the_quantity_closes_a_work_order_that_is_already_done(self):
-        """`change.production.qty` decided a work order's state with `<` and `==`.
-
-        Those are not complements. A work order that has produced *more* than the
-        order now asks for -- which is exactly what cutting the quantity below what
-        is already made produces -- satisfied neither, so it stayed at `progress`
-        with nothing left to do and no way out. `mrp.workorder.is_produced` is the
-        model's own answer to the same question, rounded through the order's unit,
-        and the two branches are now its two sides.
-        """
         component, finished = self.env["product.product"].create(
             [
                 {"name": "Reopen Component", "is_storable": True},
@@ -2518,7 +2435,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
 
     def test_changing_the_quantity_reopens_a_work_order_that_is_not_done(self):
-        """The other side of the same predicate still fires."""
         component, finished = self.env["product.product"].create(
             [
                 {"name": "Reopen2 Component", "is_storable": True},
@@ -2562,15 +2478,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.assertEqual(workorder.state, "progress")
 
     def test_show_allocation_answers_the_same_thing_for_a_whole_list(self):
-        """`show_allocation` is now decided per (warehouse, acceptable states), not
-        per order — one `search_count(limit=1)` each was 50 of the 58 queries and
-        46 ms of the 46 for a list of fifty.
-
-        Six conditions had to survive the batching, and each gets its own order here
-        whose finished product carries exactly the moves that condition is about and
-        nothing else. Every one of them was checked by breaking the implementation in
-        that one way and confirming this test goes red.
-        """
         warehouse = self.env["stock.warehouse"].search([], limit=1)
         other_warehouse = self.env["stock.warehouse"].search(
             [("id", "!=", warehouse.id), ("company_id", "=", warehouse.company_id.id)],
@@ -2727,20 +2634,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
 
     def test_operation_durations_are_sampled_in_one_query_for_the_whole_bom(self):
-        """`time_cycle` averages each operation's last `time_mode_batch` work orders.
-
-        That is a top-N-per-group, and it used to be one `search(limit=N)` per
-        operation -- 50 of the 59 queries a list of fifty computed operations cost.
-        It is now `ROW_NUMBER() OVER (PARTITION BY operation_id ...)`, grouped by
-        `time_mode_batch` so N is constant inside each query: one query per distinct
-        batch size, which is one unless somebody changed the default.
-
-        The window has to reproduce `date_end desc, id desc` exactly, so the history
-        below carries ties on `date_end` and unset `date_end` values, and the batch
-        sizes differ per operation. Each of PARTITION BY, the sort direction, the id
-        tiebreak and the per-group N was checked by breaking it and confirming this
-        test goes red.
-        """
         workcenter = self.env["mrp.workcenter"].create({"name": "Sampling WC"})
         component, finished = self.env["product.product"].create(
             [
@@ -2830,7 +2723,6 @@ class TestMrpAuditFixes(TestMrpCommon):
             "the windowed sample must be the same rows, in the same order",
         )
 
-        # an operation with no history at all falls back to its manual duration
         idle = self.env["mrp.routing.workcenter"].create(
             {
                 "name": "sample op idle",
@@ -2846,8 +2738,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
         self.assertEqual(idle.time_cycle, 42.0)
 
-        # The invariant is not "few queries" but "one per distinct batch size",
-        # which is what stops it scaling with the number of operations.
         all_operations = bom.operation_ids
         distinct_batches = set(all_operations.mapped("time_mode_batch"))
         self.assertGreater(len(all_operations), len(distinct_batches))
@@ -2875,16 +2765,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
 
     def test_a_manufacturing_manager_is_not_narrowed_by_its_own_acl_row(self):
-        """`mrp.group_mrp_manager` implies `mrp.group_mrp_user`, and access rights
-        are a union, so a manager-scoped row that grants *less* than the user row
-        grants nothing at all.
-
-        Two such rows existed -- read-only `mrp.production` and read-only
-        `resource.calendar.leaves` for Administrator -- and they read as
-        restrictions on a manager while changing nothing. They are gone; this pins
-        what actually decides a manager's rights, so removing the *user* row on the
-        belief that the manager row covers it fails here.
-        """
         manager = self.env["res.users"].create(
             {
                 "name": "Rights Manager",
@@ -2906,18 +2786,6 @@ class TestMrpAuditFixes(TestMrpCommon):
                 )
 
     def test_the_catalog_edits_a_bom_and_an_order_through_one_implementation(self):
-        """`mrp.bom` and `mrp.production` carried the same `_update_order_line_info`.
-
-        Both edit lines held in a child field named by the caller; only the field
-        that carries the quantity differed. That body now lives once on
-        `mixin.catalog.child.lines`, with the two hooks naming the quantity field,
-        and this exercises both consumers through it.
-
-        The ordering in `_inherit` is load-bearing: `mixin.product.catalog` leaves
-        `_update_order_line_info` a `return 0` stub, and the first entry wins the
-        method resolution order — listed the other way round, every call below
-        returns 0 and changes nothing.
-        """
         first, second, finished = self.env["product.product"].create(
             [
                 {"name": "Catalog First", "is_storable": True},
@@ -2967,9 +2835,6 @@ class TestMrpAuditFixes(TestMrpCommon):
                 added = record[child_field].filtered(
                     lambda l, second=second: l.product_id == second
                 )
-                # `stock.move.product_uom_qty` is computed and stored from
-                # `product_qty`, so a value passed to `create` is overwritten and
-                # only the write after it survives -- which is why the mixin does one.
                 self.assertEqual(
                     added[quantity_field], 4.0, "a new line keeps its quantity"
                 )
@@ -2998,14 +2863,6 @@ class TestMrpAuditFixes(TestMrpCommon):
                 )
 
     def test_a_workorder_that_cannot_be_planned_says_why_and_where(self):
-        """`_get_first_available_slot` already returns the reason it found nothing.
-
-        Both sweeps over the candidate work centres -- `_plan_workorder` and the BoM
-        report's `_simulate_operation_planning` -- threw it away and raised a fixed
-        sentence naming neither the work order, nor which work centres were tried,
-        nor the horizon that was searched. They now share one helper on
-        `mrp.workcenter`, which collects the reasons and reports them.
-        """
         empty_calendar = self.env["resource.calendar"].create(
             {"name": "Never Open", "attendance_ids": [Command.clear()]}
         )
@@ -3064,7 +2921,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
 
     def test_the_slot_sweep_refuses_a_workcenter_with_no_calendar(self):
-        """The check both sweeps carried moved into the helper with them."""
         workcenter = self.env["mrp.workcenter"].create({"name": "Calendar Free"})
         workcenter.resource_calendar_id = False
         with self.assertRaises(UserError) as caught:
@@ -3072,7 +2928,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.assertIn(workcenter.name, str(caught.exception))
 
     def test_the_slot_sweep_reports_having_no_workcenter_at_all(self):
-        """An empty candidate set is not the same failure as a full diary."""
         empty = self.env["mrp.workcenter"]
         best, reasons = empty._pick_earliest_slot(datetime(2026, 1, 1, 8, 0), {})
         self.assertIsNone(best)
@@ -3080,12 +2935,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.assertIn("no work center", empty._unplannable_error("WO/1", reasons))
 
     def test_work_order_efficiency_follows_the_duration_it_is_measured_against(self):
-        """`duration_percent` is stored and is a ratio to `duration_expected`.
-
-        That input was not declared, so raising the expectation left the old
-        efficiency on disk -- 100% where the truth is 75%. The field carries
-        `aggregator="avg"`, so it feeds reporting rather than only a form.
-        """
         component, finished = self.env["product.product"].create(
             [
                 {"name": "Efficiency Component", "is_storable": True},
@@ -3131,14 +2980,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
 
     def test_an_unbuild_defaults_to_what_the_order_produced_however_it_is_created(self):
-        """`product_qty` carried both a `default` and `precompute=True`.
-
-        `_add_missing_default_values` puts the default into `vals`, and a precomputed
-        field already in `vals` is not computed — so the compute was dead on the
-        create path. The form offered the order's produced quantity while
-        `create({"mo_id": ...})` recorded 1: an API call, an import or another module
-        unbuilt one unit where the user would have seen seven.
-        """
         component, finished = self.env["product.product"].create(
             [
                 {"name": "Unbuild Qty Component", "is_storable": True},
@@ -3177,7 +3018,6 @@ class TestMrpAuditFixes(TestMrpCommon):
             "creating an unbuild must offer what the form offers",
         )
 
-        # the cases the default used to cover
         self.assertEqual(
             self.env["mrp.unbuild"].create({"product_id": finished.id}).product_qty,
             1.0,
@@ -3199,10 +3039,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
 
     def test_the_serial_badge_follows_the_tracking_it_asks_about(self):
-        """`serial_numbers_count` is zero unless the product is serial-tracked, so the
-        tracking is one of its inputs. Only `lot_producing_ids` was declared, so the
-        badge kept reading 1 after the product was switched to lot tracking.
-        """
         component, finished = self.env["product.product"].create(
             [
                 {"name": "Serial Badge Component", "is_storable": True},
@@ -3272,14 +3108,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         return production
 
     def test_serial_numbers_can_cover_less_than_the_whole_order(self):
-        """`action_split_and_assign_serials` splits into one order per serial.
-
-        `_get_split_amounts` appends the leftover as one *more* order when the serials
-        do not cover the quantity, and the orders were zipped strictly against the
-        serials — so supplying one serial for an order of five died with
-        `ValueError: zip() argument 2 is shorter than argument 1`, a traceback rather
-        than a message, for an ordinary thing to want.
-        """
         production = self._serial_fixture("Partial Serials", 5.0)
         wizard = self.env["mrp.production.serials"].create(
             {"production_id": production.id, "serial_numbers": "PART-1"}
@@ -3297,12 +3125,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
 
     def test_a_serial_typed_twice_is_folded_once_everywhere(self):
-        """The onchange folded repeats and `_parse_serial_numbers` did not.
-
-        The form and every other caller therefore saw different lists, and the split
-        path sized itself from one and paired against the other. Both now go through
-        `_serial_names`.
-        """
         production = self._serial_fixture("Repeated Serials", 3.0)
         wizard = self.env["mrp.production.serials"].create(
             {"production_id": production.id, "serial_numbers": "DUP-1\nDUP-1\nDUP-2"}
@@ -3323,16 +3145,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
 
     def test_setting_the_consumed_quantity_is_decided_by_the_total(self):
-        """`action_set_qty` resets a component's consumption to what the order expects.
-
-        When the component sits on several raw moves the whole expected quantity goes
-        on the first and the rest are cleared — a rule the code only expressed through
-        `line.product_expected_qty_uom = 0` *inside* the loop over those moves, with
-        the conversion recomputed from that same field on each pass. It read as "set
-        every matching move to the expected quantity" while doing the opposite, and
-        hoisting the conversion out of the loop -- the obvious tidy-up -- would have
-        doubled the total. This pins the rule so it cannot drift silently.
-        """
         component, finished = self.env["product.product"].create(
             [
                 {"name": "Consumption Component", "is_storable": True},
@@ -3401,16 +3213,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
 
     def test_exploding_many_moves_of_one_kit_resolves_it_once(self):
-        """`action_explode` asks `_explode` once per *move*.
-
-        Each of those opened its own explosion scratch, so twenty delivery lines of
-        the same kit resolved that kit's closure twenty times over. One scratch for
-        the batch — inherited by the recursion into nested kits through `self.env` —
-        makes the cost of a move independent of how many moves there are.
-
-        Asserted as a marginal cost, so a cheaper explosion elsewhere cannot make it
-        vacuous.
-        """
         warehouse = self.env["stock.warehouse"].search([], limit=1)
         customers = self.env.ref("stock.stock_location_customers")
         leaves = self.env["product.product"].create(

@@ -25,7 +25,9 @@ class MrpBomLine(models.Model):
     )
     sequence = fields.Integer(default=1)
     parent_product_tmpl_id = fields.Many2one(
-        "product.template", "Parent Product Template", related="bom_id.product_tmpl_id"
+        "product.template",
+        "Parent Product Template",
+        related="bom_id.product_tmpl_id",
     )
     operation_id = fields.Many2one(
         "mrp.routing.workcenter",
@@ -33,7 +35,9 @@ class MrpBomLine(models.Model):
         help="The operation where the components are consumed, or the finished products created.",
     )
     child_bom_id = fields.Many2one(
-        "mrp.bom", "Sub BoM", compute="_compute_child_bom_id"
+        "mrp.bom",
+        "Sub BoM",
+        compute="_compute_child_bom_id",
     )
     child_line_ids = fields.One2many(
         "mrp.bom.line",
@@ -41,15 +45,13 @@ class MrpBomLine(models.Model):
         compute="_compute_child_line_ids",
     )
     attachments_count = fields.Integer(
-        "Attachments Count", compute="_compute_attachments_count"
+        "Attachments Count",
+        compute="_compute_attachments_count",
     )
     tracking = fields.Selection(related="product_id.tracking")
 
     @api.depends("product_id", "bom_id.company_id", "bom_id.picking_type_id")
     def _compute_child_bom_id(self):
-        # Scoped the way explode() and every procurement caller scope it. Left
-        # unscoped, a user allowed in several companies is shown a Sub BoM that
-        # manufacturing will not use.
         Bom = self.env["mrp.bom"]
         for (company, picking_type), lines in self.grouped(
             lambda line: (line.bom_id.company_id, line.bom_id.picking_type_id)
@@ -117,10 +119,6 @@ class MrpBomLine(models.Model):
         "bom_product_template_attribute_value_ids",
     )
 
-    #: Fields whose change on an existing line makes the BoM's in-progress
-    #: productions outdated. Mirrors `mrp.bom._OUTDATING_FIELDS`: writing a
-    #: line directly (bypassing `mrp.bom.write()`) used to leave
-    #: `is_outdated_bom` stale.
     _OUTDATING_FIELDS = ("product_id", "product_qty", "product_uom_id")
 
     @api.model_create_multi
@@ -129,8 +127,6 @@ class MrpBomLine(models.Model):
         lines.bom_id.with_context(
             skip_bom_outdated_unmark=True
         )._update_outdated_bom_in_productions()
-        # The thread recorded that a component changed and that one was removed,
-        # and said nothing about one being added.
         if not self._chatter_is_muted():
             for bom, added in lines.grouped("bom_id").items():
                 bom.message_post(
@@ -302,8 +298,6 @@ class MrpBomLine(models.Model):
                     </p>"""),
             "limit": 80,
             "context": context,
-            # The product-flavoured views, not `documents`' own: this is the BoM
-            # attachments list, not the Documents app.
             "views": [
                 (
                     self.env.ref(
@@ -330,16 +324,6 @@ class MrpBomLine(models.Model):
         }
 
     def _get_still_used_notification(self):
-        """Warn that the products just archived remain components of a live BoM.
-
-        ``product.template`` and ``product.product`` archive the same way and
-        differ only in how they select these lines, so the notification --
-        including the sentence a translator keeps in sync -- is built once,
-        here, where the lines live.
-
-        Returns ``None`` when there is nothing to warn about, so the caller
-        keeps whatever ``action_archive`` returned.
-        """
         products = self.product_id
         if not products:
             return None
@@ -360,12 +344,6 @@ class MrpBomLine(models.Model):
         }
 
     def _get_exploded_kit_quantity(self, bom, line_quantity, ancestors):
-        """How much of `bom` this line calls for, in `bom`'s own unit.
-
-        Also the point at which a kit that contains itself is caught: the
-        explosion reaches it at run time, where the constraint that should have
-        refused it cannot.
-        """
         self.check_singleton()
         if self.product_id.id in ancestors:
             raise ValidationError(

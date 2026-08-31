@@ -38,10 +38,6 @@ PROCUREMENT_PRIORITIES = [("0", "Normal"), ("1", "Urgent")]
 
 GENERATED_LOT_VALS_MAX = 10000
 
-# The third value `_convert_string_into_field_data` may return: the part parsed
-# as a field this installation does not use, so drop it without treating it as
-# the lot name. Only overrides produce it -- product_expiry, for a product with
-# no expiration date -- so `stock` alone never shows where it comes from.
 FIELD_DATA_IGNORED = "ignore"
 
 
@@ -1772,9 +1768,6 @@ class StockMove(models.Model):
     def _action_assign(self, force_qty=False):
         assigned_moves_ids = OrderedSet()
         partially_available_moves_ids = OrderedSet()
-        # What this run has already committed to taking. Every move reserving
-        # against a shared origin must see it, or two siblings take the same
-        # upstream line.
         reserved_by_this_run = OrderedSet()
         ledger = ReservationLedger()
         moves_to_redirect = OrderedSet()
@@ -1785,10 +1778,6 @@ class StockMove(models.Model):
         for move in moves_to_assign.with_context(
             quants_cache=quants_cache,
             preserve_state=True,
-            # Also in the context because _update_reserved_quantity is called
-            # from outside any run of this method -- point_of_sale reserves a
-            # matched lot directly -- and those callers create their lines
-            # immediately instead of batching into the ledger.
             reservation_ledger=ledger,
         ):
             move = move.with_company(move.company_id)
@@ -1997,9 +1986,6 @@ class StockMove(models.Model):
         return True
 
     def _action_done(self, cancel_backorder=False):
-        # Rebound rather than threaded through the few call sites below: every
-        # blocked-location gate this method reaches keys off the context, and a
-        # site left on the unbound self is a gate that silently sees no block.
         self = self.with_context(**self._blocked_completion_context())
 
         moves = self.filtered(lambda move: move.state == "draft")._action_confirm(
@@ -2968,9 +2954,6 @@ class StockMove(models.Model):
         walk = self.env.context.get("_upstream_walk")
         if walk is not None:
             return self._walk_upstream_documents(walk)
-        # Outermost frame. `visited` is what every produced tuple carries to the
-        # renderer as the impacted transfers, and a shared accumulator only holds
-        # its final value here -- so the tuples are restamped once the walk ends.
         walk = {"seen": set(), "visited": visited}
         documents = self._walk_upstream_documents(walk)
         return {
@@ -4548,12 +4531,6 @@ class StockMove(models.Model):
         return self.quantity
 
     def _should_materialize_lots(self, picking_type=None):
-        """Whether generated names become stock.lot rows rather than free text.
-
-        Reads use_existing_lots, not use_create_lots: an operation type that
-        links to existing lots is the one whose lines must carry a lot_id, so
-        any name it is given has to be resolved to a record (created if absent).
-        """
         if picking_type is None:
             picking_type = self.picking_type_id
         return picking_type.use_existing_lots
@@ -4584,9 +4561,6 @@ class StockMove(models.Model):
                     ),
                 )
             if "lot_ids" in vals:
-                # Order is load-bearing: _inverse_lot_ids queues `quantity` for
-                # recompute, so lot_ids has to be applied first or the caller's
-                # quantity is written and then discarded.
                 vals = {"lot_ids": vals["lot_ids"], **vals}
         if (
             "product_uom_id" in vals
@@ -4638,7 +4612,6 @@ class StockMove(models.Model):
         )
 
     def _filter_to_assign_at_confirm(self):
-        """The moves in `self` that confirming should reserve straight away."""
         return self.filtered(
             lambda move: (
                 move.state in ("confirmed", "partially_available")

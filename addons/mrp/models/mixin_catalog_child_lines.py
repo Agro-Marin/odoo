@@ -3,17 +3,13 @@ from odoo.fields import Command
 
 
 class MixinCatalogChildLines(models.AbstractModel):
-    """Product-catalog editing for a record whose lines live in a named child field."""
-
     _name = "mixin.catalog.child.lines"
     _description = "Catalog Lines Held In A Child Field"
 
     def _update_catalog_line_quantity(self, line, quantity, **kwargs):
-        """Write `quantity` onto an existing line. Override to name the field."""
         raise NotImplementedError
 
     def _get_new_catalog_line_values(self, product_id, quantity, **kwargs):
-        """The values a new line is created with. Override to name the field."""
         raise NotImplementedError
 
     @api.model
@@ -36,9 +32,6 @@ class MixinCatalogChildLines(models.AbstractModel):
     ):
         if not child_field:
             return 0
-        # A BoM can legally carry more than one line for the same product; a
-        # catalog edit is one absolute quantity, so it must land on a single
-        # line rather than conflating two distinct components.
         line = self[child_field].filtered(
             lambda line: line.product_id.id == product_id
         )[:1]
@@ -59,10 +52,6 @@ class MixinCatalogChildLines(models.AbstractModel):
                     ]
                 }
             )
-            # Written again on the record that now exists. On `mrp.production` the
-            # child is a `stock.move`, whose `product_uom_qty` is computed and stored
-            # from `product_qty` (Appendix A), so the value passed to `create` is
-            # overwritten by the compute and only a `write` afterwards survives.
             self._update_catalog_line_quantity(
                 self[child_field].filtered(
                     lambda line: line.product_id.id == product_id

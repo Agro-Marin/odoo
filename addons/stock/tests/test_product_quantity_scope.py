@@ -1006,19 +1006,6 @@ class TestProductQuantityScope(TransactionCase):
 
 
 class TestTemplateQuantitySearch(TransactionCase):
-    """`product.template`'s quantity searches, which raised for every operator.
-
-    `_get_domain_variant_quantity` was defined twice in `ProductTemplate`. Python
-    keeps the last, so the surviving one called `Product._get_domain_locations()`
-    -- removed when the scope moved to `stock.location` -- and passed five
-    positional arguments to `_prepare_quantities_vals`, which takes two. Its
-    replacement had been sitting sixty lines above it, shadowed, the whole time.
-
-    `test_no_model_still_carries_the_scope_under_its_old_name` above asserts
-    that `_get_domain_locations` is gone from every model, and passed while a
-    caller of it was live: it checks the attribute, not the call sites.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1050,8 +1037,6 @@ class TestTemplateQuantitySearch(TransactionCase):
         Template = self.env["product.template"]
         for field_name in self.QUANTITY_FIELDS:
             with self.subTest(field=field_name):
-                # AttributeError, not a wrong answer: the live implementation
-                # could not run at all, for any operator PY_OPERATORS knows.
                 Template.search([(field_name, ">", 0)])
 
     def test_a_template_search_finds_the_stocked_template(self):
@@ -1059,8 +1044,6 @@ class TestTemplateQuantitySearch(TransactionCase):
         self.assertIn(self.template, found)
 
     def test_a_template_search_agrees_with_its_variant(self):
-        # The template total is the sum over its variants, so a single-variant
-        # template must answer exactly as the variant does.
         for operator, value in ((">", 0), (">=", 7), ("<", 8), ("=", 7)):
             with self.subTest(operator=operator, value=value):
                 templates = self.env["product.template"].search(
@@ -1077,9 +1060,6 @@ class TestTemplateQuantitySearch(TransactionCase):
                 )
 
     def test_zero_matching_templates_are_included_when_the_operator_admits_zero(self):
-        # The branch _get_domain_quantity_search owns: a template with nothing in
-        # scope has no row in `totals` at all, so it can only be matched by the
-        # explicit "id not in totals" arm.
         empty = self.env["product.product"].create(
             {"name": "Nothing In Scope", "is_storable": True, "type": "consu"}
         )

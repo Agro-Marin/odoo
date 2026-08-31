@@ -1,5 +1,3 @@
-"""Tests for valuation-line eligibility and the equal-split distribution."""
-
 from odoo import Command
 from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
@@ -62,7 +60,6 @@ class TestLandedCostSplit(TransactionCase):
         )
 
     def test_valuation_lines_standard_cost_rejected(self):
-        """Landed costs only apply to FIFO/average products (negative)."""
         product = self._product("LC std product", self.std_category)
         cost = self.env["stock.landed.cost"].create(
             {
@@ -82,7 +79,6 @@ class TestLandedCostSplit(TransactionCase):
             cost.get_valuation_lines()
 
     def test_compute_landed_cost_split_equal(self):
-        """An equal split spreads the cost line evenly across moves."""
         product_a = self._product("LC fifo A", self.fifo_category)
         product_b = self._product("LC fifo B", self.fifo_category)
         picking = self._picking_with_move(product_a, 2.0)
@@ -107,7 +103,6 @@ class TestLandedCostSplit(TransactionCase):
         self.assertEqual(adjustments.mapped("additional_landed_cost"), [50.0, 50.0])
 
     def test_validate_periodic_products_posts_no_entry(self):
-        """Validation completes without a journal entry for periodic products."""
         product = self._product("LC fifo E", self.fifo_category)
         cost = self.env["stock.landed.cost"].create(
             {
@@ -128,7 +123,6 @@ class TestLandedCostSplit(TransactionCase):
         self.assertFalse(cost.account_move_id)
 
     def test_compute_landed_cost_split_by_quantity(self):
-        """A by-quantity split weighs each move by its received quantity."""
         product_a = self._product("LC fifo C", self.fifo_category)
         product_b = self._product("LC fifo D", self.fifo_category)
         cost = self.env["stock.landed.cost"].create(

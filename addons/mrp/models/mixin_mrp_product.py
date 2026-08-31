@@ -2,21 +2,21 @@ from odoo import fields, models
 
 
 class MixinMrpProduct(models.AbstractModel):
-    """BoM behaviour `product.template` and `product.product` implement identically."""
-
     _name = "mixin.mrp.product"
     _description = "BoM behaviour shared by product.template and product.product"
 
-    #: field naming this product on `mrp.bom.line` and `stock.move`
     _mrp_product_field = None
-    #: one2many holding the BoMs archived and unarchived along with this record
     _mrp_bom_field = None
 
     bom_count = fields.Integer(
-        "# Bill of Material", compute="_compute_bom_count", compute_sudo=False
+        "# Bill of Material",
+        compute="_compute_bom_count",
+        compute_sudo=False,
     )
     used_in_bom_count = fields.Integer(
-        "# BoM Where Used", compute="_compute_used_in_bom_count", compute_sudo=False
+        "# BoM Where Used",
+        compute="_compute_used_in_bom_count",
+        compute_sudo=False,
     )
     mrp_product_qty = fields.Float(
         "Manufactured",
@@ -24,10 +24,12 @@ class MixinMrpProduct(models.AbstractModel):
         compute="_compute_mrp_product_qty",
         compute_sudo=False,
     )
-    is_kit = fields.Boolean(compute="_compute_is_kit", search="_search_is_kit")
+    is_kit = fields.Boolean(
+        compute="_compute_is_kit",
+        search="_search_is_kit",
+    )
 
     def _get_mrp_variants(self):
-        """The variants this record stands for -- itself, or the template's."""
         raise NotImplementedError
 
     def _compute_used_in_bom_count(self):
@@ -71,15 +73,10 @@ class MixinMrpProduct(models.AbstractModel):
 
     def write(self, vals):
         if "active" in vals:
-            # Before `super()`, and reading `active` off the record: the point
-            # is to catch the ones whose flag is actually changing, which is
-            # unanswerable once the write has landed.
             boms = self.filtered(
                 lambda record: record.active != vals["active"]
             ).with_context(active_test=False)[self._mrp_bom_field]
             if vals["active"]:
-                # Only resurrect the BoMs archived *because of* this record --
-                # one archived on its own, independently, stays retired.
                 boms.filtered("archived_with_product").write(
                     {"active": True, "archived_with_product": False}
                 )
@@ -90,17 +87,6 @@ class MixinMrpProduct(models.AbstractModel):
         return super().write(vals)
 
     def _get_still_used_bom_lines(self):
-        """Live BoM lines consuming these products. Call *before* archiving.
-
-        `action_archive` itself cannot live on this mixin, and the reason is
-        worth writing down: `BaseModel.action_archive` is typed `-> None`, and
-        `product.product`'s override in `product` honours that by calling
-        `super()` without returning its result. mrp's notification only ever
-        reached the client because mrp's own class sits *above* `product`'s in
-        the MRO -- a trailing mixin sits below it, and the action is swallowed.
-        So the override stays where the MRO puts it first, and only the lookup
-        is shared.
-        """
         return self.env["mrp.bom.line"].search(
             [
                 ("product_id", "in", self._get_mrp_variants().ids),

@@ -112,16 +112,13 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         )
         if not parent_bom or not parent_product:
             return res
-        # If no rules could be found within the warehouse, check if the product is a component from a subcontracted product.
         parent_info = product_info.get(parent_product.id, {}).get(parent_bom.id, {})
         if parent_info and parent_info.get("route_type") == "subcontract":
-            # Since the product is subcontracted, check the subcontracted location for rules instead of the warehouse.
             subcontracting_loc = parent_info[
                 "supplier"
             ].partner_id.property_stock_subcontractor
             found_rules = product._get_rules_from_location(subcontracting_loc)
             if found_rules and self._is_resupply_rules(found_rules, current_bom):
-                # We only want to show the effective resupply (i.e. a form of manufacture or buy)
                 return found_rules
         return res
 
@@ -131,8 +128,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             rules, rules_delay, warehouse, product, bom, quantity
         )
         if not product:
-            # Dynamic-attribute templates may have no variant yet: there is no
-            # product to resolve a seller (or its UoM) against.
             return res
         subcontract_rules = [
             rule
@@ -146,14 +141,11 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 params={"subcontractor_ids": bom.subcontractor_ids},
             )
             if not supplier:
-                # If no vendor found for the right quantity, we still want to display a vendor for the lead times
                 supplier = product._select_seller(
                     quantity=None,
                     uom_id=product.uom_id,
                     params={"subcontractor_ids": bom.subcontractor_ids},
                 )
-            # for subcontracting, we can't decide the lead time without component's resupply availability
-            # we only return necessary info and calculate the lead time late when we have component's data
             if supplier:
                 qty_supplier_uom = product.uom_id._compute_quantity(
                     quantity, supplier.product_uom_id
@@ -221,7 +213,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             max_component_delay = self._get_max_component_delay(components)
             if max_component_delay is False:
                 return ("unavailable", False)
-            # Calculate the lead time for subcontracting, keep same as `_get_lead_days`
             vendor_lead_time = route_info["supplier"].delay
             manufacture_lead_time = route_info["bom"].produce_delay
             subcontract_delay = resupply_delay or 0

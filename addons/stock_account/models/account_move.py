@@ -24,16 +24,10 @@ class AccountMove(models.Model):
         " The latest posted one is the cursor the next closing starts from.",
     )
 
-    # -------------------------------------------------------------------------
-    # OVERRIDE METHODS
-    # -------------------------------------------------------------------------
-
     def _get_lines_onchange_currency(self):
-        # OVERRIDE
         return self.line_ids.filtered(lambda l: l.display_type != "cogs")
 
     def copy_data(self, default=None):
-        # Don't keep anglo-saxon lines when copying a journal entry.
         vals_list = super().copy_data(default=default)
 
         if not self.env.context.get("move_reverse_cancel"):
@@ -48,18 +42,14 @@ class AccountMove(models.Model):
         return vals_list
 
     def _post_entries(self):
-        # OVERRIDE
 
-        # Don't change anything on moves used to cancel another ones.
         if self.env.context.get("move_reverse_cancel"):
             return super()._post_entries()
 
-        # Create additional COGS lines for customer invoices.
         self.env["account.move.line"].create(
             self._stock_account_prepare_realtime_out_lines_vals()
         )
 
-        # Post entries.
         res = super()._post_entries()
 
         self.line_ids._get_stock_moves().filtered(
@@ -71,7 +61,6 @@ class AccountMove(models.Model):
     def action_draft(self):
         res = super().action_draft()
 
-        # Unlink the COGS lines generated during the 'post' method.
         with self.env.protecting(
             self.env["account.move"]._get_protected_vals({}, self)
         ):
@@ -81,54 +70,18 @@ class AccountMove(models.Model):
         return res
 
     def action_cancel(self):
-        # OVERRIDE
         res = super().action_cancel()
 
-        # Unlink the COGS lines generated during the 'post' method.
-        # In most cases it shouldn't be necessary since they should be unlinked with 'action_draft'.
-        # However, since it can be called in RPC, better be safe.
         self.mapped("line_ids").filtered(
             lambda line: line.display_type == "cogs"
         ).unlink()
         return res
 
-    # -------------------------------------------------------------------------
-    # COGS METHODS
-    # -------------------------------------------------------------------------
-
     def _stock_account_prepare_realtime_out_lines_vals(self):
-        """Prepare values used to create the journal items (account.move.line) corresponding to the Cost of Good Sold
-        lines (COGS) for customer invoices.
-
-        Example:
-
-        Buy a product having a cost of 9 being a storable product and having a perpetual valuation in FIFO.
-        Sell this product at a price of 10. The customer invoice's journal entries looks like:
-
-        Account                                     | Debit | Credit
-        ---------------------------------------------------------------
-        200000 Product Sales                        |       | 10.0
-        ---------------------------------------------------------------
-        101200 Account Receivable                   | 10.0  |
-        ---------------------------------------------------------------
-
-        This method computes values used to make two additional journal items:
-
-        ---------------------------------------------------------------
-        500000 COGS (stock variation)               | 9.0   |
-        ---------------------------------------------------------------
-        110100 Stock Account                        |       | 9.0
-        ---------------------------------------------------------------
-
-        Note: COGS are generated for customer invoices, refunds and receipts alike; refunds simply flip the sign.
-
-        :return: A list of Python dictionary to be passed to env['account.move.line'].create.
-        """
         lines_vals_list = []
 
         price_unit_prec = self.env["decimal.precision"].get_precision("Product Price")
         for move in self:
-            # Make the loop multi-company safe when accessing models like product.product
             move = move.with_company(move.company_id)
 
             if not move.is_sale_document(include_receipts=True):
@@ -137,13 +90,11 @@ class AccountMove(models.Model):
             anglo_saxon_price_ctx = move._get_anglo_saxon_price_ctx()
 
             for line in move.invoice_line_ids:
-                # Filter out lines being not eligible for COGS.
                 if (
                     not line._eligible_for_stock_account()
                     or line.product_id.valuation != "real_time"
                 ):
                     continue
-                # Retrieve accounts needed to generate the COGS.
                 accounts = line.product_id.product_tmpl_id._get_product_accounts(
                     fiscal_pos=move.fiscal_position_id
                 )
@@ -154,7 +105,6 @@ class AccountMove(models.Model):
                 if not stock_account or not credit_expense_account:
                     continue
 
-                # Compute accounting fields.
                 sign = -1 if move.move_type == "out_refund" else 1
                 price_unit = line.with_context(anglo_saxon_price_ctx)._get_cogs_value()
                 amount_currency = (
@@ -170,7 +120,6 @@ class AccountMove(models.Model):
                 ):
                     continue
 
-                # Add interim account line.
                 lines_vals_list.append(
                     {
                         "name": line.name[:64] if line.name else "",
@@ -189,7 +138,6 @@ class AccountMove(models.Model):
                     }
                 )
 
-                # Add expense account line.
                 lines_vals_list.append(
                     {
                         "name": line.name[:64] if line.name else "",
@@ -210,15 +158,9 @@ class AccountMove(models.Model):
         return lines_vals_list
 
     def _get_anglo_saxon_price_ctx(self):
-        """To be overriden in modules overriding _get_cogs_value
-        to optimize computations that only depend on account.move and not account.move.line
-        """
         return self.env.context
 
     def _stock_account_get_last_step_stock_moves(self):
-        """To be overridden for customer invoices and vendor bills in order to
-        return the stock moves related to the invoices in self.
-        """
         return self.env["stock.move"]
 
     def _get_invoiced_lot_values(self):

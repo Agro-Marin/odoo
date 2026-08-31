@@ -103,7 +103,6 @@ class TestQuantDisplayName(TestStockCommon):
     def test_a_formatted_read_does_not_poison_a_user_facing_error(self):
         self.env.user.group_ids = [(4, self.env.ref("stock.group_stock_user").id)]
         self.env.invalidate_all()
-        # what web_read() does for a many2one earlier in the same request
         self.quant.with_context(formatted_display_name=True).display_name
         line = {
             "product_id": self.product.id,
@@ -316,9 +315,6 @@ class TestQuantRemovalStrategySeam(TestStockCommon):
                 self.assertEqual(
                     strategy.order, self.Quant._get_removal_strategy_order(method)
                 )
-                # Compare what the two seams DO, not the function objects: an
-                # addon may build its key inline, and then no two calls return
-                # the same object even though the ordering is identical.
                 through_accessor = self.Quant._get_removal_strategy_sort_key(method)
                 self.assertEqual(
                     strategy.resolve_sorted_arguments()[1], through_accessor[1]
@@ -585,10 +581,6 @@ class TestQuantContracts(TestStockCommon):
 
 @tagged("post_install", "-at_install")
 class TestQuantsCacheScope(TransactionCase):
-    """`covers()` decides whether `_gather` may answer from the cache instead of
-    the database, so a location it wrongly covers is stock reserved out of the
-    wrong subtree -- a silent wrong answer, not an error."""
-
     def _cache(self, roots, products=(7,)):
         return QuantsCache(self.env["stock.quant"], products, roots)
 
@@ -598,10 +590,6 @@ class TestQuantsCacheScope(TransactionCase):
         self.assertTrue(cache.is_covering(_Stub(7), _Stub(99, "1/2/99/")))
 
     def test_a_sibling_whose_id_is_a_decimal_prefix_is_not_covered(self):
-        # `covers` compares parent_path with str.startswith, so location 20
-        # ("1/20/") only fails to match the root "1/2/" because parent_path
-        # carries a trailing slash. Strip it anywhere and a sibling subtree
-        # starts being served out of this cache.
         cache = self._cache(["1/2/"])
         self.assertFalse(
             cache.is_covering(_Stub(7), _Stub(20, "1/20/")),
@@ -642,8 +630,6 @@ class TestQuantsCacheScope(TransactionCase):
 
 
 class _Stub:
-    """Minimal stand-in: `covers` reads only `.id` and `.parent_path`."""
-
     __slots__ = ("id", "parent_path")
 
     def __init__(self, id_, parent_path=None):

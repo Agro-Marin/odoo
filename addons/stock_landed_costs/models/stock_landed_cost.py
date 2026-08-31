@@ -19,7 +19,6 @@ class StockLandedCost(models.Model):
     _order = "date desc, id desc"
 
     def _default_account_journal_id(self):
-        """Take the journal configured in the company, else fallback on the stock journal."""
         ProductCategory = self.env["product.category"]
         return self.env.company.lc_journal_id or ProductCategory._fields[
             "property_stock_journal"
@@ -154,16 +153,12 @@ class StockLandedCost(models.Model):
                 lambda line: line.move_id
             ):
                 product = line.move_id.product_id
-                # Products with manual inventory valuation are ignored because they do not need to create journal entries.
                 if product.valuation != "real_time":
                     continue
-                # `remaining_qty` is negative if the move is out and delivered proudcts that were not
-                # in stock.
 
                 remaining_qty = line.move_id.remaining_qty
                 move_vals["line_ids"] += line._create_accounting_entries(remaining_qty)
 
-            # We will only create the accounting entry when there are defined lines (the lines will be those linked to products of real_time valuation category).
             cost_vals = {"state": "done"}
             if move_vals.get("line_ids"):
                 move = move.create(move_vals)
@@ -179,7 +174,6 @@ class StockLandedCost(models.Model):
         lines = []
 
         for move in self._get_targeted_move_ids():
-            # it doesn't make sense to make a landed cost for a product that isn't set as being valuated in real time at real cost
             if (
                 move.product_id.cost_method not in ("fifo", "average")
                 or move.state == "cancel"
@@ -237,7 +231,6 @@ class StockLandedCost(models.Model):
                 total_volume += val_line_values.get("volume", 0.0)
 
                 former_cost = val_line_values.get("former_cost", 0.0)
-                # round this because former_cost on the valuation lines is also rounded
                 total_cost += cost.currency_id.round(former_cost)
 
                 total_line += 1
@@ -304,11 +297,6 @@ class StockLandedCost(models.Model):
                 )
 
     def _check_sum(self):
-        """Check that valuation adjustment lines sum to the cost lines and total amount.
-
-        :return: whether cost lines and valuation lines are consistent
-        :rtype: bool
-        """
         for landed_cost in self:
             total_amount = sum(
                 landed_cost.valuation_adjustment_lines.mapped("additional_landed_cost")
@@ -410,7 +398,6 @@ class StockValuationAdjustmentLines(models.Model):
             line.final_cost = line.former_cost + line.additional_landed_cost
 
     def _create_accounting_entries(self, remaining_qty):
-        # TDE CLEANME: product chosen for computation ?
         cost_product = self.cost_line_id.product_id
         if not cost_product:
             return False
@@ -446,15 +433,6 @@ class StockValuationAdjustmentLines(models.Model):
     def _create_account_move_line(
         self, credit_account_id, debit_account_id, remaining_qty
     ):
-        """In real time the vendor bill for landed costs only balance the COGS account.
-        We should credit what remains in stock and debit the stock valuation account.
-
-        :param int credit_account_id: account to credit
-        :param int debit_account_id: account to debit
-        :param float remaining_qty: quantity of the move still in stock
-        :return: account.move.line command tuples
-        :rtype: list
-        """
         AccountMoveLine = []
         if not remaining_qty:
             return AccountMoveLine
@@ -466,7 +444,6 @@ class StockValuationAdjustmentLines(models.Model):
             debit_line["debit"] = diff
             credit_line["credit"] = diff
         else:
-            # negative cost, reverse the entry
             debit_line["credit"] = -diff
             credit_line["debit"] = -diff
         AccountMoveLine.append([0, 0, debit_line])

@@ -204,8 +204,6 @@ class StockPicking(models.Model):
     def button_validate(self):
         res = super().button_validate()
         to_assign_ids = set()
-        # Having non-done pickings after the `super()` call means it stopped early,
-        # so we shouldn't remove the pickings from batches yet.
         if not any(picking.state == "done" for picking in self):
             return res
         if self and self.env.context.get("pickings_to_detach"):
@@ -221,15 +219,12 @@ class StockPicking(models.Model):
         for picking in self:
             if picking.state != "done":
                 continue
-            # Avoid inconsistencies in states of the same batch when validating a single picking in a batch.
             if picking.batch_id and any(
                 p.state != "done" for p in picking.batch_id.picking_ids
             ):
                 picking.batch_id = None
-            # If backorder were made, if auto-batch is enabled, seek a batch for each of them with the selected criterias.
             to_assign_ids.update(picking.backorder_ids.ids)
 
-        # To avoid inconsistencies, all incorrect pickings must be removed before assigning backorder pickings
         assignable_pickings = self.env["stock.picking"].browse(to_assign_ids)
         for picking in assignable_pickings:
             picking._find_auto_batch()
@@ -244,7 +239,6 @@ class StockPicking(models.Model):
             self.env.context.get("pickings_to_detach")
         )
         for picking in self:
-            # Avoid inconsistencies in states of the same batch when validating a single picking in a batch.
             if (
                 picking.batch_id
                 and picking.state != "done"
@@ -275,7 +269,6 @@ class StockPicking(models.Model):
 
     def _find_auto_batch(self):
         self.check_singleton()
-        # Check if auto_batch is enabled for this picking.
         if (
             not self.picking_type_id.auto_batch
             or not self.picking_type_id._is_auto_batch_grouped()
@@ -285,7 +278,6 @@ class StockPicking(models.Model):
         ):
             return False
 
-        # Try to find a compatible batch to insert the picking
         possible_batches = (
             self.env["stock.picking.batch"]
             .sudo()
@@ -296,7 +288,6 @@ class StockPicking(models.Model):
                 batch.picking_ids |= self
                 return batch
 
-        # If no batch were found, try to find a compatible picking and put them both in a new batch.
         possible_pickings = self.env["stock.picking"].search(
             self._get_possible_pickings_domain()
         )
@@ -308,7 +299,6 @@ class StockPicking(models.Model):
         }
         for picking in possible_pickings:
             if self._is_auto_batchable(picking):
-                # Add the picking to the new batch
                 new_batch_data["picking_ids"].append(Command.link(picking.id))
                 new_batch = (
                     self.env["stock.picking.batch"].sudo().create(new_batch_data)
@@ -317,7 +307,6 @@ class StockPicking(models.Model):
                     new_batch.action_confirm()
                 return new_batch
 
-        # If nothing was found after those two steps, then create a batch with the current picking alone
         new_batch_data["user_id"] = self.user_id.id
         new_batch = self.env["stock.picking.batch"].sudo().create(new_batch_data)
         if self.picking_type_id.batch_auto_confirm:
@@ -325,7 +314,6 @@ class StockPicking(models.Model):
         return new_batch
 
     def _is_auto_batchable(self, picking=None):
-        """Verifies if a picking can be put in a batch with another picking without violating auto_batch constrains."""
         if self.state != "assigned":
             return False
         res = True
@@ -337,7 +325,6 @@ class StockPicking(models.Model):
                 <= self.picking_type_id.batch_max_lines
             )
         if self.picking_type_id.batch_max_pickings:
-            # Sounds absurd. BUT if we put "batch max picking" to a value <= 1, makes sense ... Or not. Because then there is no point to batch.
             res = res and self.picking_type_id.batch_max_pickings > 1
         return res
 
@@ -397,7 +384,6 @@ class StockPicking(models.Model):
         return Domain(domain)
 
     def _get_auto_batch_description(self):
-        """Get the description of the automatically created batch based on the grouped pickings and grouping criteria"""
         self.check_singleton()
         description_items = []
         if self.picking_type_id.batch_group_by_partner and self.partner_id:
@@ -417,7 +403,6 @@ class StockPicking(models.Model):
         return super()._is_single_transfer() or len(self.batch_id) == 1
 
     def _add_to_wave_post_picking_split_hook(self):
-        # Hook meant to be overriden
         pass
 
     def update_batch_user(self, user_id):

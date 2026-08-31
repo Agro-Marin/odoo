@@ -563,17 +563,6 @@ class TestMoveLineRequant(TransactionCase):
         self.assertEqual([reported["id"] for reported in match["move_lines"]], line.ids)
 
     def test_the_quant_match_endpoint_adds_back_a_deleted_line_reservation(self):
-        """The point of the endpoint: what a quant would offer once saved.
-
-        `self` is the surviving lines, so `move.move_line_ids - self` is what the
-        unsaved form has deleted. Their reservation is still on the quant and is
-        about to be released, so it counts as available -- otherwise the picker
-        offers a quant it thinks is empty while the user has just freed it.
-
-        Nothing pinned this arithmetic: the two tests beside it check the shape
-        of the answer and the empty case, and the endpoint that preceded this one
-        (`get_pending_quant_availability`) was removed along with its own tests.
-        """
         product = self._product("QuantMatchRelease")
         self.env["stock.quant"]._update_available_quantity(product, self.stock, 12.0)
         move = self.env["stock.move"].create(
@@ -594,8 +583,6 @@ class TestMoveLineRequant(TransactionCase):
         )
         self.assertEqual(quant.available_quantity, 7.0, "12 on hand, 5 reserved")
 
-        # the form has deleted every line: `self` is empty, so the line counts
-        # as deleted and its 5 come back
         match = self.env["stock.move.line"].get_move_line_quant_match(
             move.id, [], quant.ids
         )

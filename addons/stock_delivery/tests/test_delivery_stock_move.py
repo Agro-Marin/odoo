@@ -48,7 +48,6 @@ class TestStockMoveInvoice(TestSaleCommon):
         )
 
     def test_01_delivery_stock_move(self):
-        # Test if the stored fields of stock moves are computed with invoice before delivery flow
         self.sale_prepaid = self.SaleOrder.create(
             {
                 "partner_id": self.partner_18.id,
@@ -69,7 +68,6 @@ class TestStockMoveInvoice(TestSaleCommon):
             }
         )
 
-        # I add delivery cost in Sales order
         delivery_wizard = Form(
             self.env["choose.delivery.carrier"].with_context(
                 {
@@ -81,19 +79,14 @@ class TestStockMoveInvoice(TestSaleCommon):
         choose_delivery_carrier = delivery_wizard.save()
         choose_delivery_carrier.button_confirm()
 
-        # I confirm the SO.
         self.sale_prepaid.action_confirm()
         self.sale_prepaid._create_invoices()
 
-        # I check that the invoice was created
         self.assertEqual(len(self.sale_prepaid.invoice_ids), 1, "Invoice not created.")
-
-        # I confirm the invoice
 
         self.invoice = self.sale_prepaid.invoice_ids
         self.invoice.action_post()
 
-        # I pay the invoice.
         self.journal = self.AccountJournal.search(
             [
                 ("type", "=", "cash"),
@@ -113,7 +106,6 @@ class TestStockMoveInvoice(TestSaleCommon):
         )
         register_payments._create_payments()
 
-        # Check the SO after paying the invoice
         self.assertNotEqual(self.sale_prepaid.invoice_count, 0, "order not invoiced")
         self.assertEqual(
             self.sale_prepaid.invoice_state, "done", "order is not fully invoiced"
@@ -122,12 +114,10 @@ class TestStockMoveInvoice(TestSaleCommon):
             len(self.sale_prepaid.picking_ids), 1, "pickings not generated"
         )
 
-        # Check the stock moves
         moves = self.sale_prepaid.picking_ids.move_ids
         self.assertEqual(moves[0].product_qty, 2, "wrong product_qty")
         self.assertEqual(moves[0].weight, 2.0, "wrong move weight")
 
-        # Ship
         moves.move_line_ids.write({"quantity": 2})
         self.picking = self.sale_prepaid.picking_ids._action_done()
         self.assertEqual(
@@ -135,7 +125,6 @@ class TestStockMoveInvoice(TestSaleCommon):
         )
 
     def test_02_delivery_stock_move(self):
-        # Test if SN product shipment line has the correct amount
         self.product_cable_management_box.write(
             {"is_storable": True, "tracking": "serial"}
         )
@@ -150,9 +139,6 @@ class TestStockMoveInvoice(TestSaleCommon):
             ]
         )
 
-        # The product is storable now, so the delivery reserves rather than
-        # inventing its lines: with nothing on hand there is nothing to write a
-        # serial onto. Two units, one per serial, for the two the order asks for.
         warehouse = self.env["stock.warehouse"].search(
             [("company_id", "=", self.env.company.id)], limit=1
         )
@@ -188,7 +174,6 @@ class TestStockMoveInvoice(TestSaleCommon):
             }
         )
 
-        # I add delivery cost in Sales order
         delivery_wizard = Form(
             self.env["choose.delivery.carrier"].with_context(
                 {
@@ -200,10 +185,8 @@ class TestStockMoveInvoice(TestSaleCommon):
         choose_delivery_carrier = delivery_wizard.save()
         choose_delivery_carrier.button_confirm()
 
-        # I confirm the SO.
         self.sale_prepaid.action_confirm()
         moves = self.sale_prepaid.picking_ids.move_ids
-        # Ship
         for ml, lot in zip(moves.move_line_ids, serial_numbers, strict=False):
             ml.write({"quantity": 1, "lot_id": lot.id})
         self.picking = self.sale_prepaid.picking_ids._action_done()
@@ -254,10 +237,8 @@ class TestStockMoveInvoice(TestSaleCommon):
                 ],
             }
         )
-        # Confirm the SO
         so.action_confirm()
 
-        # Deliver one product and create a backorder
         self.assertEqual(sum(line.quantity for line in so.picking_ids.move_ids), 2)
         so.picking_ids.move_ids[0].quantity = 1
         so.picking_ids.move_ids[0].picked = True
@@ -265,15 +246,10 @@ class TestStockMoveInvoice(TestSaleCommon):
         self.assertEqual(len(so.picking_ids), 2)
         self.assertEqual(sum(line.quantity for line in so.picking_ids.move_ids), 2)
 
-        # Invoice the delivered product
         invoice = so._create_invoices()
         invoice.action_post()
-        # One line is invoiced ('done'), the undelivered one is still owed
-        # ('no' with a quantity): something billed and something outstanding
-        # is 'partial' per base_order's mixin.order.invoice (ADR-0060).
         self.assertEqual(so.invoice_state, "partial")
 
-        # Add delivery fee
         delivery_wizard = Form(
             self.env["choose.delivery.carrier"].with_context(
                 {
@@ -285,14 +261,9 @@ class TestStockMoveInvoice(TestSaleCommon):
         choose_delivery_carrier = delivery_wizard.save()
         choose_delivery_carrier.button_confirm()
 
-        # One line is already invoiced, so the order has progressed whatever is
-        # left: sale's _resolve_invoice_state_to_do() downgrade to 'no' applies
-        # only while nothing has been invoiced at all (ADR-0060).
         self.assertEqual(so.invoice_state, "partial")
 
     def test_delivery_carrier_from_confirmed_so(self):
-        """Test if adding shipping method in sale order after confirmation
-        will add it in pickings too"""
 
         sale_order = self.SaleOrder.create(
             {
@@ -318,7 +289,6 @@ class TestStockMoveInvoice(TestSaleCommon):
         sale_order.picking_ids.move_ids.quantity = 2
         sale_order.picking_ids.button_validate()
 
-        # Return picking
         return_form = Form(
             self.env["stock.return.picking"].with_context(
                 active_id=sale_order.picking_ids.id, active_model="stock.picking"
@@ -329,7 +299,6 @@ class TestStockMoveInvoice(TestSaleCommon):
         action = return_wizard.action_create_returns()
         return_picking = self.env["stock.picking"].browse(action["res_id"])
 
-        # add new product so new picking is created
         sale_order.write(
             {
                 "line_ids": [
@@ -347,7 +316,6 @@ class TestStockMoveInvoice(TestSaleCommon):
             }
         )
 
-        # Add delivery cost in Sales order
         delivery_wizard = Form(
             self.env["choose.delivery.carrier"].with_context(
                 {
@@ -359,7 +327,6 @@ class TestStockMoveInvoice(TestSaleCommon):
         choose_delivery_carrier = delivery_wizard.save()
         choose_delivery_carrier.button_confirm()
 
-        # Check the carrier in picking after confirm sale order
         delivery_for_product_11 = sale_order.picking_ids.filtered(
             lambda p: self.product_11 in p.move_ids.product_id
         )
@@ -380,7 +347,6 @@ class TestStockMoveInvoice(TestSaleCommon):
         )
 
     def test_picking_weight(self):
-        """Test if the picking weight is correctly computed when the product of the move changes."""
         self.product_cable_management_box.weight = 1.0
         self.product_a.weight = 2.0
         so = self.SaleOrder.create(
@@ -412,10 +378,6 @@ class TestStockMoveInvoice(TestSaleCommon):
 
     @freeze_time("2024-06-06 11:00")
     def test_picking_change_date_planned(self):
-        """
-        Check that changing the scheduled date of a move can affect the scheduled date
-        of the picking but not its sibling moves.
-        """
         wh = self.env["stock.warehouse"].search(
             [("company_id", "=", self.env.company.id)], limit=1
         )

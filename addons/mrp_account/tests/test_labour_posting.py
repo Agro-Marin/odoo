@@ -10,8 +10,6 @@ from odoo.addons.mrp_account.tests.common import TestBomPriceCommon
 
 @tagged("post_install", "-at_install")
 class TestLabourPosting(TestBomPriceCommon):
-    """`_post_labour` charges each MO against its own company and location."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -76,12 +74,6 @@ class TestLabourPosting(TestBomPriceCommon):
         return mo
 
     def test_batch_spanning_two_production_locations(self):
-        """One `_post_inventory` over MOs with different production locations.
-
-        `_post_labour` read `self.product_id` and `self.company_id` inside its
-        own `for mo in self` loop, so a batch of two products resolved to two
-        production locations and the entry died on `Expected singleton`.
-        """
         other_account = self.env["account.account"].create(
             {"code": "LAB200", "name": "Production 2", "account_type": "asset_current"}
         )
@@ -119,12 +111,6 @@ class TestLabourPosting(TestBomPriceCommon):
             )
 
     def test_workcenter_charged_to_the_production_account(self):
-        """A work centre may expense straight to the production account.
-
-        Both sides were accumulated in one dict keyed by account, so the two
-        amounts netted: the work centre's labour vanished from the entry and
-        its time records were left with no `account_move_line_id`.
-        """
         shared = self._create_workcenter("WC-shared", self.account_production)
         distinct = self._create_workcenter("WC-distinct", self.expense_a)
         product, bom = self._create_manufactured_product(
@@ -157,15 +143,6 @@ class TestLabourPosting(TestBomPriceCommon):
         )
 
     def test_labour_posted_equals_labour_capitalised(self):
-        """Labour that does not divide into cents is rounded once, not per account.
-
-        `_cal_price` capitalises the unrounded total while `_post_labour` posted
-        the sum of the per-account roundings; the difference stayed in the
-        production account for good. The order here has no byproduct on purpose:
-        `_cal_price` rounds the finished and byproduct unit prices independently,
-        so a cost share leaves a residual of its own that this method does not
-        address.
-        """
         workcenters = self.env["mrp.workcenter"].browse()
         for index, expense in enumerate(
             (self.expense_a, self.expense_b, self.expense_c)
@@ -201,12 +178,6 @@ class TestLabourPosting(TestBomPriceCommon):
         )
 
     def test_byproduct_cost_share_still_clears(self):
-        """The byproduct split must add back up to the order's total, too.
-
-        `_cal_price` derived the finished and byproduct unit prices from the same
-        total and rounded each on its own, so their values did not add back to
-        `round(total_cost)` -- a cent per order on top of the labour one.
-        """
         workcenters = self.env["mrp.workcenter"].browse()
         for index, expense in enumerate(
             (self.expense_a, self.expense_b, self.expense_c)
@@ -257,13 +228,6 @@ class TestLabourPosting(TestBomPriceCommon):
         )
 
     def test_byproduct_valued_at_standard_enters_at_its_own_price(self):
-        """A standard-cost byproduct is a variance, not a value of zero.
-
-        `_get_value_from_production` values a production move at
-        ``quantity * price_unit``, so the byproduct `_cal_price` never priced
-        entered stock at 0.00 while the finished move had already given up its
-        share -- the whole share vanished into the production account.
-        """
         workcenter = self._create_workcenter("BPStd", self.expense_a, 60.0)
         product, bom = self._create_manufactured_product("Std byproduct", workcenter)
         byproduct = self._create_product(
@@ -277,8 +241,6 @@ class TestLabourPosting(TestBomPriceCommon):
         mo._post_inventory()
 
         finished = mo.move_finished_ids.filtered(lambda m: m.product_id == product)
-        # components 50 + labour 60 = 110; the byproduct's 20% (22.00) comes off
-        # the finished move, and it enters stock at its standard 7.00.
         self.assertEqual(finished.value, 88.0)
         self.assertEqual(mo.move_byproduct_ids.value, 7.0)
         self.assertEqual(
@@ -288,11 +250,6 @@ class TestLabourPosting(TestBomPriceCommon):
         )
 
     def test_standard_finished_product_still_prices_its_byproducts(self):
-        """The standard-cost branch returned before pricing anything else.
-
-        The finished move took its standard price and every byproduct was left
-        at 0.00, however much cost share it carried.
-        """
         workcenter = self._create_workcenter("BPFin", self.expense_a, 60.0)
         product, bom = self._create_manufactured_product("Std finished", workcenter)
         product.categ_id = self.category_standard_auto
@@ -321,7 +278,6 @@ class TestLabourPosting(TestBomPriceCommon):
         )
 
     def test_byproduct_without_a_cost_share_stays_free(self):
-        """A zero share means the byproduct costs nothing; it must not pick up a price."""
         workcenter = self._create_workcenter("BPFree", self.expense_a, 60.0)
         product, bom = self._create_manufactured_product("Free byproduct", workcenter)
         byproduct = self._create_product(
@@ -340,8 +296,6 @@ class TestLabourPosting(TestBomPriceCommon):
 
 @tagged("post_install", "-at_install")
 class TestKitPriceUnit(TestBomPriceCommon):
-    """`_get_kit_price_unit` values a kit in the kit product's own UoM."""
-
     def _make_kit(self, name, bom_uom, component_qty):
         component = self._create_product(f"{name} component", 10.0)
         kit = self._create_product(name, 0.0, quantity=0)
@@ -377,7 +331,6 @@ class TestKitPriceUnit(TestBomPriceCommon):
         return move
 
     def test_price_is_per_product_uom_whatever_the_bom_uom(self):
-        """A BoM stated per dozen used to value the kit twelve times over."""
         for label, bom_uom, component_qty in (
             ("per unit", self.uom, 2),
             ("per dozen", self.dozen, 24),
@@ -393,13 +346,6 @@ class TestKitPriceUnit(TestBomPriceCommon):
                 self.assertEqual(moves._get_kit_price_unit(kit, bom, 3), 20.0)
 
     def test_price_does_not_depend_on_the_quantity_asked_for(self):
-        """A unit price must be the same whatever quantity it is asked about.
-
-        `_explode` rounds every component line UP, so exploding a fraction of a
-        BoM batch inflated each component by a varying amount: a kit whose BoM
-        is stated per dozen swung between 1.666667 and 1.7 across quantities of
-        1 to 12.
-        """
         kit, bom, component = self._make_kit("Kit per dozen", self.dozen, 24)
         self.env["stock.quant"]._update_available_quantity(
             component, self.stock_location, 100
@@ -413,8 +359,6 @@ class TestKitPriceUnit(TestBomPriceCommon):
 
 @tagged("post_install", "-at_install")
 class TestWipWizardDates(TestBomPriceCommon):
-    """The WIP wizard reads the user's day, not UTC's."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -434,7 +378,6 @@ class TestWipWizardDates(TestBomPriceCommon):
         )
 
     def test_wizard_can_be_created_without_a_form(self):
-        """`reversal_date` is required and stored, so it has to be precomputed."""
         wizard = self.env["mrp.account.wip.accounting"].create({})
         self.assertEqual(wizard.reversal_date, wizard.date + timedelta(days=1))
 
@@ -443,7 +386,6 @@ class TestWipWizardDates(TestBomPriceCommon):
         self.assertEqual(wizard.date, fields.Date.context_today(self.env.user))
 
     def test_orders_from_two_companies_are_refused(self):
-        """One entry means one journal and one set of company-dependent accounts."""
         other = self.env["res.company"].create({"name": "Other WIP company"})
         self.env.user.company_ids += other
         first = self.env["mrp.production"].create(
@@ -460,7 +402,6 @@ class TestWipWizardDates(TestBomPriceCommon):
             wizard.confirm()
 
     def test_components_consumed_late_in_the_local_day_are_included(self):
-        """The cut-off was a naive local date compared against UTC timestamps."""
         mo = self.env["mrp.production"].create(
             {"product_id": self.finished.id, "bom_id": self.bom.id, "product_qty": 1.0}
         )
@@ -487,8 +428,6 @@ class TestWipWizardDates(TestBomPriceCommon):
 
 @tagged("post_install", "-at_install")
 class TestAnalyticLineRename(TestBomPriceCommon):
-    """Renaming an order carries its analytic lines with it."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -530,7 +469,6 @@ class TestAnalyticLineRename(TestBomPriceCommon):
         )
 
     def test_rename_reaches_the_workcentre_analytic_lines(self):
-        """`wc_analytic_account_line_ids` kept the old name; only the `mo_` half moved."""
         mo = self.env["mrp.production"].create(
             {"product_id": self.finished.id, "bom_id": self.bom.id, "product_qty": 1.0}
         )
@@ -550,13 +488,6 @@ class TestAnalyticLineRename(TestBomPriceCommon):
         )
 
     def test_analytic_line_is_billed_at_the_rate_the_order_ran_at(self):
-        """The analytic line and the journal entry must agree on the hourly rate.
-
-        `button_finish` stamps the rate a work order actually ran at, and
-        `_get_cost` bills that. The analytic entry read
-        `workcenter_id.costs_hour` instead, so re-rating the work centre after
-        the fact restated the analytic side and left the accounting side alone.
-        """
         mo = self.env["mrp.production"].create(
             {"product_id": self.finished.id, "bom_id": self.bom.id, "product_qty": 1.0}
         )
@@ -576,14 +507,13 @@ class TestAnalyticLineRename(TestBomPriceCommon):
         )
 
     def test_analytic_line_follows_the_estimated_cost_mode(self):
-        """An order costed as estimated is billed its expected duration."""
         self.bom.operation_ids.cost_mode = "estimated"
         mo = self.env["mrp.production"].create(
             {"product_id": self.finished.id, "bom_id": self.bom.id, "product_qty": 1.0}
         )
         mo.action_confirm()
         workorder = mo.workorder_ids
-        workorder.duration = 123  # actual, deliberately unlike the expected
+        workorder.duration = 123
         workorder.button_finish()
         workorder.invalidate_recordset()
 

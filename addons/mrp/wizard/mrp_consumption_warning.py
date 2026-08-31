@@ -40,17 +40,6 @@ class MrpConsumptionWarning(models.TransientModel):
         ).button_mark_done()
 
     def action_set_qty(self):
-        """Reset each component's consumption to what its order expects.
-
-        What this does when a component sits on **several** raw moves is decided by
-        the total, not per move: the whole expected quantity goes on the first and
-        the rest are cleared. That was written as `line.product_expected_qty_uom = 0`
-        *inside* the loop over the moves, with `qty_expected` recomputed from that
-        same field on each pass -- so it read as "set every matching move to the
-        expected quantity" while doing the opposite, and the reader had to simulate
-        the mutation to find out which. Hoisting the conversion out of the loop, as
-        the shape suggests, would have doubled the total.
-        """
         missing_move_vals = []
         lines_by_production = self.mrp_consumption_warning_line_ids.grouped(
             "mrp_production_id"

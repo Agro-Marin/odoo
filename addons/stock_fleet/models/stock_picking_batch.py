@@ -56,7 +56,6 @@ class StockPickingBatch(models.Model):
         string="Dispatch Management", related="picking_type_id.dispatch_management"
     )
 
-    # Compute
     @api.depends("date_planned")
     def _compute_end_date(self):
         for batch in self:
@@ -125,8 +124,6 @@ class StockPickingBatch(models.Model):
                     batch.estimated_shipping_volume / batch.vehicle_volume_capacity
                 )
 
-    # CRUD
-
     @api.model_create_multi
     def create(self, vals_list):
         batches = super().create(vals_list)
@@ -140,13 +137,11 @@ class StockPickingBatch(models.Model):
             self._set_moves_destination_to_dock()
         return res
 
-    # Public actions
     def order_on_zip(self):
         sorted_records = self.picking_ids.sorted(lambda p: p.zip or "")
         for idx, record in enumerate(sorted_records):
             record.batch_sequence = idx
 
-    # Private buisness logic
     def _set_moves_destination_to_dock(self):
         for batch in self:
             if not batch.dock_id:

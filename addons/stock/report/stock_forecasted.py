@@ -333,13 +333,6 @@ class StockForecasted_Product_Product(models.AbstractModel):
         return ["id", "date"]
 
     def _get_domain_base_quant(self, location_ids, products):
-        """The quants this report considers at all, before any freshness narrowing.
-
-        Split from `_get_quant_domain` so a module that narrows the report to a subset
-        of stock states it once, here, and every caller inherits it. Reaching for the
-        base by calling `super()._get_quant_domain()` skips not only the caller's own
-        narrowing but every other module's above it in the MRO.
-        """
         return [
             ("location_id", "in", location_ids),
             ("quantity", ">", 0),

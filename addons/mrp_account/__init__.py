@@ -4,7 +4,6 @@ from . import wizard
 
 
 def _configure_journals(env):
-    # if we already have a coa installed, create journal and set property field
     for company in env["res.company"].search(
         [("chart_template", "!=", False)], order="parent_path"
     ):

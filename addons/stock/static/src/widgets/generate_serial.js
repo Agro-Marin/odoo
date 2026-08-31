@@ -66,23 +66,15 @@ export class GenerateDialog extends Component {
         this.orm = useService("orm");
         this.opGuard = useOperationGuard();
         this._onGenerate = this.opGuard.guard(this._onGenerate.bind(this));
-        // Guarded as well as debounced: `_onGenerate` refuses an empty
-        // `nextSerial`, so a click landing while the preview is in flight was
-        // told to enter a first number the request was about to supply.
         this.onGenerateCustomSerial = useDebounced(
             this.opGuard.guard(this._onGenerateCustomSerial.bind(this)),
             500,
             { immediate: true },
         );
 
-        // Every field is state, not a DOM ref read at submit time: the values
-        // are the dialog's model, and the validation below has to be reachable
-        // without a rendered document.
         const move = this.props.move.data;
         this.state = useState({
             nextSerial: "",
-            // Presets applied in `generate` mode only, as the onMounted they
-            // replace did. `import` reads its quantities from the pasted text.
             count: this.isGenerating ? String(move.product_uom_qty || 2) : "",
             totalReceived:
                 this.isGenerating && this.isLot ? String(move.quantity ?? "") : "",
@@ -184,11 +176,6 @@ export class GenerateDialog extends Component {
     async _generate(count, qtyToProcess) {
         const move = this.props.move.data;
         const lines = move.move_line_ids;
-        // Decided BEFORE the server is asked where to put the new lines: those
-        // lines still occupy their destinations as far as the database is
-        // concerned, so putaway would count capacity they are about to give
-        // back. `action_generate_lot_line_vals` takes `exclude_sml_ids` for
-        // exactly this, and threads it into the putaway count per location.
         const replacedIds = this.state.keepLines ? [] : [...lines.currentIds];
         const move_line_vals = await this.orm.call(
             "stock.move",

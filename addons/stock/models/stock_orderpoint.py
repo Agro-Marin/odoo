@@ -1193,9 +1193,6 @@ class StockWarehouseOrderpoint(models.Model):
         return action
 
     def _refresh_stored_values(self):
-        # Marking the fields and flushing runs the computes through the ORM,
-        # which a direct call does not: it also refreshes the siblings each
-        # compute writes (ADR-0051).
         stored = ("qty_to_order_computed", "deadline_date", "actual_lead_time_avg")
         for field_name in stored:
             self.env.add_to_compute(self._fields[field_name], self)
@@ -1403,15 +1400,6 @@ class StockWarehouseOrderpoint(models.Model):
                     *[failure[0] for failure in batch_failures]
                 )
                 if not failed:
-                    # Only a procurement that names its orderpoint can be dropped
-                    # from the retry, and `_prepare_procurement_vals` records
-                    # `orderpoint_id` for *auto* rows only -- deliberately, see
-                    # `test_a_manual_orderpoint_is_told_what_its_order_created`. Every
-                    # caller that reaches this branch selects `trigger = auto`
-                    # (`stock.scheduler._replenish`, `stock_move._trigger_scheduler`)
-                    # or passes `raise_user_error=True` (`action_replenish`), so it
-                    # is unreachable today; a caller that broke that would land here,
-                    # and the savepoint has already discarded the batch's successes.
                     _logger.error(
                         "Unable to attribute a procurement failure to an orderpoint;"
                         " %d orderpoints were rolled back and not retried: %s",

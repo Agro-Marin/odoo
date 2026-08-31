@@ -11,7 +11,6 @@ class StockMoveLine(models.Model):
     batch_id = fields.Many2one(related="picking_id.batch_id")
 
     def action_view_add_to_wave(self):
-        # This action can be called from the move line list view or from the 'Add to wave' wizard
         if "active_wave_id" in self.env.context:
             wave = self.env["stock.picking.batch"].browse(
                 self.env.context.get("active_wave_id")
@@ -29,18 +28,6 @@ class StockMoveLine(models.Model):
         }
 
     def _prepare_wave_picking_vals(self, wave, picking, lines):
-        """Return the create values splitting `picking` for `wave`.
-
-        When every line and move of the picking goes to the wave there is
-        nothing to split: the picking itself is linked to the wave and None is
-        returned.
-
-        :param recordset wave: The wave the lines are going to
-        :param recordset picking: The picking the lines come from
-        :param recordset lines: The lines of `picking` going to the wave
-        :return: The picking create values, or None when the whole picking moved
-        :rtype: dict | None
-        """
         line_by_move = defaultdict(lambda: self.env["stock.move.line"])
         qty_by_move = defaultdict(float)
         for line in lines:
@@ -51,7 +38,6 @@ class StockMoveLine(models.Model):
             )
             qty_by_move[line.move_id] += qty
 
-        # If all moves are to be transferred to the wave, link the picking to the wave
         if lines == picking.move_line_ids and lines.move_id == picking.move_ids:
             add_all_moves = True
             for move, qty in qty_by_move.items():
@@ -62,7 +48,6 @@ class StockMoveLine(models.Model):
                 wave.picking_ids = [Command.link(picking.id)]
                 return None
 
-        # Split the picking in two part to extract only line that are taken on the wave
         picking_to_wave_vals = picking.copy_data(
             {
                 "move_ids": [],
@@ -71,17 +56,13 @@ class StockMoveLine(models.Model):
                 "date_planned": picking.date_planned,
             }
         )[0]
-        # Every line going to the wave moves to the new picking, once. The moves
-        # are what differ below: one is relinked whole, the next is split.
         picking_to_wave_vals["move_line_ids"] += [
             Command.link(line.id) for line in lines
         ]
         for move, move_lines in line_by_move.items():
-            # if all the line of a stock move are taken we change the picking on the stock move
             if move_lines == move.move_line_ids:
                 picking_to_wave_vals["move_ids"] += [Command.link(move.id)]
                 continue
-            # Split the move
             qty = qty_by_move[move]
             new_move = move._split(qty)
             new_move[0]["move_line_ids"] = [Command.set(move_lines.ids)]
@@ -90,13 +71,6 @@ class StockMoveLine(models.Model):
         return picking_to_wave_vals
 
     def _get_add_to_wave_action(self, wave, notification_title):
-        """Return the client action closing the 'Add to Wave' flow.
-
-        :param recordset wave: The wave that was created or updated
-        :param str notification_title: What to say happened to it
-        :return: The client action
-        :rtype: dict
-        """
         if self.env.context.get("from_wave_form"):
             return {
                 "type": "ir.actions.client",
@@ -120,10 +94,6 @@ class StockMoveLine(models.Model):
         }
 
     def _add_to_wave(self, wave=False, description=False):
-        """Detach lines (and corresponding stock move from a picking to another). If wave is
-        passed, attach the new picking into it; otherwise create a new wave and attach it there.
-
-        :param recordset wave: stock.picking.batch record on which to put the move lines."""
 
         if not wave:
             wave = self.env["stock.picking.batch"].create(
@@ -182,7 +152,6 @@ class StockMoveLine(models.Model):
         return True
 
     def _auto_wave(self):
-        """Try to find compatible waves to attach the move lines to, otherwise create new waves when possible/appropriate."""
         wave_locs_by_picking_type = {}
         for picking_type in self.picking_type_id:
             if not picking_type.wave_group_by_location:
@@ -200,8 +169,6 @@ class StockMoveLine(models.Model):
             if not line.picking_type_id.wave_group_by_location:
                 batchable_line_ids.add(line.id)
                 continue
-            # We want to find the most descendant location in the wave locations list that is a parent of the line location.
-            # Since the wave locations are ordered by complete_name (from the most descendant to the most ancestor), we can iterate in reverse order.
             wave_locs_set = wave_locs_by_picking_type[line.picking_type_id]
             loc = line.location_id
             while loc:
@@ -222,32 +189,18 @@ class StockMoveLine(models.Model):
             )
 
     def _get_potential_existing_waves_extra_domain(self, domain_list, picking_type):
-        """Extend extra conditions here"""
         return domain_list
 
     def _get_potential_new_waves_extra_domain(self, domain_list, picking_type):
-        """Extend extra conditions here"""
         return domain_list
 
     def _is_potential_existing_wave_extra(self, wave):
-        """Extend extra conditions here"""
         return True
 
     def _is_new_potential_line_extra(self, potential_line):
-        """Extend extra conditions here"""
         return True
 
     def _get_potential_existing_waves(self, picking_type, batches_to_validate_ids):
-        """Return the waves `self`'s lines could be merged into.
-
-        `self` is the subset of lines sharing `picking_type`; the grouping
-        criteria the picking type declares each narrow the search.
-
-        :param recordset picking_type: The picking type the lines share
-        :param list batches_to_validate_ids: Waves to leave alone, or False
-        :return: The candidate waves
-        :rtype: recordset of `stock.picking.batch`
-        """
         domains = [
             Domain("picking_type_id", "=", picking_type.id),
             Domain("company_id", "in", self.mapped("company_id").ids),
@@ -288,24 +241,11 @@ class StockMoveLine(models.Model):
         return self.env["stock.picking.batch"].search(Domain.AND(domains))
 
     def _get_waves_nearest_parent_locations(self, picking_type, potential_waves):
-        """Map each candidate wave to the wave location covering all its lines.
-
-        We want to find the most descendant location in the wave locations list
-        that is a parent of all the lines in each wave. We also want to exclude
-        waves that have lines that are not in these locations.
-
-        :param recordset picking_type: The picking type the lines share
-        :param recordset potential_waves: The candidate waves
-        :return: (wave -> location id, the waves that qualify)
-        :rtype: tuple
-        """
         waves_nearest_parent_locations = defaultdict(int)
         if not picking_type.wave_group_by_location:
             return waves_nearest_parent_locations, potential_waves
 
         valid_wave_ids = set()
-        # Since the wave locations are ordered by complete_name (from the most
-        # descendant to the most ancestor), we can iterate in reverse order.
         for wave in potential_waves:
             for wave_location in reversed(picking_type.wave_location_ids):
                 if all(
@@ -327,16 +267,6 @@ class StockMoveLine(models.Model):
         waves_nearest_parent_locations,
         nearest_parent_locations,
     ):
-        """Whether this line may join `wave` under the picking type's grouping.
-
-        This is grouping only -- it says nothing about the wave's capacity.
-
-        :param recordset wave: The candidate wave
-        :param recordset picking_type: The picking type the lines share
-        :param dict waves_nearest_parent_locations: wave -> location id
-        :param dict nearest_parent_locations: line -> location
-        :rtype: bool
-        """
         self.check_singleton()
         return not (
             self.company_id != wave.company_id
@@ -381,19 +311,6 @@ class StockMoveLine(models.Model):
         waves_nearest_parent_locations,
         nearest_parent_locations,
     ):
-        """Return the first wave this line fits, updating `tallies` for it.
-
-        `tallies` carries the moves, pickings and weight already promised to
-        each wave by earlier lines of this run, which the capacity check has to
-        count on top of what the wave already holds.
-
-        :param recordset potential_waves: The candidate waves
-        :param recordset picking_type: The picking type the lines share
-        :param dict tallies: 'moves', 'pickings' and 'weight' per wave
-        :param dict waves_nearest_parent_locations: wave -> location id
-        :param dict nearest_parent_locations: line -> location
-        :return: The wave the line joins, or False
-        """
         self.check_singleton()
         for wave in potential_waves:
             if not self._is_wave_grouping_compatible(
@@ -408,8 +325,6 @@ class StockMoveLine(models.Model):
             wave_new_picking_ids = tallies["pickings"][wave]
             wave_move_ids = set(wave.move_line_ids.mapped("move_id.id"))
             wave_picking_ids = set(wave.move_line_ids.mapped("picking_id.id"))
-            # Check that the move/picking of the line is not already in the wave
-            # so that we don't count them as new moves/pickings.
             if not wave._is_line_auto_mergeable(
                 self.move_id.id not in wave_move_ids
                 and self.move_id.id not in wave_new_move_ids
@@ -433,11 +348,6 @@ class StockMoveLine(models.Model):
         return False
 
     def _auto_wave_lines_into_existing_waves(self, nearest_parent_locations=False):
-        """Try to add move lines to existing waves if possible.
-
-        :param defaultdict nearest_parent_locations: move line -> nearest parent location in the wave locations list
-        :return: ids of move lines for which no appropriate wave was found
-        :rtype: list"""
         remaining_lines = OrderedSet()
         batches_to_validate_ids = self.env.context.get("batches_to_validate", False)
         for picking_type, lines in self.grouped(lambda l: l.picking_type_id).items():
@@ -448,8 +358,6 @@ class StockMoveLine(models.Model):
             )
             wave_to_new_lines = defaultdict(set)
 
-            # These dictionaries are used to enforce batch max lines/transfers/weight limits
-            # Each time a line is matched to a wave, we update the corresponding values
             tallies = {
                 "moves": defaultdict(set),
                 "pickings": defaultdict(set),
@@ -477,13 +385,6 @@ class StockMoveLine(models.Model):
         return list(remaining_lines)
 
     def _get_potential_new_wave_lines(self, picking_type, lines):
-        """Return the lines a new wave for `lines` could also pick up.
-
-        :param recordset picking_type: The picking type the lines share
-        :param recordset lines: The lines a wave is being built around
-        :return: (the candidate lines, line -> nearest wave location id)
-        :rtype: tuple
-        """
         domains = [
             Domain(
                 [
@@ -542,14 +443,6 @@ class StockMoveLine(models.Model):
         lines_nearest_parent_locations,
         nearest_parent_locations,
     ):
-        """Whether `potential_line` belongs in the same new wave as this line.
-
-        :param recordset potential_line: The line being considered
-        :param recordset picking_type: The picking type the lines share
-        :param dict lines_nearest_parent_locations: line -> location id
-        :param dict nearest_parent_locations: line -> location
-        :rtype: bool
-        """
         self.check_singleton()
         return not (
             self.id == potential_line.id
@@ -590,18 +483,6 @@ class StockMoveLine(models.Model):
     def _create_new_waves_for_lines(
         self, picking_type, potential_lines, nearest_parent_locations
     ):
-        """Fill new waves with `potential_lines` until they are all placed.
-
-        We want to make sure that batch/wave limits specified in the picking
-        type are respected. We want also to reduce picking splits as much as
-        possible. So we try to group as much as possible by sorting the lines
-        by picking and move.
-
-        :param recordset picking_type: The picking type the lines share
-        :param recordset potential_lines: The lines to place, this one included
-        :param dict nearest_parent_locations: line -> location
-        :return: None
-        """
         self.check_singleton()
         potential_lines = potential_lines.sorted(
             key=lambda l: (l.picking_id.id, l.move_id.id)
@@ -643,7 +524,6 @@ class StockMoveLine(models.Model):
             potential_lines -= wave_lines
 
     def _auto_wave_lines_into_new_waves(self, nearest_parent_locations=False):
-        """Create new waves for the move lines that could not be added to existing waves."""
         picking_types = self.picking_type_id
         for picking_type in picking_types:
             lines = self.filtered(

@@ -68,24 +68,6 @@ class PutawayCapacity(NamedTuple):
 
 
 class PutawayScan:
-    """Memo for one batch of putaway placements of a single product.
-
-    A batch places several quantities without writing anything between
-    placements, so every database-derived figure it reads is constant across the
-    whole batch while the quantities it has already placed are not. Holding the
-    constants here is what lets the placements be the only thing that varies.
-
-    ``staged`` counts only what this batch has placed itself, never the
-    ``additional_qty`` a caller seeds ``placed`` with. The distinction is the
-    whole point: a caller's ``additional_qty`` may describe move lines that
-    already exist in the database -- ``_generate_serial_move_line_commands``
-    passes exactly that for the lines it is reusing, without an
-    ``exclude_sml_ids`` to take them back out -- so their weight is already in
-    ``forecast_weight`` and counting it again would double it. What this batch
-    placed itself has no row anywhere yet, so it is the part that has to be
-    added by hand.
-    """
-
     def __init__(self, product, placed=None):
         self.product = product
         self.placed = defaultdict(float, placed or {})
@@ -346,9 +328,6 @@ class StockLocation(models.Model):
         replenish_locations = self.filtered("replenish_location")
         if not replenish_locations:
             return
-        # A conflict is an ancestor or a descendant and can be nothing else, so
-        # ask for those two sets rather than for every replenish location there
-        # is and then discarding almost all of them in Python.
         ancestor_ids = {
             int(node)
             for location in replenish_locations
@@ -433,9 +412,6 @@ class StockLocation(models.Model):
         modified_locations = self.filtered(lambda location: location.usage != usage)
         if not modified_locations:
             return
-        # A view groups its children and cannot hold products at all, so any
-        # quant refuses it -- including an emptied one. Every other type only
-        # refuses to walk away from stock that is actually there.
         domain = Domain("location_id", "in", modified_locations.ids)
         if usage != "view":
             domain &= Domain("quantity", ">", 0)
@@ -471,9 +447,6 @@ class StockLocation(models.Model):
         return locations
 
     def write(self, vals):
-        # The block governance check comes before every other check here on
-        # purpose: refusing an archive after _propagate_active has already
-        # archived the subtree leaves the refusal resting on the rollback.
         transitioning = self._check_block_governance_before_write(vals)
 
         if "cyclic_inventory_frequency" in vals:
@@ -507,9 +480,6 @@ class StockLocation(models.Model):
         subtree = self.with_context(active_test=False).search(
             [("id", "child_of", self.ids)],
         )
-        # Before anything else, and over the whole subtree rather than over the
-        # receiver: deleting a location is a stronger act than archiving one,
-        # and archiving a hard-blocked location already needs the group.
         if not self.env.context.get(MODULE_UNINSTALL_FLAG):
             subtree._check_block_governance_before_unlink()
         descendants = subtree - self
@@ -530,9 +500,6 @@ class StockLocation(models.Model):
                 ),
                 (self.browse(), self.browse()),
             )
-            # @api.ondelete cannot express this check: unlink() re-dispatches on
-            # the expanded subtree, so a hook would see no descendants left to
-            # object to.
             raise UserError(  # noqa: E8506 - uninstall already excluded above
                 _(
                     "You cannot delete location %(location)s: it still contains "
@@ -613,14 +580,6 @@ class StockLocation(models.Model):
             )
 
     def _own_and_ancestor_block_types(self):
-        # Walks block_type up the tree rather than reading the parent's
-        # effective_block_type, which the depends still names so that marking
-        # an ancestor keeps marking the whole subtree. The recompute engine
-        # hands a recursive field one record at a time in its own order, and
-        # it does hand a descendant over before its ancestor -- the parent's
-        # effective_block_type is then still the pre-write value, the
-        # descendant stores it, and nothing marks the descendant again.
-        # block_type is a plain stored column and is never pending.
         self.check_singleton()
         block_types = []
         location = self
@@ -672,25 +631,6 @@ class StockLocation(models.Model):
         "warehouse_view_ids", "warehouse_view_ids.active", "location_id.warehouse_id"
     )
     def _compute_warehouse_id(self):
-        """The nearest enclosing active warehouse, self included.
-
-        Two things this deliberately does not do. It does not read
-        `warehouse_view_ids` off `self`: that One2many is active-filtered on
-        read, so the ambient `active_test` would decide whether an archived
-        warehouse is a candidate -- and the ORM recomputes under
-        `active_test=False`, its own trigger traversal supplying it, which
-        stored the archived warehouse in the column. And it does not read
-        `warehouse_id` off the parent: a record's compute batch holds its
-        ancestors too, and the field is protected across that batch, so the
-        parent answers with its pre-compute value and a subtree ends up
-        repointed one level deep and stale below that.
-
-        Deciding from the ancestor chain instead settles both: the value is a
-        function of the tree and the warehouses' own `active` flag, so it does
-        not depend on the caller's context nor on the order the batch happens
-        to be computed in. `recursive=True` stays -- it is what propagates the
-        trigger down a subtree when a parent is reparented.
-        """
         chains = {
             location.id: [int(node) for node in location.parent_path.split("/")[:-1]]
             for location in self
@@ -803,14 +743,6 @@ class StockLocation(models.Model):
         if not changing:
             return
         if is_internal_flag(self.env.context, CONTEXT_ACTIVE_CASCADE):
-            # Sentinel for the cascade at the end of this method, which writes
-            # the whole subtree at once and so leaves re-entry nothing to do.
-            # It is the unforgeable marker rather than a plain context key
-            # because this one flag used to do two jobs: as `do_not_check_quant`
-            # it also skipped the guards below, so any `call_kw` could set it and
-            # archive a location over its own stock -- and, because the cascade
-            # is what the early return skips, leave the subtree active beneath an
-            # archived parent.
             return
         descendant_locations = (
             self.env["stock.location"]
@@ -850,10 +782,6 @@ class StockLocation(models.Model):
                     warehouse=blocking_warehouse.display_name,
                 ),
             )
-        # The same helper `is_empty` and its search answer with, so a location
-        # the interface shows as occupied is exactly a location that refuses to
-        # archive. Asking only about `usage == "internal"` here is what let a
-        # transit location archive over stock the list view was calling occupied.
         occupied = self.browse(
             sorted(self._get_occupied_location_ids(descendant_locations)),
         )
@@ -957,12 +885,6 @@ class StockLocation(models.Model):
         return locations
 
     def _without_putaway_scan(self):
-        # Hand the caller back a record that does not carry the batch's memo,
-        # so nothing downstream can reuse it once it has gone stale. Rebuilding
-        # the context rather than re-binding the environment is deliberate:
-        # `_filter_putaway_access` may have returned a sudo recordset -- that is
-        # the whole of mrp_subcontracting's override -- and `with_env` would
-        # silently drop the elevation along with the memo.
         return self.with_context(
             {
                 key: value
@@ -1086,10 +1008,6 @@ class StockLocation(models.Model):
         scan = self.env.context.get(CONTEXT_PUTAWAY_SCAN)
         if scan is None:
             return stored
-        # The batch's own placements exist nowhere yet, so no query can see
-        # their weight. Folding it in here is what makes the weight capacity as
-        # batch-aware as the quantity capacity already was through
-        # `additional_qty`.
         return stored._replace(
             forecast_weight={
                 location_id: stored.forecast_weight.get(location_id, 0.0)
@@ -1394,21 +1312,6 @@ class StockLocation(models.Model):
         }
 
     def _move_destination_domains(self, leaf) -> tuple[Domain, Domain]:
-        """The (into, out of) destination domains built from one leaf predicate.
-
-        `leaf(field_name)` builds the Domain testing that field. A move's
-        destination is `location_dest_id` once it is done and
-        `location_final_id or location_dest_id` while it is not; the quantity
-        scope and the blocked-location filter both need precisely that shape and
-        differ only in what they ask of the field.
-
-        The outbound half is spelled out as its own state split rather than as
-        `~inbound`. The two are equal, but only because Odoo compiles
-        ("state", "!=", "done") to (state NOT IN ('done') OR state IS NULL) --
-        that OR is what makes the two branches partition. A hand-written `<>`
-        would leave a NULL state matching neither, and the negation would then
-        differ from this.
-        """
         done = leaf("location_dest_id")
         if self.env.context.get("skip_in_progress"):
             return done, ~done
@@ -1584,9 +1487,6 @@ class StockLocation(models.Model):
         per_quant_location = {}
         for quant_location, product, reserved in groups:
             by_uom = per_quant_location.setdefault(quant_location, defaultdict(float))
-            # Keyed by the UoM record. `name` is translatable and not unique, so
-            # keying by it merged distinct units and made the breakdown depend on
-            # the acting user's language.
             by_uom[product.uom_id] += reserved or 0.0
 
         totals = {location_id: defaultdict(float) for location_id in self.ids}

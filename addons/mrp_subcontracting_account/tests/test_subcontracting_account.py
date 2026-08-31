@@ -55,24 +55,15 @@ class TestAccountSubcontractingFlows(
 
         picking_receipt = move.picking_id
         mo1 = move.picking_id._get_subcontract_production()
-        # Finished is made of 1 comp1 and 1 comp2.
-        # Cost of comp1 = 10
-        # Cost of comp2 = 20
-        # --> Cost of finished = 10 + 20 = 30
-        # Additionnal cost = 30 (from the purchase order line or directly set on the stock move here)
-        # Total cost of subcontracting 1 unit of finished = 30 + 30 = 60
-        # Account move lines of the mo should only take components into account. The bill will take care of the extra cost.
         self.assertEqual(mo1.move_finished_ids.value, 60)
         self.assertEqual(picking_receipt.move_ids.value, 0)
         self.assertEqual(picking_receipt.move_ids.product_id.total_value, 60)
 
         amls = self.env["account.move.line"].search([("id", "not in", all_amls_ids)])
         all_amls_ids += amls.ids
-        # stock valo only 30 because the extra can only be added with a bill
         self.assertRecordValues(
             amls.sorted("product_id"),
             [
-                # Delivery com1 to subcontractor
                 {
                     "account_id": self.account_stock_valuation.id,
                     "product_id": self.comp1.id,
@@ -85,7 +76,6 @@ class TestAccountSubcontractingFlows(
                     "debit": 10.0,
                     "credit": 0.0,
                 },
-                # Delivery com2 to subcontractor
                 {
                     "account_id": self.account_stock_valuation.id,
                     "product_id": self.comp2.id,
@@ -98,7 +88,6 @@ class TestAccountSubcontractingFlows(
                     "debit": 20.0,
                     "credit": 0.0,
                 },
-                # Receipt from subcontractor
                 {
                     "account_id": self.account_production.id,
                     "product_id": self.finished.id,
@@ -114,7 +103,6 @@ class TestAccountSubcontractingFlows(
             ],
         )
 
-        # Validate the bill from the subcontractor
         scrap = self.env["stock.scrap"].create(
             {
                 "product_id": self.finished.id,
@@ -129,10 +117,6 @@ class TestAccountSubcontractingFlows(
         self.assertEqual(self.finished.total_value, 0)
 
     def test_subcontracting_account_backorder(self):
-        """This test uses tracked (serial and lot) component and tracked (serial) finished product
-        The original subcontracting production order will be split into 4 backorders. This test
-        ensure the extra cost asked from the subcontractor is added correctly on all the finished
-        product valuation layer. Not only the first one."""
         todo_nb = 4
         self.comp2.tracking = "lot"
         self.comp1.tracking = "serial"
@@ -222,7 +206,6 @@ class TestAccountSubcontractingFlows(
                     move_line.quantity = 1
                 move_form.save()
 
-        # We should not be able to call the 'record_components' button
         picking_receipt.move_ids.picked = True
         picking_receipt.button_validate()
         self.assertEqual(picking_receipt.state, "done")
@@ -249,10 +232,6 @@ class TestAccountSubcontractingFlows(
         )
 
     def test_tracked_compo_and_backorder(self):
-        """
-        Suppose a subcontracted product P with two tracked components, P is FIFO
-        Create a receipt for 10 x P, receive 5, then 3 and then 2
-        """
         self.product_category.property_cost_method = "fifo"
         self.comp1.tracking = "lot"
         self.comp1.standard_price = 10
@@ -334,11 +313,6 @@ class TestAccountSubcontractingFlows(
         )
 
     def test_subcontract_cost_different_when_standard_price(self):
-        """Test when subcontracting with standard price when
-            Final product cost != Components cost + Subcontracting cost
-        When posting the account entries for receiving final product, the
-        subcontracting cost will be adjusted based on the difference of the cost.
-        """
         (self.comp1 | self.comp2 | self.finished).categ_id = self.category_standard_auto
         self.comp1.standard_price = 10
         self.comp2.standard_price = 20
@@ -358,7 +332,6 @@ class TestAccountSubcontractingFlows(
         self.assertRecordValues(
             amls.sorted("account_id, product_id"),
             [
-                # Receipt from subcontractor
                 {
                     "account_id": self.account_production.id,
                     "product_id": self.comp1.id,
@@ -399,9 +372,6 @@ class TestAccountSubcontractingFlows(
         )
 
     def test_subcontract_without_prod_account(self):
-        """
-        Test that the production stock account is optional, and we will fallback on input/output accounts.
-        """
         (self.comp1 | self.comp2 | self.finished).categ_id = self.category_fifo_auto
         self.comp1.standard_price = 1.0
         self.prod_location.valuation_account_id = False
@@ -414,7 +384,6 @@ class TestAccountSubcontractingFlows(
         ).picking_id
 
         amls = self.env["account.move.line"].search([("id", "not in", all_amls_ids)])
-        # Check that no account move line are created if there is no production account
         self.assertFalse(amls)
 
 
@@ -433,7 +402,6 @@ class TestSubcontractingBOMCost(TestBomPriceCommon):
         )
 
     def test_01_compute_price_subcontracting_cost(self):
-        """Test calculation of bom cost with subcontracting."""
         suppliers = self.env["product.supplierinfo"].create(
             [
                 {
@@ -451,16 +419,6 @@ class TestSubcontractingBOMCost(TestBomPriceCommon):
         )
         self.assertEqual(suppliers.mapped("is_subcontractor"), [True, True])
 
-        # -----------------------------------------------------------------
-        # Cost of BoM (Dining Table 1 Unit)
-        # -----------------------------------------------------------------
-        # Component Cost =  Table Head     1 Unit * 300 = 300 (478.75 from it's components)
-        #                   Screw          5 Unit *  10 =  50
-        #                   Leg            4 Unit *  25 = 100
-        #                   Glass          1 Unit * 100 = 100
-        #                   Subcontracting 1 Unit * 150 = 150
-        # Total = 700 [878.75 if components of Table Head considered] (for 1 Unit)
-        # -----------------------------------------------------------------
         self.assertEqual(
             self.dining_table.standard_price,
             1000,
@@ -472,17 +430,6 @@ class TestSubcontractingBOMCost(TestBomPriceCommon):
             700.0,
             "After computing price from BoM price should be 700",
         )
-
-        # Cost of BoM (Table Head 1 Dozen)
-        # -----------------------------------------------------------------
-        # Component Cost =  Plywood Sheet   12 Unit * 200 = 2400
-        #                   Bolt            60 Unit *  10 =  600
-        #                   Colour          12 Unit * 100 = 1200
-        #                   Corner Slide    57 Unit * 25  = 1425
-        #                   Subcontracting  1 Dozen * 120 =  120
-        #                                           Total = 5745
-        #                          1 Unit price (5745/12) =  478.75
-        # -----------------------------------------------------------------
 
         self.assertEqual(
             self.table_head.standard_price,
@@ -504,7 +451,6 @@ class TestSubcontractingBOMCost(TestBomPriceCommon):
         )
 
     def test_02_compute_price_subcontracting_cost(self):
-        """Test calculation of bom cost with subcontracting and supplier in different currency."""
         currency_a = self.env["res.currency"].create(
             {
                 "name": "ZEN",
@@ -539,18 +485,6 @@ class TestSubcontractingBOMCost(TestBomPriceCommon):
 
 @tagged("post_install", "-at_install")
 class TestSubcontractingBomPriceUom(TransactionCase):
-    """`_compute_bom_price` writes `standard_price`, so an unconvertible vendor
-    unit must fail loud rather than scale the price by the ratio of two
-    unrelated factors.
-
-    A subcontractor may legitimately quote in a unit unrelated to the product's
-    (`product.supplierinfo.product_uom_id` is deliberately cross-category).
-    `_select_seller` is called with `uom_id=bom.product_uom_id`, so such a
-    seller is normally filtered out before any conversion -- but
-    `mrp.bom.product_uom_id` carries no category constraint, so a BoM stated in
-    the seller's unit lets it through to a conversion that cannot succeed.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -607,19 +541,16 @@ class TestSubcontractingBomPriceUom(TransactionCase):
         return template.product_variant_id
 
     def test_bom_price_same_category(self):
-        """Control: a seller in the product's own unit is applied."""
         product = self._build("same", self.uom_unit, self.uom_unit, self.uom_unit)
         product.button_bom_cost()
         self.assertEqual(product.standard_price, 57.0)
 
     def test_bom_price_convertible_units(self):
-        """Control: a seller quoting per gram on a kg product still converts."""
         product = self._build("conv", self.uom_kgm, self.uom_gram, self.uom_kgm)
         product.button_bom_cost()
         self.assertEqual(product.standard_price, 50007.0)
 
     def test_bom_price_ignores_incompatible_seller(self):
-        """A cross-category seller is filtered out by `_select_seller`."""
         product = self._build("filt", self.uom_unit, self.uom_kgm, self.uom_unit)
         product.button_bom_cost()
         self.assertEqual(
@@ -629,29 +560,14 @@ class TestSubcontractingBomPriceUom(TransactionCase):
         )
 
     def test_bom_in_seller_uom_is_rejected_at_creation(self):
-        """A BoM stated in the seller's unit is refused up front.
-
-        This was the only way an incompatible seller reached the conversion:
-        `_select_seller(uom_id=bom.product_uom_id)` filters it out otherwise.
-        `mrp.bom._check_product_uom_id_category` now closes it at the source.
-        """
         with self.assertRaises(ValidationError):
             self._build("reject", self.uom_unit, self.uom_kgm, self.uom_kgm)
 
     def test_bom_price_raises_on_legacy_incompatible_bom_uom(self):
-        """Defence in depth for rows predating the BoM unit constraint.
-
-        `@api.constrains` only runs on create/write, so a database that already
-        held an incompatible BoM keeps it until something touches it. The
-        conversion itself must therefore still refuse rather than write a
-        `standard_price` scaled by the ratio of two unrelated factors, which is
-        what it did before `uom._compute_price` became strict.
-        """
         product = self._build("legacy", self.uom_unit, self.uom_kgm, self.uom_unit)
         bom = self.env["mrp.bom"].search(
             [("product_tmpl_id", "=", product.product_tmpl_id.id)], limit=1
         )
-        # Bypass the ORM to plant the shape the constraint now forbids.
         self.env.cr.execute(
             "UPDATE mrp_bom SET product_uom_id = %s WHERE id = %s",
             (self.uom_kgm.id, bom.id),

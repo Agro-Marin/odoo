@@ -54,7 +54,6 @@ class MrpAccountWipAccounting(models.TransientModel):
         productions = self.env["mrp.production"].browse(
             self.env.context.get("active_ids")
         )
-        # ignore selected MOs that aren't a WIP
         productions = productions.filtered(
             lambda mo: mo.state in ["progress", "to_close", "confirmed"]
         )
@@ -108,14 +107,6 @@ class MrpAccountWipAccounting(models.TransientModel):
         )
 
     def _end_of_day_utc(self, day):
-        """`day` 23:59:59 in the user's timezone, as the naive UTC the ORM stores.
-
-        `stock.move.line.date` and `mrp.workcenter.productivity.date_end` are
-        UTC; combining a Date with `time.max` and comparing that directly drops
-        everything the user did after their local (23:59:59 - utc_offset).
-        """
-        # `tz` reaches the context from the client, so an unknown key is a
-        # request the user can make, not a bug to raise on.
         try:
             tz = ZoneInfo(self.env.context.get("tz") or self.env.user.tz or "UTC")
         except ZoneInfoNotFoundError, ValueError:
@@ -184,7 +175,6 @@ class MrpAccountWipAccounting(models.TransientModel):
     @api.depends("date")
     def _compute_line_ids(self):
         for wizard in self:
-            # don't update lines when manual (i.e. no applicable MOs) entry
             if not wizard.line_ids or wizard.mo_ids:
                 wizard.line_ids = [Command.clear()] + wizard._get_line_vals(
                     wizard.mo_ids, wizard._end_of_day_utc(wizard.date)
@@ -192,9 +182,6 @@ class MrpAccountWipAccounting(models.TransientModel):
 
     def confirm(self):
         self.check_singleton()
-        # One entry, one journal, one set of company-dependent WIP accounts --
-        # all of them `env.company`'s. A selection spanning companies would post
-        # the whole figure into whichever one the session happens to be on.
         if len(self.mo_ids.company_id) > 1:
             raise UserError(
                 _(

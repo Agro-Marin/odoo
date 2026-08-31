@@ -59,10 +59,6 @@
             "web/static/src/libs/bootstrap.js",
             "base/static/src/css/modules.css",
             "web/static/src/core/**/*",
-            # The fork split web/static/src/core into components/, ui/ and
-            # services/: without them the bundle misses their modules and
-            # templates (e.g. web.Dialog, web.DropdownItem, web.TagsList) and
-            # the subcontracting portal client dies at template setup.
             "web/static/src/components/**/*",
             ("remove", "web/static/src/components/emoji_picker/emoji_data.js"),
             "web/static/src/ui/**/*",
@@ -80,20 +76,15 @@
             "web/static/src/views/view_dialogs/**/*",
             "web/static/src/views/widgets/**/*",
             "web/static/src/webclient/**/*",
-            ("remove", "web/static/src/webclient/clickbot/clickbot.js"),  # lazy loaded
+            ("remove", "web/static/src/webclient/clickbot/clickbot.js"),
             ("remove", "web/static/src/views/form/button_box/*.scss"),
             ("remove", "web/static/src/webclient/share_target/*"),
-            # A light bundle: the globs above reach web's dark siblings, which
-            # would compile against the light palette and override the files
-            # they answer.
             ("remove", "web/static/src/**/*.dark.scss"),
-            # remove the report code and whitelist only what's needed
             ("remove", "web/static/src/webclient/actions/reports/**/*"),
             "web/static/src/webclient/actions/reports/*.js",
             "web/static/src/webclient/actions/reports/*.xml",
             "web/static/src/env.js",
             "base/static/src/scss/res_partner.scss",
-            # Form style should be computed before
             "web/static/src/views/form/button_box/*.scss",
             "mrp_subcontracting/static/src/subcontracting_portal/*",
             "web/static/src/boot/start.js",

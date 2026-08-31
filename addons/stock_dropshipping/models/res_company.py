@@ -4,9 +4,6 @@ from odoo import api, models
 class ResCompany(models.Model):
     _inherit = "res.company"
 
-    # -------------------------------------------------------------------------
-    # Sequences
-    # -------------------------------------------------------------------------
     def _create_dropship_sequence(self):
         dropship_vals = [
             {
@@ -34,9 +31,6 @@ class ResCompany(models.Model):
         super()._create_per_company_sequences()
         self._create_dropship_sequence()
 
-    # -------------------------------------------------------------------------
-    # Picking types
-    # -------------------------------------------------------------------------
     def _create_dropship_picking_type(self):
         dropship_vals = []
         for company in self:
@@ -79,9 +73,6 @@ class ResCompany(models.Model):
         super()._create_per_company_picking_types()
         self._create_dropship_picking_type()
 
-    # -------------------------------------------------------------------------
-    # Stock rules
-    # -------------------------------------------------------------------------
     def _create_dropship_rule(self):
         dropship_route = self.env.ref("stock_dropshipping.route_drop_shipping")
         supplier_location = self.env.ref("stock.stock_location_suppliers")

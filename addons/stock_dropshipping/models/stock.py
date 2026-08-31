@@ -7,9 +7,6 @@ class StockRule(models.Model):
 
     @api.model
     def _get_procurements_to_merge_groupby(self, procurement):
-        """Do not group purchase order line if they are linked to different
-        sale order line. The purpose is to compute the delivered quantities.
-        """
         return procurement.values.get(
             "sale_line_id"
         ), super()._get_procurements_to_merge_groupby(procurement)
@@ -30,12 +27,6 @@ class StockRule(models.Model):
 
     @api.model
     def _get_rule_scope_domain(self, values):
-        # On `_get_rule_scope_domain`, not `_get_rule_domain`: this narrowing
-        # reads `sale_line_id`, and `_get_rules_batch` keys its groups on the
-        # scope domain. Applied one level up it was invisible to that key, so a
-        # sale-line procurement batched next to one without lost the
-        # restriction -- or imposed it on the other -- depending on which of the
-        # two sorted first.
         domain = super()._get_rule_scope_domain(values)
         if "sale_line_id" in values and values.get("company_id"):
             domain &= Domain("company_id", "=", values["company_id"].id)
@@ -115,12 +106,6 @@ class StockLot(models.Model):
     _inherit = "stock.lot"
 
     def _get_partners_from_deliveries(self, pickings):
-        # For a dropship the goods never transit through our company, so the
-        # relevant partner is the sale's shipping address, not the picking's.
-        # A recordset, not a list of ids: a picking with no partner contributed a
-        # False, and assigning [id, False] to a Many2many raises MissingError
-        # rather than ignoring it -- which a transfer reached through
-        # `produce_line_ids`, or a dropship with no sale order, produces.
         partners = self.env["res.partner"]
         for picking in pickings:
             partners |= (

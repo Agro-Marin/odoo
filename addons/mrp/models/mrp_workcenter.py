@@ -352,10 +352,6 @@ class MrpWorkcenter(models.Model):
         "time_ids.date_end",
     )
     def _compute_effectiveness_times(self):
-        # `performance` is a wall-clock, still-running loss type -- the same
-        # ones `_compute_working_state`/`unblock()` never treat as `blocked`
-        # -- so a workorder that simply overran `duration_expected` is
-        # machine-occupied time, not a stoppage.
         wall_clock = self.env["mrp.workcenter.productivity.loss"].WALL_CLOCK_LOSS_TYPES
         time_by_workcenter = defaultdict(lambda: {"blocked": 0.0, "productive": 0.0})
         for workcenter, loss_type, duration in self.env[
@@ -555,28 +551,6 @@ class MrpWorkcenter(models.Model):
         reservations_to_ignore=False,
         extra_leaves_by_workcenter=None,
     ):
-        """The candidate work centre in `self` that can finish soonest.
-
-        Two callers asked this question -- `mrp.workorder._plan_workorder` and the
-        BoM report's `_simulate_operation_planning` -- and each wrote out the same
-        sweep: refuse a work centre with no calendar, ask every candidate for a slot,
-        keep the earliest finish, and raise a fixed sentence if none answered. They
-        differ only in how the duration is derived and in which of
-        `_get_first_available_slot`'s two escape hatches they need, so both are
-        parameters here.
-
-        The point of collecting `reasons` is that `_get_first_available_slot` already
-        says *why* it found nothing -- "No available slot within N days of the planned
-        start" -- and both callers threw that away to raise "Impossible to plan.
-        Please check the workcenter availabilities.", which names neither the work
-        centre nor the horizon.
-
-        :param duration_by_workcenter: ``{work centre: minutes}``, since an
-            alternative work centre is costed differently from the one on the record.
-        :return: ``(best, reasons)`` where `best` is
-            ``(work centre, start, finish, duration)`` or ``None``, and `reasons` is
-            ``[(work centre, message)]`` for the ones that could not fit it.
-        """
         best = None
         reasons = []
         extra_leaves_by_workcenter = extra_leaves_by_workcenter or {}
@@ -593,7 +567,6 @@ class MrpWorkcenter(models.Model):
                 extra_leaves_slots=extra_leaves_by_workcenter.get(workcenter),
             )
             if not from_date:
-                # On failure the second value is the explanation, not a date.
                 reasons.append((workcenter, to_date))
                 continue
             if to_date and (best is None or to_date < best[2]):
@@ -602,7 +575,6 @@ class MrpWorkcenter(models.Model):
 
     @api.model
     def _unplannable_error(self, subject, reasons):
-        """The message for a sweep that found no slot anywhere."""
         if not reasons:
             return _(
                 "%(subject)s cannot be planned: it has no work center to run on.",
@@ -851,27 +823,10 @@ class MrpWorkcenterProductivityLoss(models.Model):
     @api.model
     @tools.ormcache("loss_type")
     def _get_loss_of_type_id(self, loss_type):
-        """Id of a productivity loss in ``loss_type``, cached per registry.
-
-        Cached because the callers ask per record: `_prepare_timeline_vals`
-        runs once per work order started, and `_close` once per timer closed,
-        each issuing the same `search` for a configuration record that changes
-        about never. Measured before this: ten identical
-        `mrp_workcenter_productivity_loss` selects for ten work orders.
-
-        The cache holds the id rather than the recordset, because a recordset
-        carries an environment and an ormcache outlives the transaction that
-        filled it.  Invalidated by `create`/`write`/`unlink` below.
-        """
         loss = self.sudo().search([("loss_type", "=", loss_type)], limit=1)
         return loss.id
 
     def _get_loss_of_type(self, loss_type):
-        # `browse`, not `browse(...).exists()`: the existence check would put
-        # back exactly the query the cache is here to remove.  A cached id can
-        # only go stale through a create, write or unlink of these records,
-        # and all three clear the cache below.  An id of `False` -- nothing
-        # configured -- caches fine and raises through the branch below.
         loss = self.browse(self._get_loss_of_type_id(loss_type))
         if not loss:
             labels = dict(self._fields["loss_type"]._description_selection(self.env))

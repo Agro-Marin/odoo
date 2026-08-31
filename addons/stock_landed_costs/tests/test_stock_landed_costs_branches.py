@@ -30,9 +30,6 @@ class TestStockLandedCostsBranches(TestStockValuationLCCommon):
         cls.product1.categ_id.property_cost_method = "fifo"
 
     def test_create_lc_from_branch(self):
-        """
-        From a company's branch, create a LC and ensure it impacts the SVL
-        """
         warehouse = self.env["stock.warehouse"].search(
             [("company_id", "=", self.branch.id)], limit=1
         )
@@ -80,9 +77,6 @@ class TestStockLandedCostsBranches(TestStockValuationLCCommon):
         self.assertEqual(self.product1.standard_price, 15)
 
     def test_lc_generated_from_bill(self):
-        """
-        Confirm PO, receive products, post bill and generate LC
-        """
         po_form = Form(self.env["purchase.order"])
         po_form.partner_id = self.vendor1
         with po_form.line_ids.new() as po_line:

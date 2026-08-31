@@ -5,11 +5,6 @@ class StockRule(models.Model):
     _inherit = "stock.rule"
 
     def _get_lead_days(self, product, **values):
-        """For subcontracting, we need to consider both vendor lead time and
-        manufacturing lead time, and DTPMO (Days To Prepare MO).
-        Subcontracting delay =
-            max(Vendor lead time, Manufacturing lead time + DTPMO) + Days to Purchase
-        """
         bypass_delay_description = self.env.context.get("bypass_delay_description")
         buy_rule = self.filtered(lambda r: r.action == "buy")
         seller = (
@@ -49,7 +44,6 @@ class StockRule(models.Model):
         else:
             manufacture_delay = bom.produce_delay
             delays["total_delay"] += manufacture_delay
-            # set manufacture_delay to purchase_delay so that PO can be created with correct date
             delays["purchase_delay"] += manufacture_delay
             if not bypass_delay_description:
                 delay_description.append((_("Receipt Date"), manufacture_delay))
@@ -58,7 +52,6 @@ class StockRule(models.Model):
                 )
             days_to_order = bom.days_to_prepare_mo
             delays["total_delay"] += days_to_order
-            # add dtpmo to purchase_delay so that PO can be created with correct date
             delays["purchase_delay"] += days_to_order
             if not bypass_delay_description:
                 delay_description.append((_("Production Start Date"), days_to_order))

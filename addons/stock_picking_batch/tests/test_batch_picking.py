@@ -10,7 +10,6 @@ from odoo.tools import float_round
 class TestBatchPicking(TransactionCase):
     @classmethod
     def setUpClass(cls):
-        """Create a picking batch with two pickings from stock to customer"""
         super().setUpClass()
         cls.stock_location = cls.env.ref("stock.stock_location_stock")
         cls.supplier_location = cls.env.ref("stock.stock_location_suppliers")
@@ -113,66 +112,35 @@ class TestBatchPicking(TransactionCase):
         )
 
     def test_batch_date_planned(self):
-        """Test to make sure the correct scheduled date is set for both a batch and its pickings.
-        Setting a batch's scheduled date manually has different behavior from when it is automatically
-        set/updated via compute.
-        """
 
         now = datetime.now().replace(microsecond=0)
         self.batch.date_planned = now
-
-        # TODO: this test cannot currently handle the onchange date_planned logic because of test form
-        # view not handling the M2M widget assigned to picking_ids (O2M). Hopefully if this changes then
-        # commented parts of this test can be used later.
-
-        # manually set batch scheduled date => picking's scheduled dates auto update to match (onchange logic test)
-        # with Form(self.batch) as batch_form:
-        # batch_form.date_planned = now - timedelta(days=1)
-        # batch_form.save()
-        # self.assertEqual(self.batch.date_planned, self.picking_client_1.date_planned)
-        # self.assertEqual(self.batch.date_planned, self.picking_client_2.date_planned)
 
         picking1_date_planned = now - timedelta(days=2)
         picking2_date_planned = now - timedelta(days=3)
         picking3_date_planned = now - timedelta(days=4)
 
-        # manually update picking scheduled dates => batch's scheduled date auto update to match lowest value
         self.picking_client_1.date_planned = picking1_date_planned
         self.picking_client_2.date_planned = picking2_date_planned
         self.assertEqual(self.batch.date_planned, self.picking_client_2.date_planned)
-        # but individual pickings keep original scheduled dates
         self.assertEqual(self.picking_client_1.date_planned, picking1_date_planned)
         self.assertEqual(self.picking_client_2.date_planned, picking2_date_planned)
 
-        # add a new picking with an earlier scheduled date => batch's scheduled date should auto-update
         self.picking_client_3.date_planned = picking3_date_planned
         self.batch.write({"picking_ids": [(4, self.picking_client_3.id)]})
         self.assertEqual(self.batch.date_planned, self.picking_client_3.date_planned)
 
-        # remove that picking and batch scheduled date should auto-update to next min date
         self.batch.write({"picking_ids": [(3, self.picking_client_3.id)]})
         self.assertEqual(self.batch.date_planned, self.picking_client_2.date_planned)
 
-        # directly add new picking with an earlier scheduled date => batch's scheduled date auto updates to match,
-        # but existing pickings do not (onchange logic test)
-        # with Form(self.batch) as batch_form:
-        #     batch_form.picking_ids.add(self.picking_client_3)
-        #     batch_form.save()
-        # # individual pickings keep original scheduled dates
         self.assertEqual(self.picking_client_1.date_planned, picking1_date_planned)
         self.assertEqual(self.picking_client_2.date_planned, picking2_date_planned)
-        # self.assertEqual(self.batch.date_planned, self.picking_client_3.date_planned)
-        # self.batch.write({'picking_ids': [(3, self.picking_client_3.id)]})
 
-        # cancelling batch should auto-remove all pickings => date_planned should default to none
         self.batch.action_cancel()
         self.assertEqual(len(self.batch.picking_ids), 0)
         self.assertEqual(self.batch.date_planned, False)
 
     def test_simple_batch_with_manual_quantity(self):
-        """Test a simple batch picking with all quantity for picking available.
-        The user set all the quantity picking manually and no wizard are used.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 10.0
         )
@@ -180,7 +148,6 @@ class TestBatchPicking(TransactionCase):
             self.productB, self.stock_location, 10.0
         )
 
-        # Confirm batch, pickings should not be automatically assigned.
         self.batch.action_confirm()
         self.assertEqual(
             self.picking_client_1.state, "confirmed", "Picking 1 should be confirmed"
@@ -188,7 +155,6 @@ class TestBatchPicking(TransactionCase):
         self.assertEqual(
             self.picking_client_2.state, "confirmed", "Picking 2 should be confirmed"
         )
-        # Ask to assign, so pickings should be assigned now.
         self.batch.action_assign()
         self.assertEqual(
             self.picking_client_1.state, "assigned", "Picking 1 should be ready"
@@ -211,19 +177,13 @@ class TestBatchPicking(TransactionCase):
         quant_A = self.env["stock.quant"]._gather(self.productA, self.stock_location)
         quant_B = self.env["stock.quant"]._gather(self.productB, self.stock_location)
 
-        # ensure that quantity for picking has been moved
         self.assertFalse(sum(quant_A.mapped("quantity")))
         self.assertFalse(sum(quant_B.mapped("quantity")))
 
-        # ensure that batch cannot be deleted now that it is done
         with self.assertRaises(UserError):
             self.batch.unlink()
 
     def test_simple_batch_with_wizard(self):
-        """Test a simple batch picking with all quantity for picking available.
-        The user use the wizard in order to complete automatically the quantity to
-        the initial demand (or reserved quantity in this test).
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 10.0
         )
@@ -231,7 +191,6 @@ class TestBatchPicking(TransactionCase):
             self.productB, self.stock_location, 10.0
         )
 
-        # Confirm batch, pickings should not be automatically assigned.
         self.batch.action_confirm()
         self.assertEqual(
             self.picking_client_1.state, "confirmed", "Picking 1 should be confirmed"
@@ -239,7 +198,6 @@ class TestBatchPicking(TransactionCase):
         self.assertEqual(
             self.picking_client_2.state, "confirmed", "Picking 2 should be confirmed"
         )
-        # Ask to assign, so pickings should be assigned now.
         self.batch.action_assign()
         self.assertEqual(
             self.picking_client_1.state, "assigned", "Picking 1 should be ready"
@@ -248,7 +206,6 @@ class TestBatchPicking(TransactionCase):
             self.picking_client_2.state, "assigned", "Picking 2 should be ready"
         )
 
-        # There should be a wizard asking to process picking without quantity done
         self.batch.action_done()
         self.assertEqual(
             self.picking_client_1.state, "done", "Picking 1 should be done"
@@ -260,15 +217,10 @@ class TestBatchPicking(TransactionCase):
         quant_A = self.env["stock.quant"]._gather(self.productA, self.stock_location)
         quant_B = self.env["stock.quant"]._gather(self.productB, self.stock_location)
 
-        # ensure that quantity for picking has been moved
         self.assertFalse(sum(quant_A.mapped("quantity")))
         self.assertFalse(sum(quant_B.mapped("quantity")))
 
     def test_batch_with_backorder_wizard(self):
-        """Test a simple batch picking with only one quantity fully available.
-        The user will set by himself the quantity reserved for each picking and
-        run the picking batch. There should be a wizard asking for a backorder.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 5.0
         )
@@ -276,7 +228,6 @@ class TestBatchPicking(TransactionCase):
             self.productB, self.stock_location, 10.0
         )
 
-        # Confirm batch, pickings should not be automatically assigned.
         self.batch.action_confirm()
         self.assertEqual(
             self.picking_client_1.state, "confirmed", "Picking 1 should be confirmed"
@@ -284,7 +235,6 @@ class TestBatchPicking(TransactionCase):
         self.assertEqual(
             self.picking_client_2.state, "confirmed", "Picking 2 should be confirmed"
         )
-        # Ask to assign, so pickings should be assigned now.
         self.batch.action_assign()
         self.assertEqual(
             self.picking_client_1.state, "assigned", "Picking 1 should be ready"
@@ -296,7 +246,6 @@ class TestBatchPicking(TransactionCase):
         self.picking_client_1.move_ids.write({"quantity": 5, "picked": True})
         self.picking_client_2.move_ids.write({"quantity": 10, "picked": True})
 
-        # There should be a wizard asking to process picking without quantity done
         back_order_wizard_dict = self.batch.action_done()
         self.assertTrue(back_order_wizard_dict)
         back_order_wizard = Form.from_action(self.env, back_order_wizard_dict).save()
@@ -324,16 +273,10 @@ class TestBatchPicking(TransactionCase):
         quant_A = self.env["stock.quant"]._gather(self.productA, self.stock_location)
         quant_B = self.env["stock.quant"]._gather(self.productB, self.stock_location)
 
-        # ensure that quantity for picking has been moved
         self.assertFalse(sum(quant_A.mapped("quantity")))
         self.assertFalse(sum(quant_B.mapped("quantity")))
 
     def test_batch_with_immediate_transfer_and_backorder_wizard(self):
-        """Test a simple batch picking with only one product fully available.
-        Everything should be automatically. First one backorder in order to set quantity
-        to reserved quantity. After a second wizard asking for a backorder for the quantity that
-        has not been fully transfered.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 5.0
         )
@@ -341,7 +284,6 @@ class TestBatchPicking(TransactionCase):
             self.productB, self.stock_location, 10.0
         )
 
-        # Confirm batch, pickings should not be automatically assigned.
         self.batch.action_confirm()
         self.assertEqual(
             self.picking_client_1.state, "confirmed", "Picking 1 should be confirmed"
@@ -349,7 +291,6 @@ class TestBatchPicking(TransactionCase):
         self.assertEqual(
             self.picking_client_2.state, "confirmed", "Picking 2 should be confirmed"
         )
-        # Ask to assign, so pickings should be assigned now.
         self.batch.action_assign()
         self.assertEqual(
             self.picking_client_1.state, "assigned", "Picking 1 should be ready"
@@ -358,7 +299,6 @@ class TestBatchPicking(TransactionCase):
             self.picking_client_2.state, "assigned", "Picking 2 should be ready"
         )
 
-        # There should be a wizard asking to process picking without quantity done
         back_order_wizard_dict = self.batch.action_done()
         self.assertTrue(back_order_wizard_dict)
         back_order_wizard = Form.from_action(self.env, back_order_wizard_dict).save()
@@ -383,18 +323,12 @@ class TestBatchPicking(TransactionCase):
         quant_A = self.env["stock.quant"]._gather(self.productA, self.stock_location)
         quant_B = self.env["stock.quant"]._gather(self.productB, self.stock_location)
 
-        # ensure that quantity for picking has been moved
         self.assertFalse(sum(quant_A.mapped("quantity")))
         self.assertFalse(sum(quant_B.mapped("quantity")))
 
     def test_batch_with_immediate_transfer_and_backorder_wizard_with_manual_operations(
         self,
     ):
-        """Test a simple batch picking with only one quantity fully available.
-        The user set the quantity done only for the partially available picking.
-        The test should run the immediate transfer for the first picking and then
-        the backorder wizard for the second picking.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 5.0
         )
@@ -402,7 +336,6 @@ class TestBatchPicking(TransactionCase):
             self.productB, self.stock_location, 10.0
         )
 
-        # Confirm batch, pickings should not be automatically assigned.
         self.batch.action_confirm()
         self.assertEqual(
             self.picking_client_1.state, "confirmed", "Picking 1 should be confirmed"
@@ -410,7 +343,6 @@ class TestBatchPicking(TransactionCase):
         self.assertEqual(
             self.picking_client_2.state, "confirmed", "Picking 2 should be confirmed"
         )
-        # Ask to assign, so pickings should be assigned now.
         self.batch.action_assign()
         self.assertEqual(
             self.picking_client_1.state, "assigned", "Picking 1 should be ready"
@@ -420,14 +352,12 @@ class TestBatchPicking(TransactionCase):
         )
 
         self.picking_client_1.move_ids.write({"quantity": 5, "picked": True})
-        # There should be a wizard asking to make a backorder
         back_order_wizard_dict = self.batch.action_done()
         self.assertTrue(back_order_wizard_dict)
         self.assertEqual(
             back_order_wizard_dict.get("res_model"), "stock.backorder.confirmation"
         )
         back_order_wizard = Form.from_action(self.env, back_order_wizard_dict).save()
-        # Empty pickings are excluded from the validation process, to be removed from the batch afterwards.
         self.assertEqual(len(back_order_wizard.pick_ids), 1)
         back_order_wizard.process()
 
@@ -449,7 +379,6 @@ class TestBatchPicking(TransactionCase):
             self.productB, self.stock_location, 10.0
         )
 
-        # Confirm batch, pickings should not be automatically assigned.
         self.batch.action_confirm()
         self.assertEqual(
             self.picking_client_1.state, "confirmed", "Picking 1 should be confirmed"
@@ -457,7 +386,6 @@ class TestBatchPicking(TransactionCase):
         self.assertEqual(
             self.picking_client_2.state, "confirmed", "Picking 2 should be confirmed"
         )
-        # Ask to assign, so pickings should be assigned now.
         self.batch.action_assign()
         self.assertEqual(
             self.picking_client_1.state, "assigned", "Picking 1 should be ready"
@@ -466,7 +394,6 @@ class TestBatchPicking(TransactionCase):
             self.picking_client_2.state, "assigned", "Picking 2 should be ready"
         )
 
-        # only do part of pickings + assign different destinations + try to pack (should get wizard to correct destination)
         self.batch.move_line_ids.quantity = 5
         self.batch.move_line_ids[0].location_dest_id = self.stock_location.id
         self.batch.move_ids.picked = True
@@ -477,7 +404,6 @@ class TestBatchPicking(TransactionCase):
         wizard.location_dest_id = self.customer_location.id
         package = wizard.action_done()
 
-        # a new package is made and done quantities should be in same package
         self.assertTrue(package)
         done_qty_move_lines = self.batch.move_line_ids.filtered(
             lambda ml: ml.quantity == 5
@@ -485,19 +411,15 @@ class TestBatchPicking(TransactionCase):
         self.assertEqual(done_qty_move_lines[0].result_package_id.id, package.id)
         self.assertEqual(done_qty_move_lines[1].result_package_id.id, package.id)
 
-        # confirm w/ backorder
         back_order_wizard_dict = self.batch.action_done()
         self.assertTrue(back_order_wizard_dict)
         back_order_wizard = Form.from_action(self.env, back_order_wizard_dict).save()
         self.assertEqual(len(back_order_wizard.pick_ids), 2)
         back_order_wizard.process()
 
-        # final package location should be correctly set based on wizard
         self.assertEqual(package.location_id.id, self.customer_location.id)
 
     def test_put_in_pack_within_single_picking(self):
-        """Test that when `action_put_in_pack` is called on a picking that is also in a batch,
-        only that picking's moves are put in the pack"""
 
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 10.0
@@ -517,14 +439,6 @@ class TestBatchPicking(TransactionCase):
         )
 
     def test_auto_batch(self):
-        """Test a simple auto-batch scenario with new picking type to avoid conflicts with existing picking types.
-        The pickings look like this:
-        Picking_out_1           Picking_out_2           Picking_out_3
-            Partner_1                Partner_2                Partner_1
-
-        So as the picking type is defined to batch automatically by partner, Picking 1&3 should be batched at their confirmation, while Picking2 isn't.
-        """
-        # Create picking type to avoid conflicts with existing pickings with auto-batch enabled grouping by partner.
         warehouse = self.env["stock.warehouse"].search([], limit=1)
         type_special_out = self.env["stock.picking.type"].create(
             {
@@ -539,7 +453,6 @@ class TestBatchPicking(TransactionCase):
         )
         partner_1 = self.env["res.partner"].create({"name": "Partner 1"})
         partner_2 = self.env["res.partner"].create({"name": "Partner 2"})
-        # Pickings need to be in 'ready' state to be auto-batchable
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 10
         )
@@ -547,7 +460,6 @@ class TestBatchPicking(TransactionCase):
             self.productB, self.stock_location, 20
         )
 
-        # Create the pickings that will be confirmed and batched afterwards
         picking_out_1 = self.env["stock.picking"].create(
             {
                 "location_id": self.stock_location.id,
@@ -609,11 +521,9 @@ class TestBatchPicking(TransactionCase):
         )
 
         all_pickings = picking_out_1 | picking_out_2 | picking_out_3
-        # No pickings should have any batch before confirmation
         self.assertFalse(all_pickings.batch_id)
 
         all_pickings.action_confirm()
-        # Now Picking 1 and 3 should be batched together, while Picking 2 is added to its own batch.
         self.assertTrue(picking_out_1.batch_id)
         self.assertTrue(picking_out_3.batch_id)
         self.assertEqual(picking_out_1.batch_id.id, picking_out_3.batch_id.id)
@@ -622,25 +532,12 @@ class TestBatchPicking(TransactionCase):
             picking_out_2.user_id == picking_out_2.batch_id.user_id == self.env.user
         )
         self.assertNotEqual(picking_out_2.batch_id.id, picking_out_1.batch_id.id)
-        # If Picking 1 is validated without Picking 3, Picking 1 should be removed from the batch
         picking_out_1.move_ids.write({"quantity": 10, "picked": True})
         picking_out_1.button_validate()
         self.assertFalse(picking_out_1.batch_id)
         self.assertEqual(len(picking_out_3.batch_id.picking_ids), 1)
 
     def test_auto_batch_02(self):
-        """Test that the auto batch works correctly in internal transfers
-        when they are created from an order point:
-        * WH1: 1 steps outgoing transfers:
-            - Delivery orders: auto batch - source location
-        * WH2: 3 steps incoming transfers, ressuply from WH1
-            - internal transfert/ WH2 : auto batch - destination location
-        * orderpoint:
-            - Product A - Location: WH2 - Route: WH2/supply from WH1 - procurement: P1 - min_qty: 1
-            - Product B - Location: WH2 - Route: WH2/supply from >H1 - procurement: P2 - min_qty: 1
-
-        * Result: 8 pickings and 4 batchs
-        """
         warehouse_1 = self.env["stock.warehouse"].create(
             {
                 "name": "WH 1",
@@ -699,7 +596,6 @@ class TestBatchPicking(TransactionCase):
         self.productA.route_ids = warehouse_2.resupply_route_ids
         self.productB.route_ids = warehouse_2.resupply_route_ids
         (op1 | op2)._procure_orderpoint_confirm()
-        # Only delivery pickings from WH1/Stock -> Inter-warehouse should be 'ready', so only one batch
         pAbatch = (
             self.env["stock.move"]
             .search(
@@ -725,7 +621,6 @@ class TestBatchPicking(TransactionCase):
         self.assertEqual(len(pAbatch), 1)
         self.assertEqual(pAbatch, pBbatch)
 
-        # Validate the batch so the next round of pickings become 'ready' -> Incoming pickings to Inter-warehouse -> WH2/Input
         pAbatch.move_ids.write({"quantity": 1, "picked": True})
         pAbatch.action_done()
         done_batches = pAbatch
@@ -754,7 +649,6 @@ class TestBatchPicking(TransactionCase):
         )
         self.assertEqual(pAbatch, pBbatch)
 
-        # Validate the batch so the next round of pickings become 'ready' -> Internal pickings : WH2/Input -> WH2/Quality Control
         current_batch = pAbatch - done_batches
         current_batch.move_ids.write({"quantity": 1, "picked": True})
         current_batch.action_done()
@@ -786,7 +680,6 @@ class TestBatchPicking(TransactionCase):
         )
         self.assertEqual(pAbatch, pBbatch)
 
-        # Validate the batch so the next round of pickings become 'ready' -> Internal pickings : WH2/Input -> WH2/Quality Control
         current_batch = pAbatch - done_batches
         current_batch.move_ids.write({"quantity": 1, "picked": True})
         current_batch.action_done()
@@ -818,8 +711,6 @@ class TestBatchPicking(TransactionCase):
         self.assertEqual(pAbatch, pBbatch)
 
     def test_auto_batch_3(self):
-        """Test a simple auto-batch scenario with a manually assigned picking."""
-        # Create picking type to avoid conflicts with existing pickings with auto-batch enabled grouping by partner.
         warehouse = self.env["stock.warehouse"].search([], limit=1)
         warehouse.out_type_id.write(
             {
@@ -860,9 +751,6 @@ class TestBatchPicking(TransactionCase):
         self.assertTrue(delivery.batch_id)
 
     def test_remove_all_transfers_from_confirmed_batch(self):
-        """
-        Check that the batch is canceled when all transfers are deleted
-        """
         self.batch.action_confirm()
         self.assertEqual(
             self.batch.state, "in_progress", "Batch Transfers should be in progress."
@@ -875,11 +763,6 @@ class TestBatchPicking(TransactionCase):
         )
 
     def test_backorder_on_one_picking(self):
-        """
-        Two pickings. The first only is fully done. The second one is not. The
-        user validates the batch without any backorder. Both pickings should be
-        done and still part of the batch
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 10.0
         )
@@ -921,15 +804,6 @@ class TestBatchPicking(TransactionCase):
         )
 
     def test_process_picking_with_reception_report(self):
-        """ "
-        Auto batch by partner + Reception report enabled
-        Batch with two pickings
-        Process the first one with backorder:
-        - Initial picking should be removed from the batch
-        - Backorder should be added to the bach
-        Create a third picking with same partner
-        - Should be added to the batch
-        """
         self.env.user.group_ids = [(4, self.ref("stock.group_reception_report"))]
         self.env["stock.picking.type"].browse(self.picking_type_in).write(
             {
@@ -963,7 +837,6 @@ class TestBatchPicking(TransactionCase):
                     ],
                 }
                 for partner_id, product, type_id, from_loc, to_loc in [
-                    # delivery
                     (
                         False,
                         self.productA,
@@ -971,7 +844,6 @@ class TestBatchPicking(TransactionCase):
                         self.stock_location,
                         self.customer_location,
                     ),
-                    # receipts
                     (
                         partner.id,
                         self.productA,
@@ -1054,14 +926,12 @@ class TestBatchPicking(TransactionCase):
         batch_3.action_confirm()
         batch_3.date_planned = False
 
-        # Ensure that merging is only allowed when at least two batches are selected.
         with self.assertRaises(UserError):
             batch_1.action_merge()
 
         early_date = fields.Datetime.now() - timedelta(days=1)
         batch_2.date_planned = early_date
 
-        # Ensure that merging works correctly even when one of the batches has no date_planned.
         (batch_1 | batch_2 | batch_3).action_merge()
         self.assertEqual(
             batch_1.picking_ids,
@@ -1117,12 +987,6 @@ class TestBatchPicking02(TransactionCase):
         )
 
     def test_same_package_several_pickings(self):
-        """
-        A batch with two transfers, source and destination are the same. The
-        first picking contains 3 x P, the second one 7 x P. The 10 P are in a
-        package. It should be possible to transfer the whole package across the
-        two pickings
-        """
         package = self.env["stock.package"].create(
             {
                 "name": "superpackage",
@@ -1182,7 +1046,6 @@ class TestBatchPicking02(TransactionCase):
         batch.action_confirm()
 
         pickings.move_ids.picked = True
-        # put productA in a package but not productB
         pickings.move_line_ids.filtered(
             lambda l: l.product_id == self.productA
         ).result_package_id = package
@@ -1257,25 +1120,18 @@ class TestBatchPicking02(TransactionCase):
             }
         )
         batch.action_confirm()
-        # assign a responsible to the batch should assign it to the pickings
         self.assertFalse((picking_1 | picking_2).user_id.id)
         batch.user_id = self.env.user
         self.assertEqual((picking_1 | picking_2).user_id, self.env.user)
-        # remove the responsible from the batch should remove it from the pickings
         batch.user_id = False
         self.assertFalse((picking_1 | picking_2).user_id.id)
         action = batch.action_done()
-        # Picking_1 should be detached from the batch after the wizard and picking_2 are validated.
         self.assertEqual(batch.picking_ids, picking_1 | picking_2)
         Form.from_action(self.env, action).save().process_cancel_backorder()
         self.assertEqual(batch.state, "done")
         self.assertEqual(batch.picking_ids, picking_2)
 
     def test_backorder_batching(self):
-        """
-        With autobatch receipts, check that you can create backorders for
-        pickings related to the batch.
-        """
         warehouse = self.env["stock.warehouse"].create(
             {
                 "name": "Warehouse test",
@@ -1344,14 +1200,10 @@ class TestBatchPicking02(TransactionCase):
         )
 
     def test_backorder_batching_2(self):
-        """
-        Check pickings are still linked to the batch after validation.
-        """
         warehouse = self.env.ref("stock.warehouse0")
         productA, productB = self.productA, self.productB
         partner = self.env["res.partner"].create({"name": "Mr. Belougat"})
 
-        # Create and validate a batch with 3 pickings where 2 of them are to backorder
         pickings = self.env["stock.picking"].create(
             [
                 {
@@ -1413,7 +1265,6 @@ class TestBatchPicking02(TransactionCase):
         self.assertEqual(pickings.backorder_ids, backorders)
         self.assertEqual(backorders.move_ids.mapped("product_qty"), [3.0, 3.0])
 
-        # Validate a new batch where every picking is to backorder
         bo_batch = self.env["stock.picking.batch"].create(
             {
                 "picking_ids": [Command.link(bo_1.id), Command.link(bo_2.id)],
@@ -1433,7 +1284,6 @@ class TestBatchPicking02(TransactionCase):
         self.assertEqual(bo_batch.picking_ids.backorder_ids, backorders_2)
         self.assertEqual(backorders_2.move_ids.mapped("product_qty"), [2.0, 2.0])
 
-        # Validate a new batch where no picking is to backorder
         bo_batch_2 = self.env["stock.picking.batch"].create(
             {
                 "picking_ids": [Command.link(bo_3.id), Command.link(bo_4.id)],
@@ -1454,10 +1304,6 @@ class TestBatchPicking02(TransactionCase):
         )
 
     def test_backorder_batching_3(self):
-        """
-        Check that pickings are still linked to the batch after validation
-        when backorders are skipped in autobacth
-        """
         warehouse = self.env.ref("stock.warehouse0")
         warehouse.int_type_id.write(
             {
@@ -1468,7 +1314,6 @@ class TestBatchPicking02(TransactionCase):
         productA, productB = self.productA, self.productB
         partner = self.env["res.partner"].create({"name": "Mr. Belougat"})
 
-        # Create and validate a batch with 2 pickings where 1 of them is to partially backorder
         pickings = self.env["stock.picking"].create(
             [
                 {
@@ -1518,8 +1363,6 @@ class TestBatchPicking02(TransactionCase):
             }
         )
         batch.action_confirm()
-        # Partially pick the quantities of only one of the 2 pickings
-        # The second picking should be removed from the batch and added to an other one
         pickings.move_ids.filtered(lambda m: m.product_id == productA).quantity = 1.0
         moveB = pickings.move_ids.filtered(lambda m: m.product_id == productB)
         moveB.quantity = 4.0
@@ -1530,16 +1373,11 @@ class TestBatchPicking02(TransactionCase):
         self.assertTrue(pickings[1].batch_id)
 
     def test_backorder_batching_4(self):
-        """
-        Check that pickings are still linked to the batch after validation
-        when backorders are skipped without autobacth
-        """
         warehouse = self.env.ref("stock.warehouse0")
         warehouse.int_type_id.auto_batch = False
         productA, productB = self.productA, self.productB
         partner = self.env["res.partner"].create({"name": "Mr. Belougat"})
 
-        # Create and validate a batch with 2 pickings where 1 of them is to partially backorder
         pickings = self.env["stock.picking"].create(
             [
                 {
@@ -1589,8 +1427,6 @@ class TestBatchPicking02(TransactionCase):
             }
         )
         batch.action_confirm()
-        # Partially pick the quantities of only one of the 2 pickings
-        # The second picking should be removed from the batch but not added to any other one
         pickings.move_ids.filtered(lambda m: m.product_id == productA).quantity = 1.0
         moveB = pickings.move_ids.filtered(lambda m: m.product_id == productB)
         moveB.quantity = 4.0
@@ -1604,9 +1440,6 @@ class TestBatchPicking02(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestBatchPickingSynchronization(HttpCase):
     def test_stock_picking_batch_sm_to_sml_synchronization(self):
-        """Test the synchronization between stock move and stock move line within
-        the detailed operation modal for stock picking batches.
-        """
 
         self.env["res.config.settings"].create(
             {"group_stock_multi_locations": True}

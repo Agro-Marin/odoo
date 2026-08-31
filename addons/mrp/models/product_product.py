@@ -14,8 +14,16 @@ class ProductProduct(models.Model):
     _mrp_product_field = "product_id"
     _mrp_bom_field = "variant_bom_ids"
 
-    variant_bom_ids = fields.One2many("mrp.bom", "product_id", "BOM Product Variants")
-    bom_line_ids = fields.One2many("mrp.bom.line", "product_id", "BoM Components")
+    variant_bom_ids = fields.One2many(
+        "mrp.bom",
+        "product_id",
+        "BOM Product Variants",
+    )
+    bom_line_ids = fields.One2many(
+        "mrp.bom.line",
+        "product_id",
+        "BoM Components",
+    )
 
     product_catalog_product_is_in_bom = fields.Boolean(
         compute="_compute_product_is_in_bom_and_mo",
@@ -30,8 +38,6 @@ class ProductProduct(models.Model):
     def _get_mrp_variants(self):
         return self
 
-    # No `@api.depends` -- see the measurement on
-    # `product.template._compute_bom_count`.
     def _compute_bom_count(self):
         bom_ids_by_product = collections.defaultdict(set)
         bom_ids_by_template = collections.defaultdict(set)
@@ -61,8 +67,6 @@ class ProductProduct(models.Model):
 
     @api.depends_context("company")
     def _compute_is_kit(self):
-        # A variant is a kit through a BoM of its own, or through one its
-        # template carries for every variant (`product_id` unset).
         Bom = self.env["mrp.bom"].sudo()
         domain = Bom._get_kit_domain() & (
             Domain("product_id", "in", self.ids)
@@ -113,9 +117,6 @@ class ProductProduct(models.Model):
 
     @api.depends_context("order_id")
     def _compute_product_is_in_bom_and_mo(self):
-        # Both fields exist for the product catalog, which reads them through
-        # their `search` methods only; the catalog kanban never renders the
-        # value, so there is nothing to compute per record.
         self.product_catalog_product_is_in_bom = False
         self.product_catalog_product_is_in_mo = False
 
@@ -128,8 +129,6 @@ class ProductProduct(models.Model):
     def _search_product_is_in_mo(self, operator, value):
         if operator != "in" or set(value) != {True}:
             return NotImplemented
-        # `browse().exists()`, not a `search` on the id: the context key comes
-        # from the catalog client, so it can name a record that is gone.
         production = (
             self.env["mrp.production"].browse(self.env.context.get("order_id")).exists()
         )
@@ -142,22 +141,6 @@ class ProductProduct(models.Model):
         )
         if not manufacture_routes:
             return result
-        # `_bom_find`, not `product.bom_ids`: the latter is the *template's*
-        # o2m, so a variant with no BoM of its own claimed the Manufacture route
-        # from a sibling variant's BoM, and a kit -- which `stock_rule.run`
-        # explodes rather than manufactures -- claimed it too.
-        #
-        # Both consumers (`stock.warehouse.orderpoint._compute_rule_ids`,
-        # `stock.replenishment.report._get_projected_shortages`) use this dict
-        # only inside a memoisation key: `_get_rules_from_location` is never
-        # given the routes and reads the product's own. So no rule set changes
-        # here -- measured, an orderpoint on the BoM-less sibling still resolves
-        # to `['manufacture']`, from the warehouse. What changes is that two
-        # variants whose real rules differ stop colliding on one key.
-        # Scoped per product's own company, not the active one: `self` can
-        # span several companies (both callers pass a batch resolved without
-        # regard to `env.company`), and `_bom_find` only matches a product
-        # against the company it's asked for.
         boms = {}
         for company, products in self.grouped("company_id").items():
             boms.update(
@@ -213,10 +196,6 @@ class ProductProduct(models.Model):
             )
 
     def _prepare_quantities_vals(self, filters, location_domains=None):
-        # `company_id`, like `is_kit`: without it a phantom BoM owned by
-        # another company exploded here anyway, so a product whose `is_kit`
-        # cell read False on the very same form reported its components'
-        # availability instead of its own.
         bom_kits = (
             self.env["mrp.bom"]
             .sudo()
@@ -233,21 +212,11 @@ class ProductProduct(models.Model):
         )
         if not kits:
             return res
-        # One memo per top-level read, threaded through the context: a kit
-        # nested inside a kit re-enters this method through the recursive call
-        # below and fills the same dict, so two kits sharing a component pay for
-        # it once and the recursion terminates.
         qties = self.env.context.get("mrp_compute_quantities", {})
         qties.update(res)
         exploded = {
             product: bom_kits[product]._explode(product, 1)[1] for product in kits
         }
-        # Resolve every component of every kit in ONE call, and resolve it with
-        # the caller's own `filters` and `location_domains`. Reading
-        # `component.qty_available` instead -- which is what this did -- goes
-        # back through `_compute_quantities`, which rebuilds both from the
-        # context: the scope a caller passed as an argument was dropped, and
-        # `_get_quantity_totals` is a caller that passes one.
         components = self.browse(
             {
                 bom_line.product_id.id
@@ -269,23 +238,6 @@ class ProductProduct(models.Model):
         return res
 
     def _prepare_kit_quantities_vals(self, bom_kit, bom_sub_lines, qties):
-        """How many whole kits the scarcest component allows, per quantity field.
-
-        ``bom_sub_lines`` is ``bom_kit._explode(self, 1)[1]``, so every quantity
-        in it is what *one BoM* consumes, and one BoM yields
-        ``bom_kit.product_qty`` kits. ``qties`` already holds every component's
-        quantities, resolved in one batch by ``_prepare_quantities_vals``.
-
-        The per-component ratio is deliberately left unrounded. Rounding it
-        DOWN at the 'Product Unit' precision -- which is what this did -- floors
-        a count of *BoMs* before it is scaled to kits, so every kit the last
-        partial BoM would have yielded is lost: 201 components at 200 per BoM
-        for a BoM of 1000 kits reported 1000 instead of 1005, and at 0 decimals
-        3 components at 2 per BoM for a BoM of 2 kits reported 2 instead of 3.
-        The final `round(..., "DOWN") // 1` still floors the answer to whole
-        kits; the round is what keeps float noise (2.9999999996) from flooring
-        to 2.
-        """
         self.check_singleton()
         lines_by_component = collections.defaultdict(list)
         for bom_line, bom_line_data in bom_sub_lines:
@@ -306,14 +258,10 @@ class ProductProduct(models.Model):
                 )
             if not qty_per_bom:
                 continue
-            # Every component was resolved into `qties` by the caller; a miss
-            # would be a component the explosion did not report.
             component_vals = qties[component.id]
             for field in QUANTITY_FIELDS:
                 ratios[field].append(component_vals[field] / qty_per_bom)
         if not ratios:
-            # No storable component with a non-zero quantity: nothing bounds
-            # the kit, and "unbounded" is not a stock figure.
             return dict.fromkeys(QUANTITY_FIELDS, 0)
         return {
             field: self.uom_id.round(
@@ -370,15 +318,6 @@ class ProductProduct(models.Model):
         ) == len(product_template_attribute_value_ids.attribute_id)
 
     def _get_phantom_bom_products(self):
-        """Every product that explodes, for the active company.
-
-        Through `is_kit`, so this and the field cannot drift: the search method
-        already resolves both halves -- a BoM of the variant's own and one the
-        template carries for every variant -- as two subselects in one query.
-        What it replaces loaded every kit BoM in the database as records, then
-        read `product_variant_ids` off each template-level one to expand it in
-        Python.
-        """
         return self.search([("is_kit", "=", True)])
 
     def _get_quantity_search_candidates(self, location_domains=None):
@@ -397,8 +336,6 @@ class ProductProduct(models.Model):
         kits = self._get_phantom_bom_products()
         if not kits:
             return product_ids
-        # A kit holds no stock of its own: whatever the quant scan said about
-        # one, its components decide the answer.
         matching, not_matching = set(), set()
         for product, qty_available in zip(
             kits, kits.mapped("qty_available"), strict=True
@@ -407,11 +344,6 @@ class ProductProduct(models.Model):
         return sorted((set(product_ids) - not_matching) | matching)
 
     def _update_uom(self, to_uom_id):
-        # Every mrp model that stamps a unit beside a product quantity. A model
-        # missing from this table keeps its old unit while the product moves to
-        # the new one, which silently reinterprets the quantity beside it --
-        # and skips `_restamp_uom`'s refusal to convert at all when a document
-        # already used a different unit.
         for model, product_field, domain, context in (
             (
                 "mrp.bom",
@@ -433,18 +365,6 @@ class ProductProduct(models.Model):
             ),
             ("mrp.production", "product_id", [("product_id", "in", self.ids)], None),
             ("mrp.unbuild", "product_id", [("product_id", "in", self.ids)], None),
-            # Deliberately absent: `mrp.workcenter.capacity`. Its
-            # `product_uom_id` is not a stamp of the product's own unit, it is
-            # the unit the capacity is *rated* in -- `_get_capacity`'s ranked
-            # lookup explicitly tries `(product, caller's unit)` and the UNIQUE
-            # index is `(workcenter_id, product_id, product_uom_id)`, so several
-            # rows per product in different units are legal. Restamping them
-            # would collide on that index, and `_restamp_uom`'s guard would
-            # refuse the product's unit change outright for a configuration
-            # that is correct -- verified: two rows, Units and Dozens, made
-            # `uom_id = dozen` raise "Other units of measure ... have already
-            # been used". Nothing is stale either: the capacity value is
-            # expressed in that unit and `_get_capacity` converts it.
         ):
             self._restamp_uom(
                 model,

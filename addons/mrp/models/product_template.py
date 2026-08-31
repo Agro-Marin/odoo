@@ -17,15 +17,6 @@ class ProductTemplate(models.Model):
     def _get_mrp_variants(self):
         return self.product_variant_ids
 
-    # No `@api.depends` here, and it is not an oversight. Declaring
-    # `depends("bom_ids")` was measured against this exact method with the
-    # dependency stripped back off: create a BoM, archive one, unlink one,
-    # repoint one at another template, repoint a line at another component --
-    # every read agreed to the record, with and without, at the same query
-    # count and the same number of recomputations (0). The one case that is
-    # stale, a BoM that starts producing this template as a *byproduct*, is
-    # stale both ways and has no reverse relation to hang a dependency on. A
-    # declaration that changes nothing is a claim the code does not keep.
     def _compute_bom_count(self):
         bom_ids_by_template = collections.defaultdict(set)
         for template, bom_ids in self.env["mrp.bom"]._read_group(
@@ -45,9 +36,6 @@ class ProductTemplate(models.Model):
 
     @api.depends_context("company")
     def _compute_is_kit(self):
-        # `_read_group`, not `search_read`: the set of template ids is all that
-        # is wanted, and reading `product_tmpl_id` through `search_read` renders
-        # a display name for every BoM row only to throw it away.
         Bom = self.env["mrp.bom"].sudo()
         kit_template_ids = {
             template.id

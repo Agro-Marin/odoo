@@ -56,8 +56,6 @@ class TestPostDeferralContract(TestStockValuationCommon):
 
         invoice._post(soft=True)
         self.assertEqual(invoice.state, "draft")
-        # what _autopost_draft_entries does once the accounting date arrives,
-        # without its cron bookkeeping (which commits, and tests may not)
         with freeze_time(accounting_date):
             invoice._post(soft=True)
 

@@ -31,11 +31,6 @@ class StockMoveLine(models.Model):
     def create(self, vals_list):
         res = super().create(vals_list)
         if self.env.context.get("force_manual_consumption"):
-            # Recording a quantity is only a *manual* consumption when it differs
-            # from what the order asked for, and the comparison is the move's, not
-            # one line's: a line is a part of the total. This used to flag any
-            # non-zero line, which made the same test in `stock.move.write` inert --
-            # the write set no flag and the move line it created set one anyway.
             for move in res.move_id:
                 move.picked = True
                 lines = res.filtered(lambda line, move=move: line.move_id == move)

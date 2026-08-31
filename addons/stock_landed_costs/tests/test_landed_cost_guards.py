@@ -7,8 +7,6 @@ from .common import TestStockLandedCostsCommon
 
 @tagged("post_install", "-at_install")
 class TestLandedCostGuards(TestStockLandedCostsCommon):
-    """Validation guard and cost-line product onchange for stock.landed.cost."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -43,14 +41,12 @@ class TestLandedCostGuards(TestStockLandedCostsCommon):
         )
 
     def test_validate_without_target_raises(self):
-        """Validating a landed cost with no target picking/move is rejected."""
         landed_cost = self._draft_landed_cost()
         self.assertFalse(landed_cost.picking_ids)
         with self.assertRaises(UserError):
             landed_cost.button_validate()
 
     def test_cost_line_onchange_product_pulls_defaults(self):
-        """Picking a cost-line product fills name, split method, price and account."""
         line = self.env["stock.landed.cost.lines"].new(
             {"product_id": self.landed_cost.id}
         )

@@ -95,15 +95,6 @@ class ChangeProductionQty(models.TransientModel):
 
             for wo in production.workorder_ids:
                 operation = wo.operation_id
-                # Rounded through the order's unit, like every other quantity test
-                # in this method. The two tests this replaces read
-                # `decimal_precision` instead, so a unit coarser than "Product
-                # Unit" -- one that cannot be split at all -- called a remainder of
-                # 0.4 non-zero and asked the work order to make 0.4 of an
-                # indivisible thing. The sign is now handled once for both
-                # branches: the serial one asked for one more unit on a *negative*
-                # remainder, because `not float_is_zero(-3)` is true, while the
-                # branch beside it had always guarded `quantity > 0`.
                 remaining = wo.qty_production - wo.qty_produced
                 if wo.product_uom_id.compare(remaining, 0) <= 0:
                     quantity = 0.0
@@ -112,34 +103,12 @@ class ChangeProductionQty(models.TransientModel):
                 else:
                     quantity = remaining
                 wo._update_qty_producing(quantity)
-                # After `_update_qty_producing`, not before.  A work order that
-                # carries an operation derives its duration from the quantity,
-                # and asking for it first read the *old* `qty_producing`: a
-                # started work order taken from 5 to 20 kept the 50 minutes it
-                # was scheduled for, four times short, while the same call one
-                # line later returns 200.  `ratio` never reached that branch --
-                # it is read only by the operation-less one, which still needs
-                # it because it has no quantity-driven formula to fall back on.
                 wo.duration_expected = wo._get_duration_expected(
                     ratio=new_production_qty / old_production_qty
                 )
-                # `is_produced`, not a pair of bare float comparisons. The two
-                # tests here were `<` and `==`, which are not complements: a work
-                # order that had produced *more* than the order now asks for
-                # satisfied neither and stayed at `progress` for good -- which is
-                # exactly what cutting an order below what is already made
-                # produces. `mrp.workorder.is_produced` is the model's own answer
-                # to this question, rounded through the order's unit.
                 if wo.state == "done" and not wo.is_produced:
                     wo.state = "progress"
                 elif wo.state == "progress" and wo.is_produced:
-                    # Assigning `.state` alone skipped what
-                    # `button_finish()` does for a running work order: its
-                    # open productivity timer stayed open, and
-                    # `costs_hour`/`date_end` never got the values
-                    # `button_finish()` stamps. The move-picking half of
-                    # `button_finish()` is not needed here -- this method
-                    # already reconciled the raw/finished moves above.
                     wo.end_all()
                     wo.write(
                         {

@@ -8,8 +8,6 @@ class ProductTemplate(models.Model):
     def _get_product_accounts(self, fiscal_pos=None):
         accounts = super()._get_product_accounts(fiscal_pos=fiscal_pos)
         if self.categ_id:
-            # If category set on the product take production account from category even if
-            # production account on category is False
             production_account = self.categ_id.property_stock_account_production_cost_id
         else:
             ProductCategory = self.env["product.category"]
@@ -98,7 +96,6 @@ class ProductProduct(models.Model):
             if line._skip_bom_line(self):
                 continue
 
-            # Compute recursive if line has `child_line_ids`
             if line.child_bom_id and line.child_bom_id in boms_to_recompute:
                 child_total = line.product_id._compute_bom_price(
                     line.child_bom_id, boms_to_recompute=boms_to_recompute
@@ -140,10 +137,6 @@ class ProductProduct(models.Model):
         return 0.0
 
     def _compute_value(self):
-        """
-        Exclude kit products from inventory valuation to avoid double counting.
-        Only non-kit products are valuated; kits are set to zero value.
-        """
         non_kit_products = self.filtered(lambda product: not product.is_kit)
         super(ProductProduct, non_kit_products)._compute_value()
         kit_products = self - non_kit_products

@@ -14,13 +14,6 @@ class TestMrpRepairFlow(TestMrpCommon):
         )
 
     def test_repair_with_manufacture_mto_link(self):
-        """
-        Test the integration between a repair order and a manufacturing order (MTO)
-        for a product with 'Make to Order' (MTO) and 'Manufacture' routes.
-
-        Validates that a repair order triggers a manufacturing order with correct product
-        and quantity, and ensures proper linking via the procurement group.
-        """
         mto_route = self.env.ref("stock.route_warehouse0_mto")
         mto_route.active = True
         manufacturing_route = (
@@ -31,13 +24,6 @@ class TestMrpRepairFlow(TestMrpCommon):
         )
         rule.procure_method = "make_to_order"
 
-        # A product of this test's own, manufacturable and used by nothing else. It used
-        # `product_2`, which appears in the fixture only as a *component*: with no BoM of
-        # its own, `_run_manufacture` skips it by design ("No BOM: skip MO creation, only
-        # replenishment rules should handle this"), so no manufacturing order could ever
-        # be created and the link this test is named for could not exist. The fixture's
-        # manufacturable products are no good either -- they are components of each
-        # other's BoMs, so the quantity that comes back is somebody else's.
         product = self.env["product.product"].create(
             {
                 "name": "Repairable, manufactured",
@@ -81,11 +67,6 @@ class TestMrpRepairFlow(TestMrpCommon):
         self.assertEqual(repair.production_count, 1)
 
     def test_adding_kit_parts_to_confirmed_repair(self):
-        """Test adding a kit product to a confirmed repair order.
-        This ensures that:
-        - Its moves are correctly exploded into their component parts.
-        - The generated component moves are properly linked to the repair order.
-        """
         repair = self.env["repair.order"].create(
             {
                 "product_id": self.product.id,
@@ -95,9 +76,7 @@ class TestMrpRepairFlow(TestMrpCommon):
         repair.action_validate()
         self.assertEqual(repair.state, "confirmed")
         self.assertEqual(len(repair.move_ids), 0)
-        # Ensure the product is a kit
         self.assertTrue(self.product_5.is_kit)
-        # Add the kit to the repair order
         self.env["stock.move"].create(
             {
                 "repair_id": repair.id,
@@ -106,7 +85,6 @@ class TestMrpRepairFlow(TestMrpCommon):
                 "repair_line_type": "add",
             }
         )
-        # Check that the kit has been exploded into its components
         self.assertEqual(len(repair.move_ids), 2)
         self.assertEqual(
             set(repair.move_ids.product_id.ids),

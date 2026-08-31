@@ -9,10 +9,6 @@ from .delivery_request_objects import DeliveryCommodity, DeliveryPackage
 class DeliveryCarrier(models.Model):
     _inherit = "delivery.carrier"
 
-    # -------------------------------- #
-    # Internals for shipping providers #
-    # -------------------------------- #
-
     invoice_policy = fields.Selection(
         selection_add=[("real", "Real cost")],
         ondelete={"real": "set default"},
@@ -30,24 +26,7 @@ class DeliveryCarrier(models.Model):
         domain=[("shipping_selectable", "=", True)],
     )
 
-    # -------------------------- #
-    # API for external providers #
-    # -------------------------- #
-
     def send_shipping(self, pickings):
-        """Send the package to the service provider
-
-        :param pickings: A recordset of pickings
-        :returns: A list of dictionaries (one per picking) containing of
-            the form::
-
-                         { 'exact_price': price,
-                           'tracking_number': number }
-        :rtype: list[dict] | None
-        """
-        # TODO missing labels per package
-        # TODO missing currency
-        # TODO missing success, error, warnings
         self.check_singleton()
         if hasattr(self, "%s_send_shipping" % self.delivery_type):
             return getattr(self, "%s_send_shipping" % self.delivery_type)(pickings)
@@ -74,31 +53,18 @@ class DeliveryCarrier(models.Model):
         return "ShippingDoc-%s" % self.delivery_type
 
     def get_tracking_link(self, picking):
-        """Ask the tracking link to the service provider
-
-        :param picking: record of stock.picking
-        :returns: an URL containing the tracking link or None
-        :rtype: str | None
-        """
         self.check_singleton()
         if hasattr(self, "%s_get_tracking_link" % self.delivery_type):
             return getattr(self, "%s_get_tracking_link" % self.delivery_type)(picking)
         return None
 
     def cancel_shipment(self, pickings):
-        """Cancel a shipment
-
-        :param pickings: A recordset of pickings
-        """
         self.check_singleton()
         if hasattr(self, "%s_cancel_shipment" % self.delivery_type):
             return getattr(self, "%s_cancel_shipment" % self.delivery_type)(pickings)
         return None
 
     def _get_default_custom_package_code(self):
-        """Some delivery carriers require a prefix to be sent in order to use custom
-        packages (ie not official ones). This optional method will return it as a string.
-        """
         self.check_singleton()
         if hasattr(self, "_%s_get_default_custom_package_code" % self.delivery_type):
             return getattr(
@@ -106,10 +72,6 @@ class DeliveryCarrier(models.Model):
             )()
         else:
             return False
-
-    # -------------------------------- #
-    # get default packages/commodities #
-    # -------------------------------- #
 
     def _get_packages_from_order(self, order, default_package_type):
         total_cost = 0
@@ -138,9 +100,6 @@ class DeliveryCarrier(models.Model):
                     weight_uom_name,
                 )
             )
-        # If max weight == 0 => division by 0. If this happens, we want to have
-        # more in the max weight than in the total weight, so that it only
-        # creates ONE package with everything.
         max_weight = default_package_type.max_weight or total_weight + 1
         total_full_packages = int(total_weight / max_weight)
         last_package_weight = total_weight % max_weight
@@ -148,10 +107,9 @@ class DeliveryCarrier(models.Model):
         package_weights = [max_weight] * total_full_packages + (
             [last_package_weight] if last_package_weight else []
         )
-        partial_cost = total_cost / len(package_weights)  # separate the cost uniformly
+        partial_cost = total_cost / len(package_weights)
         order_commodities = self._get_commodities_from_order(order)
 
-        # Split the commodities value uniformly as well
         for commodity in order_commodities:
             commodity.monetary_value /= len(package_weights)
             commodity.qty = max(1, commodity.qty // len(package_weights))
@@ -187,7 +145,6 @@ class DeliveryCarrier(models.Model):
             )
             return packages
 
-        # Create all packages.
         for package in picking.move_line_ids.result_package_id:
             move_lines = picking.move_line_ids.filtered(
                 lambda ml, package=package: ml.result_package_id == package
@@ -210,7 +167,6 @@ class DeliveryCarrier(models.Model):
                 )
             )
 
-        # Create one package: either everything is in pack or nothing is.
         if picking.weight_bulk:
             commodities = self._get_commodities_from_stock_move_lines(
                 picking.move_line_ids
@@ -308,10 +264,6 @@ class DeliveryCarrier(models.Model):
             fields.Date.today(),
         )
 
-    # ------------------------------------------------ #
-    # Fixed price shipping, aka a very simple provider #
-    # ------------------------------------------------ #
-
     def fixed_send_shipping(self, pickings):
         res = []
         for p in pickings:
@@ -328,10 +280,6 @@ class DeliveryCarrier(models.Model):
     def fixed_cancel_shipment(self, pickings):
         raise NotImplementedError
 
-    # ----------------------------------- #
-    # Based on rule delivery type methods #
-    # ----------------------------------- #
-
     def base_on_rule_send_shipping(self, pickings):
         res = []
         for p in pickings:
@@ -342,7 +290,7 @@ class DeliveryCarrier(models.Model):
                 {
                     "exact_price": p.carrier_id._get_price_available(p.sale_id)
                     if p.sale_id
-                    else 0.0,  # TODO cleanme
+                    else 0.0,
                     "tracking_number": False,
                 }
             ]

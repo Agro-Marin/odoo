@@ -821,11 +821,6 @@ class TestTraceability(TestMrpCommon):
         mo.lot_producing_ids = self.env["stock.lot"]
         mo.action_generate_serial()
         self.assertIn(
-            # `ir.sequence` interpolates with `datetime.now(self.env.tz)` on purpose,
-            # so the day-of-year is the *reader's*, not the server's. Asserting a
-            # naive `datetime.now()` made this test red for exactly as long as the
-            # two disagree -- 22:00-24:00 UTC every day for a Europe/Brussels user on
-            # a UTC server, which is where the demo admin sits.
             datetime.now(self.env.tz).strftime("%j"),
             mo.lot_producing_ids.name,
         )

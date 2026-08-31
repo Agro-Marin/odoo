@@ -43,14 +43,6 @@ class TestSubcontractingDropshippingValuation(ValuationReconciliationTestCommon)
         )
 
     def test_valuation_subcontracted_and_dropshipped(self):
-        """
-        Product:
-            - FIFO + Auto
-            - Subcontracted
-        Purchase 2 from Subcontractor to a customer (dropship).
-        Then return 1 to subcontractor and one to stock
-        It should generate the correct valuations AMLs
-        """
         # pylint: disable=bad-whitespace
         all_amls_ids = self.env["account.move.line"].search_read([], ["id"])
 
@@ -109,7 +101,6 @@ class TestSubcontractingDropshippingValuation(ValuationReconciliationTestCommon)
         self.assertRecordValues(
             amls,
             [
-                # Compensation of dropshipping value
                 {
                     "account_id": stock_valu_acc_id,
                     "product_id": self.product_a.id,
@@ -122,7 +113,6 @@ class TestSubcontractingDropshippingValuation(ValuationReconciliationTestCommon)
                     "debit": 20.0,
                     "credit": 0.0,
                 },
-                # Receipt from subcontractor
                 {
                     "account_id": stock_valu_acc_id,
                     "product_id": self.product_a.id,
@@ -141,7 +131,6 @@ class TestSubcontractingDropshippingValuation(ValuationReconciliationTestCommon)
                     "debit": 0.0,
                     "credit": 20.0,
                 },
-                # Delivery to subcontractor
                 {
                     "account_id": stock_valu_acc_id,
                     "product_id": self.product_b.id,
@@ -154,7 +143,6 @@ class TestSubcontractingDropshippingValuation(ValuationReconciliationTestCommon)
                     "debit": 20.0,
                     "credit": 0.0,
                 },
-                # Initial dropshipped value
                 {
                     "account_id": stock_valu_acc_id,
                     "product_id": self.product_a.id,
@@ -170,7 +158,6 @@ class TestSubcontractingDropshippingValuation(ValuationReconciliationTestCommon)
             ],
         )
 
-        # return to subcontracting location
         return_form = Form(
             self.env["stock.return.picking"].with_context(
                 active_id=delivery.id, active_model="stock.picking"
@@ -204,7 +191,6 @@ class TestSubcontractingDropshippingValuation(ValuationReconciliationTestCommon)
             ],
         )
 
-        # return to stock location
         warehouse = self.env["stock.warehouse"].search(
             [("company_id", "=", self.env.company.id)], limit=1
         )
@@ -244,10 +230,6 @@ class TestSubcontractingDropshippingValuation(ValuationReconciliationTestCommon)
         )
 
     def test_avco_valuation_subcontract_and_dropshipped_and_backorder(self):
-        """Splitting a dropship transfer via backorder and invoicing for delivered quantities
-        should result in SVL records which have accurate values based on the portion of the total
-        order-picking sequence for which they were generated.
-        """
         final_product = self.product_a
         final_product.write(
             {
@@ -317,7 +299,6 @@ class TestSubcontractingDropshippingValuation(ValuationReconciliationTestCommon)
                 [("product_id", "=", final_product.id)]
             ),
             [
-                # DS/01
                 {"reference": dropship_transfer.name, "quantity": -50, "value": -500},
                 {
                     "reference": dropship_transfer.move_ids.move_orig_ids[0].reference,
@@ -325,7 +306,6 @@ class TestSubcontractingDropshippingValuation(ValuationReconciliationTestCommon)
                     "value": 8500,
                 },
                 {"reference": dropship_transfer.name, "quantity": 0, "value": -8000},
-                # DS/02 - backorder
                 {"reference": dropship_backorder.name, "quantity": -50, "value": -500},
                 {
                     "reference": dropship_backorder.move_ids.move_orig_ids[0].reference,
@@ -337,10 +317,6 @@ class TestSubcontractingDropshippingValuation(ValuationReconciliationTestCommon)
         )
 
     def test_account_line_entry_kit_bom_dropship(self):
-        """An order delivered via dropship for some kit bom product variant should result in
-        accurate journal entries in the expense and stock output accounts if the cost on the
-        purchase order line has been manually edited.
-        """
         kit_final_prod = self.product_a
         product_c = self.env["product.product"].create(
             {
@@ -369,7 +345,6 @@ class TestSubcontractingDropshippingValuation(ValuationReconciliationTestCommon)
                 "type": "phantom",
             }
         )
-        # bom line of product_c is expressed in unit to check the uom conversion (24 unit should give the same result as 2 dozens)
         kit_bom.bom_line_ids = [
             Command.create(
                 {
@@ -439,12 +414,6 @@ class TestSubcontractingDropshippingValuation(ValuationReconciliationTestCommon)
         invoice = sale_order._create_invoices()
         invoice.action_post()
 
-        # Each product_a should cost:
-        # 4x product_b = 160 * 4 = 640 +
-        # 2x product_c = 100 * 2 = 200
-        #                        = 840
-
-        # Since the kit is dropshipped, the expense should be recorded in the PO directly, as it never enter the stock.
         self.assertRecordValues(
             bill.line_ids.sorted("balance"),
             [

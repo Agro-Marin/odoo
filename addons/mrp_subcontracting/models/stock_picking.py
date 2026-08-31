@@ -26,8 +26,6 @@ class StockPicking(models.Model):
         super()._compute_location_id()
 
         for picking in self:
-            # If this is a subcontractor resupply transfer, set the destination location
-            # to the vendor subcontractor location
             subcontracting_resupply_type_id = (
                 picking.picking_type_id.warehouse_id.subcontracting_resupply_type_id
             )
@@ -49,16 +47,11 @@ class StockPicking(models.Model):
             ):
                 picking.show_lots_text = False
 
-    # -------------------------------------------------------------------------
-    # Action methods
-    # -------------------------------------------------------------------------
     def _action_done(self):
         res = super()._action_done()
         for picking in self:
             productions_to_done = picking._get_subcontract_production().sudo()
             productions_to_done.button_mark_done()
-            # For concistency, set the date on production move before the date
-            # on picking. (Traceability report + Product Moves menu item)
             production_moves = (
                 productions_to_done.move_raw_ids | productions_to_done.move_finished_ids
             )
@@ -118,9 +111,6 @@ class StockPicking(models.Model):
             return {}
         return action
 
-    # -------------------------------------------------------------------------
-    # Subcontract helpers
-    # -------------------------------------------------------------------------
     def _is_subcontract(self):
         self.check_singleton()
         return self.picking_type_id.code == "incoming" and any(
@@ -140,8 +130,6 @@ class StockPicking(models.Model):
     def _prepare_subcontract_mo_vals(self, subcontract_move, bom):
         subcontract_move.check_singleton()
         if not self.reference_ids:
-            # References are system-managed plumbing: created regardless of
-            # the validating user's stock.reference rights.
             references = (
                 self.env["stock.reference"]
                 .sudo()
@@ -183,9 +171,8 @@ class StockPicking(models.Model):
         if self._is_subcontract() and not self.env.context.get(
             "cancel_backorder", True
         ):
-            # Do not trigger rules on raw moves when creating backorder for a subcontract receipt.
             return {"no_procurement": True}
-        return {}  # To override in mrp_subcontracting_purchase
+        return {}
 
     def _subcontracted_produce(self, subcontract_details):
         self.check_singleton()
@@ -193,12 +180,6 @@ class StockPicking(models.Model):
         for move, bom in subcontract_details:
             if move.move_orig_ids.production_id:
                 if len(move.move_orig_ids.move_dest_ids) > 1:
-                    # Magic spicy sauce for the backorder case:
-                    # To ensure correct splitting of the component moves of the SBC MO, we will invoke a split of the SBC
-                    # MO here directly and then link the backorder MO to the backorder move.
-                    # If we would just run _subcontracted_produce as usual for the newly created SBC receipt move, any
-                    # reservations of raw component moves of the SBC MO would not be preserved properly (for example when
-                    # using resupply subcontractor on order)
                     production_to_split = move.move_orig_ids[0].production_id
                     original_qty = move.move_orig_ids[0].product_qty
                     move.move_orig_ids = False
@@ -209,15 +190,12 @@ class StockPicking(models.Model):
                     )
                     new_mo.move_finished_ids.move_dest_ids = move
                     continue
-                # do not create extra production for move that have their quantity updated
                 return
             quantity = move.product_qty or move.quantity
             if move.product_uom_id.compare(quantity, 0) <= 0:
-                # If a subcontracted amount is decreased, don't create a MO that would be for a negative value.
                 continue
 
             mo_subcontract = self._prepare_subcontract_mo_vals(move, bom)
-            # Group the MO by company
             group_by_company[move.company_id.id][0].append(mo_subcontract)
             group_by_company[move.company_id.id][1].append(move)
 

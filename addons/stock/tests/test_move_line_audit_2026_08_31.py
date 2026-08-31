@@ -10,14 +10,6 @@ from odoo.addons.stock.tests.common import TestStockCommon
 
 
 class MoveLineAuditCase(TestStockCommon):
-    """Fixtures for the audit findings.
-
-    Every attempt runs as a real `stock.group_stock_user`, never the class
-    environment: `TransactionCase.env` is SUPERUSER_ID and several guards in this
-    area open with `if self.env.su: return`, so a su-bound fixture exercises a
-    method that returns on its first line.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -43,7 +35,6 @@ class MoveLineAuditCase(TestStockCommon):
         cls.supplier = cls.env.ref("stock.stock_location_suppliers")
 
     def test_the_fixture_is_not_a_superuser(self):
-        """Control. Everything else here is worthless if this fails."""
         self.assertFalse(self.env(user=self.stock_user).su)
         self.assertTrue(self.stock_user.has_group("stock.group_stock_user"))
 
@@ -92,13 +83,6 @@ class MoveLineAuditCase(TestStockCommon):
 
 @tagged("post_install", "-at_install")
 class TestWriteSurvivesAFreedSibling(MoveLineAuditCase):
-    """`write()` must not read move lines that `write()` itself deleted.
-
-    `_free_reservation`, reached from the settlements after `super().write()`,
-    resolves an over-allocation by unlinking competing reservations, and its
-    candidate search spans the table rather than only lines outside the batch.
-    """
-
     def _done_line_and_open_line(self, open_qty, on_hand=10.0):
         product = self._product("Freed Sibling")
         self._stock(product, self.src, on_hand)
@@ -120,10 +104,6 @@ class TestWriteSurvivesAFreedSibling(MoveLineAuditCase):
         self.assertTrue(done_line.exists(), "the written done line must survive")
 
     def test_the_freed_sibling_really_is_unlinked(self):
-        """Control. Proves the scenario reaches `_free_reservation` at all.
-
-        Without it, the test above passes when nothing was ever freed.
-        """
         done_line, open_line = self._done_line_and_open_line(2.0)
         (done_line | open_line).write({"quantity": 10.0})
         self.assertFalse(
@@ -133,7 +113,6 @@ class TestWriteSurvivesAFreedSibling(MoveLineAuditCase):
         )
 
     def test_an_ordinary_batch_write_is_untouched(self):
-        """Control on the honest path: no freeing, nothing deleted."""
         product = self._product("Ordinary Batch")
         self._stock(product, self.src, 50.0)
         picking = self._outgoing(product, 5.0)
@@ -145,14 +124,6 @@ class TestWriteSurvivesAFreedSibling(MoveLineAuditCase):
 
 @tagged("post_install", "-at_install")
 class TestArchivedLotsAreNamed(MoveLineAuditCase):
-    """A receipt naming an archived lot must say so, not accuse the user.
-
-    `_resolve_done_lots` searched with `active_test` on while
-    `stock.lot._check_unique_lot` and the UNIQUE index both consider archived
-    rows, so the line fell through to creation and the user was told they had
-    made a duplicate of a lot no view shows them.
-    """
-
     def _receipt_with_lot_name(self, product, lot_name, qty=3.0):
         picking_type = self.warehouse.in_type_id
         picking_type.write({"use_create_lots": True, "use_existing_lots": True})
@@ -202,7 +173,6 @@ class TestArchivedLotsAreNamed(MoveLineAuditCase):
         )
 
     def test_a_fresh_lot_name_still_creates_the_lot(self):
-        """Control: the ordinary path must be untouched by the archived branch."""
         product = self._product("Fresh Lot Product", tracking="lot")
         picking = self._receipt_with_lot_name(product, "AUDIT-FRESH")
 
@@ -215,7 +185,6 @@ class TestArchivedLotsAreNamed(MoveLineAuditCase):
         self.assertTrue(lot.active)
 
     def test_an_active_lot_of_the_same_name_is_reused_not_recreated(self):
-        """Control: an existing ACTIVE lot must still resolve, not raise."""
         product = self._product("Active Lot Product", tracking="lot")
         lot = self.env["stock.lot"].create(
             {
@@ -233,13 +202,6 @@ class TestArchivedLotsAreNamed(MoveLineAuditCase):
 
 @tagged("post_install", "-at_install")
 class TestSerialOnchangeDoesNotCollideWithItself(MoveLineAuditCase):
-    """A line must not be compared against its own saved serial.
-
-    In an onchange `self` is a NewId while `picking.move_line_ids` are the stored
-    rows, so subtracting `self` removed nothing and the line warned about a
-    duplicate of itself.
-    """
-
     def _serial_receipt(self):
         product = self._product("Serial Product", tracking="serial")
         picking_type = self.warehouse.in_type_id
@@ -287,12 +249,10 @@ class TestSerialOnchangeDoesNotCollideWithItself(MoveLineAuditCase):
         self.assertIsNone(self._warning_for(line, move, picking, "SN-1"))
 
     def test_a_genuinely_new_serial_does_not_warn(self):
-        """Control on the honest path."""
         picking, move, line = self._serial_receipt()
         self.assertIsNone(self._warning_for(line, move, picking, "SN-9"))
 
     def test_a_real_duplicate_across_two_lines_still_warns(self):
-        """Control: the check must keep catching what it exists to catch."""
         picking, move, line = self._serial_receipt()
         second = self.env["stock.move.line"].create(
             {
@@ -313,8 +273,6 @@ class TestSerialOnchangeDoesNotCollideWithItself(MoveLineAuditCase):
 
 @tagged("post_install", "-at_install")
 class TestReservationKeyHasOneDefinition(MoveLineAuditCase):
-    """`_reservation_key` is the only place the key's shape is spelled out."""
-
     def test_overrides_replace_only_the_named_fields(self):
         product = self._product("Key Product")
         self._stock(product, self.src, 10.0)
@@ -330,7 +288,6 @@ class TestReservationKeyHasOneDefinition(MoveLineAuditCase):
         self.assertEqual(stored[2:], moved[2:], "lot/package/owner untouched")
 
     def test_an_unrelated_override_key_is_ignored(self):
-        """`updates` also carries location_dest_id and product_uom_id."""
         product = self._product("Key Product Two")
         self._stock(product, self.src, 10.0)
         line = self._outgoing(product, 2.0).move_line_ids
@@ -341,7 +298,6 @@ class TestReservationKeyHasOneDefinition(MoveLineAuditCase):
         )
 
     def test_rendered_keys_tracks_logged_relations(self):
-        """The set the chatter gate reads is derived, not a second copy."""
         for _field, rendered in LOGGED_RELATIONS:
             self.assertIn(rendered, RENDERED_KEYS)
         self.assertIn("quantity", RENDERED_KEYS)
@@ -354,8 +310,6 @@ class TestReservationKeyHasOneDefinition(MoveLineAuditCase):
 
 @tagged("post_install", "-at_install")
 class TestSynchronizeQuantSignature(MoveLineAuditCase):
-    """`_synchronize_quant` names its overrides instead of collecting kwargs."""
-
     def _line(self):
         product = self._product("Sync Product")
         self._stock(product, self.src, 10.0)
@@ -367,7 +321,6 @@ class TestSynchronizeQuantSignature(MoveLineAuditCase):
             line._synchronize_quant(-1.0, self.src, packge=False)
 
     def test_the_named_override_still_works(self):
-        """Control: the one override production uses must keep working."""
         line = self._line()
         available, _in_date = line._synchronize_quant(-1.0, self.src, package=False)
         self.assertIsNotNone(available)
@@ -380,12 +333,6 @@ class TestSynchronizeQuantSignature(MoveLineAuditCase):
 
 @tagged("post_install", "-at_install")
 class TestWriteGuardsStillHold(MoveLineAuditCase):
-    """Regression net for the two guards fixed earlier in this audit.
-
-    Not this change, but the same file: keeping them here means a later edit to
-    `write()` cannot quietly reopen either without a red test.
-    """
-
     def test_changing_a_bound_lines_product_is_refused(self):
         product = self._product("Bound Product")
         other = self._product("Other Product")
@@ -405,7 +352,6 @@ class TestWriteGuardsStillHold(MoveLineAuditCase):
             )
 
     def test_writing_the_same_product_still_succeeds(self):
-        """Control: the guard fires on a change, not on the field's presence."""
         product = self._product("Same Product")
         self._stock(product, self.src, 10.0)
         line = self._outgoing(product, 2.0).move_line_ids
@@ -415,11 +361,6 @@ class TestWriteGuardsStillHold(MoveLineAuditCase):
 
 @tagged("post_install", "-at_install")
 class TestPutInPackScopeIsBounded(MoveLineAuditCase):
-    """`action_put_in_pack` must act on its own recordset, widened only by the
-    wizard round-trip it started -- not by whatever an RPC caller puts in the
-    context.
-    """
-
     def _picked_picking(self, name):
         product = self._product(f"Pack {name}")
         self._stock(product, self.src, 20.0)
@@ -430,8 +371,6 @@ class TestPutInPackScopeIsBounded(MoveLineAuditCase):
         return picking
 
     def test_the_wizard_round_trip_still_widens(self):
-        """Control. The legitimate widening must keep working, or the bounding
-        below would be passing for the wrong reason."""
         picking = self._picked_picking("RoundTrip")
         extra = self.env["stock.move.line"].create(
             {
@@ -467,13 +406,11 @@ class TestPutInPackScopeIsBounded(MoveLineAuditCase):
         )
 
     def test_without_the_context_key_the_recordset_is_unchanged(self):
-        """Control on the ordinary path: no context, no widening."""
         picking = self._picked_picking("Plain")
         line = picking.move_line_ids[0]
         self.assertEqual(line._get_lines_in_pack_scope(), line)
 
     def test_packing_a_forged_scope_packs_only_the_callers_lines(self):
-        """End to end, not just the helper."""
         mine = self._picked_picking("PackMine")
         theirs = self._picked_picking("PackTheirs")
         mine.move_line_ids.with_context(

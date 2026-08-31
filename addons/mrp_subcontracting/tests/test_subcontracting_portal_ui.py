@@ -7,7 +7,6 @@ class TestSubcontractingPortalUi(HttpCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # 1. Create portal user
         user = (
             cls.env["res.users"]
             .with_context({"no_reset_password": True, "mail_create_nolog": True})
@@ -36,7 +35,6 @@ class TestSubcontractingPortalUi(HttpCase):
                 }
             )
         )
-        # 2. Create a BOM of subcontracting type
         cls.comp = cls.env["product.product"].create(
             {
                 "name": "Component",
@@ -60,7 +58,6 @@ class TestSubcontractingPortalUi(HttpCase):
         cls.bom_tracked = bom_form.save()
 
     def test_subcontrating_portal(self):
-        # Create a receipt picking from the subcontractor
         picking_form = Form(self.env["stock.picking"])
         picking_form.picking_type_id = self.env.ref("stock.picking_type_in")
         picking_form.partner_id = self.partner_portal

@@ -50,8 +50,6 @@ class CustomerPortal(portal.CustomerPortal):
             "done": {"label": _("Done"), "domain": [("state", "=", "done")]},
             "ready": {"label": _("Ready"), "domain": [("state", "=", "assigned")]},
         }
-        # The route signature's defaults only cover *absent* params; a supplied
-        # unknown key reached these indexings as a KeyError (HTTP 500).
         filterby = self._resolve_searchbar_option(searchbar_filters, filterby, "all")
         domain += searchbar_filters[filterby]["domain"]
 
@@ -61,9 +59,7 @@ class CustomerPortal(portal.CustomerPortal):
         }
         sortby = self._resolve_searchbar_option(searchbar_sortings, sortby, "date")
         order = searchbar_sortings[sortby]["order"]
-        # count for pager
         count = StockPicking.search_count(domain)
-        # make pager
         pager = portal_pager(
             url="/my/productions",
             url_args={"date_begin": date_begin, "date_end": date_end, "sortby": sortby},
@@ -71,7 +67,6 @@ class CustomerPortal(portal.CustomerPortal):
             page=page,
             step=self._items_per_page,
         )
-        # search the pickings to display, according to the pager data
         pickings = StockPicking.search(
             domain, order=order, limit=self._items_per_page, offset=pager["offset"]
         )

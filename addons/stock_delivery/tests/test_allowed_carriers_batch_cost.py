@@ -4,20 +4,6 @@ from odoo.tests.common import TransactionCase
 
 @tagged("post_install", "-at_install")
 class TestAllowedCarriersBatchCost(TransactionCase):
-    """`allowed_carrier_ids` must cost the same whatever the picking count.
-
-    The carrier search behind it varies only by company, so a picking list --
-    many pickings, one or two companies -- must not pay a search per row. It
-    used to: 28 queries for 20 pickings, against 9 now.
-
-    Read through the field rather than by calling `_compute_allowed_carrier_ids`
-    directly. A direct call runs outside `Field.compute_value`'s
-    `env.protecting`, so assigning the field re-enters `__get__` for each record
-    and the compute is invoked once per picking on top of the batch -- an
-    artefact of the measurement, not of the ORM, and it hides what a reader
-    actually pays.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -43,9 +29,6 @@ class TestAllowedCarriersBatchCost(TransactionCase):
     def test_allowed_carrier_ids_does_not_query_per_picking(self):
         small = self._queries_for(2)
         large = self._queries_for(20)
-        # Not equality: the small read runs first and warms caches the large one
-        # reuses, so the large size can legitimately cost less. It must not cost
-        # more -- that is what a search per picking looks like from outside.
         self.assertLessEqual(
             large,
             small,

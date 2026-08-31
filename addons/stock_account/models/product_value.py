@@ -2,13 +2,8 @@ from odoo import _, api, fields, models
 
 
 class ProductValue(models.Model):
-    """History of a manually-recorded value update for a product, lot, or move."""
-
     _name = "product.value"
     _description = "Product Value"
-    # Newest first, matching every read site: `_get_manual_value`,
-    # `_read_latest_product_values` and `_get_last_lot_values` all order by
-    # `date desc, id desc` and were each overriding a default of `id`.
     _order = "date desc, id desc"
 
     product_id = fields.Many2one("product.product", string="Product", index=True)
@@ -35,7 +30,6 @@ class ProductValue(models.Model):
 
     description = fields.Char(string="Description")
 
-    # User Display Fields
     current_value = fields.Monetary(
         string="Current Value", currency_field="currency_id", related="move_id.value"
     )
@@ -65,11 +59,6 @@ class ProductValue(models.Model):
     def _compute_current_value_details(self):
         for product_value in self:
             move = product_value.move_id
-            # Describe the quantity that `value` actually covers, in the unit that
-            # `standard_price` is quoted in -- this line exists so the reader can
-            # compare the two. `move.quantity` is the move's UoM and counts lines
-            # that were never picked, so it produced a unit price for a quantity
-            # the value was not computed over.
             quantity = move._get_valued_qty() if move else 0
             if not (move and quantity):
                 product_value.current_value_details = False
@@ -103,28 +92,15 @@ class ProductValue(models.Model):
         move_ids = set()
         lot_ids = set()
 
-        # A manual revaluation is an input to the valuation engine
-        # (`_run_average_batch` seeds from it), so the cost it implies has to reach
-        # `standard_price`, which is what actually prices out-moves, COGS and
-        # margins. `_change_standard_price` is the one caller that writes a row for
-        # a price it has *already* set, and flags itself so its own record is not
-        # recomputed back over -- a product-level row must not re-derive the
-        # product's cost from lots that have not been updated yet.
         records_a_price_already_set = self.env.context.get("disable_auto_revaluation")
         for vals in vals_list:
             if vals.get("move_id"):
                 move_ids.add(vals["move_id"])
             elif vals.get("lot_id") and vals.get("product_id"):
-                # Revaluing one lot moves the product's average, so the product is
-                # recomputed either way; only the lot itself is skipped when the
-                # row simply records that lot's own new price.
                 product_ids.add(vals["product_id"])
                 if not records_a_price_already_set:
                     lot_ids.add(vals["lot_id"])
             elif vals.get("product_id") and not records_a_price_already_set:
-                # Product-level rows used to miss this entirely -- the branch above
-                # required a `lot_id` -- so a plain revaluation moved `total_value`
-                # and `avg_cost` while `standard_price` stayed stale.
                 product_ids.add(vals["product_id"])
 
         res = super().create(vals_list)
@@ -133,8 +109,5 @@ class ProductValue(models.Model):
         if product_ids:
             self.env["product.product"].browse(product_ids)._update_standard_price()
         if lot_ids:
-            # `product._update_standard_price()` sets the *product's* cost; on a
-            # lot-valuated product it never touches the lot, so a lot-level
-            # revaluation has to be pushed to the lot it names as well.
             self.env["stock.lot"].browse(lot_ids).sudo()._update_standard_price()
         return res

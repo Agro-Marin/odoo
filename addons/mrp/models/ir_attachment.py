@@ -8,10 +8,6 @@ class IrAttachment(models.Model):
         super()._post_add_create(**kwargs)
         if self.res_model == "mrp.bom":
             bom = self.env["mrp.bom"].browse(self.res_id)
-            # Re-targeting the attachment at the product is what makes
-            # `documents` create the document for it, so only the MRP flag is
-            # left to set. Creating one here unconditionally would be a second
-            # document on the same attachment and hit `_attachment_unique`.
             self.res_model = (
                 bom.product_id._name if bom.product_id else bom.product_tmpl_id._name
             )

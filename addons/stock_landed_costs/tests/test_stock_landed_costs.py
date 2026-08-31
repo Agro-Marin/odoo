@@ -11,11 +11,7 @@ from odoo.addons.stock_landed_costs.tests.common import TestStockLandedCostsComm
 @skip("Temporary to fast merge new valuation")
 class TestStockLandedCosts(TestStockLandedCostsCommon):
     def test_stock_landed_costs(self):
-        # In order to test the landed costs feature of stock,
-        # I create a landed cost, confirm it and check its account move created
 
-        # I create 2 products with different volume and gross weight and configure
-        # them for real_time valuation and fifo costing method
         product_landed_cost_1 = self.env["product.product"].create(
             {
                 "name": "LC product 1",
@@ -45,7 +41,6 @@ class TestStockLandedCosts(TestStockLandedCostsCommon):
             list(self.env["stock.picking"].fields_get())
         )
 
-        # I create 2 picking moving those products
         vals = dict(
             picking_default_vals,
             name="LC_pick_1",
@@ -70,7 +65,6 @@ class TestStockLandedCosts(TestStockLandedCostsCommon):
         picking_landed_cost_1 = self.env["stock.picking"].create(vals)
         move_1_id = picking_landed_cost_1.move_ids.id
 
-        # Confirm and assign picking
         picking_landed_cost_1.picking_type_id.create_backorder = "never"
         self.env.company.anglo_saxon_accounting = True
         picking_landed_cost_1.action_confirm()
@@ -102,7 +96,6 @@ class TestStockLandedCosts(TestStockLandedCostsCommon):
         picking_landed_cost_2 = self.env["stock.picking"].create(vals)
         move_2_id = picking_landed_cost_2.move_ids.id
 
-        # Confirm and assign picking
         picking_landed_cost_2.action_confirm()
         picking_landed_cost_2.action_assign()
         picking_landed_cost_2.move_ids.quantity = 10
@@ -113,7 +106,6 @@ class TestStockLandedCosts(TestStockLandedCostsCommon):
         self.assertEqual(product_landed_cost_2.value_svl, 0)
         self.assertEqual(product_landed_cost_2.quantity_svl, -10)
 
-        # I create a landed cost for those 2 pickings
         default_vals = self.env["stock.landed.cost"].default_get(
             list(self.env["stock.landed.cost"].fields_get())
         )
@@ -155,10 +147,8 @@ class TestStockLandedCosts(TestStockLandedCostsCommon):
         vals = stock_landed_cost_1._convert_to_write(stock_landed_cost_1._cache)
         stock_landed_cost_1 = self.env["stock.landed.cost"].create(vals)
 
-        # I compute the landed cost  using Compute button
         stock_landed_cost_1.compute_landed_cost()
 
-        # I check the valuation adjustment lines
         for valuation in stock_landed_cost_1.valuation_adjustment_lines:
             if valuation.cost_line_id.name == "equal split":
                 self.assertEqual(valuation.additional_landed_cost, 5)
@@ -195,10 +185,8 @@ class TestStockLandedCosts(TestStockLandedCostsCommon):
             else:
                 raise ValidationError("unrecognized valuation adjustment line")
 
-        # I confirm the landed cost
         stock_landed_cost_1.button_validate()
 
-        # I check that the landed cost is now "Closed" and that it has an accounting entry
         self.assertEqual(stock_landed_cost_1.state, "done")
         self.assertTrue(stock_landed_cost_1.account_move_id)
         self.assertEqual(len(stock_landed_cost_1.account_move_id.line_ids), 48)
@@ -221,12 +209,6 @@ class TestStockLandedCosts(TestStockLandedCostsCommon):
         )
 
     def test_aml_account_selection(self):
-        """
-        Process a PO with a landed cost, then create and post the bill. The
-        account of the landed cost AML should be:
-        - Expense if the categ valuation is manual
-        - Stock IN if the categ valuation is real time
-        """
         self.landed_cost.landed_cost_ok = True
 
         for valuation in ["periodic", "real_time"]:
@@ -299,9 +281,6 @@ class TestStockLandedCosts(TestStockLandedCostsCommon):
             )
 
     def test_landed_cost_in_move_line(self):
-        """
-        Tests that a move line created through the catalog gives the right landed cost
-        """
         self.landed_cost.landed_cost_ok = True
         account_move = self.env["account.move"].create(
             {"move_type": "in_invoice", "partner_id": self.partner_a.id}

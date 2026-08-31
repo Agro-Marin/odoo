@@ -2253,11 +2253,6 @@ class StockQuant(models.Model):
             rule_ai = rule.pattern[1:4] + decimal
             gs1_quantity_rules_ai_by_uom[rule.associated_uom_id.id] = rule_ai
 
-        # The caller owns the order: this emits a scan SEQUENCE, and the product
-        # barcode is written once per contiguous run of quants sharing a product.
-        # An interleaved recordset therefore repeats it -- still valid GS1, but
-        # longer, and it chunks differently against agg_barcode_max_length. Pass
-        # the quants grouped by product unless you mean the order you passed.
         previous_product = self.env["product.product"]
         for quant in self:
             if not quant.product_id.barcode:

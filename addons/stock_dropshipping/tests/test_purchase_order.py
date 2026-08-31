@@ -25,14 +25,6 @@ class TestPurchaseOrder(ValuationReconciliationTestCommon):
 
     @skip("Temporary to fast merge new valuation")
     def test_qty_received_does_sync_after_changing_validated_move_quantity(self):
-        """After validating a picking, if it is unlocked and has its move quantity modified,
-        the underlying purchase order's qty_transferred value should reflect the change.
-
-        The qty_transferred sync itself is fixed; the remaining ``standard_price``
-        assertion depends on the in-progress inventory valuation rework, so this is
-        deferred alongside the other valuation tests in this module (see
-        ``TestLifoPrice`` / ``TestStockValuation``).
-        """
         self.product_a.standard_price = 5.0
         cost_methods = ["standard", "fifo", "average"]
         picking_types = [
@@ -85,13 +77,8 @@ class TestPurchaseOrder(ValuationReconciliationTestCommon):
                 )
 
     def test_project_propagation_from_so_with_dropshipping(self):
-        """Test that the project is propagated from the sale order to the purchase order
-        when using dropshipping.
-        """
-        # check that the module project is installed
         if self.env["ir.module.module"]._get("sale_project").state != "installed":
             self.skipTest("Skipping test: the 'project' module is not installed.")
-        # Create a dropshippable product
         dropship_product = self.env["product.product"].create(
             {
                 "name": "Dropship Product",
@@ -135,7 +122,6 @@ class TestPurchaseOrder(ValuationReconciliationTestCommon):
         )
         so.action_confirm()
 
-        # Check that a purchase order was created and the project is set
         po = self.env["purchase.order"].search(
             [
                 ("origin", "=", so.name),
@@ -152,10 +138,6 @@ class TestPurchaseOrder(ValuationReconciliationTestCommon):
         )
 
     def test_dropship_serial_return_credit_note(self):
-        """
-        Ensure that a partial refund after a dropship return of a serial-tracked
-        product displays the right returned serial number on the credit note report.
-        """
         self.env.user.write(
             {
                 "group_ids": [

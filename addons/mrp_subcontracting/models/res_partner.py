@@ -110,7 +110,6 @@ class ResPartner(models.Model):
         return [("id", "in", subcontractor_ids)]
 
     def _compute_is_subcontractor(self):
-        """Determine whether the partner is a subcontractor (for giving sudo access)"""
         for partner in self:
             partner.is_subcontractor = any(
                 user._is_portal() for user in partner.user_ids

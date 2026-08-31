@@ -57,7 +57,6 @@ class StockPicking(models.Model):
                 )
             )
             for picking in pickings:
-                # Sudo as the user has not always the right to read this sms template.
                 template = picking.company_id.sudo().stock_sms_confirmation_template_id
                 picking._message_sms_with_template(
                     template=template,

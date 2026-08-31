@@ -1,5 +1,3 @@
-"""Tests for the manufacturing target on landed costs."""
-
 from odoo import Command
 from odoo.tests import TransactionCase, tagged
 
@@ -30,12 +28,10 @@ class TestMoLandedCost(TransactionCase):
         )
 
     def test_onchange_clears_mo_when_not_manufacturing(self):
-        """Switching away from manufacturing clears the MO selection."""
         cost = self._landed_cost(target_model="picking")
         cost._onchange_target_model()
         self.assertFalse(cost.mrp_production_ids)
 
     def test_targeted_moves_empty_without_mo(self):
-        """The targeted-move helper runs and returns no moves without an MO."""
         cost = self._landed_cost(target_model="manufacturing")
         self.assertFalse(cost._get_targeted_move_ids())

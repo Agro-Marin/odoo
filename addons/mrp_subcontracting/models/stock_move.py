@@ -14,7 +14,6 @@ class StockMove(models.Model):
     )
 
     def _compute_show_subcontracting_details_visible(self):
-        """Compute if the action button in order to see moves raw is visible"""
         self.show_subcontracting_details_visible = False
         for move in self:
             if not move.is_subcontract:
@@ -56,9 +55,6 @@ class StockMove(models.Model):
         return vals_list
 
     def write(self, vals):
-        """If the initial demand is updated then also update the linked
-        subcontract order to the new quantity.
-        """
         self._check_access_if_subcontractor(vals)
         res = super().write(vals)
         if "date" in vals:
@@ -82,9 +78,6 @@ class StockMove(models.Model):
         return super().create(vals_list)
 
     def action_show_details(self):
-        """Open the produce wizard in order to register tracked components for
-        subcontracted product. Otherwise use standard behavior.
-        """
         self.check_singleton()
         if self.is_subcontract:
             action = super(
@@ -103,7 +96,6 @@ class StockMove(models.Model):
         return super().action_show_details()
 
     def action_show_subcontract_details(self, lot_id=None):
-        """Display moves raw for subcontracted product self."""
         productions = self._get_subcontract_production().filtered(
             lambda m: m.state != "cancel"
         )
@@ -212,7 +204,7 @@ class StockMove(models.Model):
                     "location_id": subcontracting_location.id,
                 }
             )
-            move._action_assign()  # Re-reserve as the write on location_id will break the link
+            move._action_assign()
         res = super()._action_confirm(
             merge=merge, merge_into=merge_into, create_proc=create_proc
         )
@@ -259,7 +251,6 @@ class StockMove(models.Model):
         return res
 
     def _should_bypass_reservation(self, forced_location=False):
-        """If the move is subcontracted then ignore the reservation."""
         should_bypass_reservation = super()._should_bypass_reservation(
             forced_location=forced_location
         )
@@ -298,18 +289,6 @@ class StockMove(models.Model):
         )
 
     def _sync_subcontracting_productions(self):
-        """
-        Enforce the relationship between subcontracting receipt moves and their respective subcontracting productions.
-        * For untracked moves:
-            * There will always be only 1 production.
-            * Updating the move quantity will update the production quantity.
-        * For tracked moves:
-            * There will be 1 production for every lot on this move.
-            * This method will enforce the synchronisation between the total quantity per lot on the move and the linked productions.
-            * The split mechanism for productions will be used to create new subcontracting MOs.
-            * We take care to always keep at least 1 subcontracting production linked to the subcontracting receipt.
-              This ensures there will always be a production available for splitting.
-        """
         for move in self:
             productions = move._get_subcontract_production()
             if not productions:
@@ -322,14 +301,6 @@ class StockMove(models.Model):
                     != 0
                 ):
                     target_qty = move.quantity or move.product_uom_qty
-                    # Growing the production up to the receipt's *demand* is a demand
-                    # change, and the components have to be pulled for the difference.
-                    # Every other rescale here records what the subcontractor actually
-                    # did, which must not order anything -- which is why the callers of
-                    # this method suppress procurement wholesale. That suppression used
-                    # to cover this case too: the production grew, its component demand
-                    # grew with it, and the resupply feeding that component kept the
-                    # quantity its procurement was run for. One component, to build two.
                     demand_driven = (
                         productions.product_uom_id.compare(
                             target_qty, productions.product_qty
@@ -357,9 +328,6 @@ class StockMove(models.Model):
                     ).change_prod_qty()
                     productions.action_assign()
                     if already_covered:
-                        # Only the components measured before the rescale: one created
-                        # in between has nothing covering it on record and would be
-                        # procured for its whole quantity.
                         productions.move_raw_ids.filtered(
                             lambda raw: raw.id in already_covered
                         )._run_procurement(already_covered)
@@ -373,8 +341,7 @@ class StockMove(models.Model):
                 )
                 mos_to_assign = self.env["mrp.production"]
 
-                # 1. Ensure quantities of linked MOs still match the quantities on the move
-                mos_to_create = {}  # lot -> qty
+                mos_to_create = {}
                 for lot_id, ml_qty in qty_by_lot.items():
                     lot_mo = productions.filtered(
                         lambda p: (
@@ -392,7 +359,6 @@ class StockMove(models.Model):
                         ).change_prod_qty()
                         mos_to_assign |= lot_mo
 
-                # 2. Create new MOs where needed, by splitting them from an existing subcontracting MO
                 if mos_to_create:
                     production_to_split = move._get_subcontract_production()[0]
                     new_mos = (
@@ -410,7 +376,6 @@ class StockMove(models.Model):
                     for mo, lot_id in zip(new_mos, mos_to_create.keys(), strict=True):
                         mo.lot_producing_ids = lot_id
 
-                # 3. Delete 'orphan' MOs with lot not linked to any move line
                 productions = move._get_subcontract_production()
                 orphan_productions = productions.filtered(
                     lambda p: (
@@ -425,7 +390,6 @@ class StockMove(models.Model):
                     )
                 )
                 if len(productions) == len(orphan_productions):
-                    # Make sure not to delete all MOs, leave 1 subcontracting MO as 'open' MO for splitting later
                     production_to_keep = orphan_productions[-1]
                     production_to_keep.lot_producing_ids = False
                     orphan_productions = orphan_productions[:-1]

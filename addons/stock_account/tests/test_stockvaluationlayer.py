@@ -1,5 +1,3 @@
-"""Implementation of "INVENTORY VALUATION TESTS" spreadsheet."""
-
 from odoo import Command
 from odoo.tests import Form, tagged
 
@@ -77,7 +75,6 @@ class TestStockValuationStandard(TestStockValuationCommon):
         self._make_in_move(self.product, 10)
         self._make_in_move(self.product, 10)
 
-        # change cost from 10 to 15
         self.product.standard_price = 15.0
 
         self.assertEqual(self.product.total_value, 75)
@@ -152,7 +149,6 @@ class TestStockValuationStandard(TestStockValuationCommon):
             )
 
         picking.action_confirm()
-        # set quantity done only on one move
         in_move.move_line_ids.quantity = 2
         in_move.picked = True
         res_dict = picking.button_validate()
@@ -208,8 +204,6 @@ class TestStockValuationStandard(TestStockValuationCommon):
             self.env.user.company_id = old_company
 
     def test_multicompany_multicurrency_total_value(self):
-        """Selecting companies that don't share a currency must convert each company's
-        valuation into the main company's currency before summing (odoo#270575)."""
         self.env.user.company_ids = [(4, self.other_company.id)]
         other_wh = self.env["stock.warehouse"].search(
             [("company_id", "=", self.other_company.id)], limit=1
@@ -218,9 +212,7 @@ class TestStockValuationStandard(TestStockValuationCommon):
         self.product.with_company(self.company).standard_price = 10
         self.product.with_company(self.other_company).standard_price = 50
 
-        # Company 1 (main, kept in the user's currency): 15 units @ 10
         self._make_in_move(self.product, 15)
-        # Company 2: 100 units @ 50, made while company 2 is the active company
         old_company = self.env.user.company_id
         try:
             self.env.user.company_id = self.other_company
@@ -236,11 +228,9 @@ class TestStockValuationStandard(TestStockValuationCommon):
         product_both = self.product.with_context(
             allowed_company_ids=(self.company | self.other_company).ids
         )
-        # Same currency: per-company values simply add up (15*10 + 100*50)
         self.assertEqual(product_both.qty_available, 115)
         self.assertEqual(product_both.total_value, 5150)
 
-        # 1 unit of the main currency is worth 0.5 of company 2's currency
         other_currency = self.env["res.currency"].create(
             {
                 "name": "Other curr",
@@ -251,7 +241,6 @@ class TestStockValuationStandard(TestStockValuationCommon):
         )
         self.other_company.currency_id = other_currency
         self.product.invalidate_recordset(["total_value"])
-        # 150 (company 1) + 5000 / 0.5 = 150 + 10000 = 10150 in the main currency
         self.assertEqual(product_both.total_value, 10150)
 
     def test_change_qty_and_locations_of_done_sml(self):
@@ -402,8 +391,8 @@ class TestStockValuationAVCO(TestStockValuationCommon):
         move1 = self._make_in_move(self.product, 1, unit_cost=10, create_picking=True)
         self._make_in_move(self.product, 1, unit_cost=20)
         self._make_out_move(self.product, 1)
-        move4 = self._make_return(move1, 1)  # -15, current avco
-        self._make_return(move4, 1)  # +10, original move's price unit
+        move4 = self._make_return(move1, 1)
+        self._make_return(move4, 1)
 
         self.assertEqual(self.product.total_value, 15)
         self.assertEqual(self.product.qty_available, 1)
@@ -467,10 +456,6 @@ class TestStockValuationAVCO(TestStockValuationCommon):
         self.assertEqual(self.product.total_value, 0)
 
     def test_rounding_4(self):
-        """
-        The first 2 In moves result in a rounded standard_price at 3.4943, which is rounded at 3.49.
-        This test ensures that no rounding error is generated with small out quantities.
-        """
         self._make_in_move(self.product, 2, unit_cost=4.63)
         self._make_in_move(self.product, 5, unit_cost=3.04)
         self.assertAlmostEqual(self.product.standard_price, 3.49428571)
@@ -594,10 +579,6 @@ class TestStockValuationFIFO(TestStockValuationCommon):
         self.assertEqual(self.product.qty_available, 15)
 
     def test_change_in_past_decrease_out_1(self):
-        """Decrease the quantity of an outgoing stock.move.line will act like
-        an inventory adjustement and not a return. It will take the move value
-        in order to set the value and not the standard price of the product.
-        """
         self._make_in_move(self.product, 20, unit_cost=10)
         move2 = self._make_out_move(self.product, 15)
         self._make_in_move(self.product, 20, unit_cost=15)
@@ -749,7 +730,6 @@ class TestStockValuationFIFO(TestStockValuationCommon):
 
 class TestStockValuationChangeCostMethod(TestStockValuationCommon):
     def test_standard_to_fifo_1(self):
-        """The accounting impact of this cost method change is neutral."""
         self.product = self.product_standard
         self.product.product_tmpl_id.standard_price = 10
 
@@ -762,9 +742,6 @@ class TestStockValuationChangeCostMethod(TestStockValuationCommon):
         self.assertEqual(self.product.qty_available, 19)
 
     def test_standard_to_fifo_2(self):
-        """We want the same result as `test_standard_to_fifo_1` but by changing the category of
-        `self.product` to another one, not changing the current one.
-        """
         self.product = self.product_standard
         self.product.product_tmpl_id.standard_price = 10
 
@@ -780,7 +757,6 @@ class TestStockValuationChangeCostMethod(TestStockValuationCommon):
         self.assertEqual(self.product.qty_available, 19)
 
     def test_avco_to_fifo(self):
-        """The accounting impact of this cost method change is neutral."""
         self.product = self.product_avco
 
         self._make_in_move(self.product, 10, unit_cost=10)
@@ -792,9 +768,6 @@ class TestStockValuationChangeCostMethod(TestStockValuationCommon):
         self.assertEqual(self.product.qty_available, 19)
 
     def test_fifo_to_standard(self):
-        """The accounting impact of this cost method change is not neutral as we will use the last
-        fifo price as the new standard price.
-        """
         self.product = self.product_fifo
 
         self._make_in_move(self.product, 10, unit_cost=10)
@@ -806,9 +779,6 @@ class TestStockValuationChangeCostMethod(TestStockValuationCommon):
         self.assertEqual(self.product.qty_available, 19)
 
     def test_fifo_to_avco(self):
-        """The accounting impact of this cost method change is not neutral as we will use the last
-        fifo price as the new AVCO.
-        """
         self.product = self.product_fifo
 
         self._make_in_move(self.product, 10, unit_cost=10)
@@ -820,7 +790,6 @@ class TestStockValuationChangeCostMethod(TestStockValuationCommon):
         self.assertEqual(self.product.qty_available, 19)
 
     def test_avco_to_standard(self):
-        """The accounting impact of this cost method change is neutral."""
         self.product = self.product_avco
 
         self._make_in_move(self.product, 10, unit_cost=10)
@@ -832,7 +801,6 @@ class TestStockValuationChangeCostMethod(TestStockValuationCommon):
         self.assertEqual(self.product.qty_available, 19)
 
     def test_standard_to_avco(self):
-        """The accounting impact of this cost method change is neutral."""
         self.product = self.product_standard
         self.product.product_tmpl_id.standard_price = 10
 
@@ -883,8 +851,6 @@ class TestStockValuationChangeValuation(TestStockValuationCommon):
         self.assertEqual(self.product.total_value, 100)
         self.assertEqual(self.product.qty_available, 10)
 
-        # Try to change the product category with a `default_type` key in the context and
-        # check it doesn't break the account move generation.
         self.product.with_context(
             default_is_storable=True
         ).categ_id = self.category_standard_auto
@@ -913,7 +879,6 @@ class TestStockValuationChangeValuation(TestStockValuationCommon):
         self.assertEqual(self.product.total_value, 100)
         self.assertEqual(self.product.qty_available, 10)
 
-        # An accounting entry should only be created for the emptying now that the category is manual.
         account_move_line = (
             self.env["account.move"]
             .browse(self.env.company.action_close_stock_valuation()["res_id"])
@@ -933,9 +898,6 @@ class TestStockValuationChangeValuation(TestStockValuationCommon):
 
         self.assertEqual(self.product.total_value, 100)
         self.assertEqual(self.product.qty_available, 10)
-
-        # account_move_line = self.env['account.move'].browse(self.env.company.action_close_stock_valuation()['res_id']).line_ids
-        # self.assertEqual(len(account_move_line), 2)
 
     def test_return_delivery_fifo(self):
         self.product = self.product_fifo
@@ -958,10 +920,6 @@ class TestStockValuationChangeValuation(TestStockValuationCommon):
 
 class TestAngloSaxonAccounting(TestStockValuationCommon):
     def test_avco_and_credit_note(self):
-        """
-        When reversing an invoice that contains some anglo-saxo AML, the new anglo-saxo AML should have the same value
-        """
-        # Required for `account_id` to be visible in the view
         self.env.user.group_ids += self.env.ref("account.group_account_readonly")
         self.product = self.product_avco_auto
 
@@ -970,7 +928,6 @@ class TestAngloSaxonAccounting(TestStockValuationCommon):
         invoice = self._create_invoice(self.product, 2, 25)
 
         self._make_in_move(self.product, 2, unit_cost=20)
-        # self.assertEqual(self.product.standard_price, 15)
 
         refund_wizard = (
             self.env["account.move.reversal"]
@@ -996,7 +953,6 @@ class TestAngloSaxonAccounting(TestStockValuationCommon):
         self.assertEqual(abs(anglo_lines[1].balance), 10)
 
     def test_return_delivery_storno(self):
-        """When using STORNO accounting, reverse accounting moves should have negative values for credit/debit."""
         self.env.company.account_storno = True
         self.product = self.product_fifo
 

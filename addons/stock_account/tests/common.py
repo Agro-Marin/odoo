@@ -12,7 +12,6 @@ from odoo.addons.base.tests.common import BaseCommon
 
 
 class TestStockValuationCommon(BaseCommon):
-    # Override
     @classmethod
     def _create_company(cls, **create_values):
         company = super()._create_company(**create_values)
@@ -21,7 +20,6 @@ class TestStockValuationCommon(BaseCommon):
         )
         return company
 
-    # HELPER
     def _create_account_move(
         self, move_type, product, quantity=1.0, price_unit=1.0, post=True, **kwargs
     ):
@@ -152,7 +150,6 @@ class TestStockValuationCommon(BaseCommon):
         inventory_locations.valuation_account_id = self.account_inventory.id
         return self.account_inventory
 
-    # Moves
     def _make_in_move(
         self,
         product,
@@ -161,21 +158,6 @@ class TestStockValuationCommon(BaseCommon):
         create_picking=False,
         **kwargs,
     ):
-        """Helper to create and validate a receipt move.
-
-        :param product: Product to move
-        :param quantity: Quantity to move
-        :param unit_cost: Price unit
-        :param create_picking: Create the picking containing the created move
-        :param **kwargs: stock.move fields that you can override
-            ''location_id: origin location for the move
-            ''location_dest_id: destination location for the move
-            ''lot_ids: list of lot (split among the quantity)
-            ''picking_type_id: picking type
-            ''uom_id: Unit of measure
-            ''owner_id: Consignment owner
-            ''user: User performing the move
-        """
         env = self.env(user=kwargs["user"]) if kwargs.get("user") else self.env
         product_qty = quantity
         if kwargs.get("uom_id"):
@@ -246,21 +228,6 @@ class TestStockValuationCommon(BaseCommon):
         create_picking=False,
         **kwargs,
     ):
-        """Helper to create and validate a delivery move.
-
-        :param product: Product to move
-        :param quantity: Quantity to move
-        :param force_assign: Bypass reservation to force the required quantity
-        :param create_picking: Create the picking containing the created move
-        :param **kwargs: stock.move fields that you can override
-            ''location_id: origin location for the move
-            ''location_dest_id: destination location for the move
-            ''lot_ids: list of lot (split among the quantity)
-            ''picking_type_id: picking type
-            ''uom_id: Unit of measure
-            ''owner_id: Consignment owner
-            ''user: User performing the move
-        """
         env = self.env(user=kwargs["user"]) if kwargs.get("user") else self.env
         out_move = env["stock.move"].create(
             {
@@ -365,7 +332,6 @@ class TestStockValuationCommon(BaseCommon):
         return_pick._action_done()
         return return_pick.move_ids
 
-    # Post move processing
     def _add_move_line(self, move, **kwargs):
         old_price_unit = move._get_price_unit()
         self.env["stock.move.line"].create(
@@ -381,14 +347,10 @@ class TestStockValuationCommon(BaseCommon):
         move.value_manual = old_price_unit * move.quantity
 
     def _set_quantity(self, move, quantity):
-        """Helper function to retroactively change the quantity of a move.
-        The total value of the product will be recomputed as a result,
-        regardless of the valuation method."""
         price_unit = move._get_price_unit()
         move.quantity = quantity
         move.value_manual = price_unit * quantity
 
-    # GETTER
     def _get_stock_valuation_move_lines(self):
         return self.env["account.move.line"].search(
             [
@@ -414,7 +376,6 @@ class TestStockValuationCommon(BaseCommon):
         )
 
     def _url_extract_rec_id_and_model(self, url):
-        # Extract model and record ID
         action_match = re.findall(r"action-([^/]+)", url)
         model_name = self.env.ref(action_match[0]).res_model
         rec_id = re.findall(r"/(\d+)$", url)[0]
@@ -424,14 +385,12 @@ class TestStockValuationCommon(BaseCommon):
     def setUpClass(cls):
         super().setUpClass()
 
-        # To move to stock common later
         cls.route_mto = cls.env.ref("stock.route_warehouse0_mto")
         cls.company = cls.env["res.company"].create({"name": "Inventory Test Company"})
         cls.env["account.chart.template"]._load(
             "generic_coa", cls.company, install_demo=False
         )
         cls.env.user.company_id = cls.company
-        # We use the admin on tour.
         cls.user_admin = cls.env.ref("base.user_admin")
         cls.user_admin.company_ids = [(4, cls.company.id)]
         cls.user_admin.company_id = cls.company
@@ -474,7 +433,6 @@ class TestStockValuationCommon(BaseCommon):
             name="Branch Company", parent_id=cls.company.id
         )
 
-        # Stock account
         cls.account_expense = cls.company.expense_account_id
         cls.account_stock_valuation = cls.company.account_stock_valuation_id
         cls.account_stock_variation = (
@@ -524,8 +482,6 @@ class TestStockValuationCommon(BaseCommon):
             }
         )
 
-        # Clean context to avoid magic behavior later (e.g. copy with create_product_product to false)
-        # Use a freeze time to avoid a conflict between moves and default product_value generated during create
         with freeze_time(fields.Datetime.now() - timedelta(seconds=10)):
             product_common_vals = {
                 "standard_price": 10.0,

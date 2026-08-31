@@ -15,7 +15,6 @@ class StockMove(models.Model):
         res = super()._action_cancel()
 
         for picking in self.picking_id:
-            # Remove the picking from the batch if the whole batch isn't cancelled.
             if (
                 picking.state == "cancel"
                 and picking.batch_id

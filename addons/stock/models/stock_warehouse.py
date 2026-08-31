@@ -322,9 +322,6 @@ class StockWarehouse(models.Model):
         root, path = ancestor.parent_path, location.parent_path
         if root and path:
             return path.startswith(root)
-        # parent_path is a stored compute; when it has not been written yet a
-        # prefix test cannot answer, and answering "inside" would make the
-        # constraint vacuous exactly when the tree is in flux.
         current = location
         seen = set()
         while current and current.id not in seen:
@@ -527,9 +524,6 @@ class StockWarehouse(models.Model):
             self._update_multiwarehouse_group()
 
     def unlink(self):
-        # the check has to precede _collect_owned_records: by the time an
-        # @api.ondelete hook would fire, the picking types and rules it inspects
-        # are already gone, so it would pass on every warehouse.
         if not self.env.context.get("_force_unlink"):
             self._unlink_except_in_use()
         leftovers = [warehouse._collect_owned_records() for warehouse in self]
@@ -740,11 +734,6 @@ class StockWarehouse(models.Model):
         rules.write({"active": active})
 
         if active:
-            # writing the trigger fields to their own values is deliberate: it
-            # re-dispatches through every module's write() override, so
-            # reactivation replays whatever each of them does for its own trigger
-            # field. mrp_subcontracting rebuilds its resupply rules from exactly
-            # this. Calling the base refresh helpers directly would drop that.
             values = {depend: self[depend] for depend in reactivate_depends}
             if values:
                 self.write(values)

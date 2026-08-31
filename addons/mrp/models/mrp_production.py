@@ -23,7 +23,6 @@ from odoo.addons.stock.models.stock_move import PROCUREMENT_PRIORITIES
 from odoo.addons.web.controllers.utils import clean_action
 
 SIZE_BACK_ORDER_NUMBERING = 3
-#: Shared by move_raw_ids and move_finished_ids below.
 _NON_INVENTORY_MOVE_DOMAIN = [("location_dest_usage", "!=", "inventory")]
 
 
@@ -34,8 +33,6 @@ class MrpProduction(models.Model):
     _inherit = [
         "mixin.mail.thread",
         "mixin.mail.activity",
-        # before `mixin.product.catalog`: its `_update_order_line_info` is a
-        # `return 0` stub, and the first entry wins the method resolution order.
         "mixin.catalog.child.lines",
         "mixin.product.catalog",
         "mixin.date.category",
@@ -80,7 +77,10 @@ class MrpProduction(models.Model):
         return not self.env.user.has_group("mrp.group_unlocked_by_default")
 
     name = fields.Char(
-        "Reference", default=lambda self: _("New"), copy=False, readonly=True
+        "Reference",
+        default=lambda self: _("New"),
+        copy=False,
+        readonly=True,
     )
     priority = fields.Selection(
         PROCUREMENT_PRIORITIES,
@@ -113,7 +113,10 @@ class MrpProduction(models.Model):
         check_company=True,
     )
     production_group_id = fields.Many2one(
-        "mrp.production.group", "Production Group", index=True, copy=False
+        "mrp.production.group",
+        "Production Group",
+        index=True,
+        copy=False,
     )
 
     product_variant_attributes = fields.Many2many(
@@ -135,10 +138,17 @@ class MrpProduction(models.Model):
         string="Never attribute values",
     )
 
-    workcenter_id = fields.Many2one("mrp.workcenter", store=False)
-    product_tracking = fields.Selection(related="product_id.tracking")
+    workcenter_id = fields.Many2one(
+        "mrp.workcenter",
+        store=False,
+    )
+    product_tracking = fields.Selection(
+        related="product_id.tracking",
+    )
     product_tmpl_id = fields.Many2one(
-        "product.template", "Product Template", related="product_id.product_tmpl_id"
+        "product.template",
+        "Product Template",
+        related="product_id.product_tmpl_id",
     )
     product_qty = fields.Float(
         "Quantity To Produce",
@@ -151,7 +161,10 @@ class MrpProduction(models.Model):
         store=True,
         copy=True,
     )
-    allowed_uom_ids = fields.Many2many("uom.uom", compute="_compute_allowed_uom_ids")
+    allowed_uom_ids = fields.Many2many(
+        "uom.uom",
+        compute="_compute_allowed_uom_ids",
+    )
     product_uom_id = fields.Many2one(
         "uom.uom",
         "Unit",
@@ -171,10 +184,14 @@ class MrpProduction(models.Model):
         check_company=True,
     )
     qty_producing = fields.Float(
-        string="Quantity Producing", digits="Product Unit", copy=False
+        string="Quantity Producing",
+        digits="Product Unit",
+        copy=False,
     )
     product_uom_qty = fields.Float(
-        string="Total Quantity", compute="_compute_product_uom_qty", store=True
+        string="Total Quantity",
+        compute="_compute_product_uom_qty",
+        store=True,
     )
     picking_type_id = fields.Many2one(
         "stock.picking.type",
@@ -218,7 +235,8 @@ class MrpProduction(models.Model):
         help="Location where the system will stock the finished products.",
     )
     location_final_id = fields.Many2one(
-        "stock.location", "Final Location from procurement"
+        "stock.location",
+        "Final Location from procurement",
     )
     date_deadline = fields.Datetime(
         "Deadline",
@@ -394,7 +412,8 @@ class MrpProduction(models.Model):
     )
 
     qty_produced = fields.Float(
-        compute="_compute_qty_produced", string="Quantity Produced"
+        compute="_compute_qty_produced",
+        string="Quantity Produced",
     )
     reference_ids = fields.Many2many(
         "stock.reference",
@@ -406,7 +425,10 @@ class MrpProduction(models.Model):
     )
     product_description_variants = fields.Char("Custom Description")
     orderpoint_id = fields.Many2one(
-        "stock.warehouse.orderpoint", "Orderpoint", copy=False, index="btree_not_null"
+        "stock.warehouse.orderpoint",
+        "Orderpoint",
+        copy=False,
+        index="btree_not_null",
     )
     propagate_cancel = fields.Boolean(
         "Propagate cancel and split",
@@ -418,19 +440,26 @@ class MrpProduction(models.Model):
         store=True,
     )
     json_popover = fields.Char(
-        "JSON data for the popover widget", compute="_compute_json_popover"
+        "JSON data for the popover widget",
+        compute="_compute_json_popover",
     )
     scrap_ids = fields.One2many("stock.scrap", "production_id", "Scraps")
-    scrap_count = fields.Integer(compute="_compute_scrap_count", string="Scrap Move")
+    scrap_count = fields.Integer(
+        compute="_compute_scrap_count",
+        string="Scrap Move",
+    )
     unbuild_ids = fields.One2many("mrp.unbuild", "mo_id", "Unbuilds")
     unbuild_count = fields.Count("unbuild_ids", string="Number of Unbuilds")
     is_locked = fields.Boolean("Is Locked", default=_default_is_locked, copy=False)
     is_planned = fields.Boolean(
-        "Its Operations are Planned", compute="_compute_is_planned", store=True
+        "Its Operations are Planned",
+        compute="_compute_is_planned",
+        store=True,
     )
 
     show_final_lots = fields.Boolean(
-        "Show Final Lots", compute="_compute_show_final_lots"
+        "Show Final Lots",
+        compute="_compute_show_final_lots",
     )
     production_location_id = fields.Many2one(
         "stock.location",
@@ -456,15 +485,20 @@ class MrpProduction(models.Model):
     )
 
     mrp_production_child_count = fields.Integer(
-        "Number of generated MO", compute="_compute_mrp_production_child_count"
+        "Number of generated MO",
+        compute="_compute_mrp_production_child_count",
     )
     mrp_production_source_count = fields.Integer(
-        "Number of source MO", compute="_compute_mrp_production_source_count"
+        "Number of source MO",
+        compute="_compute_mrp_production_source_count",
     )
     mrp_production_backorder_count = fields.Integer(
         "Count of linked backorder", compute="_compute_mrp_production_backorder_count"
     )
-    show_lock = fields.Boolean("Show Lock/unlock buttons", compute="_compute_show_lock")
+    show_lock = fields.Boolean(
+        "Show Lock/unlock buttons",
+        compute="_compute_show_lock",
+    )
     components_availability = fields.Char(
         string="Component Status",
         compute="_compute_components_availability",
@@ -488,7 +522,9 @@ class MrpProduction(models.Model):
         "Display the serial number shortcut on the moves",
         compute="_compute_show_lot_ids",
     )
-    forecasted_issue = fields.Boolean(compute="_compute_forecasted_issue")
+    forecasted_issue = fields.Boolean(
+        compute="_compute_forecasted_issue",
+    )
     show_allocation = fields.Boolean(
         compute="_compute_show_allocation",
         help='Technical Field used to decide whether the button "Allocation" should be displayed.',
@@ -499,7 +535,8 @@ class MrpProduction(models.Model):
         help="Technical field to check if produce button can be shown",
     )
     show_generate_bom = fields.Boolean(
-        "Show Generate BOM", compute="_compute_show_generate_bom"
+        "Show Generate BOM",
+        compute="_compute_show_generate_bom",
     )
     show_produce_all = fields.Boolean(
         compute="_compute_show_produce",
@@ -509,10 +546,12 @@ class MrpProduction(models.Model):
         "Outdated BoM", help="The BoM has been updated since creation of the MO"
     )
     is_delayed = fields.Boolean(
-        compute="_compute_is_delayed", search="_search_is_delayed"
+        compute="_compute_is_delayed",
+        search="_search_is_delayed",
     )
     serial_numbers_count = fields.Integer(
-        "Count of serial numbers", compute="_compute_serial_numbers_count"
+        "Count of serial numbers",
+        compute="_compute_serial_numbers_count",
     )
 
     _name_uniq = models.Constraint(
@@ -804,9 +843,6 @@ class MrpProduction(models.Model):
             elif not production.bom_id:
                 production.product_qty = 1.0
 
-    # `qty_available` is context-dependent and not stored, so it cannot be declared;
-    # everything the formula reads that *can* be is, which is what makes the field
-    # follow a quantity change or a component swap instead of a stale first read.
     @api.depends(
         "product_id",
         "product_qty",
@@ -819,15 +855,6 @@ class MrpProduction(models.Model):
         for production in self:
             production.production_capacity = production.product_qty
             moves = production.move_raw_ids.filtered(
-                # `is_storable`, not `type != "consu"`. In 19.0 `type` is
-                # consu/service/combo and stockability is its own flag, so that test
-                # selected services and combos -- precisely the products that have no
-                # `qty_available`, and the complement of the set
-                # `_get_moves_raw_values` will build a raw move for at all. It matched
-                # nothing, ever: the whole branch below was dead and the field simply
-                # echoed `product_qty`, reporting 1000 producible against 7 components
-                # in stock. `mrp_report_bom_structure._compute_current_production_capacity`
-                # is the same question asked correctly, and it filters on `is_storable`.
                 lambda move: move.unit_factor and move.product_id.is_storable
             )
             if moves:
@@ -1068,9 +1095,6 @@ class MrpProduction(models.Model):
         "never_product_template_attribute_value_ids",
     )
     def _compute_workorder_ids(self):
-        # Two explosions per order, so the batch shares one scratch for the same
-        # reason `_compute_move_raw_ids` does: the kit closure is a function of the
-        # BoM, not of the order asking for it.
         batch = self.with_context(
             bom_cost_share_cache=self.env["mrp.bom"]._explosion_scratch()
         )
@@ -1195,11 +1219,6 @@ class MrpProduction(models.Model):
         "move_raw_ids.state",
         "move_raw_ids.picked",
         "move_raw_ids.product_uom_qty",
-        # The `partially_available` branch below asks the BoM how eager it is and
-        # asks `_get_ready_to_produce_state` which moves belong to the first
-        # operation.  Neither input was declared, and the field is stored: an
-        # order sitting at `confirmed` kept that value on disk after its BoM
-        # flipped to `asap`, where the answer is `assigned`.
         "bom_id.ready_to_produce",
         "workorder_ids.operation_id",
         "move_raw_ids.operation_id",
@@ -1311,9 +1330,6 @@ class MrpProduction(models.Model):
                 and order.state not in {"cancel", "draft"}
             )
 
-    # The answer is "does any component carry a lot", so the components' tracking
-    # is an input: without it the column stayed hidden after a component was
-    # switched to serial tracking, for the life of the transaction.
     @api.depends("state", "move_raw_ids", "move_raw_ids.product_id.tracking")
     def _compute_show_lot_ids(self):
         for order in self:
@@ -1321,35 +1337,11 @@ class MrpProduction(models.Model):
                 m.product_id.tracking != "none" for m in order.move_raw_ids
             )
 
-    # `picking_type_id` and the finished products are inputs, not just the moves:
-    # the question is asked per warehouse and per product.
     @api.depends(
         "state", "picking_type_id", "move_finished_ids", "move_finished_ids.product_id"
     )
     @api.depends_context("uid")
     def _compute_show_allocation(self):
-        """Is there anything in this warehouse this order's output could be given to?
-
-        Asked once per (warehouse, set of acceptable move states) rather than once
-        per order. The old shape was one `search_count(limit=1)` per order --
-        measured 50 of the 58 queries and 46 ms of the 46 for a list of fifty --
-        because three of the six conditions are per-order and the fourth,
-        `move_orig_ids`, is a many2many.
-
-        The batching turns on splitting that many2many condition, which is what made
-        this look unbatchable:
-
-        * a move with **no** origin is a candidate for any order whose finished
-          products include its own, so it is grouped by
-          `(product, raw_material_production_id)` -- bounded by products times
-          orders, not by moves;
-        * a move **chained to one of these orders' own finished moves** can only be
-          reached through those moves, so searching `move_orig_ids in <this batch's
-          lines>` is bounded by the batch itself.
-
-        Neither half reads an unbounded candidate set, which a single flattened
-        search over the union would have.
-        """
         self.show_allocation = False
         if not self.env.user.has_group("mrp.group_mrp_reception_report"):
             return
@@ -1395,8 +1387,6 @@ class MrpProduction(models.Model):
 
             for order in orders:
                 lines = lines_by_order[order.id]
-                # `not in mo.ids` in the old domain, so a NULL owner counts: an
-                # order is only disqualified by a move it owns *itself*.
                 if any(
                     unchained_owners[product] - {order.id}
                     for product in lines.product_id
@@ -1410,13 +1400,6 @@ class MrpProduction(models.Model):
                     for move in chained
                 )
 
-    # Its real input is `product_id.qty_available_virtual`, a forecast that is not
-    # stored and depends on the context, so it cannot be declared here and the field
-    # goes stale inside a transaction whenever a move for the product changes:
-    # measured, new outgoing demand leaves this reading False where the truth is
-    # True. The declared inputs are the ones that *can* be named. Fixing it means
-    # not asking a compute a question only a search can answer -- the same shape as
-    # `hr_holidays._compute_leave_status` -- not adding a dependency.
     @api.depends("product_uom_qty", "date_start", "product_id", "location_dest_id")
     def _compute_forecasted_issue(self):
         for order in self:
@@ -1488,9 +1471,6 @@ class MrpProduction(models.Model):
         "never_product_template_attribute_value_ids",
     )
     def _compute_move_raw_ids(self):
-        # `_get_moves_raw_values` is asked for one order at a time below, so the
-        # explosion scratch is opened around the loop: without it every order in a
-        # batched create re-resolves the same BoM's kit closure from scratch.
         batch = self.with_context(
             bom_cost_share_cache=self.env["mrp.bom"]._explosion_scratch()
         )
@@ -1587,9 +1567,6 @@ class MrpProduction(models.Model):
             production_with_move_finished_ids_to_unlink_ids
         )
 
-        # both statements are load-bearing: `delete` takes the saved moves, and
-        # `clear` takes the NewId ones a Form has added but not written, which
-        # `delete` cannot address
         production_with_move_finished_ids_to_unlink.move_finished_ids = [
             Command.delete(m)
             for m in production_with_move_finished_ids_to_unlink.move_finished_ids.ids
@@ -1674,9 +1651,6 @@ class MrpProduction(models.Model):
             self.date_category_to_domain("date_start", date) for date in dates
         )
 
-    # The count is zero unless the product is serial-tracked, so the tracking is an
-    # input: the badge kept reading 1 after the product was switched to lot tracking,
-    # where the answer is 0. Same shape as `_compute_show_lot_ids`.
     @api.depends("lot_producing_ids", "product_tracking")
     def _compute_serial_numbers_count(self):
         for production in self:
@@ -1761,11 +1735,6 @@ class MrpProduction(models.Model):
 
     @api.constrains("production_group_id", "company_id")
     def _check_production_group_company(self):
-        # `mrp.production.group` carries no company_id of its own -- it has
-        # no single owner, since it groups productions that might otherwise
-        # span companies -- so the boundary is enforced here instead. All of
-        # the group's productions are checked, not just `self`: the mismatch
-        # a write introduces can land on either side of the pairing.
         for group in self.production_group_id:
             if len(group.production_ids.company_id) > 1:
                 raise ValidationError(
@@ -1790,8 +1759,6 @@ class MrpProduction(models.Model):
         move_keys = [
             key for key in ("move_raw_ids", "move_finished_ids") if key in vals
         ]
-        # the move commands are stamped with a warehouse, so a set spanning
-        # several of them has to be split -- but only that far, not per record
         if len(self) > 1 and move_keys and not vals.get("location_src_id"):
             by_warehouse = self.grouped(
                 lambda production: production.location_src_id.warehouse_id
@@ -1825,11 +1792,6 @@ class MrpProduction(models.Model):
         return self._merge_byproduct_commands(vals, self._main_product_id_from(vals))
 
     def _main_product_id_from(self, vals):
-        """Which product the finished-move commands in `vals` are about.
-
-        `vals` wins, then the records' own product when they agree on one, then the
-        BoM the same write is setting. `False` when nothing settles it.
-        """
         if vals.get("product_id"):
             return vals["product_id"]
         if len(self.product_id) == 1:
@@ -1841,20 +1803,12 @@ class MrpProduction(models.Model):
 
     @api.model
     def _merge_byproduct_commands(self, vals, main_product_id=False):
-        """Fold `move_byproduct_ids` into `move_finished_ids`.
-
-        `move_byproduct_ids` is a computed view over `move_finished_ids`, so a
-        `vals` carrying both keys has to be reduced to one before it reaches the
-        ORM: applying the o2m and then the byproduct inverse loses whichever the
-        ORM happens to apply first, and the byproduct moves were the ones lost.
-        """
         if "move_byproduct_ids" not in vals:
             return vals
         byproduct_commands = vals.pop("move_byproduct_ids")
         finished_commands = vals.get("move_finished_ids") or []
         if main_product_id:
-            # every other created finished move is a byproduct, and it is arriving
-            # through the byproduct key instead
+
             def is_main(command):
                 return command[2].get("product_id") == main_product_id
         else:
@@ -1914,12 +1868,6 @@ class MrpProduction(models.Model):
         return moves_to_reassign
 
     def _post_write(self, vals, production_to_replan):
-        """Everything the write implies, once for the whole set.
-
-        `super().write()` has just given every record in `self` the same
-        `date_start` and `date_end`, so the move updates they drive are one write
-        each rather than one per order.
-        """
         if "date_start" in vals and not self.env.context.get("force_date", False):
             production_to_replan.button_unplan()
         if vals.get("date_start"):
@@ -2202,9 +2150,6 @@ class MrpProduction(models.Model):
         byproduct_id=False,
         cost_share=0,
     ):
-        # only the order's own finished move carries the destinations, and
-        # resolving them walks references -> orders -> groups -> orders; a
-        # byproduct used to pay for that walk and then discard it
         move_dest_ids = (
             self.env["stock.move"]
             if byproduct_id
@@ -2235,12 +2180,6 @@ class MrpProduction(models.Model):
         }
 
     def _get_finished_move_dest_ids(self):
-        """Where this order's finished product is headed.
-
-        Its own `move_dest_ids` when it has them, otherwise the ones carried by
-        the orders it shares a reference and a parent group with -- a backorder
-        inherits the destinations of the order it was split from.
-        """
         self.check_singleton()
         if self.move_dest_ids:
             return self.move_dest_ids
@@ -2330,10 +2269,6 @@ class MrpProduction(models.Model):
 
     def _get_moves_raw_values(self):
         moves = []
-        # One scratch for the whole batch, so the kit closure and the cost shares
-        # are resolved once per BoM rather than once per order. `_explode` builds
-        # its own when the context carries none, which is exactly the per-order
-        # scope this replaces.
         batch = self.with_context(
             bom_cost_share_cache=self.env["mrp.bom"]._explosion_scratch()
         )
@@ -2783,9 +2718,6 @@ class MrpProduction(models.Model):
         final_workorders = self.workorder_ids.filtered(
             lambda wo: not wo.needed_by_workorder_ids
         )
-        # One memo for the whole pass, not one per final work order: two
-        # final work orders that share a predecessor would otherwise each plan
-        # that shared subtree, and under `replan` each planning moves it.
         planned = set()
         for workorder in final_workorders:
             workorder._plan_workorder(replan, planned)
@@ -2837,9 +2769,6 @@ class MrpProduction(models.Model):
         issues = []
         if self.env.context.get("skip_consumption", False):
             return issues
-        # `_get_moves_raw_values` is asked for one order at a time here, so the
-        # scratch has to be established around the loop -- otherwise each call
-        # opens its own and the batch re-explodes the same BoM per order.
         orders = self.with_context(
             bom_cost_share_cache=self.env["mrp.bom"]._explosion_scratch()
         )
@@ -3023,10 +2952,6 @@ class MrpProduction(models.Model):
         return (move_raw_id.move_orig_ids and "move_orig_ids") or False
 
     def _cal_price(self, consumed_moves):
-        """No-op extension seam: a costing module overrides this to price
-        `consumed_moves` against `self`. Nothing in this base module reads
-        the return value at all.
-        """
         self.check_singleton()
         return True
 
@@ -3191,13 +3116,6 @@ class MrpProduction(models.Model):
     def _create_split_backorders(self, amounts):
         backorder_vals_list = []
         initial_qty_by_production = {}
-        # The high-water mark per group has to survive the loop. The backorders are
-        # only created after it, so reading the group's `production_ids` inside it
-        # cannot see the ones the previous iteration already claimed: splitting two
-        # orders of the *same* group in one call gave both the same sequence, and
-        # therefore the same name -- a UniqueViolation on `mrp_production_name_uniq`
-        # rather than a wrong number. Reachable from one Mark Done over an order and
-        # its own backorder.
         next_seq_by_group = {}
         for production in self.sudo():
             initial_qty_by_production[production] = production.product_qty
@@ -3348,12 +3266,6 @@ class MrpProduction(models.Model):
         assigned_moves,
         partially_assigned_moves,
     ):
-        """Hand the initial move's reservation to the moves it was split into.
-
-        Walks the split moves in order, filling each to its own demand before
-        moving on: existing move lines are re-pointed while they last, and what
-        is left over becomes new lines on the backorder moves.
-        """
         product_uom_id = initial_move.product_id.uom_id
         ml_by_move = []
         if not initial_move.picked:
@@ -3365,8 +3277,6 @@ class MrpProduction(models.Model):
                     continue
                 ml_by_move.append((available_qty, move_line, move_line.copy_data()[0]))
 
-        # `move` stays a stock.move throughout -- an exhausted cursor is the
-        # empty recordset, not a bare list, so every read below is one type
         remaining = list(initial_move | split_backorder_moves)
         move = remaining.pop(0)
         move_qty_to_reserve = move.product_qty
@@ -3545,13 +3455,6 @@ class MrpProduction(models.Model):
         return self._get_mark_done_action(backorders)
 
     def _get_mark_done_action(self, backorders):
-        """What the client is handed once the orders are closed.
-
-        Three things can want the return value -- the autoprint reports, a
-        redirection to the backorder that was just created, and the reception
-        report -- and only the first of them can travel with either of the
-        others, so it wraps whatever the other two decided.
-        """
         report_actions = self._get_autoprint_done_report_actions()
         if self.env.context.get("skip_redirection"):
             if report_actions:
@@ -3580,7 +3483,6 @@ class MrpProduction(models.Model):
         return another_action or True
 
     def _get_closed_redirect_action(self):
-        """Where to send the user when nothing was backordered."""
         if self.env.context.get("from_workorder"):
             return {
                 "type": "ir.actions.act_window",
@@ -3607,7 +3509,6 @@ class MrpProduction(models.Model):
         return False
 
     def _get_backorder_redirect_action(self, backorders):
-        """Open the backorders the close has just created."""
         context = {
             k: False if k.startswith("skip_") else v
             for k, v in self.env.context.items()
@@ -4086,15 +3987,6 @@ class MrpProduction(models.Model):
                     workorder.name = operation.name
             elif workorder.operation_id:
                 workorders_to_unlink |= workorder
-        # `sequence` explicitly: `_default_sequence` reads it off the operation
-        # only when the work order is built through the `workorder_ids` compute,
-        # which evaluates defaults against a record that already carries one.
-        # Creating from a vals dict -- this path, reached from Update BOM --
-        # leaves `self` empty in the default, so the work order lands on 100 and
-        # sorts after everything already there whatever the routing says: a
-        # routing reading `Prep, Op0, Op1, Op2` produced `Op0, Op1, Op2, Prep`,
-        # and `_link_workorders_and_moves` then built the dependency chain in
-        # that order, so the preparation step waited on what it prepares for.
         self.workorder_ids += self.env["mrp.workorder"].create(
             [
                 {
@@ -4265,13 +4157,6 @@ class MrpProduction(models.Model):
         self._check_consumed_serials_are_not_reused()
 
     def _check_consumed_serials_are_not_reused(self):
-        """Refuse a component serial this order is consuming for a second time.
-
-        Two ways it can already be spent: another line of this same order is
-        holding it, which is decided in memory, or a past order consumed it into
-        a production location and nothing gave it back -- an unbuild, or a
-        cancel that returned it -- which is the two grouped reads below.
-        """
         self.check_singleton()
         consumed_sn_ids = []
         sn_error_msg = {}
@@ -4345,14 +4230,6 @@ class MrpProduction(models.Model):
                 raise UserError(sn_error_msg[lot.id])
 
     def _serials_produced_into_a_production_location(self, lots):
-        """The subset of `lots` that `_are_finished_serials_already_produced` has
-        anything to look into.
-
-        That method opens with a count over this exact domain and does nothing
-        further when it comes back zero, so asking once for every lot in a batch
-        turns its per-lot query into a per-batch one. Byproduct serials are checked
-        one move line at a time, and the clean case is every line coming back zero.
-        """
         if not lots:
             return self.env["stock.lot"]
         groups = self.env["stock.move.line"]._read_group(
@@ -4384,7 +4261,6 @@ class MrpProduction(models.Model):
             ("location_dest_id.usage", "=", "production"),
         ]
         if suspect_lots is not None and not (lots & suspect_lots):
-            # the count below is known to be zero for these lots
             duplicates = 0
         else:
             duplicates = self.env["stock.move.line"].search_count(

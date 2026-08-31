@@ -10,10 +10,6 @@ from odoo.addons.mrp_subcontracting.tests.common import TestMrpSubcontractingCom
 @skip("Temporary to fast merge new valuation")
 class TestSubcontractingLandedCosts(TestMrpSubcontractingCommon):
     def test_subcontracting_landed_cost_receipts_flow(self):
-        """
-        This test verifies that landed costs can be applied to subcontracting receipts
-        rather than being added directly to the manufacturing order.
-        """
         self.product_category.property_cost_method = "fifo"
         self.product_category.property_valuation = "real_time"
         po = self.env["purchase.order"].create(
@@ -45,7 +41,6 @@ class TestSubcontractingLandedCosts(TestMrpSubcontractingCommon):
         in_picking.move_ids.picked = True
         in_picking.button_validate()
 
-        # create a landed cost for the incoming picking
         default_vals = self.env["stock.landed.cost"].default_get(
             list(self.env["stock.landed.cost"].fields_get())
         )
@@ -74,10 +69,8 @@ class TestSubcontractingLandedCosts(TestMrpSubcontractingCommon):
         )
         stock_landed_cost = self.env["stock.landed.cost"].create(default_vals)
 
-        # compute the landed cost using compute button
         stock_landed_cost.compute_landed_cost()
 
-        # check the valuation adjustment lines
         for valuation in stock_landed_cost.valuation_adjustment_lines:
             if valuation.cost_line_id.name == "equal split":
                 self.assertEqual(valuation.former_cost, 100)
@@ -91,7 +84,6 @@ class TestSubcontractingLandedCosts(TestMrpSubcontractingCommon):
             else:
                 raise ValidationError("unrecognized valuation adjustment line")
 
-        # confirm the landed cost
         stock_landed_cost.button_validate()
         self.assertEqual(stock_landed_cost.state, "done")
 
@@ -117,7 +109,6 @@ class TestSubcontractingLandedCosts(TestMrpSubcontractingCommon):
             }
         )
 
-        # The following checks ensure that the landed cost is distributed uniformly between standard product and subcontracting product
         product = self.env["product.product"].create(
             {
                 "name": "Product",
@@ -141,7 +132,6 @@ class TestSubcontractingLandedCosts(TestMrpSubcontractingCommon):
         in_picking.move_ids.picked = True
         in_picking.button_validate()
 
-        # create a landed cost for the incoming picking
         default_vals = self.env["stock.landed.cost"].default_get(
             list(self.env["stock.landed.cost"].fields_get())
         )
@@ -164,10 +154,8 @@ class TestSubcontractingLandedCosts(TestMrpSubcontractingCommon):
         )
         stock_landed_cost = self.env["stock.landed.cost"].create(default_vals)
 
-        # compute the landed cost using compute button
         stock_landed_cost.compute_landed_cost()
 
-        # check the valuation adjustment lines
         self.assertEqual(len(stock_landed_cost.valuation_adjustment_lines), 2)
         for valuation in stock_landed_cost.valuation_adjustment_lines:
             if valuation.cost_line_id.name == "equal split":
@@ -180,6 +168,5 @@ class TestSubcontractingLandedCosts(TestMrpSubcontractingCommon):
             else:
                 raise ValidationError("unrecognized valuation adjustment line")
 
-        # confirm the landed cost
         stock_landed_cost.button_validate()
         self.assertEqual(stock_landed_cost.state, "done")

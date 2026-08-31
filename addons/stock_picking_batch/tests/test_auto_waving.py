@@ -410,8 +410,6 @@ class TestAutoWaving(TransactionCase):
         self.assertEqual(len(wave_1.move_line_ids), 3)
         self.assertEqual(wave_1.picking_ids.partner_id, self.us_client)
         self.assertEqual(wave_1.move_line_ids.product_id, self.product_1)
-        # Set the quantity of the move line that is the only one in the picking to 0
-        # to check if it is correctly moved to another wave.
         self.assertCountEqual(wave_1.move_line_ids.mapped("quantity"), [2.0, 3.0, 2.0])
         modified_move_line = wave_1.picking_ids.filtered(
             lambda p: len(p.move_ids) == 1
@@ -487,9 +485,6 @@ class TestAutoWaving(TransactionCase):
         self.assertEqual(wave_8.move_line_ids.product_id, self.product_2)
 
     def test_group_only_when_auto_batch_is_enable(self):
-        """This test ensures wave grouping is only done when the `auto_batch`
-        field is true, no matter what the other fields value is."""
-        # Update quantity in stock to have enough for fullfil all pickings and their copies.
         for location, products in [
             [self.stock_location, [self.product_1]],
             [self.child_location_1, [self.product_1, self.product_2, self.product_4]],
@@ -500,7 +495,6 @@ class TestAutoWaving(TransactionCase):
                 self.env["stock.quant"]._update_available_quantity(
                     product, location, 99
                 )
-        # Set `wave_group_by_product` on true even if `auto_batch` is false.
         self.picking_type_out.write(
             {
                 "auto_batch": False,
@@ -513,21 +507,16 @@ class TestAutoWaving(TransactionCase):
                 "wave_group_by_product": True,
             }
         )
-        # Auto batch is disabled -> pickings' products shouldn't be batched in wave.
         all_pickings_copy = self.all_pickings.copy()
         all_pickings_copy.action_assign()
         waves = self.env["stock.picking.batch"].search([("is_wave", "=", True)])
         self.assertEqual(len(waves), 0)
-        # Set auto batch on true -> pickings' products should be batched in wave.
         self.picking_type_out.auto_batch = True
         self.all_pickings.action_assign()
         waves = self.env["stock.picking.batch"].search([("is_wave", "=", True)])
         self.assertEqual(len(waves), 4)
 
     def test_auto_wave_skip_current_batch(self):
-        """Check that validating a wave with partial quantities (one line empty, one partial)
-        correctly creates a backorder in a *new* wave, rather than attempting to merge
-        back into the current wave (which causes a UserError as it hasn't closed yet)."""
         self.picking_type_out.write(
             {
                 "create_backorder": "always",
@@ -542,7 +531,6 @@ class TestAutoWaving(TransactionCase):
             }
         )
 
-        # We specifically test Product 2 that has a line in both Picking 1 and Picking 2
         (self.picking_1 | self.picking_2).action_assign()
         wave_domain = [
             ("is_wave", "=", True),
@@ -561,7 +549,6 @@ class TestAutoWaving(TransactionCase):
 
         self.assertEqual(wave.state, "done")
 
-        # Verify the backorder created a new, separate wave, with the remaining quantities
         new_wave = self.env["stock.picking.batch"].search(wave_domain)
         self.assertEqual(len(new_wave), 1)
         self.assertEqual(len(new_wave.move_line_ids), 2)

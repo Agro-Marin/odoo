@@ -13,10 +13,6 @@ class TestRepairTraceability(TestMrpCommon):
         )
 
     def test_tracking_repair_production(self):
-        """
-        Test that removing a tracked component with a repair does not block the flow of using that component in another
-        bom
-        """
         product_to_repair = self.env["product.product"].create(
             {
                 "name": "product first serial to act repair",
@@ -43,10 +39,6 @@ class TestRepairTraceability(TestMrpCommon):
                 "product_id": product_to_remove.id,
             }
         )
-        # Both products track inventory now, so the MO reserves its component
-        # instead of inventing a line for it: without the serial on hand there is
-        # nothing to attach `ptremove_lot` to and `button_mark_done` reports a
-        # missing lot.
         warehouse = self.env["stock.warehouse"].search(
             [("company_id", "=", self.env.company.id)], limit=1
         )
@@ -59,7 +51,6 @@ class TestRepairTraceability(TestMrpCommon):
             }
         )._apply_inventory()
 
-        # Create a manufacturing order with product (with SN A1)
         mo_form = Form(self.env["mrp.production"])
         mo_form.product_id = product_to_repair
         with mo_form.move_raw_ids.new() as move:
@@ -67,31 +58,24 @@ class TestRepairTraceability(TestMrpCommon):
             move.product_uom_qty = 1
         mo = mo_form.save()
         mo.action_confirm()
-        # Set serial to A1
         mo.lot_producing_ids = ptrepair_lot
-        # Set component serial to B2
         mo.move_raw_ids.move_line_ids.lot_id = ptremove_lot
         mo.move_raw_ids.picked = True
         mo.button_mark_done()
 
         with Form(self.env["repair.order"]) as ro_form:
             ro_form.product_id = product_to_repair
-            ro_form.lot_id = ptrepair_lot  # Repair product Serial A1
+            ro_form.lot_id = ptrepair_lot
             with ro_form.move_ids.new() as operation:
                 operation.repair_line_type = "remove"
                 operation.product_id = product_to_remove
             ro = ro_form.save()
         ro.action_validate()
-        ro.move_ids[
-            0
-        ].lot_ids = ptremove_lot  # Remove product Serial B2 from the product.
+        ro.move_ids[0].lot_ids = ptremove_lot
         ro.action_repair_start()
         ro.move_ids.picked = True
         ro.action_repair_end()
 
-        # The repair consumed B2 out of the product, so it is at zero everywhere.
-        # Reusing the serial -- which is the point of this test -- means having it
-        # back on hand first; a storable component is reserved, not conjured.
         self.env["stock.quant"].with_context(inventory_mode=True).create(
             {
                 "product_id": product_to_remove.id,
@@ -101,7 +85,6 @@ class TestRepairTraceability(TestMrpCommon):
             }
         )._apply_inventory()
 
-        # Create a manufacturing order with product (with SN A2)
         mo2_form = Form(self.env["mrp.production"])
         mo2_form.product_id = product_to_repair
         with mo2_form.move_raw_ids.new() as move:
@@ -109,25 +92,17 @@ class TestRepairTraceability(TestMrpCommon):
             move.product_uom_qty = 1
         mo2 = mo2_form.save()
         mo2.action_confirm()
-        # Set serial to A2
         mo2.lot_producing_ids = self.env["stock.lot"].create(
             {
                 "name": "A2",
                 "product_id": product_to_repair.id,
             }
         )
-        # Set component serial to B2 again, it is possible
         mo2.move_raw_ids.move_line_ids.lot_id = ptremove_lot
         mo2.move_raw_ids.picked = True
-        # We are not forbidden to use that serial number, so nothing raised here
         mo2.button_mark_done()
 
     def test_mo_with_used_sn_component(self):
-        """
-        Suppose a tracked-by-usn component has been used to produce a product. Then, using a repair order,
-        this component is removed from the product and returned as available stock. The user should be able to
-        use the component in a new MO
-        """
 
         def produce_one(product, component):
             mo_form = Form(self.env["mrp.production"])
@@ -183,9 +158,6 @@ class TestRepairTraceability(TestMrpCommon):
         mo = produce_one(finished, component)
         self.assertEqual(mo.state, "done")
         self.assertEqual(mo.move_raw_ids.lot_ids, sn_lot)
-        # Now, we will test removing the component and putting it back in stock,
-        # then placing it back into the product and removing it a second time.
-        # The user should be able to use the component in a new MO.
         ro_form = Form(self.env["repair.order"])
         ro_form.product_id = finished
         with ro_form.move_ids.new() as ro_line:
@@ -198,7 +170,6 @@ class TestRepairTraceability(TestMrpCommon):
         ro.action_repair_start()
         ro.action_repair_end()
         self.assertEqual(ro.state, "done")
-        # Add the component into the product
         ro_form = Form(self.env["repair.order"])
         ro_form.product_id = finished
         with ro_form.move_ids.new() as ro_line:
@@ -211,7 +182,6 @@ class TestRepairTraceability(TestMrpCommon):
         ro.action_repair_start()
         ro.action_repair_end()
         self.assertEqual(ro.state, "done")
-        # Removing it a second time
         ro_form = Form(self.env["repair.order"])
         ro_form.product_id = finished
         with ro_form.move_ids.new() as ro_line:
@@ -224,16 +194,11 @@ class TestRepairTraceability(TestMrpCommon):
         ro.action_repair_start()
         ro.action_repair_end()
         self.assertEqual(ro.state, "done")
-        # check if the removed component can be used in a new MO
         mo = produce_one(finished, component)
         self.assertEqual(mo.state, "done")
         self.assertEqual(mo.move_raw_ids.lot_ids, sn_lot)
 
     def test_mo_with_used_sn_component_02(self):
-        """
-        Suppose a tracked-by-usn component has been remvoed in a repair order. Then, using to produce a product,
-        but this product has been unbuild. The user should be able to use the component in a new MO
-        """
         finished, component = self.env["product.product"].create(
             [
                 {
@@ -256,7 +221,6 @@ class TestRepairTraceability(TestMrpCommon):
             }
         )
 
-        # create a repair order
         ro_form = Form(self.env["repair.order"])
         ro_form.product_id = self.product_1
         with ro_form.move_ids.new() as ro_line:
@@ -273,7 +237,6 @@ class TestRepairTraceability(TestMrpCommon):
         )
         self.assertEqual(component.qty_available, 1)
 
-        # create a manufacturing order
         mo_form = Form(self.env["mrp.production"])
         mo_form.product_id = finished
         with mo_form.move_raw_ids.new() as raw_line:
@@ -287,11 +250,9 @@ class TestRepairTraceability(TestMrpCommon):
         mo.button_mark_done()
         self.assertEqual(mo.state, "done")
         self.assertEqual(mo.move_raw_ids.lot_ids, sn_lot)
-        # unbuild the mo
         unbuild_form = Form(self.env["mrp.unbuild"])
         unbuild_form.mo_id = mo
         unbuild_form.save().action_unbuild()
-        # create another mo and use the same SN
         mo_form = Form(self.env["mrp.production"])
         mo_form.product_id = finished
         with mo_form.move_raw_ids.new() as raw_line:
@@ -307,14 +268,6 @@ class TestRepairTraceability(TestMrpCommon):
         self.assertEqual(mo.move_raw_ids.lot_ids, sn_lot)
 
     def test_mo_with_unscrapped_tracked_component(self):
-        """
-        Tracked-by-sn component
-        Use it in a MO
-        Repair the finished product:
-            Remove the component, destination: scrap location
-        Move the component back to the stock
-        Use it in a MO
-        """
         scrap_location_id = (
             self.env["stock.location"]
             .search_read(
@@ -418,7 +371,6 @@ class TestRepairTraceability(TestMrpCommon):
         )
 
     def test_repair_with_consumable_kit(self):
-        """Test that a consumable kit can be repaired."""
         self.assertEqual(self.bom_2.type, "phantom")
         kit_product = self.bom_2.product_id
         kit_product.type = "consu"
