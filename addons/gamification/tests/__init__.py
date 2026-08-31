@@ -17,3 +17,4 @@ from . import test_goal
 from . import test_goal_definition
 from . import test_team
 from . import test_regressions
+from . import test_schema

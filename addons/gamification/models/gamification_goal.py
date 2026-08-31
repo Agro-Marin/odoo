@@ -24,6 +24,7 @@ class GamificationGoal(models.Model):
         "gamification.goal.definition",
         string="Goal Definition",
         required=True,
+        index=True,
         ondelete="cascade",
     )
     user_id = fields.Many2one(
@@ -36,7 +37,10 @@ class GamificationGoal(models.Model):
     )
     user_partner_id = fields.Many2one("res.partner", related="user_id.partner_id")
     line_id = fields.Many2one(
-        "gamification.challenge.line", string="Challenge Line", ondelete="cascade"
+        "gamification.challenge.line",
+        string="Challenge Line",
+        index=True,
+        ondelete="cascade",
     )
     challenge_id = fields.Many2one(
         related="line_id.challenge_id",

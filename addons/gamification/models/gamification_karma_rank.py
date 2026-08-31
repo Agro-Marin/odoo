@@ -109,3 +109,24 @@ class GamificationKarmaRank(models.Model):
                 )
             users._recompute_rank()
         return res
+
+    def _can_return_content(
+        self, field_name: str | None = None, access_token: str | None = None
+    ) -> bool:
+        """Serve the rank pictures to visitors that hold no ACL on this model.
+
+        A profile page renders the rank as ``t-field="rank_id.image_1920"``,
+        which the browser resolves to ``/web/image/gamification.karma.rank/<id>/
+        image_128``. The page itself was rendered from a sudo recordset, but
+        that image request arrives as the portal or public visitor, and
+        ``ir.binary`` falls back to ``check_access("read")`` for anyone this
+        hook turns down.
+
+        The images are the only thing an external audience needs from a rank,
+        so they are opened here instead of by handing the whole model back an
+        ACL. Only the fields the image mixin defines qualify; anything else
+        keeps going through the access check.
+        """
+        if isinstance(self.env["mixin.image"]._fields.get(field_name), fields.Image):
+            return True
+        return super()._can_return_content(field_name, access_token)
