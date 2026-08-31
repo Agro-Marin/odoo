@@ -133,11 +133,10 @@ class MixinSpreadsheet(models.AbstractModel):
             ids_per_model[arg["model"]].append(arg["id"])
         display_names = defaultdict(dict)
         for model, ids in ids_per_model.items():
-            records = (
-                self.env[model]
-                .with_context(active_test=False)
-                .search([("id", "in", ids)])
-            )
+            Model = self.env.get(model)
+            if Model is None:
+                continue
+            records = Model.with_context(active_test=False).search([("id", "in", ids)])
             for record in records:
                 display_names[model][record.id] = record.display_name
 
