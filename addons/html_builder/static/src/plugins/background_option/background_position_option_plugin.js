@@ -6,9 +6,15 @@ import { BackgroundPositionOverlay } from "./background_position_overlay.js";
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { loadImage } from "@html_editor/utils/image_processing";
 
+// Size given to the image layer when the background repeats as a pattern.
+const REPEAT_PATTERN_SIZE = "100px";
+
 const getBgSizeValue = function ({ editingElement, params: { mainParam: styleName } }) {
-    const backgroundSize = editingElement.style.backgroundSize;
-    const bgWidthAndHeight = backgroundSize.split(/\s+/g);
+    // A background can stack several layers -- typically the image on top of a
+    // gradient. This option sizes the image, which is always the first one, so
+    // split the layers off before reading the width and height out of it.
+    const imageLayerSize = editingElement.style.backgroundSize.split(",")[0].trim();
+    const bgWidthAndHeight = imageLayerSize.split(/\s+/g);
     const value = styleName === "width" ? bgWidthAndHeight[0] : bgWidthAndHeight[1] || "";
     return value === "auto" ? "" : value;
 };
@@ -33,12 +39,18 @@ export class BackgroundTypeAction extends BuilderAction {
         editingElement.style.setProperty("background-position", "");
         editingElement.style.setProperty(
             "background-size",
-            value !== "repeat-pattern" ? "" : "100px"
+            value !== "repeat-pattern" ? "" : `${REPEAT_PATTERN_SIZE}, cover`
         );
     }
     isApplied({ editingElement, value }) {
-        const hasElRepeatStyle = getComputedStyle(editingElement).backgroundRepeat === "repeat";
-        return value === "repeat-pattern" ? hasElRepeatStyle : !hasElRepeatStyle;
+        // `background-repeat` computes to one entry per background layer, so an
+        // element carrying a gradient behind its image reads "repeat, repeat".
+        // Comparing the whole string against a single keyword would report
+        // "Cover" on any multi-layer background, whatever is applied.
+        const isRepeating = getComputedStyle(editingElement)
+            .backgroundRepeat.split(",")
+            .every((repeat) => repeat.trim() === "repeat");
+        return value === "repeat-pattern" ? isRepeating : !isRepeating;
     }
 }
 
@@ -62,7 +74,8 @@ export class SetBackgroundSizeAction extends BuilderAction {
             otherBgSize ||= "auto";
             bgSize = `${otherBgSize} ${value}`;
         }
-        editingElement.style.setProperty("background-size", bgSize);
+        // Keep the layer behind the image covering: only the image is resized.
+        editingElement.style.setProperty("background-size", `${bgSize}, cover`);
     }
 }
 

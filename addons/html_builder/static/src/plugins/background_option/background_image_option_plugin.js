@@ -155,6 +155,10 @@ export class BackgroundImageOptionPlugin extends Plugin {
             loadResult: "",
             params: { ...params, forceClean: true },
         });
+        // Without the image there is nothing left to repeat or to resize, and
+        // leaving either behind would make a gradient underneath tile.
+        editingElement.classList.remove("o_bg_img_opt_repeat");
+        editingElement.style.removeProperty("background-size");
         this.dispatchTo("on_bg_image_hide_handlers", editingElement);
     }
 
