@@ -168,3 +168,59 @@ class TestAnalyticDistribution(HttpCase, TestSaleProjectCommon):
             Domain.FALSE,
             "Domain should be False when analytic_distribution is missing.",
         )
+
+    def test_so_mapping_multi_key_distribution_keeps_earlier_match(self):
+        """
+        A move line's analytic_distribution can carry more than one key (e.g. a line
+        split between the project's account and an unrelated one). _get_so_mapping_from_project
+        must not drop a match found on an earlier key just because a later key in the
+        same distribution matches no project.
+        """
+        self.project_global.account_id = self.analytic_account_sale
+        sale_order = self.env["sale.order"].create(
+            {
+                "partner_id": self.partner.id,
+                "project_id": self.project_global.id,
+            }
+        )
+        self.env["sale.order.line"].create(
+            {
+                "order_id": sale_order.id,
+                "product_id": self.product_delivery_manual1.id,
+            }
+        )
+        sale_order.action_confirm()
+
+        unrelated_account = self.env["account.analytic.account"].create(
+            {"name": "Unrelated account", "plan_id": self.analytic_plan.id}
+        )
+
+        move = self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "partner_id": self.partner.id,
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "name": "Multi-key line",
+                            "quantity": 1,
+                            "price_unit": 100,
+                            "analytic_distribution": {
+                                str(self.analytic_account_sale.id): 50,
+                                str(unrelated_account.id): 50,
+                            },
+                        }
+                    )
+                ],
+            }
+        )
+        line = move.invoice_line_ids
+
+        mapping = line._get_so_mapping_from_project()
+
+        self.assertEqual(
+            mapping.get(line.id),
+            sale_order,
+            "The project's own sale order should still be found even though a later "
+            "key in the line's analytic_distribution matches no project.",
+        )
