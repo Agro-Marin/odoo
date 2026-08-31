@@ -494,6 +494,7 @@ class SaleOrder(models.Model):
                     self.env["crm.team"]
                     .with_context(
                         default_team_id=default_team_id,
+                        allowed_company_ids=[company_id],
                     )
                     ._get_default_team_id(
                         user_id=user_id,
