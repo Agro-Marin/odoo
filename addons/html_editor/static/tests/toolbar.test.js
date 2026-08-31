@@ -2005,3 +2005,73 @@ test("toolbar should not be displayed when only invisible nodes are selected", a
     setContent(el, `<div><p>abc</p><h1 class="d-none">[I'm not displayed]</h1></div>`);
     await expectElementCount(".o-we-toolbar", 0);
 });
+
+test.tags("desktop");
+test("focus should be trapped in the toolbar on tab", async () => {
+    await setupEditor("<p>[test]</p>");
+    await waitFor(".o-we-toolbar");
+
+    await expandToolbar();
+    const toolbarBtns = queryAll(".o-we-toolbar button:not([disabled])");
+    // Alt+F is how the keyboard enters the toolbar
+    await press(["alt", "f"]);
+    expect(toolbarBtns[0]).toBeFocused();
+
+    for (let i = 1; i < toolbarBtns.length; i++) {
+        await press("Tab");
+        expect(toolbarBtns[i]).toBeFocused();
+    }
+
+    // Tab on last button should cycle back to first
+    await press("Tab");
+    expect(toolbarBtns[0]).toBeFocused();
+
+    // Shift+Tab on first button should cycle back to last
+    await press(["shift", "tab"]);
+    expect(toolbarBtns[toolbarBtns.length - 1]).toBeFocused();
+});
+
+test.tags("desktop");
+test("focus should be trapped in the toolbar on arrow left/right keys", async () => {
+    await setupEditor("<p>[test]</p>");
+    await waitFor(".o-we-toolbar");
+
+    await expandToolbar();
+    const toolbarBtns = queryAll(".o-we-toolbar button:not([disabled])");
+    await press(["alt", "f"]);
+    expect(toolbarBtns[0]).toBeFocused();
+
+    for (let i = 1; i < toolbarBtns.length; i++) {
+        await press("ArrowRight");
+        expect(toolbarBtns[i]).toBeFocused();
+    }
+
+    // ArrowRight on last button should cycle back to first
+    await press("ArrowRight");
+    expect(toolbarBtns[0]).toBeFocused();
+
+    // ArrowLeft on first button should cycle back to last
+    await press("ArrowLeft");
+    expect(toolbarBtns[toolbarBtns.length - 1]).toBeFocused();
+});
+
+test.tags("desktop");
+test("alt+f should move focus to the first toolbar button", async () => {
+    const { el } = await setupEditor("<p>[test]</p>");
+    await waitFor(".o-we-toolbar");
+    expect(el).toBeFocused();
+
+    await press(["alt", "f"]);
+    const toolbarBtns = queryAll(".o-we-toolbar button");
+    expect(toolbarBtns[0]).toBeFocused();
+});
+
+test.tags("desktop");
+test("escape should move focus from the toolbar back to the editable", async () => {
+    const { el } = await setupEditor("<p>[test]</p>");
+    await waitFor(".o-we-toolbar");
+
+    await press("Escape");
+    expect(getContent(el)).toBe("<p>[test]</p>");
+    expect(el).toBeFocused();
+});

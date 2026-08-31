@@ -1,7 +1,7 @@
 <templates xml:space="preserve">
  <t t-name="html_editor.Toolbar">
- <div class="o-we-toolbar d-flex align-items-center m-0" t-att-class="props.class"
- style="overflow-x: auto; overflow-y:hidden" t-on-pointerdown.prevent=""
+ <div t-ref="toolbarEl" class="o-we-toolbar d-flex align-items-center m-0" t-att-class="props.class"
+ style="overflow-x: auto; overflow-y:hidden" t-on-pointerdown.prevent="" t-on-keydown="this.onKeyDown"
  t-att-data-namespace="state.namespace" data-prevent-closing-overlay="true">
  <t t-foreach="state.buttonGroups" t-as="buttonGroup" t-key="buttonGroup.id">
  <span class="o-we-toolbar-vertical-separator"></span>

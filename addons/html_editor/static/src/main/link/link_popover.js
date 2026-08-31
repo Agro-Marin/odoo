@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { trapFocus } from "@html_editor/utils/dom_traversal";
 import { Component, useEffect, useExternalListener, useRef, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox";
 import { useColorPicker } from "@web/components/color_picker";
@@ -370,16 +371,12 @@ export class LinkPopover extends Component {
             this.onClickApply();
         } else if (ev.key === "Tab") {
             ev.preventDefault();
-            const focusableElements = [
-                ...this.editingWrapper.el.querySelectorAll(
+            trapFocus(
+                this.editingWrapper.el.querySelectorAll(
                     "input, select, button:not([disabled])",
                 ),
-            ];
-            const currentIndex = focusableElements.indexOf(document.activeElement);
-            const nextIndex =
-                (currentIndex + (ev.shiftKey ? -1 : 1) + focusableElements.length) %
-                focusableElements.length;
-            focusableElements[nextIndex].focus();
+                ev.shiftKey,
+            );
         }
     }
 

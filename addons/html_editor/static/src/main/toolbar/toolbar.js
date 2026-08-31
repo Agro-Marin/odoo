@@ -1,5 +1,7 @@
 /** @odoo-module native */
-import { Component, useState, validate } from "@odoo/owl";
+import { trapFocus } from "@html_editor/utils/dom_traversal";
+import { Component, useRef, useState, validate } from "@odoo/owl";
+import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { omit, pick } from "@web/core/utils/collections/objects";
 
 export class Toolbar extends Component {
@@ -56,6 +58,40 @@ export class Toolbar extends Component {
 
     setup() {
         this.state = useState(this.props.state);
+        this.toolbarEl = useRef("toolbarEl");
+
+        // Alt+F reaches the toolbar from the editable. It must not fire while
+        // focus is already inside a toolbar or an overlay of its own.
+        const isOutsideToolbar = () =>
+            !document.activeElement.closest(
+                ".o-we-toolbar[data-namespace], [data-prevent-closing-overlay]",
+            );
+        useHotkey("alt+f", () => this.focusFirstToolbarButton(), {
+            bypassEditableProtection: true,
+            withOverlay: () => (isOutsideToolbar() ? this.toolbarEl.el : null),
+            isAvailable: isOutsideToolbar,
+        });
+    }
+
+    focusFirstToolbarButton() {
+        this.toolbarEl.el?.querySelector("button:not([disabled])")?.focus();
+    }
+
+    onKeyDown(ev) {
+        if (ev.target.closest(".dropdown.show")) {
+            // An open dropdown owns the keyboard.
+            return;
+        }
+        if (["Tab", "ArrowLeft", "ArrowRight"].includes(ev.key)) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            const isBackward =
+                ev.key === "ArrowLeft" || (ev.key === "Tab" && ev.shiftKey);
+            trapFocus(this.toolbarEl.el.querySelectorAll("button"), isBackward);
+        } else if (ev.key === "Escape") {
+            ev.stopPropagation();
+            this.props.focusEditable();
+        }
     }
 
     onButtonClick(button) {
