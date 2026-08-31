@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- HR WORK ENTRY -->
-
     <record id="hr_work_entry_action_conflict" model="ir.actions.act_window">
         <field name="name">Work Entry</field>
         <field name="res_model">hr.work.entry</field>
@@ -201,8 +199,6 @@
             </search>
         </field>
     </record>
-
-    <!-- HR WORK ENTRY TYPE -->
 
     <record id="hr_work_entry_type_view_search" model="ir.ui.view">
         <field name="name">hr.work.entry.type.view.search</field>

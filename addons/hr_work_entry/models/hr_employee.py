@@ -1,4 +1,4 @@
-from odoo import _, fields, models
+from odoo import fields, models
 from odoo.tools import SQL
 
 
@@ -21,35 +21,25 @@ class HrEmployee(models.Model):
     )
 
     def _compute_has_work_entries(self):
+        with_entries = set()
         if self.ids:
-            result = dict(
-                self.env.execute_query(
+            with_entries = {
+                row[0]
+                for row in self.env.execute_query(
                     SQL(
-                        """ SELECT id, EXISTS(SELECT 1 FROM hr_work_entry WHERE employee_id = e.id LIMIT 1)
-                      FROM hr_employee e
-                     WHERE id in %s """,
+                        "SELECT DISTINCT employee_id FROM hr_work_entry"
+                        " WHERE employee_id IN %s",
                         tuple(self.ids),
                     )
                 )
-            )
-        else:
-            result = {}
-
+            }
         for employee in self:
-            employee.has_work_entries = result.get(employee._origin.id, False)
+            employee.has_work_entries = employee._origin.id in with_entries
 
     def create_version(self, values):
         new_version = super().create_version(values)
-        new_version.update(
-            {
-                "date_generated_from": fields.Datetime.now().replace(
-                    hour=0, minute=0, second=0, microsecond=0
-                ),
-                "date_generated_to": fields.Datetime.now().replace(
-                    hour=0, minute=0, second=0, microsecond=0
-                ),
-            }
-        )
+        today = fields.Datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        new_version.update({"date_generated_from": today, "date_generated_to": today})
         return new_version
 
     def action_view_work_entries(self, initial_date=False):
@@ -59,7 +49,7 @@ class HrEmployee(models.Model):
             ctx["initial_date"] = initial_date
         return {
             "type": "ir.actions.act_window",
-            "name": _("%s work entries", self.display_name),
+            "name": self.env._("%s work entries", self.display_name),
             "view_mode": "calendar,list,form",
             "res_model": "hr.work.entry",
             "path": "work-entries",

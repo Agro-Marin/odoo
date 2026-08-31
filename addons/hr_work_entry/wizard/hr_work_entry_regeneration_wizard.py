@@ -4,7 +4,7 @@ from itertools import groupby
 
 from dateutil.relativedelta import relativedelta
 
-from odoo import _, api, fields, models
+from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
 
@@ -13,13 +13,13 @@ class HrWorkEntryRegenerationWizard(models.TransientModel):
     _description = "Regenerate Employee Work Entries"
 
     earliest_available_date = fields.Date(
-        "Earliest date", compute="_compute_earliest_available_date"
+        "Earliest date", compute="_compute_available_dates"
     )
     earliest_available_date_message = fields.Char(
         readonly=True, store=False, default=""
     )
     latest_available_date = fields.Date(
-        "Latest date", compute="_compute_latest_available_date"
+        "Latest date", compute="_compute_available_dates"
     )
     latest_available_date_message = fields.Char(readonly=True, store=False, default="")
     date_from = fields.Date(
@@ -57,18 +57,15 @@ class HrWorkEntryRegenerationWizard(models.TransientModel):
             )
 
     @api.depends("employee_ids")
-    def _compute_earliest_available_date(self):
+    def _compute_available_dates(self):
         for wizard in self:
-            dates = wizard.employee_ids.version_ids.mapped("date_generated_from")
-            wizard.earliest_available_date = min(dates) if dates else None
+            versions = wizard.employee_ids.version_ids
+            generated_from = versions.mapped("date_generated_from")
+            generated_to = versions.mapped("date_generated_to")
+            wizard.earliest_available_date = min(generated_from, default=None)
+            wizard.latest_available_date = max(generated_to, default=None)
 
-    @api.depends("employee_ids")
-    def _compute_latest_available_date(self):
-        for wizard in self:
-            dates = wizard.employee_ids.version_ids.mapped("date_generated_to")
-            wizard.latest_available_date = max(dates) if dates else None
-
-    @api.depends("date_from", "date_to", "employee_ids")
+    @api.depends("date_from", "date_to", "employee_ids", "search_criteria_completed")
     def _compute_validated_work_entry_employee_ids(self):
         for wizard in self:
             employee_ids = self.env["hr.employee"]
@@ -88,7 +85,11 @@ class HrWorkEntryRegenerationWizard(models.TransientModel):
                     employee_ids |= per_employee[0]
             wizard.validated_work_entry_employee_ids = employee_ids
 
-    @api.depends("validated_work_entry_employee_ids", "employee_ids")
+    @api.depends(
+        "validated_work_entry_employee_ids",
+        "employee_ids",
+        "search_criteria_completed",
+    )
     def _compute_valid(self):
         for wizard in self:
             wizard.valid = (
@@ -97,10 +98,16 @@ class HrWorkEntryRegenerationWizard(models.TransientModel):
                 > 0
             )
 
-    @api.depends("date_from", "date_to", "employee_ids")
+    @api.depends(
+        "date_from",
+        "date_to",
+        "employee_ids",
+        "earliest_available_date",
+        "latest_available_date",
+    )
     def _compute_search_criteria_completed(self):
         for wizard in self:
-            wizard.search_criteria_completed = (
+            wizard.search_criteria_completed = bool(
                 wizard.date_from
                 and wizard.date_to
                 and wizard.employee_ids
@@ -143,65 +150,82 @@ class HrWorkEntryRegenerationWizard(models.TransientModel):
     def _work_entry_fields_to_nullify(self):
         return ["active"]
 
-    def regenerate_work_entries(self, slots=None, record_ids=None):
-        if not slots:
-            if not self.env.context.get("work_entry_skip_validation"):
-                if not self.search_criteria_completed:
-                    raise ValidationError(
-                        _(
-                            "In order to regenerate the work entries, you need to provide the wizard with an employee_id, a date_from and a date_to."
-                        )
-                    )
-
-                if (
-                    self.date_from < self.earliest_available_date
-                    or self.date_to > self.latest_available_date
-                ):
-                    raise ValidationError(
-                        _(
-                            "The from date must be >= '%(earliest_available_date)s' and the to date must be <= '%(latest_available_date)s', which correspond to the generated work entries time interval.",
-                            earliest_available_date=self._date_to_string(
-                                self.earliest_available_date
-                            ),
-                            latest_available_date=self._date_to_string(
-                                self.latest_available_date
-                            ),
-                        )
-                    )
-
-                if not self.valid:
-                    raise ValidationError(
-                        self.env._(
-                            "No work entry can be regenerated in this range of dates and these employees."
-                        )
-                    )
-
-            valid_employees = self.employee_ids - self.validated_work_entry_employee_ids
-            date_from = (
-                max(self.date_from, self.earliest_available_date)
-                if self.earliest_available_date
-                else self.date_from
-            )
-            date_to = (
-                min(self.date_to, self.latest_available_date)
-                if self.latest_available_date
-                else self.date_to
-            )
-            valid_employees.generate_work_entries(date_from, date_to, True)
-        else:
-            range_by_employee = defaultdict(list)
-            slots.sort(key=lambda d: (d["employee_id"], d["date"]))
-            for employee_id, records in groupby(slots, lambda d: d["employee_id"]):
-                dates = [fields.Date.from_string(r["date"]) for r in records]
-                start = end = dates[0]
-                for current in dates[1:]:
-                    if current - end != timedelta(days=1):
-                        range_by_employee[start, end].append(employee_id)
-                        start = current
-                    end = current
-                range_by_employee[start, end].append(employee_id)
-            for (date_from, date_to), employee_ids in range_by_employee.items():
-                valid_employees = self.env["hr.employee"].browse(employee_ids)
-                valid_employees.generate_work_entries(
-                    date_from, date_to, True, record_ids=record_ids
+    def _check_regeneration_range(self):
+        self.ensure_one()
+        if not self.search_criteria_completed:
+            raise ValidationError(
+                self.env._(
+                    "In order to regenerate the work entries, you need to provide the wizard with an employee_id, a date_from and a date_to."
                 )
+            )
+        if (
+            self.date_from < self.earliest_available_date
+            or self.date_to > self.latest_available_date
+        ):
+            raise ValidationError(
+                self.env._(
+                    "The from date must be >= '%(earliest_available_date)s' and the to date must be <= '%(latest_available_date)s', which correspond to the generated work entries time interval.",
+                    earliest_available_date=self._date_to_string(
+                        self.earliest_available_date
+                    ),
+                    latest_available_date=self._date_to_string(
+                        self.latest_available_date
+                    ),
+                )
+            )
+        if not self.valid:
+            raise ValidationError(
+                self.env._(
+                    "No work entry can be regenerated in this range of dates and these employees."
+                )
+            )
+
+    def _regenerate_wizard_range(self):
+        self.ensure_one()
+        if not self.env.context.get("work_entry_skip_validation"):
+            self._check_regeneration_range()
+        date_from = (
+            max(self.date_from, self.earliest_available_date)
+            if self.earliest_available_date
+            else self.date_from
+        )
+        date_to = (
+            min(self.date_to, self.latest_available_date)
+            if self.latest_available_date
+            else self.date_to
+        )
+        employees = self.employee_ids - self.validated_work_entry_employee_ids
+        return employees.generate_work_entries(date_from, date_to, True)
+
+    @api.model
+    def _group_slots_into_ranges(self, slots):
+        range_by_employee = defaultdict(list)
+        slots.sort(key=lambda d: (d["employee_id"], d["date"]))
+        for employee_id, records in groupby(slots, lambda d: d["employee_id"]):
+            dates = [fields.Date.from_string(r["date"]) for r in records]
+            start = end = dates[0]
+            for current in dates[1:]:
+                if current - end != timedelta(days=1):
+                    range_by_employee[start, end].append(employee_id)
+                    start = current
+                end = current
+            range_by_employee[start, end].append(employee_id)
+        return range_by_employee
+
+    @api.model
+    def _regenerate_slots(self, slots, record_ids=None):
+        work_entries = self.env["hr.work.entry"]
+        for (date_from, date_to), employee_ids in self._group_slots_into_ranges(
+            slots
+        ).items():
+            work_entries += (
+                self.env["hr.employee"]
+                .browse(employee_ids)
+                .generate_work_entries(date_from, date_to, True, record_ids=record_ids)
+            )
+        return work_entries
+
+    def regenerate_work_entries(self, slots=None, record_ids=None):
+        if slots:
+            return self._regenerate_slots(slots, record_ids=record_ids)
+        return self._regenerate_wizard_range()

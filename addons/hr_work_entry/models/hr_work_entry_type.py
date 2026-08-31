@@ -1,4 +1,4 @@
-from odoo import _, api, fields, models
+from odoo import api, fields, models
 from odoo.exceptions import UserError
 
 
@@ -58,15 +58,20 @@ class HrWorkEntryType(models.Model):
 
     @api.constrains("country_id")
     def _check_work_entry_type_country(self):
-        if self.env.ref("hr_work_entry.work_entry_type_attendance") in self:
+        attendance = self.env.ref(
+            "hr_work_entry.work_entry_type_attendance", raise_if_not_found=False
+        )
+        if attendance and attendance in self:
             raise UserError(
-                _("You can't change the country of this specific work entry type.")
+                self.env._(
+                    "You can't change the country of this specific work entry type."
+                )
             )
         if not self.env.context.get("install_mode") and self.env[
             "hr.work.entry"
         ].sudo().search_count([("work_entry_type_id", "in", self.ids)], limit=1):
             raise UserError(
-                _(
+                self.env._(
                     "You can't change the Country of this work entry type cause it's currently used by the system. You need to delete related working entries first."
                 )
             )
@@ -89,9 +94,9 @@ class HrWorkEntryType(models.Model):
             )
             if invalid_work_entry_types:
                 raise UserError(
-                    _(
+                    self.env._(
                         "The same code cannot be associated to multiple work entry types (%s)",
-                        ", ".join(list(set(invalid_work_entry_types.mapped("code")))),
+                        ", ".join(sorted(set(invalid_work_entry_types.mapped("code")))),
                     )
                 )
 

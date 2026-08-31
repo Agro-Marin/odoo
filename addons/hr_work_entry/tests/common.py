@@ -18,7 +18,6 @@ class TestWorkEntryBase(TransactionCase):
             }
         )
 
-        # Test employee "Richard"
         cls.richard_emp = cls.env["hr.employee"].create(
             {
                 "name": "Richard",

@@ -31,9 +31,7 @@ export class WorkEntryCalendarMultiSelectionButtons extends MultiSelectionButton
         return this.props.reactive.userFavoritesWorkEntries;
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     getMultiCreatePopoverProps() {
         const props = super.getMultiCreatePopoverProps();
         props.onQuickReplace = (values) => {
@@ -42,9 +40,7 @@ export class WorkEntryCalendarMultiSelectionButtons extends MultiSelectionButton
         return props;
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     async loadMultiCreateView() {
         await super.loadMultiCreateView();
         addFieldDependencies(

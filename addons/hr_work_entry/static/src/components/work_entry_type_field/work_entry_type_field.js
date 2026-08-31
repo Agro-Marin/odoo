@@ -46,7 +46,8 @@ export class WorkEntryTypeMany2One extends Many2One {
         return {
             ...props,
             update: (records) => {
-                const idNamePair = records && extractData(records[0]) ? records[0] : false;
+                const idNamePair =
+                    records && extractData(records[0]) ? records[0] : false;
                 this.update(idNamePair);
             },
         };

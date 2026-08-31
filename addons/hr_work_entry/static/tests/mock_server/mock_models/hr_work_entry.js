@@ -26,5 +26,5 @@ export class HrWorkEntry extends models.ServerModel {
         `,
     };
 
-    action_split(workEntryIds, vals) {}
+    action_split() {}
 }

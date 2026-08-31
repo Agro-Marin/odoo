@@ -8,8 +8,6 @@ from .common import TestWorkEntryBase
 @tagged("-at_install", "post_install")
 class TestGlobalTimeOff(TestWorkEntryBase):
     def test_gto_other_calendar(self):
-        # Tests that a global time off in another calendar does not affect work entry generation
-        #  for other calendars
         other_calendar = self.env["resource.calendar"].create(
             {
                 "name": "other calendar",

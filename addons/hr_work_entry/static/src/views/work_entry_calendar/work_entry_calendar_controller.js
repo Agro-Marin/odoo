@@ -6,7 +6,6 @@ import { useService } from "@web/core/utils/hooks";
 import { CalendarController } from "@web/views/calendar";
 import { FormViewDialog } from "@web/views/view_dialogs";
 
-
 export class WorkEntryCalendarController extends CalendarController {
     static components = {
         ...CalendarController.components,
@@ -42,10 +41,12 @@ export class WorkEntryCalendarController extends CalendarController {
                     return true;
                 },
                 context: {
-                    form_view_ref: "hr_work_entry.hr_work_entry_calendar_gantt_view_form",
+                    form_view_ref:
+                        "hr_work_entry.hr_work_entry_calendar_gantt_view_form",
                     default_duration: record.rawRecord.duration / 2,
                     default_name: record.rawRecord.name,
-                    default_work_entry_type_id: record.rawRecord.work_entry_type_id?.[0],
+                    default_work_entry_type_id:
+                        record.rawRecord.work_entry_type_id?.[0],
                     default_employee_id: record.rawRecord.employee_id?.[0],
                     default_date: record.rawRecord.date,
                 },
@@ -55,13 +56,11 @@ export class WorkEntryCalendarController extends CalendarController {
                 onClose: () => {
                     this.model.load();
                 },
-            }
+            },
         );
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     get rendererProps() {
         return {
             ...super.rendererProps,
@@ -72,7 +71,9 @@ export class WorkEntryCalendarController extends CalendarController {
     getEmployeeIds() {
         return [
             ...new Set(
-                Object.values(this.model.records).map((rec) => rec.rawRecord.employee_id[0])
+                Object.values(this.model.records).map(
+                    (rec) => rec.rawRecord.employee_id[0],
+                ),
             ),
         ];
     }
@@ -84,23 +85,21 @@ export class WorkEntryCalendarController extends CalendarController {
             .map((r) => r.rawRecord);
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     prepareMultiSelectionButtonsReactive() {
         const result = super.prepareMultiSelectionButtonsReactive();
         result.userFavoritesWorkEntries = this.model.userFavoritesWorkEntries || [];
-        result.onQuickReplace = (values) => this.onMultiReplace(values, this.selectedCells);
+        result.onQuickReplace = (values) =>
+            this.onMultiReplace(values, this.selectedCells);
         result.onQuickReset = () => this.onResetWorkEntries(this.selectedCells);
         return result;
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     updateMultiSelection() {
         super.updateMultiSelection(...arguments);
-        this.multiSelectionButtonsReactive.userFavoritesWorkEntries = this.model.userFavoritesWorkEntries || [];
+        this.multiSelectionButtonsReactive.userFavoritesWorkEntries =
+            this.model.userFavoritesWorkEntries || [];
     }
 
     getDatesWithoutValidatedWorkEntry(selectedCells, records) {
@@ -109,17 +108,15 @@ export class WorkEntryCalendarController extends CalendarController {
                 !records
                     .filter((r) => r.state === "validated")
                     .map((r) => r.date)
-                    .includes(d.toISODate())
+                    .includes(d.toISODate()),
         );
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     onMultiDelete(selectedCells) {
         const records = this.getSelectedRecords(selectedCells);
         return this.model.unlinkRecords(
-            records.filter((r) => r.state !== "validated").map((r) => r.id)
+            records.filter((r) => r.state !== "validated").map((r) => r.id),
         );
     }
 
@@ -129,7 +126,7 @@ export class WorkEntryCalendarController extends CalendarController {
         return this.model.multiReplaceRecords(
             values,
             dates,
-            records.filter((r) => r.state !== "validated")
+            records.filter((r) => r.state !== "validated"),
         );
     }
 
@@ -138,7 +135,7 @@ export class WorkEntryCalendarController extends CalendarController {
         const dates = this.getDatesWithoutValidatedWorkEntry(selectedCells, records);
         this.model.resetWorkEntries(
             dates,
-            records.filter((r) => r.state !== "validated").map((r) => r.id)
+            records.filter((r) => r.state !== "validated").map((r) => r.id),
         );
     }
 }

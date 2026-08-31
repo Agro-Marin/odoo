@@ -20,15 +20,13 @@ export class Many2ManyTagsAvatarEmployeeErrorField extends Many2ManyTagsAvatarEm
         TagsList: Many2ManyAvatarUserTagsListError,
     };
 
-    /**
-     * @override
-     */
+    /** @override */
     getTagProps(record) {
         return {
             ...super.getTagProps(record),
-            inError: this.props.record.data[this.props.inErrorField].currentIds.includes(
-                record.resId
-            ),
+            inError: this.props.record.data[
+                this.props.inErrorField
+            ].currentIds.includes(record.resId),
         };
     }
 }

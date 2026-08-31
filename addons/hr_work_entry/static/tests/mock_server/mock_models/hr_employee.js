@@ -8,5 +8,5 @@ export class HrEmployee extends models.ServerModel {
         { id: 200, name: "Alice" },
     ];
 
-    async generate_work_entries(employeeIds, startDate, endDate) {}
+    async generate_work_entries() {}
 }

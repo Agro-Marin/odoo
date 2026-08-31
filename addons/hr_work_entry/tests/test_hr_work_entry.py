@@ -9,12 +9,10 @@ class TestHrWorkEntry(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Create two companies
         cls.company_a = cls.env["res.company"].create({"name": "Company A"})
         cls.company_b = cls.env["res.company"].create({"name": "Company B"})
         cls.env.user.company_ids = [(6, 0, [cls.company_a.id, cls.company_b.id])]
         cls.env.user.company_id = cls.company_a.id
-        # Create an employee for each company
         cls.employee_a = cls.env["hr.employee"].create(
             {
                 "name": "Employee A",
@@ -32,7 +30,6 @@ class TestHrWorkEntry(TransactionCase):
                 "date_version": "2023-01-01",
             }
         )
-        # Create a work entry type
         cls.work_entry_type = cls.env["hr.work.entry.type"].create(
             {
                 "name": "Attendance",
@@ -41,7 +38,6 @@ class TestHrWorkEntry(TransactionCase):
         )
 
     def test_work_entry_company_from_employee(self):
-        """Test that work entry uses employee's company not the current user's company in vals."""
         work_entry = self.env["hr.work.entry"].create(
             {
                 "name": "Test Work Entry",
@@ -58,7 +54,6 @@ class TestHrWorkEntry(TransactionCase):
         )
 
     def test_work_entry_conflict_no_we_type(self):
-        """Test that work entry conflicts with no work entry type."""
         work_entry = self.env["hr.work.entry"].create(
             {
                 "name": "Test Work Entry",
@@ -95,7 +90,6 @@ class TestHrWorkEntry(TransactionCase):
         )
 
     def test_work_entry_conflict_sum_duration(self):
-        """Test that work entry conflicts when the duration for one day is <= 0h or > 24h."""
         with self.assertRaises(ValidationError), mute_logger("odoo.db"):
             self.env["hr.work.entry"].create(
                 {
@@ -147,9 +141,6 @@ class TestHrWorkEntry(TransactionCase):
         )
 
     def test_write_state_draft_rechecks_conflict(self):
-        """Un-cancelling/reactivating a work entry with ``write({"state": "draft"})``
-        alone must re-run conflict detection: a day that is still over 24h must not
-        silently stay in "draft" state."""
         work_entry = self.env["hr.work.entry"].create(
             {
                 "name": "Test Work Entry",
@@ -173,8 +164,6 @@ class TestHrWorkEntry(TransactionCase):
             ["conflict", "conflict"],
             "Work entries with a total duration for a same day > 24h should conflict.",
         )
-        # Reactivate via a bare {"state": "draft"} write, the way action_set_to_draft
-        # does, WITHOUT fixing the underlying duration conflict.
         work_entry.write({"state": "draft"})
         self.assertEqual(
             (work_entry | work_entry_2).mapped("state"),
@@ -185,18 +174,11 @@ class TestHrWorkEntry(TransactionCase):
         )
 
     def test_check_code_unicity_scoped_to_own_country(self):
-        """A duplicate-code false positive must not be raised for a work entry
-        type whose OWN country doesn't clash, just because another member of
-        the same creation batch happens to share a country with a
-        pre-existing conflicting-code record."""
         country_be = self.env.ref("base.be")
         country_fr = self.env.ref("base.fr")
         self.env["hr.work.entry.type"].create(
             {"name": "Existing FR", "code": "SHARED", "country_id": country_fr.id}
         )
-        # Must NOT raise: the BE/"SHARED" record's own country (BE) never
-        # clashes with the pre-existing FR/"SHARED" record, even though a
-        # second batch member (FR/"OTHER") shares FR with it.
         self.env["hr.work.entry.type"].create(
             [
                 {"name": "New BE", "code": "SHARED", "country_id": country_be.id},
@@ -205,9 +187,6 @@ class TestHrWorkEntry(TransactionCase):
         )
 
     def test_regenerate_work_entries_record_ids_scoped(self):
-        """Selecting specific work entries in the calendar's "Reset Work
-        Entries" action must not silently sweep in OTHER non-validated
-        entries on the same date that were not selected."""
         work_entry_a = self.env["hr.work.entry"].create(
             {
                 "name": "A",
@@ -254,10 +233,6 @@ class TestHrWorkEntry(TransactionCase):
         )
 
     def test_nullify_work_entry_tz(self):
-        """
-        Test that the work entries of the previous month are not affected when regenerating the next month work entries
-        no matter what's the timezone of the employee
-        """
         self.employee_a.tz = "Europe/Brussels"
         self.employee_a.resource_calendar_id.tz = "Europe/Brussels"
 
@@ -278,9 +253,6 @@ class TestHrWorkEntry(TransactionCase):
         self.assertEqual(january_work_entries, new_january_work_entries)
 
     def test_nullify_work_entry(self):
-        """
-        Test that we correctly nullify the work entries that were previously generated when we add a new version
-        """
         january_work_entries = self.employee_a.generate_work_entries(
             date(2024, 1, 1), date(2024, 1, 31)
         )
@@ -310,9 +282,6 @@ class TestHrWorkEntry(TransactionCase):
         )
 
     def test_work_entry_version_id(self):
-        """
-        Test that we correctly set the version_id field of the work entry depending on the date
-        """
         second_version = self.employee_a.create_version(
             {"date_version": date(2023, 12, 1)}
         )

@@ -2,8 +2,6 @@ from odoo import fields, models
 
 
 class HrUserWorkEntryEmployee(models.Model):
-    """Personal calendar filter."""
-
     _name = "hr.user.work.entry.employee"
     _description = "Work Entries Employees"
 

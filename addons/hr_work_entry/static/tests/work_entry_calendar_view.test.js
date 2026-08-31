@@ -1,7 +1,11 @@
 import { luxon } from "@web/core/l10n/luxon";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { animationFrame, mockDate } from "@odoo/hoot-mock";
-import { findComponent, makeMockServer, mountView } from "@web/../tests/web_test_helpers";
+import {
+    findComponent,
+    makeMockServer,
+    mountView,
+} from "@web/../tests/web_test_helpers";
 import { defineHrWorkEntryModels } from "@hr_work_entry/../tests/hr_work_entry_test_helpers";
 import { WorkEntryCalendarController } from "@hr_work_entry/views/work_entry_calendar/work_entry_calendar_controller";
 import { WorkEntryCalendarMultiSelectionButtons } from "@hr_work_entry/views/work_entry_calendar/work_entry_multi_selection_buttons";
@@ -49,7 +53,7 @@ test("Test work entry calendar without work entry type", async () => {
                 getChanges: () => data,
             },
         },
-        [DateTime.fromISO("2025-01-02")]
+        [DateTime.fromISO("2025-01-02")],
     );
     await animationFrame();
     expect(".fc-event").toHaveCount(2, {
@@ -67,7 +71,7 @@ test("should use default_employee_id from context in work entry", async () => {
 
     const controller = findComponent(
         view,
-        (component) => component instanceof WorkEntryCalendarMultiSelectionButtons
+        (component) => component instanceof WorkEntryCalendarMultiSelectionButtons,
     );
     const workEntryTypeId = 1;
     const values = controller.makeValues(workEntryTypeId);

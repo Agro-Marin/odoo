@@ -13,12 +13,11 @@ export class WorkEntryCalendarCommonRenderer extends CalendarCommonRenderer {
         splitRecord: Function,
     };
 
-    /**
-     * @override
-     */
+    /** @override */
     convertRecordToEvent(record) {
         const event = convertRecordToEvent(record);
-        const editable = record.rawRecord.state !== "validated" && (event.editable ?? null);
+        const editable =
+            record.rawRecord.state !== "validated" && (event.editable ?? null);
         return {
             ...event,
             ...(editable ? { editable: editable } : {}),

@@ -19,30 +19,22 @@ export class WorkEntryCalendarCommonPopover extends CalendarCommonPopover {
         return !this.isWorkEntryValidated && this.props.record.rawRecord.duration >= 1;
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     get isEventEditable() {
         return !this.isWorkEntryValidated && super.isEventEditable;
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     get isEventDeletable() {
         return !this.isWorkEntryValidated && super.isEventDeletable;
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     get isEventViewable() {
         return !this.isWorkEntryValidated && super.isEventViewable;
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     get hasFooter() {
         return this.isWorkEntryValidated || super.hasFooter;
     }
