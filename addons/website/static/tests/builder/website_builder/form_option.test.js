@@ -132,8 +132,8 @@ test("'Author' field's type stays selected when you modify the option list", asy
         ".hb-row[data-label='Type'] button.o-dropdown-caret:contains('Author')",
     ).click();
     expect(".o_popover [data-action-value='author_id']").toHaveClass("active");
-    await contains(".hb-row button.o-dropdown-caret:contains('Add')").click();
-    await contains(".o_popover .o-hb-select-dropdown-item").click();
+    await contains(".hb-row button.o-hb-selectMany2X-toggle:contains('Add')").click();
+    await contains(".o_select_menu_menu .o-dropdown-item").click();
     // check that the author is still marked as selected
     await contains(
         ".hb-row[data-label='Type'] button.o-dropdown-caret:contains('Author')",

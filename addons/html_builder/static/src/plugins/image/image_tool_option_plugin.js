@@ -7,6 +7,7 @@ import {
 import { registry } from "@web/core/registry";
 import { Plugin } from "@html_editor/plugin";
 import { ImageToolOption } from "./image_tool_option.js";
+import { VideoSizeOption } from "./video_size_option.js";
 import { getFetchedMimetype, isImageCorsProtected } from "@html_editor/utils/image";
 import { withSequence } from "@html_editor/utils/resource";
 import {
@@ -49,6 +50,7 @@ class ImageToolOptionPlugin extends Plugin {
             withSequence(REPLACE_MEDIA, ReplaceMediaOption),
             withSequence(IMAGE_TOOL, ImageToolOption),
             withSequence(ALIGNMENT_STYLE_PADDING, ImageAndFaOption),
+            withSequence(IMAGE_TOOL, VideoSizeOption),
         ],
         builder_actions: {
             ImageAlignClassAction,
