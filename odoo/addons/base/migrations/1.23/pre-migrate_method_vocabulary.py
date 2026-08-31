@@ -39,6 +39,7 @@ _RENAMES = (
     ("_ensure_xml_ids", "_get_or_create_xml_ids"),
     ("_export_fetch_fields", "_export_prefetch_fields"),
     ("_export_fill_properties_cache", "_export_update_properties_cache"),
+    ("_fetch_mails", "_poll_due_mailboxes"),
     ("_fetch_row", "_get_row"),
     ("_fetch_terms_rows", "_get_terms_rows"),
     ("_inject_export_xids", "_update_export_xids"),

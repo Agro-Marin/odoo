@@ -35,10 +35,10 @@ class TestRecipientData(BaseCase):
         return self.mail.RecipientData
 
     def test_the_factory_fills_every_field_of_the_typed_dict(self):
-        returned = self._returned_keys(self.mail.build_recipient_data)
+        returned = self._returned_keys(self.mail.prepare_recipient_data)
         self.assertTrue(
             returned,
-            "build_recipient_data no longer returns a dict literal, so this "
+            "prepare_recipient_data no longer returns a dict literal, so this "
             "check cannot see what it produces -- read the fields off the "
             "return annotation instead, or restore the literal",
         )
@@ -46,7 +46,7 @@ class TestRecipientData(BaseCase):
         self.assertEqual(
             returned,
             declared,
-            "build_recipient_data and RecipientData disagree about the payload. "
+            "prepare_recipient_data and RecipientData disagree about the payload. "
             "A consumer reads the whole payload off any entry in the list, so a "
             "missing key is a KeyError in whichever notification path reaches it "
             "first.",

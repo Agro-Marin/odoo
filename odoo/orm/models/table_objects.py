@@ -13,6 +13,7 @@ if typing.TYPE_CHECKING:
     BaseModel = typing.Any
 
     ConstraintMessageType = str | Callable[[Environment, Diagnostic | None], str]
+    ConstraintDefinitionType = str | Callable[[Registry], str]
     IndexDefinitionType = str | Callable[[Registry], str]
 
 
@@ -66,7 +67,7 @@ class TableObject:
 class Constraint(TableObject):
     def __init__(
         self,
-        definition: str,
+        definition: ConstraintDefinitionType,
         message: ConstraintMessageType = "",
     ) -> None:
         super().__init__()
@@ -75,6 +76,8 @@ class Constraint(TableObject):
             self.message = message
 
     def get_definition(self, registry: Registry) -> str:
+        if callable(self._definition):
+            return self._definition(registry)
         return self._definition
 
     def apply_to_database(self, model: BaseModel) -> None:
