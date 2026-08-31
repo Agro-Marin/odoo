@@ -10,7 +10,7 @@ class StockMove(models.Model):
         if self.purchase_line_id and self.purchase_line_id.order_id.dest_address_id:
             product = self.product_id.with_context(
                 lang=self.purchase_line_id.order_id.dest_address_id.lang
-                or self.env.user.lang
+                or self._get_lang()
             )
             return product._get_description(self.picking_type_id)
         return super()._get_description()
