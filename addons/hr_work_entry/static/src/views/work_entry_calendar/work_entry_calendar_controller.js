@@ -14,12 +14,13 @@ export class WorkEntryCalendarController extends CalendarController {
 
     setup() {
         super.setup();
-        const { onRegenerateWorkEntries } = useWorkEntry({
+        const { onRegenerateWorkEntries, state } = useWorkEntry({
             getEmployeeIds: this.getEmployeeIds.bind(this),
             getRange: this.model.computeRange.bind(this.model),
             onClose: this.model.load.bind(this.model),
         });
         this.onRegenerateWorkEntries = onRegenerateWorkEntries;
+        this.workEntryState = state;
         this.dialogService = useService("dialog");
     }
 
@@ -92,6 +93,7 @@ export class WorkEntryCalendarController extends CalendarController {
         result.onQuickReplace = (values) =>
             this.onMultiReplace(values, this.selectedCells);
         result.onQuickReset = () => this.onResetWorkEntries(this.selectedCells);
+        result.canResetWorkEntries = this.workEntryState?.canRegenerate ?? false;
         return result;
     }
 
@@ -100,6 +102,8 @@ export class WorkEntryCalendarController extends CalendarController {
         super.updateMultiSelection(...arguments);
         this.multiSelectionButtonsReactive.userFavoritesWorkEntries =
             this.model.userFavoritesWorkEntries || [];
+        this.multiSelectionButtonsReactive.canResetWorkEntries =
+            this.workEntryState.canRegenerate;
     }
 
     getDatesWithoutValidatedWorkEntry(selectedCells, records) {

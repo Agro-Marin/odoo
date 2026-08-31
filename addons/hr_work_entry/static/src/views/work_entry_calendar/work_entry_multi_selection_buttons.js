@@ -14,6 +14,7 @@ export class WorkEntryCalendarMultiSelectionButtons extends MultiSelectionButton
                 userFavoritesWorkEntries: Array,
                 onQuickReplace: Function,
                 onQuickReset: Function,
+                canResetWorkEntries: { type: Boolean, optional: true },
             },
         },
     };

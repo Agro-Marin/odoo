@@ -5,6 +5,7 @@ import {
     findComponent,
     makeMockServer,
     mountView,
+    onRpc,
 } from "@web/../tests/web_test_helpers";
 import { defineHrWorkEntryModels } from "@hr_work_entry/../tests/hr_work_entry_test_helpers";
 import { WorkEntryCalendarController } from "@hr_work_entry/views/work_entry_calendar/work_entry_calendar_controller";
@@ -80,5 +81,34 @@ test("should use default_employee_id from context in work entry", async () => {
         employee_id: defaultEmployeeId,
         duration: -1,
         work_entry_type_id: workEntryTypeId,
+    });
+});
+
+test("the Reset buttons are hidden for a user who cannot regenerate", async () => {
+    onRpc("has_group", () => false);
+    await mountView({
+        type: "calendar",
+        resModel: "hr.work.entry",
+        context: { default_employee_id: 100 },
+    });
+    await animationFrame();
+    expect("button:contains(Reset)").toHaveCount(0, {
+        message:
+            "Regenerating work entries needs hr.group_hr_manager: the wizard's ACL " +
+            "is manager-only and hr.version.contract_date_start is manager-gated, so " +
+            "offering the button to an HR officer only produces an AccessError.",
+    });
+});
+
+test("the Reset button is shown to a work entry manager", async () => {
+    onRpc("has_group", () => true);
+    await mountView({
+        type: "calendar",
+        resModel: "hr.work.entry",
+        context: { default_employee_id: 100 },
+    });
+    await animationFrame();
+    expect("button:contains(Reset)").toHaveCount(1, {
+        message: "A manager must still get the regenerate action.",
     });
 });
