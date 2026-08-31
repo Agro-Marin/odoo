@@ -71,7 +71,6 @@ class CustomerPortal(payment_portal.PaymentPortal, OrderPortalMixin):
     def _sale_prepare_orders_domain(self, partner, page_key):
         return list(self._sale_get_page_state_domain(page_key))
 
-
     def _prepare_home_portal_values(self, counters):
         values = super()._prepare_home_portal_values(counters)
         return self._order_portal_home_counters(
@@ -80,7 +79,6 @@ class CustomerPortal(payment_portal.PaymentPortal, OrderPortalMixin):
             self._sale_get_order_model(),
             self._sale_get_portal_counters(),
         )
-
 
     def _sale_prepare_order_portal_rendering_values(self, page_key, **kwargs):
         partner = request.env.user.partner_id
@@ -92,7 +90,6 @@ class CustomerPortal(payment_portal.PaymentPortal, OrderPortalMixin):
             searchbar_filters=self._sale_get_order_searchbar_filters(page_key),
             **kwargs,
         )
-
 
     @http.route(
         ["/my/quotes", "/my/quotes/page/<int:page>"],
@@ -113,7 +110,6 @@ class CustomerPortal(payment_portal.PaymentPortal, OrderPortalMixin):
     def portal_my_orders(self, **kw):
         values = self._sale_prepare_order_portal_rendering_values("order", **kw)
         return request.render("sale.portal_my_orders", values)
-
 
     def _sale_order_get_page_view_values(
         self, order_sudo, access_token, values, history_session_key, /, **kwargs
@@ -228,13 +224,9 @@ class CustomerPortal(payment_portal.PaymentPortal, OrderPortalMixin):
         return request.render("sale.sale_order_portal_template", values)
 
     def _determine_is_down_payment(self, order_sudo, amount_selection, payment_amount):
-        if (
-            amount_selection == "down_payment"
-        ):
+        if amount_selection == "down_payment":
             is_down_payment = True
-        elif (
-            amount_selection == "full_amount"
-        ):
+        elif amount_selection == "full_amount":
             is_down_payment = False
         else:
             is_down_payment = (
@@ -328,7 +320,6 @@ class CustomerPortal(payment_portal.PaymentPortal, OrderPortalMixin):
             **payment_context,
             **self._get_extra_payment_form_values(**kwargs),
         }
-
 
     @http.route(
         ["/my/orders/<int:order_id>/accept"],
