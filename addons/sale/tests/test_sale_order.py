@@ -1036,6 +1036,49 @@ class TestSalesTeam(SaleCommon):
             }
         )
 
+    def test_compute_team_id_does_not_cross_companies(self):
+        """_compute_team_id must not fall back to a team in a different
+        company than the order's own (F32)."""
+        root_company = self.env["res.company"].create({"name": "F32 root company"})
+        root_company.write(
+            {
+                "child_ids": [
+                    Command.create({"name": "F32 company A"}),
+                    Command.create({"name": "F32 company B"}),
+                ]
+            }
+        )
+        company_a, company_b = root_company.child_ids
+
+        user = self.env["res.users"].create(
+            {
+                "name": "F32 multi-company salesman",
+                "login": "f32_multi_company_salesman",
+                "company_ids": [Command.set((company_a + company_b).ids)],
+                "company_id": company_a.id,
+            }
+        )
+        team_b = self.env["crm.team"].create(
+            {
+                "name": "F32 team in company B",
+                "company_id": company_b.id,
+                "member_ids": [Command.set(user.ids)],
+            }
+        )
+
+        order = self.env["sale.order"].create(
+            {
+                "partner_id": self.partner.id,
+                "company_id": company_a.id,
+                "user_id": user.id,
+            }
+        )
+        self.assertNotEqual(
+            order.team_id,
+            team_b,
+            "the order's team must not cross into another company",
+        )
+
     def test_assign_sales_team_from_partner_user(self):
         partner = self.env["res.partner"].create(
             {
