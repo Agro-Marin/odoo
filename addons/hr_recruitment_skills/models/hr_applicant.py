@@ -105,14 +105,6 @@ class HrApplicant(models.Model):
         return vals
 
     def _map_applicant_skill_ids_to_talent_skill_ids(self, vals):
-        """Remap the applicant_skill_ids commands onto the talent pool applicant's own skill records.
-
-        :param vals: list of CREATE, WRITE or UNLINK commands with skill_ids relevant to the applicant
-        :return: list of CREATE, WRITE or UNLINK commands with skill_ids relevant to the pool_applicant
-        """
-        # applicant_skill_ids holds ORM tuples (command, record ID, {values}). Each skill (e.g. 'arabic')
-        # has a distinct hr.applicant.skill id per applicant, so the commands cannot be written straight onto
-        # pool_applicant_id; each tuple is rewritten to carry the matching record ID on the talent applicant.
         applicant_skills = {a.id: a.skill_id.id for a in self.applicant_skill_ids}
         applicant_skills_type = {
             a.id: a.skill_type_id.id for a in self.applicant_skill_ids
@@ -170,8 +162,6 @@ class HrApplicant(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         if not self:
-            # This is required for the talent pool mechanism to work. Duplicating an hr.applicant record without this
-            # check will cause the skills to not be duplicated or disappear randomly.
             for vals in vals_list:
                 vals["applicant_skill_ids"] = vals.pop(
                     "current_applicant_skill_ids", []
@@ -189,7 +179,6 @@ class HrApplicant(models.Model):
                 "hr.applicant.skill"
             ]._get_transformed_commands(skills, self)
             for applicant in self:
-                # Modify the skill values for the talent if it exists
                 if applicant.pool_applicant_id and (not applicant.is_pool_applicant):
                     mapped_skills = (
                         applicant._map_applicant_skill_ids_to_talent_skill_ids(

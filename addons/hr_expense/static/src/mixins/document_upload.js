@@ -5,8 +5,6 @@ import { registry } from "@web/core/registry";
 import { useBus, useRefListener, useService } from '@web/core/utils/hooks';
 import { onWillStart, useRef, useEffect, useState } from "@odoo/owl";
 
-// Files shared into the app land on Expenses, which is this module's claim to
-// make: `shareTargetService` used to name the "expenses" action path itself.
 registry.category("share_target_apps").add("hr_expense", "expenses");
 
 export const ExpenseDocumentDropZone = (T) => class ExpenseDocumentDropZone extends T {

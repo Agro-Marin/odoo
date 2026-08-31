@@ -56,7 +56,6 @@ class TestAllocationRights(TestHrHolidaysCommon):
 
 class TestAccessRightsSimpleUser(TestAllocationRights):
     def test_simple_user_request_allocation(self):
-        """A simple user can request an allocation but not approve it"""
         values = {
             "employee_id": self.employee_emp.id,
             "holiday_status_id": self.lt_validation_manager.id,
@@ -66,7 +65,6 @@ class TestAccessRightsSimpleUser(TestAllocationRights):
             allocation.action_approve()
 
     def test_simple_user_request_allocation_no_validation(self):
-        """A simple user can request and automatically validate an allocation with no validation"""
         values = {
             "employee_id": self.employee_emp.id,
             "holiday_status_id": self.lt_allocation_no_validation.id,
@@ -75,7 +73,6 @@ class TestAccessRightsSimpleUser(TestAllocationRights):
         self.assertEqual(allocation.state, "validate", "It should be validated")
 
     def test_simple_user_request_allocation_no_validation_other(self):
-        """A simple user cannot request an other user's allocation with no validation"""
         values = {
             "employee_id": self.employee_hruser.id,
             "holiday_status_id": self.lt_allocation_no_validation.id,
@@ -84,7 +81,6 @@ class TestAccessRightsSimpleUser(TestAllocationRights):
             self.request_allocation(self.user_employee.id, values)
 
     def test_simple_user_reset_to_draft(self):
-        """A simple user can reset to draft only his own allocation"""
         values = {
             "employee_id": self.employee_emp.id,
             "holiday_status_id": self.lt_validation_manager.id,
@@ -107,18 +103,14 @@ class TestAccessRightsEmployeeManager(TestAllocationRights):
         )
 
     def test_manager_request_allocation_other(self):
-        """A manager cannot request and approve an allocation for employees he doesn't manage"""
         values = {
             "employee_id": self.employee_hruser.id,
             "holiday_status_id": self.lt_validation_manager.id,
         }
         with self.assertRaises(AccessError):
-            self.request_allocation(
-                self.user_employee.id, values
-            )  # user is not the employee's manager
+            self.request_allocation(self.user_employee.id, values)
 
     def test_manager_approve_request_allocation(self):
-        """A manager can request and approve an allocation for managed employees"""
         values = {
             "employee_id": self.managed_employee.id,
             "holiday_status_id": self.lt_validation_manager.id,
@@ -130,7 +122,6 @@ class TestAccessRightsEmployeeManager(TestAllocationRights):
         )
 
     def test_manager_refuse_request_allocation(self):
-        """A manager can request and refuse an allocation for managed employees"""
         values = {
             "employee_id": self.managed_employee.id,
             "holiday_status_id": self.lt_validation_manager.id,
@@ -142,7 +133,6 @@ class TestAccessRightsEmployeeManager(TestAllocationRights):
         )
 
     def test_manager_approve_own(self):
-        """A manager cannot approve his own allocation"""
         values = {
             "employee_id": self.user_employee.employee_id.id,
             "holiday_status_id": self.lt_validation_manager.id,
@@ -154,7 +144,6 @@ class TestAccessRightsEmployeeManager(TestAllocationRights):
 
 class TestAccessRightsHolidayUser(TestAllocationRights):
     def test_holiday_user_request_allocation(self):
-        """A holiday user can request and approve an allocation for any internal employee"""
         values = {
             "employee_id": self.employee_emp.id,
             "holiday_status_id": self.lt_validation_hr.id,
@@ -164,7 +153,6 @@ class TestAccessRightsHolidayUser(TestAllocationRights):
         self.assertEqual(allocation.state, "validate", "It should have been validated")
 
     def test_holiday_user_cannot_approve_own(self):
-        """A holiday user cannot approve his own allocation"""
         values = {
             "employee_id": self.employee_hruser.id,
             "holiday_status_id": self.lt_validation_manager.id,
@@ -174,8 +162,6 @@ class TestAccessRightsHolidayUser(TestAllocationRights):
             allocation.action_approve()
 
     def test_holiday_user_cannot_approve_external_company(self):
-        """A holidy user can validate but not approve allocations for employees in external company"""
-
         self.user_hruser.write(
             {
                 "company_ids": [(6, 0, [self.company.id, self.external_company.id])],
@@ -199,7 +185,6 @@ class TestAccessRightsHolidayUser(TestAllocationRights):
 
 class TestAccessRightsHolidayManager(TestAllocationRights):
     def test_holiday_manager_can_approve_own(self):
-        """A holiday manager can approve his own allocation"""
         values = {
             "employee_id": self.employee_hrmanager.id,
             "holiday_status_id": self.lt_validation_manager.id,
@@ -209,7 +194,6 @@ class TestAccessRightsHolidayManager(TestAllocationRights):
         self.assertEqual(allocation.state, "validate", "It should have been validated")
 
     def test_holiday_manager_refuse_validated(self):
-        """A holiday manager can refuse a validated allocation"""
         values = {
             "employee_id": self.employee_emp.id,
             "holiday_status_id": self.lt_validation_manager.id,

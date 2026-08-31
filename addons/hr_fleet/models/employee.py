@@ -103,18 +103,15 @@ class HrEmployee(models.Model):
                 ]
             )
         )
-        # Prevent from removing employee address when linked to a car
         if car_ids:
             raise ValidationError(
                 _("Cannot remove address from employees with linked cars.")
             )
 
     def write(self, vals):
-        # Update car partner when it is changed on the employee
         old_work_contact_id_mapping = {e.id: e.work_contact_id.id for e in self}
         res = super().write(vals)
 
-        # Update car partner when it is changed on the employee needs to be done after because of _sync_user
         if "work_contact_id" in vals:
             for employee in self:
                 if vals["work_contact_id"] != old_work_contact_id_mapping[employee.id]:

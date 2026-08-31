@@ -16,7 +16,6 @@ class HrLeaveType(models.Model):
         "request_type", "leave", "holiday_status_display_name", "employee_id"
     )
     def _compute_display_name(self):
-        # Exclude hours available in allocation contexts, it might be confusing otherwise
         if (
             not self.requested_display_name()
             or self.env.context.get("request_type", "leave") == "allocation"

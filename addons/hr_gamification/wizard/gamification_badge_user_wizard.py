@@ -16,7 +16,6 @@ class GamificationBadgeUserWizard(models.TransientModel):
     )
 
     def action_grant_badge(self):
-        """Wizard action for sending a badge to a chosen employee"""
         if self.env.uid == self.user_id.id:
             raise UserError(_("You can not send a badge to yourself."))
         values = {

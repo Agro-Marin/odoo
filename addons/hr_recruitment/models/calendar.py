@@ -9,7 +9,7 @@ class CalendarEvent(models.Model):
         self_ctx = self
         if self.env.context.get("default_applicant_id"):
             self_ctx = self.with_context(
-                default_res_model="hr.applicant",  # res_model seems to be lost without this
+                default_res_model="hr.applicant",
                 default_res_model_id=self.env.ref(
                     "hr_recruitment.model_hr_applicant"
                 ).id,
@@ -20,7 +20,6 @@ class CalendarEvent(models.Model):
 
         defaults = super(CalendarEvent, self_ctx).default_get(fields)
 
-        # sync res_model / res_id to applicant id (aka creating meeting from applicant chatter)
         if "applicant_id" not in defaults:
             res_model = defaults.get("res_model", False) or self_ctx.env.context.get(
                 "default_res_model"

@@ -1,5 +1,3 @@
-"""Tests for the calendar work-location aggregation."""
-
 from datetime import date
 
 from odoo.tests import TransactionCase, tagged
@@ -20,7 +18,6 @@ class TestWorkLocation(TransactionCase):
         )
 
     def test_worklocation_base_structure(self):
-        """Each employee entry carries identity plus a slot per weekday."""
         data = self.employee._get_worklocation(date(2026, 1, 5), date(2026, 1, 11))
         entry = data[self.employee.id]
         self.assertEqual(entry["employee_id"], self.employee.id)
@@ -30,7 +27,6 @@ class TestWorkLocation(TransactionCase):
             self.assertIn("location_type", entry[day])
 
     def test_worklocation_includes_period_exceptions(self):
-        """A location exception inside the range surfaces under 'exceptions'."""
         self.env["hr.employee.location"].create(
             {
                 "employee_id": self.employee.id,
@@ -47,7 +43,6 @@ class TestWorkLocation(TransactionCase):
         )
 
     def test_worklocation_no_exceptions_outside_range(self):
-        """An exception outside the window is not included (boundary)."""
         self.env["hr.employee.location"].create(
             {
                 "employee_id": self.employee.id,

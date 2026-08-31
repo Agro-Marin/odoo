@@ -7,8 +7,6 @@ from odoo.addons.hr_expense.tests.common import TestExpenseCommon
 @tagged("-at_install", "post_install")
 class TestExpensesAccessRights(TestExpenseCommon, HttpCase):
     def test_expense_access_rights(self):
-        """The expense employee can't be able to create an expense for someone else."""
-
         expense_employee_2 = (
             self.env["hr.employee"]
             .sudo()
@@ -46,22 +44,17 @@ class TestExpensesAccessRights(TestExpenseCommon, HttpCase):
             )
         )
 
-        # The expense employee shouldn't be able to bypass the submit state.
         with self.assertRaises(UserError):
             expense.with_user(self.expense_user_employee).state = "approved"
-        expense.with_user(
-            self.expense_user_employee
-        ).state = "draft"  # Should not raise
+        expense.with_user(self.expense_user_employee).state = "draft"
 
         expense.with_user(self.expense_user_employee).action_submit()
         self.assertEqual(expense.state, "submitted")
 
-        # Employee can also revert from the submitted state to a draft state
         expense.with_user(self.expense_user_employee).action_reset()
         self.assertEqual(expense.state, "draft")
 
     def test_expense_access_rights_user(self):
-        # The expense base user (without other rights) is able to create and read sheet
 
         user = new_test_user(self.env, login="test-expense", groups="base.group_user")
         expense_employee = (
@@ -86,7 +79,6 @@ class TestExpensesAccessRights(TestExpenseCommon, HttpCase):
                 {
                     "name": "First Expense for employee",
                     "employee_id": expense_employee.id,
-                    # Expense without foreign currency but analytic account.
                     "product_id": self.product_a.id,
                     "price_unit": 1000.0,
                 }

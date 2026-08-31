@@ -90,7 +90,6 @@ class TestWorkeEntryHolidaysWorkEntry(TestWorkEntryHolidaysBase):
         )
 
     def test_time_week_leave_work_entry(self):
-        # /!\ this is a week day => it exists an calendar attendance at this time
         self.leave_type.request_unit = "hour"
         leave = self.env["hr.leave"].create(
             {
@@ -121,8 +120,6 @@ class TestWorkeEntryHolidaysWorkEntry(TestWorkEntryHolidaysBase):
         )
 
     def test_work_entries_generation_if_parent_leave_zero_hours(self):
-        # Test case: The employee has a parental leave at 0 hours per week
-        # The employee has a leave during that period
 
         calendar = self.env["resource.calendar"].create(
             {
@@ -159,9 +156,6 @@ class TestWorkeEntryHolidaysWorkEntry(TestWorkEntryHolidaysBase):
             }
         )
 
-        # TODO I don't know what this test is supposed to test, but I feel that
-        # in any case it should raise a Validation Error, as it's trying to
-        # validate a leave in a period the employee is not supposed to work.
         with self.assertRaises(ValidationError):
             leave.action_approve()
 
@@ -230,7 +224,7 @@ class TestWorkeEntryHolidaysWorkEntry(TestWorkEntryHolidaysBase):
                 "name": "remote1",
                 "employee_id": self.richard_emp.id,
                 "holiday_status_id": self.leave_remote_type.id,
-                "request_date_from": date(2015, 11, 2),  # Monday
+                "request_date_from": date(2015, 11, 2),
                 "request_date_to": date(2015, 11, 6),
             }
         )
@@ -271,7 +265,7 @@ class TestWorkeEntryHolidaysWorkEntry(TestWorkEntryHolidaysBase):
             sum_remote_hours,
             35,
             "It should equal the number of hours richard worked in remote",
-        )  # 5 days * 8 hours - 5 hours for leave
+        )
         self.assertEqual(
             sum_leave_hours,
             5.0,
@@ -279,7 +273,6 @@ class TestWorkeEntryHolidaysWorkEntry(TestWorkEntryHolidaysBase):
         )
 
     def test_reset_leave_work_entries(self):
-        """When the employee's resource_calendar_id.company_id is False, resetting the leave's work entries keeps the same work entry type."""
         self.employee_external.resource_calendar_id.company_id = False
         work_entries = self.employee_external.generate_work_entries(
             self.start.date(), self.end.date()
@@ -331,7 +324,6 @@ class TestWorkeEntryHolidaysWorkEntry(TestWorkEntryHolidaysBase):
         )
 
     def test_work_entries_overlap_half_day_leaves(self):
-        """Half-day leave spanning two days: day 1 fully replaced by an 8h leave entry, day 2 split into a 4h leave entry and a 4h attendance entry."""
         self.richard_emp.version_id._generate_work_entries(
             datetime(2025, 11, 1), datetime(2025, 11, 30)
         )
@@ -398,7 +390,6 @@ class TestWorkeEntryHolidaysWorkEntry(TestWorkEntryHolidaysBase):
         )
 
     def test_work_entries_overlap_hours_leaves(self):
-        """Hour-based leave (10:00-12:00) within a workday splits the 8h entry into a 6h attendance entry and a 2h leave entry."""
         self.richard_emp.version_id._generate_work_entries(
             datetime(2025, 11, 1), datetime(2025, 11, 30)
         )

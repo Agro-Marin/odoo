@@ -83,8 +83,6 @@ class TestHrHolidaysAccessRightsCommon(TestHrHolidaysCommon):
             cls.lt_validation_both,
         ]
 
-        # Here we only test access rights, prevent any conflict with
-        # existing mandatory days - they are tested someplace else.
         cls.env["hr.leave.mandatory.day"].search([]).unlink()
 
     def request_leave(self, user_id, request_date_from, number_of_days, values=None):
@@ -100,7 +98,6 @@ class TestHrHolidaysAccessRightsCommon(TestHrHolidaysCommon):
 class TestAccessRightsCreate(TestHrHolidaysAccessRightsCommon):
     @mute_logger("odoo.models.unlink", "odoo.addons.mail.models.mail_mail")
     def test_base_user_create_self(self):
-        """A simple user can create a leave for himself"""
         values = {
             "name": "Hol10",
             "employee_id": self.employee_emp_id,
@@ -112,7 +109,6 @@ class TestAccessRightsCreate(TestHrHolidaysAccessRightsCommon):
 
     @mute_logger("odoo.models.unlink", "odoo.addons.mail.models.mail_mail")
     def test_base_user_create_other(self):
-        """A simple user cannot create a leave for someone else"""
         values = {
             "name": "Hol10",
             "employee_id": self.employee_hruser_id,
@@ -123,11 +119,8 @@ class TestAccessRightsCreate(TestHrHolidaysAccessRightsCommon):
                 self.user_employee_id, date.today() + relativedelta(days=5), 1, values
             )
 
-    # hr_holidays.group_hr_holidays_user
-
     @mute_logger("odoo.models.unlink", "odoo.addons.mail.models.mail_mail")
     def test_holidays_user_create_self(self):
-        """A holidays user can create a leave for himself"""
         values = {
             "name": "Hol10",
             "employee_id": self.employee_hruser_id,
@@ -139,7 +132,6 @@ class TestAccessRightsCreate(TestHrHolidaysAccessRightsCommon):
 
     @mute_logger("odoo.models.unlink", "odoo.addons.mail.models.mail_mail")
     def test_holidays_user_create_other(self):
-        """A holidays user can create a leave for someone else"""
         values = {
             "name": "Hol10",
             "employee_id": self.employee_emp_id,
@@ -149,11 +141,8 @@ class TestAccessRightsCreate(TestHrHolidaysAccessRightsCommon):
             self.user_hruser_id, date.today() + relativedelta(days=5), 1, values
         )
 
-    # hr_holidays.group_hr_holidays_manager
-
     @mute_logger("odoo.models.unlink", "odoo.addons.mail.models.mail_mail")
     def test_holidays_manager_create_self(self):
-        """A holidays manager can create a leave for himself"""
         values = {
             "name": "Hol10",
             "employee_id": self.employee_hrmanager_id,
@@ -165,7 +154,6 @@ class TestAccessRightsCreate(TestHrHolidaysAccessRightsCommon):
 
     @mute_logger("odoo.models.unlink", "odoo.addons.mail.models.mail_mail")
     def test_holidays_manager_create_other(self):
-        """A holidays manager can create a leave for someone else"""
         values = {
             "name": "Hol10",
             "employee_id": self.employee_emp_id,
@@ -178,11 +166,8 @@ class TestAccessRightsCreate(TestHrHolidaysAccessRightsCommon):
 
 @tests.tagged("access_rights", "access_rights_read")
 class TestAccessRightsRead(TestHrHolidaysAccessRightsCommon):
-    # base.group_user
-
     @mute_logger("odoo.models.unlink", "odoo.addons.mail.models.mail_mail")
     def test_leave_read_by_user_other(self):
-        """Users should not be able to read other people requests"""
         other_leave = (
             self.env["hr.leave"]
             .with_user(self.user_hruser)
@@ -204,7 +189,6 @@ class TestAccessRightsRead(TestHrHolidaysAccessRightsCommon):
 
     @mute_logger("odoo.models.unlink", "odoo.addons.mail.models.mail_mail")
     def test_leave_read_by_user_other_browse(self):
-        """Users should not be able to browse other people requests"""
         other_leave = (
             self.env["hr.leave"]
             .with_user(self.user_hruser)
@@ -221,31 +205,24 @@ class TestAccessRightsRead(TestHrHolidaysAccessRightsCommon):
         )
         with self.assertRaises(AccessError):
             other_leave.invalidate_model(["name"])
-            _ = other_leave.with_user(
-                self.user_employee_id
-            ).name  # deliberate read: must raise AccessError
+            _ = other_leave.with_user(self.user_employee_id).name
 
     @mute_logger("odoo.models.unlink", "odoo.addons.mail.models.mail_mail")
     def test_leave_read_by_user_own(self):
-        """Users should be able to read name field of own requests"""
         res = self.employee_leave.read(["name", "number_of_days", "state"])
         self.assertEqual(res[0]["name"], "Test")
 
 
 @tests.tagged("access_rights", "access_rights_write")
 class TestAccessRightsWrite(TestHrHolidaysAccessRightsCommon):
-    # base.group_user
-
     @mute_logger("odoo.models.unlink", "odoo.addons.mail.models.mail_mail")
     def test_leave_update_by_user(self):
-        """User may update its leave"""
         self.employee_leave.with_user(self.user_employee_id).write(
             {"name": "Crocodile Dundee is my man"}
         )
 
     @mute_logger("odoo.models.unlink", "odoo.addons.mail.models.mail_mail")
     def test_leave_update_by_user_other(self):
-        """User cannot update other people leaves"""
         other_leave = (
             self.env["hr.leave"]
             .with_user(self.user_hruser)
@@ -267,7 +244,6 @@ class TestAccessRightsWrite(TestHrHolidaysAccessRightsCommon):
 
     @mute_logger("odoo.models.unlink", "odoo.addons.mail.models.mail_mail")
     def test_leave_creation_for_other_user(self):
-        """Employee cannot creates a leave request for another employee"""
         HolidaysEmployeeGroup = self.env["hr.leave"].with_user(self.user_employee_id)
         with self.assertRaises(AccessError):
             HolidaysEmployeeGroup.create(
@@ -282,7 +258,6 @@ class TestAccessRightsWrite(TestHrHolidaysAccessRightsCommon):
 
     @mute_logger("odoo.models.unlink", "odoo.addons.mail.models.mail_mail")
     def test_leave_messaging_by_user(self):
-        """User may communicate on its own leaves, even if validated"""
         self.employee_leave.with_user(self.user_employee_id).message_post(
             body="I haz messaging",
             subtype_xmlid="mail.mt_comment",
@@ -297,15 +272,8 @@ class TestAccessRightsWrite(TestHrHolidaysAccessRightsCommon):
             message_type="comment",
         )
 
-    # ----------------------------------------
-    # Validation: one validation, HR
-    # ----------------------------------------
-
-    # base.group_user
-
     @mute_logger("odoo.models.unlink", "odoo.addons.mail.models.mail_mail")
     def test_leave_hr_to_validate_by_user(self):
-        """User may not validate any leaves in HR mode"""
         with self.assertRaises(UserError):
             self.employee_leave.with_user(self.user_employee_id).action_approve()
 
@@ -314,20 +282,14 @@ class TestAccessRightsWrite(TestHrHolidaysAccessRightsCommon):
                 {"state": "validate"}
             )
 
-    # hr_holidays.group_hr_holidays_user
-
     @mute_logger("odoo.models.unlink", "odoo.addons.mail.models.mail_mail")
     def test_leave_hr_to_validate_by_holiday_user(self):
-        """Manager can validate leaves in HR mode"""
         self.assertEqual(self.employee_leave.state, "confirm")
         self.employee_leave.with_user(self.user_hrmanager_id).action_approve()
         self.assertEqual(self.employee_leave.state, "validate")
 
-    # hr_holidays.group_hr_holidays_manager
-
     @mute_logger("odoo.models.unlink", "odoo.addons.mail.models.mail_mail")
     def test_leave_hr_to_validate_by_manager(self):
-        """Manager validate its own leaves"""
         leave_start = date_utils.start_of(date.today() + relativedelta(days=15), "week")
         manager_leave = (
             self.env["hr.leave"]
@@ -346,15 +308,8 @@ class TestAccessRightsWrite(TestHrHolidaysAccessRightsCommon):
         manager_leave.action_approve()
         self.assertEqual(manager_leave.state, "validate")
 
-    # ----------------------------------------
-    # Validation: one validation, manager
-    # ----------------------------------------
-
-    # base.group_user
-
     @mute_logger("odoo.models.unlink", "odoo.addons.mail.models.mail_mail")
     def test_leave_manager_to_validate_by_user(self):
-        """A simple user can validate in manager mode if he is leave_manager_id"""
         self.leave_type.write({"leave_validation_type": "manager"})
         values = {
             "name": "Hol HrUser",
@@ -373,11 +328,8 @@ class TestAccessRightsWrite(TestHrHolidaysAccessRightsCommon):
         self.employee_hruser.write({"leave_manager_id": self.user_employee_id})
         hr_leave.with_user(self.user_employee_id).action_approve()
 
-    # hr_holidays.group_hr_holidays_user
-
     @mute_logger("odoo.models.unlink", "odoo.addons.mail.models.mail_mail")
     def test_leave_manager_to_validate_by_holiday_user(self):
-        """A holiday user can validate in manager mode"""
         self.leave_type.write({"leave_validation_type": "manager"})
         values = {
             "name": "Hol HrUser",
@@ -392,10 +344,6 @@ class TestAccessRightsWrite(TestHrHolidaysAccessRightsCommon):
             values,
         )
         hr_leave.with_user(self.user_hruser_id).action_approve()
-
-    # ----------------------------------------
-    # Validation: double
-    # ----------------------------------------
 
     @mute_logger("odoo.models.unlink", "odoo.addons.mail.models.mail_mail")
     def test_leave_double_validate(self):
@@ -419,8 +367,6 @@ class TestAccessRightsWrite(TestHrHolidaysAccessRightsCommon):
             hr_leave.with_user(self.user_employee_id).action_approve()
         hr_leave.with_user(self.user_hruser_id).action_approve()
 
-    # hr_holidays.group_hr_holidays_manager
-
     @mute_logger("odoo.models.unlink", "odoo.addons.mail.models.mail_mail")
     def test_leave_double_validate_holiday_manager(self):
         self.leave_type.write({"leave_validation_type": "both"})
@@ -436,28 +382,9 @@ class TestAccessRightsWrite(TestHrHolidaysAccessRightsCommon):
         ).with_user(self.user_hrmanager_id)
         hr_leave.action_approve()
 
-    # ----------------------------------------
-    # State = Refuse
-    # ----------------------------------------
-
-    # base.group_user
-
-    # hr_holidays.group_hr_holidays_user
-
-    # TODO Can refuse
-
-    # hr_holidays.group_hr_holidays_manager
-
-    # TODO Can refuse
-
-    # hr_holidays.group_hr_holidays_responsible
-
     @mute_logger("odoo.models.unlink", "odoo.addons.mail.models.mail_mail")
     @freeze_time("2026-01-23 10:00:00")
     def test_holiday_responsible_refuse_leave(self):
-        """
-        The holiday responsible should be able to accept and refuse correct type leaves of users they are responsible for
-        """
         respo_user = self.user_responsible
         self.employee_emp.leave_manager_id = respo_user
 
@@ -471,33 +398,13 @@ class TestAccessRightsWrite(TestHrHolidaysAccessRightsCommon):
             }
             leave = self.request_leave(self.user_employee, date.today(), 1, values)
             leave.with_user(respo_user).action_refuse()
-            # Check that refusing after first approval also works
             leave = self.request_leave(self.user_employee, date.today(), 1, values)
             leave.with_user(respo_user).action_approve()
             leave.with_user(respo_user).action_refuse()
 
-    # ----------------------------------------
-    # State = Cancel
-    # ----------------------------------------
-
-    # base.group_user
-
-    # TODO Can Cancel if start_date in the future
-
-    # hr_holidays.group_hr_holidays_user
-
-    # TODO Can Cancel if not in validate
-
-    # hr_holidays.group_hr_holidays_manager
-
-    # TODO Can always cancel with great powers comes great responbilities
-
 
 class TestAccessRightsUnlink(TestHrHolidaysAccessRightsCommon):
-    # base.group_user
-
     def test_leave_unlink_confirm_by_user(self):
-        """A simple user may delete its leave in confirm state in the future"""
         values = {
             "name": "Random Time Off",
             "employee_id": self.employee_emp.id,
@@ -510,7 +417,6 @@ class TestAccessRightsUnlink(TestHrHolidaysAccessRightsCommon):
         leave.with_user(self.user_employee.id).unlink()
 
     def test_leave_unlink_confirm_in_past_by_user(self):
-        """A simple user cannot delete its leave in the past"""
         values = {
             "name": "Random Time Off",
             "employee_id": self.employee_emp.id,
@@ -524,7 +430,6 @@ class TestAccessRightsUnlink(TestHrHolidaysAccessRightsCommon):
             leave.with_user(self.user_employee.id).unlink()
 
     def test_leave_unlink_validate_by_user(self):
-        """A simple user cannot delete its leave in validate state"""
         values = {
             "name": "Random Time Off",
             "employee_id": self.employee_emp.id,
@@ -575,7 +480,7 @@ class TestMultiCompany(TestHrHolidaysCommon):
         employee_leave = self.employee_leave.with_user(self.user_employee)
         employee_leave.invalidate_model(["name"])
         with self.assertRaises(AccessError):
-            _ = employee_leave.name  # deliberate read: must raise AccessError
+            _ = employee_leave.name
 
         with self.assertRaises(UserError):
             employee_leave.action_approve()
@@ -585,7 +490,7 @@ class TestMultiCompany(TestHrHolidaysCommon):
         employee_leave_hruser = self.employee_leave.with_user(self.user_hruser)
         employee_leave_hruser.invalidate_model(["name"])
         with self.assertRaises(AccessError):
-            _ = employee_leave_hruser.name  # deliberate read: must raise AccessError
+            _ = employee_leave_hruser.name
 
         with self.assertRaises(UserError):
             employee_leave_hruser.action_approve()
@@ -595,7 +500,7 @@ class TestMultiCompany(TestHrHolidaysCommon):
         employee_leave_hrmanager = self.employee_leave.with_user(self.user_hrmanager)
         employee_leave_hrmanager.invalidate_model(["name"])
         with self.assertRaises(AccessError):
-            _ = employee_leave_hrmanager.name  # deliberate read: must raise AccessError
+            _ = employee_leave_hrmanager.name
 
         with self.assertRaises(UserError):
             employee_leave_hrmanager.action_approve()
@@ -606,7 +511,7 @@ class TestMultiCompany(TestHrHolidaysCommon):
         self.leave_type.write({"company_id": False})
         employee_leave = self.employee_leave.with_user(self.user_employee)
 
-        _ = employee_leave.name  # deliberate read: must succeed (no AccessError)
+        _ = employee_leave.name
         with self.assertRaises(UserError):
             employee_leave.action_approve()
         self.assertEqual(employee_leave.state, "confirm")
@@ -618,7 +523,7 @@ class TestMultiCompany(TestHrHolidaysCommon):
         self.leave_type.write({"company_id": False})
         employee_leave_hruser = self.employee_leave.with_user(self.user_hruser)
 
-        _ = employee_leave_hruser.name  # deliberate read: must succeed (no AccessError)
+        _ = employee_leave_hruser.name
         employee_leave_hruser.action_approve()
         self.assertEqual(employee_leave_hruser.state, "validate")
 
@@ -629,8 +534,6 @@ class TestMultiCompany(TestHrHolidaysCommon):
         self.leave_type.write({"company_id": False})
         employee_leave_hrmanager = self.employee_leave.with_user(self.user_hrmanager)
 
-        _ = (
-            employee_leave_hrmanager.name
-        )  # deliberate read: must succeed (no AccessError)
+        _ = employee_leave_hrmanager.name
         employee_leave_hrmanager.action_approve()
         self.assertEqual(employee_leave_hrmanager.state, "validate")

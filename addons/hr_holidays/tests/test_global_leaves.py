@@ -11,8 +11,6 @@ from odoo.addons.mail.tests.common import mail_new_test_user
 
 @tagged("global_leaves")
 class TestGlobalLeaves(TestHrHolidaysCommon):
-    """Test global leaves for a whole company, conflict resolutions"""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -324,14 +322,10 @@ class TestGlobalLeaves(TestHrHolidaysCommon):
 
     @freeze_time("2023-05-12")
     def test_global_leave_timezone(self):
-        """
-        It is necessary to use the timezone of the calendar
-        for the global leaves (without resource).
-        """
         calendar_asia = self.env["resource.calendar"].create(
             {
                 "name": "Asia calendar",
-                "tz": "Asia/Kolkata",  # UTC +05:30
+                "tz": "Asia/Kolkata",
                 "hours_per_day": 8.0,
                 "attendance_ids": [],
             }
@@ -343,26 +337,16 @@ class TestGlobalLeaves(TestHrHolidaysCommon):
             .create(
                 {
                     "name": "Public holiday",
-                    "date_from": "2023-05-15 06:00:00",  # utc from 8:00:00 for Europe/Brussels (UTC +02:00)
-                    "date_to": "2023-05-15 15:00:00",  # utc from 17:00:00 for Europe/Brussels (UTC +02:00)
+                    "date_from": "2023-05-15 06:00:00",
+                    "date_to": "2023-05-15 15:00:00",
                     "calendar_id": calendar_asia.id,
                 }
             )
         )
-        # Expectation:
-        # 6:00:00 in UTC (data from the browser) --> 8:00:00 for Europe/Brussel (UTC +02:00)
-        # 8:00:00 for Asia/Kolkata (UTC +05:30) --> 2:30:00 in UTC
         self.assertEqual(global_leave.date_from, datetime(2023, 5, 15, 2, 30))
         self.assertEqual(global_leave.date_to, datetime(2023, 5, 15, 11, 30))
-        # Note:
-        # The user in Europe/Brussels timezone see 4:30 and not 2:30 because he is in UTC +02:00.
-        # The user in Asia/Kolkata timezone (determined via the browser) see 8:00 because he is in UTC +05:30
 
     def test_global_leave_working_schedule_without_company(self):
-        """
-        Check public holidays for a company apply to employees of this company
-        when using a working schedule without a company.
-        """
         calendar_no_company = self.env["resource.calendar"].create(
             {
                 "name": "Schedule without company",
@@ -402,10 +386,6 @@ class TestGlobalLeaves(TestHrHolidaysCommon):
         )
 
     def test_global_leave_number_of_days_with_new(self):
-        """
-        Check that leaves stored in memory (and not in the database)
-        take into account global leaves.
-        """
         global_leave = self.env["resource.calendar.leaves"].create(
             {
                 "name": "Global Time Off",
@@ -458,11 +438,6 @@ class TestGlobalLeaves(TestHrHolidaysCommon):
 
     @freeze_time("2024-12-01")
     def test_global_leave_keeps_employee_resource_leave(self):
-        """
-        When a global leave is created, and it happens during a leave period of an employee,
-        if the employee's leave is not fully covered by the global leave, the employee's leave
-        should still have resource leaves linked to it.
-        """
         employee = self.employee_emp
         leave_type = self.env["hr.leave.type"].create(
             {
@@ -503,7 +478,6 @@ class TestGlobalLeaves(TestHrHolidaysCommon):
             }
         )
 
-        # retrieve resource leaves linked to the employee's leave
         resource_leaves = self.env["resource.calendar.leaves"].search(
             [("holiday_id", "=", partially_covered_leave.id)]
         )
@@ -514,21 +488,6 @@ class TestGlobalLeaves(TestHrHolidaysCommon):
 
     @freeze_time("2025-05-11")
     def test_employee_leave_with_global_leave(self):
-        """
-        When an employee's leave is created, if there are any public holidays within the leave period,
-        the number of leave days is reduced accordingly.
-        eg,.
-        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        | Leave Requested  |  Leave State  | Public Holiday days  |  # days leave remains |
-        |---------------------------------------------------------------------------------|
-        |       5 Days     |    confirm    |        1 Days        |         4 Days        |
-        |---------------------------------------------------------------------------------|
-        |       4 Days     |   validate1   |        1 Days        |         3 Days        |
-        |---------------------------------------------------------------------------------|
-        |       3 Days     |    validate   |        1 Days        |         2 Days        |
-        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-        """
         user_david = mail_new_test_user(
             self.env, login="david", groups="base.group_user"
         )
@@ -611,11 +570,6 @@ class TestGlobalLeaves(TestHrHolidaysCommon):
         )
 
     def test_multi_day_public_holidays_for_flexible_schedule(self):
-        """
-        Test that _get_unusual_days return correct value for
-        multi-day holidays in flexible schedules
-        """
-
         flex_cal = self.env["resource.calendar"].create(
             {
                 "name": "Flexible",
@@ -625,7 +579,6 @@ class TestGlobalLeaves(TestHrHolidaysCommon):
             }
         )
 
-        # tuesday to thursday
         self.env["resource.calendar.leaves"].create(
             {
                 "name": "3 day holiday",
@@ -635,7 +588,6 @@ class TestGlobalLeaves(TestHrHolidaysCommon):
             }
         )
 
-        # monday to saturday
         start = datetime(2024, 3, 4)
         end = datetime(2024, 3, 10)
 

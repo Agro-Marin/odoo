@@ -2,9 +2,7 @@
 import { CalendarModel } from "@web/views/calendar";
 
 export class TimesheetCalendarMyTimesheetsModel extends CalendarModel {
-    /**
-     * @override
-     */
+    /** @override */
     async multiCreateRecords(multiCreateData, dates) {
         this.meta.context = this.meta.context || {};
         this.meta.context.timesheet_calendar = true;

@@ -53,7 +53,6 @@ class HrLeaveAccrualLevel(models.Model):
         default="creation",
         required=True,
     )
-    # Accrue of
     added_value = fields.Float(
         digits=(16, 5), required=True, default=1, export_string_translation=False
     )
@@ -289,7 +288,6 @@ class HrLeaveAccrualLevel(models.Model):
 
     @api.depends("start_count", "start_type")
     def _compute_sequence(self):
-        # Not 100% accurate because of odd months/years, but good enough
         start_type_multipliers = {
             "day": 1,
             "month": 30,
@@ -341,11 +339,10 @@ class HrLeaveAccrualLevel(models.Model):
                     0
                 ].added_value_type
             elif not level.added_value_type:
-                level.added_value_type = "day"  # default value
+                level.added_value_type = "day"
 
     def _set_day(self, day_field, month_field):
         for level in self:
-            # 2020 is a leap year, so monthrange(2020, february) will return [2, 29]
             level[day_field] = str(
                 min(monthrange(2020, int(level[month_field]))[1], int(level[day_field]))
             )
@@ -401,9 +398,6 @@ class HrLeaveAccrualLevel(models.Model):
         return ["hourly"]
 
     def _get_next_date(self, last_call):
-        """
-        Returns the next date with the given last call
-        """
         self.check_singleton()
         if self.frequency in self._get_hourly_frequencies() + ["daily"]:
             return last_call + relativedelta(days=1)
@@ -459,11 +453,6 @@ class HrLeaveAccrualLevel(models.Model):
         )
 
     def _get_previous_date(self, last_call):
-        """
-        Returns the date a potential previous call would have been at
-        For example if you have a monthly level giving 16/02 would return 01/02
-        Contrary to `_get_next_date` this function will return the 01/02 if that date is given
-        """
         self.check_singleton()
         if self.frequency in self._get_hourly_frequencies() + ["daily"]:
             return last_call

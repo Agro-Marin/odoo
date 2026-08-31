@@ -9,9 +9,6 @@ class TestUi(TestExpenseCommon, HttpCase):
     browser_size = "1920,1080"
 
     def test_expense_manager_can_always_set_employee(self):
-        """Test that users with access rights to `hr.expense` can set the employee on them
-        by using the usual form view, even if they do not have access rights to `hr.employee`
-        """
         employee_1 = self.expense_employee
         employee_2 = self.env["hr.employee"].sudo().create({"name": "employee2"})
         expense = self.env["hr.expense"].create(
@@ -34,10 +31,6 @@ class TestUi(TestExpenseCommon, HttpCase):
         )
 
     def test_no_zero_amount_expense_in_expense(self):
-        """
-        The test ensures that attempting to submit an expense with a zero amount fails as expected
-        and that a valid amount can be set subsequently.
-        """
         expense = self.create_expenses({"name": "expense_for_tour"})
         with mute_logger("odoo.http"):
             self.start_tour(

@@ -11,7 +11,6 @@
         </field>
     </record>
 
-    <!-- main view for fleet-->
     <record id="fleet_vehicle_assignation_log_view_list" model="ir.ui.view">
         <field name="name">fleet.vehicle.assignation.log.view.list.inherit.hr.fleet</field>
         <field name="model">fleet.vehicle.assignation.log</field>
@@ -31,7 +30,6 @@
         </field>
     </record>
 
-    <!-- for employee cars -->
     <record id="fleet_vehicle_assignation_log_employee_view_list" model="ir.ui.view">
         <field name="name">fleet.vehicle.assignation.log.view.list.inherit.hr.fleet</field>
         <field name="model">fleet.vehicle.assignation.log</field>

@@ -33,8 +33,6 @@ class HrEmployee(models.Model):
     def _get_current_day_location_field(self):
         return DAYS[fields.Date.today().weekday()]
 
-    # hack to allow groupby on today's location. Since there are 7 different fields, we have to use a placeholder
-    # in the search view and replace it with the correct field every time the views are fetched.
     @api.model
     def get_views(self, views, options=None):
         res = super().get_views(views, options)

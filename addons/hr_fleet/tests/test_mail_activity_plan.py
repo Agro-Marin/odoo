@@ -46,11 +46,8 @@ class TestActivitySchedule(ActivityScheduleHRCase):
 
     @users("admin")
     def test_responsible(self):
-        """Check that the responsible is correctly configured."""
-
         for employees in (self.employee_1, self.employee_1 + self.employee_2):
             employees = employees.with_env(self.env)
-            # Happy case
             form = self._instantiate_activity_schedule_wizard(employees)
             form.plan_id = self.plan_fleet
 
@@ -73,7 +70,6 @@ class TestActivitySchedule(ActivityScheduleHRCase):
                 self.assertEqual(activities[0].user_id, self.user_manager)
 
         employees = (self.employee_1 + self.employee_2).with_env(self.env)
-        # Cases with errors
         self.employee_1.car_ids[0].manager_id = False
         form = self._instantiate_activity_schedule_wizard(employees)
         form.plan_id = self.plan_fleet
@@ -84,7 +80,6 @@ class TestActivitySchedule(ActivityScheduleHRCase):
             f"The vehicle of employee {self.employee_1.name} is not linked to a fleet manager, assigning to you.",
             form.warning,
         )
-        # assert form can now be saved without raising an error
         form.save()
 
         self.employee_1.car_ids = self.env["fleet.vehicle"]

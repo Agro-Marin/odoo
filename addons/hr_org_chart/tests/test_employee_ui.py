@@ -41,8 +41,6 @@ class TestEmployeeUi(TestHrCommon, HttpCase):
         )
 
     def test_employee_view_access_multicompany(self):
-        """checks that an employee still has access to the organization chart even if the manager was created with
-        another company, to which that employee doesn't have access."""
         company_0, company_1 = self.env["res.company"].create(
             [
                 {

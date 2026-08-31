@@ -22,9 +22,6 @@ This module extend the employee form with a organizational chart.
         ],
         "web.assets_backend": [
             "hr_org_chart/static/src/fields/*",
-            # Hierarchy view (registry entry "hr_employee_hierarchy" and its
-            # renderer/card components) must load eagerly here, not in a lazy
-            # bundle, so the view is registered before it is first opened.
             "hr_org_chart/static/src/views/**/*",
         ],
         "web.assets_tests": [

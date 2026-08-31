@@ -24,9 +24,7 @@ class HrDepartment(models.Model):
         Requests = self.env["hr.leave"]
         Allocations = self.env["hr.leave.allocation"]
         today_date = datetime.now(UTC).date()
-        today_start = fields.Datetime.to_string(
-            today_date
-        )  # get the midnight of the current utc day
+        today_start = fields.Datetime.to_string(today_date)
         today_end = fields.Datetime.to_string(
             today_date + relativedelta(hours=23, minutes=59, seconds=59)
         )

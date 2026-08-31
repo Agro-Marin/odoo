@@ -7,8 +7,6 @@ from odoo.addons.hr_holidays.tests.common import TestHrHolidaysCommon
 
 class TestTimeoffEvent(TestHrHolidaysCommon):
     def test_no_videocall_url_in_timeoff_event(self):
-        """Test that the timeoff event does not need a video call"""
-
         self.hr_leave_type = (
             self.env["hr.leave.type"]
             .with_user(self.user_hrmanager)
@@ -35,7 +33,6 @@ class TestTimeoffEvent(TestHrHolidaysCommon):
         )
         self.holiday.with_user(self.user_hrmanager).action_approve()
 
-        # Finding the event corresponding to the leave
         search_criteria = [
             ("name", "like", self.holiday.employee_id.name),
             ("start_date", ">=", self.holiday.request_date_from),

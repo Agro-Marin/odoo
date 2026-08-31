@@ -123,7 +123,6 @@ class TestApplicantSkills(TransactionCase):
         )
 
     def test_add_skill_1_level_3(self):
-        """Adding a skill creates a new applicant skill and archives the previous one with the same skill_id."""
         applicant_form = Form(self.t_applicant)
         old_applicant_skills = self.t_applicant.applicant_skill_ids
         with applicant_form.current_applicant_skill_ids.new() as cas:
@@ -141,7 +140,6 @@ class TestApplicantSkills(TransactionCase):
         )
 
     def test_edit_skill_1_level_2_to_level_3(self):
-        """Editing a skill archives the edited record and creates a new one whose valid_from is reset to today."""
         applicant_form = Form(self.t_applicant)
         old_applicant_skills = self.t_applicant.applicant_skill_ids
         index = self.t_applicant.current_applicant_skill_ids.ids.index(
@@ -160,7 +158,6 @@ class TestApplicantSkills(TransactionCase):
         )
 
     def test_edit_cert_1_level_1_to_level_2(self):
-        """Editing a certification archives the edited record and creates a new one keeping the original valid_from and valid_to."""
         applicant_form = Form(self.t_applicant)
         old_applicant_skills = self.t_applicant.applicant_skill_ids
         index = self.t_applicant.current_applicant_skill_ids.ids.index(
@@ -177,7 +174,6 @@ class TestApplicantSkills(TransactionCase):
         self.assertEqual(new_skill.valid_to, date.today() + relativedelta(months=8))
 
     def test_edit_cert_1_stop_date(self):
-        """Editing only the validity stop date of a certification updates it in place: no new record is created and none is deleted."""
         applicant_form = Form(self.t_applicant)
         old_applicant_skills = self.t_applicant.applicant_skill_ids
         index = self.t_applicant.current_applicant_skill_ids.ids.index(
@@ -192,7 +188,6 @@ class TestApplicantSkills(TransactionCase):
         self.assertEqual(len(self.t_applicant.applicant_skill_ids.ids), 5)
 
     def test_edit_cert_1_to_skill_1_level_1(self):
-        """Editing a certification into a skill archives the certification and creates the new skill."""
         applicant_form = Form(self.t_applicant)
         old_applicant_skills = self.t_applicant.applicant_skill_ids
         index = self.t_applicant.current_applicant_skill_ids.ids.index(
@@ -213,7 +208,6 @@ class TestApplicantSkills(TransactionCase):
         self.assertFalse(new_skill.valid_to)
 
     def test_edit_skill_2_level_2_to_cert_full_from_1_jan_to_1_june(self):
-        """Editing a skill into a certification archives the skill and creates the new certification."""
         applicant_form = Form(self.t_applicant)
         old_applicant_skills = self.t_applicant.applicant_skill_ids
         index = self.t_applicant.current_applicant_skill_ids.ids.index(
@@ -239,7 +233,6 @@ class TestApplicantSkills(TransactionCase):
         self.assertEqual(new_skill.valid_to, date.today() + relativedelta(months=7))
 
     def test_add_cert_level_2_from_2_mar_to_infinity(self):
-        """Adding a certification with the exact same values as an existing one is a no-op; differing dates would create a new one."""
         applicant_form = Form(self.t_applicant)
         old_applicant_skills = self.t_applicant.applicant_skill_ids
         with applicant_form.current_applicant_skill_ids.new() as cas:
@@ -257,7 +250,6 @@ class TestApplicantSkills(TransactionCase):
         self.assertEqual(len(self.t_applicant.applicant_skill_ids), 5)
 
     def test_add_cert_level_2_from_4_mar_to_infinity(self):
-        """Adding a certification with almost the same values as an existing one creates a new certification."""
         applicant_form = Form(self.t_applicant)
         old_applicant_skills = self.t_applicant.applicant_skill_ids
         with applicant_form.current_applicant_skill_ids.new() as cas:
@@ -273,7 +265,6 @@ class TestApplicantSkills(TransactionCase):
         self.assertEqual(len(self.t_applicant.applicant_skill_ids), 6)
 
     def test_add_cert_level_1_from_2_mar_to_infinity(self):
-        """Adding a certification with almost the same values as an existing one creates a new certification."""
         applicant_form = Form(self.t_applicant)
         old_applicant_skills = self.t_applicant.applicant_skill_ids
         with applicant_form.current_applicant_skill_ids.new() as cas:
@@ -289,7 +280,6 @@ class TestApplicantSkills(TransactionCase):
         self.assertEqual(len(self.t_applicant.applicant_skill_ids), 6)
 
     def test_add_skill_1_level_2(self):
-        """Re-adding an already active skill archives the previous record and creates a new one (skills are not deduplicated like certifications)."""
         applicant_form = Form(self.t_applicant)
         old_applicant_skills = self.t_applicant.applicant_skill_ids
         with applicant_form.current_applicant_skill_ids.new() as cas:
@@ -320,12 +310,6 @@ class TestApplicantSkills(TransactionCase):
         self.assertFalse(new_skill.valid_to)
         self.assertEqual(len(self.t_applicant.applicant_skill_ids), 6)
 
-        # `edit(index)` indexes the FORM's rows. A form that has already saved
-        # still holds the row it appended in the position it appended it to,
-        # while the recomputed current_applicant_skill_ids re-sorts it to the
-        # end, so an index taken from the record addresses a different row --
-        # here a certification, which the edit then replaced instead. Re-read
-        # the record, as reloading the view would, so the two orders agree.
         applicant_form = Form(self.t_applicant)
         index = self.t_applicant.current_applicant_skill_ids.ids.index(new_skill.id)
         with applicant_form.current_applicant_skill_ids.edit(index) as cas:
@@ -337,11 +321,6 @@ class TestApplicantSkills(TransactionCase):
         self.assertEqual(len(self.t_applicant.applicant_skill_ids), 6)
 
     def test_archiving_vs_deleting_a_skill(self):
-        """
-        If a skill's create_date is more than 1 day in the past the skill will
-        be archived instead of deleted. Archiving in this context means that
-        the valid_to field will be set to 1 in the past from now.
-        """
         applicant_form = Form(self.t_applicant)
         self.assertEqual(
             len(self.t_applicant.applicant_skill_ids.ids),
@@ -365,7 +344,6 @@ class TestApplicantSkills(TransactionCase):
             "The skill that got removed should have valid_to set to one day before now",
         )
         prev_skills = self.t_applicant.applicant_skill_ids
-        # Add a brand new skill
         with applicant_form.current_applicant_skill_ids.new() as cas:
             cas.skill_type_id = self.t_skill_type
             cas.skill_id = self.t_skill_1
@@ -379,7 +357,6 @@ class TestApplicantSkills(TransactionCase):
         )
 
         index = self.t_applicant.current_applicant_skill_ids.ids.index(new_skill.id)
-        # Remove the brand new skill
         applicant_form.current_applicant_skill_ids.remove(index=index)
         applicant_form.save()
         self.assertEqual(
@@ -389,7 +366,6 @@ class TestApplicantSkills(TransactionCase):
         )
 
     def test_archiving_vs_deleting_a_certificate(self):
-        """A certification created more than a day ago is archived when removed, while a freshly created one is deleted."""
         applicant_form = Form(self.t_applicant)
         self.assertEqual(
             len(self.t_applicant.applicant_skill_ids.ids),
@@ -409,7 +385,6 @@ class TestApplicantSkills(TransactionCase):
         )
 
         prev_skills = self.t_applicant.applicant_skill_ids
-        # add a brand new certification
         with applicant_form.current_applicant_skill_ids.new() as cas:
             cas.skill_type_id = self.t_cert_type
             cas.skill_id = self.t_cert_1
@@ -422,7 +397,6 @@ class TestApplicantSkills(TransactionCase):
             "Creating a new certification should result in the applicant having 6 skills.",
         )
 
-        # Remove the brand new cert
         index = self.t_applicant.current_applicant_skill_ids.ids.index(new_cert.id)
         applicant_form.current_applicant_skill_ids.remove(index=index)
         applicant_form.save()
@@ -433,7 +407,6 @@ class TestApplicantSkills(TransactionCase):
         )
 
     def test_multiple_exact_same_skills_are_deduplicated_before_creation(self):
-        """Adding multiple entries of the same skill:level creates only one applicant skill."""
         applicant_form = Form(self.t_applicant)
         old_applicant_skills = self.t_applicant.applicant_skill_ids
         for _ in range(3):
@@ -450,7 +423,6 @@ class TestApplicantSkills(TransactionCase):
         self.assertEqual(len(self.t_applicant.applicant_skill_ids), 6)
 
     def test_multiple_same_skill_different_level_are_deduplicated_before_creation(self):
-        """Adding multiple entries of the same skill but different levels creates only one applicant skill."""
         skill_levels = [
             self.t_skill_level_1,
             self.t_skill_level_2,

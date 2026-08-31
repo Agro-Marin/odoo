@@ -6,9 +6,6 @@ from odoo.addons.hr.tests.common import TestHrCommon
 @tagged("-at_install", "post_install")
 class TestHourlyCost(TestHrCommon):
     def test_hourly_cost_default_and_currency(self):
-        """hourly_cost defaults to 0.0 and resolves its Monetary currency
-        through the employee's company, as declared
-        (currency_field="currency_id")."""
         employee = (
             self.env["hr.employee"]
             .with_user(self.res_users_hr_officer)

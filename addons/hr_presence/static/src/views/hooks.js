@@ -18,9 +18,9 @@ export function getPresenceActionItems(actions, records) {
         if (isInGroup1 || isInGroup2) {
             action.groupNumber = isInGroup1 ? 50 : 60;
             presenceActionItems.push(action);
-            return false; // Exclude this object from the resulting array
+            return false;
         }
-        return true; // Include this object in the resulting array
+        return true;
     });
     return [actions, presenceActionItems];
 }

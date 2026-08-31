@@ -117,9 +117,7 @@ class HrLeaveReportCalendar(models.Model):
         for leave in self:
             leave.name = leave.employee_id.name
             if self.env.user.has_group("hr_holidays.group_hr_holidays_user"):
-                # Include the time off type name
                 leave.name += f" {leave.leave_id.holiday_status_id.name}"
-            # Include the time off duration.
             leave.name += f": {leave.sudo().leave_id.duration_display}"
 
     @api.depends("leave_manager_id")
@@ -133,17 +131,14 @@ class HrLeaveReportCalendar(models.Model):
     def action_approve(self):
         current_user = self.env.user
         if current_user.has_group("hr_holidays.group_hr_holidays_user"):
-            # If the user is a leave manager, approve the leave
             self.leave_id.action_approve()
         elif (
             self.leave_manager_id == current_user
             and self.sudo().holiday_status_id.leave_validation_type
             in ("manager", "both")
         ):
-            # If the user is the employee's time off approver, approve the leave
             self.sudo().leave_id.sudo(False).action_approve()
         else:
-            # If the user is not a leave manager, raise an error
             raise ValidationError(
                 self.env._("You are not allowed to approve this leave request.")
             )
@@ -151,17 +146,14 @@ class HrLeaveReportCalendar(models.Model):
     def action_refuse(self):
         current_user = self.env.user
         if current_user.has_group("hr_holidays.group_hr_holidays_user"):
-            # If the user is a leave manager, refuse the leave
             self.leave_id.action_refuse()
         elif (
             self.leave_manager_id == current_user
             and self.sudo().holiday_status_id.leave_validation_type
             in ("manager", "both")
         ):
-            # If the user is the employee's time off approver, refuse the leave
             self.sudo().leave_id.sudo(False).action_refuse()
         else:
-            # If the user is not a leave manager, raise an error
             raise ValidationError(
                 self.env._("You are not allowed to refuse this leave request.")
             )

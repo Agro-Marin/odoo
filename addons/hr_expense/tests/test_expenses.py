@@ -11,31 +11,16 @@ from odoo.addons.hr_expense.tests.common import TestExpenseCommon
 
 @tagged("-at_install", "post_install")
 class TestExpenses(TestExpenseCommon):
-    #############################################
-    #  Test Expense flows
-    #############################################
     def test_expense_main_flow(self):
-        """
-        Test the main flows of expense
-        This includes:
-            - Approval flows for expense paid by company and employee up to reconciliation
-            - price_unit, total_amount_currency and quantity computation
-            - Split payments into one payment per expense when paid by company
-            - Override account on expense
-            - Payment states and payment terms
-            - Unlinking payments reverts to approved state
-            - Cannot delete an analytic account if linked to an expense
-        """
-
         self.expense_employee.user_partner_id.property_supplier_payment_term_id = (
             self.env.ref("account.account_payment_term_30days")
         )
         expenses_by_employee = self.create_expenses(
             [
                 {
-                    "name": "Employee PA 2*800 + 15%",  # Taxes are included
+                    "name": "Employee PA 2*800 + 15%",
                     "employee_id": self.expense_employee.id,
-                    "account_id": self.expense_account.id,  # Test with a specific account override
+                    "account_id": self.expense_account.id,
                     "product_id": self.product_a.id,
                     "quantity": 2,
                     "payment_mode": "own_account",
@@ -44,7 +29,7 @@ class TestExpenses(TestExpenseCommon):
                     "analytic_distribution": {self.analytic_account_1.id: 100},
                 },
                 {
-                    "name": "Employee PB 160 + 2*15%",  # Taxes are included
+                    "name": "Employee PB 160 + 2*15%",
                     "employee_id": self.expense_employee.id,
                     "product_id": self.product_b.id,
                     "payment_mode": "own_account",
@@ -57,7 +42,7 @@ class TestExpenses(TestExpenseCommon):
         expenses_by_company = self.create_expenses(
             [
                 {
-                    "name": "Company PC 1000 + 15%",  # Taxes are included
+                    "name": "Company PC 1000 + 15%",
                     "employee_id": self.expense_employee.id,
                     "product_id": self.product_c.id,
                     "total_amount_currency": 1000.00,
@@ -67,7 +52,7 @@ class TestExpenses(TestExpenseCommon):
                     "tax_ids": [Command.set(self.tax_purchase_a.ids)],
                 },
                 {
-                    "name": "Company PB 160 + 2*15%",  # Taxes are included
+                    "name": "Company PB 160 + 2*15%",
                     "employee_id": self.expense_employee.id,
                     "product_id": self.product_b.id,
                     "payment_mode": "company_account",
@@ -78,7 +63,6 @@ class TestExpenses(TestExpenseCommon):
         )
         all_expenses = expenses_by_employee | expenses_by_company
 
-        # Checking expense values at creation
         self.assertRecordValues(
             all_expenses,
             [
@@ -117,7 +101,6 @@ class TestExpenses(TestExpenseCommon):
             ],
         )
 
-        # Submitting properly change states
         all_expenses.action_submit()
         self.assertRecordValues(
             all_expenses,
@@ -129,7 +112,6 @@ class TestExpenses(TestExpenseCommon):
             ],
         )
 
-        # Approving properly change states & create moves & payments
         all_expenses.action_approve()
         self.assertRecordValues(
             all_expenses,
@@ -140,17 +122,14 @@ class TestExpenses(TestExpenseCommon):
                 {"state": "approved", "account_move_id": False},
             ],
         )
-        # Post a payment for 'company_account' (and its move(s)) and a receipt  for 'own_account'
         expenses_by_company.action_post()
         self.post_expenses_with_wizard(expenses_by_employee[0], date=date(2021, 10, 10))
         self.post_expenses_with_wizard(expenses_by_employee[1], date=date(2021, 10, 31))
         self.assertRecordValues(
             all_expenses,
             [
-                # As the payment is not done yet those are still in "posted"
                 {"payment_mode": "own_account", "state": "posted"},
                 {"payment_mode": "own_account", "state": "posted"},
-                # Expenses paid by company don't use accounting date since they are already paid and posted directly
                 {"payment_mode": "company_account", "state": "paid"},
                 {"payment_mode": "company_account", "state": "paid"},
             ],
@@ -206,13 +185,11 @@ class TestExpenses(TestExpenseCommon):
         product_b_account_id = self.product_b.property_account_expense_id.id
         product_c_account_id = self.product_c.property_account_expense_id.id
         company_payment_account_id = self.outbound_payment_channel.payment_account_id.id
-        # One payment per expense
         self.assertRecordValues(
             all_expenses.account_move_id.line_ids.sorted(
                 lambda line: (line.move_id, line)
             ),
             [
-                # own_account expense 1 move
                 {
                     "balance": 1391.30,
                     "account_id": self.expense_account.id,
@@ -234,7 +211,6 @@ class TestExpenses(TestExpenseCommon):
                     "date": date(2021, 10, 31),
                     "invoice_date": date(2021, 10, 10),
                 },
-                # own_account expense 2 move
                 {
                     "balance": 123.08,
                     "account_id": product_b_account_id,
@@ -263,7 +239,6 @@ class TestExpenses(TestExpenseCommon):
                     "date": date(2021, 10, 31),
                     "invoice_date": date(2021, 10, 31),
                 },
-                # company_account expense 1 move
                 {
                     "balance": 869.57,
                     "account_id": product_c_account_id,
@@ -285,7 +260,6 @@ class TestExpenses(TestExpenseCommon):
                     "date": date(2021, 10, 12),
                     "invoice_date": False,
                 },
-                # company_account expense 2 move
                 {
                     "balance": 123.08,
                     "account_id": product_b_account_id,
@@ -317,11 +291,9 @@ class TestExpenses(TestExpenseCommon):
             ],
         )
 
-        # Check lines partners:
         self.assertRecordValues(
             expenses_by_employee.account_move_id.line_ids,
             [
-                # If the test fails, it is probably because the partner is the company's partner instead of the employee's one
                 {"partner_id": employee_partner_id},
                 {"partner_id": employee_partner_id},
                 {"partner_id": employee_partner_id},
@@ -338,17 +310,14 @@ class TestExpenses(TestExpenseCommon):
         first_expense_by_employee = expenses_by_employee[0]
         first_expense_by_company = expenses_by_company[0]
 
-        # Own_account partial payment
         payment_1 = self.get_new_payment(first_expense_by_employee, 1000.0)
         liquidity_lines1 = payment_1._seek_for_lines()[0]
         self.assertEqual(first_expense_by_employee.state, in_payment_state)
 
-        # own_account remaining payment
         payment_2 = self.get_new_payment(first_expense_by_employee, 600.0)
         liquidity_lines2 = payment_2._seek_for_lines()[0]
         self.assertEqual(first_expense_by_employee.state, in_payment_state)
 
-        # Reconciling own_account
         statement_line = self.env["account.bank.statement.line"].create(
             {
                 "journal_id": self.company_data["default_journal_bank"].id,
@@ -358,7 +327,6 @@ class TestExpenses(TestExpenseCommon):
             }
         )
 
-        # Reconcile without the bank reconciliation widget since the widget is in enterprise.
         _trash, st_suspense_lines, _trash = statement_line.with_context(
             skip_account_move_synchronization=True
         )._seek_for_lines()
@@ -366,11 +334,9 @@ class TestExpenses(TestExpenseCommon):
         (st_suspense_lines + liquidity_lines1 + liquidity_lines2).reconcile()
         self.assertEqual(first_expense_by_employee.state, "paid")
 
-        # Trying to delete analytic accounts should be forbidden if linked to an expense
         with self.assertRaises(UserError):
             (self.analytic_account_1 | self.analytic_account_2).unlink()
 
-        # Unlinking moves
         (payment_1 | payment_2).action_draft()
         (payment_1 | payment_2).move_id.line_ids.remove_move_reconcile()
         self.assertEqual(first_expense_by_employee.state, "posted")
@@ -392,12 +358,9 @@ class TestExpenses(TestExpenseCommon):
         first_expense_by_employee.action_reset()
         self.assertEqual(first_expense_by_employee.state, "draft")
         first_expense_by_employee.unlink()
-        # Only possible if no expense linked to the account
         self.analytic_account_1.unlink()
 
     def test_expense_split_flow(self):
-        """Check Split Expense flow."""
-        # Grant Analytic Accounting rights, to be able to modify analytic_distribution from the wizard
         self.env.user.group_ids += self.env.ref("analytic.group_analytic_accounting")
 
         expense = self.create_expenses(
@@ -411,7 +374,6 @@ class TestExpenses(TestExpenseCommon):
             expense.action_split_wizard()["res_id"]
         )
 
-        # Check default hr.expense.split values
         self.assertRecordValues(
             wizard.expense_split_line_ids,
             [
@@ -445,7 +407,6 @@ class TestExpenses(TestExpenseCommon):
             form.expense_split_line_ids.remove(index=0)
             self.assertEqual(form.split_possible, False)
 
-            # Check removing tax_ids and analytic_distribution
             with form.expense_split_line_ids.edit(0) as line:
                 line.total_amount_currency = 200.00
                 line.tax_ids.clear()
@@ -454,7 +415,6 @@ class TestExpenses(TestExpenseCommon):
                 self.assertEqual(line.tax_amount_currency, 0.00)
             self.assertEqual(form.split_possible, False)
 
-            # This line should have the same tax_ids and analytic_distribution as original expense
             with form.expense_split_line_ids.new() as line:
                 line.total_amount_currency = 300.00
                 self.assertEqual(line.total_amount_currency, 300.00)
@@ -465,7 +425,6 @@ class TestExpenses(TestExpenseCommon):
             self.assertEqual(form.split_possible, False)
             self.assertEqual(form.total_amount_currency, 500.00)
 
-            # Check adding tax_ids and setting analytic_distribution
             with form.expense_split_line_ids.new() as line:
                 line.total_amount_currency = 500.00
                 line.tax_ids.add(self.tax_purchase_b)
@@ -473,7 +432,6 @@ class TestExpenses(TestExpenseCommon):
                 self.assertEqual(line.total_amount_currency, 500.00)
                 self.assertEqual(line.tax_amount_currency, 115.38)
 
-        # Check wizard values
         self.assertRecordValues(
             wizard,
             [
@@ -487,7 +445,6 @@ class TestExpenses(TestExpenseCommon):
         )
 
         wizard.action_split_expense()
-        # Check that split resulted into expenses with correct values
         expenses_after_split = self.env["hr.expense"].search(
             [("name", "=", expense.name)]
         )
@@ -530,14 +487,7 @@ class TestExpenses(TestExpenseCommon):
             ],
         )
 
-    #############################################
-    #  Test Multi-currency
-    #############################################
-
     def test_expense_multi_currencies(self):
-        """
-        Checks that the currency rate is recomputed properly when the total in company currency is set to a new value
-        """
         foreign_currency_1 = self.other_currency
         foreign_currency_2 = self.setup_other_currency(
             "GBP", rounding=0.01, rates=([("2016-01-01", 1 / 1.52)])
@@ -555,7 +505,7 @@ class TestExpenses(TestExpenseCommon):
                     "total_amount_currency": 1000.00,
                     "date": self.frozen_today,
                     "company_id": self.company_data["company"].id,
-                    "currency_id": foreign_currency_1.id,  # rate is 1:2
+                    "currency_id": foreign_currency_1.id,
                     "tax_ids": [Command.set(self.tax_purchase_a.ids)],
                 },
                 {
@@ -566,7 +516,7 @@ class TestExpenses(TestExpenseCommon):
                     "total_amount_currency": 1000.00,
                     "date": self.frozen_today,
                     "company_id": self.company_data["company"].id,
-                    "currency_id": foreign_currency_2.id,  # rate is 1:1.52
+                    "currency_id": foreign_currency_2.id,
                     "tax_ids": [Command.set(self.tax_purchase_a.ids)],
                 },
                 {
@@ -578,7 +528,7 @@ class TestExpenses(TestExpenseCommon):
                     "total_amount": 3000.00,
                     "date": self.frozen_today,
                     "company_id": self.company_data["company"].id,
-                    "currency_id": foreign_currency_2.id,  # default rate is 1:1.52, should be overridden to 1:3
+                    "currency_id": foreign_currency_2.id,
                     "tax_ids": [Command.set(self.tax_purchase_a.ids)],
                 },
             ]
@@ -605,8 +555,6 @@ class TestExpenses(TestExpenseCommon):
             ],
         )
 
-        # Manually changing rate on the two first expenses after creation to check they recompute properly
-        # Back-end override
         foreign_expense_1.total_amount = 1000.00
         self.assertRecordValues(
             foreign_expense_1,
@@ -619,7 +567,6 @@ class TestExpenses(TestExpenseCommon):
             ],
         )
 
-        # Front-end override
         with Form(foreign_expense_2) as expense_form:
             expense_form.total_amount = 2000.00
         self.assertRecordValues(
@@ -633,9 +580,8 @@ class TestExpenses(TestExpenseCommon):
             ],
         )
 
-        # Move creation should not touch the rates anymore
         all_expenses.action_submit()
-        all_expenses._do_approve()  # Skip duplicate wizard
+        all_expenses._do_approve()
         self.post_expenses_with_wizard(all_expenses, journal=foreign_sale_journal)
         self.assertRecordValues(
             all_expenses.account_move_id.sorted("id"),
@@ -678,10 +624,6 @@ class TestExpenses(TestExpenseCommon):
             ],
         )
 
-    #############################################
-    #  Test Corner Cases
-    #############################################
-
     def test_expense_company_dates(self):
         expenses = self.create_expenses(
             [
@@ -702,15 +644,13 @@ class TestExpenses(TestExpenseCommon):
                     "date": "2024-01-12",
                 },
             ]
-        ).sorted()  # By date desc
+        ).sorted()
 
         expenses.action_submit()
         expenses.action_approve()
         expenses.action_post()
 
-        move_twelve_january, move_first_january = (
-            expenses.account_move_id.sorted()
-        )  # By date desc
+        move_twelve_january, move_first_january = expenses.account_move_id.sorted()
 
         self.assertEqual(
             move_twelve_january.date,
@@ -749,18 +689,13 @@ class TestExpenses(TestExpenseCommon):
         )
 
     def test_corner_case_defaults_values_from_product(self):
-        """As soon as you set a product, the expense name, uom, taxes and account are set according to the product."""
-        # Disable multi-uom
         self.env.ref("base.group_user").implied_ids -= self.env.ref("uom.group_uom")
         self.expense_user_employee.group_ids -= self.env.ref("uom.group_uom")
 
-        # Use the expense employee
         Expense = self.env["hr.expense"].with_user(self.expense_user_employee)
 
-        # Make sure the multi-uom is correctly disabled for the user creating the expense
         self.assertFalse(Expense.env.user.has_group("uom.group_uom"))
 
-        # Use a product not using the default uom "Unit(s)"
         product = Expense.env.ref("hr_expense.expense_product_mileage")
 
         expense_form = Form(Expense)
@@ -777,7 +712,6 @@ class TestExpenses(TestExpenseCommon):
         self.assertEqual(expense.account_id, product._get_product_accounts()["expense"])
 
     def test_attachments_in_move_from_own_expense(self):
-        """Checks that journal entries created form expense reports paid by employee have a copy of the attachments in the expense."""
         expense = self.create_expenses({"name": "Employee expense"})
         expense_2 = self.create_expenses({"name": "Employee expense 2"})
         attachment = self.env["ir.attachment"].create(
@@ -802,7 +736,7 @@ class TestExpenses(TestExpenseCommon):
         expenses = expense | expense_2
 
         expenses.action_submit()
-        expenses._do_approve()  # Skip duplicate wizard
+        expenses._do_approve()
         self.post_expenses_with_wizard(expenses)
 
         self.assertRecordValues(
@@ -824,7 +758,6 @@ class TestExpenses(TestExpenseCommon):
         )
 
     def test_attachments_in_move_from_company_expense(self):
-        """Checks that journal entries created form expense reports paid by company have a copy of the attachments in the expense."""
         expense = self.create_expenses(
             {
                 "name": "Company expense",
@@ -859,7 +792,7 @@ class TestExpenses(TestExpenseCommon):
         expenses = expense | expense_2
 
         expenses.action_submit()
-        expenses._do_approve()  # Skip duplicate wizard
+        expenses._do_approve()
         expenses.action_post()
 
         expense_move = expense.account_move_id
@@ -889,7 +822,6 @@ class TestExpenses(TestExpenseCommon):
         )
 
     def test_multiple_attachments_in_move_from_company_expense(self):
-        """Checks that all attachments from expense are copied to their journal entries."""
         expense = self.create_expenses(
             {
                 "name": "Company expense",
@@ -909,7 +841,7 @@ class TestExpenses(TestExpenseCommon):
         )
 
         expense.action_submit()
-        expense._do_approve()  # Skip duplicate wizard
+        expense._do_approve()
         expense.action_post()
 
         self.assertEqual(len(expense.account_move_id.attachment_ids), 2)
@@ -960,7 +892,6 @@ class TestExpenses(TestExpenseCommon):
 
     @freeze_time("2024-01-01")
     def test_expense_vendor(self):
-        """This test will do a basic flow when a vendor is set on the expense"""
         vendor_a = self.env["res.partner"].create({"name": "Ruben"})
         expense = self.create_expenses(
             {
@@ -975,7 +906,6 @@ class TestExpenses(TestExpenseCommon):
         self.assertEqual(vendor_a.id, expense.account_move_id.line_ids.partner_id.id)
 
     def test_payment_edit_fields(self):
-        """Test that some payment fields cannot be modified once linked with an expense"""
         expense = self.create_expenses(
             {
                 "payment_mode": "company_account",
@@ -995,19 +925,13 @@ class TestExpenses(TestExpenseCommon):
         payment.write({"is_sent": True})
 
     def test_corner_case_expense_submitted_cannot_be_zero(self):
-        """
-        Test that the expenses are not submitted if the total amount is 0.0 nor able to be edited that way
-        unless unlinking it from the expense.
-        """
         expense = self.create_expenses(
             {"total_amount": 0.0, "total_amount_currency": 0.0}
         )
 
-        # CASE 1: FORBIDS Trying to submit an expense with a total_amount(_currency) of 0.0
         with self.assertRaises(UserError):
             expense.action_submit()
 
-        # CASE 2: FORBIDS Trying to change the total_amount(_currency) to 0.0 when the expense is submitted to the manager
         expense.total_amount_currency = 1000
         expense.action_submit()
         with self.assertRaises(UserError):
@@ -1015,40 +939,34 @@ class TestExpenses(TestExpenseCommon):
         with self.assertRaises(UserError):
             expense.total_amount = 0.0
 
-        # CASE 3: FORBIDS Trying to change the total_amount(_currency) to 0.0 when the expense is approved
         expense.action_approve()
         with self.assertRaises(UserError):
             expense.total_amount_currency = 0.0
         with self.assertRaises(UserError):
             expense.total_amount = 0.0
 
-        # CASE 4: FORBIDS Trying to change the total_amount(_currency) to 0.0 when the expense is posted and the account move created
         self.post_expenses_with_wizard(expense)
         with self.assertRaises(UserError):
             expense.total_amount_currency = 0.0
         with self.assertRaises(UserError):
             expense.total_amount = 0.0
 
-        # CASE 5: ALLOWS Changing the total_amount(_currency) to 0.0 when the expense is reset to draft
         expense.account_move_id.action_draft()
         expense.account_move_id.unlink()
         expense.action_reset()
         expense.write({"total_amount_currency": 0.0, "total_amount": 0.0})
 
-        # CASE 6: FORBIDS Setting the amounts to 0 while submitting the expense
         expense.write({"total_amount_currency": 1000.0, "total_amount": 1000.0})
         with self.assertRaises(UserError):
             expense.write({"total_amount_currency": 0.0, "state": "submitted"})
         with self.assertRaises(UserError):
             expense.write({"total_amount": 0.0, "state": "submitted"})
 
-        # CASE 7: ALLOWS Setting the amounts to 0 while resetting the expense to draft
         expense.write(
             {"total_amount_currency": 0.0, "total_amount": 0.0, "state": "draft"}
         )
 
     def test_foreign_currencies_total(self):
-        """Check that the dashboard computes amount properly in company currency"""
         self.create_expenses(
             [
                 {
@@ -1075,10 +993,6 @@ class TestExpenses(TestExpenseCommon):
         self.assertEqual(expense_data["draft"]["amount"], 3000.00)
 
     def test_update_expense_price_on_product_standard_price(self):
-        """
-        Tests that updating the standard price of a product will update all the un-submitted
-        expenses using that product as a category.
-        """
         product = self.env["product.product"].create(
             {
                 "name": "Product",
@@ -1109,7 +1023,7 @@ class TestExpenses(TestExpenseCommon):
                 },
             ],
         )
-        expense_no_update.action_submit()  # No update when the expense is submitted
+        expense_no_update.action_submit()
 
         product.standard_price = 200.0
         self.assertRecordValues(
@@ -1126,7 +1040,7 @@ class TestExpenses(TestExpenseCommon):
                     "price_unit": 200.0,
                     "quantity": 1.0,
                     "total_amount": 200.0,
-                },  # total is updated
+                },
             ],
         )
 
@@ -1145,7 +1059,7 @@ class TestExpenses(TestExpenseCommon):
                     "price_unit": 200.0,
                     "quantity": 5,
                     "total_amount": 1000.0,
-                },  # total is updated
+                },
             ],
         )
 
@@ -1164,11 +1078,11 @@ class TestExpenses(TestExpenseCommon):
                     "price_unit": 1000.0,
                     "quantity": 1,
                     "total_amount": 1000.0,
-                },  # quantity & price_unit only are updated
+                },
             ],
         )
 
-        expenses.action_submit()  # This expense should not be updated any more
+        expenses.action_submit()
         product.standard_price = 300.0
         self.assertRecordValues(
             expenses.sorted("name"),
@@ -1184,7 +1098,7 @@ class TestExpenses(TestExpenseCommon):
                     "price_unit": 1000.0,
                     "quantity": 1,
                     "total_amount": 1000.0,
-                },  # no update
+                },
             ],
         )
 
@@ -1225,27 +1139,22 @@ class TestExpenses(TestExpenseCommon):
             ]
         )
 
-        # At first, there is no warning message on the categories because their prices are 0
         self.assertFalse(expense_cat_A.standard_price_update_warning)
         self.assertFalse(expense_cat_B.standard_price_update_warning)
         self.assertFalse(expense_cat_C.standard_price_update_warning)
 
-        # When modifying the price of the first category, a message should appear as a an expense will be modified.
         with Form(
             expense_cat_A, view="hr_expense.product_product_expense_form_view"
         ) as form:
             form.standard_price = 5
             self.assertTrue(form.standard_price_update_warning)
 
-        # When modifying the price of the second category, no message should appear as the price of the linked
-        # expense is the price of the category that is going to be saved.
         with Form(
             expense_cat_B, view="hr_expense.product_product_expense_form_view"
         ) as form:
             form.standard_price = 5
             self.assertFalse(form.standard_price_update_warning)
 
-        # When modifying the price of the their category, no message should appear as no expense is linked to it.
         with Form(
             expense_cat_C, view="hr_expense.product_product_expense_form_view"
         ) as form:
@@ -1255,9 +1164,6 @@ class TestExpenses(TestExpenseCommon):
     def test_compute_standard_price_update_warning_product_with_and_without_expense(
         self,
     ):
-        """
-        Test that the compute doesn't raise an error with mixed recordsets (products used in expenses and not used in expenses)
-        """
         product_expensed = self.env["product.product"].create(
             {
                 "name": "Category A",
@@ -1290,8 +1196,6 @@ class TestExpenses(TestExpenseCommon):
         other_company = self.company_data_2["company"]
         self.expense_employee.sudo().company_id = other_company
 
-        # The expense employee is able to create an expense for company_2.
-        # product_a needs a standard_price in company_2
         self.product_a.with_context(
             allowed_company_ids=self.company_data_2["company"].ids
         ).standard_price = 100
@@ -1332,10 +1236,8 @@ class TestExpenses(TestExpenseCommon):
             ],
         )
 
-        # The expense employee is able to submit the expense.
         expenses.with_user(self.expense_user_employee).action_submit()
 
-        # An expense manager is not able to approve nor refuse without access to company_2.
         with self.assertRaises(UserError):
             expense_approve.with_user(self.expense_user_manager).with_context(
                 allowed_company_ids=main_company.ids, company_id=main_company.id
@@ -1346,7 +1248,6 @@ class TestExpenses(TestExpenseCommon):
                 allowed_company_ids=main_company.ids
             )._do_refuse("failed")
 
-        # An expense manager is able to approve/refuse with access to company_2.
         expense_approve.with_user(self.expense_user_manager).with_context(
             allowed_company_ids=other_company.ids
         ).action_approve()
@@ -1354,8 +1255,6 @@ class TestExpenses(TestExpenseCommon):
             allowed_company_ids=other_company.ids
         )._do_refuse("failed")
 
-        # An expense manager having accounting access rights is not able to post the journal entry without access
-        # to company_2.
         with self.assertRaises(UserError):
             self.post_expenses_with_wizard(
                 expense_approve.with_user(self.env.user).with_context(
@@ -1363,8 +1262,6 @@ class TestExpenses(TestExpenseCommon):
                 )
             )
 
-        # An expense manager having accounting access rights is able to post the journal entry with access to
-        # company_2.
         self.post_expenses_with_wizard(
             expense_approve.with_user(self.env.user).with_context(
                 allowed_company_ids=other_company.ids
@@ -1372,8 +1269,6 @@ class TestExpenses(TestExpenseCommon):
         )
 
     def test_tax_is_used_when_in_transactions(self):
-        """Ensures that a tax is set to used when it is part of some transactions"""
-        # Account.move is one type of transaction
         tax_expense = self.env["account.tax"].create(
             {
                 "name": "test_is_used_expenses",
@@ -1387,8 +1282,6 @@ class TestExpenses(TestExpenseCommon):
         self.assertTrue(tax_expense.is_used)
 
     def test_expense_by_company_with_caba_tax(self):
-        """When using cash basis tax in an expense paid by the company, the transition account should not be used."""
-
         caba_tag = self.env["account.account.tag"].create(
             {
                 "name": "Cash Basis Tag Final Account",
@@ -1448,10 +1341,6 @@ class TestExpenses(TestExpenseCommon):
         )
 
     def test_expense_mandatory_analytic_plan_product_category(self):
-        """
-        Check that when an analytic plan has a mandatory applicability matching
-        product category this is correctly triggered
-        """
         self.env["account.analytic.applicability"].create(
             {
                 "business_domain": "expense",
@@ -1479,10 +1368,6 @@ class TestExpenses(TestExpenseCommon):
         expense.with_context(validate_analytic=True).action_approve()
 
     def test_expense_no_stealing_from_employees(self):
-        """
-        Test to check that the company doesn't steal their employee when the commercial_partner_id of the employee partner
-        is the company
-        """
         self.expense_employee.user_partner_id.parent_id = self.env.company.partner_id
         self.assertEqual(
             self.env.company.partner_id,
@@ -1502,7 +1387,6 @@ class TestExpenses(TestExpenseCommon):
         )
 
     def test_expense_set_total_amount_to_0(self):
-        """Checks that amount fields are correctly updating when setting total_amount to 0"""
         expense = self.create_expenses(
             {
                 "product_id": self.product_c.id,
@@ -1514,7 +1398,6 @@ class TestExpenses(TestExpenseCommon):
         self.assertTrue(expense.company_currency_id.is_zero(expense.total_amount))
 
     def test_expense_set_quantity_to_0(self):
-        """Checks that amount fields except for unit_amount are correctly updating when setting quantity to 0"""
         expense = self.create_expenses(
             {"product_id": self.product_b.id, "quantity": 10}
         )
@@ -1528,7 +1411,6 @@ class TestExpenses(TestExpenseCommon):
         )
 
     def test_employee_expense_in_foreign_currency(self):
-        """Checks that the currency of the posted entries is always the company currency"""
         expense = self.create_expenses(
             {
                 "payment_mode": "own_account",
@@ -1549,10 +1431,6 @@ class TestExpenses(TestExpenseCommon):
         )
 
     def test_company_expense_sepa_ct_trust_bypass(self):
-        """
-        Ensure company-paid expenses using SEPA CT post without requiring a trusted recipient bank account.
-        This validates the bypass in account.payment.action_post for expense-originated payments.
-        """
         self.env.ref("base.EUR").active = True
         bank_journal = self.company_data["default_journal_bank"]
         bank = self.env["res.bank"].create(
@@ -1589,14 +1467,9 @@ class TestExpenses(TestExpenseCommon):
 
         expense.action_submit()
         expense.action_approve()
-        # Should not raise trust validation error despite missing recipient partner bank
         expense.action_post()
 
     def test_expense_analytic_vendor_bill_count(self):
-        """
-        Verify that purchase receipts appear when opening a vendor bill via the smart button,
-        and that the vendor bill count matches the records shown.
-        """
         expense = self.create_expenses(
             [
                 {
@@ -1615,10 +1488,6 @@ class TestExpenses(TestExpenseCommon):
         self.assertTrue(expense.account_move_id.id in vendor_bill_view["domain"][0][2])
 
     def test_expense_paid_company_no_autobalancing_line(self):
-        """
-        Test that when creating the move associated with an expense paid by company, no autobalancing line
-        appears when an analytic is added to a move line.
-        """
         expense = self.create_expenses(
             {
                 "name": "Expense for John Smith",
@@ -1636,7 +1505,6 @@ class TestExpenses(TestExpenseCommon):
         expense.analytic_distribution = {self.analytic_account_1.id: 100.00}
         expense.action_post()
 
-        # Check that there is no fourth autobalancing line on the account move
         self.assertEqual(
             expense.account_move_id.line_ids.mapped("balance"), [86.96, 13.04, -100.0]
         )
@@ -1644,21 +1512,11 @@ class TestExpenses(TestExpenseCommon):
 
 @tagged("-at_install", "post_install")
 class TestExpenseProductTaxAccess(TestExpenseCommon):
-    """`product_has_tax` asks a yes/no question through a company-scoped rule.
-
-    `account.tax` carries `tax_comp_rule` (`company_ids parent_of company_ids`),
-    so walking `product_id.supplier_taxes_id` raises as soon as one of those
-    taxes belongs to a company the reader is not in. The flag was reaching
-    users as a blocking AccessError dialog instead of as a yes or a no.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.other_company_data = cls.setup_other_company(name="Tax Rule Co")
         cls.other_tax = cls.other_company_data["default_tax_purchase"]
-        # The product is shared; the tax on it is not. Reading the m2m as a user
-        # who holds only the main company is what the rule refuses.
         cls.foreign_taxed_product = cls.env["product.product"].create(
             {
                 "name": "Carries another company's tax",
@@ -1685,9 +1543,6 @@ class TestExpenseProductTaxAccess(TestExpenseCommon):
         )
         reader = self._reader(expense)
         reader.invalidate_recordset()
-        # Without `sudo()` on the m2m this raises AccessError instead of
-        # answering. The answer is False: the only tax is another company's,
-        # and `_check_company_domain` drops it.
         self.assertFalse(reader.product_has_tax)
 
     def test_split_wizard_product_has_tax_reads_across_the_company_rule(self):
@@ -1699,7 +1554,6 @@ class TestExpenseProductTaxAccess(TestExpenseCommon):
                 "total_amount_currency": 100.0,
             },
         )
-        # Through the real entry point: the wizard builds its own split lines.
         wizard = self._reader(self.env["hr.expense.split.wizard"]).browse(
             self._reader(expense).action_split_wizard()["res_id"],
         )

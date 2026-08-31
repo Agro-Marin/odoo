@@ -183,7 +183,7 @@
                                                 Amount
                                             </div>
                                             <div class="col-2 o_hr_holidays_card">
-                                                <div t-if="record.holiday_status_requires_allocation.raw_value"> <!-- To keep the same space-->
+                                                <div t-if="record.holiday_status_requires_allocation.raw_value">
                                                     <div class="fw-bold d-flex gap-1 me-1">
                                                         <field name="virtual_remaining_leaves" widget="float" digits="[3,2]"/>
                                                         /
@@ -231,7 +231,7 @@
                                             t-out="record.state.value"/>
                                     </div>
                                     <div class="d-flex flex-row">
-                                        <div id="date_part" class="d-flex flex-row"> <!-- To be override in my_kanban-->
+                                        <div id="date_part" class="d-flex flex-row">
                                                 <t t-set="same_day" t-value="record.request_date_from.raw_value == record.request_date_to.raw_value"/>
                                                 <t t-set="leave_unit" t-value="record.leave_type_request_unit.raw_value"/>
                                                 <t t-out="luxon.DateTime.fromISO(record.request_date_from.raw_value).toLocaleString({ month: 'short', day: 'numeric'})"/>
@@ -330,8 +330,8 @@
         <field name="priority">32</field>
         <field name="arch" type="xml">
             <form string="Time Off Request" class="o_hr_leave_form" duplicate="false">
-            <field name="employee_id" invisible="1"/> <!-- for the employee's default value-->
-            <field name="user_id" invisible="1"/> <!-- for conditional rendering of buttons on card -->
+            <field name="employee_id" invisible="1"/>
+            <field name="user_id" invisible="1"/>
             <header>
                 <button string="Approve" name="action_approve" type="object" class="oe_highlight" invisible="not can_approve or not id"/>
                 <button string="Validate" name="action_approve" invisible="not can_validate or can_approve or not id" type="object" class="oe_highlight"/>
@@ -375,12 +375,11 @@
                                     readonly="state != 'confirm'"
                                     required="not date_from or not date_to"
                                     options="{'end_date_field': 'request_date_to', 'always_range': '1'}"/>
-                                <field name="request_date_to" invisible="1"/> <!-- For Form view test-->
+                                <field name="request_date_to" invisible="1"/>
                                 <div>
                                     ( <field name="duration_display" readonly="1" class="w-auto"/> )
                                 </div>
                             </div>
-                            <!-- half day or custom hours-->
                             <label for="request_date_from_period" invisible="not request_unit_half" string="Day Period"/>
                             <div class="o_row" invisible="not request_unit_half">
                                 <field name="request_date_from_period" invisible="not request_unit_half" required="request_unit_half" readonly="state != 'confirm'" class="o_hr_narrow_field me-2"/>
@@ -477,7 +476,7 @@
                 <attribute name="readonly">0</attribute>
             </xpath>
             <field name="holiday_status_id" position="before">
-                <field name="user_id" invisible="1"/> <!-- Used in HolidaysFormViewDialog -->
+                <field name="user_id" invisible="1"/>
             </field>
         </field>
     </record>

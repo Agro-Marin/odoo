@@ -5,9 +5,6 @@ import { formView, FormController } from "@web/views/form";
 
 export class InterviewerFormController extends FormController {
 
-    /**
-     * Add `o_applicant_interviewer_form` class if necessary
-     */
     get className() {
         const result = super.className;
         const root = this.model.root;

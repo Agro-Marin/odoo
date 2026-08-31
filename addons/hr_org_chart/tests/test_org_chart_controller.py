@@ -5,8 +5,6 @@ from odoo.tests import HttpCase, new_test_user, tagged
 
 @tagged("post_install", "-at_install")
 class TestOrgChartController(HttpCase):
-    """JSON endpoints feeding the org chart widget."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -52,7 +50,6 @@ class TestOrgChartController(HttpCase):
         return res.json().get("result")
 
     def test_redirect_model_for_hr_user(self):
-        """HR officers are redirected to the full employee model."""
         self.authenticate("orgchart_hr", "orgchart_hr")
         self.assertEqual(
             self._rpc("/hr/get_redirect_model", {}),
@@ -60,7 +57,6 @@ class TestOrgChartController(HttpCase):
         )
 
     def test_redirect_model_for_plain_user(self):
-        """Users without HR access only get the public employee model."""
         self.authenticate("orgchart_plain", "orgchart_plain")
         self.assertEqual(
             self._rpc("/hr/get_redirect_model", {}),
@@ -68,7 +64,6 @@ class TestOrgChartController(HttpCase):
         )
 
     def test_org_chart_builds_ancestors_and_children(self):
-        """The chart lists managers top-down and the direct children."""
         self.authenticate("orgchart_hr", "orgchart_hr")
         values = self._rpc(
             "/hr/get_org_chart",
@@ -90,7 +85,6 @@ class TestOrgChartController(HttpCase):
         self.assertEqual(values["self"]["direct_sub_count"], 1)
 
     def test_org_chart_without_employee_is_empty(self):
-        """No employee id yields an empty chart (boundary/negative)."""
         self.authenticate("orgchart_hr", "orgchart_hr")
         values = self._rpc(
             "/hr/get_org_chart",
@@ -102,7 +96,6 @@ class TestOrgChartController(HttpCase):
         self.assertEqual(values, {"managers": [], "children": []})
 
     def test_subordinates_direct(self):
-        """Direct subordinates are the employee's own children."""
         self.authenticate("orgchart_hr", "orgchart_hr")
         res = self._rpc(
             "/hr/get_subordinates",
@@ -114,7 +107,6 @@ class TestOrgChartController(HttpCase):
         self.assertEqual(res, [self.employee.id])
 
     def test_subordinates_indirect(self):
-        """Indirect subordinates exclude the direct children."""
         self.authenticate("orgchart_hr", "orgchart_hr")
         res = self._rpc(
             "/hr/get_subordinates",
@@ -126,7 +118,6 @@ class TestOrgChartController(HttpCase):
         self.assertEqual(sorted(res), sorted([self.child.id]))
 
     def test_subordinates_default_returns_all(self):
-        """Without a type the whole subtree is returned."""
         self.authenticate("orgchart_hr", "orgchart_hr")
         res = self._rpc(
             "/hr/get_subordinates",
@@ -140,7 +131,6 @@ class TestOrgChartController(HttpCase):
         )
 
     def test_subordinates_without_employee_is_empty(self):
-        """No employee id yields an empty payload (boundary)."""
         self.authenticate("orgchart_hr", "orgchart_hr")
         res = self._rpc("/hr/get_subordinates", {"employee_id": False})
         self.assertEqual(res, {})

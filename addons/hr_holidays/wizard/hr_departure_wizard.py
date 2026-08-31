@@ -24,7 +24,6 @@ class HrDepartureWizard(models.TransientModel):
             new_leaves = leaves_with_departure._split_leaves(
                 split_date_from=(self.departure_date + timedelta(days=1))
             )
-            # Post message for changes leaves
             changes_leaves = leaves_with_departure.filtered(
                 lambda leave: leave.date_to.date() <= self.departure_date
             )
@@ -40,7 +39,6 @@ class HrDepartureWizard(models.TransientModel):
                     subtype_xmlid="mail.mt_comment",
                 )
 
-            # Cancel approved leaves
             leaves_after_departure |= leaves_with_departure - changes_leaves
             leaves_after_departure |= new_leaves
             leaves_to_cancel = leaves_after_departure.filtered(
@@ -51,7 +49,6 @@ class HrDepartureWizard(models.TransientModel):
                 departure_date=self.departure_date,
             )
             leaves_to_cancel._force_cancel(cancel_msg, notify_responsibles=False)
-            # Delete others leaves
             leaves_to_delete = leaves_after_departure - leaves_to_cancel
             leaves_to_delete.with_context(leave_skip_state_check=True).unlink()
 

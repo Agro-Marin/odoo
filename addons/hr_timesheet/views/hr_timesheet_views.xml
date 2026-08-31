@@ -96,7 +96,6 @@
             </field>
         </record>
 
-        <!-- For My Timesheet view, groups by week then project -->
         <record id="view_hr_timesheet_line_graph_my" model="ir.ui.view">
             <field name="name">account.analytic.line.graph</field>
             <field name="model">account.analytic.line</field>
@@ -110,7 +109,6 @@
             </field>
         </record>
 
-        <!-- For Other Timesheet view, groups by employee then project -->
         <record id="view_hr_timesheet_line_graph_all" model="ir.ui.view">
             <field name="name">account.analytic.line.graph</field>
             <field name="model">account.analytic.line</field>
@@ -124,7 +122,6 @@
             </field>
         </record>
 
-        <!-- For a single project Timesheet view, group by month then task -->
         <record id="view_hr_timesheet_line_by_project" model="ir.ui.view">
             <field name="name">account.analytic.line.graph.by.project</field>
             <field name="model">account.analytic.line</field>
@@ -388,9 +385,6 @@
                 <xpath expr="//div/span" position="replace" class="ps-0"/>
             </field>
         </record>
-        <!--
-            Actions
-        -->
         <record id="act_hr_timesheet_line" model="ir.actions.act_window">
             <field name="name">My Timesheets</field>
             <field name="path">timesheets</field>

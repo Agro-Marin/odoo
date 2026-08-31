@@ -59,7 +59,7 @@ export class FloatTimeSelectionField extends FloatTimeField {
             onTimeChange: this.onTimeChange.bind(this),
         });
         setTimeout(() => {
-            this.inputFloatTimeRef.el.focus(); // focus on the input rather than the popover
+            this.inputFloatTimeRef.el.focus();
         }, 0);
     }
 

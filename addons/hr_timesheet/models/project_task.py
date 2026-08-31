@@ -232,17 +232,12 @@ class ProjectTask(models.Model):
         return super()._get_cannot_start_with_patterns() + [r"(?!\d+(?:\.\d+)?(?:h|H))"]
 
     def _extract_planned_hours(self, title):
-        """Pull a "3h" estimate out of ``title``, returning what is left."""
         planned_hours_group = self._get_group_pattern()["planned_hours"]
         if not self.allow_timesheets:
             return title
         self.planned_hours = sum(
             float(num) for num in re.findall(planned_hours_group, title)
         )
-        # planned_hours is a stored compute (from the scheduled date range) with
-        # readonly=False. An estimate typed into the title is an explicit value,
-        # not something to re-derive from dates the task does not have yet, so
-        # take it out of the pending recompute that would zero it.
         self.env.remove_to_compute(self._fields["planned_hours"], self)
         return re.subn(planned_hours_group, "", title)[0]
 
@@ -308,7 +303,6 @@ class ProjectTask(models.Model):
         return action
 
     def _get_timesheet(self):
-        # Is override in sale_timesheet
         return self.timesheet_ids
 
     def _get_timesheet_report_data(self):
@@ -357,12 +351,6 @@ class ProjectTask(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_contains_entries(self):
-        """
-        If some tasks to unlink have some timesheets entries, these
-        timesheets entries must be unlinked first.
-        In this case, a warning message is displayed through a RedirectWarning
-        and allows the user to see timesheets entries to unlink.
-        """
         timesheet_data = (
             self.env["account.analytic.line"]
             .sudo()
@@ -374,7 +362,6 @@ class ProjectTask(models.Model):
         task_with_timesheets_ids = [task.id for (task,) in timesheet_data]
         if not task_with_timesheets_ids:
             return
-        # Fetch task IDs with timesheets that the user has read access.
         inaccessible_task_ids = set(task_with_timesheets_ids) - set(
             self.env["account.analytic.line"]
             .search([("task_id", "in", task_with_timesheets_ids)])

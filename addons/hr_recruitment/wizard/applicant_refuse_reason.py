@@ -120,8 +120,7 @@ class ApplicantGetRefuseReason(models.TransientModel):
         else:
             self.duplicate_applicant_ids = self.env["hr.applicant"]
 
-    # Overrides of mixin.mail.composer
-    @api.depends("refuse_reason_id")  # fake trigger otherwise not computed in new mode
+    @api.depends("refuse_reason_id")
     def _compute_render_model(self):
         self.render_model = "hr.applicant"
 
@@ -135,7 +134,6 @@ class ApplicantGetRefuseReason(models.TransientModel):
 
     @api.depends("template_id")
     def _compute_from_template_id(self):
-        # wizard_field_name: template_field_name
         fields_to_copy_name_mapping = {
             "body": "body_html",
             "attachment_ids": "attachment_ids",
@@ -237,7 +235,6 @@ class ApplicantGetRefuseReason(models.TransientModel):
             applicant.message_post(**mail_values)
 
     def _prepare_mail_values(self, applicant):
-        """Render the per-recipient mail values for the given applicant."""
         lang = self._render_lang(applicant.ids)[applicant.id]
         subject = self._render_field("subject", applicant.ids, set_lang=lang)[
             applicant.id

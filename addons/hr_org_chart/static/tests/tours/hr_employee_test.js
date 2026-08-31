@@ -33,4 +33,3 @@ registry.category("web_tour.tours").add("employee_view_access_multicompany", {
         },
     ],
 });
-

@@ -38,7 +38,6 @@ class TestHrHolidaysTour(HttpCase):
                 "leave_validation_type": "hr",
             }
         )
-        # add allocation
         self.env["hr.leave.allocation"].create(
             {
                 "name": "Expired Allocation",

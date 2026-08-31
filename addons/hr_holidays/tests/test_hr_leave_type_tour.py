@@ -11,24 +11,6 @@ from odoo.tests.common import tagged
 class TestHrLeaveTypeTour(HttpCase):
     @freeze_time("01/17/2022")
     def test_hr_leave_type_tour(self):
-        """
-        Test Time Off multi company rule defined in hr_holidays_security for hr_leave_type.
-        The available leave types are the ones whose:
-            - Company is one of the selected companies.
-            - Company is false but whose country is one the countries of the selected companies.
-            - Company is false and country is false
-
-        Define:
-            - 2 Companies: company_1 and company_2
-            - 3 Leave Types:
-                * leave_type_1 whose country is set to the country of company_1.
-                * leave_type_2 whose company is set to company_2.
-                * leave_type_3 whose country and company are both False.
-
-        leave_type_1 will be available if company_1 is one of the selected companies.
-        leave_type_2 will be available if company_2 is one of the selected companies.
-        leave_type_3 will always be available.
-        """
         admin_user = self.env.ref("base.user_admin")
         admin_user.write(
             {

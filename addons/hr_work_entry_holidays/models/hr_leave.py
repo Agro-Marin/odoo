@@ -22,30 +22,15 @@ class HrLeave(models.Model):
         return vals
 
     def _cancel_work_entry_conflict(self):
-        """
-        Creates a leave work entry for each hr.leave in self.
-        Check overlapping work entries with self.
-        Work entries completely included in a leave are archived.
-        Earlier leaves superseded by that archiving are refused.
-        e.g.:
-            |----- work entry ----|---- work entry ----|
-                |------------------- hr.leave ---------------|
-                                    ||
-                                    vv
-            |----* work entry ****|
-                |************ work entry leave --------------|
-        """
         if not self:
             return
 
-        # 1. Create a work entry for each leave
         work_entries_vals_list = []
         for leave in self:
             contracts = leave.employee_id.sudo()._get_versions_with_contract_overlap_with_period(
                 leave.date_from.date(), leave.date_to.date()
             )
             for contract in contracts:
-                # Generate only if it has aleady been generated
                 if (
                     leave.date_to >= contract.date_generated_from
                     and leave.date_from <= contract.date_generated_to
@@ -63,7 +48,6 @@ class HrLeave(models.Model):
         )
 
         if new_leave_work_entries:
-            # 2. Fetch overlapping work entries, grouped by employees
             start = min(self.mapped("date_from"), default=False)
             stop = max(self.mapped("date_to"), default=False)
             work_entry_groups = self.env["hr.work.entry"]._read_group(
@@ -80,20 +64,15 @@ class HrLeave(models.Model):
                 for employee, work_entries in work_entry_groups
             }
 
-            # 3. Archive work entries included in leaves
             included = self.env["hr.work.entry"]
             overlappping = self.env["hr.work.entry"]
             for work_entries in work_entries_by_employee.values():
-                # Work entries for this employee
                 new_employee_work_entries = work_entries & new_leave_work_entries
                 previous_employee_work_entries = work_entries - new_leave_work_entries
 
-                # Build intervals from work entries
                 leave_intervals = new_employee_work_entries._to_intervals()
                 conflicts_intervals = previous_employee_work_entries._to_intervals()
 
-                # Compute intervals completely outside any leave
-                # Intervals are outside, but associated records are overlapping.
                 outside_intervals = conflicts_intervals - leave_intervals
 
                 overlappping |= self.env["hr.work.entry"]._from_intervals(
@@ -104,11 +83,6 @@ class HrLeave(models.Model):
                 {"leave_id": False}
             )
             included = included.filtered(lambda entry: entry.state != "validated")
-            # Entries fully covered by the new leave may still carry a leave_id
-            # from an earlier, still-open leave they used to belong to (now
-            # superseded). Archiving them here must also refuse that earlier
-            # leave, or it is silently left un-refused while its work entries
-            # disappear underneath it.
             stale_leaves = (
                 included.mapped("leave_id").filtered(
                     lambda l: l.state in ("confirm", "validate", "validate1")
@@ -128,11 +102,6 @@ class HrLeave(models.Model):
         employee_ids = self.employee_id.ids
         if vals.get("employee_id"):
             employee_ids += [vals["employee_id"]]
-        # We check a whole day before and after the interval of the earliest
-        # request_date_from and latest request_date_end because date_{from,to}
-        # can lie in this range due to time zone reasons.
-        # (We can't use date_from and date_to as they are not yet computed at
-        # this point.)
         start_dates = self.filtered("request_date_from").mapped("request_date_from") + [
             fields.Date.to_date(vals.get("request_date_from", False)) or date.max
         ]
@@ -149,11 +118,6 @@ class HrLeave(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         employee_ids = {v["employee_id"] for v in vals_list if v.get("employee_id")}
-        # We check a whole day before and after the interval of the earliest
-        # request_date_from and latest request_date_end because date_{from,to}
-        # can lie in this range due to time zone reasons.
-        # (We can't use date_from and date_to as they are not yet computed at
-        # this point.)
         start_dates = [
             fields.Date.to_date(v.get("request_date_from"))
             for v in vals_list
@@ -189,14 +153,10 @@ class HrLeave(models.Model):
 
     def _apply_leave_request(self):
         super()._apply_leave_request()
-        self.sudo()._cancel_work_entry_conflict()  # delete preexisting conflicting work_entries
+        self.sudo()._cancel_work_entry_conflict()
         return True
 
     def action_refuse(self):
-        """
-        Override to archive linked work entries and recreate attendance work entries
-        where the refused leave was.
-        """
         res = super().action_refuse()
         self._regen_work_entries()
         return res
@@ -212,15 +172,11 @@ class HrLeave(models.Model):
         return res
 
     def _regen_work_entries(self):
-        """
-        Called when the leave is refused or cancelled to regenerate the work entries properly for that period.
-        """
         work_entries = (
             self.env["hr.work.entry"].sudo().search([("leave_id", "in", self.ids)])
         )
 
         work_entries.write({"active": False})
-        # Re-create attendance work entries
         vals_list = []
         for work_entry in work_entries:
             vals_list += work_entry.version_id._get_work_entries_values(

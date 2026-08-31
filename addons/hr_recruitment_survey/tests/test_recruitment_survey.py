@@ -11,7 +11,6 @@ class TestRecruitmentSurvey(common.TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
 
-        # Create users to test ACL
         cls.hr_recruitment_manager = mail_new_test_user(
             cls.env,
             name="Gustave Doré",
@@ -34,7 +33,6 @@ class TestRecruitmentSurvey(common.TransactionCase):
             groups="hr_recruitment.group_hr_recruitment_interviewer",
         )
 
-        # Create some sample data to avoid demo data
         cls.department_admins = cls.env["hr.department"].create({"name": "Admins"})
         cls.survey_sysadmin, cls.survey_custom = cls.env["survey.survey"].create(
             [
@@ -89,12 +87,9 @@ class TestRecruitmentSurvey(common.TransactionCase):
             set(answers.mapped("email")), {self.job_applicant.email_from}
         )
 
-        # Tests ACL
-        # Manager: ok for survey type recruitment
         invite_recruitment.with_user(self.hr_recruitment_manager).action_invite()
         with self.assertRaises(AccessError):
             self.survey_custom.with_user(self.hr_recruitment_manager).read(["title"])
-        # Interviewer and User: need to be set as interviewer for the job or the applicant
         for user in (self.hr_recruitment_interviewer, self.hr_recruitment_user):
             with self.subTest(user=user):
                 with self.assertRaises(AccessError):
@@ -120,19 +115,15 @@ class TestRecruitmentSurvey(common.TransactionCase):
             action_print_with_response["url"],
         )
 
-        # Test ACL
-        # Interviewer: no access to hr_applicant
         with self.assertRaises(AccessError):
             self.job_applicant.with_user(
                 self.hr_recruitment_interviewer
             ).action_print_survey()
-        # Manager: ok for survey type recruitment
         self.job_applicant.with_user(self.hr_recruitment_manager).action_print_survey()
         with self.assertRaises(AccessError):
             self.survey_custom.with_user(
                 self.hr_recruitment_manager
             ).action_print_survey()
-        # User: no access unless set as interviewer
         with self.assertRaises(AccessError):
             self.job_applicant.with_user(self.hr_recruitment_user).action_print_survey()
         self.job_applicant.interviewer_ids = self.hr_recruitment_user

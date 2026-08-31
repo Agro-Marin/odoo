@@ -113,7 +113,6 @@
             <field name="domain">[('is_internal_project', '=', False), ("is_template", "=", False)]</field>
         </record>
 
-        <!-- Project Template  -->
         <record id="project_templates_view_list_inherit_timesheet" model="ir.ui.view">
             <field name="name">project.project.template.list.inherit.timesheet</field>
             <field name="model">project.project</field>

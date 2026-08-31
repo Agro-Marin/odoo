@@ -22,14 +22,6 @@ class TestHrHolidaysCommon(common.TransactionCase):
 
         cls.env.user.company_id = cls.company
 
-        # The available time off types are the ones whose:
-        # 1. Company is one of the selected companies.
-        # 2. Company is false but whose country is one the countries of the selected companies.
-        # 3. Company is false and country is false
-        # Thus, a time off type is defined to be available for `Test company`
-        # For example, the tour 'time_off_request_calendar_view' would succeed (false positive) without this leave type.
-        # However, the tour won't create a time-off request (as expected)because no time-off type is available to be selected on the leave
-        # This would cause the test case that uses the tour to fail.
         cls.env["hr.leave.type"].create(
             {
                 "name": "Test Leave Type",
@@ -39,7 +31,6 @@ class TestHrHolidaysCommon(common.TransactionCase):
             }
         )
 
-        # Test users to use through the various tests
         cls.user_hruser = mail_new_test_user(
             cls.env,
             login="armande",
@@ -69,7 +60,6 @@ class TestHrHolidaysCommon(common.TransactionCase):
             cls.env, login="external", password="external", groups="base.group_user"
         )
         cls.external_user_employee_id = cls.external_user_employee.id
-        # Hr Data
         Department = cls.env["hr.department"].with_context(tracking_disable=True)
 
         cls.hr_dept = Department.create(
@@ -200,7 +190,6 @@ class TestHolidayContract(TransactionCase):
             }
         )
 
-        # I create a new employee "Jules"
         cls.jules_emp = cls.env["hr.employee"].create(
             {
                 "name": "Jules",
@@ -387,9 +376,8 @@ class TestHolidayContract(TransactionCase):
             {"name": "Default calendar"}
         )
 
-        # This contract ends at the 15th of the month
         cls.jules_emp.version_id.write(
-            {  # Fixed term contract
+            {
                 "contract_date_end": datetime.strptime("2015-11-15", "%Y-%m-%d"),
                 "contract_date_start": datetime.strptime("2015-01-01", "%Y-%m-%d"),
                 "date_version": datetime.strptime("2015-01-01", "%Y-%m-%d"),
@@ -400,7 +388,6 @@ class TestHolidayContract(TransactionCase):
         )
         cls.contract_cdd = cls.jules_emp.version_id
 
-        # This contract starts the next day
         cls.contract_cdi = cls.jules_emp.create_version(
             {
                 "date_version": datetime.strptime("2015-11-16", "%Y-%m-%d"),

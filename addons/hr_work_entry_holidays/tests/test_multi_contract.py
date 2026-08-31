@@ -8,7 +8,6 @@ from odoo.addons.hr_work_entry_holidays.tests.common import TestWorkEntryHoliday
 @tagged("work_entry_multi_contract")
 class TestWorkEntryHolidaysMultiContract(TestWorkEntryHolidaysBase):
     def test_multi_contract_holiday(self):
-        # Leave during second contract
         leave = self.create_leave(
             datetime(2015, 11, 17),
             datetime(2015, 11, 20),

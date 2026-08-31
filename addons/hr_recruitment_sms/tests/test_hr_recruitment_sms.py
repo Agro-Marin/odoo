@@ -14,7 +14,6 @@ class TestHrRecruitmentSms(TransactionCase):
         )
 
     def test_action_send_sms_opens_mass_composer(self):
-        """The applicant SMS action opens the composer in mass mode with a log."""
         action = self.applicants.action_send_sms()
         self.assertEqual(action["res_model"], "sms.composer")
         self.assertEqual(action["context"]["default_composition_mode"], "mass")
@@ -22,7 +21,6 @@ class TestHrRecruitmentSms(TransactionCase):
         self.assertEqual(action["context"]["default_res_ids"], self.applicants.ids)
 
     def test_action_send_sms_scopes_to_recordset(self):
-        """The composer targets exactly the applicants it was launched on."""
         one = self.applicants[0]
         action = one.action_send_sms()
         self.assertEqual(action["context"]["default_res_ids"], one.ids)

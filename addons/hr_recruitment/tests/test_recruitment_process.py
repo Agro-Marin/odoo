@@ -25,7 +25,6 @@ class TestRecruitmentProcess(TestHrCommon):
         job_developer = job_developer.with_user(self.res_users_hr_officer.id)
         employee_niv = employee_niv.with_user(self.res_users_hr_officer.id)
 
-        # Create a new HR Recruitment Officer
         res_users_hr_recruitment_officer = self.env["res.users"].create(
             {
                 "company_id": self.env.ref("base.main_company").id,
@@ -42,8 +41,6 @@ class TestRecruitmentProcess(TestHrCommon):
             }
         )
 
-        # An applicant is interested in the job position. So he sends a resume by email.
-        # In Order to test process of Recruitment so giving HR officer's rights
         with file_open("hr_recruitment/tests/resume.eml", "rb") as request_file:
             request_message = request_file.read()
         self.env["mixin.mail.thread"].with_user(
@@ -52,7 +49,6 @@ class TestRecruitmentProcess(TestHrCommon):
             "hr.applicant", request_message, custom_values={"job_id": job_developer.id}
         )
 
-        # After getting the mail, I check the details of the new applicant.
         applicant = self.env["hr.applicant"].search(
             [("email_from", "ilike", "Richard_Anderson@yahoo.com")], limit=1
         )
@@ -75,9 +71,7 @@ class TestRecruitmentProcess(TestHrCommon):
             "Stage should be 'New' and is '%s'." % (applicant.stage_id.name),
         )
         self.assertTrue(resume_ids, "Resume is not attached.")
-        # I assign the Job position to the applicant
         applicant.write({"job_id": job_developer.id})
-        # I schedule meeting with applicant for interview.
         applicant_meeting = applicant.action_create_meeting()
         self.assertEqual(
             applicant_meeting["context"]["default_name"],
@@ -109,7 +103,6 @@ class TestRecruitmentProcess(TestHrCommon):
             )
         )
         job = self.env["hr.job"].create({"name": "Test Job for Notification"})
-        # Make test user follow Test HR Job
         self.env["mail.followers"].create(
             {
                 "res_model": "hr.job",
@@ -134,7 +127,6 @@ class TestRecruitmentProcess(TestHrCommon):
                 "regex": "^New application:.*from (.*)",
             }
         )
-        # Regex applied on Subject
         applicant = self.env["hr.applicant"].message_new(
             {
                 "message_id": "message_id_for_rec",
@@ -145,7 +137,6 @@ class TestRecruitmentProcess(TestHrCommon):
             }
         )
 
-        # Regex applied on Body
         applicant2 = self.env["hr.applicant"].message_new(
             {
                 "message_id": "message_id_for_rec",
@@ -163,7 +154,6 @@ class TestRecruitmentProcess(TestHrCommon):
         self.assertFalse(applicant2.email_from)
 
     def test_email_application_multi_company(self):
-        """Make sure that receiving emails for jobs in companies different from self.env.company work."""
         other_company = self.env["res.company"].create({"name": "Other Company"})
         job_developer = self.env["hr.job"].create(
             {
@@ -178,7 +168,6 @@ class TestRecruitmentProcess(TestHrCommon):
             "hr.applicant", request_message, custom_values={"job_id": job_developer.id}
         )
 
-        # Make sure the applicant are created in the right company
         applicant = self.env["hr.applicant"].search(
             [("email_from", "ilike", "Richard_Anderson@yahoo.com")], limit=1
         )
@@ -189,10 +178,6 @@ class TestRecruitmentProcess(TestHrCommon):
         )
 
     def test_email_application_department_with_no_company(self):
-        """
-        Test that applicants created from incoming emails are assigned the job's company when the job's department
-        has no company set.
-        """
         mystery_company = self.env["res.company"].create({"name": "Mystery Company"})
         _mail_alias_domain = self.env["mail.alias.domain"].create(
             {

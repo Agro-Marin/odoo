@@ -82,4 +82,3 @@ test("Test request creator buttons", async() => {
     await click(".o_cw_popover_link");
     await waitFor("button:contains(Cancel Time Off)");
 })
-

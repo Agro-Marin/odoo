@@ -11,10 +11,6 @@ class IrWebsocket(models.AbstractModel):
 
     def _update_mail_presence(self, inactivity_period):
         super()._update_mail_presence(inactivity_period)
-        #  This method can either be called due to an http or a
-        #  websocket request. The request itself is necessary to
-        #  retrieve the current guest. Let's retrieve the proper
-        #  request.
         req = request or wsrequest
         if self.env.user._is_internal():
             ip_address = req.httprequest.remote_addr

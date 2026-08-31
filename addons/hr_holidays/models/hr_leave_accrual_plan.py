@@ -160,7 +160,6 @@ class HrLeaveAccrualPlan(models.Model):
     @api.depends("carryover_month")
     def _compute_carryover_day(self):
         for plan in self:
-            # 2020 is a leap year, so monthrange(2020, february) will return [2, 29]
             plan.carryover_day = str(
                 min(
                     monthrange(2020, int(plan.carryover_month))[1],

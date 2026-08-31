@@ -49,8 +49,6 @@ class TestRecruitmentSkills(TransactionCase):
         )
 
     def test_matching_score_zero_total_no_div_error(self):
-        """A job requiring only 0-progress skills with no expected degree must not
-        crash applicant_matching_score with ZeroDivisionError (job_total == 0)."""
         self.t_job.write(
             {
                 "job_skill_ids": [
@@ -58,7 +56,7 @@ class TestRecruitmentSkills(TransactionCase):
                         {
                             "skill_type_id": self.t_skill_type.id,
                             "skill_id": self.t_skill_1.id,
-                            "skill_level_id": self.t_skill_level_1.id,  # level_progress = 0
+                            "skill_level_id": self.t_skill_level_1.id,
                         }
                     )
                 ],
@@ -70,9 +68,6 @@ class TestRecruitmentSkills(TransactionCase):
         self.assertEqual(score, 0)
 
     def test_add_a_skill_to_applicant(self):
-        """
-        Test that adding a skill to an applicant works
-        """
         app_form = Form(self.t_applicant)
         with app_form.current_applicant_skill_ids.new() as skill:
             skill.skill_type_id = self.t_skill_type
@@ -99,9 +94,6 @@ class TestRecruitmentSkills(TransactionCase):
         )
 
     def test_add_a_skill_to_applicant_twice(self):
-        """
-        Assert that adding the same skill twice to an applicant does not work
-        """
         app_form = Form(self.t_applicant)
         with app_form.current_applicant_skill_ids.new() as skill:
             skill.skill_type_id = self.t_skill_type
@@ -118,11 +110,6 @@ class TestRecruitmentSkills(TransactionCase):
         self.assertEqual(len(self.t_applicant.applicant_skill_ids), 1)
 
     def test_access_error_on_adding_applicant(self):
-        """
-        Test that adding an applicant to a talent pool via the wizard succeeds
-        for a user with only Recruitment access, without raising an AccessError.
-        """
-        # Create a fresh applicant never added to any pool
         new_applicant = self.env["hr.applicant"].create(
             {
                 "partner_name": "New Applicant Access Test",
@@ -130,7 +117,6 @@ class TestRecruitmentSkills(TransactionCase):
             }
         )
 
-        # Create a restricted user with Recruitment access only
         recruitment_group = self.env.ref("hr_recruitment.group_hr_recruitment_user")
         user_demo = self.env["res.users"].create(
             {
@@ -141,7 +127,6 @@ class TestRecruitmentSkills(TransactionCase):
             }
         )
 
-        # No error should be raised.
         self.env["talent.pool.add.applicants"].create(
             {
                 "applicant_ids": [(6, 0, [new_applicant.id])],
@@ -153,9 +138,6 @@ class TestRecruitmentSkills(TransactionCase):
         self.assertEqual(len(talent_pool_applicants), 1)
 
     def test_one_skill_is_copied_from_applicant_to_talent(self):
-        """
-        Assert that a skill is copied from the applicant to the talent when the talent is created
-        """
         app_form = Form(self.t_applicant)
         with app_form.current_applicant_skill_ids.new() as skill:
             skill.skill_type_id = self.t_skill_type
@@ -201,9 +183,6 @@ class TestRecruitmentSkills(TransactionCase):
         )
 
     def test_multi_skill_is_copied_from_applicant_to_talent(self):
-        """
-        Assert that multiple skills are copied from the applicant to the talent when the talent is created
-        """
         skills = [self.t_skill_1, self.t_skill_2]
         app_form = Form(self.t_applicant)
         for skill in skills:
@@ -264,12 +243,6 @@ class TestRecruitmentSkills(TransactionCase):
         )
 
     def test_add_skill_to_applicant_with_talent_without_skill(self):
-        """
-        Verify one-way skill synchronization between an applicant and its linked talent.
-
-        This test ensures that when a skill is added on an applicant, the same skill is also added or updated on the talent.
-        In this test the skill does not exist on the talent prior to adding it to the applicant.
-        """
         app_form = Form(self.t_applicant)
 
         talent = (
@@ -317,12 +290,6 @@ class TestRecruitmentSkills(TransactionCase):
         )
 
     def test_add_skill_to_applicant_with_talent_with_skill(self):
-        """
-        Verify one-way skill synchronization between an applicant and its linked talent.
-
-        This test ensures that when a skill is added on an applicant, the same skill is also added or updated on the talent.
-        In this test the skill exists on the talent prior to adding it to the applicant.
-        """
         app_form = Form(self.t_applicant)
 
         talent = (
@@ -375,12 +342,6 @@ class TestRecruitmentSkills(TransactionCase):
         )
 
     def test_update_skill_on_applicant_with_talent_without_skill(self):
-        """
-        Verify one-way skill synchronization between an applicant and its linked talent.
-
-        This test ensures that when a skill is updated on an applicant, the same skill is also added or updated on the talent.
-        In this test the skill does not exist on the talent prior to updating it to the applicant.
-        """
         app_form = Form(self.t_applicant)
         with app_form.current_applicant_skill_ids.new() as skill:
             skill.skill_type_id = self.t_skill_type
@@ -434,12 +395,6 @@ class TestRecruitmentSkills(TransactionCase):
         )
 
     def test_update_skill_on_applicant_with_talent_with_skill(self):
-        """
-        Verify one-way skill synchronization between an applicant and its linked talent.
-
-        This test ensures that when a skill is updated on an applicant, the same skill is also added or updated on the talent.
-        In this test the skill exists on the talent prior to updating it to the applicant.
-        """
         app_form = Form(self.t_applicant)
         with app_form.current_applicant_skill_ids.new() as skill:
             skill.skill_type_id = self.t_skill_type
@@ -491,12 +446,6 @@ class TestRecruitmentSkills(TransactionCase):
         )
 
     def test_delete_skill_on_applicant_with_talent_without_skill(self):
-        """
-        Verify one-way skill synchronization between an applicant and its linked talent.
-
-        This test ensures that when a skill is deleted on an applicant, the same skill is also deleted on the talent.
-        In this test the skill does not exist on the talent prior to deleting it on the applicant.
-        """
         app_form = Form(self.t_applicant)
         with app_form.current_applicant_skill_ids.new() as skill:
             skill.skill_type_id = self.t_skill_type
@@ -531,12 +480,6 @@ class TestRecruitmentSkills(TransactionCase):
         )
 
     def test_delete_skill_on_applicant_with_talent_with_skill(self):
-        """
-        Verify one-way skill synchronization between an applicant and its linked talent.
-
-        This test ensures that when a skill is deleted on an applicant, the same skill is also deleted on the talent.
-        In this test the skill exists on the talent prior to deleting it on the applicant.
-        """
         app_form = Form(self.t_applicant)
         with app_form.current_applicant_skill_ids.new() as skill:
             skill.skill_type_id = self.t_skill_type
@@ -569,11 +512,6 @@ class TestRecruitmentSkills(TransactionCase):
         )
 
     def test_adding_a_skill_on_a_talent_does_not_affect_applicants(self):
-        """
-        Verify one-way skill synchronization between an applicant and its linked talent.
-
-        This test ensures that when a skill is added on a talent, the linked applicants are unaffected.
-        """
         talent = (
             self.env["talent.pool.add.applicants"]
             .create(
@@ -614,11 +552,6 @@ class TestRecruitmentSkills(TransactionCase):
         )
 
     def test_updating_a_skill_on_a_talent_does_not_affect_applicants(self):
-        """
-        Verify one-way skill synchronization between an applicant and its linked talent.
-
-        This test ensures that when a skill is updated on a talent, the linked applicants are unaffected.
-        """
         app_form = Form(self.t_applicant)
         with app_form.current_applicant_skill_ids.new() as skill:
             skill.skill_type_id = self.t_skill_type
@@ -675,11 +608,6 @@ class TestRecruitmentSkills(TransactionCase):
         )
 
     def test_removing_a_skill_on_a_talent_does_not_affect_applicants(self):
-        """
-        Verify one-way skill synchronization between an applicant and its linked talent.
-
-        This test ensures that when a skill is deleted on a talent, the linked applicants are unaffected.
-        """
         app_form = Form(self.t_applicant)
         with app_form.current_applicant_skill_ids.new() as skill:
             skill.skill_type_id = self.t_skill_type
@@ -721,9 +649,6 @@ class TestRecruitmentSkills(TransactionCase):
         )
 
     def test_move_applicant_to_matching_job(self):
-        """
-        Test that moving an applicant to a job works
-        """
         applicant = self.t_applicant
         first_job = self.env["hr.job"].create({"name": "First Job"})
         second_job = self.env["hr.job"].create({"name": "Second Job"})
@@ -798,9 +723,6 @@ class TestRecruitmentSkills(TransactionCase):
         self.assertCountEqual(applicant_skills_name_list, employee_skills_name_list)
 
     def test_interviewer_skills_access(self):
-        """
-        Test that an interviewer can see the skills of an applicant
-        """
         interviewer_user = new_test_user(
             self.env,
             "itw",
@@ -816,7 +738,6 @@ class TestRecruitmentSkills(TransactionCase):
             }
         )
         self.t_applicant.interviewer_ids = interviewer_user.ids
-        # flush to force compute methods when reading fields
         self.env.flush_all()
         matching_skill_ids = self.t_applicant.with_user(
             interviewer_user
@@ -828,10 +749,6 @@ class TestRecruitmentSkills(TransactionCase):
         )
 
     def test_applicant_from_talent_preserve_skills(self):
-        """
-        Verify that when an applicant is created from a talent pool applicant, the new applicant
-        has the same skills as the talent and the talent retains all its skills.
-        """
         talent = (
             self.env["talent.pool.add.applicants"]
             .create(

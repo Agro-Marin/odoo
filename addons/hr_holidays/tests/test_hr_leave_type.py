@@ -36,7 +36,7 @@ class TestHrLeaveType(TestHrHolidaysCommon):
                 "name": "Remote Work",
                 "employee_id": employee.id,
                 "holiday_status_id": worked_leave_type.id,
-                "request_date_from": "2025-09-01",  # Monday
+                "request_date_from": "2025-09-01",
                 "request_date_to": "2025-09-05",
             }
         )
@@ -85,7 +85,6 @@ class TestHrLeaveType(TestHrHolidaysCommon):
             self.assertTrue(employee.is_absent)
 
     def test_type_creation_right(self):
-        # HrUser creates some holiday statuses -> crash because only HrManagers should do this
         with self.assertRaises(AccessError):
             self.env["hr.leave.type"].with_user(self.user_hruser_id).create(
                 {
@@ -95,16 +94,6 @@ class TestHrLeaveType(TestHrHolidaysCommon):
             )
 
     def test_users_tz_shift_back(self):
-        """This test follows closely related bug report and simulates its situation.
-        We're located in Saipan (GMT+10) and we allocate some employee a leave from 19Aug-20Aug.
-        Then we simulate opening the employee's calendar and attempting to allocate 21August.
-        We should not get any valid allocation there as is it outsite of valid alocation period.
-
-        2024-08-19      2024-08-20        2024-08-21
-        ────┬─────────────────┬─────────────────┬─────►
-            └─────────────────┘             requested
-          Valid allocation period              day
-        """
         employee = self.env["hr.employee"].create({"name": "Test Employee"})
         leave_type = self.env["hr.leave.type"].create({"name": "Test Leave"})
 

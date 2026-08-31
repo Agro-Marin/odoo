@@ -110,12 +110,9 @@ class TestWorkEntryHolidaysPerformancesBigData(TestWorkEntryHolidaysBase):
         cls.leaves.action_approve()
 
     def test_work_entries_generation_perf(self):
-        # generate work entries for a hundred employees over two months
-        with self.assertQueryCount(__system__=883, admin=2807):  # com: 402 / 2807
+        with self.assertQueryCount(__system__=883, admin=2807):
             work_entries = self.contracts.generate_work_entries(
                 date(2020, 7, 1), date(2020, 8, 31)
             )
 
-        # Original work entries to generate when we don't adapt date_generated_from and
-        # date_generated_to when they are equal for old contracts: 138300
         self.assertEqual(len(work_entries), 4400)

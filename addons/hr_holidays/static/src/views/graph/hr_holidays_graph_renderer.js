@@ -15,7 +15,6 @@ export class HrHolidaysGraphRenderer extends GraphRenderer {
         let data = super.getBarChartData();
         for (let index = 0; index < data.datasets.length; ++index) {
             const dataset = data.datasets[index];
-            // dataset.label takes the form 'Mitchell Admin / Paid Time Off / Allocation'.
             if (dataset.label.split(this.delimiter).includes(this.model.allocation_label)){
                 dataset.stack = this.model.allocation_label;
             }
@@ -30,7 +29,6 @@ export class HrHolidaysGraphRenderer extends GraphRenderer {
             data.datasets.push(...balanceDatasets);
         }
 
-        // Change time off data to +ve values to be better visualized in the graph view.
         for (let dataset of data.datasets.filter(dataset => dataset.stack === this.model.timeoff_label)){
             dataset.data = dataset.data.map(datapoint => -datapoint);
         }
@@ -75,11 +73,9 @@ export class HrHolidaysGraphRenderer extends GraphRenderer {
             )
         ); 
 
-        /* Because the balanceDataset includes both `Allocation` and `Time Off` records: {"leave_type":"allocation"} and {"leave_type":"request"} are removed from identifiers.
-        For example: the identifier "[{"employee_id":[1,"Mitchell Admin"]},{"leave_type":"allocation"}]" becomes "[{"employee_id":[1,"Mitchell Admin"]}]" */
         balanceDataset.identifiers = new Set([...dataset.identifiers].map(identifier => 
                 JSON.stringify( 
-                    JSON.parse(identifier) // The output is an array of objects.
+                    JSON.parse(identifier)
                     .filter(identifierObject => !identifierObject.hasOwnProperty('leave_type'))
                 )
             )

@@ -42,12 +42,6 @@ class TestRecruitmentInterviewer(MailCase):
         )
 
     def test_interviewer_group(self):
-        """
-        Test that adding a user as interviewer to a job / applicant adds
-        that user in the Interviewer group. Also checks that removing the
-        user will remove them when they are no longer required (e.g. no
-        longer interviewer of any job/applicant).
-        """
         interviewer_group = self.env.ref(
             "hr_recruitment.group_hr_recruitment_interviewer"
         )
@@ -142,7 +136,6 @@ class TestRecruitmentInterviewer(MailCase):
         )
         applicant.with_user(self.interviewer_user).read()
 
-        # An interviewer can change the interviewers
         applicant.with_user(
             self.interviewer_user
         ).interviewer_ids = self.simple_user.ids
@@ -152,9 +145,6 @@ class TestRecruitmentInterviewer(MailCase):
             applicant.with_user(self.interviewer_user).create_employee_from_applicant()
 
     def test_update_interviewer_for_multiple_applicants(self):
-        """
-        Test that assigning interviewer to multiple applicants.
-        """
         interviewer_user_1 = new_test_user(
             self.env,
             "sma",
@@ -190,16 +180,13 @@ class TestRecruitmentInterviewer(MailCase):
             {"interviewer_ids": [(6, 0, [interviewer_user_2.id])]}
         )
 
-        # update interviewer to multiple applicants.
         applicants.write({"interviewer_ids": [(4, interviewer_user_3.id)]})
 
-        # Ensure all interviewers are assigned
         self.assertCountEqual(
             applicants.interviewer_ids.ids,
             [interviewer_user_1.id, interviewer_user_2.id, interviewer_user_3.id],
         )
 
-        # Checked that notification message is created
         message = self.env["mail.message"].search(
             [("res_id", "=", applicant.id)], limit=1
         )

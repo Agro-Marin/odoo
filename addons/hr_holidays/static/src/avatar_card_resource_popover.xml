@@ -8,9 +8,7 @@
  <i t-elif="record.im_status === 'leave_offline'" class="fa-solid fa-plane text-500" title="Out of office" role="img" aria-label="User is out of office"/>
  </xpath>
  <xpath expr="//span[@name='icon'][hasclass('o_employee_presence_status')]" position="inside">
- <!-- Employee is on time off but he is connected -->
  <i t-if="record.hr_icon_display === 'presence_holiday_present'" class="fa-solid fa-plane text-success me-1" title="Active but on leave" role="img" aria-label="Active but on leave"/>
- <!-- Employee is on time off and he is not connected -->
  <i t-if="record.hr_icon_display === 'presence_holiday_absent'" class="fa-solid fa-plane text-warning me-1" title="On Time Off" role="img" aria-label="On Time Off"/>
  </xpath>
  <xpath expr="//span[hasclass('o-mail-avatar-card-name')]" position="after">

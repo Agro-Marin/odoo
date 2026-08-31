@@ -22,7 +22,6 @@
             <field name="name">Expense</field>
             <field name="code">EXP</field>
             <field name="type">purchase</field>
-            <!-- avoid being selected as default journal -->
             <field name="sequence">99</field>
             <field name="alias_name">purchase_expense</field>
         </record>
@@ -41,7 +40,6 @@
             <field name="private_country_id" ref="base.be"/>
         </record>
 
-        <!-- ++++++++++++++ Expense for Admin ++++++++++++++-->
         <record id="screen_expense" model="hr.expense">
             <field name="name">Screen</field>
             <field name="employee_id" ref="hr.employee_admin"/>
@@ -119,7 +117,6 @@
             <field eval="56.8" name="total_amount_currency"/>
         </record>
 
-        <!-- ++++++++++++++ Expense for Demo ++++++++++++++-->
         <record id="travel_demo_by_car_expense" model="hr.expense">
             <field name="name">Travel by Car</field>
             <field name="employee_id" ref="hr.employee_qdp"/>
@@ -140,7 +137,6 @@
             <field name="approval_state">approved</field>
         </record>
 
-        <!-- ++++++++++++++ Expense for Keith Byrd ++++++++++++++-->
         <record id="pizzas_bill_expense" model="hr.expense">
             <field name="name">Pizzas</field>
             <field name="employee_id" ref="hr.employee_fme"/>
@@ -169,8 +165,6 @@
             <field name="approval_state">approved</field>
         </record>
 
-        <!-- ++++++++++++++ Expense sheet for Ronnie Hart ++++++++++++++-->
-
         <record id="chair_bill_expense" model="hr.expense">
             <field name="name">Chairs</field>
             <field name="employee_id" ref="hr.employee_al"/>
@@ -190,7 +184,6 @@
             <field name="approval_state">refused</field>
         </record>
 
-        <!-- ++++++++++++++ Expense for Randall Lewis ++++++++++++++-->
         <record id="afterwork_bill_expense" model="hr.expense">
             <field name="name">Car tyres</field>
             <field name="employee_id" ref="hr.employee_stw"/>

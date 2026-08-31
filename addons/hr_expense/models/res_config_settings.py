@@ -63,7 +63,6 @@ class ResConfigSettings(models.TransientModel):
             "hr_expense.mail_alias_expense", raise_if_not_found=False
         )
         if not expense_alias and self.hr_expense_alias_prefix:
-            # create data again
             alias = (
                 self.env["mail.alias"]
                 .sudo()

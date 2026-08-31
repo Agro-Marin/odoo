@@ -189,12 +189,9 @@ class AccountAnalyticLine(models.Model):
 
     def _is_readonly(self):
         self.check_singleton()
-        # is overridden in other timesheet related modules
         return False
 
     def _compute_readonly_timesheet(self):
-        # Since the mrp_module gives write access to portal user on timesheet, we check that the user is an internal one before giving the write access.
-        # It is not supposed to be needed, since portal user are not supposed to have access to the views using this field, but better be safe than sorry
         if not self.env.user.has_group("base.group_user"):
             self.readonly_timesheet = True
         else:
@@ -235,9 +232,6 @@ class AccountAnalyticLine(models.Model):
 
     @api.onchange("project_id")
     def _onchange_project_id(self):
-        # TODO KBA in master - check to do it "properly", currently:
-        # This onchange is used to reset the task_id when the project changes.
-        # Doing it in the compute will remove the task_id when the project of a task changes.
         if self.project_id != self.task_id.project_id:
             self.task_id = False
 
@@ -297,7 +291,6 @@ class AccountAnalyticLine(models.Model):
                     )
 
     def _check_can_write(self, values):
-        # If it's a basic user then check if the timesheet is his own.
         if not (
             self.env.user.has_group("hr_timesheet.group_hr_timesheet_approver")
             or self.env.su
@@ -305,22 +298,18 @@ class AccountAnalyticLine(models.Model):
             raise AccessError(_("You cannot access timesheets that are not yours."))
 
     def _check_can_create(self):
-        # override in other modules to check current user has create access
         pass
 
     @api.model_create_multi
     def create(self, vals_list):
         user_timezone = self.env.tz
-        # Before creating a timesheet, we need to put a valid employee_id in the vals
         default_user_id = self._default_user()
         user_ids = []
         employee_ids = []
-        # If batch creating from the calendar view, prefetch all employees to avoid fetching them one by one in the loop
         if self.env.context.get("timesheet_calendar"):
             self.env["hr.employee"].browse(
                 [vals.get("employee_id") for vals in vals_list]
             )
-        # 1/ Collect the user_ids and employee_ids from each timesheet vals
         skipped_vals = 0
         valid_vals = 0
         for vals in vals_list[:]:
@@ -345,7 +334,6 @@ class AccountAnalyticLine(models.Model):
             task = self.env["project.task"].sudo().browse(vals.get("task_id"))
             project = self.env["project.project"].sudo().browse(vals.get("project_id"))
             if not (task or project):
-                # It is not a timesheet
                 continue
             if task:
                 if not task.project_id:
@@ -387,7 +375,6 @@ class AccountAnalyticLine(models.Model):
                     user_ids.append(user_id)
             valid_vals += 1
 
-        # 2/ Search all employees related to user_ids and employee_ids, in the selected companies
         HrEmployee_sudo = self.env["hr.employee"].sudo()
         employees = HrEmployee_sudo.search(
             [
@@ -399,12 +386,6 @@ class AccountAnalyticLine(models.Model):
             ]
         )
 
-        #                 ┌───── in search results = active/in companies ────────> was found with... ─── employee_id ───> (A) There is nothing to do, we will use this employee_id
-        # 3/ Each employee                                                                          └──── user_id ──────> (B)** We'll need to select the right employee for this user
-        #                 └─ not in search results = archived/not in companies ──> (C) We raise an error as we can't create a timesheet for an archived employee
-        # ** We can rely on the user to get the employee_id if
-        #    he has an active employee in the company of the timesheet
-        #    or he has only one active employee for all selected companies
         valid_employee_per_id = {}
         employee_id_per_company_per_user = defaultdict(dict)
         for employee in employees:
@@ -415,7 +396,6 @@ class AccountAnalyticLine(models.Model):
                     employee.company_id.id
                 ] = employee.id
 
-        # 4/ Put valid employee_id in each vals
         error_msg = _(
             "Timesheets must be created with an active employee in the selected companies."
         )
@@ -441,12 +421,11 @@ class AccountAnalyticLine(models.Model):
                 if employee_in_id in valid_employee_per_id:
                     vals["user_id"] = (
                         valid_employee_per_id[employee_in_id].sudo().user_id.id
-                    )  # (A) OK
+                    )
                     continue
-                raise ValidationError(error_msg)  # (C) KO
-            user_id = vals.get("user_id", default_user_id)  # (B)...
+                raise ValidationError(error_msg)
+            user_id = vals.get("user_id", default_user_id)
 
-            # ...Look for an employee, with ** conditions
             employee_per_company = employee_id_per_company_per_user.get(user_id)
             employee_out_id = False
             if employee_per_company:
@@ -472,14 +451,13 @@ class AccountAnalyticLine(models.Model):
                         .browse(vals.get("company_id", self.env.company.id))
                         .project_time_mode_id.id
                     )
-            else:  # ...and raise an error if they fail
+            else:
                 raise ValidationError(error_msg)
 
-        # 5/ Finally, create the timesheets
         lines = super().create(vals_list)
         lines._check_can_create()
         for line, values in zip(lines, vals_list, strict=True):
-            if line.project_id:  # applied only for timesheet
+            if line.project_id:
                 line._timesheet_postprocess(values)
 
         if self.env.context.get("timesheet_calendar"):
@@ -538,7 +516,6 @@ class AccountAnalyticLine(models.Model):
         if "company_id" in values and not values.get("company_id"):
             del values["company_id"]
         result = super().write(values)
-        # applied only for timesheet
         self.filtered(lambda t: t.project_id)._timesheet_postprocess(values)
         return result
 
@@ -570,7 +547,6 @@ class AccountAnalyticLine(models.Model):
 
     def _timesheet_get_portal_domain(self):
         if self.env.user.has_group("hr_timesheet.group_hr_timesheet_user"):
-            # Then, he is internal user, and we take the domain for this current user
             return self.env["ir.rule"]._get_domain_accessible_records(self._name)
         return (
             Domain(
@@ -609,8 +585,7 @@ class AccountAnalyticLine(models.Model):
         return {fname: project[fname].id for fname in self._get_plan_fnames()}
 
     def _timesheet_postprocess(self, values):
-        """Hook to update record one by one according to the values of a `write` or a `create`."""
-        sudo_self = self.sudo()  # this creates only one env for all operation that required sudo() in `_timesheet_postprocess_values`override
+        sudo_self = self.sudo()
         values_to_write = self._timesheet_postprocess_values(values)
         for timesheet in sudo_self:
             if values_to_write[timesheet.id]:
@@ -618,17 +593,8 @@ class AccountAnalyticLine(models.Model):
         return values
 
     def _timesheet_postprocess_values(self, values):
-        """Get the addionnal values to write on record
-        :param dict values: values for the model's fields, as a dictionary::
-            {'field_name': field_value, ...}
-        :return: a dictionary mapping each record id to its corresponding
-            dictionary values to write (may be empty).
-        """
         result = {id_: {} for id_ in self.ids}
-        sudo_self = (
-            self.sudo()
-        )  # this creates only one env for all operation that required sudo()
-        # (re)compute the amount (depending on unit_amount, employee_id for the cost, and account_id for currency)
+        sudo_self = self.sudo()
         if any(
             field_name in values
             for field_name in ["unit_amount", "employee_id", "account_id"]
@@ -674,8 +640,6 @@ class AccountAnalyticLine(models.Model):
         return result
 
     def _split_amount_fname(self):
-        # split the quantity instead of the amount, since the amount is postprocessed
-        # based on the quantity
         return "unit_amount" if self.project_id else super()._split_amount_fname()
 
     def _is_timesheet_encode_uom_day(self):
@@ -731,9 +695,6 @@ class AccountAnalyticLine(models.Model):
 
     @api.model
     def _show_portal_timesheets(self):
-        """
-        Determine if we show timesheet information in the portal. Meant to be overriden in website_timesheet.
-        """
         return True
 
     def action_view_timesheet_view_portal(self):

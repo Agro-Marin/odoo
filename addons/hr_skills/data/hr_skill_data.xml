@@ -10,8 +10,6 @@
             <field name="sequence">2</field>
         </record>
 
-        <!-- Skills -->
-        <!-- Languages -->
         <record id="hr_skill_french" model="hr.skill">
             <field name="name">French</field>
             <field name="skill_type_id" ref="hr_skill_type_lang"/>
@@ -118,7 +116,6 @@
             <field name="sequence">22</field>
         </record>
 
-        <!-- Soft Skills -->
         <record id="hr_skill_communication" model="hr.skill">
             <field name="name">Communication</field>
             <field name="skill_type_id" ref="hr_skill_type_softskill"/>
@@ -195,8 +192,6 @@
             <field name="sequence">37</field>
         </record>
 
-        <!--Skill Levels-->
-        <!--Languages -->
         <record id="hr_skill_level_a1" model="hr.skill.level">
             <field name="name">A1</field>
             <field name="level_progress">10</field>
@@ -229,7 +224,6 @@
             <field name="skill_type_id" ref="hr_skill_type_lang"/>
         </record>
 
-        <!--Soft Skills-->
         <record id="hr_skill_level_beginner_softskill" model="hr.skill.level">
             <field name="name">Beginner</field>
             <field name="default_level">1</field>

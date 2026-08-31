@@ -20,13 +20,6 @@ class HrEmployee(models.Model):
     )
 
     def _get_subordinates(self, parents=None):
-        """
-        Helper function to compute subordinate_ids.
-        Get all subordinates (direct and indirect) of an employee.
-        An employee can be a manager of his own manager (recursive hierarchy; e.g. the CEO is manager of everyone but is also
-        member of the RD department, managed by the CTO itself managed by the CEO).
-        In that case, the manager in not counted as a subordinate if it's in the 'parents' set.
-        """
         if not parents:
             parents = self.env[self._name]
 

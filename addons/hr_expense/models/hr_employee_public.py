@@ -13,7 +13,7 @@ class HrEmployee(models.Model):
         if operator != "in":
             return NotImplemented
 
-        domain = Domain.FALSE  # Nothing accepted by domain, by default
+        domain = Domain.FALSE
         user = self.env.user
         employee = user.employee_id
         if user.has_groups("hr_expense.group_hr_expense_user") or user.has_groups(
@@ -21,7 +21,7 @@ class HrEmployee(models.Model):
         ):
             domain = Domain("company_id", "=", False) | Domain(
                 "company_id", "child_of", self.env.company.root_id.id
-            )  # Then, domain accepts everything
+            )
         elif (
             user.has_groups("hr_expense.group_hr_expense_team_approver")
             and user.employee_ids

@@ -72,10 +72,8 @@ class TestExpenseCommon(AccountTestInvoicingCommon):
 
         cls.expense_employee.user_partner_id.parent_id = cls.env.company.partner_id
 
-        # Allow the current accounting user to access the expenses.
         cls.env.user.group_ids |= group_expense_manager
 
-        # Create analytic account
         cls.analytic_plan = cls.env["account.analytic.plan"].create(
             {"name": "Expense Plan Test"}
         )
@@ -92,7 +90,6 @@ class TestExpenseCommon(AccountTestInvoicingCommon):
             }
         )
 
-        # Create product without cost
         cls.product_c = cls.env["product.product"].create(
             {
                 "name": "product_c with no cost",
@@ -113,7 +110,6 @@ class TestExpenseCommon(AccountTestInvoicingCommon):
             }
         )
 
-        # Ensure Invoicing tests products can be expensed and their code is properly set.
         (cls.product_a + cls.product_b).write({"can_be_expensed": True})
         cls.product_a.default_code = "product_a"
         cls.product_b.default_code = "product_b"
@@ -122,7 +118,6 @@ class TestExpenseCommon(AccountTestInvoicingCommon):
             year=2022, month=1, day=25, hour=0, minute=0, second=0
         )
 
-        # create expense account
         cls.expense_account = cls.env["account.account"].create(
             {"code": "610010", "name": "Expense Account 1"}
         )
@@ -166,7 +161,6 @@ class TestExpenseCommon(AccountTestInvoicingCommon):
             wizard.action_post_entry()
 
     def get_new_payment(self, expenses, amount):
-        """Helper to create payments"""
         ctx = {
             "active_model": "account.move",
             "active_ids": expenses.account_move_id.ids,

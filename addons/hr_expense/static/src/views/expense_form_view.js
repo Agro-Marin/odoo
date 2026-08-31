@@ -13,9 +13,7 @@ export class ExpenseFormController extends FormController {
         this.orm = useService("orm");
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     async beforeExecuteActionButton(clickParams) {
         const record = this.model.root;
         if (

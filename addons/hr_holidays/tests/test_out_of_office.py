@@ -35,7 +35,6 @@ class TestOutOfOffice(TestHrHolidaysCommon):
             "leave_offline",
             "user should not be on leave",
         )
-        # validate a leave from 2024-06-05 (Wednesday) to 2024-06-07 (Friday)
         first_leave = self.env["hr.leave"].create(
             {
                 "name": "Christmas",
@@ -46,7 +45,6 @@ class TestOutOfOffice(TestHrHolidaysCommon):
             }
         )
         first_leave.action_approve()
-        # validate a leave from 2024-06-10 (Monday) to 2024-06-11 (Tuesday)
         second_leave = self.env["hr.leave"].create(
             {
                 "name": "Christmas",
@@ -57,7 +55,6 @@ class TestOutOfOffice(TestHrHolidaysCommon):
             }
         )
         second_leave.action_approve()
-        # missing dependencies on compute functions
         self.employee_hruser.user_id.invalidate_recordset(["im_status"])
         self.employee_hruser.user_id.partner_id.invalidate_recordset(["im_status"])
         self.assertEqual(
@@ -109,7 +106,6 @@ class TestOutOfOffice(TestHrHolidaysCommon):
         self.assertFalse(
             employee2_info["leave_date_to"], "current user should not be out of office"
         )
-        # The employee will be back in the office the day after his second leave ends
         self.assertEqual(
             employee_info["leave_date_to"],
             "2024-06-12",

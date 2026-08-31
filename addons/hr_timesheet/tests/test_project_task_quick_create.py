@@ -11,10 +11,6 @@ class TestProjectTaskQuickCreate(TestCommonTimesheet):
         cls.project_customer.write({"allow_timesheets": True})
 
     def test_create_task_with_valid_expressions(self):
-        # tuple format = (display name, [expected name, expected tags count, expected users count, expected priority, expected planned hours])
-        # NB: the "30H" syntax records an *estimate*, which this fork keeps in
-        # planned_hours; allocated_hours is the commitment aggregated from
-        # resource reservations and is not what the title parser writes.
         valid_expressions = {
             "task A 30H 2.5h #tag1 @user_employee2 2H #tag2 @user_employee 5h !": (
                 "task A",

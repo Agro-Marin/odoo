@@ -7,7 +7,6 @@ class HrEmployee(models.Model):
     _inherit = "hr.employee"
 
     def _get_deductible_employee_overtime(self):
-        # return dict {employee: number of hours}
         diff_by_employee = defaultdict(lambda: 0)
         for employee, hours in (
             self.env["hr.attendance.overtime.line"]
@@ -47,13 +46,6 @@ class HrEmployee(models.Model):
         return diff_by_employee
 
     def get_overtime_data_by_employee(self):
-        """
-        Provide a summary of an employee's overtime.
-        A compensable overtime is an overtime that can be cumulated to be used
-        as time off.
-        Extra hours and overtime is used interchangably.
-        """
-        # Make so that at least all employees are present in return value
         overtime_data = {}
         for employee_id in self.ids:
             overtime_data[employee_id] = {

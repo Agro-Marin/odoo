@@ -2,11 +2,6 @@ from odoo import Command, _, api, fields, models
 
 
 class HrExpenseApproveDuplicate(models.TransientModel):
-    """
-    This wizard is shown whenever an approved expense is similar to one being
-    approved. The user has the opportunity to still validate it or decline.
-    """
-
     _name = "hr.expense.approve.duplicate"
     _description = "Expense Approve Duplicate"
 

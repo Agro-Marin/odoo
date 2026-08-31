@@ -181,12 +181,6 @@ class HrLeaveAttendanceReport(models.Model):
         """
 
     def _join_daily_leave_hours(self):
-        """Generates a SQL join clause to calculate the total `leave_hours` taken for a specific day:
-        - Sums up `number_of_hours` for all validated time offs within the day.
-        - Excludes non-working days based on the employee's resource calendar and calendar leaves.
-        - Handles leaves spanning multiple days, ensuring only working days are counted.
-        - Converts all date fields to UTC to maintain consistency with Odoo's date storage.
-        """
         return """
             LEFT JOIN LATERAL (
                         SELECT SUM(lv.number_of_hours / NULLIF(wd.working_days,0)) AS leave_hours

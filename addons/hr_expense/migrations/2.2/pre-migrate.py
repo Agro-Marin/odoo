@@ -15,10 +15,6 @@ def migrate(cr, version):
             'ALTER TABLE "hr_expense" RENAME COLUMN "payment_method_line_id" TO "payment_channel_id"'
         )
 
-    # company_expense_allowed_payment_channel_ids declares no `relation`, so both
-    # the join table and its column are derived from the comodel's table name and
-    # move with it. `_drop_m2m_tables` would not have dropped the old one, so
-    # skipping this would leave the configuration behind in an orphan table.
     if schema.table_exists(cr, OLD_REL) and not schema.table_exists(cr, NEW_REL):
         cr.execute(f'ALTER TABLE "{OLD_REL}" RENAME TO "{NEW_REL}"')
         cr.execute(

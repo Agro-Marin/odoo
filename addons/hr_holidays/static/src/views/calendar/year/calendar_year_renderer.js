@@ -28,7 +28,6 @@ export class TimeOffCalendarYearRenderer extends CalendarYearRenderer {
         };
     }
 
-    /** @override **/
     async onDateClick(info) {
         const is_mandatory_day = [...info.dayEl.classList].some((elClass) =>
             elClass.startsWith("hr_mandatory_day_")
@@ -68,9 +67,7 @@ export class TimeOffCalendarYearRenderer extends CalendarYearRenderer {
         return [...super.getDayCellClassNames(info), ...this.mandatoryDays(info)];
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     eventClassNames({ event }) {
         const classesToAdd = super.eventClassNames(...arguments);
         const record = this.props.model.records[event.id];
@@ -81,7 +78,6 @@ export class TimeOffCalendarYearRenderer extends CalendarYearRenderer {
                 classesToAdd.push("o_event_half_right")
             }
         }
-        // handling half pill UX for custom_hours
         if (record?.rawRecord?.request_unit_hours && record.sameDay) {
             if (record.end.c.hour < 12) {
                 classesToAdd.push("o_event_half_left");

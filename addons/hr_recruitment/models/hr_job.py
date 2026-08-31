@@ -124,7 +124,6 @@ class HrJob(models.Model):
     )
     color = fields.Integer("Color Index")
     favorite_user_ids = fields.Many2many(
-        # interviewer_ids already owns the table the ORM would derive here.
         relation="job_favorite_user_rel",
         column1="job_id",
         column2="user_id",
@@ -223,7 +222,6 @@ class HrJob(models.Model):
                 "today": fields.Date.context_today(self),
                 "user_id": self.env.uid,
                 "job_ids": list(self.ids or [0]),
-                # or [0] is used in case we only have newIds (web studio)
             },
         )
         job_activities = defaultdict(dict)
@@ -234,7 +232,6 @@ class HrJob(models.Model):
 
     @api.depends("application_ids.interviewer_ids")
     def _compute_extended_interviewer_ids(self):
-        # Use SUPERUSER_ID as the search_read is protected in hr_referral
         results_raw = (
             self.env["hr.applicant"]
             .with_user(SUPERUSER_ID)
@@ -379,7 +376,6 @@ class HrJob(models.Model):
               GROUP BY s.job_id
             """,
             [list(self.ids or [0]), list(self.env.companies.ids)],
-            # or [0] is used in case we only have newIds (web studio)
         )
 
         new_applicant_count = dict(self.env.cr.fetchall())
@@ -434,9 +430,6 @@ class HrJob(models.Model):
         return jobs
 
     def write(self, vals):
-        # Read only what this write will actually need afterwards: both fields
-        # are group-restricted, and reading them unconditionally denied any
-        # write by a user without those groups -- favoriting a job included.
         old_interviewers = (
             self.interviewer_ids if "interviewer_ids" in vals else self.browse()
         )
@@ -449,7 +442,6 @@ class HrJob(models.Model):
             interviewers_to_clean._remove_recruitment_interviewers()
             self.sudo().interviewer_ids._create_recruitment_interviewers()
 
-        # Subscribe the recruiter if it has changed.
         if "user_id" in vals:
             for job in self:
                 to_unsubscribe = [
@@ -470,9 +462,6 @@ class HrJob(models.Model):
                         mail_auto_subscribe_no_notify=True
                     ).user_id = job.user_id
 
-        # Since the alias is created upon record creation, the default values do not reflect the current values unless
-        # specifically rewritten
-        # List of fields to keep synched with the alias
         alias_fields = {"department_id", "user_id"}
         if any(field for field in alias_fields if field in vals):
             for job in self:

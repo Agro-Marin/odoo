@@ -103,13 +103,11 @@ test("leave stats render correctly", async () => {
 
     const individualLeaves = queryOne(".o_leave_stats #o_leave_stats_employee");
     const DepartmentLeaves = queryOne(".o_leave_stats #o_leave_stats_department");
-    // Displays leaves with the correct unit
     expect(queryAll("span:contains(Legal Leave)", { root: individualLeaves })).toHaveCount(1);
     expect(queryAll("span:contains(2 days)", { root: individualLeaves })).toHaveCount(1);
     expect(queryAll("span:contains(Unpaid Leave)", { root: individualLeaves })).toHaveCount(1);
     expect(queryAll("span:contains(01:00 hours)", { root: individualLeaves })).toHaveCount(1);
 
-    // Displays all leaves for that department
     expect(queryAll("span:contains(Richard)", { root: DepartmentLeaves })).toHaveCount(2);
     expect(queryAll("span:contains(10/16/2016)", { root: DepartmentLeaves })).toHaveCount(1);
     expect(queryAll("span:contains(02:00 hours)", { root: DepartmentLeaves })).toHaveCount(1);
@@ -158,11 +156,8 @@ test("leave stats reload when employee/department changes", async () => {
             </form>`,
     });
 
-    // Set date => shouldn't load data yet (no employee nor department defined)
     await click("div[name='date_from'] input");
     await edit("2016-10-12 09:00");
-    // Set employee => should load employee's date
     await selectFieldDropdownItem("employee_id", "Jane");
-    // Set department => should load department's data
     await selectFieldDropdownItem("department_id", "R&D");
 });

@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data noupdate="1">
-        <!-- Skill Type -->
         <record id="hr_skill_type_it" model="hr.skill.type" forcecreate="1">
             <field name="name">IT</field>
         </record>
@@ -15,7 +14,6 @@
             <field name="name">Soft Skills</field>
         </record>
 
-        <!-- Skill Level -->
         <record id="hr_skill_level_a1" model="hr.skill.level" forcecreate="1">
             <field name="name">A1</field>
             <field name="level_progress">10</field>
@@ -48,7 +46,6 @@
             <field name="skill_type_id" ref="hr_skills.hr_skill_type_lang"/>
         </record>
 
-        <!--Programming-->
         <record id="hr_skill_level_beginner" model="hr.skill.level" forcecreate="1">
             <field name="name">Beginner</field>
             <field name="default_level">1</field>
@@ -76,7 +73,6 @@
             <field name="skill_type_id" ref="hr_skill_type_dev"/>
         </record>
 
-        <!--Marketing-->
         <record id="hr_skill_level_ml1" model="hr.skill.level" forcecreate="1">
             <field name="name">L1</field>
             <field name="default_level">1</field>
@@ -99,7 +95,6 @@
             <field name="skill_type_id" ref="hr_skill_type_marketing"/>
         </record>
 
-        <!--Soft Skills-->
         <record id="hr_skill_level_beginner_softskill" model="hr.skill.level" forcecreate="1">
             <field name="name">Beginner</field>
             <field name="default_level">1</field>
@@ -127,7 +122,6 @@
             <field name="skill_type_id" ref="hr_skill_type_softskill"/>
         </record>
 
-        <!--IT-->
         <record id="hr_skill_level_beginner_it" model="hr.skill.level" forcecreate="1">
             <field name="name">Beginner</field>
             <field name="default_level">1</field>
@@ -155,7 +149,6 @@
             <field name="skill_type_id" ref="hr_skill_type_it"/>
         </record>
 
-        <!-- Skill -->
         <record id="hr_skill_agile_scrum" model="hr.skill" forcecreate="1">
             <field name="name">Agile and Scrum methodologies</field>
             <field name="skill_type_id" ref="hr_skill_type_it"/>
@@ -205,7 +198,6 @@
             <field name="skill_type_id" ref="hr_skill_type_softskill"/>
         </record>
 
-        <!-- Employee Skill -->
         <record id="employee_eg_skill_it_agile" model="hr.employee.skill" forcecreate="1">
             <field name="employee_id" ref="hr.employee_eg"/>
             <field name="skill_id" ref="hr_skill_agile_scrum"/>
@@ -291,7 +283,6 @@
             <field name="skill_type_id" ref="hr_skill_type_softskill"/>
         </record>
 
-        <!-- Resume Line -->
         <record id="employee_resume_line_emp_eg_1" model="hr.resume.line" forcecreate="1">
             <field name="employee_id" ref="hr.employee_eg"/>
             <field name="name">Azure Interior</field>

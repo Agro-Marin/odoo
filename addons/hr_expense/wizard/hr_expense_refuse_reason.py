@@ -2,8 +2,6 @@ from odoo import api, fields, models
 
 
 class HrExpenseRefuseWizard(models.TransientModel):
-    """Wizard to specify reason on expense refusal"""
-
     _name = "hr.expense.refuse.wizard"
     _description = "Expense Refuse Reason Wizard"
 

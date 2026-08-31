@@ -55,12 +55,6 @@ class TestGamificationBadge(TestHrCommon):
         ).action_grant_badge()
 
     def test_update_badge(self):
-        """
-        Test for who can update the bade.
-        case 1: The one who has given the badge should be able to update the badge
-        case 2: The one who has group Officer: Manage all employees access should be able to edit any badge
-        case 3: The one who has not given the badge(base user) should not be able to update the badge
-        """
         badge_user = self.env["gamification.badge.user"].search([], limit=1)[0]
         user_comment = "This person is a good guy"
 
@@ -76,12 +70,6 @@ class TestGamificationBadge(TestHrCommon):
             badge_user.with_user(self.demo3_user).write({"comment": user_comment})
 
     def test_delete_badge(self):
-        """
-        Test for who can delete the bade.
-        case 1: The one who has not given the badge(base user) should not be able to delete the badge
-        case 2: The one who has given the badge should be able to delete the badge
-        case 3: The one who has group Officer: Manage all employees access should be able to edit any badge
-        """
         badge_user = self.env["gamification.badge.user"].search([], limit=1)[0]
         with self.assertRaises(AccessError):
             badge_user.with_user(self.demo3_user).unlink()

@@ -7,8 +7,6 @@ export class HrApplicant extends Record {
 
     partner_id = fields.One("res.partner", { inverse: "applicant_ids" });
     /**
-     * The actual name of the partner (partner_id.name contains the email).
-     *
      * @type {string}
      */
     partner_name;

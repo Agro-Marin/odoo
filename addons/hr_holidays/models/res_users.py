@@ -47,10 +47,6 @@ class ResUsers(models.Model):
         return [r[0] for r in self.env.cr.fetchall()]
 
     def _clean_leave_responsible_users(self):
-        # self = old bunch of leave responsibles
-        # This method compares the current leave managers
-        # and remove the access rights to those who don't
-        # need them anymore
         approver_group = "hr_holidays.group_hr_holidays_responsible"
         if not any(u.has_group(approver_group) for u in self):
             return

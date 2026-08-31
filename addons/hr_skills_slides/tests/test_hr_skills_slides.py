@@ -55,7 +55,6 @@ class TestHrSkillsSlides(TransactionCase):
         )
 
     def test_add_resume_line_after_complete(self):
-        """Ensure a resume line is added after an eLearning course is completed."""
         self.channel.sudo()._action_add_members(self.user.partner_id)
         self.env["slide.slide.partner"].create(
             [
@@ -73,7 +72,6 @@ class TestHrSkillsSlides(TransactionCase):
         self.assertEqual(resume_line.course_url, self.channel.website_absolute_url)
 
     def test_remove_resume_line_no_readd(self):
-        """Ensure a removed eLearning resume line is not re-added when the course changes."""
         self.channel.sudo()._action_add_members(self.user.partner_id)
         channel_partner = self.env["slide.slide.partner"].create(
             [

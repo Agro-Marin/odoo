@@ -430,7 +430,6 @@ class TestAllocations(TestHrHolidaysCommon):
 
         hour_type_allocation.action_generate_allocations()
 
-        # Find allocations created for individual employees
         employee_allocation = self.env["hr.leave.allocation"].search(
             [
                 ("employee_id", "=", self.employee.id),
@@ -499,7 +498,6 @@ class TestAllocations(TestHrHolidaysCommon):
             allocation.write({"number_of_days_display": 2, "number_of_days": 2})
 
     def test_disallowed_change_allocation_with_overlapping_allocations(self):
-        # Creating the first allocation
         allocation_one = self.env["hr.leave.allocation"].create(
             {
                 "name": "First Allocation",
@@ -512,7 +510,6 @@ class TestAllocations(TestHrHolidaysCommon):
         )
         allocation_one.action_approve()
 
-        # Creating the second overlapping allocation
         allocation_two = self.env["hr.leave.allocation"].create(
             {
                 "name": "Second Half Allocation",
@@ -525,7 +522,6 @@ class TestAllocations(TestHrHolidaysCommon):
         )
         allocation_two.action_approve()
 
-        # Creating a leave request consuming days from both allocations
         leave_request = self.env["hr.leave"].create(
             {
                 "name": "Leave Request Spanning Allocations",
@@ -545,12 +541,6 @@ class TestAllocations(TestHrHolidaysCommon):
     @users("admin")
     @freeze_time("2024-03-25")
     def test_allocation_dropdown_after_period(self):
-        """
-        Test when having two allocations of the same type with different
-        time range and submitting a request will the allocations be
-        shown correctly in the dropdown menu or not
-        :return:
-        """
         leave_type = self.env.ref("hr_holidays.leave_type_compensatory_days")
         allocation = (
             self.env["hr.leave.allocation"]
@@ -586,7 +576,6 @@ class TestAllocations(TestHrHolidaysCommon):
         )
         second_allocation.action_approve()
 
-        # _compute_leaves depends on the context that is getting cleared
         self.env["hr.leave.type"].invalidate_model(
             ["max_leaves", "leaves_taken", "virtual_remaining_leaves"]
         )
@@ -594,7 +583,7 @@ class TestAllocations(TestHrHolidaysCommon):
             self.env["hr.leave.type"]
             .with_context(
                 employee_id=self.employee.id,
-                leave_date_from="2024-08-18 06:00:00",  # for _compute_leaves
+                leave_date_from="2024-08-18 06:00:00",
                 default_date_from="2024-08-18 06:00:00",
                 default_date_to="2024-08-18 15:00:00",
             )
@@ -603,10 +592,6 @@ class TestAllocations(TestHrHolidaysCommon):
         self.assertEqual(result[0][1], "Compensatory Days (9 remaining out of 9 days)")
 
     def test_allocation_hourly_leave_type(self):
-        """
-        Make sure that the number of hours is correctly set on the allocation for an hourly leave type
-        for an employee who works some other schedule than the default 8 hours per day.
-        """
         employee = self.env["hr.employee"].create(
             {
                 "name": "My Employee",
@@ -637,9 +622,6 @@ class TestAllocations(TestHrHolidaysCommon):
         self.assertEqual(allocation.number_of_hours_display, 10.0)
 
     def test_automatic_allocation_type(self):
-        """
-        Make sure that an allocation with an accrual plan imported will automatically set the allocation_type to 'accrual'
-        """
         leave_type = self.env["hr.leave.type"].create(
             {
                 "name": "Hourly Leave Type",
@@ -680,10 +662,6 @@ class TestAllocations(TestHrHolidaysCommon):
         self.assertEqual(allocation.allocation_type, "regular")
 
     def test_create_allocation_from_company_with_no_employee_for_current_user(self):
-        """
-        This test makes sure that the allocation can be created if the current company doesn't have an employee
-        linked to the loggedIn user.
-        """
         self.user_hrmanager.employee_id = False
         allocation_form = Form(
             self.env["hr.leave.allocation"].with_user(self.user_hrmanager)
@@ -695,9 +673,6 @@ class TestAllocations(TestHrHolidaysCommon):
         self.assertTrue(allocation)
 
     def test_hr_leave_allocation_balance(self):
-        """
-        This test makes sure that the time off balance showed on the time off management kanban card is correct
-        """
         leave_type = self.env.ref("hr_holidays.leave_type_compensatory_days")
 
         invalid_allocation = (
@@ -794,14 +769,8 @@ class TestAllocations(TestHrHolidaysCommon):
             )
 
     def test_leave_allocation_by_removing_employee(self):
-        """
-        Test that creating a leave allocation and then removing the employee will
-        not raise an error
-        """
         self.leave_type.request_unit = "hour"
-        with self.assertRaises(
-            AssertionError
-        ):  # AssertionError raised by Form as employee is required
+        with self.assertRaises(AssertionError):
             with Form(self.env["hr.leave.allocation"]) as allocation_form:
                 allocation_form.allocation_type = "regular"
                 allocation_form.holiday_status_id = self.leave_type
@@ -846,11 +815,6 @@ class TestAllocations(TestHrHolidaysCommon):
         self.assertEqual(employee.allocation_display, "0")
 
     def test_refuse_validated_allocation_with_leaves(self):
-        """
-        Test that an allocation can be refused after being validated only if the existing leave's taken days can be
-        handled by the other allocations
-        """
-
         today = date.today()
         start_of_week = today - timedelta(days=today.weekday())
 
@@ -876,7 +840,6 @@ class TestAllocations(TestHrHolidaysCommon):
         allocation_5_days.action_approve()
         self.assertEqual(allocation_5_days.state, "validate")
 
-        # 4 Days leave - Can be only on the 5 days allocation
         leave_request = self.env["hr.leave"].create(
             {
                 "name": "Leave Request",
@@ -893,19 +856,16 @@ class TestAllocations(TestHrHolidaysCommon):
         allocation_3_days.action_approve()
         self.assertEqual(allocation_3_days.state, "validate")
 
-        # Can't Refuse 5 days allocation
         with self.assertRaises(ValidationError):
             allocation_5_days.action_refuse()
         self.assertEqual(allocation_5_days.state, "validate")
 
-        # But can Refuse 3 days one
         allocation_3_days.action_refuse()
         self.assertEqual(allocation_3_days.state, "refuse")
         allocation_3_days.state = "confirm"
         allocation_3_days.action_approve()
         self.assertEqual(allocation_3_days.state, "validate")
 
-        # 2 Days leave - Both allocations can be refused / but not at the same time
         leave_request.state = "confirm"
         leave_request.request_date_to = start_of_week + timedelta(days=1)
         leave_request.action_approve()

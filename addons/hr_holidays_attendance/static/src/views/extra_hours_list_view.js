@@ -4,7 +4,6 @@ import { ListRenderer, listView } from "@web/views/list";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
-// Adds an overtime summary at the top of the monthly hours list
 export class ExtraHoursSummary extends Component {
     static template = "hr_attendance.ExtraHoursSummary";
     static props = {};
@@ -34,8 +33,6 @@ export class ExtraHoursSummary extends Component {
         }
         const employeeId = this.env.searchModel.context.employee_id;
         const overtime_data = (await this.orm.call("hr.employee", "get_overtime_data_by_employee", [employeeId]))[employeeId];
-        /* overtime_data is currently in float value. We need to format it
-           before showing it in the UI */
         this.state.totalExtraHours = this.floatTime(overtime_data['compensable_overtime'] + overtime_data['not_compensable_overtime']);
         this.state.compensableExtraHours = this.floatTime(overtime_data['compensable_overtime']);
         this.state.totalOvertimeAdjustment = this.floatTime(overtime_data['compensable_overtime'] - overtime_data['unspent_compensable_overtime']);

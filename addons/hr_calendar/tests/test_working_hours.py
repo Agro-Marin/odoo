@@ -61,7 +61,6 @@ class TestWorkingHours(TestHrCalendarCommon):
             datetime(2023, 12, 25).isoformat(),
             datetime(2023, 12, 31).isoformat(),
         )
-        # Nothing on monday due to partnerB's calendar : calendar_28h
         self.assertEqual(
             work_hours,
             [
@@ -84,8 +83,6 @@ class TestWorkingHours(TestHrCalendarCommon):
             datetime(2023, 12, 25).isoformat(),
             datetime(2023, 12, 31).isoformat(),
         )
-        # Nothing on monday due to partnerB's calendar : calendar_28h
-        # Nothing before 15:00 due to partnerC's calendar : calendar_35h_night
         self.assertEqual(
             work_hours,
             [
@@ -107,7 +104,6 @@ class TestWorkingHours(TestHrCalendarCommon):
             datetime(2023, 12, 25).isoformat(),
             datetime(2023, 12, 31).isoformat(),
         )
-        # calendar_35h_london_tz.tz = UTC, calendar_35h.tz = UTC +1
         self.assertEqual(
             work_hours,
             [
@@ -125,17 +121,6 @@ class TestWorkingHours(TestHrCalendarCommon):
         )
 
     def test_multi_companies_2_employees_1_selected_company(self):
-        """
-        INPUT:
-        ======
-        Employees                                   Companies
-        employee A company A ---> 35h               [ ] A
-        employee A company B ---> 28h               [X] B
-
-        OUTPUT:
-        =======
-        The schedule will be the 28h's schedule
-        """
         self.env.user.company_id = self.company_B
         self.env.user.company_ids = [self.company_B.id]
 
@@ -159,17 +144,6 @@ class TestWorkingHours(TestHrCalendarCommon):
         )
 
     def test_multi_companies_2_employees_2_selected_companies(self):
-        """
-        INPUT:
-        ======
-        Employees                                   Companies
-        employee A company A ---> 35h               [X] A    <- main company
-        employee A company B ---> 28h               [X] B
-
-        OUTPUT:
-        =======
-        The schedule will be the 35h's schedule
-        """
         self.env.user.company_id = self.company_A
         self.env.user.company_ids = [self.company_A.id, self.company_B.id]
         work_hours = self.env["res.partner"].get_working_hours_for_all_attendees(
@@ -196,17 +170,6 @@ class TestWorkingHours(TestHrCalendarCommon):
     def test_multi_companies_2_employees_2_selected_companies_union_between_schedules(
         self,
     ):
-        """
-        INPUT:
-        ======
-        Employees                                   Companies
-        employee A company A ---> 35h               [X] A    <- main company
-        employee A company B ---> 35h night         [X] B
-
-        OUTPUT:
-        =======
-        The schedule will be the union between 35h's and 35h night's schedule
-        """
         self.env.user.company_id = self.company_A
         self.env.user.company_ids = [self.company_A.id, self.company_B.id]
 
@@ -235,17 +198,6 @@ class TestWorkingHours(TestHrCalendarCommon):
         )
 
     def test_multi_companies_2_employees_1_partner_1_selected_companies(self):
-        """
-        INPUT:
-        ======
-        Employees                                   Companies
-        employee B1 company A ---> 28h               [X] A    <- main company
-        employee B2 company A ---> 35h night         [ ] B
-
-        OUTPUT:
-        =======
-        The schedule will be the union between 28h's and 35h night's schedule
-        """
         self.env.user.company_id = self.company_A
         self.env.user.company_ids = [self.company_A.id]
 
@@ -305,10 +257,6 @@ class TestWorkingHours(TestHrCalendarCommon):
 
     @users("user_bxls")
     def test_partner_on_leave_with_calendar_leave(self):
-        """Check that resource leaves are correctly reflected in the unavailable_partner_ids field.
-        Overlapping times between the leave time of an employee and the meeting should add the partner
-        to the list of unavailable partners.
-        """
         test_date = datetime(2022, 2, 14, 7, 0, 0)
         self.employeeA.user_id = self.user_bxls
         self.env["calendar.event"].search(
@@ -389,7 +337,6 @@ class TestWorkingHoursWithVersion(TestHrContractCalendarCommon):
             datetime(2023, 12, 25).isoformat(),
             datetime(2023, 12, 31).isoformat(),
         )
-        # Nothing on monday, tuesday and wednesday due to contractB. (start : thursday 2023/12/28)
         self.assertEqual(
             work_hours,
             [
@@ -411,8 +358,6 @@ class TestWorkingHoursWithVersion(TestHrContractCalendarCommon):
             datetime(2023, 12, 25).isoformat(),
             datetime(2023, 12, 31).isoformat(),
         )
-        # Nothing on monday due to calendarB.
-        # Nothing on Friday due to contractB (stop : thursday 2023/12/28)
         self.assertEqual(
             work_hours,
             [
@@ -434,9 +379,6 @@ class TestWorkingHoursWithVersion(TestHrContractCalendarCommon):
             datetime(2023, 12, 25).isoformat(),
             datetime(2023, 12, 31).isoformat(),
         )
-        # Nothing on monday due to partnerB's calendar : calendar_2
-        # Nothing before 15:00 due to partnerC's calendar : calendar_3
-        # Nothing on tuesday and wednesday due to contractC. (start : thursday 2023/12/28)
         self.assertEqual(
             work_hours,
             [
@@ -457,7 +399,6 @@ class TestWorkingHoursWithVersion(TestHrContractCalendarCommon):
             datetime(2023, 12, 25).isoformat(),
             datetime(2023, 12, 31).isoformat(),
         )
-        # calendar_35h_london_tz.tz = UTC, calendar_35h.tz = UTC +1
         self.assertEqual(
             work_hours,
             [
@@ -483,7 +424,6 @@ class TestWorkingHoursWithVersion(TestHrContractCalendarCommon):
             datetime(2023, 12, 25).isoformat(),
             datetime(2023, 12, 31).isoformat(),
         )
-        # Employee E doesn't have a contract
         self.assertEqual(
             work_hours, [{"daysOfWeek": [7], "startTime": "00:00", "endTime": "00:00"}]
         )
@@ -492,7 +432,6 @@ class TestWorkingHoursWithVersion(TestHrContractCalendarCommon):
         self.env.user.company_id = self.company_A
         self.env.user.company_ids = [self.company_A.id]
 
-        # Contract from november
         self.env["hr.version"].create(
             {
                 "date_version": datetime(2023, 11, 1),
@@ -522,17 +461,6 @@ class TestWorkingHoursWithVersion(TestHrContractCalendarCommon):
         )
 
     def test_multi_companies_2_employees_2_selected_companies(self):
-        """
-        INPUT:
-        ======
-        Employees                                   Companies
-        employee B1 company A ---> 28h               [X] A    <- main company
-        employee B2 company A ---> 35h night         [X] B
-
-        OUTPUT:
-        =======
-        The schedule will be the union between 28h's and 35h night's schedule
-        """
         self.env.user.company_id = self.company_A
         self.env.user.company_ids = [self.company_A.id, self.company_B.id]
 
@@ -557,11 +485,6 @@ class TestWorkingHoursWithVersion(TestHrContractCalendarCommon):
         )
 
     def test_event_with_flexible_and_default_calendar_employees(self):
-        """
-        If an employee is marked as Fully Flexible, their default calendar should be `env.company.resource_calendar_id`.
-        If one employee has no calendar assigned (indicating full flexibility) and another uses the default calendar,
-        they should still be grouped together in the same work intervals.
-        """
         expected_partners = self.partnerF | self.partnerG
         event = (
             self.env["calendar.event"]
@@ -581,7 +504,6 @@ class TestWorkingHoursWithVersion(TestHrContractCalendarCommon):
             )
         )
 
-        # Need to read unavailable_partner_ids to force being computed and trigger _get_schedule
         self.assertEqual(
             event.unavailable_partner_ids.ids, [], "All partners must be available!"
         )

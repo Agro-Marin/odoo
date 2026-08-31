@@ -134,7 +134,6 @@
             </field>
         </record>
 
-        <!-- Group by employee -->
         <record id="act_hr_timesheet_report" model="ir.actions.act_window">
             <field name="name">Timesheets by Employee</field>
             <field name="res_model">timesheets.analysis.report</field>
@@ -174,7 +173,6 @@
             <field name="act_window_id" ref="act_hr_timesheet_report"/>
         </record>
 
-        <!-- Group by project-->
         <record id="timesheet_action_report_by_project" model="ir.actions.act_window">
             <field name="name">Timesheets by Project</field>
             <field name="res_model">timesheets.analysis.report</field>
@@ -214,7 +212,6 @@
             <field name="act_window_id" ref="timesheet_action_report_by_project"/>
         </record>
 
-        <!-- Group by task -->
         <record id="timesheet_action_report_by_task" model="ir.actions.act_window">
             <field name="name">Timesheets by Task</field>
             <field name="res_model">timesheets.analysis.report</field>

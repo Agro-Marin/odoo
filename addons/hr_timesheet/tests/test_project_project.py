@@ -5,14 +5,6 @@ from odoo.tests import TransactionCase, tagged
 @tagged("post_install", "-at_install")
 class TestProjectProject(TransactionCase):
     def test_create_projects(self):
-        """
-        Test creating some projects and check analytic account generated
-
-        Test case:
-        =========
-        - Create 4 projects and 2 of them should have timesheets feature enabled
-        - Check the projects with timesheets enabled have an analytic account generated
-        """
         project1, project2, project3, project4 = self.env["project.project"].create(
             [
                 {

@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-        <!-- Valid certification -->
         <record id="resume_line_valid" model="hr.resume.line">
             <field name="name">AWS Cloud</field>
             <field name="line_type_id" ref="resume_type_certification"/>
@@ -10,7 +9,6 @@
             <field name="employee_id" ref="hr.employee_admin"/>
         </record>
 
-        <!-- Expiring soon certification -->
         <record id="resume_line_expiring" model="hr.resume.line">
             <field name="name">MongoDB Developer</field>
             <field name="line_type_id" ref="resume_type_certification"/>
@@ -19,7 +17,6 @@
             <field name="employee_id" ref="hr.employee_admin"/>
         </record>
 
-        <!-- Expired -->
         <record id="resume_line_aws" model="hr.resume.line">
             <field name="name">Oracle DB</field>
             <field name="line_type_id" ref="resume_type_certification"/>

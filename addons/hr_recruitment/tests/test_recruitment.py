@@ -24,12 +24,10 @@ class TestRecruitment(TransactionCase):
         cls.Attachment = cls.env["ir.attachment"]
 
     def test_infer_applicant_lang_from_context(self):
-        # Prerequisites
         self.env["res.lang"]._activate_lang("pl_PL")
         self.env["res.lang"]._activate_lang("en_US")
         self.env["ir.default"].set("res.partner", "lang", "en_US")
 
-        # Creating an applicant will create a partner (email_from inverse)
         applicant = (
             self.env["hr.applicant"]
             .sudo()
@@ -48,7 +46,6 @@ class TestRecruitment(TransactionCase):
         )
 
     def test_duplicate_email(self):
-        # Tests that duplicate email matching is case insensitive
         dup1, dup2, no_dup = self.env["hr.applicant"].create(
             [
                 {
@@ -70,11 +67,10 @@ class TestRecruitment(TransactionCase):
         self.assertEqual(no_dup.application_count, 1)
 
     def test_similar_applicants_count(self):
-        """Test that we find same applicant based on similar mail or phone."""
         A, B, C, D, E, F, _ = self.env["hr.applicant"].create(
             [
                 {
-                    "active": False,  # Refused/archived application should still count
+                    "active": False,
                     "partner_name": "Application A",
                     "email_from": "abc@odoo.com",
                     "partner_phone": "123",
@@ -107,14 +103,12 @@ class TestRecruitment(TransactionCase):
                 },
             ]
         )
-        self.assertEqual(A.application_count, 3)  # A, C, D
-        self.assertEqual(B.application_count, 2)  # B, D
-        self.assertEqual(C.application_count, 2)  # C, A
-        self.assertEqual(D.application_count, 3)  # D, A, B
-        self.assertEqual(
-            E.application_count, 0
-        )  # Should not match with E and G as there is no data to use for matching.
-        self.assertEqual(F.application_count, 1)  # F
+        self.assertEqual(A.application_count, 3)
+        self.assertEqual(B.application_count, 2)
+        self.assertEqual(C.application_count, 2)
+        self.assertEqual(D.application_count, 3)
+        self.assertEqual(E.application_count, 0)
+        self.assertEqual(F.application_count, 1)
 
     def test_talent_pool_count(self):
         tp_A, tp_B = self.env["hr.talent.pool"].create(
@@ -137,8 +131,6 @@ class TestRecruitment(TransactionCase):
                 },
             ]
         )
-        # The only way to create a talent is through the wizards. Talents that are
-        # created through the wizard also assign their own ID as pool_applicant_id
         t_A.pool_applicant_id = t_A.id
         t_B.pool_applicant_id = t_B.id
 
@@ -184,7 +176,6 @@ class TestRecruitment(TransactionCase):
         self.assertEqual(G.talent_pool_count, 1)
 
     def test_compute_and_search_is_applicant_in_pool(self):
-        """Test that _compute_is_applicant_in_pool and _search_is_applicant_in_pool return correct results."""
         talent_pool = self.env["hr.talent.pool"].create({"name": "Cool Pool"})
         job = self.env["hr.job"].create(
             {
@@ -239,32 +230,15 @@ class TestRecruitment(TransactionCase):
         B.pool_applicant_id = A.id
         H.pool_applicant_id = G.id
 
-        # An application is "in a pool" if it is directly linked to a pool (via
-        # pool_applicant_id or talent_pool_ids) or shares a phone number, email
-        # or linkedin with another directly linked application.
-
-        # Testing the compute
-
-        # A is directly linked to Cool Pool through talent_pool_ids
         self.assertTrue(A.is_applicant_in_pool)
-        # B is directly linked to Cool Pool through pool_applicant_id
         self.assertTrue(B.is_applicant_in_pool)
-        # C is indirectly linked through email to B who is directly linked
         self.assertTrue(C.is_applicant_in_pool)
-        # D is indirectly linked through phone to B who is directly linked
         self.assertTrue(D.is_applicant_in_pool)
-        # E is indirectly linked through linkedin to B who is directly linked
         self.assertTrue(E.is_applicant_in_pool)
-        # F is not linked to a Pool
         self.assertFalse(F.is_applicant_in_pool)
-        # G is directly linked to Cool Pool through talent_pool_ids
         self.assertTrue(G.is_applicant_in_pool)
-        # H is directly linked to Cool Pool through pool_applicant_id
         self.assertTrue(H.is_applicant_in_pool)
 
-        # Testing the search
-        # Note: For some reason testing the search does not work if the compute
-        #       is not tested first which is why these two tests are in one test.
         applicant = self.env["hr.applicant"]
         in_pool_domain = applicant._search_is_applicant_in_pool("in", [True])
         in_pool_applicants = applicant.search(
@@ -279,20 +253,15 @@ class TestRecruitment(TransactionCase):
         self.assertCountEqual(out_of_pool_applicants, F)
 
     def test_application_no_partner_duplicate(self):
-        """Test that when applying, the existing partner
-        doesn't get duplicated.
-        """
         applicant_data = {
             "partner_name": "Test",
             "email_from": "test@thisisatest.com",
         }
-        # First application, a partner should be created
         self.env["hr.applicant"].create(applicant_data)
         partner_count = self.env["res.partner"].search_count(
             [("email", "=", "test@thisisatest.com")]
         )
         self.assertEqual(partner_count, 1)
-        # Second application, no partner should be created
         self.env["hr.applicant"].create(applicant_data)
         partner_count = self.env["res.partner"].search_count(
             [("email", "=", "test@thisisatest.com")]
@@ -300,9 +269,6 @@ class TestRecruitment(TransactionCase):
         self.assertEqual(partner_count, 1)
 
     def test_target_on_application_hiring(self):
-        """
-        Test that the target is updated when hiring an applicant
-        """
         job = self.env["hr.job"].create(
             {
                 "name": "Test Job",
@@ -337,7 +303,6 @@ class TestRecruitment(TransactionCase):
         self.assertEqual(job.no_of_recruitment, 1)
 
     def test_open_refuse_applicant_wizard_without_partner_name(self):
-        """Test opening the refuse wizard when the applicant has no partner_name."""
         applicant = self.env["hr.applicant"].create(
             {
                 "partner_phone": "123",
@@ -435,9 +400,6 @@ class TestRecruitment(TransactionCase):
         self.assertEqual(mail_values["email_from"], "test@test.test")
 
     def test_copy_attachments_while_creating_employee(self):
-        """
-        Test that attachments are copied when creating an employee from an applicant
-        """
         applicant_1 = self.env["hr.applicant"].create(
             {"partner_name": "Applicant 1", "email_from": "test_applicant@example.com"}
         )
@@ -464,11 +426,6 @@ class TestRecruitment(TransactionCase):
         )
 
     def test_other_applications_count(self):
-        """
-        Test that the application_count field does not change
-        when archiving or refusing a linked application.
-        """
-
         A1, A2, A3 = self.env["hr.applicant"].create(
             [
                 {"partner_name": "test", "email_from": "test@example.com"},
@@ -479,14 +436,12 @@ class TestRecruitment(TransactionCase):
 
         self.assertEqual(A1.application_count, 3)
 
-        # Archive A2
         A2.action_archive()
         self.assertEqual(
             A1.application_count,
             3,
             "Application_count should not change when archiving a linked application",
         )
-        # Refuse A3
         refuse_reason = self.env["hr.applicant.refuse.reason"].create(
             [{"name": "Fired"}]
         )
@@ -506,8 +461,6 @@ class TestRecruitment(TransactionCase):
         )
 
     def test_open_other_applications_count(self):
-        """Opening the 'Other Applications' smart button lists the current application plus its N linked ones (N + 1 total)."""
-
         A1, _, _ = self.env["hr.applicant"].create(
             [
                 {"partner_name": "test", "email_from": "test@example.com"},

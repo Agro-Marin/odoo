@@ -210,11 +210,6 @@ class TestFlexibleResourceCalendar(TransactionCase):
         )
         self.assertTrue(self.fully_flex_resource.id not in hours_per_day)
 
-        # ISO week 31 is Mon 28/07 -> Sun 03/08, which is exactly the queried
-        # period, so there is a single bucket.  The second one used to appear
-        # only because the range was widened to whole Sunday-anchored weeks and
-        # spilled into the next one; the budget is now bucketed by ISO week so
-        # it no longer depends on res.lang.week_start.
         self.assertDictEqual(
             hours_per_week[self.flex_resource.id],
             {

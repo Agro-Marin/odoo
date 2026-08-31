@@ -8,10 +8,6 @@ class HrExpensePostWizard(models.TransientModel):
 
     @api.model
     def _default_employee_journal_id(self):
-        """
-        The journal is determining the company of the accounting entries generated from expense.
-        We need to force journal company and expense company to be the same.
-        """
         company_journal_id = self.env.company.expense_journal_id
         if company_journal_id:
             return company_journal_id.id
@@ -37,7 +33,7 @@ class HrExpensePostWizard(models.TransientModel):
         readonly=True,
     )
 
-    accounting_date = fields.Date(  # The date used for the accounting entries or the one we'd like to use if not yet posted
+    accounting_date = fields.Date(
         string="Accounting Date",
         default=fields.Date.context_today,
         help="Specify the bill date of the related vendor bill.",
@@ -72,12 +68,9 @@ class HrExpensePostWizard(models.TransientModel):
             )
         moves_sudo.action_post()
 
-        if (
-            not self.company_id.expense_journal_id
-        ):  # Sets the default one if not specified
+        if not self.company_id.expense_journal_id:
             self.sudo().company_id.expense_journal_id = self.employee_journal_id.id
 
-        # Add the company_paid ids to the redirect
         moves_ids = moves_sudo.ids + self.env.context.get("company_paid_move_ids", ())
 
         action = {

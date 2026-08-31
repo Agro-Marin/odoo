@@ -1,9 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data noupdate="1">
-        <!--            -->
-        <!-- Department -->
-        <!--            -->
         <record id="dep_management" model="hr.department">
             <field name="name">Management</field>
             <field name="color" eval="1" />
@@ -20,16 +17,10 @@
             <field name="color" eval="3" />
         </record>
 
-        <!--                -->
-        <!-- Applicant tags -->
-        <!--                -->
         <record id="tag_applicant_demo" model="hr.applicant.category">
             <field name="name">Demo</field>
         </record>
 
-        <!--      -->
-        <!-- Jobs -->
-        <!--      -->
         <record id="job_marketing" model="hr.job">
             <field name="name">Marketing and Community Manager</field>
             <field name="department_id" ref="dep_marketing" />
@@ -66,9 +57,6 @@
             </field>
         </record>
 
-        <!--            -->
-        <!-- Applicants -->
-        <!--            -->
         <record id="scenario_applicant_macm_helen" model="hr.applicant">
             <field name="email_from">helenlee@exampe.email.com</field>
             <field name="partner_name">Helen Lee</field>
@@ -188,9 +176,6 @@
                 eval="DateTime.today()" />
         </record>
 
-        <!--         -->
-        <!-- Résumés -->
-        <!--         -->
         <record id="scenario_applicant_macm_enrique_cv" model="ir.attachment">
             <field name="name">Enrique_Jones_CV.pdf</field>
             <field name="datas" type="base64"
@@ -199,14 +184,10 @@
             <field name="res_id" ref="hr_recruitment.scenario_applicant_macm_enrique" />
         </record>
 
-        <!-- Set the main attachment to avoid automatic sending to the OCR-->
         <record id="scenario_applicant_macm_enrique" model="hr.applicant">
             <field name="message_main_attachment_id" ref="hr_recruitment.scenario_applicant_macm_enrique_cv" />
         </record>
 
-        <!--             -->
-        <!-- Activities  -->
-        <!--             -->
         <record id="scenario_applicant_macm_enrique_activity" model="mail.activity">
             <field name="res_id" ref="hr_recruitment.scenario_applicant_macm_enrique" />
             <field name="res_model_id" ref="model_hr_applicant" />
@@ -240,13 +221,6 @@
             <field name="user_id" ref="base.user_admin" />
         </record>
 
-        <!--          -->
-        <!-- Messages -->
-        <!--          -->
-
-        <!-- APPLICANT HELEN -->
-        <!-- it's missing the initial email that acknowledges the application (subject: your Job
-    Application) -->
         <record id="scenario_applicant_macm_helen_mm_1" model="mail.message">
             <field name="model">hr.applicant</field>
             <field name="res_id" ref="hr_recruitment.scenario_applicant_macm_helen" />
@@ -398,9 +372,6 @@
             <field name="mail_message_id" ref="scenario_applicant_macm_helen_mm_5" />
         </record>
 
-        <!-- APPLICANT ENRIQUE -->
-        <!-- it's missing the initial email that acknowledges the application (subject: your Job
-    Application) -->
         <record id="scenario_applicant_macm_enrique_mm_1" model="mail.message">
             <field name="model">hr.applicant</field>
             <field name="res_id" ref="hr_recruitment.scenario_applicant_macm_enrique" />
@@ -512,9 +483,6 @@
             <field name="date" eval="DateTime.today() - relativedelta(days=15)" />
         </record>
 
-        <!-- APPLICANT HANNAH GLOVER -->
-        <!-- it's missing the initial email that acknowledges the application (subject: your Job
-    Application) -->
         <record id="scenario_applicant_fsd_hannah_mm_1" model="mail.message">
             <field name="model">hr.applicant</field>
             <field name="res_id" ref="hr_recruitment.scenario_applicant_fsd_hannah" />
@@ -555,9 +523,6 @@
             <field name="date" eval="DateTime.today() - relativedelta(days=2)" />
         </record>
 
-        <!-- APPLICANT SIMON JONES -->
-        <!-- it's missing the initial email that acknowledges the application (subject: your Job
-    Application) -->
         <record id="scenario_applicant_fsd_simon_mm_1" model="mail.message">
             <field name="model">hr.applicant</field>
             <field name="res_id" ref="hr_recruitment.scenario_applicant_fsd_simon" />
@@ -590,7 +555,6 @@
             <field name="author_id" ref="base.partner_admin" />
             <field name="date" eval="DateTime.today() - relativedelta(days=2)" />
         </record>
-        <!-- It's missing the refusal email -->
 
     </data>
 </odoo>

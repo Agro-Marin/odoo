@@ -48,11 +48,6 @@ class TestCertificationFlow(common.TestSurveyCommon):
 
     @freeze_time("2024-03-20")
     def test_resume_line_creation(self):
-        """Check that the resume line is correctly created upon certification completion.
-
-        As we test the method "survey.user_input._mark_done" which is called in sudo from
-        the controller, the test is executed with the admin user.
-        """
         ResumeLine = self.env["hr.resume.line"]
         user_input_vals = {
             "survey_id": self.certification.id,
@@ -85,7 +80,6 @@ class TestCertificationFlow(common.TestSurveyCommon):
         self.assertEqual(
             resume_line.date_end, fields.Date.today() + relativedelta(months=3)
         )
-        # When redoing the same certification, the resume line is updated
         self.certification.description = False
         for validity_months, expected_date_end in (
             (1, fields.Date.today() + relativedelta(months=1)),
@@ -101,7 +95,6 @@ class TestCertificationFlow(common.TestSurveyCommon):
             self.assertEqual(resume_line.date_start, fields.Date.today())
             self.assertEqual(resume_line.date_end, expected_date_end)
         self.assertEqual(resume_line.description, "")
-        # Mark as done in batch 2 certifications for the same employee
         certification2 = self.certification.copy()
         self.certification.description = "Description 1"
         certification2.description = "Description 2"

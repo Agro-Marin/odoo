@@ -29,8 +29,8 @@
                     string="Expected Skills"
                 >
                     <list>
-                        <field name="skill_id"/> <!--This is needed for the UI to update smoothly -->
-                        <field name="skill_level_id"/> <!--This is needed for the UI to update smoothly -->
+                        <field name="skill_id"/>
+                        <field name="skill_level_id"/>
                         <field name="display_name"/>
                         <field name="color"/>
                     </list>

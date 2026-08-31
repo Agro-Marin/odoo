@@ -24,8 +24,6 @@ class HrOrgChartPopover extends Component {
     }
 
     /**
-     * Redirect to the employee form view.
-     *
      * @private
      * @param {number} employeeId
      */
@@ -55,7 +53,7 @@ export class HrOrgChart extends Component {
             const newEmployeeId = record.resId || false;
             if (this.lastParent !== newParentId || this.state.employee_id !== newEmployeeId) {
                 this.lastParent = newParentId;
-                this.max_level = null; // Reset max_level to default
+                this.max_level = null;
                 await this.fetchEmployeeData(newEmployeeId, newParentId, true);
             }
             this.state.employee_id = newEmployeeId;
@@ -101,8 +99,6 @@ export class HrOrgChart extends Component {
     }
 
     /**
-     * Redirect to the employee form view.
-     *
      * @private
      * @param {number} employeeId
      */
@@ -112,7 +108,7 @@ export class HrOrgChart extends Component {
     }
 
     async _onEmployeeMoreManager(managerId) {
-        this.max_level = 100; // Set a high level to fetch all managers
+        this.max_level = 100;
         await this.fetchEmployeeData(this.state.employee_id, null, true);
     }
 }

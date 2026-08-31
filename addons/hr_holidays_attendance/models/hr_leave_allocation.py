@@ -16,7 +16,6 @@ class HrLeaveAllocation(models.Model):
                 "requires_allocation", "=", True
             )
             if self.env.context.get("deduct_extra_hours_employee_request", False):
-                # Prevent loading manager allocated time off type in self request contexts
                 domain &= Domain("employee_requests", "=", True)
             leave_type = self.env["hr.leave.type"].search(domain, limit=1)
             res["holiday_status_id"] = leave_type.id
@@ -93,7 +92,6 @@ class HrLeaveAllocation(models.Model):
         start_dt = datetime.combine(start_date, datetime_min_time)
         end_dt = datetime.combine(end_date, datetime_min_time)
 
-        # Search for any attendance overlapping the window
         attendances = (
             self.env["hr.attendance"]
             .sudo()

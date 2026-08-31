@@ -33,7 +33,6 @@ class ResUsers(models.Model):
         )
         user_ids |= {interviewer.id for [interviewer] in application_interviewers}
 
-        # Remove users that are no longer interviewers on at least a job or an application
         users_to_remove = set(self.ids) - (
             user_ids | set(recruitment_group.all_user_ids.ids)
         )

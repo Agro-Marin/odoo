@@ -10,8 +10,6 @@ from odoo.libs.sql import SQL
 
 
 def create_internal_project(env):
-    # allow_timesheets is set by default, but erased for existing projects at
-    # installation, as there is no analytic account for them.
     env["project.project"].search([]).write({"allow_timesheets": True})
 
     admin = env.ref("base.user_admin", raise_if_not_found=False)
@@ -51,7 +49,6 @@ def _uninstall_hook(env):
     update_action_window("project.open_view_project_all")
     update_action_window("project.open_view_project_all_group_stage")
 
-    # archive the internal projects
     project_ids = (
         env["res.company"]
         .search([("internal_project_id", "!=", False)])
@@ -66,9 +63,6 @@ def _uninstall_hook(env):
 
 
 def _pre_init_hook(env):
-    """
-    Create manually new compute+stored columns to allow installing the module on large databases without trigger an Out-of-memory error.
-    """
     env.cr.execute(
         SQL("""
        ALTER TABLE account_analytic_line

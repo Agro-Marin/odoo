@@ -28,7 +28,6 @@ class CalendarEvent(models.Model):
             return
         event_intervals = complete_events._get_events_interval()
         for event, event_interval in event_intervals.items():
-            # Event_interval is empty when an allday event contains at least one day where the company is closed
             if not event_interval:
                 continue
             start = event_interval._items[0][0]
@@ -47,13 +46,6 @@ class CalendarEvent(models.Model):
         return self.env.user.employee_id._get_unusual_days(date_from, date_to)
 
     def _get_events_interval(self):
-        """
-        This method will returned an Intervals object that represent the event's interval based of its parameters.
-
-        If an event is scheduled for the entire day, its interval will correspond to the work interval defined by the
-        company's calendar.
-        If an allday event is scheduled on a day when the company is closed, the interval of this event will be empty.
-        """
         start = min(self.mapped("start")).replace(
             hour=0, minute=0, second=0, tzinfo=UTC
         )
@@ -65,7 +57,6 @@ class CalendarEvent(models.Model):
         interval_by_event = {}
         for event in self:
             if event.allday:
-                # Avoid allday event with a duration of 0
                 allday_event_interval = Intervals(
                     [
                         (

@@ -3,7 +3,7 @@ from odoo.http import request
 
 
 class HrOrgChartController(http.Controller):
-    _managers_level = 5  # FP request
+    _managers_level = 5
 
     def _get_employee(self, employee_id, **kw):
         employee_id = int(employee_id) if employee_id else False
@@ -46,13 +46,12 @@ class HrOrgChartController(http.Controller):
     def get_org_chart(self, employee_id, new_parent_id=None, **kw):
         employee = self._get_employee(employee_id, **kw)
         new_parent = self._get_employee(new_parent_id, **kw).sudo()
-        if not employee:  # to check
+        if not employee:
             return {
                 "managers": [],
                 "children": [],
             }
 
-        # compute employee data for org chart
         ancestors, current = request.env["hr.employee.public"].sudo(), employee.sudo()
         current_parent = new_parent if new_parent_id is not None else current.parent_id
         max_level = (kw.get("context")["max_level"] or self._managers_level) + 1
@@ -99,7 +98,7 @@ class HrOrgChartController(http.Controller):
             - None (default): all subordinates
         """
         employee = self._get_employee(employee_id, **kw)
-        if not employee:  # to check
+        if not employee:
             return {}
 
         if subordinates_type == "direct":

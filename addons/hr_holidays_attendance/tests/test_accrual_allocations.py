@@ -194,14 +194,12 @@ class TestAccrualAllocationsAttendance(TestHrHolidaysCommon):
         )
 
         with freeze_time(datetime.datetime(2024, 4, 2, 20, 0, 0)):
-            # Only counts the part of the attendance on the 01/04/2024: 2 hours
             allocation._update_accrual()
-            self.assertEqual(allocation.number_of_days, 0.25)  # 2 / 8 = 0.25
+            self.assertEqual(allocation.number_of_days, 0.25)
 
         with freeze_time(datetime.datetime(2024, 4, 3, 20, 0, 0)):
-            # Counts the whole attendance: 9 hours
             allocation._update_accrual()
-            self.assertEqual(allocation.number_of_days, 1.125)  # 9 / 8 = 1.125
+            self.assertEqual(allocation.number_of_days, 1.125)
 
     def test_accrual_allocation_with_overlapping_attendance_timezone(self):
         self.employee_emp.tz = "Asia/Tokyo"
@@ -244,21 +242,15 @@ class TestAccrualAllocationsAttendance(TestHrHolidaysCommon):
         self.env["hr.attendance"].create(
             {
                 "employee_id": self.employee_emp.id,
-                "check_in": datetime.datetime(
-                    2024, 4, 1, 22, 0, 0
-                ),  # In Tokyo: 2024/04/02, 7h
-                "check_out": datetime.datetime(
-                    2024, 4, 2, 7, 0, 0
-                ),  # In Tokyo: 2024/04/02, 16h
+                "check_in": datetime.datetime(2024, 4, 1, 22, 0, 0),
+                "check_out": datetime.datetime(2024, 4, 2, 7, 0, 0),
             }
         )
 
         with freeze_time(datetime.datetime(2024, 4, 2, 20, 0, 0)):
-            # Only counts the part of the attendance on the 01/04/2024 UTC: 2 hours
             allocation._update_accrual()
-            self.assertEqual(allocation.number_of_days, 0.25)  # 2 / 8 = 0.25
+            self.assertEqual(allocation.number_of_days, 0.25)
 
         with freeze_time(datetime.datetime(2024, 4, 3, 20, 0, 0)):
-            # Counts the whole attendance: 9 hours - 1h of lunchtime = 8h
             allocation._update_accrual()
-            self.assertEqual(allocation.number_of_days, 1.0)  # 8 / 8 = 1.0
+            self.assertEqual(allocation.number_of_days, 1.0)

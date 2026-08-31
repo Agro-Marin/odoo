@@ -3,9 +3,7 @@ import { FormCogMenu } from "@web/views/form";
 import { onWillStart } from "@odoo/owl";
 import { getActionRecords, getPresenceActionItems } from "../../views/hooks.js";
 
-/**
- * @extends CogMenu
- */
+/** @extends CogMenu */
 export class HrPresenceCogMenu extends FormCogMenu {
     static template = "hr_presence.cogmenu";
 
@@ -20,9 +18,7 @@ export class HrPresenceCogMenu extends FormCogMenu {
         });
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     get cogItems() {
         var result = super.cogItems;
         result = getPresenceActionItems(result, this.records);

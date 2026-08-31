@@ -18,7 +18,6 @@ class ProjectProject(models.Model):
         default=True,
     )
     account_id = fields.Many2one(
-        # note: replaces ['|', ('company_id', '=', False), ('company_id', '=', company_id)]
         domain="""[
             '|', ('company_id', '=', False), ('company_id', '=?', company_id),
             ('partner_id', '=?', partner_id),
@@ -173,24 +172,17 @@ class ProjectProject(models.Model):
             timesheet_time_dict[project.id].append((product_uom_id, unit_amount_sum))
 
         for project in self:
-            # Timesheets may be stored in a different unit of measure, so first
-            # we convert all of them to the reference unit
-            # if the timesheet has no product_uom_id then we take the one of the project
             total_time = 0.0
             for product_uom_id, unit_amount in timesheet_time_dict[project.id]:
                 factor = (product_uom_id or project.timesheet_encode_uom_id).factor
                 total_time += unit_amount * (
                     1.0 if project.encode_uom_in_days else factor
                 )
-            # Now convert to the proper unit of measure set in the settings
             total_time /= project.timesheet_encode_uom_id.factor
             project.total_timesheet_time = float_round(total_time, precision_digits=2)
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Create an analytic account if project allow timesheet and don't provide one
-        Note: create it before calling super() to avoid raising the ValidationError from _check_allow_timesheet
-        """
         defaults = self.default_get(["allow_timesheets", "account_id", "is_template"])
         analytic_accounts_vals = [
             vals
@@ -213,7 +205,6 @@ class ProjectProject(models.Model):
         return super().create(vals_list)
 
     def write(self, vals):
-        # create the AA for project still allowing timesheet
         if vals.get("allow_timesheets") and not vals.get("account_id"):
             project_wo_account = self.filtered(
                 lambda project: not project.account_id and not project.is_template
@@ -247,12 +238,6 @@ class ProjectProject(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_contains_entries(self):
-        """
-        If some projects to unlink have some timesheets entries, these
-        timesheets entries must be unlinked first.
-        In this case, a warning message is displayed through a RedirectWarning
-        and allows the user to see timesheets entries to unlink.
-        """
         projects_with_timesheets = self.filtered(lambda p: p.timesheet_ids)
         if projects_with_timesheets:
             if len(projects_with_timesheets) > 1:
@@ -288,10 +273,6 @@ class ProjectProject(models.Model):
         if not self.env.context.get("from_embedded_action"):
             action["display_name"] = _("%(name)s's Timesheets", name=self.name)
         return action
-
-    # ----------------------------
-    #  Project Updates
-    # ----------------------------
 
     def _get_stat_buttons(self):
         buttons = super()._get_stat_buttons()
@@ -368,7 +349,6 @@ class ProjectProject(models.Model):
         return buttons
 
     def action_view_tasks(self):
-        # Using the timesheet filter hide context
         action = super().action_view_tasks()
         action["context"]["allow_timesheets"] = self.allow_timesheets
         return action

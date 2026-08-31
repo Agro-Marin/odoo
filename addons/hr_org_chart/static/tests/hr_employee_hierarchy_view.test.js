@@ -87,7 +87,6 @@ test("load hierarchy view", async () => {
         message: "the icon has been replaced in that js_class",
     });
     expect(".o_hierarchy_node_button.btn-primary").toHaveText("1 people");
-    // check nodes in each row
     expect(".o_hierarchy_row:eq(0) .o_hierarchy_node").toHaveCount(1);
     expect(".o_hierarchy_row:eq(0) .o_hierarchy_node_content").toHaveText("Albert");
     expect(".o_hierarchy_node_button.btn-secondary").toHaveCount(1);
@@ -147,14 +146,12 @@ test("hierarchy with a cycle", async () =>{
     expect(".o_hierarchy_row").toHaveCount(4);
     expect(".o_hierarchy_node").toHaveCount(5);
     expect(".o_hierarchy_row:nth-of-type(8) .o_hierarchy_node").toHaveCount(1);
-    // check that the node in the cycle cannot be expanded
     expect(".o_hierarchy_row:nth-of-type(8) .o_hierarchy_node_button").toHaveCount(0);
     expect(".o_hierarchy_row:nth-of-type(1) .o_hierarchy_node_content").toHaveText("Albert\nLouis");
     await contains(".o_hierarchy_row:nth-of-type(1) .btn-secondary").click();
     await contains(".o_hierarchy_row:nth-of-type(1) .btn-primary").click();
     await contains(".o_hierarchy_row:nth-of-type(3) .btn-primary").click();
     await contains(".o_hierarchy_row:nth-of-type(6) .btn-primary").click();
-    // check the root of the tree is still Albert
     expect(".o_hierarchy_row:nth-of-type(1) .o_hierarchy_node_content").toHaveText("Albert\nLouis");
     expect(".o_hierarchy_row:nth-of-type(8) .o_hierarchy_node_content").toHaveText("Albert\nLouis");
 });

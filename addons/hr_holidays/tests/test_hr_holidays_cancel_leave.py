@@ -13,7 +13,7 @@ class TestHrHolidaysCancelLeave(TestHrHolidaysCommon):
     def setUpClass(cls):
         super().setUpClass()
 
-        leave_start_date = date(2018, 2, 5)  # this is monday
+        leave_start_date = date(2018, 2, 5)
         leave_end_date = leave_start_date + relativedelta(days=2)
 
         cls.hr_leave_type = (
@@ -42,7 +42,7 @@ class TestHrHolidaysCancelLeave(TestHrHolidaysCommon):
         )
         cls.holiday.with_user(cls.user_hrmanager).action_approve()
 
-    @freeze_time("2018-02-05")  # useful to be able to cancel the validated time off
+    @freeze_time("2018-02-05")
     def test_action_cancel_leave(self):
         self.assertTrue(self.holiday.with_user(self.user_employee).can_cancel)
         self.env["hr.holidays.cancel.leave"].with_user(self.user_employee).with_context(
@@ -53,7 +53,6 @@ class TestHrHolidaysCancelLeave(TestHrHolidaysCommon):
         )
 
     def test_action_cancel_leave_in_past(self):
-        """Test if the user may cancel a validated leave in the past."""
         with self.assertRaises(
             ValidationError,
             msg="The leave could not be cancel since it is leave in the past.",
@@ -65,7 +64,6 @@ class TestHrHolidaysCancelLeave(TestHrHolidaysCommon):
             ).action_cancel_leave()
 
     def test_action_cancel_leave_from_another_person(self):
-        """Test if the user may cancel a validated leave from another person."""
         self.assertFalse(
             self.holiday.with_user(self.user_hruser).can_cancel,
             "The user should not be able to cancel the leave from another one.",
@@ -80,9 +78,8 @@ class TestHrHolidaysCancelLeave(TestHrHolidaysCommon):
                 {"reason": "Test remove holiday"}
             ).action_cancel_leave()
 
-    @freeze_time("2018-02-05")  # useful to be able to cancel the validated time off
+    @freeze_time("2018-02-05")
     def test_user_cannot_unarchive_leave(self):
-        """Test the user cannot manually unarchive a canceled leave"""
         self.env["hr.holidays.cancel.leave"].with_user(self.user_employee).with_context(
             default_leave_id=self.holiday.id
         ).new({"reason": "Test remove holiday"}).action_cancel_leave()

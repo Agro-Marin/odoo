@@ -14,8 +14,6 @@ class ProductProduct(models.Model):
             domain=[("state", "=", "draft"), ("product_id", "in", self.ids)],
             groupby=["price_unit"],
         )
-        # The following list is composed of all the price_units of expenses that use this product and should NOT trigger a warning.
-        # Those are the amounts of any undone expense using this product and 0.0 which is the default unit_amount.
         unit_amounts_no_warning = [
             self.env.company.currency_id.round(row[0]) for row in undone_expenses
         ]

@@ -3,9 +3,7 @@ import { _t } from "@web/core/translation";
 import { FormController } from "@web/views/form";
 
 export class RecruitmentFormController extends FormController {
-    /**
-     * @override
-     */
+    /** @override */
     get archiveDialogProps() {
         const result = super.archiveDialogProps;
         result.body =

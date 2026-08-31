@@ -1,7 +1,6 @@
 <?xml version="1.0"?>
 <odoo>
     <data>
-        <!-- Resume and Letters -->
         <record id="ir_attachment_view_search_inherit_hr_recruitment" model="ir.ui.view">
             <field name="name">ir.attachment.search.inherit.recruitment</field>
             <field name="model">ir.attachment</field>

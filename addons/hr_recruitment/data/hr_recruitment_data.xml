@@ -23,7 +23,6 @@
         <field name="score">1.00</field>
     </record>
 
-    <!-- Applicant Categories(Tag) -->
     <record id="tag_applicant_reserve" model="hr.applicant.category">
         <field name="name">Reserve</field>
     </record>
@@ -68,7 +67,6 @@
         <field name="hired_stage">True</field>
     </record>
 
-    <!-- applicant refuse reason -->
     <record id="refuse_reason_1" model="hr.applicant.refuse.reason">
         <field name="name">Does not fit the job requirements</field>
         <field name="template_id" ref="email_template_data_applicant_refuse"/>

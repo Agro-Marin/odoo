@@ -29,7 +29,6 @@ patch(AttendeeCalendarModel.prototype, {
         ]);
     },
 
-    // returns a map of worklocations, display is used to mark the events that are to be shown in the view.
     async loadWorkLocations(data) {
         const res = await this.fetchEventLocation(data)
         this.multiCalendar = Object.values(res).some(location => location.user_id !== user.userId);
@@ -52,7 +51,6 @@ patch(AttendeeCalendarModel.prototype, {
                         events[dayISO] = {};
                     }
                     if (res[employeeId].exceptions && dayISO in res[employeeId].exceptions) {
-                        // check if exception for that date
                         const { location_type } = res[employeeId].exceptions[dayISO];
                         if (location_type in events[dayISO]) {
                             events[dayISO][location_type].push(this.createHomeworkingRecordAt(res[employeeId], startDay, res[employeeId].exceptions[dayISO]));
@@ -130,9 +128,7 @@ patch(AttendeeCalendarModel.prototype, {
             .reduce((map, partner) => ({ ...map, [partner.value]: getColor(partner.colorIndex)}), {})
     },
 
-    /**
-     * @override
-     */
+    /** @override */
     async updateData(data){
         await super.updateData(...arguments)
         this.partnerColorMap = this.mapPartnersToColor(data);

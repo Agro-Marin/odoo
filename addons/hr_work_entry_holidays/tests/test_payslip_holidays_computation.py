@@ -24,6 +24,4 @@ class TestPayslipHolidaysComputation(TestWorkEntryHolidaysBase):
             )
         )
         sum_hours = sum(work_entries.mapped("duration"))
-        self.assertEqual(
-            sum_hours, 59, "It should count 59 attendance hours"
-        )  # 24h first contract + 35h second contract
+        self.assertEqual(sum_hours, 59, "It should count 59 attendance hours")

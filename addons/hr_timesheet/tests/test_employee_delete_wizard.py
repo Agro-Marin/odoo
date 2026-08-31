@@ -6,7 +6,6 @@ class TestEmployeeDeleteWizard(TestHrCommon):
         super().setUp()
 
     def test_delete_wizard_single_employee_with_timesheet(self):
-        """Test the deletion wizard in the case of a single employee"""
         employee_A = self.env["hr.employee"].create(
             [
                 {

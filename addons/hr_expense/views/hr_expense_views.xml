@@ -13,11 +13,9 @@
                     <field name="product_has_cost" column_invisible="True"/>
                     <field name="selectable_payment_channel_ids" column_invisible="True"/>
 
-                    <!--  Always Shown start -->
                     <field name="employee_id" widget="many2one_avatar_employee" readonly="not is_editable"/>
                     <field name="name" readonly="not is_editable"/>
 
-                    <!--  Optional -->
                     <field name="department_id" optional="hide" readonly="True"/>
                     <field name="date" optional="show" readonly="not is_editable"/>
                     <field name="product_id" optional="show" readonly="not is_editable" required="1"/>
@@ -55,7 +53,6 @@
                     <field name="currency_id" optional="hide"
                            readonly="not is_editable or product_has_cost"
                            groups="base.group_multi_currency"/>
-                    <!--  Always Shown end -->
                     <field name="state" optional="show" readonly="True"
                            decoration-info="state == 'draft'"
                            decoration-success="state in ['approved', 'posted', 'in_payment', 'paid']"
@@ -73,7 +70,6 @@
             <field name="mode">primary</field>
             <field name="arch" type="xml">
                 <xpath expr="//list" position="attributes">
-                    <!-- Display the tree dashboard view with the header -->
                     <attribute name="js_class">hr_expense_dashboard_tree</attribute>
                 </xpath>
             </field>
@@ -87,7 +83,6 @@
             <field name="mode">primary</field>
             <field name="arch" type="xml">
                 <xpath expr="//list" position="attributes">
-                    <!-- Display the tree dashboard view with the header -->
                     <attribute name="js_class">hr_expense_dashboard_tree</attribute>
                 </xpath>
             </field>
@@ -99,7 +94,6 @@
             <field name="arch" type="xml">
                 <form string="Expenses" js_class="hr_expense_form_view">
                 <header>
-                    <!-- Without attachments the attach_document comes first-->
                     <button name="action_submit" string="Submit" type="object" class="oe_highlight o_expense_submit_highlight"
                             invisible="nb_attachment == 0 or state != 'draft'" data-hotkey="v"/>
                     <button name="action_approve" string="Approve" type="object" data-hotkey="q" context="{'validate_analytic': True}"
@@ -107,7 +101,6 @@
                     <button name="action_post" string="Post Journal Entries" type="object" data-hotkey="y" class="oe_highlight o_expense_post_highlight"
                             invisible="nb_attachment == 0 or state != 'approved'" groups="account.group_account_invoice"/>
 
-                    <!-- With attachments the attach document comes last-->
                     <widget name="attach_document" string="Attach Receipt" action="attach_document" highlight="1" invisible="nb_attachment &gt;= 1"/>
                     <button name="action_submit" string="Submit" type="object" class="o_expense_submit"
                             invisible="nb_attachment &gt;= 1 or state != 'draft'" data-hotkey="v"/>
@@ -120,7 +113,6 @@
                             groups="hr_expense.group_hr_expense_team_approver" class="o_expense_refuse" data-hotkey="x"/>
                     <button name="action_reset" string="Reset" type="object" data-hotkey="r" invisible="not can_reset or state in 'draft'"
                             groups="account.group_account_invoice"/>
-                    <!-- v In the case where the user has no accounting rights, we don't show the button in the post & done states  -->
                     <button name="action_reset" string="Reset" type="object" data-hotkey="r"
                             invisible="not can_reset or state in ('draft', 'posted', 'in_payment','paid')" groups="!account.group_account_invoice"/>
                     <button name="action_split_wizard" string="Split Expense" type="object" invisible="state != 'draft' or product_has_cost"
@@ -129,10 +121,8 @@
                             invisible="state in ('in_payment', 'paid', 'refused', 'posted') or product_has_cost"
                             groups="hr_expense.group_hr_expense_team_approver,account.group_account_invoice"/>
 
-                    <!-- With attachments the attach_document comes last -->
                     <widget name="attach_document" string="Attach Receipt" action="attach_document" invisible="nb_attachment == 0"/>
 
-                    <!-- Statusbar -->
                     <field name="state" widget="statusbar" statusbar_visible="draft,approved,posted,paid"
                            invisible="state in ('submitted', 'in_payment', 'refused')"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,submitted,approved,posted,paid"
@@ -202,7 +192,6 @@
                                 </div>
                             </div>
 
-                            <!-- CASE: product has a cost defined -> user input qty (always in company currency) -->
                             <field name="price_unit" required="1" widget="monetary"
                                    options="{'currency_field': 'currency_id', 'field_digits': True}"
                                    invisible="not product_has_cost" readonly="True"/>
@@ -216,7 +205,6 @@
                                 </div>
                             </div>
 
-                            <!-- CASE: product has no cost defined -> user input amount (in other currency if multi-currency) -->
                             <label for="total_amount_currency" string="Total" invisible="product_has_cost" readonly="not is_editable"/>
                             <div class="o_row" invisible="product_has_cost">
                                 <field name="total_amount_currency" widget='monetary' options="{'currency_field': 'currency_id'}"
@@ -227,7 +215,6 @@
                                 <span class="d-flex" invisible="tax_amount == 0">(incl <field name="tax_amount" class="mx-1"/> tax)</span>
                             </div>
 
-                            <!-- CASE: converter when currency is different than the company one -->
                             <label name="total_amount_product_cost_label" for="total_amount" string="Total" invisible="is_multiple_currency or not product_has_cost"/>
                             <label name="total_amount_multicurrency_label" for="total_amount" string="" invisible="not is_multiple_currency"/>
                             <div class="o_row" invisible="not is_multiple_currency and not product_has_cost">
@@ -338,7 +325,6 @@
             </field>
         </record>
 
-        <!-- Kanban view without employee or state -->
         <record id="hr_expense_kanban_view_minimal" model="ir.ui.view">
             <field name="name">hr.expense.kanban</field>
             <field name="model">hr.expense</field>
@@ -354,7 +340,6 @@
             </field>
         </record>
 
-        <!-- Kanban view without header -->
         <record id="hr_expense_kanban_view" model="ir.ui.view">
             <field name="name">hr.expense.kanban</field>
             <field name="model">hr.expense</field>
@@ -367,7 +352,6 @@
             </field>
         </record>
 
-        <!-- Kanban view with header. Used in "My Expenses -->
         <record id="hr_expense_kanban_view_header" model="ir.ui.view">
             <field name="name">hr.expense.kanban</field>
             <field name="model">hr.expense</field>
@@ -412,13 +396,11 @@
             <field name="model">hr.expense</field>
             <field name="arch" type="xml">
                 <search string="Expense">
-                    <!-- Search -->
                     <field name="name" filter_domain="[('name', 'ilike', self)]" string="Expense"/>
                     <field name="department_id" filter_domain="[('department_id.name', 'ilike', self)]"/>
                     <field name="company_id" filter_domain="[('company_id.name', 'ilike', self)]" groups="base.group_multi_company"/>
                     <field name="employee_id" filter_domain="[('employee_id.name', 'ilike', self)]"/>
 
-                    <!-- Filters -->
                     <filter string="My Expenses" name="my_open_expenses" domain="[('employee_id.user_id', '=', uid)]"/>
                     <filter string="My Team" name="my_team_expenses" domain="[('employee_id.parent_id.user_id', '=', uid)]"
                             groups="hr_expense.group_hr_expense_team_approver" help="Expenses of Your Team Member"/>
@@ -433,7 +415,6 @@
                     <separator />
                     <filter string="Expense Date" name="date" date="date"/>
                     <separator/>
-                    <!-- Invisible filters -->
                     <filter string="All to Post" name="all_approved" domain="[('state', '=', 'approved')]" invisible="True"/>
                     <filter string="All to Pay" name="all_to_pay" domain="[('state', '=', 'posted'), ('payment_mode', '=', 'own_account')]" invisible="True"/>
                     <filter string="All Paid" name="all_paid" domain="[('state', 'in', ['in_payment', 'paid']), ('payment_mode', '=', 'own_account')]" invisible="True"/>
@@ -449,7 +430,6 @@
                     <filter invisible="1" string="Future Activities" name="activities_upcoming_all"
                         domain="[('my_activity_date_deadline', '&gt;', 'today')]"/>
 
-                    <!-- Group bys -->
                     <group name="group_filters">
                         <filter string="Employee" name="employee" context="{'group_by': 'employee_id'}"/>
                         <filter string="Category" name="product" context="{'group_by': 'product_id'}"/>

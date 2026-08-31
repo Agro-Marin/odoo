@@ -12,7 +12,6 @@
         <field name="implied_ids" eval="[(4, ref('hr_recruitment.group_hr_recruitment_manager'))]"/>
     </record>
 
-    <!--Manage the job_id to get in hr.applicant-->
     <record id="hr.job_developer" model="hr.job">
         <field name="no_of_recruitment">4</field>
         <field name="no_of_hired_employee">56</field>
@@ -101,7 +100,6 @@
         <field name="stage_id" ref="stage_job1"/>
     </record>
 
-    <!-- applicant -->
     <record id="hr_case_cto1" model="hr.applicant">
         <field name="partner_name">Emily Brooks</field>
         <field name="email_from">emily.brooks@example.com</field>

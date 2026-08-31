@@ -5,8 +5,6 @@ import { GraphModel } from "@web/views/graph";
 
 export class HrHolidaysGraphModel extends GraphModel {
     async load(searchParams) {
-        // Never push into searchParams.groupBy: it is the SearchModel's own
-        // memoized array, shared with every other reader of this search state.
         const { groupBy } = searchParams;
         if (groupBy.length && !groupBy.includes("leave_type")) {
             return super.load({ ...searchParams, groupBy: [...groupBy, "leave_type"] });
@@ -15,13 +13,10 @@ export class HrHolidaysGraphModel extends GraphModel {
     }
 
     getLineOverlayDataset() {
-        // Given that there are at least 2 stacks one for allocation and one for time off
-        // then there shouldn't be a lineOverlay. 
         return null;
     }
 
     /**
-     * Eventually filters and sort data points.
      * @protected
      * @returns {Object[]}
      */
@@ -39,7 +34,7 @@ export class HrHolidaysGraphModel extends GraphModel {
             if (order !== null && groupBy.length > 0) {
                 const groupedDataPoints = {};
                 for (const dataPt of processedDataPoints) {
-                    const key = dataPt.labels[0]; // = x-axis value under the current assumptions
+                    const key = dataPt.labels[0];
                     if (!groupedDataPoints[key]) {
                         groupedDataPoints[key] = [];
                     }

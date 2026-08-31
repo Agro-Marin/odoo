@@ -218,12 +218,6 @@ class TimesheetCustomerPortal(CustomerPortal):
                 ],
             },
         }
-        # Clamp all three to their declared vocabularies. These come straight off
-        # the query string and each was a distinct HTTP 500 on an unknown value:
-        # `filterby` a KeyError below, and `sortby` / `groupby` are interpolated
-        # into the `order=` string used by `get_timesheets` (and `groupby` into
-        # `_read_group`), so an unknown key reached the ORM as a nonexistent
-        # field to order by.
         sortby = self._resolve_searchbar_option(searchbar_sortings, sortby, "date desc")
         groupby = self._resolve_searchbar_option(searchbar_groupby, groupby, "none")
         filterby = self._resolve_searchbar_option(searchbar_filters, filterby, "all")
@@ -236,7 +230,6 @@ class TimesheetCustomerPortal(CustomerPortal):
             domain &= Domain("parent_task_id", "=", int(parent_task_id))
 
         timesheet_count = Timesheet_sudo.search_count(domain)
-        # pager
         pager = portal_pager(
             url="/my/timesheets",
             url_args={

@@ -25,7 +25,6 @@
     }
 }
 
-// ----- View specific
 .fc-timeGridDay-view {
     .o_worklocation_btn {
         margin-top: 0px;
@@ -54,12 +53,6 @@
     }
 }
 
-// Both values mix the record colour towards a target the scheme decides, and
-// `tokens.scss` publishes both targets, so both derive in CSS: 56 colours × 2
-// schemes of published label colour become one declaration. What used to force
-// the label into a per-scheme token was naming the target instead of the mix —
-// `shade-color()` inverts to mix with #FFF, which is not `--o-black` (#E2E8F0
-// in dark), so there was no token to reach for.
 @function o-worklocation-subtle($-index) {
     @return unquote(
         "color-mix(in srgb, var(--o-tint-target) 65%, var(--o-record-color-#{$-index}))"

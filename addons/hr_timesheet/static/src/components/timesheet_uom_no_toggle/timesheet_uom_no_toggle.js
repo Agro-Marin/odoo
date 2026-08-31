@@ -12,7 +12,6 @@ export class TimesheetUOMNoToggle extends TimesheetUOM {
     }
 }
 
-// As FloatToggleField won't be used by TimesheetUOMNoToggle, we remove it from the components that we get from TimesheetUOM.
 delete TimesheetUOMNoToggle.components.FloatToggleField;
 
 export const timesheetUOMNoToggle = {

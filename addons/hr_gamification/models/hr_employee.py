@@ -17,7 +17,6 @@ class HrEmployee(models.Model):
         help="All employee badges, linked to the employee either directly or through the user",
     )
     has_badges = fields.Boolean(compute="_compute_employee_badges")
-    # necessary for correct dependencies of badge_ids and has_badges
     direct_badge_ids = fields.One2many(
         "gamification.badge.user",
         "employee_id",

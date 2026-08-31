@@ -34,7 +34,6 @@ export class ResumeListRenderer extends CommonSkillsListRenderer {
         return formatDate(date);
     }
 
-    /** @override */
     buildRowApi() {
         return {
             ...super.buildRowApi(),
@@ -45,12 +44,11 @@ export class ResumeListRenderer extends CommonSkillsListRenderer {
     _setLinksToOpenInNewTab() {
         const resumeLines = this.linkRef.el;
 
-        // Find all links within the resume description and set target to "_blank"
         if (resumeLines){
             const links = resumeLines.querySelectorAll('a');
 
             links.forEach(link => {
-                link.setAttribute('target', '_blank'); // Set target="_blank" to open links in new tab
+                link.setAttribute('target', '_blank');
             });
         }
     }

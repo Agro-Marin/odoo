@@ -7,9 +7,6 @@ from odoo.tests.common import TransactionCase
 @tagged("-at_install", "post_install", "post_install_l10n")
 class TestLeaveTypeData(TransactionCase):
     def test_ensure_hr_leave_type_definition(self):
-        # Make sure leave types are defined in hr_holidays in master (and not in other modules)
-        # In the case this tests breaks during a forward port, move the time off type definition
-        # to hr_work_entry and make a upgrade script accordingly.
         if version_info[3] != "alpha":
             return
         leave_types_xmlids = self.env["hr.leave.type"].search([])._get_external_ids()

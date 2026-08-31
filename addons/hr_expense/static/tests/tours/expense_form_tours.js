@@ -101,13 +101,11 @@ registry.category("web_tour.tours").add("do_not_create_zero_amount_expense", {
             trigger: ".o_expense_submit",
             run: "click",
         },
-        // Valid expense was saved on submit
         {
             content: "Set total amount to zero",
             trigger: "div[name=total_amount_currency] input",
             run: "edit 0.0",
         },
-        // Save should fail
         {
             content: "Click Approve",
             trigger: ".o_expense_approve",
@@ -118,7 +116,6 @@ registry.category("web_tour.tours").add("do_not_create_zero_amount_expense", {
             trigger: ".modal .modal-footer .btn-primary.o-default-button",
             run: "click",
         },
-        // Return to the valid expense
         ...stepUtils.discardForm(),
     ],
 });

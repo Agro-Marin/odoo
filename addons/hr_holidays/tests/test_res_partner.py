@@ -12,7 +12,6 @@ class TestPartner(TransactionCase):
     @freeze_time("2024-06-04")
     def setUpClass(cls):
         super().setUpClass()
-        # use a single value for today throughout the tests to avoid weird scenarios around midnight
         cls.today = fields.Date.today()
         baseUser = cls.env["res.users"].create(
             {

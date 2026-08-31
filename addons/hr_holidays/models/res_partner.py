@@ -10,8 +10,6 @@ class ResPartner(models.Model):
 
     def _compute_leave_date_to(self):
         for partner in self:
-            # in the rare case of multi-user partner, return the earliest
-            # possible return date
             dates = partner.user_ids.mapped("leave_date_to")
             partner.leave_date_to = min(dates) if dates and all(dates) else False
 
@@ -36,7 +34,6 @@ class ResPartner(models.Model):
     def _to_store_defaults(self, target):
         defaults = super()._to_store_defaults(target)
         if target.is_internal(self.env):
-            # sudo: res.users - to access other company's portal user leave date
             defaults.append(
                 Store.One(
                     "main_user_id",

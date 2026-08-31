@@ -48,8 +48,6 @@ class TestNegative(TestHrHolidaysCommon):
 
     def test_negative_time_off(self):
         with freeze_time("2022-10-02"):
-            # At the start of 2022, the user receives 1 days, his balance is at 1
-            # The first 2022 leave brings the user balance at -4
             self.env["hr.leave"].with_user(self.user_employee_id).create(
                 {
                     "name": "first 2022 leave of 5 days",
@@ -61,8 +59,6 @@ class TestNegative(TestHrHolidaysCommon):
             )
 
         with freeze_time("2023-10-02"):
-            # At the start of 2023, the user receives 5 days, his balance is at 1
-            # The first leave of 2023 brings the balance at -4
             self.env["hr.leave"].with_user(self.user_employee_id).create(
                 {
                     "name": "first 2023 leave of 5 days",
@@ -73,7 +69,6 @@ class TestNegative(TestHrHolidaysCommon):
                 }
             )
 
-            # The leave should not be possible to take since it would bring the balance at -9
             with self.assertRaises(ValidationError):
                 self.env["hr.leave"].with_user(self.user_employee_id).create(
                     {
@@ -85,7 +80,6 @@ class TestNegative(TestHrHolidaysCommon):
                     }
                 )
 
-            # The second leave of 2023 brings the balance at -5
             one_day_leave = (
                 self.env["hr.leave"]
                 .with_user(self.user_employee_id)
@@ -100,7 +94,6 @@ class TestNegative(TestHrHolidaysCommon):
                 )
             )
 
-            # The leave should not be possible to edit since it would bring the balance at -6
             with self.assertRaises(ValidationError):
                 one_day_leave.with_user(self.user_hrmanager_id).write(
                     {

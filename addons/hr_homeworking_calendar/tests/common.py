@@ -13,7 +13,6 @@ class TestHrHomeworkingCommon(common.TransactionCase):
             cls.env, login="david", groups="base.group_user"
         )
 
-        # Hr Data
         Department = cls.env["hr.department"].with_context(tracking_disable=True)
         WorkLocation = cls.env["hr.work.location"].with_context(tracking_disable=True)
         main_partner_id = cls.env.ref("base.main_partner")

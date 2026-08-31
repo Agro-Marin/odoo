@@ -100,15 +100,6 @@ class TestEventInterval(TestHrCalendarCommon):
         )
 
     def test_allday_event_during_no_working_day(self):
-        """
-        An allday event is calculated using the company's calendar. If the event is scheduled on a day when the company
-        is closed, the duration of the event will be set to zero.
-        """
-
-        # A : Saturday
-        # B : Friday - Saturday
-        # C : Sunday - Monday
-        # D : Friday - Saturday - Sunday - Monday
         events = (
             self.env["calendar.event"]
             .with_context(company_id=self.company_A.id)

@@ -9,11 +9,6 @@ class SurveyUser_Input(models.Model):
     _inherit = "survey.user_input"
 
     def _mark_done(self):
-        """Will add certification to employee's resume if
-        - The survey is a certification
-        - The user is linked to an employee
-        - The user succeeded the test"""
-
         super()._mark_done()
 
         certification_user_inputs = self.filtered(

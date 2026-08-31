@@ -7,7 +7,6 @@ import { patch } from "@web/core/utils/patch";
 
 const { DateTime } = luxon;
 
-/** @param {string} datetime */
 export function getOutOfOfficeDateEndText(datetime) {
     const foptions = { ...DateTime.DATE_MED };
     const dt = typeof datetime === "string" ? deserializeDateTime(datetime) : datetime;
@@ -19,7 +18,6 @@ export function getOutOfOfficeDateEndText(datetime) {
 }
 
 patch(ResPartner.prototype, {
-    /** @returns {string} */
     get outOfOfficeDateEndText() {
         const employee_id = this.employee_id || this.main_user_id?.employee_id;
         if (!employee_id?.leave_date_to) {

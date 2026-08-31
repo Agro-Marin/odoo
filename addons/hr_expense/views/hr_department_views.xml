@@ -1,5 +1,4 @@
 <odoo>
-    <!--Hr Department Inherit Kanban view-->
     <record id="hr_department_view_kanban" model="ir.ui.view">
         <field name="name">hr.department.kanban.inherit</field>
         <field name="model">hr.department</field>

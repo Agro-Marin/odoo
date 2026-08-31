@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo><data noupdate="1">
-<!-- Global Leave Types -->
     <record id="leave_type_paid_time_off" model="hr.leave.type">
         <field name="name">Paid Time Off</field>
         <field name="requires_allocation">True</field>
@@ -12,8 +11,8 @@
         <field name="responsible_ids" eval="[(4, ref('base.user_admin'))]"/>
         <field name="icon_id" ref="hr_holidays.icon_14"/>
         <field name="color">2</field>
-        <field name="company_id" eval="False"/> <!-- Explicitely set to False for it to be available to all companies -->
-        <field name="country_id" eval="False"/> <!-- Explicitely set to False for it to be available to all countries -->
+        <field name="company_id" eval="False"/>
+        <field name="country_id" eval="False"/>
         <field name="sequence">1</field>
     </record>
 
@@ -26,8 +25,8 @@
         <field name="hide_on_dashboard">True</field>
         <field name="icon_id" ref="hr_holidays.icon_21"/>
         <field name="color">3</field>
-        <field name="company_id" eval="False"/> <!-- Explicitely set to False for it to be available to all companies -->
-        <field name="country_id" eval="False"/> <!-- Explicitely set to False for it to be available to all countries -->
+        <field name="company_id" eval="False"/>
+        <field name="country_id" eval="False"/>
         <field name="sequence">2</field>
     </record>
 
@@ -42,8 +41,8 @@
         <field name="responsible_ids" eval="[(4, ref('base.user_admin'))]"/>
         <field name="icon_id" ref="hr_holidays.icon_4"/>
         <field name="color">4</field>
-        <field name="company_id" eval="False"/> <!-- Explicitely set to False for it to be available to all companies -->
-        <field name="country_id" eval="False"/> <!-- Explicitely set to False for it to be available to all countries -->
+        <field name="company_id" eval="False"/>
+        <field name="country_id" eval="False"/>
         <field name="sequence">4</field>
     </record>
 
@@ -59,8 +58,8 @@
         <field name="responsible_ids" eval="[(4, ref('base.user_admin'))]"/>
         <field name="icon_id" ref="hr_holidays.icon_28"/>
         <field name="color">5</field>
-        <field name="company_id" eval="False"/> <!-- Explicitely set to False for it to be available to all companies -->
-        <field name="country_id" eval="False"/> <!-- Explicitely set to False for it to be available to all countries -->
+        <field name="company_id" eval="False"/>
+        <field name="country_id" eval="False"/>
         <field name="sequence">3</field>
     </record>
 
@@ -91,7 +90,6 @@
         <field name="sequence">5</field>
     </record>
 
-<!-- AE : United Arab Emirates -->
     <record id="l10n_ae_leave_type_sick_leave_50" model="hr.leave.type">
         <field name="name">Sick Leave 50%</field>
         <field name="requires_allocation">False</field>
@@ -112,7 +110,6 @@
         <field name="country_id" ref="base.ae"/>
     </record>
 
-<!-- BE : Belgium -->
     <record id="l10n_be_leave_type_small_unemployment" model="hr.leave.type">
         <field name="name">Small Unemployment</field>
         <field name="requires_allocation">True</field>
@@ -232,8 +229,6 @@
         <field name="country_id" ref="base.be"/>
     </record>
 
-<!-- CH: Switzerland -->
-
     <record id="l10n_ch_swissdec_unpaid_lt" model="hr.leave.type">
         <field name="name">Unpaid leave</field>
         <field name="employee_requests">False</field>
@@ -306,7 +301,6 @@
         <field name="country_id" ref="base.ch"/>
     </record>
 
-<!-- EG: Egypt -->
     <record id="l10n_eg_leave_type_marriage" model="hr.leave.type">
         <field name="name">Marriage Leave</field>
         <field name="requires_allocation">False</field>
@@ -354,7 +348,6 @@
         <field name="country_id" ref="base.eg"/>
     </record>
 
-<!-- HK : Hong Kong -->
     <record id="l10n_hk_leave_type_annual_leave" model="hr.leave.type">
         <field name="name">HK Annual Leaves</field>
         <field name="requires_allocation">True</field>
@@ -452,7 +445,6 @@
         <field name="country_id" ref="base.hk"/>
     </record>
 
-<!-- ID : Indonesia -->
     <record id="l10n_id_leave_type_annual_leave" model="hr.leave.type">
         <field name="name">ID Annual Leaves</field>
         <field name="requires_allocation">True</field>
@@ -508,7 +500,6 @@
         <field name="country_id" ref="base.id"/>
     </record>
 
-<!-- JO : Jordan -->
     <record id="l10n_jo_leave_type_unpaid_sick" model="hr.leave.type">
         <field name="name">Sick Leave (Unpaid)</field>
         <field name="requires_allocation">False</field>
@@ -549,7 +540,6 @@
         <field name="country_id" ref="base.jo"/>
     </record>
 
-<!-- LU : Luxemburg -->
     <record id="l10n_lu_leave_type_situational_unemployment" model="hr.leave.type">
         <field name="name">Unemployment (Weather / Situational)</field>
         <field name="requires_allocation">False</field>
@@ -565,7 +555,6 @@
         <field name="country_id" ref="base.lu"/>
     </record>
 
-<!-- MX : Mexico -->
     <record id="l10n_mx_leave_type_work_risk_imss" model="hr.leave.type">
         <field name="name">Work risk (IMSS)</field>
         <field name="requires_allocation">False</field>
@@ -611,7 +600,6 @@
         <field name="country_id" ref="base.mx"/>
     </record>
 
-<!-- SA : Saudi Arabia -->
     <record id="l10n_sa_leave_type_sick_leave_100" model="hr.leave.type">
         <field name="name">Sick Leave (100% Paid)</field>
         <field name="requires_allocation">yes</field>
@@ -682,7 +670,6 @@
         <field name="country_id" ref="base.sa"/>
     </record>
 
-<!-- SK : Slovakia -->
     <record id="l10n_sk_leave_type_maternity" model="hr.leave.type">
         <field name="name">Maternity Time Off</field>
         <field name="requires_allocation">False</field>
@@ -693,7 +680,6 @@
         <field name="country_id" ref="base.sk"/>
     </record>
 
-<!-- PL : Poland -->
     <record id="l10n_pl_leave_type_sick_leave" model="hr.leave.type">
         <field name="name">PL Sick Leaves 80% </field>
         <field name="requires_allocation">no</field>

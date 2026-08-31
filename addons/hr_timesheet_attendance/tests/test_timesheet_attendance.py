@@ -13,7 +13,7 @@ class TestTimesheetAttendance(TestCommonTimesheet):
         cls.env["hr.attendance"].create(
             {
                 "employee_id": cls.empl_employee.id,
-                "check_in": datetime(2022, 2, 9, 8, 0),  # Wednesday
+                "check_in": datetime(2022, 2, 9, 8, 0),
                 "check_out": datetime(2022, 2, 9, 16, 0),
             }
         )

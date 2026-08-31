@@ -11,7 +11,6 @@ export class HolidaysListController extends ListController {
         super.setup();
         this.orm = useService("orm");
 
-        // Store reference to original button click handler for fallback
         this.onClickViewButton = this.env.onClickViewButton;
 
         useSubEnv({
@@ -19,10 +18,6 @@ export class HolidaysListController extends ListController {
         });
     }
 
-    /**
-     * Returns permission filters for holiday/leave actions.
-     * Each filter checks if a record has the required permissions for the specific action.
-     */
     get actionFilters() {
         return {
             action_approve: (record) => record.data.can_approve || record.data.can_validate,
@@ -31,10 +26,6 @@ export class HolidaysListController extends ListController {
     }
 
     /**
-     * Intercepts button clicks to apply permission-based filtering for holiday actions.
-     * For approve/refuse actions, only processes records that have the required permissions.
-     * Falls back to original handler if no eligible records or for other actions.
-     *
      * @param {Object} params - Button click parameters containing action details
      */
     handleViewButtonClick(params) {
@@ -53,9 +44,6 @@ export class HolidaysListController extends ListController {
     }
 
     /**
-     * Determines whether a button should be displayed based on current selection and permissions.
-     * Only shows approve/refuse buttons if at least one selected record has the required permissions.
-     *
      * @param {Object} button - Button configuration object
      * @returns {boolean} True if button should be displayed
      */
@@ -69,8 +57,6 @@ export class HolidaysListController extends ListController {
     }
 
     /**
-     * Executes an action (approve/refuse) on the specified records and refreshes the view.
-     *
      * @param {string} functionName - Name of the backend method to call
      * @param {Array} records - Array of record objects to process
      */

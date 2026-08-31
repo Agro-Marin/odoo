@@ -18,7 +18,6 @@
     </record>
 </data>
 
-<!-- AE : United Arab Emirates -->
     <record id="hr_holidays.l10n_ae_leave_type_sick_leave_50" model="hr.leave.type">
         <field name="work_entry_type_id" ref="hr_work_entry.uae_sick_leave_50_entry_type"/>
     </record>
@@ -27,7 +26,6 @@
         <field name="work_entry_type_id" ref="hr_work_entry.uae_sick_leave_0_entry_type"/>
     </record>
 
-<!-- BE : Belgium -->
     <record id="hr_holidays.l10n_be_leave_type_small_unemployment" model="hr.leave.type">
         <field name="work_entry_type_id" ref="hr_work_entry.l10n_be_work_entry_type_small_unemployment"/>
     </record>
@@ -76,8 +74,6 @@
         <field name="work_entry_type_id" ref="hr_work_entry.work_entry_type_sick_leave"></field>
     </record>
 
-<!-- CH: Switzerland -->
-
     <record id="hr_holidays.l10n_ch_swissdec_unpaid_lt" model="hr.leave.type">
         <field name="work_entry_type_id" ref="hr_work_entry.l10n_ch_swissdec_unpaid_wt"/>
     </record>
@@ -102,7 +98,6 @@
         <field name="work_entry_type_id" ref="hr_work_entry.l10n_ch_swissdec_interruption_wt"/>
     </record>
 
-<!-- Eg: Egypt -->
     <record id="hr_holidays.l10n_eg_leave_type_paid_sick_time_off" model="hr.leave.type">
         <field name="work_entry_type_id" ref="hr_work_entry.l10n_eg_work_entry_type_paid_sick_leave" />
     </record>
@@ -115,7 +110,6 @@
         <field name="work_entry_type_id" ref="hr_work_entry.l10n_eg_work_entry_type_sick_leave_unpaid" />
     </record>
 
-<!-- HK : Hong Kong -->
     <record id="hr_holidays.l10n_hk_leave_type_annual_leave" model="hr.leave.type">
         <field name="work_entry_type_id" ref="hr_work_entry.work_entry_type_legal_leave" />
     </record>
@@ -164,7 +158,6 @@
         <field name="work_entry_type_id" ref="hr_work_entry.l10n_hk_work_entry_type_examination_leave"/>
     </record>
 
-<!-- ID : Indonesia -->
     <record id="hr_holidays.l10n_id_leave_type_annual_leave" model="hr.leave.type">
         <field name="work_entry_type_id" ref="hr_work_entry.work_entry_type_legal_leave" />
     </record>
@@ -193,17 +186,14 @@
         <field name="work_entry_type_id" ref="hr_work_entry.l10n_id_work_entry_type_bereavement_leave"/>
     </record>
 
-<!-- JO : Jordan -->
     <record id="hr_holidays.l10n_jo_leave_type_unpaid_sick" model="hr.leave.type">
         <field name="work_entry_type_id" ref="hr_work_entry.l10n_jo_work_entry_type_sick_leave_unpaid"/>
     </record>
 
-<!-- LU : Luxembourg -->
     <record id="hr_holidays.l10n_lu_leave_type_situational_unemployment" model="hr.leave.type">
         <field name="work_entry_type_id" ref="hr_work_entry.l10n_lu_work_entry_type_situational_unemployment"/>
     </record>
 
-<!-- MX : Mexico -->
     <record id="hr_holidays.l10n_mx_leave_type_work_risk_imss" model="hr.leave.type">
         <field name="work_entry_type_id" ref="hr_work_entry.l10n_mx_work_entry_type_work_risk_imss"/>
     </record>
@@ -216,7 +206,6 @@
         <field name="work_entry_type_id" ref="hr_work_entry.l10n_mx_work_entry_type_disability_due_to_illness_imss"/>
     </record>
 
-<!-- SA : Saudi Arabia -->
     <record id="hr_holidays.l10n_sa_leave_type_sick_leave_100" model="hr.leave.type">
         <field name="work_entry_type_id" ref="hr_work_entry.l10n_sa_work_entry_type_sick_leave_100"/>
     </record>
@@ -237,12 +226,10 @@
         <field name="work_entry_type_id" ref="hr_work_entry.l10n_sa_work_entry_type_emergency"/>
     </record>
 
-<!-- SK : Slovakia -->
     <record id="hr_holidays.l10n_sk_leave_type_maternity" model="hr.leave.type">
         <field name="work_entry_type_id" ref="hr_work_entry.l10n_sk_work_entry_type_maternity"/>
     </record>
 
-<!-- PL : Poland -->
     <record id="hr_holidays.l10n_pl_leave_type_sick_leave" model="hr.leave.type">
         <field name="work_entry_type_id" ref="hr_work_entry.l10n_pl_work_entry_type_sick_leave"/>
     </record>

@@ -2,9 +2,7 @@
 import { ActionMenus } from "@web/search/action_menus/action_menus";
 import { getActionRecords, getPresenceActionItems } from "../../views/hooks.js";
 
-/**
- * @extends ActionMenus
- */
+/** @extends ActionMenus */
 export class HrPresenceActionMenus extends ActionMenus {
     static template = "hr_presence.actionmenu";
 
@@ -19,9 +17,7 @@ export class HrPresenceActionMenus extends ActionMenus {
         });
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     async getActionItems(props) {
         const records = await getActionRecords(this.orm);
         const result = getPresenceActionItems(props.items.action, records);

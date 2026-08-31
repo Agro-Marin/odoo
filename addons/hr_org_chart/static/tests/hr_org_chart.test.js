@@ -66,7 +66,7 @@ test("hr org chart: render without data", async () => {
         expect("new_parent_id" in args).toBe(true, {
             message: "it should have 'new_parent_id' as argument",
         });
-        return {}; // return no data
+        return {};
     });
     await mountView({
         type: "form",

@@ -9,14 +9,12 @@ class IrActionsReport(models.Model):
     _inherit = "ir.actions.report"
 
     def _render_qweb_pdf_prepare_streams(self, report_ref, data, res_ids=None):
-        # OVERRIDE
         res = super()._render_qweb_pdf_prepare_streams(report_ref, data, res_ids)
         if not res_ids:
             return res
         report = self._get_report(report_ref)
         if report.report_name == "hr_expense.report_expense":
             for expense in self.env["hr.expense"].browse(res_ids):
-                # Will contains the expense
                 stream_list = []
                 stream = res[expense.id]["stream"]
                 stream_list.append(stream)
@@ -30,9 +28,6 @@ class IrActionsReport(models.Model):
                     if attachment.mimetype == "application/pdf":
                         attachment_stream = pdf.to_pdf_stream(attachment)
                     else:
-                        # In case the attachment is not a pdf we will create a new PDF from the template "report_expense_img"
-                        # And then append to the stream. By doing so, the attachment is put on a new page with the name of the expense
-                        # associated to the attachment
                         data["attachment"] = attachment
                         attachment_prep_stream = self._render_qweb_pdf_prepare_streams(
                             "hr_expense.report_expense_img", data, res_ids=res_ids

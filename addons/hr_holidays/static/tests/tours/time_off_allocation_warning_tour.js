@@ -44,19 +44,16 @@ registry.category("web_tour.tours").add("time_off_allocation_warning_tour", {
         {
             content: "Open the start date picker",
             trigger: ".o_field_widget[name='date_from'] button",
-            // Past date to trigger the warning
             run: "click",
         },
         {
             content: "Edit the start date picker",
             trigger: ".o_field_widget[name='date_from'] input",
-           // Past date to trigger the warning
             run: `click && edit ${pastDateFrom}`,
         },
         {
             content: "Edit the end date picker",
             trigger: ".o_field_widget[name='date_to'] input",
-            // Past date to trigger the warning
             run: `click && edit ${pastDateTo} && click body`,
         },
         {

@@ -14,8 +14,6 @@ patch(AttendeeCalendarCommonRenderer.prototype, {
         super.setup()
 
         onPatched(() => {
-            // Force to rerender the FC.
-            // As it doesn't redraw the header when the event's data changes
             this.fc.api.render();
         });
     },
@@ -112,7 +110,6 @@ patch(AttendeeCalendarCommonRenderer.prototype, {
             ) : worklocation?.userId === user.userId;
 
         let displayedWorkLocation = worklocation ? (JSON.parse(JSON.stringify(worklocation))) : {};
-        // do not display the work locations of the current user if the user filter is not active
         if (multiCalendar && !this.props.model.data.userFilterActive) {
             for (let wl in worklocation){
                 displayedWorkLocation[wl] = worklocation[wl].filter(wlItem => wlItem.userId !== user.userId);

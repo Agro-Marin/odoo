@@ -49,19 +49,16 @@ class TestHrHomeworkingCommon(common.TransactionCase):
 
     @freeze_time("2025-07-13")
     def test_standard_work_location(self):
-        "2025-07-13 ==> Sunday"
         self.assertEqual(self.employee_1.work_location_name, False)
         self.assertEqual(self.employee_1.work_location_type, False)
 
     @freeze_time("2025-07-08")
     def test_day_work_location(self):
-        "2025-07-08 ==> Tuesday"
         self.assertEqual(self.employee_1.work_location_name, "Office 1")
         self.assertEqual(self.employee_1.work_location_type, "office")
 
     @freeze_time("2025-07-09")
     def test_exceptional_work_location(self):
-        "2025-07-09 ==> Wednesday"
         self.assertEqual(self.employee_1.work_location_name, "Home")
         self.assertEqual(self.employee_1.work_location_type, "home")
 
@@ -78,7 +75,6 @@ class TestHrHomeworkingCommon(common.TransactionCase):
 
     @freeze_time("2025-07-09")
     def test_change_current_work_location(self):
-        "2025-07-09 ==> Wednesday"
         self.assertEqual(self.employee_1.work_location_name, "Home")
         self.assertEqual(self.employee_1.work_location_type, "home")
         self.employee_1.wednesday_location_id = self.work_office_1.id
@@ -86,9 +82,5 @@ class TestHrHomeworkingCommon(common.TransactionCase):
         self.assertEqual(self.employee_1.work_location_type, "office")
 
     def test_unlink_location_used_on_some_days(self):
-        "A location used on only some weekdays (not all seven) must block deletion."
-        # employee_1 uses work_home on Monday and Wednesday only. The ondelete
-        # guard must OR the weekday fields; an AND-combined domain would let the
-        # delete through and silently set-null the schedule.
         with self.assertRaises(UserError):
             self.work_home.unlink()

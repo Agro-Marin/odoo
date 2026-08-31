@@ -25,7 +25,6 @@ export class TimeOffCalendarCommonRenderer extends CalendarCommonRenderer {
     }
 
     onClick(info) {
-        // To open record view
         return this.onDblClick(info)
     }
 }

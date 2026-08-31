@@ -46,7 +46,7 @@ class TestWorkEntryLeave(TestWorkEntryHolidaysBase):
         )
         work_entry = self.create_work_entry(
             datetime(2019, 10, 11, 9, 0), datetime(2019, 10, 11, 10, 0)
-        )  # included
+        )
         leave.action_approve()
         self.assertFalse(work_entry[:1].active, "It should have been archived")
 
@@ -66,7 +66,6 @@ class TestWorkEntryLeave(TestWorkEntryHolidaysBase):
     def test_refuse_approved_leave(self):
         start = datetime(2019, 10, 10, 6, 0)
         end = datetime(2019, 10, 10, 18, 0)
-        # Setup contract generation state
         contract = self.richard_emp.version_id
         contract.date_generated_from = start - relativedelta(hours=1)
         contract.date_generated_to = start - relativedelta(hours=1)
@@ -123,7 +122,6 @@ class TestWorkEntryLeave(TestWorkEntryHolidaysBase):
         )
         self.richard_emp.user_id = user
         with freeze_time(datetime(2022, 3, 21)):
-            # A leave stops being cancellable once its work entries are validated (locked).
             leave = (
                 self.env["hr.leave"]
                 .with_user(user)
@@ -138,9 +136,7 @@ class TestWorkEntryLeave(TestWorkEntryHolidaysBase):
                 )
             )
             leave.with_user(SUPERUSER_ID).action_approve()
-            # No work entries exist yet
             self.assertTrue(leave.can_cancel, "The leave should still be cancellable")
-            # can not create in the future
             self.richard_emp.version_id.generate_work_entries(
                 date(2022, 3, 21), date(2022, 3, 25)
             )
@@ -148,11 +144,9 @@ class TestWorkEntryLeave(TestWorkEntryHolidaysBase):
                 [("employee_id", "=", self.richard_emp.id)]
             )
             leave.invalidate_recordset(["can_cancel"])
-            # Work entries exist but are not locked yet
             self.assertTrue(leave.can_cancel, "The leave should still be cancellable")
             work_entries.action_validate()
             leave.invalidate_recordset(["can_cancel"])
-            # Work entries locked
             self.assertFalse(leave.can_cancel, "The leave should not be cancellable")
 
     def test_work_entry_generation_company_time_off(self):

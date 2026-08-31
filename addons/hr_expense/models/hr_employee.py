@@ -6,12 +6,6 @@ class HrEmployee(models.Model):
     _inherit = "hr.employee"
 
     def _group_hr_expense_user_domain(self):
-        # We return the domain only if the group exists for the following reason:
-        # When a group is created (at module installation), the `res.users` form view is
-        # automatically modified to add application accesses. When modifying the view, it
-        # reads the related field `expense_manager_id` of `res.users` and retrieve its domain.
-        # This is a problem because the `group_hr_expense_team_approver` record has already been created but
-        # not its associated `ir.model.data` which makes `self.env.ref(...)` fail.
         group = self.env.ref(
             "hr_expense.group_hr_expense_team_approver", raise_if_not_found=False
         )
@@ -40,13 +34,13 @@ class HrEmployee(models.Model):
         if operator != "in":
             return NotImplemented
 
-        domain = Domain.FALSE  # Nothing accepted by domain, by default
+        domain = Domain.FALSE
         user = self.env.user
         employee = user.employee_id
         if user.has_groups("hr_expense.group_hr_expense_user"):
             domain = Domain("company_id", "=", False) | Domain(
                 "company_id", "child_of", self.env.company.root_id.id
-            )  # Then, domain accepts everything
+            )
         elif (
             user.has_groups("hr_expense.group_hr_expense_team_approver")
             and user.employee_ids

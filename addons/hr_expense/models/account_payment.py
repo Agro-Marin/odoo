@@ -8,7 +8,6 @@ class AccountPayment(models.Model):
     expense_ids = fields.One2many(related="move_id.expense_ids")
 
     def _compute_outstanding_account_id(self):
-        # EXTENDS account
         expense_company_payments = self.filtered(
             lambda payment: payment.expense_ids.payment_mode == "company_account"
         )
@@ -62,7 +61,6 @@ class AccountPayment(models.Model):
         }
 
     def _creation_message(self):
-        # EXTENDS mail
         self.check_singleton()
         if self.move_id.expense_ids:
             return _(

@@ -7,18 +7,13 @@ class AccountMoveLine(models.Model):
 
     expense_id = fields.Many2one(
         "hr.expense", string="Expense", copy=True, index="btree_not_null"
-    )  # copy=True, else we don't know price is tax incl.
+    )
 
     def _compute_partner_id(self):
-        # EXTENDS account to ensure the partner is correctly set on all the move lines, preventing wrong bank accounts on payments
-        expense_lines = self.filtered(
-            "move_id.expense_ids"
-        )  # Can't use expense_id because the payment terms line may not have it set
+        expense_lines = self.filtered("move_id.expense_ids")
         super(AccountMoveLine, self - expense_lines)._compute_partner_id()
         for line in expense_lines:
-            line.partner_id = (
-                line.move_id.partner_id
-            )  # The employee partner is correctly set on the move
+            line.partner_id = line.move_id.partner_id
 
     @api.constrains("account_id", "display_type")
     def _check_payable_receivable(self):

@@ -18,8 +18,6 @@ from odoo.addons.hr_calendar.tests.common import TestHrCalendarCommon
     "(hr_contract is not what registers hr.version)."
 )
 class TestWorkingHours(TestHrCalendarCommon):
-    """Test global leaves for a whole company, conflict resolutions"""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -32,17 +30,6 @@ class TestWorkingHours(TestHrCalendarCommon):
         )
 
     def test_multi_companies_2_employees_2_selected_companies_holidays(self):
-        """
-        INPUT:
-        ======
-        Employees                                   Companies
-        employee A company A ---> 35h               [X] A    <- main company
-        employee A company B ---> 28h               [X] B
-        employee A company A take a day off for monday and tuesday.
-        OUTPUT:
-        =======
-        The schedule will be : off on monday, following 28h schedule on tuesday and the union for the rest of the week.
-        """
         self.env.user.company_id = self.company_A
         self.env.user.company_ids = [self.company_A.id, self.company_B.id]
 
@@ -76,17 +63,6 @@ class TestWorkingHours(TestHrCalendarCommon):
         )
 
     def test_multi_companies_2_employees_2_selected_companies_company_holidays(self):
-        """
-        INPUT:
-        ======
-        Employees                                   Companies
-        employee A company A ---> 35h               [X] A    <- main company
-        employee A company B ---> 28h               [X] B
-        Company A give a day off for everyone on monday and tuesday.
-        OUTPUT:
-        =======
-        The schedule will be : off on monday, following 28h schedule on tuesday and the union for the rest of the week.
-        """
         self.env.user.company_id = self.company_A
         self.env.user.company_ids = [self.company_A.id, self.company_B.id]
 
@@ -122,17 +98,6 @@ class TestWorkingHours(TestHrCalendarCommon):
         )
 
     def test_multi_companies_2_employees_2_selected_companies_global_holidays(self):
-        """
-        INPUT:
-        ======
-        Employees                                   Companies
-        employee A company A ---> 35h               [X] A    <- main company
-        employee A company B ---> 28h               [X] B
-        Global leave for calendar 35h on monday and tuesday.
-        OUTPUT:
-        =======
-        The schedule will be : off on monday, following 28h schedule on tuesday and the union for the rest of the week.
-        """
         self.env.user.company_id = self.company_A
         self.env.user.company_ids = [self.company_A.id, self.company_B.id]
 

@@ -63,7 +63,6 @@ class AccountMove(models.Model):
             "res_id": linked_expenses.id,
         }
 
-    # Expenses can be written on journal other than purchase, hence don't include them in the constraint check
     def _check_journal_move_type(self):
         return super(
             AccountMove, self.filtered(lambda x: not x.expense_ids)
@@ -77,9 +76,7 @@ class AccountMove(models.Model):
                     link=self.expense_ids._get_html_link(),
                 )
             links = self.expense_ids[0]._get_html_link()
-            for additional_expense in self.expense_ids[
-                1:
-            ]:  # ', ' Destroys Markup, and each part here is safe
+            for additional_expense in self.expense_ids[1:]:
                 links += ", " + additional_expense._get_html_link()
             return _(
                 "Journal entry created from these expenses: %(links)s", links=links
@@ -88,8 +85,6 @@ class AccountMove(models.Model):
 
     @api.depends("expense_ids")
     def _compute_payment_terms(self):
-        # EXTENDS account
-        # We want to set the account destination based on the 'payment_mode'.
         super()._compute_payment_terms()
         for move in self:
             if move.expense_ids and "company_account" in move.expense_ids.mapped(
@@ -105,9 +100,6 @@ class AccountMove(models.Model):
                             "date_maturity": fields.Date.context_today(
                                 move.expense_ids
                             ),
-                            # Same shape as `_compute_term_key`, or the key can
-                            # never match the line it describes and every sync
-                            # rebuilds the term line from scratch.
                             "discount_date": False,
                         }
                     ): {
@@ -119,23 +111,18 @@ class AccountMove(models.Model):
                 }
 
     def _prepare_product_base_line_for_taxes_computation(self, product_line):
-        # EXTENDS 'account'
         results = super()._prepare_product_base_line_for_taxes_computation(product_line)
         if product_line.expense_id.payment_mode == "own_account":
             results["special_mode"] = "total_included"
         return results
 
     def _reverse_moves(self, default_values_list=None, cancel=False):
-        # EXTENDS account
         self.filtered("expense_ids").write({"expense_ids": [Command.clear()]})
         return super()._reverse_moves(
             default_values_list=default_values_list, cancel=cancel
         )
 
     def action_cancel(self):
-        # EXTENDS account
-        # We need to override this method to remove the link with the move, else we cannot reimburse them anymore.
-        # And cancelling the move != cancelling the expense
         res = super().action_cancel()
         self.filtered("expense_ids").write({"expense_ids": [Command.clear()]})
         return res

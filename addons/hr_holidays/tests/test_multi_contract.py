@@ -13,36 +13,30 @@ class TestHolidaysMultiContract(TestHolidayContract):
         super().setUpClass()
 
     def test_move_contract_in_leave(self):
-        # test move contract dates such that a leave is across two contracts
         start = datetime.strptime("2015-11-05 07:00:00", "%Y-%m-%d %H:%M:%S")
         end = datetime.strptime("2015-12-15 18:00:00", "%Y-%m-%d %H:%M:%S")
         self.contract_cdi.write(
             {"contract_date_start": datetime.strptime("2015-12-30", "%Y-%m-%d").date()}
         )
-        # begins during contract, ends after contract
         leave = self.create_leave(
             start, end, name="Doctor Appointment", employee_id=self.jules_emp.id
         )
         leave.action_approve()
-        # move contract in the middle of the leave
         with self.assertRaises(ValidationError):
             self.contract_cdi.contract_date_start = datetime.strptime(
                 "2015-11-17", "%Y-%m-%d"
             ).date()
 
     def test_create_contract_in_leave(self):
-        # test create contract such that a leave is across two contracts
         start = datetime.strptime("2015-11-05 07:00:00", "%Y-%m-%d %H:%M:%S")
         end = datetime.strptime("2015-12-15 18:00:00", "%Y-%m-%d %H:%M:%S")
         self.contract_cdi.contract_date_start = datetime.strptime(
             "2015-12-30", "%Y-%m-%d"
-        ).date()  # remove this contract to be able to create the leave
-        # begins during contract, ends after contract
+        ).date()
         leave = self.create_leave(
             start, end, name="Doctor Appointment", employee_id=self.jules_emp.id
         )
         leave.action_approve()
-        # move contract in the middle of the leave
         with self.assertRaises(ValidationError):
             self.jules_emp.create_version(
                 {
@@ -58,21 +52,18 @@ class TestHolidaysMultiContract(TestHolidayContract):
             )
 
     def test_leave_outside_contract(self):
-        # Leave outside contract => should not raise
         start = datetime.strptime("2014-10-18 07:00:00", "%Y-%m-%d %H:%M:%S")
         end = datetime.strptime("2014-10-20 09:00:00", "%Y-%m-%d %H:%M:%S")
         self.create_leave(
             start, end, name="Doctor Appointment", employee_id=self.jules_emp.id
         )
 
-        # begins before contract, ends during contract => should not raise
         start = datetime.strptime("2014-10-25 07:00:00", "%Y-%m-%d %H:%M:%S")
         end = datetime.strptime("2015-01-15 18:00:00", "%Y-%m-%d %H:%M:%S")
         self.create_leave(
             start, end, name="Doctor Appointment", employee_id=self.jules_emp.id
         )
 
-        # begins during contract, ends after contract => should not raise
         self.contract_cdi.date_end = datetime.strptime("2015-11-30", "%Y-%m-%d").date()
         start = datetime.strptime("2015-11-25 07:00:00", "%Y-%m-%d %H:%M:%S")
         end = datetime.strptime("2015-12-05 18:00:00", "%Y-%m-%d %H:%M:%S")
@@ -82,21 +73,18 @@ class TestHolidaysMultiContract(TestHolidayContract):
 
     def test_no_leave_overlapping_contracts(self):
         with self.assertRaises(ValidationError):
-            # Overlap two contracts
             start = datetime.strptime("2015-11-12 07:00:00", "%Y-%m-%d %H:%M:%S")
             end = datetime.strptime("2015-11-17 18:00:00", "%Y-%m-%d %H:%M:%S")
             self.create_leave(
                 start, end, name="Doctor Appointment", employee_id=self.jules_emp.id
             )
 
-        # Leave inside fixed term contract => should not raise
         start = datetime.strptime("2015-11-04 07:00:00", "%Y-%m-%d %H:%M:%S")
         end = datetime.strptime("2015-11-07 09:00:00", "%Y-%m-%d %H:%M:%S")
         self.create_leave(
             start, end, name="Doctor Appointment", employee_id=self.jules_emp.id
         )
 
-        # Leave inside contract (no end) => should not raise
         start = datetime.strptime("2015-11-18 07:00:00", "%Y-%m-%d %H:%M:%S")
         end = datetime.strptime("2015-11-20 09:00:00", "%Y-%m-%d %H:%M:%S")
         self.create_leave(
@@ -116,9 +104,6 @@ class TestHolidaysMultiContract(TestHolidayContract):
         )
 
     def test_leave_multi_contracts_same_schedule(self):
-        # TODO DBE / ARPI : Is this test still valid ?
-        # Allow leaves overlapping multiple contracts if same
-        # resource calendar
         leave = self.create_leave(
             datetime(2022, 6, 1, 7, 0, 0),
             datetime(2022, 6, 30, 18, 0, 0),
@@ -177,10 +162,6 @@ class TestHolidaysMultiContract(TestHolidayContract):
         leave.action_approve()
 
     def test_leave_multi_contracts_split(self):
-        # Check that setting a contract as running correctly
-        # splits the existing time off for this employee that
-        # are ovelapping with another contract with another
-        # working schedule
         leave = self.create_leave(
             date(2022, 6, 1),
             date(2022, 6, 30),
@@ -220,10 +201,6 @@ class TestHolidaysMultiContract(TestHolidayContract):
         self.assertEqual(second_leave.number_of_days, 11)
 
     def test_multi_contracts_draft(self):
-        # Check that setting a contract as running correctly
-        # make the existing time off to draft for this employee
-        # which is after another contract with another
-        # working schedule
         leave = self.create_leave(
             date(2022, 6, 27),
             date(2022, 6, 30),
@@ -252,11 +229,6 @@ class TestHolidaysMultiContract(TestHolidayContract):
         self.assertEqual(leave.number_of_days, 4)
 
     def test_contract_traceability_calculate_nbr_leave(self):
-        """
-        The goal is to test the traceability of contracts in the past,
-        i.e. to check that expired contracts are taken into account
-        to ensure the consistency of leaves (number of days/hours) in the past.
-        """
         calendar_full, calendar_partial = self.env["resource.calendar"].create(
             [
                 {
@@ -309,7 +281,6 @@ class TestHolidaysMultiContract(TestHolidayContract):
                                 "day_period": "afternoon",
                             },
                         ),
-                        # Does not work on Wednesdays
                         (
                             0,
                             0,
@@ -414,14 +385,14 @@ class TestHolidaysMultiContract(TestHolidayContract):
                 {
                     "employee_id": employee.id,
                     "holiday_status_id": leave_type.id,
-                    "request_date_from": "2023-01-03",  # Tuesday
-                    "request_date_to": "2023-01-05",  # Thursday
+                    "request_date_from": "2023-01-03",
+                    "request_date_to": "2023-01-05",
                 },
                 {
                     "employee_id": employee.id,
                     "holiday_status_id": leave_type.id,
-                    "request_date_from": "2023-12-05",  # Tuesday
-                    "request_date_to": "2023-12-07",  # Thursday
+                    "request_date_from": "2023-12-05",
+                    "request_date_to": "2023-12-07",
                 },
             ]
         )
@@ -429,23 +400,17 @@ class TestHolidaysMultiContract(TestHolidayContract):
         self.assertEqual(leave_during_partial_time.number_of_days, 2)
         self.assertEqual(leave_during_full_time.number_of_hours, 24)
         self.assertEqual(leave_during_partial_time.number_of_hours, 16)
-        # Simulate the unit change days/hours of the time off type
         (leave_during_full_time + leave_during_partial_time)._compute_duration()
         self.assertEqual(leave_during_full_time.number_of_days, 3)
         self.assertEqual(leave_during_partial_time.number_of_days, 2)
         self.assertEqual(leave_during_full_time.number_of_hours, 24)
         self.assertEqual(leave_during_partial_time.number_of_hours, 16)
-        # Check after leave approval
         (leave_during_full_time + leave_during_partial_time).action_approve()
         self.assertEqual(leave_during_full_time.number_of_hours, 24)
         self.assertEqual(leave_during_partial_time.number_of_hours, 16)
 
     @freeze_time("2024-01-05")
     def test_multi_contract_out_of_office(self):
-        """
-        Test that the out of office feature works correctly with multiple contracts
-        The Case is when the employee is out of the office for a period that overlaps multiple contracts
-        """
         calendar_full, calendar_partial = self.env["resource.calendar"].create(
             [
                 {
@@ -576,7 +541,6 @@ class TestHolidaysMultiContract(TestHolidayContract):
                 "contract_date_end": False,
                 "resource_calendar_id": calendar_partial.id,
                 "wage": 1000.0,
-                # 'state': 'draft',
             }
         )
 
@@ -615,10 +579,6 @@ class TestHolidaysMultiContract(TestHolidayContract):
         self.assertEqual(employee.leave_date_to, date(2024, 3, 4))
 
     def test_multi_contracts_with_different_work_schedules(self):
-        """
-        Test that the employee can have multiple non-overlapping versions with different work schedules,
-        and that the leave requests are correctly calculated based on corresponding the contract's working schedule.
-        """
         calendar_full, calendar_partial = self.env["resource.calendar"].create(
             [
                 {
@@ -897,20 +857,17 @@ class TestHolidaysMultiContract(TestHolidayContract):
             self.env["hr.leave"].with_context(default_employee_id=employee.id)
         ) as leave_form:
             leave_form.holiday_status_id = leave_type
-            leave_form.request_date_from = date(2023, 2, 14)  # full-time calendar
+            leave_form.request_date_from = date(2023, 2, 14)
             leave_form.request_date_to = date(2023, 2, 14)
 
         leave = leave_form.save()
-        # Assert based on full-time calendar (8h)
         self.assertEqual(leave.number_of_days, 1)
         self.assertEqual(leave.number_of_hours, 8)
-        # Change to date under partial-time contract
         leave.write(
             {
                 "request_date_from": date(2023, 7, 14),
                 "request_date_to": date(2023, 7, 14),
             }
         )
-        # Assert based on partial-time calendar
         self.assertEqual(leave.number_of_days, 1)
         self.assertEqual(leave.number_of_hours, 6)

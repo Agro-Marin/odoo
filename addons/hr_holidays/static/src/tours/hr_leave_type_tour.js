@@ -41,7 +41,6 @@ registry.category("web_tour.tours").add("hr_leave_type_tour", {
             tooltipPosition: "bottom",
             run: "click",
         },
-        // Check if a time-off could be requested using leave_type_1 as company_1 is selected by default.
         {
             trigger: 'div[name="holiday_status_id"] input',
             content: "Create a time-off using leave_type_1. Select it from the list",
@@ -56,7 +55,6 @@ registry.category("web_tour.tours").add("hr_leave_type_tour", {
         {
             trigger: `.o_field_widget[name='holiday_status_id'] input:value("${leaveType1}")`,
         },
-        // Check that a time-off cannot be requested using leave_type_2 as company_2 is not selected.
         {
             trigger: 'div[name="holiday_status_id"] input',
             content: "Try to select leave_type_2 from the list. It shouldn't be present",
@@ -66,7 +64,6 @@ registry.category("web_tour.tours").add("hr_leave_type_tour", {
         {
             trigger: `.ui-autocomplete .ui-menu-item span:contains('${noRecords}')`,
         },
-        // Check if a time-off could be requested using leave_type_3
         {
             trigger: 'div[name="holiday_status_id"] input',
             content: "Select leave_type_3 from the list",

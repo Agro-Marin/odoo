@@ -63,7 +63,6 @@ A synchronization with an internal agenda (Meetings of the CRM module) is also p
     "assets": {
         "web.assets_backend": [
             "hr_holidays/static/src/**/*",
-            # Don't include dark mode files in light mode
         ],
         "web.assets_web_dark": [],
         "im_livechat.assets_embed_core": [

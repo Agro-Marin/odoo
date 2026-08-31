@@ -10,7 +10,6 @@
         </record>
     </data>
 
-    <!-- Projects -->
     <record id="project.project_project_1" model="project.project">
         <field name="allow_timesheets" eval="True"/>
     </record>
@@ -19,7 +18,6 @@
         <field name="allow_timesheets" eval="True"/>
     </record>
 
-    <!-- Timesheet Lines -->
     <record id="working_hours_requirements" model="account.analytic.line">
         <field name="name">Requirements analysis</field>
         <field name="user_id" ref='base.user_admin'/>
@@ -3788,7 +3786,6 @@
         <field name="company_id" ref="base.main_company"/>
     </record>
 
-    <!-- Projects -->
     <record id="project.project_1_milestone_2" model="project.milestone">
         <field name="deadline" eval="(DateTime.now() + relativedelta(years=1, months=3)).strftime('%Y-%m-15')"/>
     </record>

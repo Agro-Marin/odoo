@@ -25,14 +25,11 @@ export class TimeOffCalendarModel extends CalendarModel {
         );
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     normalizeRecord(rawRecord) {
         const result = super.normalizeRecord(...arguments);
         if (rawRecord.employee_id) {
             const employee = rawRecord.employee_id[1];
-            // If the employee's name isn't already included at the start of the title
             if (!result.title.startsWith(employee)) {
                 result.title = [employee, result.title].join(" ");
             }
@@ -59,7 +56,6 @@ export class TimeOffCalendarModel extends CalendarModel {
             context["default_employee_id"] = default_employee_id
         }
         function deserialize(str) {
-            // "YYYY-MM-DD".length == 10
             return str.length > 10 ? deserializeDateTime(str) : deserializeDate(str);
         }
         if (["week", "day"].includes(this.scale)) {
@@ -89,9 +85,7 @@ export class TimeOffCalendarModel extends CalendarModel {
         return prom;
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     fetchUnusualDays(data) {
         return this.orm.call(
             this.meta.resModel,

@@ -33,9 +33,6 @@ class TestRecruitmentTalentPool(TransactionCase):
         )
 
     def test_add_applicant_to_one_talent_pool(self):
-        """
-        Test that a applicant is duplicated and linked to a pool when creating a talent.
-        """
         talent_pool_applicant = self.t_talent_pool_1.talent_ids
         self.assertFalse(
             talent_pool_applicant,
@@ -87,9 +84,6 @@ class TestRecruitmentTalentPool(TransactionCase):
         self.assertEqual(job_1_applicant.pool_applicant_id, talent)
 
     def test_add_applicant_to_multiple_talent_pools(self):
-        """
-        Test that a applicant is only duplicated once and linked to multiple pools when creating a talent.
-        """
         wizard = Form(self.env["talent.pool.add.applicants"])
         wizard.talent_pool_ids.add(self.t_talent_pool_1)
         wizard.talent_pool_ids.add(self.t_talent_pool_2)
@@ -112,9 +106,6 @@ class TestRecruitmentTalentPool(TransactionCase):
         )
 
     def test_add_multiple_applicants_to_multiple_talent_pools(self):
-        """
-        Test that multiple applicants are only duplicated once and linked to multiple pools when creating talents.
-        """
         talent_pool_applicants = (
             self.t_talent_pool_1.talent_ids | self.t_talent_pool_2.talent_ids
         )
@@ -148,9 +139,6 @@ class TestRecruitmentTalentPool(TransactionCase):
             )
 
     def test_add_applicant_is_only_duplicated_once(self):
-        """
-        Test that a talent is not duplicated when added to two different pools in two different steps.
-        """
         with Form(self.env["talent.pool.add.applicants"]) as wizard:
             wizard.talent_pool_ids = self.t_talent_pool_1
             wizard.applicant_ids = self.t_applicant_1
@@ -166,9 +154,6 @@ class TestRecruitmentTalentPool(TransactionCase):
             "Exactly one 'talent' should be created when adding an applicant to a pool",
         )
 
-        # Try adding the same applicant to a different pool
-        # This is impossible through the UI as there is a domain on the
-        # `applicant_ids` field.
         wizard = Form(self.env["talent.pool.add.applicants"])
         wizard.talent_pool_ids = self.t_talent_pool_2
         wizard.applicant_ids = self.t_applicant_1
@@ -195,9 +180,6 @@ class TestRecruitmentTalentPool(TransactionCase):
         )
 
     def test_tags_are_added_to_talent(self):
-        """
-        Test that a tag is added to the talent but not the applicant when creating talents.
-        """
         tag = self.env["hr.applicant.category"].create({"name": "Test Tag"})
 
         talent_pool_applicant = (
@@ -223,9 +205,6 @@ class TestRecruitmentTalentPool(TransactionCase):
         )
 
     def test_add_talent_to_one_job(self):
-        """
-        Test that a talent is duplicated when added to a job
-        """
         pool_wizard = Form(self.env["talent.pool.add.applicants"])
         pool_wizard.talent_pool_ids = self.t_talent_pool_1
         pool_wizard.applicant_ids = self.t_applicant_1
@@ -274,17 +253,12 @@ class TestRecruitmentTalentPool(TransactionCase):
             "Job_2_applicant and the talent should not be the same record",
         )
 
-        # Make sure that the stage was populated correctly during creation not in compute,
-        # If it was passed in creation the record will have the mail linked to the stage
         self.assertEqual(job_2_applicant.stage_id, recuritment_stage)
         self.assertEqual(
             job_2_applicant.message_ids[0].subject, self.mail_template.subject
         )
 
     def test_add_talent_to_multiple_jobs(self):
-        """
-        Test that a talent is duplicated multiple times when added to multiple jobs.
-        """
         pool_wizard = Form(self.env["talent.pool.add.applicants"])
         pool_wizard.talent_pool_ids = self.t_talent_pool_1
         pool_wizard.applicant_ids = self.t_applicant_1
@@ -321,9 +295,6 @@ class TestRecruitmentTalentPool(TransactionCase):
         )
 
     def test_add_multiple_talents_to_multiple_jobs(self):
-        """
-        Test that multiple talents are duplicated multiple times when added to multiple jobs.
-        """
         pool_wizard = Form(self.env["talent.pool.add.applicants"])
         pool_wizard.talent_pool_ids = self.t_talent_pool_1
         pool_wizard.applicant_ids.add(self.t_applicant_1)
@@ -376,9 +347,6 @@ class TestRecruitmentTalentPool(TransactionCase):
         )
 
     def test_update_applicant_after_adding_to_pool(self):
-        """
-        Test that an applicant's fields (e.g., email) can still be updated after adding them to a talent pool.
-        """
         self.env["talent.pool.add.applicants"].create(
             {
                 "applicant_ids": self.t_applicant_1.ids,
@@ -395,9 +363,6 @@ class TestRecruitmentTalentPool(TransactionCase):
         )
 
     def test_talent_must_have_at_least_one_pool(self):
-        """
-        Ensure that removing all the talent pool from a talent created raises a ValidationError.
-        """
         wizard = Form(self.env["talent.pool.add.applicants"])
         wizard.talent_pool_ids.add(self.t_talent_pool_1)
         wizard.applicant_ids.add(self.t_applicant_1)
@@ -406,6 +371,5 @@ class TestRecruitmentTalentPool(TransactionCase):
             talent.write({"talent_pool_ids": [(5, 0, 0)]})
 
     def flush_tracking(self):
-        """Force the creation of tracking values."""
         self.env.flush_all()
         self.cr.flush()

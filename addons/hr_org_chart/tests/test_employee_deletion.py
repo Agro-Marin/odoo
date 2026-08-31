@@ -5,7 +5,6 @@ from odoo.tests import Form, TransactionCase, tagged
 @tagged("post_install", "-at_install")
 class TestEmployeeDeletion(TransactionCase):
     def test_employee_deletion(self):
-        # Tests an issue with the form view where the employee could be deleted
         employee_a, employee_b = self.env["hr.employee"].create(
             [
                 {

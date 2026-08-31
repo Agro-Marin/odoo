@@ -18,7 +18,7 @@ class TestHrHomeworkingHrEmployeeLocation(TestHrHomeworkingCommon):
         wizard = self.env["homework.location.wizard"].create(
             {
                 "work_location_id": self.work_home.id,
-                "date": datetime(2023, 10, 4),  # wednesday
+                "date": datetime(2023, 10, 4),
                 "employee_id": self.employee_emp.id,
                 "weekly": True,
             }
@@ -39,7 +39,7 @@ class TestHrHomeworkingHrEmployeeLocation(TestHrHomeworkingCommon):
         wizard = self.env["homework.location.wizard"].create(
             {
                 "work_location_id": self.work_home.id,
-                "date": datetime(2023, 10, 4),  # wednesday
+                "date": datetime(2023, 10, 4),
                 "employee_id": self.employee_emp.id,
                 "weekly": False,
             }
@@ -60,7 +60,7 @@ class TestHrHomeworkingHrEmployeeLocation(TestHrHomeworkingCommon):
         wizard = self.env["homework.location.wizard"].create(
             {
                 "work_location_id": self.work_home.id,
-                "date": datetime(2023, 10, 4),  # wednesday
+                "date": datetime(2023, 10, 4),
                 "employee_id": self.employee_emp.id,
                 "weekly": False,
             }
@@ -94,7 +94,7 @@ class TestHrHomeworkingHrEmployeeLocation(TestHrHomeworkingCommon):
         wizard = self.env["homework.location.wizard"].create(
             {
                 "work_location_id": self.work_office_1.id,
-                "date": datetime(2023, 10, 4),  # wednesday
+                "date": datetime(2023, 10, 4),
                 "employee_id": self.employee_emp.id,
                 "weekly": False,
             }
@@ -111,11 +111,10 @@ class TestHrHomeworkingHrEmployeeLocation(TestHrHomeworkingCommon):
         )
 
     def test_set_default_day_location_as_exception_will_delete_exception(self):
-        # create exception for a certain day
         wizard = self.env["homework.location.wizard"].create(
             {
                 "work_location_id": self.work_home.id,
-                "date": datetime(2023, 10, 4),  # wednesday
+                "date": datetime(2023, 10, 4),
                 "employee_id": self.employee_emp.id,
                 "weekly": False,
             }
@@ -133,7 +132,6 @@ class TestHrHomeworkingHrEmployeeLocation(TestHrHomeworkingCommon):
             len(created_worklocations), 1, "should have created 1 worklocation records"
         )
 
-        # set default work location on day where an exception exists
         wizard.work_location_id = self.work_office_1
         wizard.set_employee_location()
 
@@ -144,7 +142,6 @@ class TestHrHomeworkingHrEmployeeLocation(TestHrHomeworkingCommon):
             ]
         )
 
-        # exception should be deleted
         self.assertEqual(
             len(created_worklocations), 0, "should have deleted the worklocation record"
         )
@@ -157,7 +154,6 @@ class TestHrHomeworkingHrEmployeeLocation(TestHrHomeworkingCommon):
                 "type": "list",
             }
         )
-        # Wednesday January 28 2026
         with freeze_time("2026-01-28"):
             got_view = self.env["hr.employee"].get_views([(view.id, "list")])
         self.assertTrue(

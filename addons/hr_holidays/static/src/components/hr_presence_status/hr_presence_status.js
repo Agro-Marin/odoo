@@ -58,11 +58,9 @@ const patchHrPresenceStatusPill = () => ({
     },
 });
 
-// Applies common patch on both components
 patch(HrPresenceStatus.prototype, patchHrPresenceStatus());
 patch(HrPresenceStatusPrivate.prototype, patchHrPresenceStatus());
 
-// Applies patch on one component and the other should be affected also, since it's extended from it.
 patch(HrPresenceStatusPill.prototype, patchHrPresenceStatusPill());
 
 const patchHrPresenceStatusPrivate = () => ({
@@ -83,7 +81,6 @@ const patchHrPresenceStatusPrivate = () => ({
         return super.label;
     }
 });
-// Applies patch to hr_presence_status_private to display the time off type instead of default label
 patch(HrPresenceStatusPrivate.prototype, patchHrPresenceStatusPrivate());
 patch(HrPresenceStatusPrivatePill.prototype, patchHrPresenceStatusPrivate());
 

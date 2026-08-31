@@ -15,8 +15,6 @@ class HrEmployee(models.Model):
     manually_set_present = fields.Boolean(default=False)
     manually_set_presence = fields.Boolean(default=False)
 
-    # Stored field used in the presence kanban reporting view
-    # to allow group by state.
     hr_presence_state_display = fields.Selection(
         [
             ("out_of_working_hour", "Off-Hours"),
@@ -42,7 +40,6 @@ class HrEmployee(models.Model):
 
         all_employees = employees
 
-        # Check on IP
         if company.hr_presence_control_ip:
             ip_list = company.hr_presence_control_ip_list
             ip_list = ip_list.split(",") if ip_list else []
@@ -73,7 +70,6 @@ class HrEmployee(models.Model):
             ip_employees.write({"ip_connected": True})
             employees -= ip_employees
 
-        # Check on sent emails
         if company.hr_presence_control_email:
             email_employees = self.env["hr.employee"]
             threshold = company.hr_presence_control_email_amount
@@ -163,10 +159,6 @@ class HrEmployee(models.Model):
             "context": context,
             "target": "new",
         }
-
-    # --------------------------------------------------
-    # Messaging
-    # --------------------------------------------------
 
     def action_send_sms(self):
         if not self.env.user.has_group("hr.group_hr_manager"):

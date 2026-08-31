@@ -134,7 +134,6 @@
                         <field name="talent_pool_count" widget="statinfo" string="Talent Pools"/>
                     </button>
                 </div>
-                <!-- Job pipe ribbons -->
                 <widget name="web_ribbon" title="Refused" bg_color="text-bg-danger" invisible="application_status != 'refused'"/>
                 <widget name="web_ribbon" title="Archived" bg_color="text-bg-secondary" invisible="application_status != 'archived'"/>
                 <widget name="web_ribbon" title="Hired" invisible="application_status != 'hired'" />
@@ -364,7 +363,6 @@
         </field>
     </record>
 
-    <!-- Hr Applicant Kanban View -->
     <record model="ir.ui.view" id="hr_kanban_view_applicant">
         <field name="name">Hr Applicants kanban</field>
         <field name="model">hr.applicant</field>
@@ -392,7 +390,7 @@
                 <field name="user_id"/>
                 <field name="active"/>
                 <field name="application_status" />
-                <field name="company_id" invisible="1"/> <!-- We need to keep this field as it is used in the domain of user_id in the model -->
+                <field name="company_id" invisible="1"/>
                 <progressbar field="kanban_state" colors='{"done": "success", "waiting": "warning", "blocked": "danger"}'/>
                 <templates>
                     <t t-name="menu">
@@ -514,7 +512,6 @@
         <field name="context">{'default_job_id': active_id}</field>
     </record>
 
-    <!-- Job Opportunities (menu) -->
     <record model="ir.actions.act_window" id="crm_case_categ0_act_job">
         <field name="name">Applications</field>
         <field name="res_model">hr.applicant</field>
@@ -708,7 +705,6 @@
         <field name="code">action = records.action_send_email()</field>
     </record>
 
-    <!-- Custom reports (aka filters) -->
     <record id="hr_applicant_filter_recruiter" model="ir.filters">
         <field name="name">By Recruiter</field>
         <field name="model_id">hr.applicant</field>

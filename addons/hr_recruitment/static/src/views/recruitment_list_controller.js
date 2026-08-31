@@ -3,9 +3,7 @@ import { _t } from "@web/core/translation";
 import { ListController } from "@web/views/list";
 
 export class RecruitmentListController extends ListController {
-    /**
-     * @override
-     */
+    /** @override */
     get archiveDialogProps() {
         const result = super.archiveDialogProps;
         result.body =

@@ -11,16 +11,12 @@ class TestCommonTimesheet(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
 
-        # Crappy hack to disable the rule from timesheet grid, if it exists
-        # The registry doesn't contain the field timesheet_manager_id.
-        # but there is an ir.rule about it, crashing during its evaluation
         rule = cls.env.ref(
             "timesheet_grid.hr_timesheet_rule_approver_update", raise_if_not_found=False
         )
         if rule:
             rule.active = False
 
-        # customer partner
         cls.partner = cls.env["res.partner"].create(
             {
                 "name": "Customer Task",
@@ -43,7 +39,6 @@ class TestCommonTimesheet(TransactionCase):
             }
         )
 
-        # project and tasks
         cls.project_customer = cls.env["project.project"].create(
             {
                 "name": "Project X",
@@ -69,7 +64,6 @@ class TestCommonTimesheet(TransactionCase):
                 "project_id": cls.project_customer.id,
             }
         )
-        # users
         cls.user_employee = cls.env["res.users"].create(
             {
                 "name": "User Employee",
@@ -100,14 +94,11 @@ class TestCommonTimesheet(TransactionCase):
                 ],
             }
         )
-        # employees
-        cls.empl_employee = cls.env[
-            "hr.employee"
-        ].create(
+        cls.empl_employee = cls.env["hr.employee"].create(
             {
                 "name": "User Empl Employee",
                 "user_id": cls.user_employee.id,
-                "employee_type": "freelance",  # Avoid searching the contract if hr_contract module is installed before this module.
+                "employee_type": "freelance",
             }
         )
         cls.empl_employee2 = cls.env["hr.employee"].create(
@@ -155,12 +146,8 @@ class TestCommonTimesheet(TransactionCase):
 class TestTimesheet(TestCommonTimesheet):
     def setUp(self):
         super().setUp()
-        # Make sure to clean the plan fields
         self.env.registry._setup_models__(self.env.cr)
 
-        # Crappy hack to disable the rule from timesheet grid, if it exists
-        # The registry doesn't contain the field timesheet_manager_id.
-        # but there is an ir.rule about it, crashing during its evaluation
         rule = self.env.ref(
             "timesheet_grid.timesheet_line_rule_user_update-unlink",
             raise_if_not_found=False,
@@ -169,10 +156,8 @@ class TestTimesheet(TestCommonTimesheet):
             rule.active = False
 
     def test_log_timesheet(self):
-        """Test when log timesheet: check analytic account, user and employee are correctly set."""
         Timesheet = self.env["account.analytic.line"]
         timesheet_uom = self.project_customer.account_id.company_id.project_time_mode_id
-        # employee 1 log some timesheet on task 1
         timesheet1 = Timesheet.with_user(self.user_employee).create(
             {
                 "project_id": self.project_customer.id,
@@ -202,7 +187,6 @@ class TestTimesheet(TestCommonTimesheet):
             "The UoM of the timesheet should be the one set on the company of the analytic account.",
         )
 
-        # employee 1 cannot log timesheet for employee 2
         with self.assertRaises(AccessError):
             Timesheet.with_user(self.user_employee).create(
                 {
@@ -214,7 +198,6 @@ class TestTimesheet(TestCommonTimesheet):
                 }
             )
 
-        # manager log timesheet for employee 2
         timesheet3 = Timesheet.with_user(self.user_manager).create(
             {
                 "project_id": self.project_customer.id,
@@ -235,7 +218,6 @@ class TestTimesheet(TestCommonTimesheet):
             "The UoM of the timesheet 3 should be the one set on the company of the analytic account.",
         )
 
-        # employee 1 log some timesheet on project (no task)
         timesheet4 = Timesheet.with_user(self.user_employee).create(
             {
                 "project_id": self.project_customer.id,
@@ -250,8 +232,6 @@ class TestTimesheet(TestCommonTimesheet):
         )
 
     def test_log_access_rights(self):
-        """Test access rights: user can update its own timesheets only, and manager can change all"""
-        # employee 1 log some timesheet on task 1
         Timesheet = self.env["account.analytic.line"]
         timesheet1 = Timesheet.with_user(self.user_employee).create(
             {
@@ -261,7 +241,6 @@ class TestTimesheet(TestCommonTimesheet):
                 "unit_amount": 4,
             }
         )
-        # then employee 2 try to modify it
         with self.assertRaises(AccessError):
             timesheet1.with_user(self.user_employee2).write(
                 {
@@ -269,7 +248,6 @@ class TestTimesheet(TestCommonTimesheet):
                     "unit_amount": 2,
                 }
             )
-        # manager can modify all timesheet
         timesheet1.with_user(self.user_manager).write(
             {
                 "unit_amount": 8,
@@ -283,8 +261,6 @@ class TestTimesheet(TestCommonTimesheet):
         )
 
     def test_create_unlink_project(self):
-        """Check project creation, and if necessary the analytic account generated when project should track time."""
-        # create project wihtout tracking time, nor provide AA
         non_tracked_project = self.env["project.project"].create(
             {
                 "name": "Project without timesheet",
@@ -297,7 +273,6 @@ class TestTimesheet(TestCommonTimesheet):
             "A non time-tracked project shouldn't generate an analytic account",
         )
 
-        # create a project tracking time
         tracked_project = self.env["project.project"].create(
             {
                 "name": "Project with timesheet",
@@ -329,7 +304,6 @@ class TestTimesheet(TestCommonTimesheet):
             "The generated AA should be linked to the project",
         )
 
-        # create a project without tracking time, but with analytic account
         analytic_project = self.env["project.project"].create(
             {
                 "name": "Project without timesheet but with AA",
@@ -349,7 +323,6 @@ class TestTimesheet(TestCommonTimesheet):
             "The AA should be linked to 2 project",
         )
 
-        # analytic linked to projects containing tasks can not be removed
         task = self.env["project.task"].create(
             {
                 "name": "task in tracked project",
@@ -359,20 +332,16 @@ class TestTimesheet(TestCommonTimesheet):
         with self.assertRaises(UserError):
             tracked_project.account_id.unlink()
 
-        # task can be removed, as there is no timesheet
         task.unlink()
 
-        # since both projects linked to the same analytic account are empty (no task), it can be removed
         tracked_project.account_id.unlink()
 
     def test_transfert_project(self):
-        """Transfert task with timesheet to another project."""
         Timesheet = self.env["account.analytic.line"]
         Task = self.env["project.task"].with_context(
             default_project_id=self.task1.project_id.id
         )
 
-        # create nested subtasks
         task_child = Task.create(
             {
                 "name": "Task Child",
@@ -387,14 +356,12 @@ class TestTimesheet(TestCommonTimesheet):
             }
         )
 
-        # create a second project
         self.project_customer2 = self.env["project.project"].create(
             {
                 "name": "Project NUMBER DEUX",
                 "allow_timesheets": True,
             }
         )
-        # employee 1 log some timesheet on task 1 and its subtasks
         Timesheet.create(
             [
                 {
@@ -447,7 +414,6 @@ class TestTimesheet(TestCommonTimesheet):
             "The timesheet should be linked to task_grandchild",
         )
 
-        # change project of task 1 from form to trigger onchange
         with Form(self.task1) as task_form:
             task_form.project_id = self.project_customer2
 
@@ -479,15 +445,10 @@ class TestTimesheet(TestCommonTimesheet):
             "The timesheet still should be linked to task_grandchild",
         )
 
-        # It is forbidden to unset the project of a task with timesheet
         with self.assertRaises(UserError):
             self.task1.write({"project_id": False})
 
     def test_favorite_project_id(self):
-        """Test that user without previous timesheets and without
-        access to the internal project has no favorite project."""
-
-        # make internal project accessible to invited internal users only
         self.env.company.internal_project_id.privacy_visibility = "followers"
 
         favorite_project = (
@@ -501,11 +462,9 @@ class TestTimesheet(TestCommonTimesheet):
         )
 
     def test_recompute_amount_for_multiple_timesheets(self):
-        """Check that amount is recomputed correctly when setting unit_amount for multiple timesheets at once."""
         Timesheet = self.env["account.analytic.line"]
         self.empl_employee.hourly_cost = 5.0
         self.empl_employee2.hourly_cost = 6.0
-        # create a timesheet for each employee
         timesheet_1 = Timesheet.with_user(self.user_employee).create(
             {
                 "project_id": self.project_customer.id,
@@ -525,7 +484,6 @@ class TestTimesheet(TestCommonTimesheet):
         timesheets = timesheet_1 + timesheet_2
 
         with self.assertRaises(AccessError):
-            # should raise since employee 1 doesn't have the access rights to update employee's 2 timesheet
             timesheets.with_user(self.empl_employee.user_id).write(
                 {
                     "unit_amount": 2,
@@ -538,7 +496,6 @@ class TestTimesheet(TestCommonTimesheet):
             }
         )
 
-        # since timesheet costs are different for both employees, we should get different amounts
         self.assertRecordValues(
             timesheets.with_user(self.user_manager),
             [
@@ -585,8 +542,6 @@ class TestTimesheet(TestCommonTimesheet):
         )
 
     def test_task_with_timesheet_project_change(self):
-        """This test checks that no error is raised when moving a task that contains timesheet to another project."""
-
         project_manager = self.env["res.users"].create(
             {
                 "name": "user_project_manager",
@@ -649,7 +604,6 @@ class TestTimesheet(TestCommonTimesheet):
         )
 
     def test_create_timesheet_employee_not_in_company(self):
-        """ts.employee_id only if the user has an employee in the company or one employee for all companies."""
         company_2 = self.env["res.company"].create({"name": "Company 2"})
         company_3 = self.env["res.company"].create({"name": "Company 3"})
 
@@ -705,7 +659,6 @@ class TestTimesheet(TestCommonTimesheet):
             }
         )
         with self.assertRaises(ValidationError):
-            # As there are several employees for this user, but none of them in this company, none must be found
             Timesheet.create(
                 {
                     "name": "Timesheet",
@@ -718,7 +671,6 @@ class TestTimesheet(TestCommonTimesheet):
             )
 
     def test_create_timesheet_with_multi_company(self):
-        """Always set the current company in the timesheet, not the employee company"""
         company_4 = self.env["res.company"].create({"name": "Company 4"})
         empl_employee, archived_employee = (
             self.env["hr.employee"]
@@ -760,14 +712,6 @@ class TestTimesheet(TestCommonTimesheet):
             )
 
     def test_subtask_log_timesheet(self):
-        """Test parent task takes into account the timesheets of its sub-tasks.
-        Test Case:
-        ----------
-        1) Create parent task
-        2) Create child/subtask task
-        3) Enter the 8 hour timesheet in the child task
-        4) Check subtask Effective hours in parent task
-        """
         subtask_1, subtask_2 = self.env["project.task"].create(
             [
                 {
@@ -876,7 +820,6 @@ class TestTimesheet(TestCommonTimesheet):
         )
 
     def test_create_timesheet_with_archived_employee(self):
-        """the timesheet can be created or edited only with an active employee"""
         self.empl_employee2.active = False
         batch_vals = {
             "project_id": self.project_customer.id,
@@ -897,7 +840,6 @@ class TestTimesheet(TestCommonTimesheet):
             timesheet.employee_id = self.empl_employee2
 
     def test_create_timesheet_with_companyless_analytic_account(self):
-        """This test ensures that a timesheet can be created on an analytic account whose company_id is set to False"""
         self.project_customer.account_id.company_id = False
         timesheet_with_project = (
             self.env["account.analytic.line"]
@@ -921,7 +863,6 @@ class TestTimesheet(TestCommonTimesheet):
             "The product_uom_id of the timesheet should be equal to the task's company uom "
             "if the project's analytic account has no company_id",
         )
-        # Remove the company also on the project to be sure we find a UoM
         self.project_customer.company_id = False
         timesheet_with_project.with_user(self.user_employee).write(
             {"unit_amount": 2.0, "project_id": self.project_customer.id}
@@ -949,11 +890,6 @@ class TestTimesheet(TestCommonTimesheet):
         self.assertEqual(timesheet.employee_id, self.empl_employee)
 
     def test_uom_change_timesheet(self):
-        """
-        We check that we don't over transform the timesheet unit amount when changing
-        the company encoding timesheet uom, we keep it in the project as hours.
-        So it will be transformed only once when encoding the timesheet.
-        """
         Timesheet = self.env["account.analytic.line"]
         project = self.env["project.project"].create(
             {
@@ -984,7 +920,6 @@ class TestTimesheet(TestCommonTimesheet):
             8,
             "Timesheet time should be 8 hours for new project update",
         )
-        # Clear cached computed project values before the UoM change
         self.env["project.project"].invalidate_model()
         self.env.company.timesheet_encode_uom_id = self.env.ref("uom.product_uom_day")
         self.assertEqual(
@@ -1047,12 +982,6 @@ class TestTimesheet(TestCommonTimesheet):
             self.task1.project_id = False
 
     def test_percentage_of_allocated_hours(self):
-        """Test the progress of a task against its estimate.
-
-        progress is effective_hours / planned_hours: under this fork's PMI
-        split planned_hours is the estimate, while allocated_hours is the
-        commitment aggregated from resource reservations.
-        """
         self.task1.planned_hours = 11 / 60
         self.assertEqual(
             self.task1.effective_hours, 0, "No timesheet should be created yet."
@@ -1175,7 +1104,6 @@ class TestTimesheet(TestCommonTimesheet):
             }
         )
         with self.assertRaises(ValidationError):
-            # The analytic plan 'self.analytic_plan' is mandatory on the project linked to the timesheet
             self.env["account.analytic.line"].create(
                 {
                     "name": "Timesheet",
@@ -1188,7 +1116,6 @@ class TestTimesheet(TestCommonTimesheet):
     def test_timesheet_unactive_analytic_account(self):
         self.analytic_account.active = False
         with self.assertRaises(ValidationError):
-            # The account_id given to the timesheet must be active
             self.env["account.analytic.line"].create(
                 {
                     "name": "Timesheet",
@@ -1199,19 +1126,6 @@ class TestTimesheet(TestCommonTimesheet):
             )
 
     def test_project_update_reflects_task_allocated_hours_and_timesheet(self):
-        """
-        Check if the project update is according to the project's allocated hours and timesheet.
-        Step:
-          1) set 10 allocated hours in the project_customer
-          2) add timesheet 2 hour in task1
-          3) create project update and verfity
-          4) repeat step 1 but allocated hour 12
-          5) add timesheet 3 hour in task2
-          6) repeat step 4
-          8) add timesheet 10 hour in task2
-          9) repeat step 4
-        """
-
         def create_timesheet(task, hours):
             self.env["account.analytic.line"].create(
                 {
@@ -1283,9 +1197,6 @@ class TestTimesheet(TestCommonTimesheet):
         )
 
     def test_multi_create_timesheets_from_calendar(self):
-        """
-        Simulate creating timesheets using the multi-create feature in the calendar view
-        """
         HrTimesheet = self.env["account.analytic.line"].with_context(
             timesheet_calendar=True
         )
@@ -1307,7 +1218,7 @@ class TestTimesheet(TestCommonTimesheet):
                 "project_id": self.project_customer.id,
                 "unit_amount": 1,
                 "employee_id": self.empl_employee.id,
-                "date": "2025-05-25",  # Sunday
+                "date": "2025-05-25",
             }
         )
         self.assertFalse(timesheet, "The timesheet should not get created on a weekend")
@@ -1583,7 +1494,7 @@ class TestTimesheet(TestCommonTimesheet):
             f"{self.project.account_id.id}": 50,
             f"{another_account.id}": 50,
         }
-        self.assertEqual(line.amount, -5)  # the line is split in 2
+        self.assertEqual(line.amount, -5)
 
     def test_log_timesheet_with_user_has_two_employees_from_different_companies(self):
         company_2 = self.env["res.company"].create({"name": "Company 2"})

@@ -64,12 +64,8 @@
 }
 
 
-// The dark half, folded in from `time_off_card.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {
-        // = HR Holidays
-        // ============================================================================
-        // No CSS hacks, variables overrides only
         .o_timeoff_card,
         .o_time_off_icon_types {
             --timeOffCard-icon-filter: invert(1) brightness(2);

@@ -5,7 +5,6 @@ class AccountTax(models.Model):
     _inherit = "account.tax"
 
     def _get_used_tax_ids(self, tax_ids):
-        # OVERRIDE in order to fetch taxes used in expenses
 
         used_taxes = super()._get_used_tax_ids(tax_ids)
         remaining_ids = tax_ids - used_taxes
@@ -31,7 +30,6 @@ class AccountTax(models.Model):
         return used_taxes
 
     def _prepare_base_line_for_taxes_computation(self, record, **kwargs):
-        # EXTENDS 'account'
         results = super()._prepare_base_line_for_taxes_computation(record, **kwargs)
         results["expense_id"] = self._get_base_line_field_value_from_record(
             record, "expense_id", kwargs, self.env["hr.expense"]
@@ -39,7 +37,6 @@ class AccountTax(models.Model):
         return results
 
     def _prepare_tax_line_for_taxes_computation(self, record, **kwargs):
-        # EXTENDS 'account'
         results = super()._prepare_tax_line_for_taxes_computation(record, **kwargs)
         results["expense_id"] = self._get_base_line_field_value_from_record(
             record, "expense_id", kwargs, self.env["hr.expense"]
@@ -47,13 +44,11 @@ class AccountTax(models.Model):
         return results
 
     def _prepare_base_line_grouping_key(self, base_line):
-        # EXTENDS 'account'
         results = super()._prepare_base_line_grouping_key(base_line)
         results["expense_id"] = base_line["expense_id"].id
         return results
 
     def _prepare_tax_line_repartition_grouping_key(self, tax_line):
-        # EXTENDS 'account'
         results = super()._prepare_tax_line_repartition_grouping_key(tax_line)
         results["expense_id"] = tax_line["expense_id"].id
         return results

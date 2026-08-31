@@ -8,7 +8,6 @@ class HrVersion(models.Model):
     _inherit = "hr.version"
     _description = "Employee Contract"
 
-    # override to add work_entry_type from leave
     def _get_leave_work_entry_type(self, leave):
         if leave.holiday_id:
             return leave.holiday_id.holiday_status_id.work_entry_type_id
@@ -25,10 +24,6 @@ class HrVersion(models.Model):
         return result
 
     def _get_interval_leave_work_entry_type(self, interval, leaves, bypassing_codes):
-        # Returns the work entry type related to the leave that
-        # includes the whole interval.
-        # Overridden in hr_work_entry_holidays to select the
-        # global time off first (e.g. Public Holiday > Home Working)
         self.check_singleton()
         if "work_entry_type_id" in interval[2]:
             work_entry_types = interval[2].work_entry_type_id
@@ -48,7 +43,6 @@ class HrVersion(models.Model):
         including_holiday_rcleaves = [l for l in including_rcleaves if l.holiday_id]
         rc_leave = False
 
-        # In CP200, Long term sick > Public Holidays (which is global)
         if bypassing_codes:
             bypassing_rc_leave = [
                 l
@@ -72,7 +66,6 @@ class HrVersion(models.Model):
         return self.env.ref("hr_work_entry.work_entry_type_leave")
 
     def _get_sub_leave_domain(self):
-        # see https://github.com/odoo/enterprise/pull/15091
         return super()._get_sub_leave_domain() | Domain(
             "holiday_id.employee_id", "in", self.employee_id.ids
         )

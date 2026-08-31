@@ -26,9 +26,6 @@ class ProjectUpdate(models.Model):
         for update in self:
             update.display_timesheet_stats = update.project_id.allow_timesheets
 
-    # ---------------------------------
-    # ORM Override
-    # ---------------------------------
     @api.model_create_multi
     def create(self, vals_list):
         updates = super().create(vals_list)

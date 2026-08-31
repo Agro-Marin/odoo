@@ -9,10 +9,6 @@ class HrWorkLocation(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_used_by_employee(self):
-        # OR-combine the seven weekday fields: a location in use on ANY single
-        # day must block deletion. A flat list would be AND-combined by the ORM,
-        # so the guard would only fire when one employee used the location on all
-        # seven days, silently set-nulling partial schedules otherwise.
         domains = ["|"] * (len(DAYS) - 1) + [(day, "in", self.ids) for day in DAYS]
         employee_uses_location = self.env["hr.employee"].search_count(domains, limit=1)
         if employee_uses_location:

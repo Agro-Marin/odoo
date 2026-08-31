@@ -57,9 +57,7 @@ class HrApplicant(models.Model):
         store=True,
         index="trigram",
     )
-    email_normalized = fields.Char(
-        index="trigram"
-    )  # inherited via mixin.mail.thread.blacklist
+    email_normalized = fields.Char(index="trigram")
     partner_phone = fields.Char(
         string="Phone",
         size=32,
@@ -248,7 +246,6 @@ class HrApplicant(models.Model):
     meeting_ids = fields.One2many("calendar.event", "applicant_id", "Meetings")
     meeting_display_text = fields.Char(compute="_compute_meeting_display")
     meeting_display_date = fields.Date(compute="_compute_meeting_display")
-    # UTMs - enforcing the fact that we want to 'set null' when relation is unlinked
     campaign_id = fields.Many2one(ondelete="set null")
     medium_id = fields.Many2one(
         ondelete="set null",
@@ -293,15 +290,6 @@ class HrApplicant(models.Model):
     )
     talent_pool_count = fields.Integer(compute="_compute_talent_pool_count")
 
-    # The trigram index above serves `ilike`; it cannot serve `=`, and the
-    # planner falls back to a sequential scan for one. `email_normalized` is
-    # an *exact-match* field -- the blacklist mixin declares it
-    # `index="btree_not_null"` for that reason, and this model's override to
-    # `trigram` silently took the exact-match index away from every consumer:
-    # the gateway's per-message bounce sweep, alias resolution, dedup. Measured
-    # on 100k applicants, one `email_normalized = %%s` lookup cost 8.8 ms against
-    # 0.3 ms for `res.partner`, which kept the mixin's index. Both are wanted,
-    # so both exist; this one mirrors what `btree_not_null` would have built.
     _email_normalized_idx = models.Index(
         "(email_normalized) WHERE email_normalized IS NOT NULL"
     )
@@ -322,10 +310,6 @@ class HrApplicant(models.Model):
         "pool_applicant_id.talent_pool_ids",
     )
     def _compute_talent_pool_count(self):
-        """Count the talent pools the current application is associated with."""
-        # An application is associated directly through talent_pool_ids and/or
-        # pool_applicant_id.talent_pool_ids, or indirectly by sharing the same
-        # email, phone number or linkedin as a directly linked application.
         pool_applicants = self.filtered("is_applicant_in_pool")
         (self - pool_applicants).talent_pool_count = 0
 
@@ -334,9 +318,6 @@ class HrApplicant(models.Model):
 
         directly_linked = pool_applicants.filtered("pool_applicant_id")
         for applicant in directly_linked:
-            # All talents(applications with talent_pool_ids set) have a pool_applicant_id set to
-            # themselves which is the reason we only look for that instead of searching for all
-            # applications with talent_pool_ids and all applications with pool_applicant_id seperately
             applicant.talent_pool_count = len(
                 applicant.pool_applicant_id.talent_pool_ids
             )
@@ -456,10 +437,6 @@ class HrApplicant(models.Model):
 
     @api.depends("email_normalized", "partner_phone_sanitized", "linkedin_profile")
     def _compute_application_count(self):
-        """Count the applications directly or indirectly linked to each record."""
-        # Directly linked = shares the same pool_applicant_id. Indirectly linked
-        # = shares email, phone number or linkedin. Self is included in the count
-        # when it has any of pool_applicant_id, email, phone number or linkedin set.
         domain = self._get_similar_applicants_domain(ignore_talent=True)
         matching_applicants = (
             self.env["hr.applicant"].with_context(active_test=False).search(domain)
@@ -504,17 +481,6 @@ class HrApplicant(models.Model):
             applicant.is_pool_applicant = applicant.talent_pool_ids
 
     def _get_similar_applicants_domain(self, ignore_talent=False, only_talent=False):
-        """Build a domain matching applicants similar to the current record(s).
-
-        Matches on id, email_normalized, partner_phone_sanitized, linkedin_profile
-        or pool_applicant_id, so the current applicant is included when any of
-        those fields is filled.
-
-        :param bool ignore_talent: restrict to applicants not belonging to a talent pool
-        :param bool only_talent: restrict to applicants belonging to a talent pool
-        :return: a domain selecting the similar applicants
-        :rtype: Domain
-        """
         domain = Domain.OR(
             [
                 Domain("id", "in", self.ids),
@@ -566,12 +532,6 @@ class HrApplicant(models.Model):
         "linkedin_profile",
     )
     def _compute_is_applicant_in_pool(self):
-        """Compute whether an application is linked to a talent pool."""
-        # Direct link: talent_pool_ids set (the application is itself a talent)
-        # or pool_applicant_id set (a copy of / directly linked to a talent).
-        # Indirect link: shares a phone number, email or linkedin with a directly
-        # linked application. Linking to a pool through another indirect link is
-        # currently excluded for technical reasons.
         direct = self.filtered(lambda a: a.talent_pool_ids or a.pool_applicant_id)
         direct.is_applicant_in_pool = True
         indirect = self - direct
@@ -618,14 +578,6 @@ class HrApplicant(models.Model):
             )
 
     def _search_is_applicant_in_pool(self, operator, value):
-        """Search applications directly or indirectly linked to a talent pool.
-
-        :return: a domain on ids of applications linked to a pool
-        :rtype: list
-        """
-        # Used to hide duplicates when adding applicants/talents to a talent pool.
-        # Directly in a pool = talent_pool_ids or pool_applicant_id set; indirectly
-        # = same phone number, email or linkedin as a directly-linked application.
         if operator != "in":
             return NotImplemented
 
@@ -761,7 +713,6 @@ class HrApplicant(models.Model):
             return NotImplemented
 
         domains = []
-        # Map statuses to domain filters
         if "refused" in value:
             domains.append([("active", "=", True), ("refuse_reason_id", "!=", None)])
         if "hired" in value:
@@ -785,7 +736,6 @@ class HrApplicant(models.Model):
 
     @api.model
     def _read_group_stage_ids(self, stages, domain):
-        # retrieve job_id from the context and write the domain: ids + contextual columns (job or default)
         job_id = self.env.context.get("default_job_id")
         search_domain = [("job_ids", "=", False)]
         if job_id:
@@ -840,8 +790,6 @@ class HrApplicant(models.Model):
             applicant.user_id = applicant.job_id.user_id.id
 
     def _phone_get_number_fields(self):
-        """This method returns the fields to use to find the number to use to
-        send an SMS on a record."""
         return ["partner_phone"]
 
     @api.depends("stage_id.hired_stage")
@@ -859,7 +807,6 @@ class HrApplicant(models.Model):
     def copy_data(self, default=None):
         vals_list = super().copy_data(default=default)
 
-        # Avoid adding `(copy)` to partner_name when an applicant is created trough the talent pool mechanism
         if not self.env.context.get("no_copy_in_partner_name"):
             vals_list = [
                 dict(vals, partner_name=self.env._("%s (copy)", applicant.partner_name))
@@ -908,16 +855,9 @@ class HrApplicant(models.Model):
         return applicants
 
     def write(self, vals):
-        # user_id change: update date_open
         if vals.get("user_id"):
             vals["date_open"] = fields.Datetime.now()
         old_interviewers = self.interviewer_ids
-        # stage_id: track last stage before update
-        # Applicants in the batch can each have a different current stage_id,
-        # so last_stage_id (one per old stage) can't ride in the shared vals
-        # dict applied by a single super().write(vals) below — that would
-        # only keep the last-iterated applicant's previous stage. Group by
-        # old stage_id instead and write each group separately.
         applicants_by_old_stage = defaultdict(self.browse)
         if "stage_id" in vals:
             vals["date_last_stage_update"] = fields.Datetime.now()
@@ -931,7 +871,6 @@ class HrApplicant(models.Model):
                         applicant.job_id.no_of_recruitment -= 1
                 elif not new_stage.hired_stage and applicant.stage_id.hired_stage:
                     applicant.job_id.no_of_recruitment += 1
-        # kanban_state: also set date_last_stage_update
         if "kanban_state" in vals:
             vals["date_last_stage_update"] = fields.Datetime.now()
         res = super().write(vals)
@@ -1027,11 +966,6 @@ class HrApplicant(models.Model):
         return super().get_view(view_id, view_type, **options)
 
     def action_create_meeting(self):
-        """Open the calendar view to schedule a meeting on the current applicant.
-
-        :return: an act_window action opening the calendar event view
-        :rtype: dict
-        """
         self.check_singleton()
         if not self.partner_id:
             if not self.partner_name:
@@ -1055,10 +989,6 @@ class HrApplicant(models.Model):
         res = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "calendar.action_calendar_event"
         )
-        # As we are redirected from the hr.applicant, calendar checks rules on "hr.applicant",
-        # in order to decide whether to allow creation of a meeting.
-        # As interviewer does not have create right on the hr.applicant, in order to allow them
-        # to create a meeting for an applicant, we pass 'create': True to the context.
         res["context"] = {
             "create": True,
             "default_applicant_id": self.id,
@@ -1133,8 +1063,6 @@ class HrApplicant(models.Model):
 
     def action_talent_pool_stat_button(self):
         self.check_singleton()
-        # If the applicant has other applications linked to pool but for some
-        # reason this applicant is not linked to that account then link it
         if not self.pool_applicant_id:
             self.link_applicant_to_talent()
         return {
@@ -1187,8 +1115,6 @@ class HrApplicant(models.Model):
     def _track_template(self, changes):
         res = super()._track_template(changes)
         applicant = self[0]
-        # When applcant is unarchived, they are put back to the default stage automatically. In this case,
-        # don't post automated message related to the stage change.
         if (
             "stage_id" in changes
             and applicant.exists()
@@ -1223,7 +1149,6 @@ class HrApplicant(models.Model):
         return super()._track_subtype(init_values)
 
     def _notify_get_reply_to_addresses(self):
-        """Override to set alias of applicants to their job definition if any."""
         addresses = self.mapped("job_id")._notify_get_reply_to_addresses()
         res = {
             app.id: addresses[app.job_id.id]
@@ -1242,7 +1167,6 @@ class HrApplicant(models.Model):
             email_key = (
                 tools.email_normalize(applicant.email_from) or applicant.email_from
             )
-            # do not fill Falsy with random data, unless monorecord (= always correct)
             if not email_key and len(self) > 1:
                 continue
             email_keys_to_values.setdefault(email_key, {}).update(
@@ -1266,10 +1190,6 @@ class HrApplicant(models.Model):
 
     @api.model
     def message_new(self, msg_dict, custom_values=None):
-        # Remove default author when going through the mail gateway. Indeed, we
-        # do not want to explicitly set user_id to False; however we do not
-        # want the gateway user to be responsible if no other responsible is
-        # found.
         self = self.with_context(default_user_id=False)
         stage = False
         if custom_values and "job_id" in custom_values:
@@ -1283,11 +1203,6 @@ class HrApplicant(models.Model):
         defaults = {
             "partner_name": partner_name,
         }
-        # sudo: message_new runs as whoever the mail gateway resolved for the
-        # inbound message, and hr.job.platform is readable by Recruitment
-        # Administrators alone. The lookup only asks whether the SENDER is a job
-        # board, to decide whether to keep their address and whether to pull the
-        # applicant's name out of the subject; no platform data reaches them.
         job_platform = (
             self.env["hr.job.platform"]
             .sudo()
@@ -1318,9 +1233,6 @@ class HrApplicant(models.Model):
 
     def _message_post_after_hook(self, message, msg_vals):
         if self.email_from and not self.partner_id:
-            # we consider that posting a message with a specified recipient (not a follower, a specific one)
-            # on a document without customer means that it was created through the chatter using
-            # suggested recipients. This heuristic allows to avoid ugly hacks in JS.
             email_normalized = tools.email_normalize(self.email_from)
             new_partner = message.partner_ids.filtered(
                 lambda partner: (
@@ -1356,7 +1268,6 @@ class HrApplicant(models.Model):
         return super()._message_post_after_hook(message, msg_vals)
 
     def create_employee_from_applicant(self):
-        """Create the employee and return an action opening it."""
         self.check_singleton()
         self._check_interviewer_access()
 
@@ -1394,8 +1305,7 @@ class HrApplicant(models.Model):
                 "job_id": self.job_id.id,
                 "job_title": self.job_id.name,
                 "department_id": self.department_id.id,
-                "work_email": self.department_id.company_id.email
-                or self.email_from,  # To have a valid email address by default
+                "work_email": self.department_id.company_id.email or self.email_from,
                 "work_phone": self.department_id.company_id.phone,
             }
         )
@@ -1421,8 +1331,7 @@ class HrApplicant(models.Model):
             "lang": address_sudo.lang,
             "department_id": self.department_id.id,
             "address_id": self.company_id.partner_id.id,
-            "work_email": self.department_id.company_id.email
-            or self.email_from,  # To have a valid email address by default
+            "work_email": self.department_id.company_id.email or self.email_from,
             "work_phone": self.department_id.company_id.phone,
             "applicant_ids": self.ids,
             "phone": self.partner_phone,
@@ -1450,7 +1359,6 @@ class HrApplicant(models.Model):
         }
 
     def reset_applicant(self):
-        """Reinsert the applicant into the recruitment pipe in the first stage"""
         default_stage = {}
         for job_id in self.mapped("job_id"):
             default_stage[job_id.id] = (

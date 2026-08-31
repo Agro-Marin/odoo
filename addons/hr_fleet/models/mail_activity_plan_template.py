@@ -11,7 +11,6 @@ class MailActivityPlanTemplate(models.Model):
 
     @api.constrains("plan_id", "responsible_type")
     def _check_responsible_hr_fleet(self):
-        """Ensure that hr types are used only on employee model"""
         for template in self.filtered(
             lambda tpl: tpl.plan_id.res_model != "hr.employee"
         ):

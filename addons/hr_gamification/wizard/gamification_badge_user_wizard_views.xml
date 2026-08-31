@@ -7,7 +7,6 @@
             <field name="inherit_id" ref="gamification.view_badge_wizard_grant" />
             <field name="arch" type="xml">
                 <data>
-                    <!--remove in master-->
                     <xpath expr="//field[@name='user_id']" position="after">
                         <field name="employee_id" nolabel="1" invisible="1" domain="[('user_id', '!=', False),('user_id', '!=', uid)]" colspan="2"/>
                     </xpath>

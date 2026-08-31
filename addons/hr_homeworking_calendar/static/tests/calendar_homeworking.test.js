@@ -227,18 +227,18 @@ test(`multicalendar`, async () => {
     const dataSetsByDates = intervals.map(({ start }) => queryAllProperties(`.fc-col-header-cell[data-date="${start.toISODate()}"] .o_worklocation_btn .o_homeworking_content`, "dataset"));
     const locations = dataSetsByDates.flatMap((dataSets) => dataSets.length ? dataSets.map((ds) => ds.location) : [false]);
     expect(locations).toEqual([
-        "office", // sunday
-        "home",   // sunday
-        "office", // monday
-        "home",   // monday
-        "office", // tuesday
-        "office", // tuesday
-        "home",   // wednesday
-        "home",   // wednesday
-        "home",   // thursday
-        false,    // friday
-        "office", // saturday
-        "office", // saturday
+        "office",
+        "home",
+        "office",
+        "home",
+        "office",
+        "office",
+        "home",
+        "home",
+        "home",
+        false,
+        "office",
+        "office",
     ]);
     expect(queryAll(`.fc-col-header-cell[data-date="2020-12-10"] .o_worklocation_text i.add_wl`, { visible: false })).toHaveCount(1);
     expect(queryAll(`.fc-col-header-cell[data-date="2020-12-12"] .o_worklocation_text i.add_wl`, { visible: false })).toHaveCount(0);

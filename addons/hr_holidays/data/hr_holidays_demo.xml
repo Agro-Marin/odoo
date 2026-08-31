@@ -13,7 +13,6 @@
         <field name="implied_ids" eval="[(4, ref('hr_holidays.group_hr_holidays_manager'))]"/>
     </record>
 
-    <!--Time Off Type-->
     <record id="hr_holiday_status_dv" model="hr.leave.type">
         <field name="name">Parental Leaves</field>
         <field name="requires_allocation">yes</field>
@@ -36,7 +35,6 @@
         <field name="max_allowed_negative" eval="20"/>
     </record>
 
-    <!-- Accrual Plan -->
     <record id="hr_accrual_plan_1" model="hr.leave.accrual.plan">
         <field name="name">Seniority Plan</field>
         <field name="can_be_carryover">True</field>
@@ -75,8 +73,6 @@
         <field name="action_with_unused_accruals">all</field>
         <field name="maximum_leave">100</field>
     </record>
-
-    <!-- ++++++++++++++++++++++  Mitchell Admin  ++++++++++++++++++++++ -->
 
     <record id="hr_holidays_allocation_cl" model="hr.leave.allocation">
         <field name="name">Paid Time Off for Mitchell Admin</field>
@@ -121,7 +117,6 @@
         <value eval="[ref('hr_holidays_allocation_cl'), ref('hr_holidays_int_tour'), ref('hr_holidays_cl_allocation')]"/>
     </function>
 
-    <!-- leave request -->
     <record id="hr_holidays_cl" model="hr.leave">
         <field name="name">Trip with Family</field>
         <field name="holiday_status_id" ref="leave_type_compensatory_days"/>
@@ -161,9 +156,6 @@
         <field name="leave_manager_id" ref="base.user_demo"/>
     </record>
 
-    <!-- ++++++++++++++++++++++  Ronnie Hart  ++++++++++++++++++++++ -->
-
-
     <record id="hr_holidays_allocation_cl_al" model="hr.leave.allocation">
         <field name="name">Paid Time Off for Ronnie Hart</field>
         <field name="holiday_status_id" ref="leave_type_paid_time_off"/>
@@ -197,7 +189,6 @@
         <value eval="[ref('hr_holidays_allocation_cl_al'), ref('hr_holidays_allocation_pl_al'), ref('hr_holidays_vc_al')]"/>
     </function>
 
-    <!-- leave request -->
     <record id="hr_holidays_cl_al" model="hr.leave">
         <field name="name">Trip with Friends</field>
         <field name="holiday_status_id" ref="leave_type_paid_time_off"/>
@@ -220,8 +211,6 @@
     <function model="hr.leave" name="action_approve">
         <value eval="ref('hr_holidays.hr_holidays_sl_al')"/>
     </function>
-
-    <!-- ++++++++++++++++++++++  Anita Oliver  ++++++++++++++++++++++ -->
 
     <record id="hr_holidays_allocation_cl_mit" model="hr.leave.allocation">
         <field name="name">Paid Time Off for Anita Oliver</field>
@@ -246,7 +235,6 @@
         <field name="date_to" eval="time.strftime('%Y-12-31')"/>
     </record>
 
-    <!-- leave request -->
     <record id="hr_holidays_cl_mit" model="hr.leave">
         <field name="name">Trip to Paris</field>
         <field name="holiday_status_id" ref="leave_type_paid_time_off"/>
@@ -269,8 +257,6 @@
     <function model="hr.leave" name="action_approve">
         <value eval="ref('hr_holidays.hr_holidays_cl_mit_2')"/>
     </function>
-
-    <!-- ++++++++++++++++++++++  Marc Demo  ++++++++++++++++++++++ -->
 
     <record id="hr_holidays_allocation_cl_qdp" model="hr.leave.allocation">
         <field name="name">Paid Time Off for Marc Demo</field>
@@ -295,7 +281,6 @@
         <value eval="[ref('hr_holidays.hr_holidays_allocation_cl_qdp'), ref('hr_holidays.hr_holidays_vc_qdp')]"/>
     </function>
 
-    <!-- leave request -->
     <record id="hr_holidays_cl_qdp" model="hr.leave">
         <field name="name">Sick day</field>
         <field name="holiday_status_id" ref="leave_type_sick_time_off"/>
@@ -320,8 +305,6 @@
         <value eval="ref('hr_holidays.hr_holidays_sl_qdp')"/>
     </function>
 
-    <!-- ++++++++++++++++++++++  Audrey Peterson  ++++++++++++++++++++++ -->
-
     <record id="hr_holidays_allocation_cl_fpi" model="hr.leave.allocation">
         <field name="name">Paid Time Off for Audrey Peterson</field>
         <field name="holiday_status_id" ref="leave_type_paid_time_off"/>
@@ -344,8 +327,6 @@
         <field name="date_from" eval="time.strftime('%Y-01-01')"/>
         <field name="date_to" eval="time.strftime('%Y-12-31')"/>
     </record>
-
-    <!-- ++++++++++++++++++++++   Olivia  ++++++++++++++++++++++ -->
 
     <record id="hr_holidays_allocation_cl_vad" model="hr.leave.allocation">
         <field name="name">Paid Time Off for Olivia</field>
@@ -394,8 +375,6 @@
         <value eval="ref('hr_holidays.hr_holidays_sl_vad')"/>
     </function>
 
-    <!-- ++++++++++++++++++++++   Kim  ++++++++++++++++++++++ -->
-
     <record id="hr_holidays_allocation_cl_kim" model="hr.leave.allocation">
         <field name="name">Paid Time Off for Kim</field>
         <field name="holiday_status_id" ref="leave_type_paid_time_off"/>
@@ -416,7 +395,6 @@
         <field name="date_to" eval="time.strftime('%Y-12-31')"/>
     </record>
 
-    <!-- leave request -->
     <record id="hr_holidays_sl_kim" model="hr.leave">
         <field name="name">Dentist appointment</field>
         <field name="holiday_status_id" ref="leave_type_sick_time_off"/>
@@ -441,7 +419,6 @@
         <value eval="ref('hr_holidays.hr_holidays_sl_kim_2')"/>
     </function>
 
-    <!-- Public time off -->
     <record id="resource_public_time_off_1" model="resource.calendar.leaves">
         <field name="name">Public Time Off</field>
         <field name="company_id" ref="base.main_company"/>
@@ -450,7 +427,6 @@
         <field name="date_to" eval="time.strftime('%Y-02-13 17:00:00')"/>
     </record>
 
-    <!-- Mandatory day -->
     <record id="hr_leave_mandatory_day_1" model="hr.leave.mandatory.day">
         <field name="name">Company Celebration</field>
         <field name="company_id" ref="base.main_company"/>
