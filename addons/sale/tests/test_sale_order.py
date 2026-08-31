@@ -1602,6 +1602,22 @@ class TestDownPaymentSectionLineLang(SaleCommon):
 
 
 @tagged("post_install", "-at_install")
+class TestPaymentTermReadonly(SaleCommon):
+    """payment_term_id must become readonly once the order is done/cancelled,
+    like every sibling field in the same header group (F07)."""
+
+    def test_payment_term_id_readonly_once_done(self):
+        self.sale_order.action_confirm()
+        self.assertEqual(self.sale_order.state, "done")
+
+        with Form(self.sale_order) as order_form:
+            with self.assertRaises(AssertionError):
+                order_form.payment_term_id = self.env["account.payment.term"].search(
+                    [], limit=1
+                )
+
+
+@tagged("post_install", "-at_install")
 class TestSaleOrderLineDisplayName(SaleCommon):
     """_compute_display_name()'s lang-switch truthiness check must keep
     working after dropping the unused partner_lang dict it used to compute
