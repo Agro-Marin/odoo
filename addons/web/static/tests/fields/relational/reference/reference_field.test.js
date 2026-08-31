@@ -931,6 +931,18 @@ test("Change model field of a ReferenceField then select an invalid value (tree 
     textInput.setSelectionRange(0, textInput.value.length);
     await click(".o_list_table .reference_field input");
     await press("Backspace");
+
+    // Backspacing in the reference input reopens its autocomplete, and that
+    // popover owns `ui.activeElement` while it is up. The list's own global
+    // click handler declines to leave the row for as long as something above it
+    // holds the active element, so the first click outside dismisses the
+    // dropdown and the second is the one that leaves the row -- topmost layer
+    // first, the same as any other overlay. Asserting after a single click
+    // measured the dropdown closing, not the row being validated.
+    await click(".o_form_view_container");
+    await animationFrame();
+    expect(".o_popover").toHaveCount(0);
+
     await click(".o_form_view_container");
     await animationFrame();
 

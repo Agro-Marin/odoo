@@ -33,9 +33,10 @@ export class PercentageField extends NumericInputFieldBase {
     }
 
     /**
+     * @param {boolean} _humanReadable percentage has no human-readable form
      * @returns {string}
      */
-    get formattedValue() {
+    formatValue(_humanReadable) {
         return formatPercentage(this.value, {
             digits: this.props.digits,
             noSymbol: true,

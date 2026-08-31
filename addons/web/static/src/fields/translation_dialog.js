@@ -23,7 +23,6 @@ export class TranslationDialog extends Component {
         showSource: { type: Boolean, optional: true },
     };
     setup() {
-        super.setup();
         this.title = _t("Translate: %s", this.props.fieldName);
 
         this.user = user;
@@ -74,20 +73,18 @@ export class TranslationDialog extends Component {
     async onSave() {
         const translations = {};
 
-        this.terms.map((term) => {
+        for (const term of this.terms) {
             const updatedTermValue = this.updatedTerms[term.id];
-            if (term.id in this.updatedTerms && term.value !== updatedTermValue) {
-                if (this.showSource) {
-                    if (!translations[term.lang]) {
-                        translations[term.lang] = {};
-                    }
-                    translations[term.lang][term.source] =
-                        updatedTermValue || term.source;
-                } else {
-                    translations[term.lang] = updatedTermValue || false;
-                }
+            if (!(term.id in this.updatedTerms) || term.value === updatedTermValue) {
+                continue;
             }
-        });
+            if (this.showSource) {
+                translations[term.lang] ??= {};
+                translations[term.lang][term.source] = updatedTermValue || term.source;
+            } else {
+                translations[term.lang] = updatedTermValue || false;
+            }
+        }
 
         await this.orm.call(this.props.resModel, "update_field_translations", [
             [this.props.resId],

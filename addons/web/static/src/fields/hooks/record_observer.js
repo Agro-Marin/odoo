@@ -5,7 +5,7 @@ import { onWillDestroy, onWillStart, onWillUpdateProps, useComponent } from "@od
 import { browser } from "@web/core/browser/browser";
 import { Deferred } from "@web/core/utils/concurrency";
 import { uniqueId } from "@web/core/utils/functions";
-import { disposableEffect } from "@web/core/utils/reactive";
+import { effect } from "@web/core/utils/reactive";
 import { batched } from "@web/core/utils/timing";
 
 /**
@@ -59,7 +59,7 @@ export function useRecordObserver(callback) {
                     browser.requestAnimationFrame(() => resolve()),
                 ),
         );
-        disposeEffect = disposableEffect(
+        disposeEffect = effect(
             (record) => {
                 if (firstCall) {
                     firstCall = false;

@@ -248,6 +248,50 @@ describe("FetchRecordError on empty reload response", () => {
         expect(caughtError).toBeInstanceOf(FetchRecordError);
         expect(caughtError.resIds).toEqual([1]);
     });
+
+    test("throws it when reload is false too, rather than committing against nothing", async () => {
+        // The write happened but nothing came back to read -- deleted
+        // underneath, or a record rule now hides it. Reporting success and
+        // clearing the change set loses exactly the edits the caller asked to
+        // save, and the urgent-save path is the one that runs `reload: false`.
+        await makeMockEnv();
+
+        const rec = makeRecord({
+            resId: 1,
+            changes: { name: "updated" },
+            webSave: async () => [],
+        });
+
+        let caughtError = null;
+        try {
+            await save(rec, { reload: false });
+        } catch (e) {
+            caughtError = e;
+        }
+
+        expect(caughtError).toBeInstanceOf(FetchRecordError);
+        expect(caughtError.resIds).toEqual([1]);
+    });
+
+    test("and when `id` is an active field, where it used to be a TypeError", async () => {
+        await makeMockEnv();
+
+        const rec = makeRecord({
+            resId: 1,
+            changes: { name: "updated" },
+            webSave: async () => [],
+        });
+        rec.activeFields = { id: {} };
+
+        let caughtError = null;
+        try {
+            await save(rec, { reload: false });
+        } catch (e) {
+            caughtError = e;
+        }
+
+        expect(caughtError).toBeInstanceOf(FetchRecordError);
+    });
 });
 
 describe("urgent save (sendBeacon path)", () => {

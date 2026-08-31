@@ -53,7 +53,14 @@ function useSortableProperties(options) {
         enable: getEnabled,
         ref: propertiesRef,
         handle: ".o_field_property_label .oi-draggable",
-        elements:
+        // Passed as a function, not called here: the rendered column count
+        // follows `env.isSmall`, so invoking the getter at setup froze this at
+        // whatever the viewport was when the field mounted. `elements` decides
+        // drop targets as well as drag sources (`sortable.js` reads
+        // `ctx.elementSelector` on its own for `closestElementOf` and for the
+        // placeholder's sibling filter), so a stale one keeps group labels from
+        // being droppable after a resize into one column.
+        elements: () =>
             getRenderedColumnsCount() === 1
                 ? "*:is(.o_property_field, .o_field_property_group_label)"
                 : ".o_property_field",

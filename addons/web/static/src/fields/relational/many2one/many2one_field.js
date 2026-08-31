@@ -188,11 +188,13 @@ export class Many2OneField extends FieldComponent {
 }
 
 /** @type {import("registries").FieldsRegistryItemShape} */
-export const many2OneField = {
-    ...buildM2OFieldDescription(Many2OneField),
-};
+export const many2OneField = buildM2OFieldDescription(Many2OneField);
 registerField("many2one", many2OneField);
 
-registerField("res_partner_many2one", {
-    ...buildM2OFieldDescription(Many2OneField),
-});
+// A second name for the same widget, and deliberately its OWN description
+// rather than an alias of `many2OneField`: `partner_autocomplete` replaces this
+// entry with a different component (`registerField(..., { force: true })`), and
+// field descriptions are patch targets (`patch(phoneField, ...)` and friends),
+// so one shared object would carry a patch of `many2one` across to a widget
+// that is meant to diverge from it.
+registerField("res_partner_many2one", buildM2OFieldDescription(Many2OneField));

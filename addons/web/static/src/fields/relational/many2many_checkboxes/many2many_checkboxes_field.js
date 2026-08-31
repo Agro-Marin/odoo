@@ -1,14 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onWillRender, onWillUnmount, useState } from "@odoo/owl";
+import { onWillRender, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
-import { ModelEvent } from "@web/core/events";
 import { _t } from "@web/core/translation";
-import { useBus } from "@web/core/utils/hooks";
-import { debounce } from "@web/core/utils/timing";
 import { registerField } from "@web/fields/_registry";
 import { FieldComponent } from "@web/fields/field_component";
+import { useDebouncedFieldCommit } from "@web/fields/hooks/debounced_field_commit";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { getFieldDomain } from "@web/model/relational_model";
 
@@ -49,25 +47,12 @@ export class Many2ManyCheckboxesField extends FieldComponent {
             return items;
         });
         this.pending = useState({ add: [], remove: [] });
-        this.debouncedCommitChanges = debounce(this.commitChanges.bind(this), 500);
+        this.debouncedCommitChanges = useDebouncedFieldCommit(
+            () => this.commitChanges(),
+            500,
+        );
         onWillRender(() => {
             this.currentIds = new Set(this.field.value.currentIds);
-        });
-        useBus(this.props.record.model.bus, ModelEvent.NEED_LOCAL_CHANGES, (ev) => {
-            const result = this.commitChanges();
-            if (result) {
-                ev.detail.proms.push(result);
-            }
-        });
-        useBus(this.props.record.model.bus, ModelEvent.WILL_SAVE_URGENTLY, (ev) => {
-            const result = this.commitChanges();
-            if (result) {
-                ev.detail?.proms?.push(result);
-            }
-        });
-        onWillUnmount(() => {
-            this.debouncedCommitChanges.cancel();
-            this.commitChanges();
         });
     }
 

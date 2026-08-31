@@ -1,6 +1,6 @@
 // @ts-check
 
-import { describe, expect, test } from "@odoo/hoot";
+import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { Component, xml } from "@odoo/owl";
 import {
     defineModels,
@@ -43,19 +43,35 @@ class Probe extends Component {
     static props = ["*"];
 }
 
-registry.category("fields").add("test_m2o_with_related", {
-    component: Probe,
-    supportedTypes: ["many2one"],
-    relatedFields: [{ name: "name", type: "char" }],
-});
-registry.category("fields").add("test_dep_mistyped", {
-    component: Probe,
-    fieldDependencies: [{ name: "line_ids", type: "many2one" }],
-});
-registry.category("fields").add("test_dep_typed", {
-    component: Probe,
-    fieldDependencies: [{ name: "line_ids", type: "one2many" }],
-});
+/**
+ * Registered per test, not at module scope.
+ *
+ * The framework snapshots the registry in a global `beforeEach` and restores it
+ * in `afterEach` (tests/_framework/env_test_helpers.js), so anything added at
+ * MODULE scope is already present when the first snapshot is taken and is never
+ * removed again. These three probe widgets leaked that way into every suite that
+ * ran after this file, and `fields/field_registry_contract.test.js` -- which
+ * iterates the whole `fields` registry -- then checked them against a contract
+ * they were never written to satisfy. Measured: that suite is 7 passed alone and
+ * 2 failed when this file is loaded first.
+ */
+function registerProbeFields() {
+    registry.category("fields").add("test_m2o_with_related", {
+        component: Probe,
+        supportedTypes: ["many2one"],
+        relatedFields: [{ name: "name", type: "char" }],
+    });
+    registry.category("fields").add("test_dep_mistyped", {
+        component: Probe,
+        fieldDependencies: [{ name: "line_ids", type: "many2one" }],
+    });
+    registry.category("fields").add("test_dep_typed", {
+        component: Probe,
+        fieldDependencies: [{ name: "line_ids", type: "one2many" }],
+    });
+}
+
+beforeEach(registerProbeFields);
 
 describe("merging descriptions of one field", () => {
     describe.current.tags("headless");

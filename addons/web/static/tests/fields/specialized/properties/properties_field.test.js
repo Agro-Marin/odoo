@@ -2328,6 +2328,20 @@ test("properties: save separator folded state", async () => {
 
 test.tags("desktop");
 test("properties: separators move properties", async () => {
+    /**
+     * A move that crosses a group boundary re-parents the property's row, which
+     * destroys the DOM node the definition popover is anchored to. The popover
+     * closes on its own and `_movePopoverIfNeeded` re-opens it against the new
+     * anchor, but the overlay only mounts a frame later -- and the closed
+     * popover's node outlives the close by a frame too, so "it is still on
+     * screen" does not mean it is still live. Each move therefore waits for the
+     * popover to come back before the next one clicks it.
+     */
+    const movePropertyBy = async (direction) => {
+        await click(`.o_field_property_definition .oi-chevron-${direction}`);
+        await animationFrame();
+        await waitFor(".o_field_property_definition");
+    };
     await makePropertiesGroupView([false, true, true, false, true, true, false]);
 
     const foldState = (separatorName) =>
@@ -2368,8 +2382,7 @@ test("properties: separators move properties", async () => {
 
     await click("[property-name='property_1'] .o_field_property_open_popover");
     await animationFrame();
-    await click(".o_field_property_definition .oi-chevron-down");
-    await animationFrame();
+    await movePropertyBy("down");
 
     expect(getGroups()).toEqual([
         [
@@ -2382,8 +2395,7 @@ test("properties: separators move properties", async () => {
     ]);
     assertFolded([false, true, true, true]);
 
-    await click(".o_field_property_definition .oi-chevron-down");
-    await animationFrame();
+    await movePropertyBy("down");
     expect(getGroups()).toEqual([
         [["SEPARATOR 2", "property_2"]],
         [
@@ -2396,8 +2408,7 @@ test("properties: separators move properties", async () => {
     ]);
     assertFolded([false, false, true, true]);
 
-    await click(".o_field_property_definition .oi-chevron-down");
-    await animationFrame();
+    await movePropertyBy("down");
     expect(getGroups()).toEqual([
         [["SEPARATOR 2", "property_2"]],
         [
@@ -2410,8 +2421,7 @@ test("properties: separators move properties", async () => {
     ]);
     assertFolded([false, false, true, true]);
 
-    await click(".o_field_property_definition .oi-chevron-down");
-    await animationFrame();
+    await movePropertyBy("down");
     expect(getGroups()).toEqual([
         [["SEPARATOR 2", "property_2"]],
         [
@@ -2435,8 +2445,7 @@ test("properties: separators move properties", async () => {
 
     await click("[property-name='property_1'] .o_field_property_open_popover");
     await animationFrame();
-    await click(".o_field_property_definition .oi-chevron-up");
-    await animationFrame();
+    await movePropertyBy("up");
     expect(getGroups()).toEqual([
         [["SEPARATOR 2", "property_2"]],
         [
@@ -2449,10 +2458,8 @@ test("properties: separators move properties", async () => {
     ]);
     assertFolded([true, false, false, true]);
 
-    await click(".o_field_property_definition .oi-chevron-up");
-    await animationFrame();
-    await click(".o_field_property_definition .oi-chevron-up");
-    await animationFrame();
+    await movePropertyBy("up");
+    await movePropertyBy("up");
     expect(getGroups()).toEqual([
         [
             ["SEPARATOR 2", "property_2"],

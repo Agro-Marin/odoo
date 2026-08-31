@@ -443,8 +443,16 @@ export const x2ManyField = {
     supportedTypes: ["one2many", "many2many"],
     useSubView: true,
     extractProps: (
-        { attrs, relatedFields, viewMode, views, widget, options, string },
-        dynamicInfo,
+        /** @type {Record<string, any>} */ {
+            attrs,
+            relatedFields,
+            viewMode,
+            views,
+            widget,
+            options,
+            string,
+        },
+        /** @type {Record<string, any>} */ dynamicInfo,
     ) => {
         const props = {
             addLabel: attrs["add-label"],

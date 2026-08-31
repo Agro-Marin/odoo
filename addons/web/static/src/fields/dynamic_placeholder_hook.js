@@ -15,6 +15,38 @@ import {
 
 const TRIGGER_KEY = "#";
 
+/**
+ * @param {import("@web/core/network/orm_service").ORM} orm
+ * @param {string} model
+ * @param {{ path: string, defaultValue?: string, fieldType?: string }} spec
+ * @returns {Promise<string>} the text to splice in, leading space included
+ */
+async function buildPlaceholderText(orm, model, { path, defaultValue, fieldType }) {
+    const tzPath =
+        fieldType === "datetime"
+            ? ((await resolveTzPath(orm, model)) ?? undefined)
+            : undefined;
+    return ` ${buildInlinePlaceholder({ path, fieldType, defaultValue, tzPath })}`;
+}
+
+/**
+ * Splices `text` into the element at `rangeIndex`, optionally swallowing the
+ * `#` that opened the picker, and tells the input hook about it.
+ *
+ * @param {HTMLInputElement | HTMLTextAreaElement} element
+ * @param {string} text
+ * @param {{ rangeIndex: number, removeTriggerKey: boolean }} where
+ */
+function insertAtRange(element, text, { rangeIndex, removeTriggerKey }) {
+    element.focus();
+    let start = rangeIndex;
+    if (removeTriggerKey && element.value[rangeIndex - 1] === TRIGGER_KEY) {
+        start -= 1;
+    }
+    element.setRangeText(text, start, rangeIndex, "end");
+    element.dispatchEvent(new InputEvent("input"));
+}
+
 export function useDynamicPlaceholder(/** @type {any} */ elementRef) {
     const ownerField = useComponent();
     /** @type {Function | undefined} */
@@ -47,23 +79,12 @@ export function useDynamicPlaceholder(/** @type {any} */ elementRef) {
         if (!element || !path) {
             return;
         }
-        const tzPath =
-            fieldType === "datetime"
-                ? ((await resolveTzPath(orm, model)) ?? undefined)
-                : undefined;
-        const dynamicPlaceholder = ` ${buildInlinePlaceholder({
+        const text = await buildPlaceholderText(orm, model, {
             path,
-            fieldType,
             defaultValue,
-            tzPath,
-        })}`;
-        element.focus();
-        let start = rangeIndex;
-        if (removeTriggerKey && element.value[rangeIndex - 1] === TRIGGER_KEY) {
-            start -= 1;
-        }
-        element.setRangeText(dynamicPlaceholder, start, rangeIndex, "end");
-        element.dispatchEvent(new InputEvent("input"));
+            fieldType,
+        });
+        insertAtRange(element, text, { rangeIndex, removeTriggerKey });
     };
 
     const onDynamicPlaceholderValidate = function (path, defaultValue, fieldType) {

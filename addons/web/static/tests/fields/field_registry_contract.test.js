@@ -9,6 +9,7 @@ import {
     mountView,
 } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
+import { NumericInputFieldBase } from "@web/fields/basic/numeric_input_field_base";
 
 class Sub extends models.Model {
     _name = "sub";
@@ -397,6 +398,65 @@ test("every registry entry declares the types it supports", () => {
         .filter(
             ({ key, descr }) =>
                 !descr.supportedTypes && !NO_SUPPORTED_TYPES_BY_DESIGN.includes(key),
+        )
+        .map(({ key }) => key)
+        .sort();
+
+    expect(missing).toEqual([]);
+});
+
+/**
+ * Walks a component's own prototypes up to -- but not including -- the base's,
+ * so an override declared anywhere in the subclass chain is found and the base's
+ * own definition is not mistaken for one.
+ *
+ * @param {any} component
+ * @param {string} name
+ * @returns {boolean}
+ */
+function overridesBelowNumericBase(component, name) {
+    for (
+        let proto = component?.prototype;
+        proto && proto !== NumericInputFieldBase.prototype;
+        proto = Object.getPrototypeOf(proto)
+    ) {
+        if (Object.getOwnPropertyDescriptor(proto, name)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * @returns {{ key: string, descr: any }[]}
+ */
+function numericEntries() {
+    return registryEntries().filter(
+        ({ descr }) => descr.component?.prototype instanceof NumericInputFieldBase,
+    );
+}
+
+// The base wraps formatValue() in a formattedValue getter that is where
+// `formatNumber` and the native-number-input case are handled. A subclass that
+// overrides the getter instead of implementing the abstract silently loses both,
+// which is what float_time and percentage did.
+test("no numeric widget overrides formattedValue instead of implementing formatValue", () => {
+    expect(numericEntries().length).toBeGreaterThan(0);
+
+    const offenders = numericEntries()
+        .filter(({ descr }) =>
+            overridesBelowNumericBase(descr.component, "formattedValue"),
+        )
+        .map(({ key }) => key)
+        .sort();
+
+    expect(offenders).toEqual([]);
+});
+
+test("every numeric widget implements the formatValue the base declares abstract", () => {
+    const missing = numericEntries()
+        .filter(
+            ({ descr }) => !overridesBelowNumericBase(descr.component, "formatValue"),
         )
         .map(({ key }) => key)
         .sort();

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, onWillRender } from "@odoo/owl";
+import { onWillRender } from "@odoo/owl";
 import { formatFieldDate } from "@web/core/formatters";
 import { DateTime } from "@web/core/l10n/luxon";
 import { evaluateExpr } from "@web/core/py_js/py";
@@ -9,10 +9,11 @@ import { _t } from "@web/core/translation";
 import { getClassNameFromDecoration } from "@web/core/utils/decorations";
 import { capitalize } from "@web/core/utils/format/strings";
 import { registerField } from "@web/fields/_registry";
+import { FieldComponent } from "@web/fields/field_component";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { DateTimeField } from "@web/fields/temporal/datetime/datetime_field";
 
-export class RemainingDaysField extends Component {
+export class RemainingDaysField extends FieldComponent {
     static components = { DateTimeField };
 
     static props = {
@@ -38,8 +39,7 @@ export class RemainingDaysField extends Component {
 
     /** @returns {number|null} */
     computeDiffDays() {
-        const { record, name } = this.props;
-        const value = record.data[name];
+        const value = this.field.value;
         if (!value) {
             return null;
         }
@@ -62,8 +62,7 @@ export class RemainingDaysField extends Component {
         if (Math.abs(diffDays) > 99) {
             return this.formattedValue;
         }
-        const { record, name } = this.props;
-        const value = record.data[name];
+        const value = this.field.value;
         const relativeCalendarOptions = {};
         if (Math.abs(diffDays) <= 30) {
             relativeCalendarOptions.unit = "days";
@@ -73,14 +72,12 @@ export class RemainingDaysField extends Component {
 
     /** @returns {string} */
     get formattedValue() {
-        const { record, name } = this.props;
-        return formatFieldDate(record.data[name]);
+        return formatFieldDate(this.field.value);
     }
 
     /** @returns {string} */
     get numericValue() {
-        const { record, name } = this.props;
-        return formatFieldDate(record.data[name], { numeric: true });
+        return formatFieldDate(this.field.value, { numeric: true });
     }
 
     /** @returns {Object|null} */

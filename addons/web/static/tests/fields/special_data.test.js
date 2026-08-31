@@ -100,7 +100,18 @@ test("a new record still reloads", async () => {
     const { state, counts } = await mountSpecialData();
     state.record = makeRecord(2, { foo: 2 });
     await animationFrame();
-    expect(counts.loadFn).toBeGreaterThan(1);
+    expect(counts.loadFn).toBe(2);
+});
+
+// A save replaces the datapoint but keeps its id. Both reload paths used to
+// claim that event -- useRecordObserver because the object changed, and the
+// onWillUpdateProps handler because its guard compared ids -- so loadFn ran
+// twice for one reload.
+test("a reloaded record -- new object, same id -- reloads once, not twice", async () => {
+    const { state, counts } = await mountSpecialData();
+    state.record = makeRecord(1, { foo: 2 });
+    await animationFrame();
+    expect(counts.loadFn).toBe(2);
 });
 
 test("the shape Field actually mounts: t-props with a fresh context each render", async () => {

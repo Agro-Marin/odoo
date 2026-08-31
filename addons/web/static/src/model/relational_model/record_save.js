@@ -183,7 +183,12 @@ async function applySaveResult(
     records,
     { reload, nextId, creation, changes, orderBys },
 ) {
-    if (reload && !records.length) {
+    // An empty result means the write happened but nothing came back to read --
+    // the record was deleted underneath, or a record rule now hides it. That is
+    // a failure on every path, not only the one that reloads: committing
+    // against nothing tells the caller it succeeded and drops the changes it was
+    // asked to save.
+    if (!records.length) {
         throw new FetchRecordError([/** @type {number} */ (nextId || record.resId)]);
     }
     if (creation) {

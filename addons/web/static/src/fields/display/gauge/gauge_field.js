@@ -58,11 +58,7 @@ export class GaugeField extends FieldComponent {
 
     /** @returns {string} */
     get formattedValue() {
-        return this.formatValue(
-            /** @type {Record<string, any>} */ (this.props.record.data)[
-                this.props.name
-            ],
-        );
+        return this.formatValue(this.field.value);
     }
 
     /**
@@ -78,9 +74,7 @@ export class GaugeField extends FieldComponent {
     }
 
     renderChart() {
-        const rawValue = /** @type {Record<string, any>} */ (this.props.record.data)[
-            this.props.name
-        ];
+        const rawValue = this.field.value;
         const gaugeValue =
             typeof rawValue === "number" && Number.isFinite(rawValue) ? rawValue : 0;
         const configuredMax = this.configuredMaxValue;

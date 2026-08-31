@@ -4,15 +4,28 @@
 import { Domain } from "@web/core/domain";
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
+import { stableM2OValue } from "@web/fields/relational/many2one/many2one";
 import {
     extractM2OFieldProps,
     m2oSupportedAttributes,
     m2oSupportedOptions,
     Many2OneField,
 } from "@web/fields/relational/many2one/many2one_field";
+import { getFieldDomain } from "@web/model/relational_model";
 
 export class Many2OneReferenceField extends Many2OneField {
     static template = "web.Many2OneReferenceField";
+
+    setup() {
+        this.updateValue = this.update.bind(this);
+        this.selfExcludingDomain = () => {
+            const { record, name, domain } = this.props;
+            return Domain.and([
+                new Domain(getFieldDomain(record, name, domain)),
+                new Domain([["id", "!=", record.resId]]),
+            ]).toList();
+        };
+    }
 
     /** @returns {Object} */
     get m2oProps() {
@@ -22,18 +35,16 @@ export class Many2OneReferenceField extends Many2OneField {
         const props = {
             ...super.m2oProps,
             relation,
-            value: value ? { id: value.resId, display_name: value.displayName } : false,
+            value: stableM2OValue(
+                this.props,
+                value && { id: value.resId, display_name: value.displayName },
+            ),
             readonly: this.props.readonly || !relation,
-            update: (/** @type {any} */ changes) => this.update(changes),
+            update: this.updateValue,
         };
         const { resId, resModel } = this.props.record;
         if (resModel === "ir.attachment" && relation === "ir.attachment" && resId) {
-            const baseDomain = props.domain;
-            props.domain = () =>
-                Domain.and([
-                    new Domain(baseDomain()),
-                    new Domain([["id", "!=", resId]]),
-                ]).toList();
+            props.domain = this.selfExcludingDomain;
         }
         return props;
     }

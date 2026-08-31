@@ -149,6 +149,20 @@ export class ProgressBarField extends Component {
         );
     }
 
+    /**
+     * The template used to inline `100 * currentValue / maxValue`. A literal
+     * `options="{'max_value': 0}"` made that `Infinity`, which CSS drops, and a
+     * negative current value made it negative; both are unreachable through a
+     * *field*-backed max, where a falsy value already falls back to 100.
+     *
+     * @returns {string}
+     */
+    get progressBarStyle() {
+        const max = this.maxValue;
+        const ratio = max > 0 ? (100 * this.currentValue) / max : 0;
+        return `width: min(${Math.max(ratio, 0)}%, 100%)`;
+    }
+
     /** @returns {string} */
     get progressBarColorClass() {
         return this.currentValue > this.maxValue
@@ -168,10 +182,14 @@ export class ProgressBarField extends Component {
     }
 
     /**
-     * @param {boolean} [humanReadable]
+     * Only reached where the value is *not* rendered as an editable input, so
+     * every caller asks for the human-readable form; `formatValue` is what
+     * carries the "raw while editing" default the inputs read through.
+     *
+     * @param {boolean} humanReadable
      * @returns {string}
      */
-    formatCurrentValue(humanReadable = !this.state.isEditing) {
+    formatCurrentValue(humanReadable) {
         return this.formatValue(
             this.currentValueField,
             this.currentValue,
@@ -180,10 +198,10 @@ export class ProgressBarField extends Component {
     }
 
     /**
-     * @param {boolean} [humanReadable]
+     * @param {boolean} humanReadable
      * @returns {string}
      */
-    formatMaxValue(humanReadable = !this.state.isEditing) {
+    formatMaxValue(humanReadable) {
         return this.formatValue(this.maxValueFieldName, this.maxValue, humanReadable);
     }
 

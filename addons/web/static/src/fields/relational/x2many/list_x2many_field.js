@@ -24,5 +24,11 @@ const listX2ManyField = {
     useSubView: false,
 };
 
-registerField({ name: "one2many", view: "list" }, listX2ManyField);
-registerField({ name: "many2many", view: "list" }, listX2ManyField);
+registerField(
+    {
+        name: "one2many",
+        view: "list",
+        aliases: [{ name: "many2many", view: "list" }],
+    },
+    listX2ManyField,
+);

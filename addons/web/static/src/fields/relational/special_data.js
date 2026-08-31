@@ -117,10 +117,21 @@ export function useSpecialData(loadFn) {
         apply(ticket, await loadFn(ormWithCache, { ...props, record }));
     });
     onWillUpdateProps(async (props) => {
-        if (props.record.id === component.props.record.id) {
-            const ticket = ++loadTicket;
-            apply(ticket, await loadFn(ormWithCache, props));
+        // useRecordObserver already reloads whenever the record object itself
+        // is replaced. This handler exists only for the other half -- a change
+        // in the props `loadFn` reads beside the record, such as `domain` or
+        // `context`, on a record that stayed the same object.
+        //
+        // Its guard used to be `props.record.id === component.props.record.id`,
+        // which is satisfied by a *reloaded* record too: a save replaces the
+        // datapoint while keeping its id, so both this and the observer fired
+        // and `loadFn` ran twice for one event. Comparing the object instead
+        // splits the two cases cleanly.
+        if (props.record !== component.props.record) {
+            return;
         }
+        const ticket = ++loadTicket;
+        apply(ticket, await loadFn(ormWithCache, props));
     });
     return result;
 }

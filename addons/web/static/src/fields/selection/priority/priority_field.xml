@@ -3,7 +3,7 @@
 
     <t t-name="web.PriorityField">
         <div class="o_priority opacity-trigger-hover" role="radiogroup" name="priority" aria-label="Priority">
-            <t t-foreach="options" t-as="value" t-key="value">
+            <t t-foreach="options" t-as="value" t-key="value[0]">
                 <t t-if="!value_first">
                     <t t-if="props.readonly">
                         <span

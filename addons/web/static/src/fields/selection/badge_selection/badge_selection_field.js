@@ -24,12 +24,22 @@ export class BadgeSelectionField extends SelectionLikeField {
         size: "md",
     };
 
+    /**
+     * The empty-label entry is dropped here as it is in `SelectionField`: a
+     * selection whose label is `""` renders as a badge with no text and no way
+     * to tell it apart from the next one. The two widgets disagreed on this for
+     * the same field type.
+     *
+     * @returns {Array<[any, string]>}
+     */
     get options() {
         switch (this.type) {
             case "many2one":
                 return this.specialData.data;
             case "selection":
-                return this.field.definition.selection;
+                return this.field.definition.selection.filter(
+                    (/** @type {[any, string]} */ option) => option[1] !== "",
+                );
             default:
                 return [];
         }

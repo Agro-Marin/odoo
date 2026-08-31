@@ -11,14 +11,27 @@ import { escape } from "@web/core/utils/format/strings";
 import { registerField } from "@web/fields/_registry";
 import { FieldComponent } from "@web/fields/field_component";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-import { Record } from "@web/model/record";
+import { Record as RecordComponent } from "@web/model/record";
 
 const viewRegistry = registry.category("views");
+
+/**
+ * @typedef {{
+ * id: string | number,
+ * name: string,
+ * privilege_ids?: Array<string | number>,
+ * privileges: Privilege[],
+ * }} PrivilegeCategory
+ * @typedef {{ id: string | number } & Record<string, any>} Privilege
+ */
 
 class ResUserGroupIdsField extends FieldComponent {
     static template = "web.ResUserGroupIdsField";
     static get components() {
-        return { Record, FormRenderer: viewRegistry.get("form").Renderer };
+        return {
+            Record: RecordComponent,
+            FormRenderer: viewRegistry.get("form").Renderer,
+        };
     }
     static props = { ...standardFieldProps };
 
@@ -31,10 +44,10 @@ class ResUserGroupIdsField extends FieldComponent {
      */
     hierarchyGroups;
 
-    /** @type {Record<string, any>[]} */
+    /** @type {PrivilegeCategory[]} */
     categories;
 
-    /** @type {Record<string, any>} */
+    /** @type {PrivilegeCategory} */
     extraCategory;
 
     /** @type {Record<string, any>} */
@@ -51,7 +64,9 @@ class ResUserGroupIdsField extends FieldComponent {
             toRaw(this.props.record.data.view_group_hierarchy),
         );
         this.hierarchyGroups = groups;
-        this.categories = this.buildCategories(categories, privileges);
+        this.categories = /** @type {PrivilegeCategory[]} */ (
+            this.buildCategories(categories, privileges)
+        );
         this.extraCategory = this.buildExtraCategory(groups);
 
         const booleanFieldToGroupId = this.buildFields(privileges, groups);
@@ -90,7 +105,7 @@ class ResUserGroupIdsField extends FieldComponent {
 
     /**
      * @param {Object<string, any>} groups
-     * @returns {{ id: string, name: string, privileges: Array<Object<string, any>> }}
+     * @returns {PrivilegeCategory}
      */
     buildExtraCategory(groups) {
         return {
@@ -303,7 +318,7 @@ class ResUserGroupIdsField extends FieldComponent {
     }
 
     /**
-     * @param {{ id: string | number }} privilege
+     * @param {Privilege} privilege
      * @returns {string}
      */
     getFieldName(privilege) {
@@ -311,7 +326,7 @@ class ResUserGroupIdsField extends FieldComponent {
     }
 
     /**
-     * @param {{ id: string | number }} privilege
+     * @param {Privilege} privilege
      * @returns {string}
      */
     getPrivilegeArch(privilege) {
@@ -320,7 +335,7 @@ class ResUserGroupIdsField extends FieldComponent {
     }
 
     /**
-     * @param {{ name: string, privileges: Array<{ id: string | number }> }} category
+     * @param {PrivilegeCategory} category
      * @returns {string}
      */
     getCategoryArch(category) {

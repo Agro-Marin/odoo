@@ -11,6 +11,7 @@ import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { _t } from "@web/core/translation";
 import { shallowEqual } from "@web/core/utils/collections/objects";
 import { useService } from "@web/core/utils/hooks";
+import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { getFieldDomain } from "@web/model/relational_model";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
@@ -31,13 +32,17 @@ export function extractData(record) {
 }
 
 /**
- * @type {WeakMap<object, Map<string, { latest: any, stable: any, props: any }>>}
+ * @typedef {{ latest: any, stable: any, props: any, value: any }} M2OHolder
+ */
+
+/**
+ * @type {WeakMap<object, Map<string, M2OHolder>>}
  */
 const M2O_PROPS = new WeakMap();
 
 /**
  * @param {Object} fieldProps
- * @returns {{ latest: any, stable: any, props: any }}
+ * @returns {M2OHolder}
  */
 function m2oHolder(fieldProps) {
     const { record, name } = fieldProps;
@@ -48,8 +53,13 @@ function m2oHolder(fieldProps) {
     }
     let holder = byName.get(name);
     if (!holder) {
-        /** @type {{ latest: any, stable: any, props: any }} */
-        const created = { latest: fieldProps, stable: null, props: null };
+        /** @type {M2OHolder} */
+        const created = {
+            latest: fieldProps,
+            stable: null,
+            props: null,
+            value: null,
+        };
         created.stable = {
             domain: () =>
                 getFieldDomain(
@@ -123,6 +133,39 @@ export function computeM2OProps(fieldProps) {
     return fresh;
 }
 
+/**
+ * The `{ id, display_name }` pair a `Many2One` takes as its `value`.
+ *
+ * `Many2OneField` hands over the record's own value object, whose identity only
+ * changes when the value does -- which is what lets OWL's shallow prop
+ * comparison skip the whole autocomplete subtree on an unrelated edit. A widget
+ * that has to *build* the pair (`reference` and `many2one_reference` store the
+ * id and the name under other keys) hands over a fresh object per render
+ * instead, so the comparison sees a change every time and the memo above buys
+ * nothing. Building it through here makes the pair as stable as the record's own.
+ *
+ * @param {Object} fieldProps the field component's props; `record` and `name`
+ *  address the same per-field holder `computeM2OProps` uses
+ * @param {{ id: number, display_name: string } | false | null | undefined} pair
+ * @returns {{ id: number, display_name: string } | false}
+ */
+export function stableM2OValue(fieldProps, pair) {
+    if (!pair) {
+        return false;
+    }
+    const holder = m2oHolder(fieldProps);
+    const previous = holder.value;
+    if (
+        previous &&
+        previous.id === pair.id &&
+        previous.display_name === pair.display_name
+    ) {
+        return previous;
+    }
+    holder.value = { id: pair.id, display_name: pair.display_name };
+    return holder.value;
+}
+
 export class Many2One extends Component {
     static template = "web.Many2One";
     static components = { Many2XAutocomplete };
@@ -169,6 +212,10 @@ export class Many2One extends Component {
         canWrite: true,
         context: {},
         domain: () => [],
+        // `openRecordInAction` calls this unconditionally. Every path through
+        // computeM2OProps supplies one, so only a direct <Many2One/> user can
+        // reach it unset -- and did so with a TypeError rather than a default.
+        openActionContext: () => ({}),
         linkCssClass: "",
         nameCreateField: "name",
         otherSources: [],
@@ -191,6 +238,7 @@ export class Many2One extends Component {
     recordDialog;
 
     setup() {
+        useRenderCounter("fields.Many2One");
         this.rootRef = useRef("root");
 
         this.action = useAction();

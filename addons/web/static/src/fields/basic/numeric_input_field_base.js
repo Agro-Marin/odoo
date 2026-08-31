@@ -66,6 +66,11 @@ export class NumericInputFieldBase extends FieldComponent {
     }
 
     /**
+     * The one place a subclass formats. Overriding `formattedValue` instead --
+     * which `float_time` and `percentage` used to do -- silently skips the
+     * `formatNumber` and native-number-input handling below, so the two options
+     * stop working for that widget with nothing to say so.
+     *
      * @abstract
      * @param {boolean} humanReadable
      * @returns {string}
@@ -76,10 +81,17 @@ export class NumericInputFieldBase extends FieldComponent {
         );
     }
 
-    /** @returns {string} */
+    /**
+     * `formatNumber` is absent rather than `false` on the widgets that never
+     * offered the option, and absent means "format" -- the same reading
+     * `extractFormatNumber()` gives it. Testing for `false` rather than
+     * falsiness is what lets those widgets route through here at all.
+     *
+     * @returns {string}
+     */
     get formattedValue() {
         if (
-            !this.props.formatNumber ||
+            this.props.formatNumber === false ||
             (this.props.inputType === "number" && !this.props.readonly)
         ) {
             return this.rawValue;

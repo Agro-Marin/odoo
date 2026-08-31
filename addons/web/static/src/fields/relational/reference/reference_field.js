@@ -8,7 +8,11 @@ import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
 import { FieldComponent } from "@web/fields/field_component";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
-import { computeM2OProps, Many2One } from "@web/fields/relational/many2one/many2one";
+import {
+    computeM2OProps,
+    Many2One,
+    stableM2OValue,
+} from "@web/fields/relational/many2one/many2one";
 import {
     extractM2OFieldProps,
     m2oSupportedAttributes,
@@ -33,6 +37,10 @@ export class ReferenceField extends FieldComponent {
     };
 
     setup() {
+        // Bound once: `m2oProps` is read on every render, and a fresh bound
+        // function there is enough on its own to defeat OWL's shallow prop
+        // comparison and re-render the whole autocomplete.
+        this.updateM2O = this.updateM2O.bind(this);
         /** @type {{formattedCharValue?: ReferenceValue, modelName?: string}} */
         this.state = useState({
             formattedCharValue: undefined,
@@ -96,11 +104,11 @@ export class ReferenceField extends FieldComponent {
         const props = {
             ...computeM2OProps(this.props),
             relation: this.getRelation(),
-            value: value && {
-                id: value.resId,
-                display_name: value.displayName,
-            },
-            update: this.updateM2O.bind(this),
+            value: stableM2OValue(
+                this.props,
+                value && { id: value.resId, display_name: value.displayName },
+            ),
+            update: this.updateM2O,
         };
         if (this._isCharField(this.props)) {
             props.canQuickCreate = false;

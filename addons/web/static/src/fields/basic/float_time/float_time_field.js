@@ -25,9 +25,12 @@ export class FloatTimeField extends NumericInputFieldBase {
         return parseFloatTime(v);
     }
 
-    /** @returns {string} */
-    get formattedValue() {
-        return formatFloatTime(this.field.value, {
+    /**
+     * @param {boolean} _humanReadable float_time has no human-readable form
+     * @returns {string}
+     */
+    formatValue(_humanReadable) {
+        return formatFloatTime(this.value, {
             displaySeconds: this.props.displaySeconds,
         });
     }

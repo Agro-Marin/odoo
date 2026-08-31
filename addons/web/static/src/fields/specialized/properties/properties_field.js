@@ -252,7 +252,7 @@ export class PropertiesField extends FieldComponent {
 
     /**
      * @param {string} propertyName
-     * @param {string} direction
+     * @param {"up" | "down"} direction
      */
     async onPropertyMove(propertyName, direction) {
         let movedValues = null;
