@@ -1587,6 +1587,21 @@ class TestPortalRulePermFlags(SaleCommon):
 
 
 @tagged("post_install", "-at_install")
+class TestDownPaymentSectionLineLang(SaleCommon):
+    """_prepare_down_payment_section_line() must translate "Down Payments"
+    against the partner's language, not whatever the current env happens to
+    carry (F24)."""
+
+    def test_section_name_uses_partner_lang(self):
+        self.env["res.lang"]._activate_lang("es_419")
+        self.sale_order.partner_id.lang = "es_419"
+        self.assertNotEqual(self.env.lang, "es_419")
+
+        values = self.sale_order._prepare_down_payment_section_line()
+        self.assertEqual(values["name"], "Anticipos")
+
+
+@tagged("post_install", "-at_install")
 class TestPaymentLinkWizardWarning(SaleCommon):
     """The expired-quotation warning branch must still fire alongside the
     prepayment-amount one, not have been silently dropped (F23)."""
