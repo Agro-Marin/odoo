@@ -132,7 +132,10 @@ name-based and graph-based gate above stays green on it),
 which marks its host: there is no `:has-shadow-root` selector and no event on
 attach, so an unmarked host is one that `getTabableElements` and every other
 root-crossing helper steps over in silence; ADR-0069),
-`js_suite_parity.py` (every source directory has a matching test directory) and
+`js_suite_parity.py` (every source directory has a matching test directory),
+`js_context_narrowing.py` (a `Pick<>` over a context bag names exactly what its
+file reaches — over-declaring is invisible to tsc, so a consumer otherwise keeps
+claiming a dependency it dropped; ADR-0022) and
 `js_function_length.py`, `js_layer_check.py` (the Feature-Sliced layering above),
 `js_registry_layering.py` (the same contract for dependencies mediated by a
 registry rather than an import), `js_deployment_layers.py` (which bundle a module

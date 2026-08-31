@@ -29,6 +29,7 @@ GATES = {
     "js_shadow_root": ["--check"],
     "js_forced_render": ["--check"],
     "js_suite_parity": ["--check"],
+    "js_context_narrowing": ["--check"],
     "named_export_coherence": ["--check"],
     "py_addon_imports": ["--check"],
     "layer_check": ["--check"],

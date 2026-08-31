@@ -602,6 +602,28 @@ jobs:
           set -e
           exit $rc
 
+      - name: Run JS context-narrowing check
+        id: js_context_narrowing
+        # Blocking, drift-zero. `ListGridContext` is 27 getters and callbacks
+        # handed to eight collaborators, and each one narrows its parameter with
+        # a `Pick<>` naming the four or fourteen it needs. That annotation is the
+        # coupling report for a bag that produces no import edge.
+        #
+        # tsc catches reaching a member the Pick<> omits, but only as one more
+        # error inside a project-wide count that names no file. It cannot catch
+        # the other direction at all -- an unused property in a `Pick<>` is
+        # legal -- so a consumer keeps claiming a dependency it dropped and the
+        # report overstates the coupling forever. That is the half that rots
+        # quietly, and it is why this gate exists. ADR-0022.
+        run: |
+          set +e
+          python tooling/architecture/js_context_narrowing.py --table \
+            | tee /tmp/js_context_narrowing.log
+          python tooling/architecture/js_context_narrowing.py --check
+          rc=$?
+          set -e
+          exit $rc
+
       - name: Run JS layer-cohesion check
         id: js_cohesion
         # Blocking. The layer gate orders the layers and the cycle gate keeps

@@ -124,7 +124,6 @@ addons/web/static/tests/core/browser/storage_json.test.js
 addons/web/static/tests/core/collections_criterion.test.js
 addons/web/static/tests/core/context.test.js
 addons/web/static/tests/core/currency.test.js
-addons/web/static/tests/core/dependency_graph.test.js
 addons/web/static/tests/core/domain.test.js
 addons/web/static/tests/core/errors/error_beacon.test.js
 addons/web/static/tests/core/errors/error_dialogs.test.js

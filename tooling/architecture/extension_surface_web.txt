@@ -136,7 +136,6 @@ FileViewer.next  odoo  :triage
 FileViewer.previous  odoo  :triage
 FileViewer.setup  odoo enterprise  :keep
 FloatField.parse  odoo  :triage
-FloatTimeField.formattedValue  odoo enterprise  :keep
 FormArchParser.parse  odoo enterprise  :keep
 FormCompiler.compile  odoo enterprise  :keep
 FormCompiler.compileNotebook  odoo enterprise  :keep
@@ -445,6 +444,7 @@ StateSelectionField.updateRecord  odoo  :triage
 StatusBarField.getAllItems  odoo  :keep
 StatusBarField.selectItem  odoo  :triage
 StatusBarField.setup  odoo  :triage
+TagsList.setup  odoo  :keep
 TextField.setup  odoo enterprise  :keep
 TextInputFieldBase.onBlur  odoo  :triage
 UserMenu.setup  odoo  :triage
