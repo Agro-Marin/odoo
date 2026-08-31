@@ -2,6 +2,6 @@
   "gate": "mypy",
   "package": "tests",
   "total": 0,
-  "note": "Per-file ceilings for the files mypy excepts; membership still comes from exceptions/mypy/tests.txt. Harvested with the mypy version pinned in requirements-dev.txt \u2014 a different version reports different counts. The list is EMPTY: tests was onboarded at zero, so every file in it is locked and no ceiling exists to spend.",
+  "note": "Per-file ceilings for the files mypy excepts; membership still comes from exceptions/mypy/tests.txt. Harvested with the mypy version pinned in requirements-dev.txt \u2014 a different version reports different counts.",
   "budgets": {}
 }

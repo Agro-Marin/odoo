@@ -2,6 +2,6 @@
   "gate": "mypy",
   "package": "modules",
   "total": 0,
-  "note": "No file is excepted any more: odoo/modules/ is clean under mypy and membership comes from an empty exceptions/mypy/modules.txt. Harvested with the mypy version pinned in requirements-dev.txt -- a different version reports different counts.",
+  "note": "Per-file ceilings for the files mypy excepts; membership still comes from exceptions/mypy/modules.txt. Harvested with the mypy version pinned in requirements-dev.txt \u2014 a different version reports different counts.",
   "budgets": {}
 }

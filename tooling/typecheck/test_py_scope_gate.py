@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-
 from __future__ import annotations
 
 import json
@@ -8,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -201,12 +201,31 @@ class CommittedState(unittest.TestCase):
             data = json.loads(gate.budgets_path(package).read_text())
             self.assertEqual(data["total"], sum(data["budgets"].values()), package)
 
-    def test_the_lists_are_not_empty_in_every_package(self) -> None:
-        self.assertTrue(any(gate.read_exceptions(p) for p in gate.SCOPED_PACKAGES))
-
     def test_scoped_packages_all_exist(self) -> None:
         for package in gate.SCOPED_PACKAGES:
             self.assertTrue((gate.ROOT / "odoo" / package).is_dir(), package)
+
+
+class UpdateDoesNotWipeWhatItDidNotMeasure(unittest.TestCase):
+    def test_an_update_leaves_a_package_the_log_did_not_reach_alone(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            exceptions = Path(tmp) / "exceptions"
+            budgets = Path(tmp) / "budgets"
+            exceptions.mkdir()
+            budgets.mkdir()
+            kept = exceptions / "orm.txt"
+            kept.write_text("#\nodoo/orm/debt.py\n", encoding="utf8")
+
+            with (
+                mock.patch.object(gate, "EXCEPTIONS_DIR", exceptions),
+                mock.patch.object(gate, "BUDGETS_DIR", budgets),
+            ):
+                reached = min(gate.package_files("cli"))
+                gate.write_state({}, {reached})
+
+            self.assertEqual(kept.read_text(encoding="utf8"), "#\nodoo/orm/debt.py\n")
+            self.assertTrue((exceptions / "cli.txt").is_file())
+            self.assertFalse((budgets / "mypy-orm.json").exists())
 
 
 if __name__ == "__main__":

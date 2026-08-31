@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-
 from __future__ import annotations
 
 import argparse
@@ -193,9 +192,10 @@ def write_state(errors: dict[str, dict[str, int]], checked: set[str]) -> list[Pa
     EXCEPTIONS_DIR.mkdir(parents=True, exist_ok=True)
     BUDGETS_DIR.mkdir(parents=True, exist_ok=True)
     for package in SCOPED_PACKAGES:
-        failing = sorted(
-            f for f in package_files(package) & checked if total(errors.get(f, {})) > 0
-        )
+        covered = package_files(package) & checked
+        if not covered:
+            continue
+        failing = sorted(f for f in covered if total(errors.get(f, {})) > 0)
         listing = exceptions_path(package)
         listing.write_text(
             f"# mypy / {package}: exceptions to a default-deny gate; shrink-only.\n"
