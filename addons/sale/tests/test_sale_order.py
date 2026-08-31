@@ -1602,6 +1602,26 @@ class TestDownPaymentSectionLineLang(SaleCommon):
 
 
 @tagged("post_install", "-at_install")
+class TestSaleOrderLineDisplayName(SaleCommon):
+    """_compute_display_name()'s lang-switch truthiness check must keep
+    working after dropping the unused partner_lang dict it used to compute
+    (F26)."""
+
+    def test_display_name_switches_lang_when_partner_has_one(self):
+        self.env["res.lang"]._activate_lang("es_419")
+        self.sale_order.partner_id.lang = "es_419"
+        line = self.sale_order.line_ids[0]
+        line.invalidate_recordset(["display_name"])
+        self.assertIn(self.sale_order.name, line.display_name)
+
+    def test_display_name_unaffected_without_partner_lang(self):
+        self.sale_order.partner_id.lang = False
+        line = self.sale_order.line_ids[0]
+        line.invalidate_recordset(["display_name"])
+        self.assertIn(self.sale_order.name, line.display_name)
+
+
+@tagged("post_install", "-at_install")
 class TestPaymentLinkWizardWarning(SaleCommon):
     """The expired-quotation warning branch must still fire alongside the
     prepayment-amount one, not have been silently dropped (F23)."""
