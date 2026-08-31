@@ -44,6 +44,134 @@ class TestHrAttendance(TransactionCase):
         self.test_employee._attendance_action_change()
         assert self.test_employee.attendance_state == "checked_out"
 
+    def test_group_attendances_by_weekday(self):
+        """Attendances can be grouped by the weekday they were worked on.
+
+        `date` is stored, but nothing derived the weekday from it, so a
+        manager could not separate Saturday work from weekday work without
+        exporting and pivoting by hand.
+        """
+        self.employee_kiosk.resource_calendar_id.tz = "UTC"
+        self.env["hr.attendance"].create(
+            [
+                {
+                    "employee_id": self.employee_kiosk.id,
+                    "check_in": "2025-08-01 08:00:00",  # a Friday
+                    "check_out": "2025-08-01 17:00:00",
+                },
+                {
+                    "employee_id": self.employee_kiosk.id,
+                    "check_in": "2025-08-02 08:00:00",  # a Saturday
+                    "check_out": "2025-08-02 12:00:00",
+                },
+                {
+                    "employee_id": self.employee_kiosk.id,
+                    "check_in": "2025-08-08 08:00:00",  # the next Friday
+                    "check_out": "2025-08-08 17:00:00",
+                },
+            ]
+        )
+
+        count_by_weekday = dict(
+            self.env["hr.attendance"]._read_group(
+                [("employee_id", "=", self.employee_kiosk.id)],
+                groupby=["day_of_date"],
+                aggregates=["__count"],
+            )
+        )
+        self.assertEqual(count_by_weekday, {"4": 2, "5": 1})
+
+    def test_attendance_carries_the_working_schedule(self):
+        """The employee's schedule is reachable from the attendance itself,
+        so attendances can be filtered by it."""
+        attendance = self.env["hr.attendance"].create(
+            {
+                "employee_id": self.employee_kiosk.id,
+                "check_in": "2025-08-01 08:00:00",
+                "check_out": "2025-08-01 17:00:00",
+            }
+        )
+        self.assertEqual(
+            attendance.resource_calendar_id,
+            self.employee_kiosk.resource_calendar_id,
+        )
+        self.assertIn(
+            attendance,
+            self.env["hr.attendance"].search(
+                [
+                    (
+                        "resource_calendar_id",
+                        "=",
+                        self.employee_kiosk.resource_calendar_id.id,
+                    ),
+                ]
+            ),
+        )
+
+    def test_extra_hours_analysis_report(self):
+        """The Extra Hours Analysis report compiles and aggregates lines.
+
+        Extra hours were only visible one attendance at a time; there was no
+        action, and no list/pivot/graph, over `hr.attendance.overtime.line`.
+        """
+        Line = self.env["hr.attendance.overtime.line"]
+        action = self.env.ref("hr_attendance.hr_attendance_overtime_analysis_action")
+        self.assertEqual(action.res_model, "hr.attendance.overtime.line")
+
+        for xmlid, view_type in [
+            ("hr_attendance_overtime_analysis_view_list", "list"),
+            ("hr_attendance_overtime_analysis_view_pivot", "pivot"),
+            ("hr_attendance_overtime_analysis_view_graph", "graph"),
+            ("hr_attendance_overtime_analysis_view_filter", "search"),
+        ]:
+            view = self.env.ref(f"hr_attendance.{xmlid}")
+            self.assertTrue(Line.get_view(view.id, view_type)["arch"])
+
+        Line.create(
+            [
+                {
+                    "employee_id": self.employee_kiosk.id,
+                    "date": "2025-08-01",
+                    "duration": 2,
+                },
+                {
+                    "employee_id": self.employee_kiosk.id,
+                    "date": "2025-08-02",
+                    "duration": 3,
+                },
+            ]
+        )
+        totals = dict(
+            Line._read_group(
+                [("employee_id", "=", self.employee_kiosk.id)],
+                groupby=["employee_id"],
+                aggregates=["duration:sum"],
+            )
+        )
+        self.assertEqual(totals[self.employee_kiosk], 5)
+
+    def test_open_the_attendance_behind_an_extra_hours_line(self):
+        """The report's row button opens the attendance the line came from."""
+        attendance = self.env["hr.attendance"].create(
+            {
+                "employee_id": self.employee_kiosk.id,
+                "check_in": "2025-08-01 08:00:00",
+                "check_out": "2025-08-01 20:00:00",
+            }
+        )
+        line = self.env["hr.attendance.overtime.line"].create(
+            {
+                "employee_id": self.employee_kiosk.id,
+                "date": "2025-08-01",
+                "duration": 2,
+                "time_start": attendance.check_in,
+                "time_stop": attendance.check_out,
+            }
+        )
+        action = line.action_open_linked_attendance()
+        self.assertEqual(action["res_model"], "hr.attendance")
+        self.assertEqual(action["res_id"], attendance.id)
+
     def test_employee_group_id(self):
         # Create attendance for one of them
         self.env["hr.attendance"].create(

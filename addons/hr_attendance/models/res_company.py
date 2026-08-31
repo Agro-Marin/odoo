@@ -58,10 +58,31 @@ class ResCompany(models.Model):
         default="no_validation",
     )
     auto_check_out = fields.Boolean(string="Automatic Check Out", default=False)
+    auto_check_out_mode = fields.Selection(
+        [
+            ("tolerance", "Tolerance"),
+            ("specific_time", "Specific Time"),
+        ],
+        string="Automatic Check Out Based On",
+        default="tolerance",
+    )
     auto_check_out_tolerance = fields.Float(default=2, export_string_translation=False)
+    auto_check_out_specific_time = fields.Float(
+        default=20.0, export_string_translation=False
+    )
     absence_management = fields.Boolean(string="Absence Management", default=False)
     attendance_device_tracking = fields.Boolean(
         string="Device & Location Tracking", default=False
+    )
+
+    _auto_check_out_specific_time_in_day = models.Constraint(
+        """CHECK (
+            auto_check_out_mode IS DISTINCT FROM 'specific_time'
+            OR (auto_check_out_specific_time >= 0
+                AND auto_check_out_specific_time < 24)
+        )""",
+        "The automatic check-out time must fall within the day, "
+        "between 0:00 and 23:59.",
     )
 
     @api.depends("attendance_kiosk_key")

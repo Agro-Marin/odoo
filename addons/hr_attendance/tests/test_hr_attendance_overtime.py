@@ -618,6 +618,54 @@ class TestHrAttendanceOvertime(HttpCase):
         # Employee with flexible working schedule should not be checked out
         self.assertEqual(attendance_flexible_pending.check_out, False)
 
+    @freeze_time("2024-02-02 23:00:00")
+    def test_auto_check_out_specific_time(self):
+        """A fixed daily cut-off reaches employees the tolerance mode cannot.
+
+        The tolerance mode only looks at attendances whose employee has a
+        non-flexible working schedule, so a flexible-schedule employee who
+        forgets to check out stays open for ever (see the last assertion of
+        `test_auto_check_out`). The specific-time mode needs no schedule at
+        all: it closes every open attendance at the company's cut-off, read
+        in the employee's own timezone.
+        """
+        self.company.write(
+            {
+                "auto_check_out": True,
+                "auto_check_out_mode": "specific_time",
+                "auto_check_out_specific_time": 20.0,
+            }
+        )
+        self.flexible_employee.resource_calendar_id.tz = "Asia/Tokyo"  # UTC+9
+
+        # 08:00 UTC on the 1st is 17:00 in Tokyo, before that day's 20:00
+        # cut-off, which fell at 11:00 UTC and is long past.
+        overdue = self.env["hr.attendance"].create(
+            {
+                "employee_id": self.flexible_employee.id,
+                "check_in": datetime(2024, 2, 1, 8, 0),
+            }
+        )
+        # 22:00 UTC on the 2nd is 07:00 on the 3rd in Tokyo: the next cut-off
+        # is that evening, still in the future.
+        not_due_yet = self.env["hr.attendance"].create(
+            {
+                "employee_id": self.jpn_employee.id,
+                "check_in": datetime(2024, 2, 2, 22, 0),
+            }
+        )
+        self.assertFalse(overdue.check_out)
+        self.assertFalse(not_due_yet.check_out)
+
+        self.env["hr.attendance"]._cron_auto_check_out()
+
+        self.assertEqual(overdue.check_out, datetime(2024, 2, 1, 11, 0))
+        self.assertEqual(overdue.out_mode, "auto_check_out")
+        self.assertFalse(
+            not_due_yet.check_out,
+            "the cut-off for this attendance has not come round yet",
+        )
+
     @freeze_time("2024-02-1 23:00:00")
     def test_auto_check_out_more_one_day_delta(self):
         """Test that the checkout is correct if the delta between the check in and now is > 24 hours"""
@@ -1313,6 +1361,41 @@ class TestHrAttendanceOvertime(HttpCase):
         self.assertEqual(response.get("last_attendance_worked_hours"), 0)
         self.assertEqual(response.get("overtime_today"), 10)
         self.assertEqual(response.get("total_overtime"), 10)
+
+    @freeze_time("2024-02-05 20:00:00")
+    def test_kiosk_overtime_today_uses_employee_timezone(self):
+        """`overtime_today` is the employee's day, not the server's.
+
+        Sacha (Asia/Tokyo) and Susan (Pacific/Honolulu) are 19 hours apart, so
+        at 2024-02-05 20:00 UTC they are on different calendar days. No single
+        server-side "today" can be right for both, whatever the server's own
+        timezone happens to be.
+        """
+        expected_day = {
+            self.jpn_employee: date(2024, 2, 6),  # 05:00 on the 6th in Tokyo
+            self.honolulu_employee: date(2024, 2, 5),  # 10:00 on the 5th there
+        }
+        for employee, day in expected_day.items():
+            self.env["hr.attendance.overtime.line"].create(
+                {
+                    "employee_id": employee.id,
+                    "date": day,
+                    "duration": 3,
+                }
+            )
+
+        token = self.company.attendance_kiosk_key
+        for employee, day in expected_day.items():
+            response = self.make_jsonrpc_request(
+                "/hr_attendance/attendance_employee_data",
+                {"token": token, "employee_id": employee.id},
+            )
+            self.assertEqual(
+                response.get("overtime_today"),
+                3,
+                f"{employee.name} is on {day} locally: the kiosk must show the "
+                f"overtime of that day",
+            )
 
     def test_overtime_with_public_holidays(self):
         """Comapny 1 has a public holiday, while Company 2 does not.
