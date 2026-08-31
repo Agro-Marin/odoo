@@ -58,6 +58,9 @@ class ProjectTask(models.Model):
         compute="_compute_task_to_invoice",
         search="_search_task_to_invoice",
         groups="sales_team.group_sale_salesman_all_leads",
+        help="True when the task's sale order still has something left to invoice "
+        "(fork invoice_state 'to do' or 'partial'); false when there is nothing to "
+        "invoice ('no'), it is fully invoiced ('done'), or over-invoiced ('over done').",
     )
     allow_billable = fields.Boolean(related="project_id.allow_billable")
     partner_id = fields.Many2one(inverse="_inverse_partner_id")
