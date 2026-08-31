@@ -1,10 +1,10 @@
 from odoo import http
-from odoo.http import request
+from odoo.http import content_disposition, request
+from odoo.tools import consteq
 from odoo.tools.misc import get_lang
 
 
 class CalendarController(http.Controller):
-
     # ------------------------------------------------------------
     # TOKEN LOOKUP
     # ------------------------------------------------------------
@@ -23,110 +23,202 @@ class CalendarController(http.Controller):
     def _attendee_from_token(token, extra_domain=None):
         """Attendee bearing `token`, or an empty recordset for a falsy token."""
         if not token:
-            return request.env['calendar.attendee']
-        domain = [('access_token', '=', token), *(extra_domain or [])]
-        return request.env['calendar.attendee'].sudo().search(domain, limit=1)
+            return request.env["calendar.attendee"]
+        domain = [("access_token", "=", token), *(extra_domain or [])]
+        return request.env["calendar.attendee"].sudo().search(domain, limit=1)
 
     @staticmethod
     def _event_from_token(token):
         """Event bearing `token`, or an empty recordset for a falsy token."""
         if not token:
-            return request.env['calendar.event']
-        return request.env['calendar.event'].sudo().search(
-            [('access_token', '=', token)], limit=1)
+            return request.env["calendar.event"]
+        return (
+            request.env["calendar.event"]
+            .sudo()
+            .search([("access_token", "=", token)], limit=1)
+        )
 
     # ------------------------------------------------------------
     # ROUTES
     # ------------------------------------------------------------
 
     # YTI Note: Keep id and kwargs only for retrocompatibility purpose
-    @http.route('/calendar/meeting/accept', type='http', auth="calendar")
+    @http.route("/calendar/meeting/accept", type="http", auth="calendar")
     def accept_meeting(self, token, id, **kwargs):
-        attendee = self._attendee_from_token(token, [('state', '!=', 'accepted')])
+        attendee = self._attendee_from_token(token, [("state", "!=", "accepted")])
         attendee.do_accept()
         return self.view_meeting(token, id)
 
-    @http.route('/calendar/recurrence/accept', type='http', auth="calendar")
+    @http.route("/calendar/recurrence/accept", type="http", auth="calendar")
     def accept_recurrence(self, token, id, **kwargs):
-        attendee = self._attendee_from_token(token, [('state', '!=', 'accepted')])
+        attendee = self._attendee_from_token(token, [("state", "!=", "accepted")])
         if attendee:
-            attendees = request.env['calendar.attendee'].sudo().search([
-                ('event_id', 'in', attendee.event_id.recurrence_id.calendar_event_ids.ids),
-                ('partner_id', '=', attendee.partner_id.id),
-                ('state', '!=', 'accepted'),
-            ])
+            attendees = (
+                request.env["calendar.attendee"]
+                .sudo()
+                .search(
+                    [
+                        (
+                            "event_id",
+                            "in",
+                            attendee.event_id.recurrence_id.calendar_event_ids.ids,
+                        ),
+                        ("partner_id", "=", attendee.partner_id.id),
+                        ("state", "!=", "accepted"),
+                    ]
+                )
+            )
             attendees.do_accept()
         return self.view_meeting(token, id)
 
-    @http.route('/calendar/meeting/decline', type='http', auth="calendar")
+    @http.route("/calendar/meeting/decline", type="http", auth="calendar")
     def decline_meeting(self, token, id, **kwargs):
-        attendee = self._attendee_from_token(token, [('state', '!=', 'declined')])
+        attendee = self._attendee_from_token(token, [("state", "!=", "declined")])
         attendee.do_decline()
         return self.view_meeting(token, id)
 
-    @http.route('/calendar/recurrence/decline', type='http', auth="calendar")
+    @http.route("/calendar/recurrence/decline", type="http", auth="calendar")
     def decline_recurrence(self, token, id, **kwargs):
-        attendee = self._attendee_from_token(token, [('state', '!=', 'declined')])
+        attendee = self._attendee_from_token(token, [("state", "!=", "declined")])
         if attendee:
-            attendees = request.env['calendar.attendee'].sudo().search([
-                ('event_id', 'in', attendee.event_id.recurrence_id.calendar_event_ids.ids),
-                ('partner_id', '=', attendee.partner_id.id),
-                ('state', '!=', 'declined'),
-            ])
+            attendees = (
+                request.env["calendar.attendee"]
+                .sudo()
+                .search(
+                    [
+                        (
+                            "event_id",
+                            "in",
+                            attendee.event_id.recurrence_id.calendar_event_ids.ids,
+                        ),
+                        ("partner_id", "=", attendee.partner_id.id),
+                        ("state", "!=", "declined"),
+                    ]
+                )
+            )
             attendees.do_decline()
         return self.view_meeting(token, id)
 
-    @http.route('/calendar/meeting/view', type='http', auth="calendar")
+    @http.route("/calendar/meeting/view", type="http", auth="calendar")
     def view_meeting(self, token, id, **kwargs):
-        attendee = self._attendee_from_token(token, [('event_id', '=', int(id))])
+        attendee = self._attendee_from_token(token, [("event_id", "=", int(id))])
         if not attendee:
             return request.not_found()
         timezone = attendee.partner_id.tz
         lang = attendee.partner_id.lang or get_lang(request.env).code
-        event = request.env['calendar.event'].with_context(tz=timezone, lang=lang).sudo().browse(int(id))
-        company = (event.user_id and event.user_id.company_id) or event.create_uid.company_id
+        event = (
+            request.env["calendar.event"]
+            .with_context(tz=timezone, lang=lang)
+            .sudo()
+            .browse(int(id))
+        )
+        company = (
+            event.user_id and event.user_id.company_id
+        ) or event.create_uid.company_id
 
         # If user is internal and logged, redirect to form view of event
         # otherwise, display the simplifyed web page with event informations
         if request.env.user._is_internal():
-            return request.redirect('/odoo/calendar.event/%s?db=%s' % (id, request.env.cr.dbname))
+            return request.redirect(
+                "/odoo/calendar.event/%s?db=%s" % (id, request.env.cr.dbname)
+            )
 
         # NOTE : we don't use request.render() since:
         # - we need a template rendering which is not lazy, to render before cursor closing
         # - we need to display the template in the language of the user (not possible with
         #   request.render())
-        response_content = request.env['ir.ui.view'].with_context(lang=lang)._render_template(
-            'calendar.invitation_page_anonymous', {
-                'company': company,
-                'event': event,
-                'attendee': attendee,
-            })
-        return request.make_response(response_content, headers=[('Content-Type', 'text/html')])
+        response_content = (
+            request.env["ir.ui.view"]
+            .with_context(lang=lang)
+            ._render_template(
+                "calendar.invitation_page_anonymous",
+                {
+                    "company": company,
+                    "event": event,
+                    "attendee": attendee,
+                },
+            )
+        )
+        return request.make_response(
+            response_content, headers=[("Content-Type", "text/html")]
+        )
 
-    @http.route('/calendar/meeting/join', type='http', auth="user", website=True)
+    @http.route(
+        "/calendar/ics/<int:event_id>/<string:access_token>",
+        type="http",
+        auth="public",
+        website=True,
+    )
+    def calendar_ics_file(self, event_id, access_token, **kwargs):
+        """Serve a meeting's .ics so an invitee can add it to their own calendar.
+
+        Linked from the invitation mail, so it answers unauthenticated requests
+        and the token is the whole credential.
+
+        `_event_from_token` above is not reusable here: it looks an event up BY
+        token, and this route is handed the id as well, so it compares instead.
+        The falsy case still has to be ruled out first and for the same reason --
+        a NULL `access_token` is the norm on this model, and `consteq` raises on
+        one rather than returning False, which would turn a guessed URL into a
+        500 instead of a 404.
+        """
+        event = request.env["calendar.event"].sudo().browse(event_id).exists()
+        if not event or not event.access_token or not event.attendee_ids:
+            return request.not_found()
+        if not consteq(event.access_token, access_token):
+            return request.not_found()
+        # Empty when vobject is not installed; nothing to serve either way.
+        content = event._get_ics_file().get(event.id)
+        if not content:
+            return request.not_found()
+        return request.make_response(
+            content,
+            headers=[
+                ("Content-Type", "application/octet-stream"),
+                ("Content-Length", len(content)),
+                (
+                    "Content-Disposition",
+                    content_disposition(f"{event._get_customer_summary()}.ics"),
+                ),
+            ],
+        )
+
+    @http.route("/calendar/meeting/join", type="http", auth="user", website=True)
     def calendar_join_meeting(self, token, **kwargs):
         event = self._event_from_token(token)
         if not event:
             return request.not_found()
         event.action_join_meeting(request.env.user.partner_id.id)
-        attendee = request.env['calendar.attendee'].sudo().search(
-            [('partner_id', '=', request.env.user.partner_id.id), ('event_id', '=', event.id)],
-            limit=1)
-        return request.redirect('/calendar/meeting/view?token=%s&id=%s' % (attendee.access_token, event.id))
+        attendee = (
+            request.env["calendar.attendee"]
+            .sudo()
+            .search(
+                [
+                    ("partner_id", "=", request.env.user.partner_id.id),
+                    ("event_id", "=", event.id),
+                ],
+                limit=1,
+            )
+        )
+        return request.redirect(
+            "/calendar/meeting/view?token=%s&id=%s" % (attendee.access_token, event.id)
+        )
 
     # RPC polled by the web client to fetch the event reminders currently due; the
     # client reschedules its next call for when the last returned notification fires.
-    @http.route('/calendar/notify', type='jsonrpc', auth="user")
+    @http.route("/calendar/notify", type="jsonrpc", auth="user")
     def notify(self):
-        return request.env['calendar.alarm_manager'].get_next_notif()
+        return request.env["calendar.alarm_manager"].get_next_notif()
 
-    @http.route('/calendar/notify_ack', type='jsonrpc', auth="user")
+    @http.route("/calendar/notify_ack", type="jsonrpc", auth="user")
     def notify_ack(self):
         # sudo: a portal user has no write access to res.partner, and the method
         # only ever stamps the caller's own partner.
-        return request.env['res.partner'].sudo()._set_calendar_last_notif_ack()
+        return request.env["res.partner"].sudo()._set_calendar_last_notif_ack()
 
-    @http.route('/calendar/join_videocall/<string:access_token>', type='http', auth='public')
+    @http.route(
+        "/calendar/join_videocall/<string:access_token>", type="http", auth="public"
+    )
     def calendar_join_videocall(self, access_token):
         event = self._event_from_token(access_token)
         if not event:
@@ -138,7 +230,7 @@ class CalendarController(http.Controller):
 
         return request.redirect(event.videocall_channel_id.invitation_url)
 
-    @http.route('/calendar/check_credentials', type='jsonrpc', auth='user')
+    @http.route("/calendar/check_credentials", type="jsonrpc", auth="user")
     def check_calendar_credentials(self):
         # method should be overwritten by sync providers
-        return request.env['res.users'].check_calendar_credentials()
+        return request.env["res.users"].check_calendar_credentials()

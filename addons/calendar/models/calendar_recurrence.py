@@ -900,7 +900,25 @@ class CalendarRecurrence(models.Model):
                 else effective_count
             )
         elif self.end_type == "forever" and bounded:
-            rrule_params["count"] = MAX_RECURRENT_EVENT
+            # `MAX_RECURRENT_EVENT` bounds the enumeration by a count, which is
+            # only the same thing as bounding it by a horizon at high
+            # frequencies: 720 daily occurrences are ~2 years, 720 yearly ones
+            # are 720 years. So the low frequencies are re-expressed against
+            # `calendar.max_recurrence_years` and only then capped, which
+            # leaves daily and weekly untouched -- 720 of either already lands
+            # inside the horizon -- and stops a yearly `forever` event from
+            # materialising seven centuries of records.
+            limit_years = (
+                self.env["ir.config_parameter"]
+                .sudo()
+                .get_param_int("calendar.max_recurrence_years", 15)
+            )
+            if freq == "yearly":
+                rrule_params["count"] = min(limit_years, MAX_RECURRENT_EVENT)
+            elif freq == "monthly":
+                rrule_params["count"] = min(limit_years * 12, MAX_RECURRENT_EVENT)
+            else:
+                rrule_params["count"] = MAX_RECURRENT_EVENT
         elif self.end_type == "end_date":  # e.g. stop after 12/10/2020
             rrule_params["until"] = datetime.combine(self.until, time.max)
         return rrule.rrule(freq_to_rrule(freq), **rrule_params)
@@ -922,7 +940,9 @@ class CalendarRecurrence(models.Model):
             return False
 
         now = fields.Datetime.now()
-        today = fields.Date.today()
+        # See the note on `calendar.event._is_event_over`: date-only comparison,
+        # so it follows the user's day rather than UTC's.
+        today = fields.Date.context_today(self)
 
         return all(
             (event.stop_date < today if event.allday else event.stop < now)

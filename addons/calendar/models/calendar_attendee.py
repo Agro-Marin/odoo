@@ -43,8 +43,21 @@ class CalendarAttendee(models.Model):
         "calendar.recurrence", related="event_id.recurrence_id"
     )
     # attendee
+    #
+    # `index=True` is for the systray, not for the related fields below.
+    # `res.users._get_activity_groups` filters this table on `partner_id` alone
+    # on every activity-menu fetch, and the only other index mentioning the
+    # column is the `(event_id, partner_id)` unique, whose leading column is
+    # `event_id`: PostgreSQL serves a bare `partner_id` predicate from it only
+    # as a skip scan, one index search per distinct `event_id`, so its cost
+    # rises with the number of meetings stored.
     partner_id = fields.Many2one(
-        "res.partner", "Attendee", required=True, readonly=True, ondelete="cascade"
+        "res.partner",
+        "Attendee",
+        required=True,
+        index=True,
+        readonly=True,
+        ondelete="cascade",
     )
     email = fields.Char("Email", related="partner_id.email")
     phone = fields.Char("Phone", related="partner_id.phone")

@@ -7,7 +7,7 @@ from collections import Counter
 from datetime import UTC, datetime, timedelta
 from itertools import repeat
 from typing import NamedTuple
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urlencode, urlsplit, urlunsplit
 
 from markupsafe import Markup
 
@@ -200,6 +200,11 @@ class CalendarEvent(models.Model):
     )
     location = fields.Char("Location", tracking=True)
     notes = fields.Html("Notes")  # Unlike description, internal use only
+    google_calendar_url = fields.Char(
+        "Google Calendar URL",
+        compute="_compute_google_calendar_url",
+        help="Link an invitee can follow to add the meeting to Google Calendar",
+    )
     videocall_location = fields.Char(
         "Meeting URL", compute="_compute_videocall_location", store=True, copy=True
     )
@@ -865,6 +870,62 @@ class CalendarEvent(models.Model):
     def get_discuss_videocall_location(self):
         access_token = uuid.uuid4().hex
         return f"{self.get_base_url()}/{self.DISCUSS_ROUTE}/{access_token}"
+
+    @api.depends(
+        "allday",
+        "description",
+        "location",
+        "name",
+        "start",
+        "stop",
+        "start_date",
+        "stop_date",
+    )
+    def _compute_google_calendar_url(self):
+        """Build the "add this to Google Calendar" link the invitation mail offers.
+
+        Google takes the whole event in the query string, so nothing here is a
+        reference the recipient needs an account with us to resolve.
+        """
+        for event in self:
+            if event.allday:
+                start, stop = event.start_date, event.stop_date
+                span = f"{start:%Y%m%d}/{stop:%Y%m%d}" if start and stop else ""
+            else:
+                start, stop = event.start, event.stop
+                span = (
+                    f"{start:%Y%m%dT%H%M%SZ}/{stop:%Y%m%dT%H%M%SZ}"
+                    if start and stop
+                    else ""
+                )
+            params = {
+                "action": "TEMPLATE",
+                "text": event._get_customer_summary(),
+                "dates": span,
+                "details": event._get_customer_description(),
+            }
+            if event.location:
+                # Google reads a comma in `location` as a field separator.
+                params["location"] = event.location.replace(", ", " ")
+            event.google_calendar_url = (
+                "https://www.google.com/calendar/render?" + urlencode(params)
+            )
+
+    def _calendar_event_ensure_token(self):
+        """This event's invitation token, minting one if it has none.
+
+        Most events have no token: only those given a discuss videocall have
+        ever been assigned one. The mail templates need a token for every event
+        they link to, so they come through here.
+
+        The mint is a `write` rather than an assignment because the caller reads
+        `access_token` straight back and a plain assignment leaves the field
+        cached as False until the next flush.
+        """
+        self.ensure_one()
+        if not self.access_token:
+            self.sudo().write({"access_token": uuid.uuid4().hex})
+        return self.access_token
 
     # ------------------------------------------------------------
     # CRUD
@@ -1983,7 +2044,9 @@ class CalendarEvent(models.Model):
         """
         self.ensure_one()
         now = fields.Datetime.now()
-        today = fields.Date.today()
+        # Date-only, so it must be the user's today: an all-day meeting is over
+        # when their day has moved past it, not when UTC's has.
+        today = fields.Date.context_today(self)
 
         # For all-day events
         if self.allday:
@@ -2605,7 +2668,9 @@ class CalendarEvent(models.Model):
         :return: date
         """
         if not self.start:
-            return fields.Date.today()
+            # The branch below already answers in the event's timezone; this
+            # fallback used to answer in UTC.
+            return fields.Date.context_today(self)
         if self.recurrency and self.event_tz:
             tz = timezone(self.event_tz)
             # Ensure that all day events date are not calculated around midnight. TZ shift would potentially return bad date
