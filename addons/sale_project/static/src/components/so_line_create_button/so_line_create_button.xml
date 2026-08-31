@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
 
-    <t t-name="sale_timesheet.SoLineCreateButton">
+    <t t-name="sale_project.SoLineCreateButton">
         <div class="d-flex align-items-center gap-1">
             <Many2One t-props="m2oProps" cssClass="'w-100'"/>
             <a

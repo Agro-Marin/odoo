@@ -12,7 +12,7 @@ import { user } from "@web/core/user";
 import { Component } from "@odoo/owl";
 
 export class SoLineCreateButton extends Component {
-    static template = "sale_timesheet.SoLineCreateButton";
+    static template = "sale_project.SoLineCreateButton";
     static components = { Many2One };
     static props = { ...Many2OneField.props };
 
