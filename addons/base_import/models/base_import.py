@@ -2526,7 +2526,15 @@ class Base_ImportImport(models.TransientModel):
         """
         self.check_singleton()
         self._check_model_name(self.res_model)
-        import_savepoint = self.env.cr.savepoint(flush=False)
+        # Flushing savepoint (the `savepoint()` default), not `flush=False`: a
+        # dry-run rolls this back, and only the flushing kind restores ORM state
+        # with the SQL. See `BaseCursor.savepoint` -- a `flush=False` caller
+        # "must invalidate what it touched itself on the rollback path", and
+        # this module never did. Without it the rollback discarded whatever the
+        # caller had written but not yet flushed before the import (`load()`
+        # flushed it *inside* the savepoint), and left records the dry-run
+        # touched sitting in `env.cache` with the value the database dropped.
+        import_savepoint = self.env.cr.savepoint()
         # `try/finally`, not just the `except ImportValidationError` below: the
         # savepoint used to be released only on the success path and on that
         # one expected exception, so anything else escaping the conversion
@@ -2563,9 +2571,16 @@ class Base_ImportImport(models.TransientModel):
                 import_savepoint.close(rollback=dryrun)
             released = True
             if dryrun:
-                # cancel all changes done to the registry/ormcache
-                # we need to clear the cache in case any created id was added to an ormcache and would be missing afterward
-                self.pool.clear_all_caches()
+                # Cancel the changes this dry-run made to the registry/ormcache.
+                # Only the groups an import can actually refill from its own
+                # rolled-back rows: `clear_all_caches()` also dropped `assets`
+                # and `routing`, the two most expensive caches in the process,
+                # which no data import touches. Narrowing this is safe because
+                # anything the import DID dirty says so -- `ir.asset.write`
+                # calls `clear_cache("assets")`, which lands in
+                # `cache_invalidated`, and the `reset_changes()` below re-clears
+                # every group in that set.
+                self.pool.clear_cache("default", "groups", "stable")
                 # don't propagate to other workers since it was rollbacked
                 self.pool.reset_changes()
 
