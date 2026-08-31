@@ -5,6 +5,7 @@
             <field name="model">hr.departure.reason</field>
             <field name="arch" type="xml">
                 <list editable="bottom">
+                    <field name="active" column_invisible="True" />
                     <field name="sequence" widget="handle" />
                     <field name="name" />
                     <field name="country_code" optional="hide"/>
@@ -18,12 +19,23 @@
                 <form>
                     <group>
                         <group>
+                            <field name="active" invisible="1"/>
                             <field name="sequence"/>
                             <field name="name"/>
                             <field name="country_code"/>
                         </group>
                     </group>
                 </form>
+            </field>
+        </record>
+
+        <record id="hr_departure_reason_view_search" model="ir.ui.view">
+            <field name="model">hr.departure.reason</field>
+            <field name="arch" type="xml">
+                <search>
+                    <field name="name"/>
+                    <filter name="inactive" string="Archived" domain="[('active', '=', False)]"/>
+                </search>
             </field>
         </record>
 

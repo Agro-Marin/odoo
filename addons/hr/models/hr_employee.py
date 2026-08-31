@@ -1891,12 +1891,25 @@ class HrEmployee(models.Model):
     def _copy_cache_from(self, public, field_names):
         # HACK: retrieve publicly available values from hr.employee.public and
         # copy them to the cache of self; non-public data will be missing from
-        # cache, and interpreted as an access error
+        # cache, and interpreted as an access error.
+        #
+        # Each value is paired with the record it came from. `get_values` skips
+        # the ids it has no entry for, so zipping its output against the whole
+        # recordset would slide every later value one employee back, and hand an
+        # employee a colleague's value through a hack that exists to bypass the
+        # ACL. Both callers browse `self` and `public` from the same ids, which
+        # is what `strict=True` states.
+        cache = self.env.cache
         for fname in field_names:
-            values = self.env.cache.get_values(public, public._fields[fname])
-            if self._fields[fname].translate:
-                values = [(value.copy() if value else None) for value in values]
-            self.env.cache.update_raw(self, self._fields[fname], values)
+            field = self._fields[fname]
+            public_field = public._fields[fname]
+            for employee, public_employee in zip(self, public, strict=True):
+                if not cache.contains(public_employee, public_field):
+                    continue
+                value = cache.get(public_employee, public_field)
+                if field.translate:
+                    value = value.copy() if value else None
+                cache.set(employee, field, value)
 
     @api.model
     def notify_expiring_contract_work_permit(self):
