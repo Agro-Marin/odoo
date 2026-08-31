@@ -1535,8 +1535,7 @@ class TestSaleCouponProgramNumbers(TestSaleCouponNumbersCommon):
         )
         self.assertEqual(
             order.amount_total,
-            self.conferenceChair.lst_price * (sol1.product_uom_qty)
-            + self.drawerBlack.lst_price * sol2.product_uom_qty,
+            58.0,  # 2 * conferenceChair (16.5) + 1 * drawerBlack (25.0), reward line free
             "The promotion line was not applied to the amount total",
         )
         sol2.unlink()
@@ -1548,7 +1547,7 @@ class TestSaleCouponProgramNumbers(TestSaleCouponNumbersCommon):
         )
         self.assertEqual(
             order.amount_total,
-            self.conferenceChair.lst_price * (sol1.product_uom_qty),
+            33.0,  # 2 * conferenceChair (16.5), reward line free
             "The promotion line was not applied to the amount total",
         )
         sol1.write({"product_qty": 1.0})
