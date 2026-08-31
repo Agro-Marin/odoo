@@ -1,5 +1,5 @@
 {
   "count": 0,
-  "measured_at": "3bb9a97663c4d810c93cf29c909285d0b9672f2d",
-  "note": "Re-banked at a commit in this branch history; the count is unchanged and was already honest. The previous measured_at (a7ad377f4df) is a real object but not an ancestor of HEAD, so ratchet.py --list flagged the floor as one whose \"count was measured on a tree this branch never had\". Re-measured per section 9.3 rather than assumed: git archive HEAD into a clean tree, a fresh venv carrying mypy==2.3.0 and nothing else, --no-incremental, the six packages the lane names. Success: no issues found in 551 source files -- the same 551 the previous note quotes, so the orphaned floor was true of this tree too and only its provenance was unreachable."
+  "measured_at": "9fd17d12b89ae946b41825e4e9d33d67cd3959c4",
+  "note": "Re-banked at a reachable commit after this branch was rebased onto origin/19.0-marin. --list had flagged it as banked at a commit that is not in HEAD history: the rebase replaced every commit on this side, so each measured_at named an object no longer reachable. Re-measured on the merged tree rather than carried over. Measured per section 9.3: rsync copy of the tree, fresh venv with mypy==2.3.0 alone, --no-incremental, the six packages the lane names -- Success: no issues found in 569 source files (551 before the rebase; upstream added the difference)."
 }

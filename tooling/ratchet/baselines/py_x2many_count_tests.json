@@ -1,5 +1,5 @@
 {
   "count": 0,
-  "measured_at": "3e300bc96725c064b931c788d6cb6bc14e261ffe",
-  "note": "Opens at zero over all 19 modules of odoo/tests. This tree is the test FRAMEWORK -- TransactionCase, HttpCase, Form, the Chrome CDP driver, the suite runner, the result reporter -- production code every addon test in the repository runs on, and it was in no lane of this gate. Not by judgement: _sources.is_test_path calls any path with a 'tests' component a test path, so the package was excluded by the name of its directory while the 341 genuine test files under odoo/orm/tests and the rest were excluded on purpose. py_function_length already carried its own tests lane (pyfunclen_tests) for this reason; this is that precedent applied. Verified non-vacuous: the lane scans exactly 19 files, and these gates raise rather than report zero over an empty scan."
+  "measured_at": "9fd17d12b89ae946b41825e4e9d33d67cd3959c4",
+  "note": "Re-banked at a reachable commit after this branch was rebased onto origin/19.0-marin. --list had flagged it as banked at a commit that is not in HEAD history: the rebase replaced every commit on this side, so each measured_at named an object no longer reachable. Re-measured on the merged tree rather than carried over. Measured 0 on the merged tree, and checked for vacuity rather than assumed -- the scan reaches its files and these gates raise on an empty walk."
 }

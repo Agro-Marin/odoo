@@ -1,5 +1,5 @@
 {
-  "count": 89,
-  "measured_at": "b7b596cd004b13ff0031a8f8a1ee850bfa02589a",
-  "note": "Re-measured after rebasing this branch onto origin/19.0-marin (214 upstream commits). Neither side's floor described the merged tree: both had driven counts down independently from a common base, so every one of these had to be re-derived rather than merged. Measured at HEAD in the workspace checkout; mypy per section 9.3 in a detached worktree with mypy==2.3.0 alone."
+  "count": 0,
+  "measured_at": "9fd17d12b89ae946b41825e4e9d33d67cd3959c4",
+  "note": "Re-banked at a reachable commit after this branch was rebased onto origin/19.0-marin. --list had flagged it as banked at a commit that is not in HEAD history: the rebase replaced every commit on this side, so each measured_at named an object no longer reachable. Re-measured on the merged tree rather than carried over. The eight addon rings took it to zero, and _validate_hook on res.partner.identifier.type -- added upstream while this was out of tree -- was the last unit. Neither side's figure described the merged tree: 89 was upstream's, 0 was this one, and both were driven down from a1b37ae209c without seeing the other."
 }
