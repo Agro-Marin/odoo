@@ -191,6 +191,15 @@ test("Use the sidebar 'create anchor' buttons", async () => {
         <section class="third" data-name="Dummy Section" data-snippet="s_dummy">
             <p>test<p>
         </section>
+        <section class="fourth" data-name="Dummy Section" data-snippet="s_dummy">
+            <div class="row"><div>column</div></div>
+        </section>
+        <section class="fifth carousel" data-name="Dummy Section" data-snippet="s_dummy">
+            <div class="row"><div>column</div></div>
+        </section>
+        <section class="sixth" data-name="Dummy Section" data-snippet="s_dummy">
+            <div class="s_card" data-name="Card">card</div>
+        </section>
     `;
     await setupWebsiteBuilder(websiteContent);
     const anchorSelector =
@@ -245,6 +254,38 @@ test("Use the sidebar 'create anchor' buttons", async () => {
     await contains(".o_dialog button:contains('Remove')").click();
     expect(":iframe section.third").not.toHaveAttribute("id");
     expect(":iframe section.third").not.toHaveAttribute("data-anchor");
+
+    // The notification raised by the anchor click above is still open.
+    await contains(notificationCloseSelector).click();
+
+    const columnAnchorSelector =
+        ".o_customize_tab .options-container > div:contains('Column') button.oe_snippet_anchor";
+
+    // A column has no title and no data-name: it falls back to the name the
+    // sidebar shows for it.
+    await contains(":iframe section.fourth div.row div").click();
+    await animationFrame();
+    await contains(columnAnchorSelector).click();
+    await animationFrame();
+    expect(queryText(notificationContentSelector)).toInclude("#Column");
+    await contains(notificationCloseSelector).click();
+    expect(":iframe section.fourth div.row div").toHaveAttribute("id", "Column");
+
+    // A column inside a carousel sits on a slide that is usually off screen.
+    await contains(":iframe section.fifth div.row div").click();
+    await animationFrame();
+    expect(columnAnchorSelector).toHaveCount(0);
+
+    // A card outside a column can be anchored too.
+    await contains(":iframe section.sixth div.s_card").click();
+    await animationFrame();
+    const cardAnchorSelector =
+        ".o_customize_tab .options-container > div:contains('Card') button.oe_snippet_anchor";
+    await contains(cardAnchorSelector).click();
+    await animationFrame();
+    expect(queryText(notificationContentSelector)).toInclude("#Card");
+    await contains(notificationCloseSelector).click();
+    expect(":iframe section.sixth div.s_card").toHaveAttribute("id", "Card");
 });
 
 test("Clicking on the options container title selects the corresponding element", async () => {
