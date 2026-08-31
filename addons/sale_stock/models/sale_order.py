@@ -201,17 +201,17 @@ class SaleOrder(models.Model):
 
         res = super().write(vals)
 
+        confirmed.line_ids.fetch(
+            [
+                "product_uom_id",
+                "product_qty",
+                "display_type",
+                "is_downpayment",
+            ],
+        )
         for order in confirmed:
             previous_qty = pre_order_line_qty[order]
             to_log = {}
-            order.line_ids.fetch(
-                [
-                    "product_uom_id",
-                    "product_qty",
-                    "display_type",
-                    "is_downpayment",
-                ],
-            )
             for order_line in order.line_ids:
                 if order_line.display_type or order_line.is_downpayment:
                     continue
