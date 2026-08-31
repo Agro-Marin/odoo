@@ -339,3 +339,22 @@ class Thing(models.Model):
 """,
         )
         assert names == 1
+
+
+class TestAnAnnotatedFieldDeclarationIsPoliced:
+    # The valueless case only: the read and multi-field cases are covered by
+    # test_an_annotated_field_declaration_is_read_like_any_other and
+    # test_an_annotated_sibling_makes_a_hook_multi_field above.
+    def test_an_annotation_without_a_field_call_is_not_a_declaration(self, tmp_path):
+        assert (
+            _measure(
+                tmp_path,
+                """
+class Thing(models.Model):
+    _name = "thing"
+
+    partner_id: ResPartner
+""",
+            )
+            == []
+        )
