@@ -132,7 +132,7 @@ class CrmTeamMember(models.Model):
             self._enforce_mono_membership()
         return res
 
-    @api.depends("crm_team_id")
+    @api.depends("crm_team_id", "crm_team_id.company_id")
     def _compute_user_company_ids(self):
         all_companies = self.env["res.company"].search([])
         for member in self:
