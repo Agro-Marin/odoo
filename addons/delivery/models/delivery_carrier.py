@@ -11,6 +11,12 @@ from odoo.tools.safe_eval import safe_eval
 
 _logger = logging.getLogger(__name__)
 
+# Vault fields a secret can land in directly. Anything else is a key in
+# `credential_data`, which is what carries the secrets the vault has no field
+# for -- Easypost's two are the same credential for two environments, not a key
+# and a secret, so neither `api_key` nor `api_secret` describes them.
+NATIVE_CREDENTIAL_FIELDS = frozenset({"api_key", "api_secret", "username", "password"})
+
 
 class DeliveryCarrier(models.Model):
     """Shipping carrier: rate computation and delivery-method configuration."""
@@ -700,6 +706,16 @@ class DeliveryCarrier(models.Model):
                 }
                 secrets = {k: v for k, v in secrets.items() if v}
                 if secrets:
+                    native = {
+                        k: v
+                        for k, v in secrets.items()
+                        if k in NATIVE_CREDENTIAL_FIELDS
+                    }
+                    extra = {
+                        k: v
+                        for k, v in secrets.items()
+                        if k not in NATIVE_CREDENTIAL_FIELDS
+                    }
                     vals["carrier_credential_id"] = self.env[
                         "credential.credential"
                     ].sudo().create({
@@ -709,7 +725,10 @@ class DeliveryCarrier(models.Model):
                         ).id,
                         "company_id": vals.get("company_id")
                         or self.env.company.id,
-                        **secrets,
+                        **native,
+                        **(
+                            {"credential_data": json.dumps(extra)} if extra else {}
+                        ),
                     }).id
         return super().create(vals_list)
 
@@ -719,7 +738,7 @@ class DeliveryCarrier(models.Model):
         credential = self.carrier_credential_id.sudo()
         if not credential:
             return False
-        if field_name in ("api_key", "api_secret", "username", "password"):
+        if field_name in NATIVE_CREDENTIAL_FIELDS:
             return credential[field_name] or False
         try:
             data = json.loads(credential.credential_data or "{}")
@@ -739,7 +758,7 @@ class DeliveryCarrier(models.Model):
         """
         self.ensure_one()
         credential = self.carrier_credential_id.sudo()
-        native = field_name in ("api_key", "api_secret", "username", "password")
+        native = field_name in NATIVE_CREDENTIAL_FIELDS
 
         if not credential:
             if not value:

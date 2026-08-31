@@ -1,0 +1,12 @@
+{
+  "expected": {
+    "delivery_easypost/TestMockedEasypostRequest.test_prepare_order_shipments": "ERROR",
+    "delivery_easypost/TestMockedEasypostRequest.test_prepare_order_shipments_multiple": "ERROR",
+    "delivery_easypost/TestMockedEasypostRequest.test_prepare_order_shipments_no_max_weight": "ERROR"
+  },
+  "note": "3 errors predating the ADR-0081 migration; the module's non-mocked tests are @tagged('-standard','external') and do not run here",
+  "run_spec": "-i delivery_easypost --test-enable --test-tags /delivery_easypost",
+  "suite": "/delivery_easypost",
+  "tests_total": 15,
+  "verified_at": "377577d2ade"
+}
