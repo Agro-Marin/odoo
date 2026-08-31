@@ -15,6 +15,39 @@ export class VerticalAlignmentOptionPlugin extends Plugin {
             SetVerticalAlignmentAction,
         },
     };
+
+    setup() {
+        this.upgradeContainers();
+    }
+
+    /**
+     * The card snippets predate the vertical alignment option, so their cards
+     * do not stretch and "Stretch to Equal Height" would do nothing visible on
+     * them. Give the markup what the option needs, and stamp the section so
+     * the work is done once.
+     *
+     * TODO: remove once snippets are compared by their data-vxml version.
+     */
+    upgradeContainers() {
+        const snippetEls = this.document.querySelectorAll(
+            ".s_cards_soft:not([data-vxml]), .s_cards_grid:not([data-vxml])"
+        );
+        for (const snippetEl of snippetEls) {
+            const isCardsGrid = snippetEl.classList.contains("s_cards_grid");
+            for (const cardEl of snippetEl.querySelectorAll(".s_card")) {
+                // Cards that had no h-100 were top-aligned in effect; keep that
+                // as the explicit starting point instead of silently changing it.
+                cardEl.closest(".row")?.classList.add("align-items-start");
+                cardEl.classList.add("h-100");
+                if (!isCardsGrid) {
+                    continue;
+                }
+                cardEl.closest("[class*='col-']")?.classList.add("d-flex", "flex-column");
+                cardEl.querySelector(".o_card_img, img")?.classList.add("object-fit-cover");
+            }
+            snippetEl.dataset.vxml = "001";
+        }
+    }
 }
 
 export class SetVerticalAlignmentAction extends ClassAction {

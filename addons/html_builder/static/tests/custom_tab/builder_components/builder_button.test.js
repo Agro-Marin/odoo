@@ -900,3 +900,18 @@ test("consecutive dynamic applyTo", async () => {
     expect(":iframe .second .a").not.toHaveClass("actionClass");
     expect(":iframe .second .b").toHaveClass("actionClass");
 });
+
+test("a toggle button can say something different once it is on", async () => {
+    addBuilderOption(
+        class extends BaseOptionComponent {
+            static selector = ".test-options-target";
+            static template = xml`<BuilderButton classAction="'shadow'" title="'Add a shadow'" titleActive="'Remove the shadow'"/>`;
+        }
+    );
+    await setupHTMLBuilder(`<div class="test-options-target">b</div>`);
+    await contains(":iframe .test-options-target").click();
+    expect("[data-class-action='shadow']").toHaveAttribute("title", "Add a shadow");
+
+    await contains("[data-class-action='shadow']").click();
+    expect("[data-class-action='shadow']").toHaveAttribute("title", "Remove the shadow");
+});

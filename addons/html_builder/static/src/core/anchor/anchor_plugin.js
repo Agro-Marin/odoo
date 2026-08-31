@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { getElementsWithOption } from "@html_builder/utils/utils";
+import { getElementsWithOption, getSnippetName } from "@html_builder/utils/utils";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { markup } from "@odoo/owl";
@@ -8,9 +8,10 @@ import { _t } from "@web/core/translation";
 
 import { AnchorDialog } from "./anchor_dialog.js";
 
-const anchorSelector = ":not(p).oe_structure > *, :not(p)[data-oe-type=html] > *, .accordion-item";
+const anchorSelector =
+    ":not(p).oe_structure > *, :not(p)[data-oe-type=html] > *, .accordion-item, .row > *, .s_card";
 const anchorExclude =
-    ".modal *, .oe_structure .oe_structure *, [data-oe-type=html] .oe_structure *, .s_popup";
+    ".modal *, .oe_structure .oe_structure *, [data-oe-type=html] .oe_structure *, .s_popup, .carousel *";
 
 /**
  * Anchor titles are usually taken from headings (h1–h6). Here, styled titles
@@ -79,8 +80,9 @@ export class AnchorPlugin extends Plugin {
     }
 
     createAnchor(element) {
-        const titleEls = element.querySelectorAll(TITLE_SELECTOR);
-        const title = titleEls.length > 0 ? titleEls[0].innerText : element.dataset.name;
+        // A column or a card carries no data-name, so fall back to the
+        // name the sidebar shows for the block rather than to undefined.
+        const title = element.querySelector(TITLE_SELECTOR)?.innerText || getSnippetName(element);
         const anchorName = this.formatAnchor(title);
 
         let n = "";

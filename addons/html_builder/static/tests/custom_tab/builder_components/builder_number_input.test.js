@@ -1055,3 +1055,15 @@ describe("sanitized values", () => {
         expect(".options-container input").toHaveValue("19");
     });
 });
+
+test("an input can carry an icon saying what it is", async () => {
+    addBuilderOption(
+        class extends BaseOptionComponent {
+            static selector = ".test-options-target";
+            static template = xml`<BuilderNumberInput styleAction="'width'" prefixIcon="'oi oi-arrows-h'"/>`;
+        }
+    );
+    await setupHTMLBuilder(`<div class="test-options-target">b</div>`);
+    await contains(":iframe .test-options-target").click();
+    expect("[data-style-action='width'] i.o-hb-input-prefix").toHaveClass("oi-arrows-h");
+});
