@@ -227,6 +227,14 @@ class One2many(_RelationalMulti):
         self, records_commands_list, model, comodel, create: bool
     ) -> None:
         inverse = self.inverse_name
+        # A Many2oneReference names its target with a pair: the id, and the model
+        # in its `model_field`. Setting only the id leaves the row pointing at an
+        # id in no model, which `_additional_domain` then filters out -- so a line
+        # written through this field would be invisible through that same field.
+        inverse_field = comodel._fields[inverse]
+        reference_model_field = (
+            inverse_field.model_field if inverse_field.is_many2one_reference else None
+        )
         to_create: list[dict] = []
         to_delete: list = []
         to_link: defaultdict[typing.Any, OrderedSet] = defaultdict(OrderedSet)
@@ -252,14 +260,19 @@ class One2many(_RelationalMulti):
                     lines = comodel.browse(line_ids) - before[record]
                     lines.mapped(inverse)
                     lines[inverse] = record
+                    if reference_model_field:
+                        lines[reference_model_field] = model._name
                 to_link.clear()
 
         for recs, commands in records_commands_list:
             for command in commands or ():
                 match command[0]:
                     case Command.CREATE:
+                        line_vals = dict(command[2])
+                        if reference_model_field:
+                            line_vals[reference_model_field] = model._name
                         to_create.extend(
-                            {**command[2], inverse: record.id} for record in recs
+                            {**line_vals, inverse: record.id} for record in recs
                         )
                     case Command.UPDATE:
                         prefetch_ids = recs[self.name]._prefetch_ids
