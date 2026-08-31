@@ -52,8 +52,6 @@ class TestSaleCouponProgramNumbers(TestSaleCouponNumbersCommon):
             len(order.line_ids.ids), 1, "Free Large Cabinet should have been removed"
         )
 
-        # Free product in cart will be considered as paid product when changing quantity of paid product, so the free product quantity computation will be wrong.
-        # 75 Large Cabinet in cart, 25 free, set quantity to 6 Large Cabinet, you should have 2 free Large Cabinet but you get 8 because it add the 25 initial free Large Cabinet to the total paid Large Cabinet when computing (25+10 > 35 > /4 = 8 free Large Cabinet)
         sol1.product_qty = 75
         self._auto_rewards(order, self.all_programs)
         self.assertEqual(
