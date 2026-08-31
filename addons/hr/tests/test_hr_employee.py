@@ -2,6 +2,7 @@ from datetime import datetime
 
 from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
+from lxml import etree
 from psycopg.errors import NotNullViolation, UniqueViolation
 
 from odoo import Command, fields
@@ -28,6 +29,131 @@ class TestHrEmployee(TestHrCommon):
         self.employee_without_image = self.env["hr.employee"].create(
             {"user_id": self.user_without_image.id, "image_1920": False}
         )
+
+    def test_public_birthday_string_follows_the_reader_language(self):
+        """The public date of birth is read by every employee, in their own UI.
+
+        It was built with ``datetime.strftime("%d %B")``, whose month name
+        comes from the locale of the server process, not from the user. On a
+        database running in Spanish that meant an English month inside an
+        otherwise Spanish form.
+        """
+        self.env["res.lang"]._activate_lang("es_ES")
+        employee = self.env["hr.employee"].create(
+            {
+                "name": "Cumpleanera",
+                "birthday": "1990-03-15",
+                "birthday_public_display": True,
+            }
+        )
+
+        self.assertEqual(
+            employee.with_context(lang="es_ES").birthday_public_display_string,
+            "15 marzo",
+        )
+        # The field is not translated, so its computed value is cached once per
+        # transaction and not once per language: the first read would otherwise
+        # answer for the second. Two web requests never share that cache, so
+        # invalidating is what makes this test model the real thing.
+        employee.invalidate_recordset(["birthday_public_display_string"])
+        self.assertEqual(
+            employee.with_context(lang="en_US").birthday_public_display_string,
+            "15 March",
+        )
+
+    def test_every_employee_phone_is_formatted_the_same_way(self):
+        """All four employee phone numbers, not just the two work ones.
+
+        `work_phone` and `mobile_phone` were normalised on edit and
+        `private_phone` and `emergency_phone` were stored exactly as typed, so
+        the same number looked different depending on which field it landed in.
+        """
+        form = Form(self.env["hr.employee"])
+        form.name = "Telefonista"
+        form.country_id = self.env.ref("base.mx")
+        form.work_phone = "5512345678"
+        form.private_phone = "5512345678"
+        form.emergency_phone = "5512345678"
+
+        # Guard against the test passing because nothing is formatted at all.
+        self.assertTrue(form.work_phone.startswith("+52"))
+        self.assertEqual(form.private_phone, form.work_phone)
+        self.assertEqual(form.emergency_phone, form.work_phone)
+
+    def test_presence_state_ignores_an_employee_out_of_contract(self):
+        """Presence is a claim about someone the company expects at work.
+
+        An employee whose contract has ended -- or who never had contract dates
+        at all -- showed as Present the moment their user was online, which
+        states a fact about a working day that does not exist. Both populations
+        are asserted here on purpose: the second one is the wider change, and
+        an employee with no contract dates is allowed by the model.
+        """
+        today = fields.Date.today()
+        self.assertTrue(self.env.company.hr_presence_control_login)
+
+        def online_employee(name, version_vals):
+            user = self.env["res.users"].create(
+                {"name": name, "login": f"presence_{name}"}
+            )
+            employee = self.env["hr.employee"].create(
+                {"name": name, "user_id": user.id}
+            )
+            if version_vals:
+                employee.version_id.write(version_vals)
+            self.env["mail.presence"].create({"user_id": user.id, "status": "online"})
+            return employee
+
+        running = online_employee(
+            "running", {"contract_date_start": today - relativedelta(years=1)}
+        )
+        ended = online_employee(
+            "ended",
+            {
+                "contract_date_start": today - relativedelta(years=1),
+                "contract_date_end": today - relativedelta(days=10),
+            },
+        )
+        never = online_employee("never", {})
+
+        self.env.invalidate_all()
+        self.assertEqual(running.hr_presence_state, "present")
+        self.assertEqual(ended.hr_presence_state, "out_of_working_hour")
+        self.assertEqual(never.hr_presence_state, "out_of_working_hour")
+
+    def test_employee_kanban_offers_launch_plan_to_hr(self):
+        """The kanban was the only employee view without the button.
+
+        The list and the form both put `Launch Plan` behind
+        `hr.group_hr_user`; the kanban offered no header at all, so the same HR
+        officer lost the action just by switching how they were looking at the
+        same records.
+        """
+        kanban = self.env.ref("hr.hr_kanban_view_employees")
+
+        def header_buttons(user):
+            arch = (
+                self.env["hr.employee"]
+                .with_user(user)
+                .get_view(kanban.id, "kanban")["arch"]
+            )
+            return etree.fromstring(arch).xpath("//kanban/header/button")
+
+        hr_user = new_test_user(
+            self.env,
+            login="kanban_hr_officer",
+            groups="base.group_user,hr.group_hr_user",
+        )
+        plain_user = new_test_user(
+            self.env, login="kanban_plain_user", groups="base.group_user"
+        )
+
+        [button] = header_buttons(hr_user)
+        self.assertEqual(
+            int(button.get("name")), self.env.ref("hr.plan_wizard_action").id
+        )
+        # And the group on the button is what keeps it away from everyone else.
+        self.assertFalse(header_buttons(plain_user))
 
     def test_employee_must_have_active_version(self):
         employee = self.env["hr.employee"].create({"name": "Batman"})

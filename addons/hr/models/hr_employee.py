@@ -13,7 +13,7 @@ from odoo.fields import Domain
 from odoo.libs.datetime import localize_standard, timezone
 from odoo.libs.intervals import Intervals
 from odoo.libs.numbers import float_is_zero
-from odoo.tools import SQL, Query, convert, email_normalize, format_time
+from odoo.tools import SQL, Query, convert, email_normalize, format_date, format_time
 
 from odoo.addons.hr.models.hr_version import format_date_abbr
 from odoo.addons.mail.tools.discuss import Store
@@ -870,20 +870,26 @@ class HrEmployee(models.Model):
         if self.private_state_id:
             self.private_country_id = self.private_state_id.country_id
 
-    @api.onchange("work_phone", "mobile_phone", "company_country_id", "company_id")
+    # Every phone the employee form offers, so the same number does not end up
+    # stored two different ways depending on which field it was typed into. The
+    # country comes from ``_phone_get_country``, the same resolution the work
+    # numbers have always used; ``_phone_format`` answers False when it cannot
+    # parse, and the original value is kept in that case.
+    _PHONE_FIELDS_TO_FORMAT = (
+        "work_phone",
+        "mobile_phone",
+        "private_phone",
+        "emergency_phone",
+    )
+
+    @api.onchange(*_PHONE_FIELDS_TO_FORMAT, "company_country_id", "company_id")
     def _onchange_phone_validation_employee(self):
-        if self.work_phone:
-            self.work_phone = (
-                self._phone_format(number=self.work_phone, force_format="INTERNATIONAL")
-                or self.work_phone
-            )
-        if self.mobile_phone:
-            self.mobile_phone = (
-                self._phone_format(
-                    number=self.mobile_phone, force_format="INTERNATIONAL"
+        for fname in self._PHONE_FIELDS_TO_FORMAT:
+            if self[fname]:
+                self[fname] = (
+                    self._phone_format(number=self[fname], force_format="INTERNATIONAL")
+                    or self[fname]
                 )
-                or self.mobile_phone
-            )
 
     @api.model
     def _get_new_hire_field(self):
@@ -1508,20 +1514,31 @@ class HrEmployee(models.Model):
         This method is overritten in several other modules which add additional
         presence criterions. e.g. hr_attendance, hr_holidays
         """
+        # sudo: ``is_in_contract`` reaches the version through a field owned by
+        # hr.group_hr_manager, while hr_presence_state is read by everyone.
+        # Resolved once for the whole recordset, not per record inside the
+        # filter below, so the versions are fetched in a single batch.
+        in_contract_ids = set(self.sudo().filtered("is_in_contract")._ids)
         # sudo: res.users - can access presence of accessible user.
-        # Only employees whose company uses login-based presence control consult
-        # ``working_now_list`` below, so restrict the (expensive) schedule
-        # computation to them instead of running it for the whole recordset.
+        # Only employees whose company uses login-based presence control AND who
+        # are under contract consult ``working_now_list`` below, so restrict the
+        # (expensive) schedule computation to them instead of running it for the
+        # whole recordset. Anyone else is out of working hours whatever their
+        # schedule says.
         employee_to_check_working = self.filtered(
             lambda e: (
-                e.company_id.sudo().hr_presence_control_login
+                e.id in in_contract_ids
+                and e.company_id.sudo().hr_presence_control_login
                 and (e.user_id.sudo().presence_ids.status or "offline") == "offline"
             )
         )
         working_now_list = employee_to_check_working._get_employee_working_now()
         for employee in self:
             state = "out_of_working_hour"
-            if employee.company_id.sudo().hr_presence_control_login:
+            if (
+                employee.id in in_contract_ids
+                and employee.company_id.sudo().hr_presence_control_login
+            ):
                 # sudo: res.users - can access presence of accessible user
                 presence_status = (
                     employee.user_id.sudo().presence_ids.status or "offline"
@@ -1594,8 +1611,15 @@ class HrEmployee(models.Model):
     def _compute_birthday_public_display_string(self):
         for employee in self:
             if employee.birthday and employee.birthday_public_display:
-                employee.birthday_public_display_string = datetime.strftime(
-                    employee.birthday, "%d %B"
+                # Not ``strftime("%d %B")``: that takes the month name from the
+                # locale of the server PROCESS, so every reader saw an English
+                # month whatever their own language. ``format_date`` resolves
+                # the language from the environment instead. The field is not
+                # stored, so every request recomputes it for whoever is reading
+                # -- inside one transaction the first read still wins the cache,
+                # because the value is cached per record and not per language.
+                employee.birthday_public_display_string = format_date(
+                    self.env, employee.birthday, date_format="dd MMMM"
                 )
             else:
                 employee.birthday_public_display_string = "hidden"
