@@ -1,5 +1,6 @@
 import re
 from collections import defaultdict
+from functools import cache
 from typing import NamedTuple
 from urllib.parse import urlencode
 
@@ -9,9 +10,12 @@ from odoo.fields import Domain
 from odoo.libs.web import urls
 from odoo.tools import email_normalize, email_normalize_all, groupby, is_encodable
 from odoo.tools.misc import hash_sign
+from odoo.tools.translate import LazyTranslate
 
 from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
+
+_lt = LazyTranslate(__name__)
 
 ANY_ACCOUNT_TYPES = (
     "asset_receivable",
@@ -34,46 +38,86 @@ ANY_ACCOUNT_TYPES = (
     "off_balance",
 )
 
+#: Everything that varies per journal type, in one place: adding a type is one entry
+#: here, not a new membership in four tuples scattered down the file. ``family`` drives
+#: LIQUIDITY_TYPES / DOCUMENT_TYPES below; ``cash_difference`` marks the types that hold
+#: the profit/loss accounts for a till that does not balance. Labels are lazy so that
+#: babel still extracts them from this module while translation happens per request.
 JOURNAL_TYPES = {
     "sale": {
         "code_prefix": "INV",
         "account_types": ("income", "income_other"),
         "alias_move_type": "out_invoice",
+        "family": "document",
+        "label": _lt("Customer Invoices"),
     },
     "purchase": {
         "code_prefix": "BILL",
         "account_types": ("expense", "expense_depreciation", "expense_direct_cost"),
         "alias_move_type": "in_invoice",
+        "family": "document",
+        "label": _lt("Vendor Bills"),
     },
     "cash": {
         "code_prefix": "CSH",
         "account_types": ("asset_cash",),
+        "family": "liquidity",
+        "cash_difference": True,
+        "label": _lt("Cash"),
     },
     "bank": {
         "code_prefix": "BNK",
         "account_types": ("asset_cash", "liability_credit_card"),
+        "family": "liquidity",
+        "cash_difference": True,
+        "label": _lt("Bank"),
     },
     "credit": {
         "code_prefix": "CCD",
         "account_types": ("liability_credit_card",),
+        "family": "liquidity",
+        "label": _lt("Credit Card"),
     },
     "general": {
         "code_prefix": "MISC",
         "account_types": ANY_ACCOUNT_TYPES,
+        "family": "general",
+        "label": _lt("Miscellaneous Operations"),
     },
 }
 
 
+@cache
+def _generated_code_pattern(prefixes):
+    # Keyed on the prefixes rather than compiled at import, so a module that extends
+    # JOURNAL_TYPES gets a pattern that knows about its prefix instead of a stale one.
+    return re.compile(rf"({'|'.join(re.escape(prefix) for prefix in prefixes)})\d*")
+
+
+def _types_where(**criteria):
+    return tuple(
+        journal_type
+        for journal_type, spec in JOURNAL_TYPES.items()
+        if all(spec.get(key) == value for key, value in criteria.items())
+    )
+
+
+class JournalBatchReservations(NamedTuple):
+    codes: dict
+    alias_names: dict
+    companies_read: set
+
+
 class JournalPaymentMethods(NamedTuple):
-    pay_methods: object
+    pay_methods: models.BaseModel
     manage_providers: bool
     method_information_mapping: dict
     providers_per_code: dict
 
 
-LIQUIDITY_TYPES = ("bank", "cash", "credit")
-DOCUMENT_TYPES = ("sale", "purchase")
-CASH_DIFFERENCE_TYPES = ("bank", "cash")
+LIQUIDITY_TYPES = _types_where(family="liquidity")
+DOCUMENT_TYPES = _types_where(family="document")
+CASH_DIFFERENCE_TYPES = _types_where(cash_difference=True)
 
 
 class AccountJournalGroup(models.Model):
@@ -419,6 +463,14 @@ class AccountJournal(models.Model):
         "any account. The journal's own accounts are always usable and need not be "
         "listed.",
     )
+    structural_account_ids = fields.Many2many(
+        comodel_name="account.account",
+        compute="_compute_structural_account_ids",
+        string="Structural Accounts",
+        help="Accounts this journal designates itself. A list of allowed accounts that "
+        "omits them would make the journal unusable rather than controlled, so they "
+        "are always permitted.",
+    )
     allowed_user_ids = fields.Many2many(
         comodel_name="res.users",
         relation="account_journal_allowed_user_rel",
@@ -540,13 +592,17 @@ class AccountJournal(models.Model):
         return providers_per_code
 
     def _update_company_journals(self, mapping, unique_ids, manage_providers):
-        if not unique_ids:
+        if not unique_ids or not self.company_id:
             return
         fnames = ["payment_method_id", "journal_id"]
         if manage_providers:
             fnames.append("payment_provider_id")
         self.env["account.payment.channel"].flush_model(fnames=fnames)
 
+        # Company-scoped like _get_providers_per_code beside it: uniqueness of a
+        # payment method is decided per company, and every caller reads this mapping
+        # back at self.company_id, so the other companies' channels were scanned and
+        # then thrown away.
         self.env.cr.execute(
             f"""
                 SELECT
@@ -558,8 +614,9 @@ class AccountJournal(models.Model):
                 JOIN account_journal journal ON journal.id = apml.journal_id
                 JOIN account_payment_method apm ON apm.id = apml.payment_method_id
                 WHERE apm.id = ANY(%s)
+                  AND journal.company_id = ANY(%s)
             """,
-            [list(unique_ids)],
+            [list(unique_ids), self.company_id.ids],
         )
         for (
             pay_method_id,
@@ -579,12 +636,11 @@ class AccountJournal(models.Model):
 
     @api.depends("outbound_payment_channel_ids", "inbound_payment_channel_ids")
     def _compute_available_payment_method_ids(self):
-        (
-            pay_methods,
-            manage_providers,
-            method_information_mapping,
-            providers_per_code,
-        ) = self._get_journals_payment_method_information()
+        info = self._get_journals_payment_method_information()
+        pay_methods = info.pay_methods
+        manage_providers = info.manage_providers
+        method_information_mapping = info.method_information_mapping
+        providers_per_code = info.providers_per_code
 
         journal_bank_cash = self.filtered(lambda j: j.type in LIQUIDITY_TYPES)
         journal_other = self - journal_bank_cash
@@ -731,10 +787,8 @@ class AccountJournal(models.Model):
     def _is_generated_code(self, code):
         if not code:
             return True
-        prefixes = "|".join(
-            re.escape(spec["code_prefix"]) for spec in JOURNAL_TYPES.values()
-        )
-        return bool(re.fullmatch(rf"({prefixes})\d*", code))
+        prefixes = tuple(spec["code_prefix"] for spec in JOURNAL_TYPES.values())
+        return bool(_generated_code_pattern(prefixes).fullmatch(code))
 
     @api.model
     def _get_type_defaults(self, journal_type, company):
@@ -788,14 +842,14 @@ class AccountJournal(models.Model):
 
     @api.model
     def _get_type_label(self, journal_type):
-        return {
-            "sale": _("Customer Invoices"),
-            "purchase": _("Vendor Bills"),
-            "cash": _("Cash"),
-            "bank": _("Bank"),
-            "credit": _("Credit Card"),
-            "general": _("Miscellaneous Operations"),
-        }[journal_type]
+        # Degrades instead of raising: every other lookup of a journal type in this
+        # module goes through JOURNAL_TYPES.get, and a KeyError here would be the one
+        # place a module adding a type crashes rather than falling back.
+        spec = JOURNAL_TYPES.get(journal_type)
+        # str() on the LazyGettext, not env._(): the string is booked into the catalogue
+        # by the _lt() at its declaration, and env._ on a variable is unextractable here
+        # and gated at zero by lint_gettext_variable.
+        return str(spec["label"]) if spec else journal_type
 
     @api.model
     def _get_default_name(self, journal_type, code=None):
@@ -838,26 +892,45 @@ class AccountJournal(models.Model):
                 for journal in journals
                 for move_company in move_companies_by_journal[journal.id]
             ):
-                raise UserError(
+                raise ValidationError(
                     _(
                         "You can't change the company of your journal since there are some journal entries linked to it."
                     )
                 )
 
+    @api.depends(
+        "default_account_id",
+        "suspense_account_id",
+        "non_deductible_account_id",
+        "profit_account_id",
+        "loss_account_id",
+        "inbound_payment_channel_ids.payment_account_id",
+        "outbound_payment_channel_ids.payment_account_id",
+    )
+    def _compute_structural_account_ids(self):
+        for journal in self:
+            journal.structural_account_ids = (
+                journal.default_account_id
+                | journal.suspense_account_id
+                | journal.non_deductible_account_id
+                | journal.profit_account_id
+                | journal.loss_account_id
+                | journal.inbound_payment_channel_ids.payment_account_id
+                | journal.outbound_payment_channel_ids.payment_account_id
+            )
+
     def _get_structural_account_ids(self):
-        # A journal designates these itself, so a whitelist that omits them would
-        # make the journal unusable rather than controlled: measured on the shipped
-        # AgroMarin chart, 31 of 72 whitelists omit at least one.
+        # THE EXTENSION POINT IS THIS METHOD, not the compute. A module adding its own
+        # designated accounts overrides here and unions onto super(); overriding
+        # _compute_structural_account_ids instead needs @api.depends on the added
+        # fields, and declaring those on a non-stored computed Many2many currently
+        # breaks res.partner merging -- see doc/known-defects, measured on
+        # agromarin's three default accounts. The cost of extending here is only that
+        # an extension's accounts are re-unioned per call rather than cached; core's
+        # seven, which are what the per-journal-item check spends its time on, stay
+        # cached in the field.
         self.check_singleton()
-        return (
-            self.default_account_id
-            | self.suspense_account_id
-            | self.non_deductible_account_id
-            | self.profit_account_id
-            | self.loss_account_id
-            | self.inbound_payment_channel_ids.payment_account_id
-            | self.outbound_payment_channel_ids.payment_account_id
-        )
+        return self.structural_account_ids
 
     def _is_account_allowed(self, account):
         self.check_singleton()
@@ -895,11 +968,7 @@ class AccountJournal(models.Model):
                     # a voided entry is not an accounting fact: leaving it in
                     # would let one cancelled move freeze the list for good
                     ("parent_state", "!=", "cancel"),
-                    (
-                        "display_type",
-                        "not in",
-                        self.env["account.move.line"]._NON_ACCOUNTABLE_DISPLAY_TYPES,
-                    ),
+                    ("display_type", "not in", NON_ACCOUNTABLE_DISPLAY_TYPES),
                 ]
             ),
             limit=1,
@@ -930,16 +999,13 @@ class AccountJournal(models.Model):
                     )
                 )
 
-    @api.constrains(
-        "inbound_payment_channel_ids", "outbound_payment_channel_ids"
-    )
+    @api.constrains("inbound_payment_channel_ids", "outbound_payment_channel_ids")
     def _check_payment_channel_ids_multiplicity(self):
-        (
-            pay_methods,
-            manage_providers,
-            method_information_mapping,
-            providers_per_code,
-        ) = self._get_journals_payment_method_information()
+        info = self._get_journals_payment_method_information()
+        pay_methods = info.pay_methods
+        manage_providers = info.manage_providers
+        method_information_mapping = info.method_information_mapping
+        providers_per_code = info.providers_per_code
 
         for journal in self:
             for payment_type in ("inbound", "outbound"):
@@ -1037,23 +1103,26 @@ class AccountJournal(models.Model):
             journal.available_invoice_template_pdf_report_ids = reports
 
     def unlink(self):
-        used_bank_accounts = self.bank_account_id
-        bank_accounts = self.env["res.partner.bank"]
-        if used_bank_accounts:
-            self_ids = set(self.ids)
-            all_journals = self.with_context(active_test=False)
-            for bank_account, journal_ids in all_journals._read_group(
-                domain=[("bank_account_id", "in", used_bank_accounts.ids)],
-                groupby=["bank_account_id"],
-                aggregates=["id:array_agg"],
-            ):
-                if set(journal_ids) <= self_ids:
-                    bank_accounts += bank_account
+        # res.partner.bank.unlink archives rather than deletes, so this drops out of
+        # sight the bank accounts that nothing but these journals was pointing at.
+        # active_test=False because an archived journal still holds its account.
+        orphaned_bank_accounts = self.bank_account_id
+        if orphaned_bank_accounts:
+            orphaned_bank_accounts -= (
+                self.with_context(active_test=False)
+                .search(
+                    [
+                        ("bank_account_id", "in", orphaned_bank_accounts.ids),
+                        ("id", "not in", self.ids),
+                    ]
+                )
+                .bank_account_id
+            )
         self.env["account.payment.channel"].search(
             [("journal_id", "in", self.ids)]
         ).unlink()
         ret = super().unlink()
-        bank_accounts.unlink()
+        orphaned_bank_accounts.unlink()
         return ret
 
     def copy_data(self, default=None):
@@ -1097,16 +1166,26 @@ class AccountJournal(models.Model):
         )
         alias_names = {}
         if unusable_alias and "type" not in vals:
-            alias_names = {
-                journal.id: self._alias_prepare_alias_name(
+            # Derived per journal, so two journals sharing a name derive the SAME alias
+            # and mail.alias refuses the write. Same batch-uniqueness hole create() had:
+            # a name is only unique against the database until the record beside it
+            # claims it, so the ones already claimed here have to be reserved too.
+            taken = {}
+            for journal in self:
+                derived = self._alias_prepare_alias_name(
                     False,
                     vals.get("name", journal.name),
                     vals.get("code", journal.code),
                     journal.type,
                     journal.company_id,
                 )
-                for journal in self
-            }
+                claimed = taken.setdefault(journal.company_id.id, set())
+                if derived and derived in claimed:
+                    derived = self.env["mail.alias"]._sanitize_alias_name(
+                        f"{derived}-{journal.code}"
+                    )
+                claimed.add(derived)
+                alias_names[journal.id] = derived
             vals = {key: value for key, value in vals.items() if key != "alias_name"}
 
         self._check_write_preconditions(vals)
@@ -1190,7 +1269,13 @@ class AccountJournal(models.Model):
             )
             if journal.type in LIQUIDITY_TYPES and not journal.default_account_id:
                 journal.default_account_id = self._find_or_create_default_account(
-                    journal.company_id, journal.type, {"name": journal.name}
+                    journal.company_id,
+                    journal.type,
+                    # "type" belongs in here: _prepare_liquidity_account_vals is a
+                    # localisation hook and l10n_dk reads vals["type"] off it to pick
+                    # its balance-sheet tag. Omit it and a journal SWITCHED to bank or
+                    # cash silently gets an untagged account.
+                    {"name": journal.name, "type": journal.type},
                 )
 
         if "currency_id" in vals:
@@ -1262,8 +1347,15 @@ class AccountJournal(models.Model):
         return self.env["mail.alias"]._sanitize_alias_name(alias_name)
 
     @api.model
-    def _get_unique_alias_name(self, vals, company):
-        alias_name = vals["alias_name"]
+    def _get_unique_alias_name(self, vals, company, taken_alias_names=()):
+        # Sanitized before the lookup, not after: stored alias names are sanitized, so
+        # comparing a raw one against them can only ever miss.
+        alias_name = self.env["mail.alias"]._sanitize_alias_name(vals["alias_name"])
+        if not alias_name:
+            # No alias asked for. Falling through would look up every NAMELESS alias
+            # in the database and, on finding one, suffix the literal False into an
+            # address -- "false-inv1".
+            return False
         alias_domain_name = company.alias_domain_id.name
 
         domain = [("alias_name", "=", alias_name)]
@@ -1276,12 +1368,15 @@ class AccountJournal(models.Model):
                 ]
             )
 
-        existing_alias = self.env["mail.alias"].search_count(domain, limit=1)
+        taken = alias_name in taken_alias_names or self.env["mail.alias"].search_count(
+            domain, limit=1
+        )
+        if taken:
+            alias_name = self.env["mail.alias"]._sanitize_alias_name(
+                f"{alias_name}-{vals.get('code')}"
+            )
 
-        if existing_alias:
-            alias_name = f"{alias_name}-{vals.get('code')}"
-
-        return self.env["mail.alias"]._sanitize_alias_name(alias_name)
+        return alias_name
 
     @api.model
     def _get_company_journal_codes(self, company):
@@ -1408,12 +1503,12 @@ class AccountJournal(models.Model):
             ._search_new_account_code(start_code)
         )
 
-        if journal_type in CASH_DIFFERENCE_TYPES:
-            default_account_vals = self._prepare_liquidity_account_vals(
+        if journal_type == "credit":
+            default_account_vals = self._prepare_credit_account_vals(
                 company, default_account_code, vals
             )
         else:
-            default_account_vals = self._prepare_credit_account_vals(
+            default_account_vals = self._prepare_liquidity_account_vals(
                 company, default_account_code, vals
             )
 
@@ -1431,7 +1526,35 @@ class AccountJournal(models.Model):
         return default_account.id
 
     @api.model
-    def _update_missing_values(self, vals, protected_codes=False):
+    def _reserve_batch(self, vals_list):
+        # What one create() call has to keep apart from itself. Neither half can be
+        # decided one record at a time: a code spelled out on the LAST vals still has
+        # to be off-limits to the first journal that generates one, and an alias name
+        # is only unique against the database until the record beside it claims the
+        # same one -- both used to surface as a raw constraint error on the batch.
+        reservations = JournalBatchReservations({}, {}, set())
+        for vals in vals_list:
+            company_id = vals.get("company_id") or self.env.company.id
+            reservations.codes.setdefault(company_id, set())
+            reservations.alias_names.setdefault(company_id, set())
+            if vals.get("code"):
+                reservations.codes[company_id].add(vals["code"])
+        return reservations
+
+    @api.model
+    def _reserved_codes(self, reservations, company):
+        # The stored codes are only wanted by a journal that has to GENERATE one, and
+        # reading them costs a query per company -- so a batch that spells every code
+        # out, which is every data file and most tests, never pays for it.
+        codes = reservations.codes.setdefault(company.id, set())
+        reservations.alias_names.setdefault(company.id, set())
+        if company.id not in reservations.companies_read:
+            reservations.companies_read.add(company.id)
+            codes |= self._get_company_journal_codes(company)
+        return codes
+
+    @api.model
+    def _update_missing_values(self, vals, reservations=None):
         journal_type = vals.get("type")
         is_import = "import_file" in self.env.context
         if is_import and not journal_type:
@@ -1446,10 +1569,17 @@ class AccountJournal(models.Model):
             else self.env.company
         )
         vals["company_id"] = company.id
+        if reservations is None:
+            reservations = self._reserve_batch([vals])
+
+        # An import is the one caller whose code comes FROM the name, so it is the one
+        # caller that has to be named first; for everyone else the name, the alias and
+        # the default account are all derived FROM the code, so it has to exist first.
+        if not is_import:
+            self._update_code(vals, journal_type, company, reservations)
 
         # Named before the account is built, because _prepare_account_vals copies this
-        # name onto it; the non-liquidity fallback stays at the end of this method so an
-        # import still derives its code from a name the caller supplied, not a default.
+        # name onto it.
         if journal_type in LIQUIDITY_TYPES:
             vals["name"] = (
                 vals.get("name")
@@ -1467,38 +1597,51 @@ class AccountJournal(models.Model):
                 company, journal_type, vals
             )
 
-        if is_import and not vals.get("code"):
-            code = (vals.get("name") or "")[:5].strip()
-            if not code or (protected_codes and code in protected_codes):
-                code = self._get_next_journal_default_code(
-                    journal_type, company, protected_codes
-                )
-            vals["code"] = code
+        if is_import:
+            self._update_code(vals, journal_type, company, reservations)
 
         if journal_type in DOCUMENT_TYPES:
             if "alias_name" not in vals:
                 vals["alias_name"] = self._alias_prepare_alias_name(
                     False, vals.get("name"), vals.get("code"), journal_type, company
                 )
-            vals["alias_name"] = self._get_unique_alias_name(vals, company)
+            taken_alias_names = reservations.alias_names.setdefault(company.id, set())
+            vals["alias_name"] = self._get_unique_alias_name(
+                vals, company, taken_alias_names
+            )
+            if vals["alias_name"]:
+                taken_alias_names.add(vals["alias_name"])
 
         if not vals.get("name"):
             vals["name"] = vals.get("name_placeholder") or self._get_default_name(
                 journal_type, vals.get("code")
             )
 
+    @api.model
+    def _update_code(self, vals, journal_type, company, reservations):
+        if vals.get("code"):
+            reservations.codes.setdefault(company.id, set()).add(vals["code"])
+            return
+        # An import names the journal before it codes it, so it gets to shorten that
+        # name into a code; every other caller has no name yet at this point.
+        candidate = (
+            (vals.get("name") or "")[:5].strip()
+            if "import_file" in self.env.context
+            else ""
+        )
+        taken_codes = self._reserved_codes(reservations, company)
+        if not candidate or candidate in taken_codes:
+            candidate = self._get_next_journal_default_code(
+                journal_type, company, used_codes=taken_codes
+            )
+        vals["code"] = candidate
+        taken_codes.add(candidate)
+
     @api.model_create_multi
     def create(self, vals_list):
-        is_import = "import_file" in self.env.context
-        protected_codes = (
-            [vals["code"] for vals in vals_list if "code" in vals]
-            if is_import
-            else False
-        )
+        reservations = self._reserve_batch(vals_list)
         for vals in vals_list:
-            self._update_missing_values(vals, protected_codes=protected_codes)
-            if is_import and vals.get("code"):
-                protected_codes.append(vals["code"])
+            self._update_missing_values(vals, reservations=reservations)
 
         journals = super(
             AccountJournal, self.with_context(mail_create_nolog=True)
@@ -1550,6 +1693,7 @@ class AccountJournal(models.Model):
             .setting_init_bank_account_action()
         )
 
+    @api.model
     def _prepare_no_journal_error_msg(self, company_name, journal_types):
         return _(
             "No journal could be found in company %(company_name)s for any of those types: %(journal_types)s",
@@ -1708,27 +1852,14 @@ class AccountJournal(models.Model):
         return True
 
     def _notify_einvoices_received(self, moves):
+        # The multi-move entry point, kept because inbound e-invoicing flows fetch a
+        # batch. It notifies exactly like every other arrival path -- one mail per
+        # invoice -- rather than the single digest it used to send: that digest was
+        # superseded, and the guard that retired it silently turned this method into a
+        # no-op for the two localisations still calling it.
         self.check_singleton()
-        new_mail_template = self.env.ref(
-            "account.mail_template_invoice_subscriber", raise_if_not_found=False
-        )
-        if new_mail_template:
-            return
-
-        emails = set(
-            email_normalize_all(self.incoming_einvoice_notification_email or "")
-        )
-        if not moves or not emails:
-            return
-
-        if not (
-            mail_template := self.env.ref(
-                "account.mail_template_einvoice_notification", raise_if_not_found=False
-            )
-        ):
-            return
-
-        mail_template.with_context(einvoices=moves).send_mail(self.id, force_send=True)
+        for move in moves:
+            self._notify_invoice_subscribers(move)
 
     def _notify_invoice_subscribers(self, invoice, mail_params=None):
         self.check_singleton()
@@ -1745,7 +1876,6 @@ class AccountJournal(models.Model):
                 "account.mail_template_invoice_subscriber", raise_if_not_found=False
             )
         ):
-            self._notify_einvoices_received(invoice)
             return
 
         base_url = self.get_base_url()

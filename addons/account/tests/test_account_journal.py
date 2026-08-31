@@ -366,31 +366,40 @@ class TestAccountJournalSelectableDomain(AccountTestInvoicingCommon):
 
     def test_a_narrowed_journal_is_refused_on_write(self):
         journals = self.env["account.journal"].search(
-            [("type", "=", "sale"), *self.env["account.journal"]._check_company_domain(
-                self.env.company)]
+            [
+                ("type", "=", "sale"),
+                *self.env["account.journal"]._check_company_domain(self.env.company),
+            ]
         )
         if len(journals) < 2:
             journals |= self.env["account.journal"].create(
                 {"name": "Selectable second sale", "code": "SEL2", "type": "sale"}
             )
         allowed, excluded = journals[0], journals[1]
-        move = self.env["account.move"].create({
-            "move_type": "out_invoice",
-            "partner_id": self.partner_a.id,
-            "invoice_date": "2026-03-01",
-            "journal_id": allowed.id,
-        })
+        move = self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "partner_id": self.partner_a.id,
+                "invoice_date": "2026-03-01",
+                "journal_id": allowed.id,
+            }
+        )
         self._with_narrowed_selection(excluded)
-        with self.assertRaises(ValidationError, msg=(
-            "a domain is only a UI filter -- the narrowing has to be enforced by a "
-            "constraint or a plain write walks straight past it"
-        )):
+        with self.assertRaises(
+            ValidationError,
+            msg=(
+                "a domain is only a UI filter -- the narrowing has to be enforced by a "
+                "constraint or a plain write walks straight past it"
+            ),
+        ):
             move.write({"journal_id": excluded.id})
 
     def test_a_narrowed_journal_is_refused_on_create(self):
         journals = self.env["account.journal"].search(
-            [("type", "=", "sale"), *self.env["account.journal"]._check_company_domain(
-                self.env.company)]
+            [
+                ("type", "=", "sale"),
+                *self.env["account.journal"]._check_company_domain(self.env.company),
+            ]
         )
         if len(journals) < 2:
             journals |= self.env["account.journal"].create(
@@ -399,12 +408,14 @@ class TestAccountJournalSelectableDomain(AccountTestInvoicingCommon):
         excluded = journals[1]
         self._with_narrowed_selection(excluded)
         with self.assertRaises(ValidationError):
-            self.env["account.move"].create({
-                "move_type": "out_invoice",
-                "partner_id": self.partner_a.id,
-                "invoice_date": "2026-03-01",
-                "journal_id": excluded.id,
-            })
+            self.env["account.move"].create(
+                {
+                    "move_type": "out_invoice",
+                    "partner_id": self.partner_a.id,
+                    "invoice_date": "2026-03-01",
+                    "journal_id": excluded.id,
+                }
+            )
 
     def test_core_narrows_only_by_the_allowed_user_list(self):
         self.assertEqual(
@@ -443,7 +454,6 @@ class TestAccountJournalSelectableDomain(AccountTestInvoicingCommon):
             selectable,
             "narrowing must remove one journal, not empty the selection",
         )
-
 
 
 @tagged("post_install", "-at_install")
@@ -819,6 +829,41 @@ class TestAccountJournalAlias(AccountTestInvoicingCommon, MailCommon):
             "Journal alias owned by journal itself",
         )
 
+    def test_a_falsy_alias_name_asks_for_no_alias(self):
+        # A nameless mail.alias in the database used to make the uniqueness lookup
+        # match, and the literal False was then suffixed into an address.
+        self.env["mail.alias"].create(
+            {"alias_model_id": self.env["ir.model"]._get_id("account.move")}
+        )
+        for index, asked in enumerate((False, "")):
+            with self.subTest(alias_name=asked):
+                journal = self.env["account.journal"].create(
+                    {
+                        "name": f"No alias {index}",
+                        "type": "sale",
+                        "code": f"NAL{index}",
+                        "alias_name": asked,
+                    }
+                )
+                self.assertFalse(journal.alias_name)
+                self.assertFalse(journal.alias_id)
+
+    def test_a_colliding_alias_is_suffixed_with_the_real_code(self):
+        # The suffix is vals["code"], which on a create that lets the code be
+        # generated was simply absent -- the alias came out "...-none".
+        first, second = self.env["account.journal"].create(
+            [
+                {"name": "Same Name", "type": "sale"},
+                {"name": "Same Name", "type": "sale"},
+            ]
+        )
+        self.env.flush_all()
+        self.assertNotEqual(first.alias_name, second.alias_name)
+        self.assertTrue(
+            second.alias_name.endswith(second.code.lower()),
+            f"{second.alias_name!r} must be disambiguated by {second.code!r}",
+        )
+
     def test_alias_create_unique(self):
         company_name = self.company_data["company"].name
         journal = self.env["account.journal"].create(
@@ -1187,6 +1232,19 @@ class TestAccountJournalCodeAndCopy(AccountTestInvoicingCommon):
         ).get("value", {})
         self.assertTrue(values.get("code", "").startswith("BILL"))
 
+    def test_writing_an_unusable_alias_on_several_journals_that_share_a_name(self):
+        # The recovery alias is derived per journal from its name, so two journals with
+        # the SAME name derived the same alias and mail.alias refused the write.
+        journals = self.env["account.journal"].create(
+            [
+                {"name": "Twins", "type": "sale", "code": "TWN1"},
+                {"name": "Twins", "type": "sale", "code": "TWN2"},
+            ]
+        )
+        journals.write({"alias_name": "δοκιμή"})
+        self.env.flush_all()
+        self.assertEqual(len(set(journals.mapped("alias_name"))), 2)
+
     def test_writing_an_unusable_alias_on_several_journals(self):
         journals = self.env["account.journal"].create(
             [
@@ -1209,6 +1267,198 @@ class TestAccountJournalCodeAndCopy(AccountTestInvoicingCommon):
             self.env["account.journal"]._create_default_account(
                 self.env.company, "general", {"name": "x"}
             )
+
+    def test_a_code_spelled_out_later_in_the_batch_is_still_reserved(self):
+        # The generated code used to be picked against the stored codes alone, so a
+        # code the caller spells out on a LATER vals of the same batch could be
+        # handed to an earlier journal and the two collided on the unique index.
+        journals = self.env["account.journal"].create(
+            [
+                {"name": "Auto", "type": "bank"},
+                {"name": "Chosen", "type": "bank", "code": "BNK2"},
+                {"name": "Auto too", "type": "bank"},
+            ]
+        )
+        self.env.flush_all()
+        codes = journals.mapped("code")
+        self.assertEqual(len(set(codes)), 3, f"codes must be distinct, got {codes}")
+        self.assertIn("BNK2", codes)
+
+    def test_unnamed_journals_of_one_type_are_named_apart(self):
+        # The "(n)" suffix comes from the code, which used to be generated after the
+        # name, so every unnamed journal of a type was called "Bank (1)".
+        journals = self.env["account.journal"].create(
+            [{"type": "bank"} for _ in range(3)]
+        )
+        self.env.flush_all()
+        names = journals.mapped("name")
+        self.assertEqual(len(set(names)), 3, f"names must be distinct, got {names}")
+
+    def test_several_unnamed_sale_journals_can_be_created_at_once(self):
+        # With no name and no code, every one of them derived the alias from the type
+        # alone -- "sale" three times over -- and mail.alias refused the batch.
+        journals = self.env["account.journal"].create(
+            [{"type": "sale"} for _ in range(3)]
+        )
+        self.env.flush_all()
+        self.assertEqual(len(set(journals.mapped("alias_name"))), 3)
+
+
+@tagged("post_install", "-at_install")
+class TestAccountJournalTypeMetadata(AccountTestInvoicingCommon):
+    def test_the_type_families_are_derived_from_one_dict(self):
+        # LIQUIDITY/DOCUMENT/CASH_DIFFERENCE used to be three hand-kept tuples that a
+        # new journal type had to be added to separately. They are now derived, so
+        # this pins the memberships the rest of the module branches on.
+        from odoo.addons.account.models.account_journal import (
+            CASH_DIFFERENCE_TYPES,
+            DOCUMENT_TYPES,
+            JOURNAL_TYPES,
+            LIQUIDITY_TYPES,
+        )
+
+        self.assertEqual(set(LIQUIDITY_TYPES), {"bank", "cash", "credit"})
+        self.assertEqual(set(DOCUMENT_TYPES), {"sale", "purchase"})
+        self.assertEqual(set(CASH_DIFFERENCE_TYPES), {"bank", "cash"})
+        self.assertEqual(
+            set(JOURNAL_TYPES),
+            set(dict(self.env["account.journal"]._fields["type"].selection)),
+            "every selectable type needs an entry, or its code prefix and label are gone",
+        )
+
+    def test_an_unknown_type_label_degrades_instead_of_raising(self):
+        journal = self.env["account.journal"]
+        self.assertEqual(journal._get_type_label("sale"), "Customer Invoices")
+        self.assertEqual(journal._get_type_label("not_a_type"), "not_a_type")
+
+    def test_a_generated_code_is_recognised_per_prefix(self):
+        journal = self.env["account.journal"]
+        for code, expected in [
+            ("INV1", True),
+            ("MISC", True),
+            ("BNK12", True),
+            (False, True),
+            ("ZZ9", False),
+            ("INVX", False),
+        ]:
+            with self.subTest(code=code):
+                self.assertIs(journal._is_generated_code(code), expected)
+
+
+@tagged("post_install", "-at_install")
+class TestAccountJournalStructuralAccounts(AccountTestInvoicingCommon):
+    def test_a_journals_own_accounts_are_always_allowed(self):
+        journal = self.env["account.journal"].create(
+            {"name": "Structural", "type": "bank", "code": "TSA1"}
+        )
+        self.env.flush_all()
+        own = journal.default_account_id
+        self.assertIn(own, journal.structural_account_ids)
+
+        other = self.env["account.account"].search([("id", "!=", own.id)], limit=1)
+        self.assertTrue(
+            journal._is_account_allowed(other), "no whitelist means no restriction"
+        )
+
+        journal.allowed_account_ids = [Command.set(other.ids)]
+        self.env.flush_all()
+        self.assertTrue(journal._is_account_allowed(other))
+        self.assertTrue(
+            journal._is_account_allowed(own),
+            "a whitelist that omits the journal's own account must not lock it out",
+        )
+        unrelated = self.env["account.account"].search(
+            [("id", "not in", (own | other).ids)], limit=1
+        )
+        self.assertFalse(journal._is_account_allowed(unrelated))
+
+    def test_the_structural_set_follows_the_accounts_it_is_built_from(self):
+        journal = self.env["account.journal"].create(
+            {"name": "Structural 2", "type": "bank", "code": "TSA2"}
+        )
+        self.env.flush_all()
+        before = journal.structural_account_ids
+        loss = self.env["account.account"].search(
+            [("account_type", "=", "expense"), ("id", "not in", before.ids)], limit=1
+        )
+        journal.loss_account_id = loss
+        self.assertIn(
+            loss,
+            journal.structural_account_ids,
+            "the computed set must invalidate when one of its sources changes",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestAccountJournalNotifications(AccountTestInvoicingCommon):
+    def _bill(self, journal):
+        return self.env["account.move"].create(
+            {
+                "move_type": "in_invoice",
+                "journal_id": journal.id,
+                "partner_id": self.partner_a.id,
+                "invoice_date": "2026-01-01",
+                "invoice_line_ids": [
+                    Command.create({"name": "x", "quantity": 1, "price_unit": 10})
+                ],
+            }
+        )
+
+    def test_arriving_einvoices_notify_the_journals_subscribers(self):
+        # This used to send nothing at all: a guard retired the old digest template in
+        # favour of the per-invoice one, but the two localisations that fetch inbound
+        # e-invoices still called the retired method, so their subscribers heard nothing.
+        journal = self.company_data["default_journal_purchase"]
+        journal.incoming_einvoice_notification_email = "a@example.com, b@example.com"
+        moves = self._bill(journal) | self._bill(journal)
+        self.env.flush_all()
+
+        before = self.env["mail.mail"].search_count([])
+        journal._notify_einvoices_received(moves)
+        self.env.flush_all()
+        self.assertEqual(
+            self.env["mail.mail"].search_count([]) - before,
+            4,
+            "one mail per invoice per subscriber",
+        )
+
+    def test_no_subscribers_means_no_mail(self):
+        journal = self.company_data["default_journal_purchase"]
+        journal.incoming_einvoice_notification_email = False
+        moves = self._bill(journal)
+        self.env.flush_all()
+        before = self.env["mail.mail"].search_count([])
+        journal._notify_einvoices_received(moves)
+        self.env.flush_all()
+        self.assertEqual(self.env["mail.mail"].search_count([]) - before, 0)
+
+
+@tagged("post_install", "-at_install")
+class TestAccountJournalDefaultAccountHook(AccountTestInvoicingCommon):
+    def test_the_localisation_hook_is_told_the_type_on_a_type_change(self):
+        # l10n_dk and friends override _prepare_liquidity_account_vals and read
+        # vals["type"] to pick a balance-sheet tag. Creating a journal passes it;
+        # switching one to bank used to hand over the name and nothing else, so the
+        # account came out untagged.
+        journal = self.env["account.journal"].create(
+            {"name": "Switcher", "type": "general", "code": "THK1"}
+        )
+        self.env.flush_all()
+
+        seen = []
+        model = type(self.env["account.journal"])
+        original = model._prepare_liquidity_account_vals
+
+        def spy(records, company, code, vals):
+            seen.append(dict(vals))
+            return original(records, company, code, vals)
+
+        self.patch(model, "_prepare_liquidity_account_vals", spy)
+        journal.write({"type": "bank"})
+        self.env.flush_all()
+
+        self.assertTrue(seen, "a bank journal must build a default account")
+        self.assertEqual(seen[0].get("type"), "bank")
 
 
 @tagged("post_install", "-at_install")

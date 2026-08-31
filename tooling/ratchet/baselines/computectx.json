@@ -1,5 +1,5 @@
 {
-  "count": 87,
-  "measured_at": "b7b596cd004b13ff0031a8f8a1ee850bfa02589a",
-  "note": "Re-measured after rebasing this branch onto origin/19.0-marin (214 upstream commits). Neither side's floor described the merged tree: both had driven counts down independently from a common base, so every one of these had to be re-derived rather than merged. Measured at HEAD in the workspace checkout; mypy per section 9.3 in a detached worktree with mypy==2.3.0 alone."
+  "count": 86,
+  "measured_at": "9ad2dee9e740b60e0e788edb65bbff4988851801",
+  "note": "Re-derived at HEAD, same cause as the fieldhooks move: 87 was banked off a dirty shared checkout, a clean worktree of HEAD and the checkout both measure 86."
 }
