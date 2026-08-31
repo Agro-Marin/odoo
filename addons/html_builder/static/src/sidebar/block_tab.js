@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { useSnippets } from "@html_builder/snippets/snippet_service";
+import { useMatrixKeyNavigation } from "@html_builder/utils/keyboard_navigation";
 import { scrollTo } from "@html_builder/utils/scrolling";
 import { useDragAndDrop } from "@html_editor/utils/drag_and_drop";
 import { getCSSVariableValue } from "@html_editor/utils/formatting";
@@ -37,6 +38,20 @@ export class BlockTab extends Component {
         this.popover = useService("popover");
         this.snippetModel = useSnippets(this.props.snippetsName);
         this.blockTabRef = useRef("block-tab");
+        this.groupSnippetsContainer = useRef("group-snippets-container");
+        this.customSnippetsContainer = useRef("custom-snippets-container");
+        this.innerSnippetsContainer = useRef("inner-snippets-container");
+
+        this.onSnippetKeydown = useMatrixKeyNavigation(
+            () =>
+                [
+                    this.groupSnippetsContainer.el,
+                    this.customSnippetsContainer.el,
+                    this.innerSnippetsContainer.el,
+                ].filter(Boolean),
+            ".o_snippet",
+            ".o_snippet_thumbnail_area, .o_install_btn"
+        );
         // Needed to avoid race condition in tours.
         this.state = useState({ ongoingInsertion: false });
 

@@ -10,6 +10,7 @@ import {
     animationFrame,
     click,
     Deferred,
+    press,
     queryAll,
     queryAllTexts,
     queryOne,
@@ -198,4 +199,33 @@ test("click just after drop is redispatched in next operation", async () => {
     expect.verifySteps(["onClick", "next", "updateContainers"]); // On click redispatched
     await animationFrame();
     expect(".o-snippets-tabs .o-hb-tab.active").toHaveText("Style");
+});
+
+test("the inner content grid is walked with the arrow keys", async () => {
+    const fourButtons = ["A", "B", "C", "D"].map(
+        (name) => `<div name="Button ${name}" data-oe-thumbnail="button${name}.svg" data-oe-snippet-id="123">
+            <a class="btn btn-primary" href="#" data-snippet="s_button">Button ${name}</a>
+        </div>`
+    );
+    await setupHTMLBuilder("<div><p>Text</p></div>", {
+        snippetContent: fourButtons,
+        dropzoneSelectors,
+    });
+
+    const thumbnails = queryAll("#snippet_content .o_snippet_thumbnail_area");
+    expect(thumbnails).toHaveLength(4);
+
+    // Before this, Tab was the only way from one block to the next.
+    thumbnails[0].focus();
+    await press("arrowright");
+    expect(thumbnails[1]).toBeFocused();
+
+    await press("home");
+    expect(thumbnails[0]).toBeFocused();
+
+    // `End` is the last block of the last column, a grid position rather than
+    // the last block in document order, so which one it lands on depends on how
+    // many columns fit. What matters is that it leaves the first.
+    await press("end");
+    expect(thumbnails[0]).not.toBeFocused();
 });

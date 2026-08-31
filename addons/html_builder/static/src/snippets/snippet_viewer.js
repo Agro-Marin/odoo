@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Img } from "@html_builder/core/img";
+import { useMatrixKeyNavigation } from "@html_builder/utils/keyboard_navigation";
 import { Component, markup, useRef } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { localization } from "@web/core/l10n/localization";
@@ -24,6 +25,11 @@ export class SnippetViewer extends Component {
         this.dialog = useService("dialog");
         this.content = useRef("content");
         this.backendDirection = localization.direction;
+
+        this.handleMatrixKeyNavigation = useMatrixKeyNavigation(
+            () => [this.content.el],
+            ".o_snippet_preview_wrap"
+        );
     }
 
     /**
@@ -129,6 +135,7 @@ export class SnippetViewer extends Component {
         if (hotkey === "enter" || hotkey === "space") {
             this.onClick(snippet);
         }
+        this.handleMatrixKeyNavigation(ev);
     }
 
     getContent(elem) {
