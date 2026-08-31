@@ -6,6 +6,8 @@ import { isClonable } from "./clone_plugin.js";
 import { getElementsWithOption, isElementInViewport } from "@html_builder/utils/utils";
 import { shouldEditableMediaBeEditable } from "@html_builder/utils/utils_css";
 import { OptionsContainer } from "@html_builder/sidebar/option_container";
+import { closestElement } from "@html_editor/utils/dom_traversal";
+import { throttleForAnimation } from "@web/core/utils/timing";
 
 /** @typedef {import("@html_builder/core/utils").BaseOptionComponent} BaseOptionComponent */
 /** @typedef {import("@odoo/owl").Component} Component */
@@ -103,6 +105,7 @@ export class BuilderOptionsPlugin extends Plugin {
         "overlayButtons",
     ];
     static shared = [
+        "closestWithOption",
         "computeContainers",
         "findOption",
         "getContainers",
@@ -161,6 +164,25 @@ export class BuilderOptionsPlugin extends Plugin {
         // our case, we still want to update the containers.
         this.onClick = this.onClick.bind(this);
         this.editable.addEventListener("click", this.onClick, { capture: true });
+
+        // Outline the block under the pointer so that clicking a nested one is
+        // not guesswork. Throttled: the handler walks the ancestors of the
+        // event target against every registered option.
+        this.addDomListener(
+            this.editable,
+            "mousemove",
+            throttleForAnimation((ev) => {
+                const el = this.closestWithOption(ev.target);
+                if (el) {
+                    this.dependencies.builderOverlay.showHoverOverlay(el);
+                } else {
+                    this.dependencies.builderOverlay.removeHoverOverlay();
+                }
+            })
+        );
+        this.addDomListener(this.editable, "mouseleave", () =>
+            this.dependencies.builderOverlay.removeHoverOverlay()
+        );
 
         this.lastContainers = [];
 
@@ -279,6 +301,24 @@ export class BuilderOptionsPlugin extends Plugin {
         this.target = null;
         this.lastContainers = [];
         this.dispatchTo("change_current_options_containers_listeners", this.lastContainers);
+    }
+
+    /**
+     * The innermost element at or above the given node that some builder option
+     * matches, or null.
+     *
+     * @param {Node} node
+     * @returns {HTMLElement | null}
+     */
+    closestWithOption(node) {
+        return closestElement(node, (el) =>
+            this.builderOptions.some(
+                ({ selector, exclude, editableOnly }) =>
+                    selector &&
+                    el.matches(selector) &&
+                    checkElement(el, { exclude, editableOnly })
+            )
+        );
     }
 
     computeContainers(target) {

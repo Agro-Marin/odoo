@@ -35,6 +35,7 @@ export class BuilderOverlay {
             isMobileView,
             mobileBreakpoint,
             isRtl,
+            isHoverOverlay = false,
         }
     ) {
         this.history = history;
@@ -59,6 +60,9 @@ export class BuilderOverlay {
         this.mobileBreakpoint = mobileBreakpoint;
         this.isRtl = isRtl;
 
+        // A hover outline is a hint, not a handle: it draws its sides and
+        // nothing else, and it never claims to be resizable.
+        this.overlayElement.classList.toggle("o_hover_overlay", isHoverOverlay);
         this.initHandles();
         this.initSizing();
         this.refreshHandles();
@@ -80,7 +84,7 @@ export class BuilderOverlay {
 
     isActive() {
         // TODO active still necessary ? (check when we have preview mode)
-        return this.overlayElement.matches(".oe_active, .o_we_overlay_preview");
+        return this.overlayElement.matches(".oe_active, .o_we_overlay_preview, .o_hover_overlay");
     }
 
     refreshPosition() {
