@@ -12,6 +12,9 @@ export class MediaUrlPastePlugin extends Plugin {
     /** @type {import("plugins").EditorResources} */
     resources = {
         paste_url_overrides: this.openPowerboxOnUrlPaste.bind(this),
+
+        /** Handlers */
+        post_undo_handlers: this.closePowerbox.bind(this),
     };
 
     /**
@@ -30,8 +33,21 @@ export class MediaUrlPastePlugin extends Plugin {
             this.dependencies.powerbox.openPowerbox({
                 commands,
                 onApplyCommand: restoreSavepoint,
+                onClose: () => (this.isPowerboxOpen = false),
             });
+            this.isPowerboxOpen = true;
             return true;
+        }
+    }
+
+    /**
+     * An undo reverts the pasted text the powerbox was offering commands for,
+     * so its commands no longer have a target. Close it -- but only if it is
+     * ours, since any other plugin's powerbox is none of our business.
+     */
+    closePowerbox() {
+        if (this.isPowerboxOpen) {
+            this.dependencies.powerbox.closePowerbox();
         }
     }
 }
