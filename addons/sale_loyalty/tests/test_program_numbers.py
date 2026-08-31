@@ -1720,7 +1720,8 @@ class TestSaleCouponProgramNumbers(TestSaleCouponNumbersCommon):
 
         # switch to 15%
         order_line.write({"product_qty": 15})
-        self.assertEqual(order.amount_total, 1604.8, "Discount improperly applied")
+        self._auto_rewards(order, self.all_programs)
+        self.assertEqual(order.amount_total, 1504.5, "15% discount should be applied")
         self.assertEqual(
             len(order.line_ids.ids), 2, "No discount applied while it should"
         )
