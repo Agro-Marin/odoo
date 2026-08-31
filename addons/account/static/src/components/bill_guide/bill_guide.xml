@@ -17,7 +17,6 @@
                                 type="object"
                                 name="action_create_vendor_bill"
                                 journal_type="purchase"
-                                groups="account.group_account_invoice"
                                 t-on-click="() => this.handleButtonClick('action_create_vendor_bill')"
                             >
                                 try our sample
@@ -51,7 +50,6 @@
                                 type="object"
                                 class="btn btn-link px-0 fw-normal"
                                 t-on-click="() => this.handleButtonClick('action_create_new')"
-                                groups="account.group_account_invoice"
                             >
                                 Create manually
                             </a>
@@ -68,7 +66,6 @@
                                 type="object"
                                 class="o_invoice_new"
                                 t-on-click="() => this.openVendorBill()"
-                                groups="account.group_account_invoice"
                             >
                                 Create a bill manually
                             </a>
