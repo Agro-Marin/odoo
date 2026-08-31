@@ -1,3 +1,4 @@
+import inspect
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -1560,11 +1561,29 @@ class TestAccountMoveComputeDepends(SaleCommon):
         depends = self.env.registry.field_depends[AccountMove._fields["team_id"]]
         self.assertIn("company_id", depends)
 
+    def test_compute_sale_warning_text_depends_on_commercial_parent(self):
+        """_compute_sale_warning_text reads partner_id.parent_id.* but its
+        @api.depends omitted both paths (F31)."""
+        AccountMove = self.env["account.move"]
+        depends = self.env.registry.field_depends[
+            AccountMove._fields["sale_warning_text"]
+        ]
+        self.assertIn("partner_id.parent_id.name", depends)
+        self.assertIn("partner_id.parent_id.sale_warn_msg", depends)
+
     def test_compute_is_storno_depends_on_downpayment_and_storno_flag(self):
         AccountMoveLine = self.env["account.move.line"]
         depends = self.env.registry.field_depends[AccountMoveLine._fields["is_storno"]]
         self.assertIn("is_downpayment", depends)
         self.assertIn("company_id.account_storno", depends)
+
+    def test_invoiced_amount_excludes_subsection_lines(self):
+        """_get_sale_order_invoiced_amount must exclude line_subsection rows
+        from the sum, same as the module's other display-type exclusion
+        list (F33)."""
+        AccountMove = self.env["account.move"]
+        source = inspect.getsource(AccountMove._get_sale_order_invoiced_amount)
+        self.assertIn("line_subsection", source)
 
 
 @tagged("post_install", "-at_install")

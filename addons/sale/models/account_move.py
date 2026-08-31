@@ -191,6 +191,8 @@ class AccountMove(models.Model):
     @api.depends(
         "partner_id.name",
         "partner_id.sale_warn_msg",
+        "partner_id.parent_id.name",
+        "partner_id.parent_id.sale_warn_msg",
         "invoice_line_ids.product_id.sale_line_warn_msg",
         "invoice_line_ids.product_id.display_name",
     )
@@ -364,7 +366,8 @@ class AccountMove(models.Model):
             prices = sum(
                 invoice.line_ids.filtered(
                     lambda x: (
-                        x.display_type not in ("line_note", "line_section")
+                        x.display_type
+                        not in ("line_note", "line_section", "line_subsection")
                         and order in x.sale_line_ids.order_id
                     ),
                 ).mapped("price_total"),
