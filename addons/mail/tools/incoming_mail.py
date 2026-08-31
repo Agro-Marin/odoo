@@ -49,10 +49,10 @@ def default_port(server_type: str, encryption: Encryption) -> int:
 
 
 class IncomingMailConnection(Protocol):
-    def check_unread_messages(self) -> int:
+    def count_unread_messages(self) -> int:
         pass
 
-    def retrieve_unread_messages(self) -> Iterator[tuple[MessageRef, bytes]]:
+    def get_unread_messages(self) -> Iterator[tuple[MessageRef, bytes]]:
         pass
 
     def handled_message(self, num: MessageRef) -> None:
@@ -76,7 +76,7 @@ class OdooIMAP4(IMAP4):
             raise IMAP4.error(f"{command} failed: {typ} {data!r}")
         return data
 
-    def check_unread_messages(self) -> int:
+    def count_unread_messages(self) -> int:
         typ, data = self.select()
         self._check(typ, data, "SELECT")
         typ, data = self.uid("SEARCH", None, "(UNSEEN)")
@@ -86,9 +86,9 @@ class OdooIMAP4(IMAP4):
         )
         return len(self._unread_messages)
 
-    def retrieve_unread_messages(self) -> Iterator[tuple[bytes, bytes]]:
+    def get_unread_messages(self) -> Iterator[tuple[bytes, bytes]]:
         if self._unread_messages is None:
-            raise NotSelectedError("check_unread_messages() must run first")
+            raise NotSelectedError("count_unread_messages() must run first")
         while self._unread_messages:
             num = self._unread_messages.pop()
             typ, data = self.uid("FETCH", num, "(RFC822)")
@@ -120,14 +120,14 @@ class OdooPOP3(POP3):
         super().__init__(*args, **kwargs)
         self._unread_messages: list[int] | None = None
 
-    def check_unread_messages(self) -> int:
+    def count_unread_messages(self) -> int:
         (num_messages, _total_size) = self.stat()
         self._unread_messages = list(range(num_messages, 0, -1))
         return num_messages
 
-    def retrieve_unread_messages(self) -> Iterator[tuple[int, bytes]]:
+    def get_unread_messages(self) -> Iterator[tuple[int, bytes]]:
         if self._unread_messages is None:
-            raise NotSelectedError("check_unread_messages() must run first")
+            raise NotSelectedError("count_unread_messages() must run first")
         while self._unread_messages:
             num = self._unread_messages.pop()
             (_header, lines, _octets) = self.retr(num)

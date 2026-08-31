@@ -270,7 +270,7 @@ class TestDiscussChannelInvariants(MailCommon):
 
         self.env.invalidate_all()
         with patch.object(type(self.Channel), "_to_store", spy):
-            channel._notify_members_joined(members, False)
+            members._notify_joined(False)
 
         self.assertLessEqual(
             calls["n"],
@@ -432,7 +432,7 @@ class TestDiscussChannelInvariants(MailCommon):
             [f"invitee{index}@example.com" for index in range(10)]
         )
         with patch.object(type(config), "get_base_url", spy):
-            values = channel._get_invitation_mail_values(addresses)
+            values = channel._prepare_invitation_mail_vals(addresses)
 
         self.assertEqual(len(values), 10)
         self.assertEqual(calls["n"], 1, "the base URL does not vary per recipient")

@@ -20,7 +20,7 @@ from odoo.tools.mail import (
 from odoo.tools.misc import clean_context
 
 from odoo.addons.mail.tools.parser import parse_res_ids
-from odoo.addons.mail.tools.recipients import build_recipient_data
+from odoo.addons.mail.tools.recipients import prepare_recipient_data
 
 if typing.TYPE_CHECKING:
     from ..models.mail_activity_type import MailActivityType
@@ -1261,7 +1261,10 @@ class MailComposeMessage(models.TransientModel):
             recipients_group_data,
         ) in record._notify_get_classified_recipients_iterator(
             message_inmem,
-            [build_recipient_data(partner_id=pid, lang=lang) for pid in recipient_ids],
+            [
+                prepare_recipient_data(partner_id=pid, lang=lang)
+                for pid in recipient_ids
+            ],
             msg_vals=msg_vals,
             model_description=False,
             force_email_lang=lang,

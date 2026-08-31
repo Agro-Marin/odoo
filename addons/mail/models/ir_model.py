@@ -3,6 +3,7 @@ from typing import Any, Literal
 from odoo import _, api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import UserError
+from odoo.tools import ormcache
 
 
 class IrModel(models.Model):
@@ -21,6 +22,19 @@ class IrModel(models.Model):
         string="Has Mail Blacklist",
         default=False,
     )
+
+    @api.model
+    @ormcache()
+    def _get_mail_blacklist_models(self) -> tuple[str, ...]:
+        blacklist_models = self.sudo().search(
+            [
+                ("is_mail_blacklist", "=", True),
+                ("model", "!=", "mixin.mail.thread.blacklist"),
+            ]
+        )
+        return tuple(
+            model.model for model in blacklist_models if model.model in self.env
+        )
 
     def unlink(self) -> Literal[True]:
         if not self:

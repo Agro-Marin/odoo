@@ -1539,6 +1539,60 @@ class TestAPI(ThreadRecipients):
 
 
 @tagged("mail_thread")
+class TestEmptyListHelp(MailCommon):
+    """`get_empty_list_help` had no coverage at all before this class.
+
+    It is ~60 lines of alias resolution reading three context keys, and it runs
+    on every empty list view of a thread model, so a failure in it is a broken
+    view rather than a missing sentence.
+
+    The help *record* must be a model carrying `alias_id` -- the method's first
+    guard is `"alias_id" in record`, so a model without the alias mixin
+    short-circuits before anything interesting happens and a test written
+    against one proves nothing. `mail.test.container` has the mixin;
+    `mail.test.simple` does not.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.container = cls.env["mail.test.container"].create({"name": "Container"})
+
+    def _help(self, **context):
+        return (
+            self.env["mail.test.ticket"].with_context(**context).get_empty_list_help("")
+        )
+
+    def test_a_stale_help_record_id_does_not_raise(self):
+        """The id names a record carrying an alias that has since been deleted.
+
+        `empty_list_help_id` travels in an action's context, so it outlives the
+        record it names. The method browsed it and read `alias_id` off the
+        result; on a deleted record that raises MissingError, turning a stale
+        context value into a broken list view.
+        """
+        deleted_id = self.container.id
+        self.container.unlink()
+        help_text = self._help(
+            empty_list_help_model="mail.test.container",
+            empty_list_help_id=deleted_id,
+            empty_list_help_document_name="ticket",
+        )
+        self.assertIn("ticket", help_text)
+
+    def test_a_live_help_record_with_an_alias_still_renders(self):
+        help_text = self._help(
+            empty_list_help_model="mail.test.container",
+            empty_list_help_id=self.container.id,
+            empty_list_help_document_name="ticket",
+        )
+        self.assertIn("ticket", help_text)
+
+    def test_no_context_at_all_still_renders(self):
+        self.assertIn("document", self._help())
+
+
+@tagged("mail_thread")
 class TestChatterTweaks(ThreadRecipients):
     @classmethod
     def setUpClass(cls):

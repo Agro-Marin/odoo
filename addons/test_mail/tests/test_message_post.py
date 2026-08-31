@@ -1095,8 +1095,20 @@ class TestMessagePost(TestMessagePostCommon, CronMixinCase):
 
     @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_manual_send_user_notification_email_from_queue(self):
-        """Test sending a mail from the queue that is not related to the admin user sending it.
-        Will throw a security error not having access to the mail."""
+        """Sending someone else's queued notification records what SMTP did.
+
+        This used to assert `exception` for a mail that had just been delivered.
+        `_record_send_outcome` called `check_access("write")` on the message
+        *after* `_deliver_all` had handed it to SMTP, and `_send_one` caught the
+        AccessError with the handler that writes a delivery failure. The check
+        secured nothing -- the mail was already gone -- and its only effect was
+        to leave a delivered mail in the one state `action_retry` and the queue
+        both treat as work still to do, so retrying it sent it a second time.
+
+        Writing `message_id` back to the message is the only part of recording
+        an outcome that touches `mail.message`, so that write now carries the
+        access check by itself, and the mail's own row is recorded either way.
+        """
 
         with self.mock_mail_gateway():
             new_notification = self.test_record.message_notify(
@@ -1116,11 +1128,15 @@ class TestMessagePost(TestMessagePostCommon, CronMixinCase):
         with self.mock_mail_gateway():
             new_notification.mail_ids.with_user(self.user_admin).send()
 
+        self.assertEqual(len(self._mails), 1, "the email was handed to SMTP")
         self.assertEqual(
             new_notification.mail_ids.state,
-            "exception",
-            "Email will be sent but with exception state - write access denied",
+            "sent",
+            "the mail was delivered, so it is sent; a permission the sender "
+            "lacks on someone else's message does not make the delivery untrue, "
+            "and must not leave the record queued for a second attempt",
         )
+        self.assertFalse(new_notification.mail_ids.failure_type)
 
     @mute_logger("odoo.addons.mail.models.mail_mail", "odoo.models.unlink")
     @users("employee")
@@ -3268,6 +3284,66 @@ class TestMessagePostGlobal(TestMessagePostCommon):
 
 
 @tagged("mail_post")
+class TestMessageNotifyBatchRecipients(TestMessagePostCommon):
+    """`_message_notify_batch` must accept per-record recipients on their own.
+
+    `partner_ids` defaults to `False` and `partner_ids_per_record` to `None`, and
+    the method's own guard explicitly lets a call through when only the second is
+    filled -- it returns early *unless* `any(partner_ids_per_record.values())`.
+    The validator downstream then demanded a list and rejected the `False` the
+    signature had just supplied, so the documented per-record call raised
+    `ValueError` and the only way to reach it was to also pass a redundant
+    `partner_ids=[]`. `_message_auto_subscribe_notify_batch` is in-tree precisely
+    because it passes that redundant empty list.
+    """
+
+    def test_per_record_recipients_need_no_redundant_empty_list(self):
+        records = self.env["mail.test.simple"].create(
+            [{"name": "Notified A"}, {"name": "Notified B"}]
+        )
+        record_a, record_b = records
+        messages = records._message_notify_batch(
+            {record_a.id: "<p>for A</p>", record_b.id: "<p>for B</p>"},
+            partner_ids_per_record={
+                record_a.id: self.partner_1.ids,
+                record_b.id: self.partner_2.ids,
+            },
+        )
+        self.assertEqual(len(messages), 2)
+        by_res_id = {message.res_id: message for message in messages}
+        self.assertEqual(by_res_id[record_a.id].partner_ids, self.partner_1)
+        self.assertEqual(by_res_id[record_b.id].partner_ids, self.partner_2)
+
+    def test_per_record_recipients_match_the_explicit_empty_list_call(self):
+        """The spelling that worked and the spelling that raised must agree."""
+        records = self.env["mail.test.simple"].create(
+            [{"name": "Implicit"}, {"name": "Explicit"}]
+        )
+        implicit, explicit = records
+        message_implicit = implicit._message_notify_batch(
+            {implicit.id: "<p>body</p>"},
+            partner_ids_per_record={implicit.id: self.partner_1.ids},
+        )
+        message_explicit = explicit._message_notify_batch(
+            {explicit.id: "<p>body</p>"},
+            partner_ids=[],
+            partner_ids_per_record={explicit.id: self.partner_1.ids},
+        )
+        self.assertEqual(message_implicit.partner_ids, message_explicit.partner_ids)
+        self.assertEqual(message_implicit.message_type, message_explicit.message_type)
+        self.assertEqual(message_implicit.subtype_id, message_explicit.subtype_id)
+
+    def test_no_recipients_at_all_still_skips(self):
+        """Normalizing `partner_ids` must not defeat the empty-call guard."""
+        record = self.env["mail.test.simple"].create({"name": "Nobody"})
+        with self.assertLogs("odoo.addons.mail.models.mixin_mail_thread", "WARNING"):
+            messages = record._message_notify_batch(
+                {record.id: "<p>body</p>"}, partner_ids_per_record={record.id: []}
+            )
+        self.assertFalse(messages)
+
+
+@tagged("mail_post")
 class TestMessageNotifyBatchCost(TestMessagePostCommon):
     """`_message_notify_batch` is a batch method and must cost like one.
 
@@ -3321,21 +3397,6 @@ class TestMessageNotifyBatchCost(TestMessagePostCommon):
 
 @tagged("mail_post")
 class TestNotifyBatchEmailPrefetch(TestMessagePostCommon):
-    """A batch nobody receives by email must not prefetch email data.
-
-    `_notify_by_email_prefetch` reads a batch's References ancestors and its
-    tracking values once, so the per-record notify loop does not read them per
-    record. Both are consumed only inside `_notify_by_email_prepare`, which
-    returns immediately when no recipient has ``notif == "email"`` -- so an
-    inbox-only batch paid two queries for a result nothing read.
-
-    Asserted on the call, not on a query budget. The email variant also creates,
-    sends and unlinks a `mail.mail`, so it is dearer than the inbox one by far
-    more than the prefetch whether or not the prefetch is gated: a differential
-    budget would pass on the ungated code and prove nothing. Counting the calls
-    also pins that the prefetch stays one per batch rather than one per record.
-    """
-
     def _prefetch_calls_posting_to(self, partner):
         records = self.env["mail.test.simple"].create(
             [{"name": f"Batch {index}"} for index in range(5)]
@@ -3439,10 +3500,6 @@ class TestMessagePostLang(MailCommon, TestRecipients):
     @users("employee")
     @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_composer_lang_template_comment(self):
-        """When posting in comment mode, content is rendered using the lang
-        field of template. Notification layout lang is the one from the
-        customer to personalize the context. When not found it fallbacks
-        on rendered template lang or environment lang."""
         test_record = self.test_records[0].with_user(self.env.user)
         test_template = self.test_template.with_user(self.env.user)
 
@@ -3788,17 +3845,6 @@ class TestMessagePostLang(MailCommon, TestRecipients):
     @users("employee")
     @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_post_multi_lang_recipients(self):
-        """Test posting on a document in a multilang environment. Currently
-        current user's lang determines completely language used for notification
-        layout notably, when no template is involved.
-
-        Lang layout for this test (to better check various configuration and
-        check which lang wins the final output, if any)
-
-          * current users: various between en and es;
-          * partner1: es
-          * partner2: en
-        """
         test_records = self.test_records.with_env(self.env)
         test_records.message_subscribe(
             partner_ids=(self.partner_1 + self.partner_2).ids

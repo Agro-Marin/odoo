@@ -268,7 +268,6 @@ class Base(models.AbstractModel):
         return customers[0] if customers else self.env["res.partner"]
 
     @api.model
-    @api.model
     def _mail_is_partner_field(self, fname: str) -> bool:
         field = self._fields.get(fname)
         return bool(
@@ -277,13 +276,23 @@ class Base(models.AbstractModel):
             and field.comodel_name == "res.partner"
         )
 
+    @api.model
+    @tools.ormcache()
+    def _mail_declared_partner_fields(self) -> tuple[str, ...]:
+        declared = tuple(self._mail_partner_fields or ())
+        valid = tuple(fname for fname in declared if self._mail_is_partner_field(fname))
+        if invalid := [fname for fname in declared if fname not in valid]:
+            _logger.warning(
+                "%s._mail_partner_fields names %s, which is not a relation to "
+                "res.partner; ignored.",
+                self._name,
+                ", ".join(repr(fname) for fname in invalid),
+            )
+        return valid
+
     def _mail_get_partner_fields(self, introspect_fields: bool = False) -> list[str]:
         if self._mail_partner_fields is not None:
-            return [
-                fname
-                for fname in self._mail_partner_fields
-                if self._mail_is_partner_field(fname)
-            ]
+            return list(self._mail_declared_partner_fields())
         partner_fnames = [
             fname
             for fname in ("partner_id", "partner_ids")
@@ -311,17 +320,9 @@ class Base(models.AbstractModel):
     def _mail_get_partners(
         self, introspect_fields: bool = False
     ) -> dict[int, ResPartner]:
-        partner_fields = []
-        for fname in self._mail_get_partner_fields(introspect_fields=introspect_fields):
-            if self._mail_is_partner_field(fname):
-                partner_fields.append(fname)
-            else:
-                _logger.warning(
-                    "%s._mail_get_partner_fields names %r, which is not a "
-                    "relation to res.partner; ignored.",
-                    self._name,
-                    fname,
-                )
+        partner_fields = self._mail_get_partner_fields(
+            introspect_fields=introspect_fields
+        )
         pids_per_record = {
             record.id: list(
                 tools.unique(pid for fn in partner_fields for pid in record[fn].ids)
@@ -506,7 +507,9 @@ class Base(models.AbstractModel):
         return self._mail_first_field_value(fnames, _MAIL_EMAIL_FIELD_TYPES) or False
 
     def _mail_get_banned_emails(self, emails: Iterable[str]) -> set[str]:
-        keys = [email_comparison_key(e) for e in emails if e and e.strip()]
+        keys = list(
+            tools.unique(email_comparison_key(e) for e in emails if e and e.strip())
+        )
         root = self.env.ref("base.partner_root").sudo()
         root_email = root.email_normalized
         banned = set()
@@ -573,7 +576,10 @@ class Base(models.AbstractModel):
                 mailable_ids=recipients.ids,
                 mailable_keys=set(recipients.mapped("email_normalized")),
                 kept_ids=recipients_all.ids,
-                kept_emails=set(recipients_all.mapped("email")),
+                kept_keys={
+                    email_comparison_key(email)
+                    for email in recipients_all.mapped("email")
+                },
             )
             res[record.id] = {
                 "email_cc": ",".join(email_cc_lst),
@@ -640,8 +646,9 @@ class Base(models.AbstractModel):
             pid for vals in suggested.values() for pid in vals["partners"]._ids
         } | {pid for recs in followers_by_record.values() for pid in recs._ids}
 
+        email_keys: dict[Any, set[str]] = {}
         records_emails, all_emails = self._message_suggested_recipients_emails(
-            suggested, followers_by_record, partner_ids
+            suggested, followers_by_record, partner_ids, email_keys
         )
         ban_emails = self._mail_get_banned_emails(all_emails)
         records_partners = self._partner_find_from_emails(
@@ -668,8 +675,8 @@ class Base(models.AbstractModel):
                 self._message_suggested_emails(
                     suggested[record.id]["email_to_lst"],
                     skip_keys=ban_emails
-                    | self._mail_get_email_keys(
-                        (followers | partners).with_prefetch(partner_ids)
+                    | self._mail_get_email_keys_cached(
+                        (followers | partners).with_prefetch(partner_ids), email_keys
                     ),
                 ),
                 customer_information,
@@ -726,12 +733,14 @@ class Base(models.AbstractModel):
         suggested: dict[int, SuggestionSources],
         followers_by_record: dict[int, ResPartner],
         prefetch_ids: set,
+        email_keys: dict[Any, set[str]],
     ) -> tuple[dict[models.BaseModel, list[str]], set[str]]:
         records_emails, all_emails = {}, set()
         for record in self:
             partners = suggested[record.id]["partners"]
-            skip_keys = self._mail_get_email_keys(
-                (followers_by_record[record.id] | partners).with_prefetch(prefetch_ids)
+            skip_keys = self._mail_get_email_keys_cached(
+                (followers_by_record[record.id] | partners).with_prefetch(prefetch_ids),
+                email_keys,
             )
             records_emails[record] = [
                 email
@@ -770,6 +779,18 @@ class Base(models.AbstractModel):
             )
             .with_prefetch(prefetch_ids)
         )
+
+    @api.model
+    def _mail_get_email_keys_cached(
+        self, partners: ResPartner, cache: dict[Any, set[str]]
+    ) -> set[str]:
+        keys = set()
+        for partner in partners:
+            partner_keys = cache.get(partner.id)
+            if partner_keys is None:
+                partner_keys = cache[partner.id] = self._mail_get_email_keys(partner)
+            keys |= partner_keys
+        return keys
 
     @api.model
     def _mail_get_email_keys(self, partners: ResPartner) -> set[str]:
@@ -873,7 +894,7 @@ class Base(models.AbstractModel):
         no_create: bool = False,
     ) -> dict[int | Literal[False], ResPartner]:
         records = self._partner_find_from_emails_records(records_emails)
-        res_ids = records.ids or [record.id for record in records_emails]
+        res_ids = list(records._ids) or [record.id for record in records_emails]
         found_results = dict.fromkeys(res_ids, self.env["res.partner"])
         emails_all = []
         emails_key_all = []
@@ -1032,14 +1053,16 @@ class Base(models.AbstractModel):
                 )
             )
             .with_prefetch(messages._prefetch_ids)
-            .sorted(lambda msg: (msg.date, msg.id), reverse=True)
+            .sorted(lambda msg: (bool(msg.date), msg.date, msg.id), reverse=True)
         )
 
     def _mail_suggested_message_subtype_ids(self) -> list[int]:
         subtype_ids = self._creation_subtype().ids
-        subtype_ids.append(
-            self.env["ir.model.data"]._xmlid_to_res_id("mail.mt_comment")
+        comment_subtype_id = self.env["ir.model.data"]._xmlid_to_res_id(
+            "mail.mt_comment"
         )
+        if comment_subtype_id:
+            subtype_ids.append(comment_subtype_id)
         return subtype_ids
 
     def _message_get_suggested_recipients(
@@ -1064,14 +1087,15 @@ class Base(models.AbstractModel):
         default: str | Literal[False] | None = None,
         author_id: int | Literal[False] = False,
     ) -> dict[int | Literal[False], str | Literal[False] | None]:
+        keys = self._notify_reply_to_scope()[2]
         return self._notify_get_reply_to_batch(
-            defaults=dict.fromkeys(self.ids or [False], default),
-            author_ids=dict.fromkeys(self.ids or [False], author_id),
+            defaults=dict.fromkeys(keys, default),
+            author_ids=dict.fromkeys(keys, author_id),
         )
 
     def _notify_reply_to_scope(self) -> tuple[str | Literal[False], list, list]:
         model = self._name if self and self._name != "mixin.mail.thread" else False
-        res_ids = self.ids if model else []
+        res_ids = list(self._ids) if model else []
         return model, res_ids, res_ids or [False]
 
     def _notify_get_reply_to_addresses(
@@ -1090,6 +1114,9 @@ class Base(models.AbstractModel):
 
         reply_to_email = {}
         if model and res_ids:
+            record_id_per_stored_id = {
+                record._origin.id: record.id for record in self if record._origin
+            }
             mail_aliases = (
                 self.env["mail.alias"]
                 .sudo()
@@ -1097,14 +1124,15 @@ class Base(models.AbstractModel):
                     [
                         ("alias_domain_id", "!=", False),
                         ("alias_parent_model_id.model", "=", model),
-                        ("alias_parent_thread_id", "in", res_ids),
+                        ("alias_parent_thread_id", "in", list(record_id_per_stored_id)),
                         ("alias_name", "!=", False),
                     ]
                 )
             )
             for alias in mail_aliases:
                 reply_to_email.setdefault(
-                    alias.alias_parent_thread_id, alias.alias_full_name
+                    record_id_per_stored_id[alias.alias_parent_thread_id],
+                    alias.alias_full_name,
                 )
 
         if set(_res_ids) - set(reply_to_email):
@@ -1139,12 +1167,12 @@ class Base(models.AbstractModel):
             )
 
         reply_to_email = self._notify_get_reply_to_addresses()
+        format_reply_to = self._notify_reply_to_formatter()
 
         reply_to_formatted = dict(defaults)
         for res_id, record_reply_to in reply_to_email.items():
-            reply_to_formatted[res_id] = self._notify_get_reply_to_formatted_email(
-                record_reply_to,
-                author_id=author_ids[res_id],
+            reply_to_formatted[res_id] = format_reply_to(
+                record_reply_to, author_ids[res_id]
             )
 
         return reply_to_formatted
@@ -1154,15 +1182,29 @@ class Base(models.AbstractModel):
     ) -> dict[tuple, dict]:
         keys = self._notify_reply_to_scope()[2]
         reply_to_email = self._notify_get_reply_to_addresses()
+        format_reply_to = self._notify_reply_to_formatter()
         result = {}
         for author_id, author_email in author_pairs:
             formatted = dict.fromkeys(keys, author_email)
             for res_id, record_reply_to in reply_to_email.items():
-                formatted[res_id] = self._notify_get_reply_to_formatted_email(
-                    record_reply_to, author_id=author_id
-                )
+                formatted[res_id] = format_reply_to(record_reply_to, author_id)
             result[(author_id, author_email)] = formatted
         return result
+
+    def _notify_reply_to_formatter(
+        self,
+    ) -> Callable[[str, int | Literal[False]], str]:
+        cache: dict[tuple[int | Literal[False], str], str] = {}
+
+        def formatted(record_email: str, author_id: int | Literal[False]) -> str:
+            key = (author_id, record_email)
+            if key not in cache:
+                cache[key] = self._notify_get_reply_to_formatted_email(
+                    record_email, author_id=author_id
+                )
+            return cache[key]
+
+        return formatted
 
     def _notify_get_reply_to_formatted_email(
         self, record_email: str, author_id: int | Literal[False] = False

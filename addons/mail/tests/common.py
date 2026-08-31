@@ -36,7 +36,7 @@ from odoo.addons.mail.models.mail_message import MailMessage
 from odoo.addons.mail.models.mail_notification import MailNotification
 from odoo.addons.mail.models.res_users import ResUsers
 from odoo.addons.mail.tools.discuss import Store
-from odoo.addons.mail.tools.recipients import build_recipient_data
+from odoo.addons.mail.tools.recipients import prepare_recipient_data
 
 _logger = logging.getLogger(__name__)
 
@@ -1508,7 +1508,7 @@ class MailCase(common.TransactionCase, MockEmail, BusCase):
                 key=lambda u: (u.share, u.id)
             )[:1]
             entries.append(
-                build_recipient_data(
+                prepare_recipient_data(
                     partner_id=partner.id,
                     active=partner.active,
                     email_normalized=partner.email_normalized,

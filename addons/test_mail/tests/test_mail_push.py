@@ -77,8 +77,274 @@ class TestWebPushPayloadBudget(TransactionCase):
         self.assertLess(len(payload["options"]["body"]), 6000)
         self.assertTrue(payload["options"]["body"], "trimmed, not emptied")
 
+    def test_a_cut_inside_a_surrogate_pair_leaves_no_half_character(self):
+        """The budget counts escaped characters; a non-BMP char escapes as TWO.
+
+        `json.dumps("\N{GRINNING FACE}")` is `\\ud83d\\ude00` -- twelve escaped
+        characters for one real one -- so trimming to an escaped-length budget
+        can cut between the halves. What survives is a code unit, not a
+        character. Nothing raises: the JSON is ASCII-escaped, so it re-encodes
+        and ships, and the browser is the first thing to see it, as U+FFFD.
+
+        Asserted on `_web_push_truncate_json_string` rather than on a whole
+        payload because where a payload-level cut lands depends on every other
+        field's length -- a payload test passes or fails by accident of the
+        icon path, which is how the first version of this test proved nothing.
+        """
+        thread = self.env["mixin.mail.thread"]
+        emoji = "\N{GRINNING FACE}"
+        self.assertEqual(len(json.dumps(emoji)[1:-1]), 12, "one char, two escapes")
+        for max_chars in (6, 9, 18):
+            with self.subTest(max_chars=max_chars):
+                out = thread._web_push_truncate_json_string(emoji * 3, max_chars)
+                self.assertFalse(
+                    [char for char in out if "\ud800" <= char <= "\udfff"],
+                    f"cutting at {max_chars} escaped chars kept half a character: "
+                    f"{out!r}",
+                )
+
+    def test_truncating_on_a_pair_boundary_keeps_whole_characters(self):
+        """The complement: a cut that lands cleanly must not lose the character."""
+        thread = self.env["mixin.mail.thread"]
+        emoji = "\N{GRINNING FACE}"
+        self.assertEqual(thread._web_push_truncate_json_string(emoji * 3, 12), emoji)
+
 
 @tagged("post_install", "-at_install", "mail_push")
+@tagged("mail_push")
+class TestWebPushRecipientLanguage(TransactionCase):
+    """A push notification is rendered in the recipient's language, not the sender's.
+
+    `_notify_thread_by_web_push` built ONE payload and handed the same bytes to
+    every device. The email path for the same message already groups recipients
+    per language (`_notify_get_classified_recipients_iterator`), and
+    `discuss_channel_member.py` already supplied `payload_by_lang` to
+    `_web_push_send_notification` -- the parameter existed with exactly one
+    caller. The thread path did neither.
+
+    What is actually translatable in a push payload is narrow, and the tests
+    below say so rather than implying the whole body is: a message whose body is
+    empty falls back to its attachment names joined by a *translated* connector
+    ("%(file1)s and %(file2)s", plus the "Voice Message" label), and that string
+    is what a French recipient used to receive in English. A plain comment
+    carries the author's own HTML and has nothing to translate, so it is
+    unaffected either way -- asserted here so the fix's scope is pinned and not
+    overstated later.
+
+    A `TransactionCase`, not `TestWebPushNotification`'s base: that class skips
+    itself when its environment is unavailable, and language selection is decided
+    long before any endpoint is contacted.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.env["res.lang"]._activate_lang("fr_FR")
+        cls.env["mail.push.device"].get_web_push_vapid_public_key()
+        cls.record = cls.env["mail.test.simple"].create({"name": "Pushed"})
+        cls.user_en = cls._push_user("push_en", "en_US")
+        cls.user_fr = cls._push_user("push_fr", "fr_FR")
+        cls.record.message_subscribe((cls.user_en + cls.user_fr).partner_id.ids)
+
+    @classmethod
+    def _push_user(cls, login, lang):
+        user = mail_new_test_user(
+            cls.env, login=login, groups="base.group_user", name=login.upper()
+        )
+        user.partner_id.lang = lang
+        user.notification_type = "inbox"
+        cls.env["mail.push.device"].sudo().create(
+            {
+                "endpoint": f"https://test.odoo.com/webpush/{login}",
+                "expiration_time": None,
+                "keys": json.dumps({"p256dh": "k", "auth": "a"}),
+                "partner_id": user.partner_id.id,
+            }
+        )
+        return user
+
+    def _bodies_pushed_by(self, post):
+        """Run `post`, return {login: push body actually delivered to that device}."""
+        delivered = {}
+
+        def _capture(*args, **kwargs):
+            login = kwargs["device"]["endpoint"].rsplit("/", 1)[-1]
+            delivered[login] = json.loads(kwargs["payload"])["options"]["body"]
+
+        with patch.object(
+            odoo.addons.mail.models.mixin_mail_thread, "push_to_end_point", _capture
+        ):
+            post()
+            self.env.flush_all()
+        return delivered
+
+    def _post_with_attachments(self):
+        attachments = self.env["ir.attachment"].create(
+            [
+                {"name": "alpha.txt", "datas": "MQ=="},
+                {"name": "beta.txt", "datas": "MQ=="},
+            ]
+        )
+        self.record.message_post(
+            body="",
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+            attachment_ids=attachments.ids,
+            partner_ids=(self.user_en + self.user_fr).partner_id.ids,
+        )
+
+    def test_attachment_fallback_reaches_each_device_in_its_own_language(self):
+        """The user-visible symptom: a French device received the English join."""
+        bodies = self._bodies_pushed_by(self._post_with_attachments)
+        self.assertEqual(set(bodies), {"push_en", "push_fr"}, "both devices pushed")
+        self.assertNotEqual(
+            bodies["push_en"],
+            bodies["push_fr"],
+            "the attachment-name fallback is a translated string, so the two "
+            f"recipients must not receive the same bytes (got {bodies!r})",
+        )
+        for login, body in bodies.items():
+            self.assertIn("alpha.txt", body, f"{login} still names the attachments")
+            self.assertIn("beta.txt", body, f"{login} still names the attachments")
+
+    def test_a_plain_comment_is_not_translated_and_must_not_change(self):
+        """Scope guard: the author's own HTML is not the mixin's to translate."""
+        bodies = self._bodies_pushed_by(
+            lambda: self.record.message_post(
+                body=Markup("<p>Hello</p>"),
+                message_type="comment",
+                subtype_xmlid="mail.mt_comment",
+                partner_ids=(self.user_en + self.user_fr).partner_id.ids,
+            )
+        )
+        self.assertEqual(set(bodies), {"push_en", "push_fr"})
+        self.assertEqual(
+            bodies["push_en"],
+            bodies["push_fr"],
+            "a body with no translatable content must reach both devices alike",
+        )
+
+    def test_one_payload_is_built_per_language_not_per_device(self):
+        """Per-language must not silently become per-device."""
+        other_en = self._push_user("push_en2", "en_US")
+        self.record.message_subscribe(other_en.partner_id.ids)
+        rendered_langs = []
+        thread_model = type(self.env["mixin.mail.thread"])
+        original = thread_model._notify_by_web_push_prepare_payload
+
+        def _record_lang(records, message, **kwargs):
+            rendered_langs.append(records.env.lang)
+            return original(records, message, **kwargs)
+
+        with patch.object(
+            thread_model, "_notify_by_web_push_prepare_payload", _record_lang
+        ):
+            self._bodies_pushed_by(self._post_with_attachments)
+        self.assertEqual(
+            sorted(rendered_langs),
+            ["en_US", "fr_FR"],
+            "three devices across two languages must cost two payload renders",
+        )
+
+
+@tagged("mail_push")
+class TestWebPushAuthorSuppression(TransactionCase):
+    """Push must suppress the same author the inbox/email path suppressed.
+
+    `_notify_get_recipients` has already applied the author policy -- including
+    the `notify_author` / `notify_author_mention` flags -- before
+    `_notify_thread_by_web_push` ever sees `recipients_data`. The push path then
+    subtracted an author *again*, and resolved it differently: the inbox/email
+    side skips the REAL author (`_message_compute_real_author`, i.e. whoever is
+    acting), while the push side subtracted the DECLARED `msg_vals["author_id"]`.
+
+    Those coincide for an ordinary post and diverge exactly when a message is
+    posted on someone else's behalf -- out-of-office auto-replies, gateway-created
+    messages, `_track_set_author`. There the declared author is a legitimate
+    recipient: they were notified, and their device was silently skipped.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.env["mail.push.device"].get_web_push_vapid_public_key()
+        cls.actor = cls._device_user("actor")
+        cls.declared = cls._device_user("declared")
+        cls.record = cls.env["mail.test.simple"].create({"name": "OnBehalf"})
+
+    @classmethod
+    def _device_user(cls, login):
+        user = mail_new_test_user(
+            cls.env, login=login, groups="base.group_user", name=login.upper()
+        )
+        user.notification_type = "inbox"
+        cls.env["mail.push.device"].sudo().create(
+            {
+                "endpoint": f"https://test.odoo.com/webpush/{login}",
+                "expiration_time": None,
+                "keys": json.dumps({"p256dh": "k", "auth": "a"}),
+                "partner_id": user.partner_id.id,
+            }
+        )
+        return user
+
+    def _post_on_behalf(self):
+        pushed = []
+
+        def _capture(*args, **kwargs):
+            pushed.append(kwargs["device"]["endpoint"].rsplit("/", 1)[-1])
+
+        with patch.object(
+            odoo.addons.mail.models.mixin_mail_thread, "push_to_end_point", _capture
+        ):
+            message = self.record.with_user(self.actor).message_post(
+                body=Markup("<p>on behalf</p>"),
+                message_type="comment",
+                subtype_xmlid="mail.mt_comment",
+                author_id=self.declared.partner_id.id,
+                partner_ids=(self.actor + self.declared).partner_id.ids,
+            )
+            self.env.flush_all()
+        return message, pushed
+
+    def test_a_recipient_notified_on_behalf_is_also_pushed(self):
+        message, pushed = self._post_on_behalf()
+        notified = self.env["mail.notification"].search(
+            [("mail_message_id", "=", message.id)]
+        )
+        self.assertIn(
+            self.declared.partner_id,
+            notified.res_partner_id,
+            "precondition: the declared author is a genuine recipient here",
+        )
+        self.assertIn(
+            "declared",
+            pushed,
+            "a partner the inbox path notified must not have their device skipped "
+            "because they are named as the message's author",
+        )
+
+    def test_the_acting_author_is_still_not_pushed(self):
+        """Removing the second filter must not start notifying the actor."""
+        message, pushed = self._post_on_behalf()
+        notified = self.env["mail.notification"].search(
+            [("mail_message_id", "=", message.id)]
+        )
+        self.assertNotIn(
+            self.actor.partner_id,
+            notified.res_partner_id,
+            "precondition: the acting author is suppressed by _notify_get_recipients",
+        )
+        self.assertNotIn(
+            "actor", pushed, "and is therefore not pushed either -- one policy, not two"
+        )
+
+
+# `SMSCommon.tearDown` calls `self.env["sms.sms"]`, and `sms` is `auto_install` on
+# top of `mail` -- so at_install, where these would otherwise run, is before `sms`
+# is in the registry and every test dies in teardown with KeyError: 'sms.sms'
+# having already passed its body.
+@tagged("-at_install", "post_install", "mail_push")
 class TestWebPushNotification(SMSCommon):
     @classmethod
     def setUpClass(cls):

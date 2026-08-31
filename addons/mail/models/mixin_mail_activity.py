@@ -126,17 +126,17 @@ class MixinMailActivity(models.AbstractModel):
         return next((state for state in order if state in present), fallback)
 
     def _open_activities(self) -> MailActivity:
+        """This record's unfinished activities, in no particular order.
+
+        Deliberately unsorted: a list view reading the activity columns calls
+        this six times per record -- once each for state, exception type, the
+        `_compute_activity_next` trio, the deadline and the assignee's deadline
+        -- and only `_next_activity` wants an order, which it takes in one pass
+        rather than by sorting. The other two callers ask for `mapped("state")`
+        and a `grouped()` over the types, where order cannot be observed.
+        """
         activities = self.activity_ids
-        return (
-            activities.filtered("active")
-            .with_prefetch(activities._prefetch_ids)
-            .sorted(
-                lambda activity: (
-                    activity.date_deadline or _DEADLINE_LAST,
-                    activity.id,
-                )
-            )
-        )
+        return activities.filtered("active").with_prefetch(activities._prefetch_ids)
 
     def _next_activity(self, user_id: int | None = None) -> MailActivity:
         self.check_singleton()
@@ -145,7 +145,24 @@ class MixinMailActivity(models.AbstractModel):
             activities = (
                 activity for activity in activities if activity.user_id.id == user_id
             )
-        return next(iter(activities), self.env["mail.activity"])
+        # `min`, not `sorted(...)[0]`: one pass rather than n log n, and the
+        # generator above stays lazy instead of materialising a recordset. The
+        # sort it replaces was re-sorting an already-sorted list -- `activity_ids`
+        # is a One2many, so it arrives in `mail.activity._order`, which is
+        # `date_deadline ASC, id ASC`: exactly this key. The key is spelled out
+        # anyway so the answer does not silently depend on that `_order` staying
+        # what it is. One consequence worth knowing: the `id` half cannot be
+        # exercised by a test today, because no reachable input arrives out of
+        # order, so it is defence against a future `_order` rather than a path
+        # anything currently takes.
+        return min(
+            activities,
+            key=lambda activity: (
+                activity.date_deadline or _DEADLINE_LAST,
+                activity.id,
+            ),
+            default=self.env["mail.activity"],
+        )
 
     @api.depends(
         "activity_ids.active",
@@ -196,15 +213,9 @@ class MixinMailActivity(models.AbstractModel):
     @api.depends("activity_ids.active", "activity_ids.state")
     def _compute_activity_state(self) -> None:
         for record in self:
-            states = record._open_activities().mapped("state")
-            if "overdue" in states:
-                record.activity_state = "overdue"
-            elif "today" in states:
-                record.activity_state = "today"
-            elif "planned" in states:
-                record.activity_state = "planned"
-            else:
-                record.activity_state = False
+            record.activity_state = self._most_urgent_activity_state(
+                record._open_activities().mapped("state")
+            )
 
     def _open_activity_domain(
         self,
@@ -611,8 +622,15 @@ class MixinMailActivity(models.AbstractModel):
         notes: Mapping[int, str],
         act_values: dict,
     ) -> MailActivity:
+        # `_assignee_of` rather than reading `user_id` straight out of
+        # `act_values`: it also honours a `default_user_id` in the context, which
+        # is how the form action and several callers carry the assignee. Read
+        # from the values alone, an activity scheduled for somebody whose day is
+        # already tomorrow was given the server's today and was born `overdue`
+        # in their list. One spelling of "who is this for", shared with
+        # `mail.activity.create`, so the two cannot drift again.
         assignee = (
-            self.env["res.users"].browse(act_values.get("user_id") or ())
+            self.env["mail.activity"]._assignee_of(act_values)
             or activity_type.default_user_id
         )
         if not date_deadline:

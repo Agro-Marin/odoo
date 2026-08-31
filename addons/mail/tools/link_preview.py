@@ -56,7 +56,7 @@ def _url_is_safe(url: str) -> bool:
     return _classify_url_safety(url) is UrlSafety.SAFE
 
 
-def _fetch_link_preview_response(
+def _get_link_preview_response(
     url: str,
     request_session: requests.Session | None,
     headers: dict[str, str],
@@ -94,7 +94,7 @@ def get_link_preview_from_url(
     }
     deadline = time.monotonic() + MAX_FETCH_SECONDS
     try:
-        response = _fetch_link_preview_response(url, request_session, headers, deadline)
+        response = _get_link_preview_response(url, request_session, headers, deadline)
     except requests.exceptions.RequestException:
         return False
     except LocationParseError:

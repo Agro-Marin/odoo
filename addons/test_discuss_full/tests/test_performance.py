@@ -18,12 +18,12 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
     #   1: search res_groups (internalUserGroupId ref exists)
     #   8: odoobot format:
     #       - fetch res_partner (_read_format)
-    #       - search res_users (_compute_im_status)
-    #       - search presence (_compute_im_status)
-    #       - fetch presence (_compute_im_status)
-    #       - _get_on_leave_ids (_compute_im_status hr_holidays override)
-    #       - search employee (_compute_im_status hr_homeworking override)
-    #       - fetch employee (_compute_im_status hr_homeworking override)
+    #       - search res_users (_compute_presence)
+    #       - search presence (_compute_presence)
+    #       - fetch presence (_compute_presence)
+    #       - _get_on_leave_ids (_compute_presence hr_holidays override)
+    #       - search employee (_compute_presence hr_homeworking override)
+    #       - fetch employee (_compute_presence hr_homeworking override)
     #       - fetch res_users (_read_format)
     #       - fetch hr_employee (res.users _to_store)
     #   5: settings:
@@ -65,19 +65,19 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
     #           10: member _to_store:
     #               10: partner _to_store:
     #                   - fetch res_partner (partner _to_store)
-    #                   - fetch res_users (_compute_im_status)
-    #                   - search mail_presence (_compute_im_status)
-    #                   - fetch mail_presence (_compute_im_status)
-    #                   - _get_on_leave_ids (_compute_im_status override)
-    #                   - search hr_employee (_compute_im_status override)
-    #                   - fetch hr_employee (_compute_im_status override)
+    #                   - fetch res_users (_compute_presence)
+    #                   - search mail_presence (_compute_presence)
+    #                   - fetch mail_presence (_compute_presence)
+    #                   - _get_on_leave_ids (_compute_presence override)
+    #                   - search hr_employee (_compute_presence override)
+    #                   - fetch hr_employee (_compute_presence override)
     #                   - search hr_employee (res.users._to_store override)
     #                   - search hr_leave (leave_date_to)
     #                   - fetch res_users (_compute_main_user_id)
     #           - search bus_bus (_bus_last_id)
     #           - search ir_attachment (_compute_avatar_128)
     #           - count discuss_channel_member (member_count)
-    #           - _compute_message_needaction_info
+    #           - _compute_message_needaction_stats
     #           - search discuss_channel_res_groups_rel (group_ids)
     #           - fetch res_groups (group_public_id)
     _query_count_init_messaging = 34
@@ -102,12 +102,12 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
     #           - fetch im_livechat_channel_member_history (livechat member type)
     #           13: partner _to_store:
     #               - fetch res_partner (partner _to_store)
-    #               - fetch res_users (_compute_im_status)
-    #               - search mail_presence (_compute_im_status)
-    #               - fetch mail_presence (_compute_im_status)
-    #               - _get_on_leave_ids (_compute_im_status override)
-    #               - search hr_employee (_compute_im_status override)
-    #               - fetch hr_employee (_compute_im_status override)
+    #               - fetch res_users (_compute_presence)
+    #               - search mail_presence (_compute_presence)
+    #               - fetch mail_presence (_compute_presence)
+    #               - _get_on_leave_ids (_compute_presence override)
+    #               - search hr_employee (_compute_presence override)
+    #               - fetch hr_employee (_compute_presence override)
     #               - search hr_employee (res.users._to_store override)
     #               - search hr_leave (leave_date_to)
     #               - search res_users_settings (livechat username)
@@ -116,12 +116,12 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
     #               - fetch res_country (livechat override)
     #           3: guest _to_store:
     #               - fetch mail_guest
-    #               - fetch mail_presence (_compute_im_status)
+    #               - fetch mail_presence (_compute_presence)
     #               - fetch res_country
     #       - search bus_bus (_bus_last_id from _to_store_defaults)
     #       - search ir_attachment (_compute_avatar_128)
     #       - count discuss_channel_member (member_count)
-    #       - _compute_message_needaction_info
+    #       - _compute_message_needaction_stats
     #       - search discuss_channel_res_groups_rel (group_ids)
     #       - fetch im_livechat_channel_member_history (requested_by_operator)
     #       - fetch res_groups (group_ids)

@@ -31,7 +31,7 @@ class RecipientRow(NamedTuple):
     is_follower: bool
 
 
-def build_recipient_data(
+def prepare_recipient_data(
     *,
     partner_id: int | Literal[False] = False,
     active: bool = True,

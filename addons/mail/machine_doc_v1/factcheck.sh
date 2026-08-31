@@ -845,6 +845,28 @@ assert_doc_cites "TEST_TAGS.md cites both halves of the untagged split" \
     "$untagged $py_test_total" \
     '\*\*%s of the %s test files carry no topic tag at all\*\*' TEST_TAGS.md
 
+# The same walk scoped to discuss/. This figure sat in the prose ungated and had
+# drifted to "14 of the 23" against a filesystem of 27 -- both halves wrong, and
+# invisible because nothing checked it.
+disc=$(python3 - "$MAIL" <<'PYEOF'
+import ast, pathlib, sys
+root = pathlib.Path(sys.argv[1], "tests", "discuss")
+SKIP = {"post_install", "-at_install", "at_install", "standard", "-standard"}
+tagged, allf = set(), {p for p in root.rglob("test_*.py")}
+for p in root.rglob("*.py"):
+    for cls in (n for n in ast.walk(ast.parse(p.read_text())) if isinstance(n, ast.ClassDef)):
+        for d in cls.decorator_list:
+            if isinstance(d, ast.Call) and ast.unparse(d.func).endswith("tagged"):
+                if any(ast.literal_eval(a) not in SKIP
+                       for a in d.args if isinstance(a, ast.Constant)):
+                    tagged.add(p)
+print(len(allf - tagged), len(allf))
+PYEOF
+)
+assert_doc_cites "TEST_TAGS.md cites both halves of the discuss/ untagged split" \
+    "$disc" \
+    'and \*\*%s of the %s files\*\* in `discuss/`' TEST_TAGS.md
+
 # ============================ Doc set completeness ============================
 for f in ARCHITECTURE CONVENTIONS DIRECTORY_MAP MODEL_MAP ROUTE_MAP STATE_MANAGEMENT TEST_TAGS ASSET_LAYERS; do
     assert_eq "$f.md exists" "$([ -f "$DOC/$f.md" ] && echo 1 || echo 0)" "1"

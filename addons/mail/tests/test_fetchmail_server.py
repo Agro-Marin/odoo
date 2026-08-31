@@ -37,12 +37,12 @@ class MockedConnection:
         self.acknowledged = []
         self.disconnected = False
 
-    def check_unread_messages(self):
+    def count_unread_messages(self):
         if self.announces is not None:
             return self.announces
         return len(self.mock_messages)
 
-    def retrieve_unread_messages(self):
+    def get_unread_messages(self):
         yield from list(self.mock_messages.items())
 
     def handled_message(self, num):
@@ -169,8 +169,8 @@ class TestIncomingMailTransport(TransactionCase):
             connection = incoming_mail.connect("pop", "127.0.0.1", server.port, "none")
             connection.user("u")
             connection.pass_("p")
-            self.assertEqual(connection.check_unread_messages(), 1)
-            fetched = list(connection.retrieve_unread_messages())
+            self.assertEqual(connection.count_unread_messages(), 1)
+            fetched = list(connection.get_unread_messages())
             connection.disconnect()
         self.assertEqual(
             fetched[0][1],
@@ -182,15 +182,15 @@ class TestIncomingMailTransport(TransactionCase):
     def test_pop3_does_not_issue_a_pointless_list(self):
         with FakeMailServer("pop", [(1, _message(1), [])]) as server:
             connection = incoming_mail.connect("pop", "127.0.0.1", server.port, "none")
-            connection.check_unread_messages()
+            connection.count_unread_messages()
             connection.disconnect()
         self.assertNotIn("LIST", server.mailbox.log)
 
     def test_pop3_acknowledges_by_deleting(self):
         with FakeMailServer("pop", [(1, _message(1), []), (2, _message(2), [])]) as srv:
             connection = incoming_mail.connect("pop", "127.0.0.1", srv.port, "none")
-            connection.check_unread_messages()
-            for num, _raw in connection.retrieve_unread_messages():
+            connection.count_unread_messages()
+            for num, _raw in connection.get_unread_messages():
                 connection.handled_message(num)
             connection.disconnect()
         self.assertEqual(srv.mailbox.deleted, {1, 2})
@@ -205,9 +205,9 @@ class TestIncomingMailTransport(TransactionCase):
             connection = incoming_mail.connect("imap", "127.0.0.1", server.port, "none")
             connection.login("u", "p")
             self.assertEqual(
-                connection.check_unread_messages(), 2, "the \\Seen one is not unread"
+                connection.count_unread_messages(), 2, "the \\Seen one is not unread"
             )
-            fetched = [num for num, _raw in connection.retrieve_unread_messages()]
+            fetched = [num for num, _raw in connection.get_unread_messages()]
             self.assertEqual(
                 fetched, [b"101", b"102"], "oldest first, addressed by UID"
             )
@@ -229,8 +229,8 @@ class TestIncomingMailTransport(TransactionCase):
         with FakeMailServer("imap", messages) as server:
             connection = incoming_mail.connect("imap", "127.0.0.1", server.port, "none")
             connection.login("u", "p")
-            connection.check_unread_messages()
-            stream = connection.retrieve_unread_messages()
+            connection.count_unread_messages()
+            stream = connection.get_unread_messages()
             num, _raw = next(stream)
 
             server.mailbox.expunge_uid(101)
@@ -248,7 +248,7 @@ class TestIncomingMailTransport(TransactionCase):
         with FakeMailServer("imap", messages) as server:
             connection = incoming_mail.connect("imap", "127.0.0.1", server.port, "none")
             connection.login("u", "p")
-            connection.check_unread_messages()
+            connection.count_unread_messages()
             connection.disconnect()
         self.assertEqual(server.mailbox.uids, [101, 102])
         self.assertEqual(server.mailbox.expunged, [])
@@ -259,7 +259,7 @@ class TestIncomingMailTransport(TransactionCase):
         with FakeMailServer("imap", [(101, _message(1), [])]) as server:
             connection = incoming_mail.connect("imap", "127.0.0.1", server.port, "none")
             connection.login("u", "p")
-            connection.check_unread_messages()
+            connection.count_unread_messages()
             with (
                 patch.object(type(connection), "unselect", side_effect=OSError("boom")),
                 self.assertRaises(OSError),
@@ -273,8 +273,8 @@ class TestIncomingMailTransport(TransactionCase):
             server.mailbox.literal_less.add(101)
             connection = incoming_mail.connect("imap", "127.0.0.1", server.port, "none")
             connection.login("u", "p")
-            self.assertEqual(connection.check_unread_messages(), 2)
-            fetched = list(connection.retrieve_unread_messages())
+            self.assertEqual(connection.count_unread_messages(), 2)
+            fetched = list(connection.get_unread_messages())
             connection.disconnect()
         self.assertEqual(
             fetched,
@@ -299,14 +299,14 @@ class TestIncomingMailTransport(TransactionCase):
             "peeking must leave every flag exactly as it found it",
         )
 
-    def test_retrieve_before_select_is_named(self):
+    def test_get_unread_before_select_is_named(self):
         for protocol in ("imap", "pop"):
             with self.subTest(protocol=protocol), FakeMailServer(protocol) as server:
                 connection = incoming_mail.connect(
                     protocol, "127.0.0.1", server.port, "none"
                 )
                 with self.assertRaises(incoming_mail.NotSelectedError):
-                    next(connection.retrieve_unread_messages())
+                    next(connection.get_unread_messages())
 
 
 class TestFetchmailConfiguration(FetchmailCommon):
@@ -1118,10 +1118,10 @@ class TestFetchmailProgress(FetchmailCommon):
         server = self._server(name="broken")
 
         class Broken:
-            def check_unread_messages(self):
+            def count_unread_messages(self):
                 return 100
 
-            def retrieve_unread_messages(self):
+            def get_unread_messages(self):
                 raise OSError("dropped mid-batch")
 
             def handled_message(self, num):

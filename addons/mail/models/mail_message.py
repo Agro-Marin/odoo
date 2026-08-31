@@ -695,6 +695,31 @@ class MailMessage(models.Model):
         self.check_access("read")
         return super().copy_data(default=default)
 
+    @api.constrains("partner_ids")
+    def _check_thread_allows_partner_ids(self) -> None:
+        """Let the thread model veto recipients written straight to the m2m.
+
+        `discuss.channel.message_post` filters `partner_ids` through
+        `_get_allowed_message_partner_ids`, but the field lives here, so any
+        plain `write` walked past that check -- which let a channel member hand
+        read access to a partner the channel had refused.
+
+        A model opts in by defining `_check_thread_message_partner_ids`. That
+        attribute is deliberately NOT defined on `mixin.mail.thread`: a model
+        that does not opt in must cost one `getattr` and zero queries, because
+        this fires on every inbound-mail write for every routable thread model.
+        """
+        empty = self.browse()
+        messages_by_model = defaultdict(lambda: empty)
+        for message in self:
+            if message.model and message.res_id:
+                messages_by_model[message.model] += message
+        for model_name, messages in messages_by_model.items():
+            model = self.env.get(model_name)
+            check = getattr(model, "_check_thread_message_partner_ids", None)
+            if check is not None:
+                check(messages)
+
     def fetch(self, field_names: Collection[str] | None = None) -> None:
         self = self.sudo()
         return super().fetch(field_names)

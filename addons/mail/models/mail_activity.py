@@ -1,9 +1,9 @@
 import logging
-import operator as operator_module
 import typing
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Iterator
 from datetime import UTC, date, datetime, timedelta
+from operator import eq, ge, gt, le, lt
 from types import NotImplementedType
 from typing import Literal, Self
 
@@ -26,21 +26,27 @@ from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
 
 if typing.TYPE_CHECKING:
     from .mail_activity_type import MailActivityType
+    from .mail_message import MailMessage
     from .mail_template import MailTemplate
     from .res_partner import ResPartner
     from odoo.addons.base.models.ir_model import IrModel
     from odoo.addons.bus.models.ir_attachment import IrAttachment
     from odoo.addons.bus.models.res_users import ResUsers
 
-_logger = logging.getLogger(__name__)
+# What `_todo_key` spells: the document an activity makes busy, as
+# (model, id) -- and for a document-less activity, ("mail.activity", its own id),
+# which names a record too.
+type TodoKey = tuple[str, int]
+type TodoKeys = set[TodoKey]
+type TodoKeysByUser = dict[ResUsers, TodoKeys]
+# (activity id, res_model, res_id, user_id) -- what the access scan reads. The
+# last three are falsy-or-set from both sources, but a recordset spells the empty
+# one False and SQL spells it None, so every reader has to compare, not test.
+type AccessRow = tuple[
+    int, str | Literal[False] | None, int | None, int | Literal[False] | None
+]
 
-PYTHON_DEADLINE_OPERATORS = {
-    "<": operator_module.lt,
-    "<=": operator_module.le,
-    "=": operator_module.eq,
-    ">=": operator_module.ge,
-    ">": operator_module.gt,
-}
+_logger = logging.getLogger(__name__)
 
 ORPHAN_BUCKET = "mail.activity"
 
@@ -70,10 +76,7 @@ class MailActivity(models.Model):
 
     @api.model
     def _default_date_deadline(self) -> date:
-        assignee = self.env["res.users"].browse(
-            self.env.context.get("default_user_id") or ()
-        )
-        return self._today_for(assignee)
+        return self._today_for(self._assignee_of({}))
 
     @api.model
     def _default_activity_type_for_model(self, model: str) -> MailActivityType:
@@ -90,14 +93,13 @@ class MailActivity(models.Model):
     )
     res_model = fields.Char(
         "Related Document Model",
-        index=True,
         related="res_model_id.model",
         precompute=True,
         store=True,
         readonly=True,
     )
     res_id = fields.Many2oneReference(
-        string="Related Document ID", index=True, model_field="res_model"
+        string="Related Document ID", model_field="res_model"
     )
     res_name = fields.Char(
         "Document Name",
@@ -178,6 +180,22 @@ class MailActivity(models.Model):
     _GC_BATCH = 10_000
     _VIEW_DATA_MAX_LIMIT = 1_000
 
+    # One entry per operator, both spellings side by side: the SQL branch and the
+    # in-memory branch of `_domain_deadline_today` have to answer the same
+    # question, and two separate tables let one gain an operator the other lacks.
+    _DEADLINE_OPERATORS = {
+        "<": (lt, SQL("<")),
+        "<=": (le, SQL("<=")),
+        "=": (eq, SQL("=")),
+        ">=": (ge, SQL(">=")),
+        ">": (gt, SQL(">")),
+    }
+
+    # Nothing searches res_id without res_model: the One2many's inverse is a
+    # Many2oneReference, so the ORM adds `res_model = <model>` itself. This one
+    # index replaces the two single-column ones and is smaller than their sum.
+    _res_model_res_id_index = models.Index("(res_model, res_id)")
+
     _check_res_id_is_set_if_model = models.Constraint(
         """CHECK(
             (COALESCE(res_model, '') <> '' AND (res_id IS NOT NULL AND res_id != 0)) OR
@@ -224,15 +242,22 @@ class MailActivity(models.Model):
         (self - linked).res_name = False
         if not linked:
             return
-        for model, activities in linked.grouped("res_model").items():
-            records = self.env[model].browse(activities.mapped("res_id"))
+        for model, activities, res_ids in linked._activities_with_records():
+            records = self.env[model].browse(res_ids)
             try:
-                name_by_id = dict(records.mapped(lambda r: (r.id, r.display_name)))
+                name_by_id = self._names_by_id(records)
             except MissingError:
-                records = records.exists()
-                name_by_id = dict(records.mapped(lambda r: (r.id, r.display_name)))
+                # A vanished document is normal here -- `res_id` is a
+                # Many2oneReference, so nothing cascades and the row survives its
+                # document. Narrow to what is left rather than reading the whole
+                # batch a second time.
+                name_by_id = self._names_by_id(records.exists())
             for activity in activities:
                 activity.res_name = name_by_id.get(activity.res_id, False)
+
+    @api.model
+    def _names_by_id(self, records: models.BaseModel) -> dict[int, str]:
+        return dict(records.mapped(lambda record: (record.id, record.display_name)))
 
     @api.depends("active", "date_deadline", "user_tz")
     def _compute_state(self) -> None:
@@ -275,20 +300,12 @@ class MailActivity(models.Model):
     ) -> list[tuple[date, tuple[str, ...]]]:
         return activity_calendar.days_elsewhere(moment)
 
-    _DEADLINE_SQL_OPERATORS = {
-        "<": SQL("<"),
-        "<=": SQL("<="),
-        "=": SQL("="),
-        ">=": SQL(">="),
-        ">": SQL(">"),
-    }
-
     @api.model
     def _domain_deadline_today(
         self, operator: str, moment: datetime | None = None
     ) -> Domain:
         moment = moment or datetime.now(UTC)
-        sql_operator = self._DEADLINE_SQL_OPERATORS[operator]
+        compare, sql_operator = self._DEADLINE_OPERATORS[operator]
 
         def to_sql(model: models.BaseModel, alias: str, query: Query) -> SQL:
             return SQL(
@@ -297,8 +314,6 @@ class MailActivity(models.Model):
                 sql_operator,
                 model._sql_today(alias, moment),
             )
-
-        compare = PYTHON_DEADLINE_OPERATORS[operator]
 
         def predicate(record: models.BaseModel) -> bool:
             deadline = record.date_deadline
@@ -329,7 +344,7 @@ class MailActivity(models.Model):
             "today": lambda: open_ & self._domain_deadline_today("=", moment),
             "planned": lambda: open_ & self._domain_deadline_today(">", moment),
         }
-        return Domain.OR(by_state[state]() for state in wanted)
+        return Domain.OR(by_state[state]() for state in states if state in wanted)
 
     @api.model
     def _domain_todo(self, user: ResUsers | None = None) -> Domain:
@@ -401,19 +416,17 @@ class MailActivity(models.Model):
         )
 
     def _filtered_todo(self) -> Self:
-        candidates = self.filtered(
-            lambda activity: activity.active and activity.user_id
-        )
-        by_tz = candidates.grouped("user_tz")
-        today_by_tz = self._today_by_tz(by_tz)
-        todo = self.browse()
-        for tz, activities in by_tz.items():
-            todo |= activities.filtered(
-                lambda activity, day=today_by_tz[tz]: activity.date_deadline <= day
-            )
-        return todo
+        # The in-memory half of `_domain_todo`, and literally it: one predicate,
+        # so the SQL and Python answers agree by construction rather than by
+        # `test_todo_domain_counts_from_the_assignee_day` noticing when they
+        # stop. Measured cost of routing through `filtered_domain` rather than
+        # a hand-rolled group-by-timezone loop: +1.3% (+0.16 ms) on a whole
+        # create+write+unlink cycle, interleaved A/B/B/A to cancel drift. The
+        # isolated call is ~9x slower at one record, which is 57 us against an
+        # operation that costs 12 ms -- a ratio worth ignoring.
+        return self.filtered_domain(self._domain_todo())
 
-    def _todo_key(self) -> tuple:
+    def _todo_key(self) -> tuple[str, int]:
         self.check_singleton()
         return (
             (self.res_model, self.res_id)
@@ -421,7 +434,7 @@ class MailActivity(models.Model):
             else (ORPHAN_BUCKET, self.id)
         )
 
-    def _todo_keys(self, within: set[tuple[str, int]] | None = None) -> dict:
+    def _todo_keys(self, within: TodoKeys | None = None) -> TodoKeysByUser:
         result = defaultdict(set)
         for activity in self._filtered_todo():
             key = activity._todo_key()
@@ -429,13 +442,19 @@ class MailActivity(models.Model):
                 result[activity.user_id].add(key)
         return result
 
-    def _todo_keys_elsewhere(self, keys: set[tuple[str, int]]) -> dict:
+    def _todo_keys_elsewhere(self, keys: TodoKeys) -> TodoKeysByUser:
         if not keys:
             return {}
         documents = Domain.FALSE
         modelless_ids = []
         by_model = defaultdict(list)
-        for res_model, res_id in keys:
+        # `sorted`, because `keys` is a set: its order decides the order the
+        # per-model branches are OR-ed in, and this domain is rebuilt on every
+        # activity create, write and unlink. Unsorted, the busiest query shape on
+        # this model reached PostgreSQL as different text in every worker. The
+        # ORM already normalises the values inside an `in`, so it is the branch
+        # order alone that moves.
+        for res_model, res_id in sorted(keys):
             by_model[res_model].append(res_id)
             if res_model == ORPHAN_BUCKET:
                 modelless_ids.append(res_id)
@@ -455,14 +474,16 @@ class MailActivity(models.Model):
         return self.sudo().search(domain)._todo_keys(within=keys)
 
     @staticmethod
-    def _merged_todo_keys(*mappings) -> dict:
+    def _merged_todo_keys(*mappings: TodoKeysByUser) -> TodoKeysByUser:
         return {
             user: set().union(*(m.get(user, ()) for m in mappings))
             for user in set().union(*(m.keys() for m in mappings))
         }
 
-    def _notify_todo_count_change(self, before: dict, after: dict) -> None:
-        for user in before.keys() | after.keys():
+    def _notify_todo_count_change(
+        self, before: TodoKeysByUser, after: TodoKeysByUser
+    ) -> None:
+        for user in sorted(before.keys() | after.keys(), key=lambda u: u.id):
             count_diff = len(after.get(user, ())) - len(before.get(user, ()))
             if count_diff > 0:
                 user._bus_send(
@@ -498,7 +519,7 @@ class MailActivity(models.Model):
         if self.recommended_activity_type_id:
             self.activity_type_id = self.recommended_activity_type_id
 
-    def _accessible_ids(self, rows: Iterable[tuple], operation: str) -> set[int]:
+    def _accessible_ids(self, rows: Iterable[AccessRow], operation: str) -> set[int]:
         rows = list(rows)
         env = self.env
         own_reaches = operation != "create"
@@ -527,8 +548,8 @@ class MailActivity(models.Model):
         return bool(res_model) and res_model in self.env
 
     def _documents_to_ask(
-        self, rows: Iterable[tuple], own_reaches: bool
-    ) -> tuple[dict, dict]:
+        self, rows: Iterable[AccessRow], own_reaches: bool
+    ) -> tuple[dict[str, set[int]], dict[str, set[int]]]:
         doc_ids = defaultdict(set)
         own_doc_ids = defaultdict(set)
         for __, res_model, res_id, user_id in rows:
@@ -556,7 +577,7 @@ class MailActivity(models.Model):
             res_model, res_ids - readable
         )
 
-    def _access_rows(self) -> list[tuple]:
+    def _access_rows(self) -> list[AccessRow]:
         return [
             (activity.id, activity.res_model, activity.res_id, activity.user_id.id)
             for activity in self.sudo()
@@ -618,7 +639,7 @@ class MailActivity(models.Model):
     def create(self, vals_list: list[ValuesType]) -> Self:
         vals_list = [self._deadline_in_assignee_day(vals) for vals in vals_list]
         activities = super().create(vals_list)
-        if any(user != self.env.user for user in activities.user_id):
+        if activities.user_id - self.env.user:
             user_partners = activities.user_id.partner_id
             readable_user_partners = user_partners._filtered_access("read")
         else:
@@ -630,8 +651,9 @@ class MailActivity(models.Model):
                 lambda act: act.user_id and act.user_id != self.env.user
             )
         if activities_to_notify:
+            readable_ids = set(readable_user_partners._ids)
             to_sudo = activities_to_notify.filtered(
-                lambda act: act.user_id.partner_id not in readable_user_partners
+                lambda act: act.user_id.partner_id.id not in readable_ids
             )
             other = activities_to_notify - to_sudo
             to_sudo.sudo().action_notify()
@@ -649,13 +671,23 @@ class MailActivity(models.Model):
         return activities
 
     @api.model
+    def _assignee_of(self, vals: ValuesType) -> ResUsers:
+        user_id = vals.get("user_id", self.env.context.get("default_user_id"))
+        return self.env["res.users"].browse(user_id or ())
+
+    @api.model
     def _deadline_in_assignee_day(self, vals: ValuesType) -> ValuesType:
-        if vals.get("date_deadline"):
+        # This runs before `super().create`, so injecting a deadline pre-empts
+        # the ORM's own default machinery. It exists only for the case that
+        # machinery cannot serve -- an assignee named in `vals`, which the field
+        # default never sees. A `default_date_deadline` in the context is an
+        # explicit instruction and `default_get` already honours it, so stand
+        # aside and let it through rather than overwriting it with today.
+        if vals.get("date_deadline") or self.env.context.get("default_date_deadline"):
             return vals
-        assignee = self.env["res.users"].browse(vals.get("user_id") or ())
         return {
             **vals,
-            "date_deadline": self._today_for(assignee),
+            "date_deadline": self._today_for(self._assignee_of(vals)),
         }
 
     def _filtered_postable(self) -> Self:
@@ -664,6 +696,7 @@ class MailActivity(models.Model):
         return backed.filtered(lambda activity: activity.id in postable)
 
     def _subscribe_assignees(self, readable_user_partners: ResPartner) -> None:
+        readable_ids = set(readable_user_partners._ids)
         for model, activities in self._thread_backed().grouped("res_model").items():
             per_user = defaultdict(set)
             for activity in activities.filtered("user_id"):
@@ -671,12 +704,12 @@ class MailActivity(models.Model):
             for user, res_ids in per_user.items():
                 pids = (
                     user.partner_id.ids
-                    if user.partner_id in readable_user_partners
+                    if user.partner_id.id in readable_ids
                     else user.sudo().partner_id.ids
                 )
                 self.env[model].browse(res_ids)._message_subscribe(partner_ids=pids)
 
-    def _prospective_todo_keys(self, vals: ValuesType) -> set:
+    def _prospective_todo_keys(self, vals: ValuesType) -> TodoKeys:
         res_model = None
         if "res_model_id" in vals:
             res_model = (
@@ -834,7 +867,7 @@ class MailActivity(models.Model):
                     self.env[model].sudo(), batch, user, author_id
                 )
 
-    def _notify_batches(self, model: str, existing_ids: set[int]) -> dict:
+    def _notify_batches(self, model: str, existing_ids: set[int]) -> dict[tuple, dict]:
         descriptions = {}
         batches = {}
         for activity in self:
@@ -892,7 +925,11 @@ class MailActivity(models.Model):
         return batches
 
     def _notify_assignee_batch(
-        self, documents_sudo, batch: dict, user: ResUsers, author_id: int
+        self,
+        documents_sudo: models.BaseModel,
+        batch: dict,
+        user: ResUsers,
+        author_id: int,
     ) -> None:
         entries = batch["entries"]
         while entries:
@@ -914,7 +951,7 @@ class MailActivity(models.Model):
             )
             entries = deferred
 
-    def action_done(self) -> dict | Literal[False]:
+    def action_done(self) -> int | Literal[False]:
         return self.filtered(lambda r: r.active).action_feedback()
 
     def action_done_redirect_to_other(self) -> dict:
@@ -987,7 +1024,7 @@ class MailActivity(models.Model):
         self,
         feedback: str | Literal[False] = False,
         attachment_ids: list[int] | None = None,
-    ) -> tuple:
+    ) -> tuple[MailMessage, Self]:
         open_activities = self.filtered("active")
         if not open_activities:
             return self.env["mail.message"], self.browse()
@@ -1032,7 +1069,7 @@ class MailActivity(models.Model):
         feedback: str | Literal[False],
         attachment_ids: list[int] | None,
         gone: Self,
-    ) -> tuple:
+    ) -> tuple[MailMessage, IrAttachment]:
         activity_attachments = (
             self.env["ir.attachment"]
             .sudo()
@@ -1051,6 +1088,7 @@ class MailActivity(models.Model):
         message_ids = []
         posted = 0
 
+        gone_ids = set(gone._ids)
         for (
             model,
             activities,
@@ -1060,13 +1098,13 @@ class MailActivity(models.Model):
             for record_sudo, activity in zip(records_sudo, activities, strict=True):
                 own_attachment_ids = self._attachments_for_post(
                     activity,
-                    gone,
+                    gone_ids,
                     attachment_ids,
                     shared_attachments,
                     shared_origin,
                     posted,
                 )
-                if activity in gone:
+                if activity.id in gone_ids:
                     activity_message = self.env["mail.message"]
                 else:
                     activity_message = record_sudo.message_post_with_source(
@@ -1093,13 +1131,13 @@ class MailActivity(models.Model):
     def _attachments_for_post(
         self,
         activity: Self,
-        gone: Self,
+        gone_ids: set[int],
         attachment_ids: list[int] | None,
         shared_attachments: IrAttachment,
         shared_origin: list[dict],
         posted: int,
     ) -> list[int] | None:
-        if activity in gone:
+        if activity.id in gone_ids:
             return None
         if not (shared_attachments and posted):
             return attachment_ids
@@ -1111,7 +1149,10 @@ class MailActivity(models.Model):
         ]
 
     def _rehome_own_attachments(
-        self, activity: Self, activity_message, activity_attachments: dict
+        self,
+        activity: Self,
+        activity_message: MailMessage,
+        activity_attachments: dict[int, IrAttachment],
     ) -> IrAttachment:
         message_attachments = activity_attachments.get(activity.id)
         if not message_attachments:
@@ -1121,7 +1162,9 @@ class MailActivity(models.Model):
         message_attachments.write(
             {"res_id": activity_message.id, "res_model": activity_message._name}
         )
-        activity_message.attachment_ids = message_attachments
+        # `|=`, not `=`: `message_post_with_source` already linked the feedback
+        # attachments, and replacing the m2m dropped them from the chatter.
+        activity_message.attachment_ids |= message_attachments
         return self.env["ir.attachment"]
 
     @api.readonly
@@ -1236,9 +1279,7 @@ class MailActivity(models.Model):
         all_ongoing, all_completed = self._get_activity_data_activities(
             res_model, domain, limit, offset, fetch_done
         )
-        grouped_activities = self._get_activity_data_cells(
-            res_model, all_ongoing, all_completed
-        )
+        grouped_activities = self._get_activity_data_cells(all_ongoing, all_completed)
         return {
             "activity_res_ids": self._get_activity_data_order(grouped_activities),
             "activity_types": [
@@ -1278,7 +1319,7 @@ class MailActivity(models.Model):
         limit: int,
         offset: int,
         fetch_done: bool,
-    ) -> tuple:
+    ) -> tuple[MailActivity, MailActivity]:
         DocModel = self.env[res_model]
         activity_domain = [
             ("res_model", "=", res_model),
@@ -1291,14 +1332,13 @@ class MailActivity(models.Model):
         all_activities = self.with_context(active_test=not fetch_done).search(
             activity_domain, order="date_done DESC, date_deadline ASC"
         )
-        return all_activities.filtered("active"), all_activities.filtered(
-            lambda act: not act.active
-        )
+        by_open = all_activities.grouped("active")
+        empty = self.browse()
+        return by_open.get(True, empty), by_open.get(False, empty)
 
     @api.model
     def _get_activity_data_cells(
         self,
-        res_model: str,
         all_ongoing: MailActivity,
         all_completed: MailActivity,
     ) -> dict:
@@ -1317,7 +1357,15 @@ class MailActivity(models.Model):
         grouped_ongoing = by_cell(all_ongoing)
         grouped_completed = by_cell(all_completed)
 
-        cells = grouped_ongoing.keys() | grouped_completed.keys()
+        # Sorted, not a bare set union: `_get_activity_data_order` sorts a dict
+        # built by iterating this, and Python's sort is stable, so every tie in
+        # the sort key falls back to *this* iteration order. Left as a set, two
+        # documents due the same day came back in a different order in every
+        # process -- the activity view reshuffling its rows between reloads.
+        cells = sorted(
+            grouped_ongoing.keys() | grouped_completed.keys(),
+            key=lambda cell: (cell[0], cell[1].id),
+        )
 
         today_by_tz = self._today_by_tz((all_ongoing | all_completed).mapped("user_tz"))
 
@@ -1382,10 +1430,18 @@ class MailActivity(models.Model):
                     previous = deadline_by_res_id.get(res_id)
                     if previous is None or date < previous:
                         deadline_by_res_id[res_id] = date
-        ongoing_res_ids = sorted(deadline_by_res_id, key=deadline_by_res_id.get)
+        # `res_id` breaks the tie explicitly rather than leaving it to whatever
+        # order the caller happened to build the dict in.
+        ongoing_res_ids = sorted(
+            deadline_by_res_id, key=lambda res_id: (deadline_by_res_id[res_id], res_id)
+        )
         completed_res_ids = [
             res_id
-            for res_id in sorted(done_by_res_id, key=done_by_res_id.get, reverse=True)
+            for res_id in sorted(
+                done_by_res_id,
+                key=lambda res_id: (done_by_res_id[res_id], res_id),
+                reverse=True,
+            )
             if res_id not in deadline_by_res_id
         ]
         return ongoing_res_ids + completed_res_ids
@@ -1402,10 +1458,12 @@ class MailActivity(models.Model):
         )
 
     def _activities_with_records(self) -> Iterator[tuple[str, Self, list[int]]]:
+        """Yield (model, its activities, their res_ids) -- ids positionally
+        aligned with the activities, which is what lets callers `zip` the two."""
         for model, activities in self._document_backed().grouped("res_model").items():
             yield model, activities, activities.mapped("res_id")
 
-    def _prepare_next_activity_values(self) -> dict:
+    def _prepare_next_activity_values(self) -> ValuesType:
         self.check_singleton()
         vals = self.default_get(list(self._fields))
 
@@ -1437,7 +1495,7 @@ class MailActivity(models.Model):
         return years
 
     @api.autovacuum
-    def _gc_delete_old_overdue_activities(self) -> tuple:
+    def _gc_delete_old_overdue_activities(self) -> tuple[int, bool]:
         years = self._gc_retention_years("mail.activity.gc.delete_overdue_years")
         if not years:
             return 0, False
@@ -1447,7 +1505,7 @@ class MailActivity(models.Model):
         )
 
     @api.autovacuum
-    def _gc_delete_old_done_activities(self) -> tuple:
+    def _gc_delete_old_done_activities(self) -> tuple[int, bool]:
         years = self._gc_retention_years("mail.activity.gc.delete_done_years")
         if not years:
             return 0, False
@@ -1456,7 +1514,7 @@ class MailActivity(models.Model):
             Domain("active", "=", False) & Domain("date_done", "<", threshold)
         )
 
-    def _gc_unlink_batch(self, domain: Domain) -> tuple:
+    def _gc_unlink_batch(self, domain: Domain) -> tuple[int, bool]:
         collected = (
             self.sudo()
             .with_context(active_test=False)

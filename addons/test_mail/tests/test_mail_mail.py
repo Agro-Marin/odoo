@@ -1,6 +1,8 @@
 import re
 import smtplib
+from datetime import UTC as datetime_UTC
 from datetime import datetime, timedelta
+from datetime import timezone as datetime_timezone
 from email import message_from_string
 from functools import partial
 from pathlib import Path
@@ -1268,8 +1270,8 @@ class TestMailMail(MailCommon):
                 (TimeoutError("timeout"), "timeout"),
             ]:
 
-                def _connect(*args, **kwargs):
-                    raise error
+                def _connect(*args, _error=error, **kwargs):
+                    raise _error
 
                 self.connect_mocked.side_effect = _connect
 
@@ -3989,3 +3991,387 @@ class TestMailMailQueueProgress(MailCommon):
             f"five mails are one chunk, not five reports: {reports}",
         )
         self.assertEqual(sum(reports), 5, "and every one of them is accounted for")
+
+
+@tagged("mail_mail")
+class TestMailMailSelfClosingUnfollowSpan(MailCommon):
+    """A self-closing unfollow span ends the block; it does not open one.
+
+    `_SPAN_TAG_REGEX` skips self-closing tags when it looks for the closing
+    `</span>`, but `_UNFOLLOW_SPAN_OPEN_REGEX` matched `/>` as an ordinary
+    opening tag. `<span id="mail_unfollow"/>` therefore opened a block nothing
+    closed, `_find_unfollow_block` fell back to the end of the document, and
+    everything after the span was deleted from the outgoing mail.
+
+    The form is not hypothetical: `mail.tools.html_body.render_body_fragments`
+    serialises with `etree.tostring`, which writes empty elements self-closed,
+    and it is what the gateway and attachment-url rewriting run bodies through.
+    """
+
+    def test_a_self_closing_span_keeps_the_rest_of_the_body(self):
+        body = '<p>Important</p><span id="mail_unfollow"/><p>Content after the span</p>'
+        self.assertEqual(
+            self.env["mail.mail"]._strip_unfollow_block(body),
+            "<p>Important</p><p>Content after the span</p>",
+            "the span carries no content, so only the span is removed",
+        )
+
+    def test_the_block_of_a_self_closing_span_is_the_span(self):
+        body = '<p>A</p><span id="mail_unfollow"/><p>B</p>'
+        start, end = self.env["mail.mail"]._find_unfollow_block(body)
+        self.assertEqual(
+            body[start:end],
+            '<span id="mail_unfollow"/>',
+            "an empty element spans itself and nothing more",
+        )
+
+    def test_the_pipeline_that_produces_the_form_round_trips(self):
+        """The producer and the consumer must agree, so pin them together."""
+        from odoo.addons.mail.tools.html_body import (
+            parse_body_fragments,
+            render_body_fragments,
+        )
+
+        serialized = str(
+            render_body_fragments(
+                parse_body_fragments(
+                    '<p>Keep me</p><span id="mail_unfollow"></span><p>Keep me too</p>'
+                )
+            )
+        )
+        self.assertIn(
+            '<span id="mail_unfollow"/>',
+            serialized,
+            "etree.tostring self-closes the empty span -- this is the trigger",
+        )
+        self.assertEqual(
+            self.env["mail.mail"]._strip_unfollow_block(serialized),
+            "<p>Keep me</p><p>Keep me too</p>",
+        )
+
+    def test_a_populated_span_is_unaffected(self):
+        body = (
+            '<p>A</p><span id="mail_unfollow"> | '
+            '<a href="/mail/unfollow">Unfollow</a></span><p>B</p>'
+        )
+        self.assertEqual(
+            self.env["mail.mail"]._strip_unfollow_block(body), "<p>A</p><p>B</p>"
+        )
+
+    def test_a_slash_inside_an_attribute_does_not_read_as_self_closing(self):
+        body = (
+            '<p>A</p><span id="mail_unfollow" data-path="a/"> | '
+            '<a href="/mail/unfollow">Unfollow</a></span><p>B</p>'
+        )
+        self.assertEqual(
+            self.env["mail.mail"]._strip_unfollow_block(body), "<p>A</p><p>B</p>"
+        )
+
+
+@tagged("mail_mail")
+class TestMailMailBodyIsBuiltOncePerMail(MailCommon):
+    """The unfollow rewrite is per-body work, not per-recipient work.
+
+    `_personalize_outgoing_body` scanned the whole document for the block on
+    every recipient, and `_strip_unfollow_block` scanned it again -- two full
+    regex passes per recipient over a body that is identical for all of them,
+    for a notification mail that carries up to `mail.batch_size` (50) of them.
+    """
+
+    def test_the_document_is_scanned_a_fixed_number_of_times(self):
+        partners = self.env["res.partner"].create(
+            [
+                {"email": "scan%s@test.example.com" % idx, "name": "Scan %s" % idx}
+                for idx in range(20)
+            ]
+        )
+        mail = self.env["mail.mail"].create(
+            {
+                "body_html": "<p>Body</p>"
+                + "<div>filler</div>" * 200
+                + '<span id="mail_unfollow"> | '
+                '<a href="/mail/unfollow">Unfollow</a></span>',
+                "email_from": "test.from@mycompany.example.com",
+                "recipient_ids": [Command.set(partners.ids)],
+            }
+        )
+        MailMail = self.registry["mail.mail"]
+        origin = MailMail._find_unfollow_block
+        scans = []
+
+        def counted(records, body):
+            scans.append(body)
+            return origin(records, body)
+
+        self.patch(MailMail, "_find_unfollow_block", counted)
+        results = mail._prepare_outgoing_list()
+
+        self.assertEqual(len(results), 20, "one message per recipient")
+        self.assertLessEqual(
+            len(scans),
+            2,
+            "the block is located once for the body, not once per recipient: "
+            f"{len(scans)} scans for 20 recipients",
+        )
+        self.assertEqual(
+            len({values["body"] for values in results}),
+            1,
+            "none of these recipients follows the document, so they all get "
+            "the same body",
+        )
+
+
+@tagged("mail_mail")
+class TestMailMailSettlingIsNotDelivery(MailCommon):
+    """Recording what a send did must not be able to undo it.
+
+    `_send_one` ran `_record_send_success` inside the same `try` as
+    `_deliver_all`, so anything raising after SMTP had accepted the message was
+    caught by the handler that writes `state = 'exception'` -- and a human, or
+    the queue, then retried a mail that had already gone out.
+
+    `_log_sent` was moved out of that `try` for exactly this reason; the
+    settling of notifications is the larger half of the same problem, because
+    `_postprocess_sent_message` is a documented override point (`mass_mailing`
+    extends it) and its failures are therefore third-party failures.
+    """
+
+    def _notification_mail(self):
+        partner = self.env["res.partner"].create(
+            {"email": "settle@test.example.com", "name": "Settle"}
+        )
+        message = self.env["mail.message"].create(
+            {
+                "body": "<p>Body</p>",
+                "message_type": "email_outgoing",
+                "model": "res.partner",
+                "res_id": partner.id,
+                "subject": "Subject",
+            }
+        )
+        mail = self.env["mail.mail"].create(
+            {
+                "body_html": "<p>Body</p>",
+                "email_from": "test.from@mycompany.example.com",
+                "is_notification": True,
+                "mail_message_id": message.id,
+                "recipient_ids": [Command.link(partner.id)],
+            }
+        )
+        self.env["mail.notification"].create(
+            {
+                "mail_mail_id": mail.id,
+                "mail_message_id": message.id,
+                "notification_status": "ready",
+                "notification_type": "email",
+                "res_partner_id": partner.id,
+            }
+        )
+        return mail
+
+    @mute_logger("odoo.addons.mail.models.mail_mail")
+    def test_a_failure_settling_notifications_does_not_unsend_the_mail(self):
+        mail = self._notification_mail()
+        MailMail = self.registry["mail.mail"]
+
+        def boom(records, *args, **kwargs):
+            raise ValueError("an override of the settling seam raised")
+
+        with self.mock_mail_gateway():
+            self.patch(MailMail, "_postprocess_sent_message", boom)
+            mail.send()
+
+        self.assertEqual(len(self._mails), 1, "SMTP accepted the message")
+        self.assertEqual(
+            mail.state,
+            "sent",
+            "the mail was delivered; a later failure recording that fact does "
+            "not make it untrue, and must not hand the record back to the queue",
+        )
+        self.assertFalse(mail.failure_type)
+
+    @mute_logger("odoo.addons.mail.models.mail_mail")
+    def test_a_real_delivery_failure_is_still_an_exception(self):
+        """The guard must not swallow the failures it is not about."""
+        mail = self._notification_mail()
+        with self.mock_mail_gateway():
+            self.send_email_mocked.side_effect = MailDeliveryError("nope")
+            mail.send()
+        self.assertEqual(mail.state, "exception")
+        self.assertEqual(mail.failure_type, "unknown")
+
+    def test_settling_survives_a_multi_record_caller(self):
+        """`_postprocess_sent_message` is called on many mails at once.
+
+        `_record_connect_failure` and `_record_unauthorized_server` both pass a
+        whole batch, and three frames down `_record_unreached_notifications`
+        called `check_singleton()`. Only the fact that those two callers always pass
+        a `failure_type` kept the singleton path out of reach.
+        """
+        mails = self._notification_mail() | self._notification_mail()
+        mails._postprocess_sent_message(
+            success_partners=[], success_emails=[], failure_type=None
+        )
+        self.assertEqual(
+            set(
+                self.env["mail.notification"]
+                .search([("mail_mail_id", "in", mails.ids)])
+                .mapped("notification_status")
+            ),
+            {"exception"},
+            "every recipient went unreached, and each is recorded as such",
+        )
+
+
+@tagged("mail_mail")
+class TestMailMailReturnPath(MailCommon):
+    """An absent bounce address is absent, not an empty header."""
+
+    def test_no_bounce_address_leaves_the_header_unset(self):
+        self.env.company.bounce_email = False
+        mail = self.env["mail.mail"].create(
+            {
+                "body_html": "<p>Body</p>",
+                "email_from": "test.from@mycompany.example.com",
+                "email_to": "dest@test.example.com",
+            }
+        )
+        self.assertNotIn(
+            "Return-Path",
+            mail._prepare_outgoing_list()[0]["headers"],
+            "stamping '' plants a key that defeats any later setdefault, for a "
+            "value ir_mail_server drops anyway",
+        )
+
+    def test_a_bounce_address_is_stamped(self):
+        mail = self.env["mail.mail"].create(
+            {
+                "body_html": "<p>Body</p>",
+                "email_from": "test.from@mycompany.example.com",
+                "email_to": "dest@test.example.com",
+            }
+        )
+        expected = (
+            mail.record_alias_domain_id.bounce_email or self.env.company.bounce_email
+        )
+        if not expected:
+            self.skipTest("no bounce address configured for this company")
+        self.assertEqual(
+            mail._prepare_outgoing_list()[0]["headers"]["Return-Path"], expected
+        )
+
+
+@tagged("mail_mail")
+class TestMailMailScheduledDateBounds(MailCommon):
+    """A scheduled date that cannot be converted to UTC is dropped, not raised.
+
+    `_parse_scheduled_datetime` guards `astimezone(UTC)` with
+    `except ValueError, OverflowError, OSError`, and nothing exercised it. The
+    path is reachable from user data: `mail.template.scheduled_date` is a Char
+    rendered per record, so the string reaching `create` is whatever the
+    template produced. Converting an aware datetime to UTC shifts it by the
+    offset, so a value at either end of `datetime`'s range with an offset
+    pointing outward leaves it -- and `datetime.astimezone` raises
+    `OverflowError` rather than saturating.
+
+    Without the guard that exception surfaces out of `mail.mail.create`, which
+    is called while posting; with it, the mail simply goes out as soon as
+    possible.
+    """
+
+    def _fixed_offset(self, hours):
+        return datetime_timezone(timedelta(hours=hours))
+
+    def _far_future(self, offset_hours):
+        return datetime.max.replace(
+            microsecond=0, tzinfo=self._fixed_offset(offset_hours)
+        )
+
+    def _far_past(self, offset_hours):
+        return datetime.min.replace(tzinfo=self._fixed_offset(offset_hours))
+
+    @mute_logger("odoo.addons.mail.models.mail_mail")
+    def test_a_date_that_overflows_on_conversion_is_dropped(self):
+        for label, value in [
+            ("max datetime, negative offset", self._far_future(-14)),
+            ("min datetime, positive offset", self._far_past(14)),
+        ]:
+            with self.subTest(case=label):
+                with self.assertRaises(OverflowError, msg="the premise: python raises"):
+                    value.astimezone(datetime_UTC)
+                self.assertFalse(
+                    self.env["mail.mail"]._normalize_scheduled_date(value),
+                    "an unconvertible date is no date, not an exception",
+                )
+
+    @mute_logger("odoo.addons.mail.models.mail_mail")
+    def test_create_survives_an_unconvertible_scheduled_date(self):
+        mail = self.env["mail.mail"].create(
+            {
+                "body_html": "<p>Body</p>",
+                "email_from": "test.from@mycompany.example.com",
+                "email_to": "dest@test.example.com",
+                "scheduled_date": self._far_future(-14),
+            }
+        )
+        self.assertFalse(
+            mail.scheduled_date, "no schedule means the queue sends it immediately"
+        )
+
+    def test_an_offset_that_stays_in_range_is_converted_not_dropped(self):
+        """The guard must not swallow the conversions that do work."""
+        mail = self.env["mail.mail"].create(
+            {
+                "body_html": "<p>Body</p>",
+                "email_from": "test.from@mycompany.example.com",
+                "email_to": "dest@test.example.com",
+                "scheduled_date": "2026-06-01 10:00:00+04:00",
+            }
+        )
+        self.assertEqual(
+            mail.scheduled_date,
+            datetime(2026, 6, 1, 6, 0, 0),
+            "stored naive UTC, four hours earlier",
+        )
+
+
+@tagged("mail_mail")
+class TestMailMailSizeEstimate(MailCommon):
+    """`_estimate_email_size` decides whether attachments become links.
+
+    It is the only thing standing between a mail and an SMTP size rejection, and
+    it is arithmetic with no caller that would notice it drifting: too low and
+    the message is refused by the server, too high and attachments are replaced
+    by links nobody asked for.
+    """
+
+    def test_attachments_are_counted_at_their_base64_size(self):
+        MailMail = self.env["mail.mail"]
+        empty = MailMail._estimate_email_size({}, "", [])
+        self.assertEqual(
+            MailMail._estimate_email_size({}, "", [3_000_000]) - empty,
+            4_000_000,
+            "base64 is four bytes out for every three in",
+        )
+
+    def test_the_envelope_overhead_is_counted_once(self):
+        self.assertEqual(
+            self.env["mail.mail"]._estimate_email_size({}, "", []),
+            10 * 1024 + 2,
+            "an empty headers dict serialises to '{}'",
+        )
+
+    def test_body_and_headers_are_counted_in_bytes_not_characters(self):
+        MailMail = self.env["mail.mail"]
+        self.assertEqual(
+            MailMail._estimate_email_size({}, "é" * 100, [])
+            - MailMail._estimate_email_size({}, "", []),
+            200,
+            "a two-byte character costs two bytes, not one",
+        )
+
+    def test_absent_headers_and_body_are_not_an_error(self):
+        self.assertEqual(
+            self.env["mail.mail"]._estimate_email_size(None, None, []),
+            self.env["mail.mail"]._estimate_email_size({}, "", []),
+        )

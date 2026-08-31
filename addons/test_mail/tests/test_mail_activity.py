@@ -14,6 +14,7 @@ from odoo.tools import mute_logger
 from odoo.addons.mail.models import mail_activity as mail_activity_module
 from odoo.addons.mail.tests.common import mail_new_test_user
 from odoo.addons.mail.tests.common_activity import ActivityScheduleCase
+from odoo.addons.mail.tools import activity_calendar
 from odoo.addons.test_mail.models.test_mail_models import MailTestActivity
 
 
@@ -2045,18 +2046,71 @@ class TestActivitySearchPaging(ActivityScheduleCase):
                     )
                 self.assertEqual(paged.ids, everything.ids)
 
-    def test_falsy_limit_means_no_limit(self):
-        """``limit=0`` is "no limit" everywhere in the ORM (Query emits the
-        clause only ``if self.limit``), so it must not read as an empty page."""
+    def test_a_limit_of_zero_asks_for_no_rows(self):
+        """``limit=0`` means zero rows, not "no limit".
+
+        `Query` emits the clause on `limit is not None` and `test_query` pins
+        `search_count(limit=0) == 0`, so a scan that read 0 as "unbounded"
+        answered every row where every other model answers none.
+        """
         Activity = self.env["mail.activity"].with_user(self.user_employee)
         domain = [("id", "in", self.activities.ids)]
-        self.assertEqual(len(Activity.search(domain, limit=0)), 25)
-        self.assertEqual(Activity.search_count(domain), 25)
-        self.assertEqual(
-            len(Activity.sudo().search(domain, limit=0)),
-            25,
+        self.assertFalse(Activity.search(domain, limit=0))
+        self.assertEqual(Activity.search_count(domain, limit=0), 0)
+        self.assertFalse(
+            Activity.sudo().search(domain, limit=0),
             "and the superuser branch agrees",
         )
+
+    def test_no_limit_means_every_row(self):
+        """The other half of the same contract: `None` is the unbounded one."""
+        Activity = self.env["mail.activity"].with_user(self.user_employee)
+        domain = [("id", "in", self.activities.ids)]
+        self.assertEqual(len(Activity.search(domain)), 25)
+        self.assertEqual(Activity.search_count(domain), 25)
+        self.assertEqual(len(Activity.sudo().search(domain, limit=None)), 25)
+
+    def test_every_spelling_of_a_limit_agrees_with_a_plain_model(self):
+        """`_search` admits four spellings and they are not interchangeable.
+
+        `orm/models/mixins/_query.py` reads them as: None and False unbounded,
+        True as 1, 0 as zero rows. `False == 0` is True in Python, so a scan
+        that tests either truthiness or `== 0` collapses the two and answers
+        nothing for the one that means everything. Compared against a model
+        with no `_search` override rather than against a hardcoded expectation,
+        so the contract is read off the ORM and not restated here.
+        """
+        Activity = self.env["mail.activity"].with_user(self.user_employee)
+        Control = self.env["res.partner"].with_user(self.user_employee)
+        domain = [("id", "in", self.activities.ids)]
+        self.assertFalse(
+            Activity._domain_is_mine(domain), "this must exercise the scan path"
+        )
+        total = len(Activity.search(domain))
+        self.assertEqual(total, 25)
+        control_total = Control.search_count([])
+        self.assertTrue(control_total, "the control needs rows to be a control")
+
+        for limit, expected in (
+            (None, total),
+            (False, total),
+            (True, 1),
+            (0, 0),
+            (4, 4),
+        ):
+            with self.subTest(limit=limit):
+                control = len(Control.search([], limit=limit))
+                self.assertEqual(
+                    control,
+                    min(expected, control_total) if expected else expected,
+                    "the control model defines the contract",
+                )
+                self.assertEqual(len(Activity.search(domain, limit=limit)), expected)
+                self.assertEqual(
+                    len(Activity.sudo().search(domain, limit=limit)),
+                    expected,
+                    "and the superuser branch agrees",
+                )
 
     def test_inaccessible_activities_do_not_shorten_a_page(self):
         """A page is filled with accessible rows, not truncated by hidden ones."""
@@ -4988,3 +5042,408 @@ class TestActivityScanShortCircuit(TestActivityCommon):
         query = Activity._search(domain, limit=1)
         self.assertEqual(len(query.get_result_ids()), 1)
         self.assertEqual(query.count_matching(), total)
+
+
+@tests.tagged("mail_activity")
+class TestActivityClockIsReproducible(ActivityScheduleCase):
+    """The SQL these queries render must be the same text every run.
+
+    `_sql_today` renders one `= ANY(ARRAY[...])` branch per calendar day in
+    play, each holding the ~486 timezone names on that day. They come from
+    `all_timezones()`, a frozenset, so unsorted they land in a different order
+    in every process and the SQL text of every deadline and state query differs
+    run to run. Not wrong, but unreproducible: a query log cannot be diffed
+    against another run's and a server-side prepared statement is keyed on text.
+    """
+
+    def test_the_timezone_catalogue_comes_out_sorted(self):
+        moment = datetime(2026, 8, 31, 6, 0, tzinfo=UTC)
+        days = activity_calendar.days_by_timezone(activity_calendar.tz_anchor(moment))
+        self.assertTrue(days, "the anchor must split the world into some days")
+        self.assertEqual(
+            [day for day, __ in days],
+            sorted(day for day, __ in days),
+            "the CASE branches must come out in a fixed order",
+        )
+        for day, names in days:
+            with self.subTest(day=day):
+                self.assertEqual(
+                    list(names), sorted(names), "and so must the names inside one"
+                )
+
+    def test_the_rendered_sql_does_not_depend_on_set_iteration(self):
+        """Rebuild the catalogue from a re-shuffled frozenset and compare."""
+        moment = datetime(2026, 8, 31, 6, 0, tzinfo=UTC)
+        Activity = self.env["mail.activity"]
+        first = str(Activity._sql_today("mail_activity", moment))
+        activity_calendar.days_by_timezone.cache_clear()
+        second = str(Activity._sql_today("mail_activity", moment))
+        self.assertEqual(
+            first,
+            second,
+            "a rebuilt catalogue must render byte-identical SQL",
+        )
+
+    def test_the_busiest_domain_ors_its_models_in_a_fixed_order(self):
+        """`_todo_keys_elsewhere` rebuilds one domain on every activity create,
+        write and unlink, from a *set* of (model, id) keys. The set decided the
+        order the per-model branches were OR-ed in, and `Domain.OR` preserves
+        that order when the branches differ in structure -- so the busiest query
+        shape on this model reached PostgreSQL as different text per worker.
+        """
+        Activity = self.env["mail.activity"]
+        # Six models rather than three: the assertion is exact either way, but
+        # against unsorted code it only fails when the set's order happens to
+        # differ from sorted -- 5 of 6 permutations at three models, 719 of 720
+        # at six.
+        models = (
+            "crm.lead",
+            "mail.activity",
+            "mail.test.activity",
+            "mail.test.simple",
+            "res.partner",
+            "res.users",
+        )
+        keys = {(model, res_id) for model in models for res_id in range(1, 5)}
+        seen = []
+        origin = type(Activity).search
+
+        def spy(records, domain, **kwargs):
+            seen.append(str(domain))
+            return origin(records, domain, **kwargs)
+
+        with patch.object(type(Activity), "search", spy):
+            Activity._todo_keys_elsewhere(keys)
+        self.assertTrue(seen, "the bookkeeping must have issued its search")
+        rendered = seen[0]
+        positions = sorted(
+            (rendered.index(repr(model)), model)
+            for model in models
+            if repr(model) in rendered
+        )
+        self.assertEqual(
+            [model for __, model in positions],
+            sorted(model for model in models if repr(model) in rendered),
+            "the per-model branches must appear in sorted order, not the set's",
+        )
+
+    def test_the_state_domain_ors_its_branches_in_a_fixed_order(self):
+        """`_search_state` intersects with a set; iterating it directly made
+        the OR order vary per process for the same input."""
+        Activity = self.env["mail.activity"]
+        value = ["planned", "done", "today", "overdue"]
+        rendered = [str(Activity._search_state("in", list(value))) for __ in range(5)]
+        self.assertEqual(len(set(rendered)), 1, "same input, same domain")
+
+
+@tests.tagged("mail_activity")
+class TestActivityViewRowOrderIsStable(ActivityScheduleCase):
+    """The activity view's row order must not depend on set iteration.
+
+    `_get_activity_data_cells` unioned two dict key views into a set, and
+    `_get_activity_data_order` sorts a dict built by iterating it. Python's sort
+    is stable, so every tie in the sort key fell back to that set's order --
+    which varies per process. Two documents due the same day came back in a
+    different order in every worker, so the view reshuffled its rows between
+    reloads with no data having changed.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.model_id = cls.env["ir.model"]._get_id("mail.test.activity")
+        cls.records = cls.env["mail.test.activity"].create(
+            [{"name": f"Row {index}"} for index in range(12)]
+        )
+
+    def _schedule(self, records, deadline):
+        return (
+            self.env["mail.activity"]
+            .with_context(mail_activity_quick_update=True)
+            .create(
+                [
+                    {
+                        "activity_type_id": self.env.ref(
+                            "mail.mail_activity_data_todo"
+                        ).id,
+                        "res_id": record.id,
+                        "res_model_id": self.model_id,
+                        "user_id": self.env.uid,
+                        "date_deadline": deadline,
+                    }
+                    for record in records
+                ]
+            )
+        )
+
+    def test_documents_sharing_a_deadline_come_back_in_id_order(self):
+        self._schedule(self.records, date(2026, 9, 9))
+        self.env.flush_all()
+        data = self.env["mail.activity"].get_activity_data("mail.test.activity", [])
+        self.assertEqual(
+            data["activity_res_ids"],
+            sorted(self.records.ids),
+            "every sort key ties, so the tiebreak alone decides the order",
+        )
+
+    def test_the_deadline_still_decides_when_it_differs(self):
+        """The tiebreak must not have replaced the sort."""
+        early, late = self.records[:6], self.records[6:]
+        self._schedule(late, date(2026, 9, 1))
+        self._schedule(early, date(2026, 9, 20))
+        self.env.flush_all()
+        data = self.env["mail.activity"].get_activity_data("mail.test.activity", [])
+        self.assertEqual(
+            data["activity_res_ids"],
+            sorted(late.ids) + sorted(early.ids),
+            "sooner deadline first, id only breaking ties within a deadline",
+        )
+
+    def test_repeated_calls_agree(self):
+        self._schedule(self.records, date(2026, 9, 9))
+        self.env.flush_all()
+        Activity = self.env["mail.activity"]
+        orders = []
+        for __ in range(5):
+            self.env.invalidate_all()
+            orders.append(
+                tuple(
+                    Activity.get_activity_data("mail.test.activity", [])[
+                        "activity_res_ids"
+                    ]
+                )
+            )
+        self.assertEqual(len(set(orders)), 1, "same data, same order")
+
+
+@tests.tagged("mail_activity")
+class TestActivityCompletionKeepsItsAttachments(ActivityScheduleCase):
+    """The completion message must carry every attachment it was handed.
+
+    An activity can own attachments of its own (``ir.attachment`` rows pointing
+    at ``mail.activity``, which is what a ``many2many_binary`` widget on the
+    activity form creates), and `_action_done` re-homes those onto the message
+    it posts. It also posts the feedback attachments the caller passed. The
+    re-homing used to *assign* the message's ``attachment_ids`` rather than add
+    to it, so an activity holding both lost the feedback file from the chatter
+    and left it parented to the document with no message showing it.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.model_id = cls.env["ir.model"]._get_id("mail.test.activity")
+        cls.record = cls.env["mail.test.activity"].create({"name": "Doc"})
+
+    def _activity(self):
+        return (
+            self.env["mail.activity"]
+            .with_context(mail_activity_quick_update=True)
+            .create(
+                {
+                    "activity_type_id": self.env.ref("mail.mail_activity_data_todo").id,
+                    "res_id": self.record.id,
+                    "res_model_id": self.model_id,
+                    "user_id": self.env.uid,
+                }
+            )
+        )
+
+    def _owned_attachment(self, activity):
+        return self.env["ir.attachment"].create(
+            {
+                "name": "owned.txt",
+                "datas": b"b3duZWQ=",
+                "res_model": "mail.activity",
+                "res_id": activity.id,
+            }
+        )
+
+    def _feedback_attachment(self):
+        return self.env["ir.attachment"].create(
+            {
+                "name": "feedback.txt",
+                "datas": b"ZmVlZGJhY2s=",
+                "res_model": "mail.compose.message",
+                "res_id": 0,
+            }
+        )
+
+    def test_an_owned_attachment_does_not_evict_the_feedback_one(self):
+        activity = self._activity()
+        owned = self._owned_attachment(activity)
+        feedback = self._feedback_attachment()
+        message = self.env["mail.message"].browse(
+            activity.action_feedback(feedback="done", attachment_ids=feedback.ids)
+        )
+        self.env.flush_all()
+        self.assertEqual(
+            set(message.attachment_ids.mapped("name")),
+            {"owned.txt", "feedback.txt"},
+            "the message shows both the activity's own file and the one the "
+            "caller attached when completing it",
+        )
+        self.assertEqual(
+            (owned.res_model, owned.res_id),
+            ("mail.message", message.id),
+            "the activity's own attachment is re-parented onto the message",
+        )
+
+    def test_an_owned_attachment_alone_still_lands_on_the_message(self):
+        activity = self._activity()
+        owned = self._owned_attachment(activity)
+        message = self.env["mail.message"].browse(activity.action_feedback("done"))
+        self.env.flush_all()
+        self.assertEqual(message.attachment_ids, owned)
+
+    def test_a_batch_keeps_both_kinds_on_every_message(self):
+        """The two attachment paths cross only when N > 1 and each activity
+        owns files: `_attachments_for_post` copies the shared one per message
+        from the second post onward, while `_rehome_own_attachments` re-parents
+        each activity's own. Neither may evict the other."""
+        records = self.env["mail.test.activity"].create(
+            [{"name": f"Batch {index}"} for index in range(3)]
+        )
+        activities = (
+            self.env["mail.activity"]
+            .with_context(mail_activity_quick_update=True)
+            .create(
+                [
+                    {
+                        "activity_type_id": self.env.ref(
+                            "mail.mail_activity_data_todo"
+                        ).id,
+                        "res_id": record.id,
+                        "res_model_id": self.model_id,
+                        "user_id": self.env.uid,
+                    }
+                    for record in records
+                ]
+            )
+        )
+        owned = self.env["ir.attachment"].create(
+            [
+                {
+                    "name": f"owned{index}.txt",
+                    "datas": b"b3duZWQ=",
+                    "res_model": "mail.activity",
+                    "res_id": activity.id,
+                }
+                for index, activity in enumerate(activities)
+            ]
+        )
+        shared = self._feedback_attachment()
+        messages, __ = activities._action_done(
+            feedback="done", attachment_ids=shared.ids
+        )
+        self.env.flush_all()
+        self.assertEqual(len(messages), 3)
+        for index, message in enumerate(messages):
+            with self.subTest(message=index):
+                self.assertEqual(
+                    sorted(message.attachment_ids.mapped("name")),
+                    sorted([f"owned{index}.txt", "feedback.txt"]),
+                    "each message shows its own file and the shared one",
+                )
+        copies = {
+            attachment.id
+            for message in messages
+            for attachment in message.attachment_ids
+            if attachment.name == "feedback.txt"
+        }
+        self.assertEqual(
+            len(copies), 3, "one shared attachment record per message, not one shared"
+        )
+        self.assertEqual(
+            set(owned.mapped("res_model")),
+            {"mail.message"},
+            "and every owned file is re-parented onto its message",
+        )
+
+    def test_a_feedback_attachment_alone_still_lands_on_the_message(self):
+        activity = self._activity()
+        feedback = self._feedback_attachment()
+        message = self.env["mail.message"].browse(
+            activity.action_feedback(feedback="done", attachment_ids=feedback.ids)
+        )
+        self.env.flush_all()
+        self.assertEqual(message.attachment_ids, feedback)
+
+
+@tests.tagged("mail_activity")
+class TestActivityDeadlineDefaultsToTheAssigneeDay(ActivityScheduleCase):
+    """`create` and `default_get` must pick the same day for the same assignee.
+
+    "Today" is the assignee's, not the server's. `default_get` reads the
+    assignee out of ``default_user_id``, which is how the form action carries
+    it; `create` used to read it out of the values alone, so an API create that
+    let the context supply the assignee got the server's day -- filing an
+    activity the assignee sees as "planned" tomorrow instead of due now.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.todo = cls.env.ref("mail.mail_activity_data_todo")
+        cls.behind = mail_new_test_user(
+            cls.env, login="tz_behind", groups="base.group_user", tz="Pacific/Midway"
+        )
+        cls.ahead = mail_new_test_user(
+            cls.env, login="tz_ahead", groups="base.group_user", tz="Pacific/Kiritimati"
+        )
+
+    def _assert_agrees(self, user):
+        Activity = self.env["mail.activity"].with_context(default_user_id=user.id)
+        expected = Activity._today_in_tz(user.tz)
+        self.assertEqual(
+            Activity.default_get(["date_deadline"])["date_deadline"],
+            expected,
+            "the form default is the assignee's today",
+        )
+        self.assertEqual(
+            Activity.create({"activity_type_id": self.todo.id}).date_deadline,
+            expected,
+            "and an API create that takes the assignee from the context agrees",
+        )
+        self.assertEqual(
+            self.env["mail.activity"]
+            .create({"activity_type_id": self.todo.id, "user_id": user.id})
+            .date_deadline,
+            expected,
+            "and so does one that names the assignee in the values",
+        )
+
+    @freeze_time("2024-06-14 06:00:00")
+    def test_a_timezone_behind_the_server(self):
+        """06:00 UTC is still the 13th in Midway."""
+        self._assert_agrees(self.behind)
+
+    @freeze_time("2024-06-14 18:00:00")
+    def test_a_timezone_ahead_of_the_server(self):
+        """18:00 UTC is already the 15th in Kiritimati."""
+        self._assert_agrees(self.ahead)
+
+    @freeze_time("2024-06-14 06:00:00")
+    def test_the_activity_is_due_today_for_its_assignee(self):
+        """The point of the day: it lands in the assignee's due count."""
+        activity = (
+            self.env["mail.activity"]
+            .with_context(default_user_id=self.behind.id)
+            .create({"activity_type_id": self.todo.id})
+        )
+        self.assertEqual(activity.state, "today")
+        self.assertEqual(activity._filtered_todo(), activity)
+
+    @freeze_time("2024-06-14 06:00:00")
+    def test_an_explicit_deadline_is_never_overridden(self):
+        activity = (
+            self.env["mail.activity"]
+            .with_context(default_user_id=self.behind.id)
+            .create(
+                {
+                    "activity_type_id": self.todo.id,
+                    "date_deadline": date(2024, 12, 25),
+                }
+            )
+        )
+        self.assertEqual(activity.date_deadline, date(2024, 12, 25))

@@ -17,7 +17,7 @@ from dateutil.parser import parse
 
 from odoo import SUPERUSER_ID, _, api, fields, models, modules, tools
 from odoo.api import ValuesType
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.modules.registry import Registry
 
 from odoo.addons.base.models.ir_mail_server import (
@@ -43,7 +43,7 @@ _PROGRESS_REPORT_EVERY = 50
 _UNFOLLOW_LINK = "/mail/unfollow"
 _UNFOLLOW_SPAN_ID = "mail_unfollow"
 _UNFOLLOW_SPAN_OPEN_REGEX = re.compile(
-    r'<span\b[^>]*\bid="mail_unfollow"[^>]*>', re.IGNORECASE
+    r'<span\b[^>]*\bid="mail_unfollow"[^>]*?(/?)>', re.IGNORECASE
 )
 _SPAN_TAG_REGEX = re.compile(r"<(/?)span\b[^>]*?(/?)>", re.IGNORECASE)
 _UNFOLLOW_ANCHOR_REGEX = re.compile(
@@ -115,7 +115,7 @@ class _SendBatch:
         default_factory=dict
     )
     deferred_auto_delete: set[int] | None = None
-    writable_message_ids: frozenset[int] = frozenset()
+    recipient_bearing_ids: frozenset[int] | None = None
     commits_per_mail: bool = False
 
 
@@ -148,10 +148,7 @@ class MailMail(models.Model):
     @api.model
     def default_get(self, fields: list[str]) -> ValuesType:
         return super(
-            MailMail,
-            self.with_context(
-                dict(self.env.context, default_message_type="email_outgoing")
-            ),
+            MailMail, self.with_context(default_message_type="email_outgoing")
         ).default_get(fields)
 
     mail_message_id: MailMessage = fields.Many2one(
@@ -565,9 +562,9 @@ class MailMail(models.Model):
             )
         if orphaned := unreached - by_address:
             _logger.warning(
-                "Mail (mail.mail) %r was delivered without carrying %s of its "
+                "Mail (mail.mail) %s was delivered without carrying %s of its "
                 "notifications: partners %s are not among its recipients",
-                self.id,
+                self.ids,
                 len(orphaned),
                 orphaned.res_partner_id.ids,
             )
@@ -647,6 +644,11 @@ class MailMail(models.Model):
             lambda server: server.owner_user_id in [self.env["res.users"], authors]
         )
 
+    def _get_envelope_email_from(self) -> str:
+        self.check_singleton()
+        emails_from = tools.mail.email_split_and_format_normalize(self.email_from)
+        return emails_from[0] if emails_from else self.email_from
+
     def _prepare_outgoing_body(self) -> str:
         self.check_singleton()
         if tools.is_html_empty(self.body_html):
@@ -662,6 +664,8 @@ class MailMail(models.Model):
         opening = _UNFOLLOW_SPAN_OPEN_REGEX.search(body)
         if not opening:
             return None
+        if opening.group(1):
+            return opening.start(), opening.end()
         depth = 1
         for tag in _SPAN_TAG_REGEX.finditer(body, opening.end()):
             if tag.group(2):
@@ -678,11 +682,23 @@ class MailMail(models.Model):
         doc_to_followers: dict | None = None,
     ) -> str:
         self.check_singleton()
-        block = self._find_unfollow_block(body) if body else None
-        if not self._has_unfollow_block(body) or block is None:
-            return self._strip_unfollow_block(body)
-        start, end = block
-        if (
+        return self._apply_unfollow_block(
+            body, self._locate_unfollow_block(body), partner, doc_to_followers
+        )
+
+    @api.model
+    def _locate_unfollow_block(self, body: str) -> tuple[int, int] | None:
+        if not self._has_unfollow_block(body):
+            return None
+        return self._find_unfollow_block(body)
+
+    def _wants_unfollow_link(
+        self,
+        partner: ResPartner | Literal[False],
+        doc_to_followers: dict | None = None,
+    ) -> bool:
+        self.check_singleton()
+        return bool(
             partner
             and self.model
             and self.id
@@ -692,7 +708,20 @@ class MailMail(models.Model):
             )
             and partner.id
             in (doc_to_followers or {}).get((self.model, self.res_id), ())
-        ):
+        )
+
+    def _apply_unfollow_block(
+        self,
+        body: str,
+        block: tuple[int, int] | None,
+        partner: ResPartner | Literal[False] = False,
+        doc_to_followers: dict | None = None,
+    ) -> str:
+        self.check_singleton()
+        if block is None:
+            return self._strip_unfollow_block(body)
+        start, end = block
+        if self._wants_unfollow_link(partner, doc_to_followers):
             unfollow_url = self.env["mixin.mail.thread"]._notify_get_action_link(
                 "unfollow", model=self.model, res_id=self.res_id, pid=partner.id
             )
@@ -847,7 +876,6 @@ class MailMail(models.Model):
                     "email_cc": [],
                     "email_to": email_to,
                     "email_to_normalized": email_to_normalized,
-                    "email_to_raw": self.email_to or "",
                     "partner": self.env["res.partner"],
                 }
             )
@@ -869,7 +897,6 @@ class MailMail(models.Model):
                         "email_to_normalized": tools.mail.email_normalize_all(
                             self.email_cc
                         ),
-                        "email_to_raw": False,
                         "partner": self.env["res.partner"],
                     }
                 )
@@ -892,7 +919,6 @@ class MailMail(models.Model):
                     "email_cc": [],
                     "email_to": email_to,
                     "email_to_normalized": email_to_normalized,
-                    "email_to_raw": partner.email or "",
                     "partner": partner,
                 }
             )
@@ -917,10 +943,10 @@ class MailMail(models.Model):
                 _logger.warning(
                     "Mail headers must be a mapping (received %r)", self.headers
                 )
-        headers.setdefault(
-            "Return-Path",
-            self.record_alias_domain_id.bounce_email or self.env.company.bounce_email,
-        )
+        if bounce_email := (
+            self.record_alias_domain_id.bounce_email or self.env.company.bounce_email
+        ):
+            headers.setdefault("Return-Path", bounce_email)
 
         email_list = self._prepare_recipient_groups(already_sent_pids=already_sent_pids)
 
@@ -930,11 +956,22 @@ class MailMail(models.Model):
 
         results = []
         plaintext_per_body = {}
+        unfollow_block = self._locate_unfollow_block(body)
+        body_without_unfollow_link = None
         for email_values in email_list:
             partner = email_values["partner"]
-            body_personalized = self._personalize_outgoing_body(
-                body, partner, doc_to_followers=doc_to_followers
-            )
+            if unfollow_block is not None and self._wants_unfollow_link(
+                partner, doc_to_followers
+            ):
+                body_personalized = self._apply_unfollow_block(
+                    body, unfollow_block, partner, doc_to_followers
+                )
+            else:
+                if body_without_unfollow_link is None:
+                    body_without_unfollow_link = self._apply_unfollow_block(
+                        body, unfollow_block
+                    )
+                body_personalized = body_without_unfollow_link
             if body_personalized not in plaintext_per_body:
                 plaintext_per_body[body_personalized] = tools.html2plaintext(
                     body_personalized
@@ -948,7 +985,6 @@ class MailMail(models.Model):
                     "email_from": self.email_from,
                     "email_to": email_values["email_to"],
                     "email_to_normalized": email_values["email_to_normalized"],
-                    "email_to_raw": email_values["email_to_raw"],
                     "headers": dict(headers),
                     "message_id": self.message_id,
                     "object_id": f"{self.res_id}-{self.model}" if self.res_id else "",
@@ -970,12 +1006,10 @@ class MailMail(models.Model):
 
         group_per_email_from = defaultdict(list)
         for mail in self:
-            emails_from = tools.mail.email_split_and_format_normalize(mail.email_from)
-            email_from = emails_from[0] if emails_from else mail.email_from
             key = (
                 mail.mail_server_id.id,
                 mail.record_alias_domain_id.id,
-                email_from,
+                mail._get_envelope_email_from(),
                 mail._filter_mail_mail_servers(all_mail_servers),
             )
             group_per_email_from[key].append(mail.id)
@@ -1019,6 +1053,14 @@ class MailMail(models.Model):
             for batch_ids in itertools.batched(record_ids, batch_size, strict=False):
                 yield mail_server_id, alias_domain_id, smtp_from, batch_ids
 
+    def _has_any_recipient(self) -> bool:
+        self.check_singleton()
+        return bool(
+            (self.email_to or "").strip()
+            or self.recipient_ids
+            or (self.email_cc or "").strip()
+        )
+
     def _raw_address_message_count(self) -> int:
         self.check_singleton()
         return int(bool((self.email_to or "").strip() or (self.email_cc or "").strip()))
@@ -1030,7 +1072,7 @@ class MailMail(models.Model):
         )
 
     @api.model
-    def _open_quota_minute(self, mail_server: IrMail_Server) -> datetime.datetime:
+    def _rotate_quota_minute(self, mail_server: IrMail_Server) -> datetime.datetime:
         current_minute = self.env.cr.now().replace(second=0, microsecond=0)
         server_limit_minute = (
             mail_server.owner_limit_time or current_minute - timedelta(minutes=1)
@@ -1083,7 +1125,7 @@ class MailMail(models.Model):
         mail_server.invalidate_recordset(["owner_limit_count", "owner_limit_time"])
 
         MAX_SEND = mail_server._get_personal_mail_servers_limit()
-        server_limit_minute = self._open_quota_minute(mail_server)
+        server_limit_minute = self._rotate_quota_minute(mail_server)
 
         to_send_ids = []
         to_delay_ids = []
@@ -1391,8 +1433,8 @@ class MailMail(models.Model):
                 mails_with_unfollow_link.ids
             ),
             pending_notification_ids=pending_notification_ids,
-            writable_message_ids=frozenset(
-                self.mail_message_id._filtered_access("write").ids
+            recipient_bearing_ids=frozenset(
+                self.sudo().filtered(lambda mail: mail._has_any_recipient()).ids
             ),
         )
 
@@ -1408,18 +1450,11 @@ class MailMail(models.Model):
             mark = self._begin_sending(outcome, batch, pending_notification_ids)
             email_list = self._deliver_all(outcome, batch)
             if (
-                outcome.message_id is None
+                not outcome.message_id
                 and raise_exception
                 and outcome.delivery_error is not None
             ):
                 raise outcome.delivery_error
-            self._record_send_success(
-                outcome,
-                email_list,
-                batch,
-                mark,
-                pending_notification_ids=pending_notification_ids,
-            )
         except self._FATAL_MEMORY_ERRORS:
             _logger.exception(
                 "MemoryError while processing mail with ID %r and Msg-Id %r. "
@@ -1446,7 +1481,14 @@ class MailMail(models.Model):
             if raise_exception:
                 self._reraise_send_error(e)
         else:
-            if outcome.message_id is None and raise_exception and outcome.failure_type:
+            self._record_send_success(
+                outcome,
+                email_list,
+                batch,
+                mark,
+                pending_notification_ids=pending_notification_ids,
+            )
+            if not outcome.message_id and raise_exception and outcome.failure_type:
                 raise MailDeliveryError(
                     outcome.failure_reason
                     or IrMailServer._outgoing_email_message(
@@ -1468,7 +1510,10 @@ class MailMail(models.Model):
         pending_notification_ids: list[int],
     ) -> _SendingMark:
         self.check_singleton()
-        mark = self._mark_sending(pending_notification_ids=pending_notification_ids)
+        mark = self._mark_sending(
+            pending_notification_ids=pending_notification_ids,
+            recipient_bearing_ids=batch.recipient_bearing_ids,
+        )
         if mark.failure_type:
             outcome.failure_type = mark.failure_type
             outcome.failure_reason = mark.failure_reason
@@ -1479,9 +1524,7 @@ class MailMail(models.Model):
     @api.model
     def _reraise_send_error(self, exception: Exception) -> typing.NoReturn:
         if isinstance(exception, UnicodeEncodeError):
-            raise MailDeliveryError(
-                f"Invalid text: {exception.object}"
-            ) from exception
+            raise MailDeliveryError(f"Invalid text: {exception.object}") from exception
         if isinstance(exception, AssertionError):
             raise MailDeliveryError(". ".join(exception.args)) from exception
         raise exception
@@ -1494,8 +1537,7 @@ class MailMail(models.Model):
             smtp_session=batch.smtp_session,
             already_sent_pids=batch.already_sent_pids,
         )
-        emails_from = tools.mail.email_split_and_format_normalize(self.email_from)
-        email_from = emails_from[0] if emails_from else self.email_from
+        email_from = self._get_envelope_email_from()
         for email in email_list:
             outcome.absorb(
                 self._deliver_one(email, email_from, batch, outcome.failure_type)
@@ -1520,17 +1562,22 @@ class MailMail(models.Model):
             outcome,
             email_list,
             nothing_left_to_deliver=nothing_left_to_deliver,
-            writable_message_ids=batch.writable_message_ids,
         )
-        self._postprocess_sent_message(
-            success_partners=outcome.success_partners,
-            success_emails=outcome.success_emails,
-            failure_type=outcome.failure_type,
-            failure_reason=outcome.failure_reason,
-            pending_notification_ids=pending_notification_ids,
-            defer_auto_delete=batch.deferred_auto_delete,
-            previously_failing_ids=mark.previously_failing_ids,
-        )
+        try:
+            self._postprocess_sent_message(
+                success_partners=outcome.success_partners,
+                success_emails=outcome.success_emails,
+                failure_type=outcome.failure_type,
+                failure_reason=outcome.failure_reason,
+                pending_notification_ids=pending_notification_ids,
+                defer_auto_delete=batch.deferred_auto_delete,
+                previously_failing_ids=mark.previously_failing_ids,
+            )
+        except Exception:
+            _logger.exception(
+                "Mail (mail.mail) %r was delivered; settling its notifications was not",
+                self.id,
+            )
 
     def _record_send_failure(
         self,
@@ -1570,31 +1617,30 @@ class MailMail(models.Model):
         )
 
     def _mark_sending(
-        self, pending_notification_ids: list[int] | None = None
+        self,
+        pending_notification_ids: list[int] | None = None,
+        recipient_bearing_ids: frozenset[int] | None = None,
     ) -> _SendingMark:
         self.check_singleton()
         no_recipients = (
-            not (self.email_to or "").strip()
-            and not self.recipient_ids
-            and not (self.email_cc or "").strip()
+            self.id not in recipient_bearing_ids
+            if recipient_bearing_ids is not None
+            else not self._has_any_recipient()
         )
+        mark = _SendingMark(had_recipients=not no_recipients)
         placeholder = _(
             "Placeholder recorded before sending. Still present means the send "
             "was interrupted before it could record an outcome; see the server log."
         )
-        no_recipients_reason = self.env["ir.mail_server"]._outgoing_email_message(
-            self.env["ir.mail_server"].NO_VALID_RECIPIENT
-        )
-        mark = _SendingMark(had_recipients=not no_recipients)
         if no_recipients:
             mark.failure_type = "mail_email_missing"
-            mark.failure_reason = no_recipients_reason
+            mark.failure_reason = self.env["ir.mail_server"]._outgoing_email_message(
+                self.env["ir.mail_server"].NO_VALID_RECIPIENT
+            )
         self.write(
             {
                 "state": "exception",
-                "failure_reason": no_recipients_reason
-                if no_recipients
-                else placeholder,
+                "failure_reason": mark.failure_reason or placeholder,
                 "failure_type": "mail_email_missing" if no_recipients else "unknown",
             }
         )
@@ -1662,7 +1708,8 @@ class MailMail(models.Model):
         try:
             result.message_id = SendIrMailServer.send_email(
                 msg,
-                mail_server_id=self.mail_server_id.id,
+                mail_server_id=(batch.mail_server and batch.mail_server.id)
+                or self.mail_server_id.id,
                 smtp_session=batch.smtp_session,
             )
             if recipient_partner:
@@ -1685,8 +1732,6 @@ class MailMail(models.Model):
                 self.message_id,
                 email.get("email_to"),
             )
-        except smtplib.SMTPServerDisconnected:
-            raise
         except MailDeliveryError as error:
             if "OutboundSpamException" in str(error):
                 result.failure_type = "mail_spam"
@@ -1706,7 +1751,6 @@ class MailMail(models.Model):
         outcome: _SendOutcome,
         email_list: list[dict],
         nothing_left_to_deliver: bool = False,
-        writable_message_ids: Collection[int] | None = None,
     ) -> None:
         self.check_singleton()
         if not outcome.message_id:
@@ -1725,19 +1769,24 @@ class MailMail(models.Model):
                 self.write(mail_vals)
             return
         partial_failure = bool(outcome.delivery_error)
-        mail_vals = {
-            "state": "sent",
-            "failure_type": outcome.failure_type if partial_failure else False,
-            "failure_reason": outcome.failure_reason if partial_failure else False,
-        }
+        self.write(
+            {
+                "state": "sent",
+                "failure_type": outcome.failure_type if partial_failure else False,
+                "failure_reason": outcome.failure_reason if partial_failure else False,
+            }
+        )
         if outcome.message_id != self.message_id:
-            mail_vals["message_id"] = outcome.message_id
-        elif (
-            writable_message_ids is not None
-            and self.mail_message_id.id not in writable_message_ids
-        ) or writable_message_ids is None:
-            self.mail_message_id.check_access("write")
-        self.write(mail_vals)
+            try:
+                self.mail_message_id.message_id = outcome.message_id
+            except AccessError:
+                _logger.warning(
+                    "Mail (mail.mail) %r was delivered under Message-Id %r; its "
+                    "message keeps %r, which this user may not write",
+                    self.id,
+                    outcome.message_id,
+                    self.message_id,
+                )
 
     def _log_sent(self, outcome: _SendOutcome, email_list: list[dict]) -> None:
         if not _logger.isEnabledFor(logging.INFO):

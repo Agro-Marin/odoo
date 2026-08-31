@@ -407,7 +407,7 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
     def _prepare_cleared_error_vals(self) -> ValuesType:
         return {"error_since": False, "error_message": False}
 
-    def _register_fetch_failure(self, exc: Exception) -> None:
+    def _register_poll_failure(self, exc: Exception) -> None:
         self.check_singleton()
         now = fields.Datetime.now()
         self.error_message = str(exc) or repr(exc)
@@ -483,9 +483,9 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
             message_cr = self.env.registry.cursor()
             sink = self._prepare_message_sink(message_cr)
             commit_progress = sink.thread.env["ir.cron"]._commit_progress
-            announced = connection.check_unread_messages()
+            announced = connection.count_unread_messages()
             _logger.debug("%d unread messages on %s server %s.", announced, *label)
-            for num, message in connection.retrieve_unread_messages():
+            for num, message in connection.get_unread_messages():
                 _logger.debug("Fetched message %r on %s server %s.", num, *label)
                 count += 1
                 outcomes[
@@ -504,7 +504,7 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
                 *label,
                 exc_info=True,
             )
-            self._register_fetch_failure(exc)
+            self._register_poll_failure(exc)
         finally:
             if message_cr is not None:
                 message_cr.close()

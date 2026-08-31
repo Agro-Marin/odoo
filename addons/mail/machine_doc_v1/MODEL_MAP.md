@@ -314,7 +314,7 @@ the rows it does not get back *are* the raced pairs), `_get_recipient_data(...)`
 > gone; `replace` reaches the same end state and keeps the row id.
 >
 > **The recipient payload is built in one place**, `mail/tools/recipients.py`'s
-> `build_recipient_data()`, by `mail.followers` and by all four other producers. `type` is
+> `prepare_recipient_data()`, by `mail.followers` and by all four other producers. `type` is
 > derived there from `(partner_share, user_share)` rather than re-decided per producer, which is
 > how a share partner used to be a `portal` recipient in one place and a `customer` in another.
 > `test_lint`'s `TestRecipientData` gates the *keys*; the constructor is what agrees the values.

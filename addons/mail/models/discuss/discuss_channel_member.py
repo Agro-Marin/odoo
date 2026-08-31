@@ -2,6 +2,7 @@ import logging
 import typing
 import uuid
 from collections import Counter, defaultdict
+from copy import deepcopy
 from datetime import datetime, timedelta
 from types import NotImplementedType
 from typing import Any, Literal, Self
@@ -13,7 +14,7 @@ from odoo import _, api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Domain
-from odoo.tools import SQL, Query
+from odoo.tools import SQL, Query, format_list, html_escape
 
 from ...tools import discuss, jwt
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput, StoreFieldSpec
@@ -818,8 +819,69 @@ class DiscussChannelMember(models.Model):
             return
         self.new_message_separator = message_id
 
-    def _get_html_link_title(self) -> str:
+    def _notify_joined(self, invite_to_rtc_call: bool) -> None:
+        """Tell each of these members, on their own bus, that they joined.
+
+        Lives here rather than on discuss.channel: it reads only members, so the
+        channel it used to hang off was never used by the body. `_add_members`
+        still calls it once per channel from inside its loop -- the per-channel
+        bus order is asserted by test_rtc, so this must not be hoisted.
+
+        The Store per (channel, is-current-user) pair is built once and its data
+        copied, because the channel payload is identical for every member that
+        shares those two properties and rebuilding it per member is the cost
+        this method exists to avoid.
+        """
+        channel_data = {}
+        for member in self:
+            channel = member.channel_id
+            store = Store(bus_channel=member._bus_channel())
+            key = (channel.id, store.target.is_current_user(self.env))
+            if key not in channel_data:
+                channel_data[key] = Store(bus_channel=member._bus_channel()).add(
+                    channel
+                )
+            store.data = deepcopy(channel_data[key].data)
+            store.add(member, "unpin_dt")
+            payload = {
+                "channel_id": channel.id,
+                "invite_to_rtc_call": invite_to_rtc_call,
+                "data": store.get_result(),
+            }
+            if not member.is_self and not self.env.user._is_public():
+                payload["invited_by_user_id"] = self.env.user.id
+            member._bus_send("discuss.channel/joined", payload)
+
+    def _get_persona_name(self) -> str:
+        """The member's display name, partner first, never a falsy sentinel.
+
+        `partner_id.name or guest_id.name` is NOT equivalent: for a member whose
+        partner carries an empty name that falls through to an empty recordset's
+        `.name`, which is False, and renders as the string "False".
+
+        Deliberately tolerates an empty recordset and returns "": `set_message_pin`
+        calls this through `_get_html_link_title` on a `self_member_id` that is
+        empty for a non-member admin, and `test_member_html_link_title_never_false`
+        pins it. Do not add `check_singleton`.
+        """
         return (self.partner_id.name if self.partner_id else self.guest_id.name) or ""
+
+    def _get_html_link_title(self) -> str:
+        return self._get_persona_name()
+
+    def _format_html_link_list(self, extra_items: tuple = ()) -> Markup:
+        """Render these members as a translated, locale-aware list of links.
+
+        The `%(member_<id>)s` indirection keeps markup out of `format_list` so
+        the escaping happens exactly once, over the separators only.
+        """
+        params = [f"%(member_{member.id})s" for member in self] + list(extra_items)
+        if not params:
+            return Markup()
+        return html_escape(format_list(self.env, params)) % {
+            f"member_{member.id}": member._get_html_link(for_persona=True)
+            for member in self
+        }
 
     def _get_html_link(self, *args, for_persona: bool = False, **kwargs) -> Markup:
         if not for_persona:

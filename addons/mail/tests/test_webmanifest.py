@@ -30,25 +30,25 @@ class MailServiceWorkerTest(HttpCaseWithUserDemo):
             f"the {label} service worker does not parse:\n{result.stderr}",
         )
 
-    def _fetch_service_worker(self):
+    def _get_service_worker(self):
         response = self.url_open("/web/service-worker.js")
         self.assertEqual(response.status_code, 200)
         self.assertIn("javascript", response.headers["Content-Type"])
         return response.text
 
     def test_service_worker_parses_for_a_public_visitor(self):
-        source = self._fetch_service_worker()
+        source = self._get_service_worker()
         self._parse_check(source, "public")
 
     def test_service_worker_parses_for_an_internal_user(self):
         self.authenticate("admin", "admin")
-        source = self._fetch_service_worker()
+        source = self._get_service_worker()
         self._parse_check(source, "internal")
 
     def test_internal_user_actually_gets_mails_half(self):
-        public_source = self._fetch_service_worker()
+        public_source = self._get_service_worker()
         self.authenticate("admin", "admin")
-        internal_source = self._fetch_service_worker()
+        internal_source = self._get_service_worker()
         self.assertGreater(
             len(internal_source),
             len(public_source),

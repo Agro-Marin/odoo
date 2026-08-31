@@ -130,7 +130,7 @@ class Store:
             f"{model_name} is a singleton: use add_singleton_values()"
         )
         index = self._get_record_index(model_name, values)
-        self._ensure_record_at_index(model_name, index)
+        self._add_record_at_index(model_name, index)
         self._add_values(values, model_name, index)
         if "_DELETE" in self.data[model_name][index]:
             del self.data[model_name][index]["_DELETE"]
@@ -184,7 +184,7 @@ class Store:
                 else {"id": record.id, "model": record._name}
             )
             index = self._get_record_index(model_name, values)
-            self._ensure_record_at_index(model_name, index)
+            self._add_record_at_index(model_name, index)
             self._add_values(values, model_name, index)
             self.data[model_name][index]["_DELETE"] = True
         return self
@@ -239,7 +239,7 @@ class Store:
             else:
                 target[key] = val
 
-    def _ensure_record_at_index(self, model_name: str, index: tuple[Any, ...]) -> None:
+    def _add_record_at_index(self, model_name: str, index: tuple[Any, ...]) -> None:
         if model_name not in self.data:
             self.data[model_name] = {}
         if index not in self.data[model_name]:

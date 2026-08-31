@@ -1,3 +1,4 @@
+from . import test_base_id_spaces
 from . import test_controller_attachment
 from . import test_controller_binary
 from . import test_controller_thread

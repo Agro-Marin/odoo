@@ -30,7 +30,7 @@ MAX_ZIP_BYTES = 512 * 1024 * 1024
 
 
 class AttachmentController(ThreadController):
-    def _raise_for_zip_size(self, written: int) -> None:
+    def _check_zip_size(self, written: int) -> None:
         if written > MAX_ZIP_BYTES:
             raise UserError(
                 request.env._(
@@ -40,12 +40,12 @@ class AttachmentController(ThreadController):
             )
 
     def _make_zip(self, name: str, attachments: IrAttachment) -> Response:
-        self._raise_for_zip_size(sum(attachments.mapped("file_size")))
+        self._check_zip_size(sum(attachments.mapped("file_size")))
         stream = io.BytesIO()
         written = 0
         with zipfile.ZipFile(stream, "w") as attachment_zip:
             for record in attachments:
-                self._raise_for_zip_size(written + record.file_size)
+                self._check_zip_size(written + record.file_size)
                 binary_stream = request.env["ir.binary"]._get_stream_from_record(
                     record, "raw"
                 )
@@ -53,7 +53,7 @@ class AttachmentController(ThreadController):
                     continue
                 data = binary_stream.read()
                 written += len(data)
-                self._raise_for_zip_size(written)
+                self._check_zip_size(written)
                 attachment_zip.writestr(
                     binary_stream.download_name,
                     data,

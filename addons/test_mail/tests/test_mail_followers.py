@@ -1241,6 +1241,18 @@ class AdvancedFollowersTest(MailCommon):
     @mute_logger("odoo.models.unlink")
     def test_auto_subscribe_inactive(self):
         """Test inactive are not added as followers in automated subscription"""
+        # `base.user_admin` holds the only active `base.group_system` seat on a
+        # `-i mail` database (`base.user_root` carries the group but is inactive),
+        # and `_check_at_least_one_administrator` refuses to let it go. Seat a
+        # second administrator so the deactivation under test is allowed at all;
+        # the subject here is follower subscription, not the admin invariant.
+        self.env["res.users"].create(
+            {
+                "login": "second_admin_for_deactivation",
+                "name": "Second Administrator",
+                "group_ids": [(4, self.env.ref("base.group_system").id)],
+            }
+        )
         self.test_track.user_id = False
         self.user_admin.active = False
         self.user_admin.flush_recordset()

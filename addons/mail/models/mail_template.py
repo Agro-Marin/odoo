@@ -391,7 +391,8 @@ class MailTemplate(models.Model):
             return
         for template in self:
             if failure := template._compile_dynamic_fields(checked_fnames):
-                template._raise_rendering_error(*failure)
+                fname, error = failure
+                raise template._prepare_rendering_error(fname, error) from error
         samples = self.sudo()._get_rendering_samples()
         if samples and (
             failure := self.sudo()._render_dynamic_fields(
@@ -399,9 +400,10 @@ class MailTemplate(models.Model):
             )
         ):
             template_id, fname, error = failure
-            self.browse(template_id)._raise_rendering_error(
-                fname, error, sample=samples.get(self.browse(template_id).model)
-            )
+            template = self.browse(template_id)
+            raise template._prepare_rendering_error(
+                fname, error, sample=samples.get(template.model)
+            ) from error
 
     def _get_rendering_samples(self) -> dict[str, models.BaseModel]:
 
@@ -491,12 +493,12 @@ class MailTemplate(models.Model):
                     break
         return failures[0] if failures else None
 
-    def _raise_rendering_error(
+    def _prepare_rendering_error(
         self,
         fname: str,
         error: Exception,
         sample: models.BaseModel | None = None,
-    ) -> typing.NoReturn:
+    ) -> ValidationError:
 
         self.check_singleton()
         _logger.info(
@@ -525,7 +527,7 @@ class MailTemplate(models.Model):
                 "Correct it and try again.",
                 field_name=self._fields[fname].string or fname,
             )
-        raise ValidationError(message) from error
+        return ValidationError(message)
 
     @api.constrains("model_id")
     def _check_model_not_abstract(self) -> None:

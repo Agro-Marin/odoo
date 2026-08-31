@@ -15,7 +15,7 @@ _TOP_LEVEL_BINDING = re.compile(
 
 @tagged("-at_install", "post_install")
 class TestServiceWorkerComposition(HttpCase):
-    def _fetch_worker(self):
+    def _get_worker(self):
         response = self.url_open("/web/service-worker.js")
         self.assertEqual(response.status_code, 200)
         return response.text
@@ -24,7 +24,7 @@ class TestServiceWorkerComposition(HttpCase):
         self.authenticate("admin", "admin")
         self.assertIn(
             "/mail/static/lib/idb-keyval/idb-keyval.js",
-            self._fetch_worker(),
+            self._get_worker(),
             "the internal-user worker must carry mail's half",
         )
 
@@ -45,7 +45,7 @@ class TestServiceWorkerComposition(HttpCase):
     def test_the_composed_worker_declares_no_name_twice(self):
         self.authenticate("admin", "admin")
         kinds_by_name = defaultdict(list)
-        for lexical_kind, name in _TOP_LEVEL_BINDING.findall(self._fetch_worker()):
+        for lexical_kind, name in _TOP_LEVEL_BINDING.findall(self._get_worker()):
             kinds_by_name[name].append(lexical_kind or "var/function")
         duplicated = {
             name: kinds for name, kinds in kinds_by_name.items() if len(kinds) > 1

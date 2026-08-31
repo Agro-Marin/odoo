@@ -58,7 +58,19 @@ def scan_accessible_ids(
 ) -> list[int]:
     scan_order = stable_order(order, tiebreak)
 
-    target = offset + limit if limit else None
+    # Mirror `_search`'s own rule exactly (`orm/models/mixins/_query.py`): None
+    # and False mean unbounded, True means 1, and 0 means zero rows -- `Query`
+    # emits `LIMIT 0` for it and `test_query` pins `search_count(limit=0) == 0`.
+    # Neither a truthiness test nor `== 0` will do: `False == 0` is True, so both
+    # answer nothing for the limit that means everything.
+    if limit is None or limit is False:
+        target = None
+    elif limit is True:
+        target = offset + 1
+    elif limit == 0:
+        return []
+    else:
+        target = offset + limit
     chunk = None if target is None else min(max(target, chunk_min), chunk_max)
 
     ordered: list[int] = []

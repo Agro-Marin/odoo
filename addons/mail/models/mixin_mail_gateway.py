@@ -15,9 +15,9 @@ from xmlrpc import client as xmlrpclib
 import dateutil
 from markupsafe import Markup
 
-from odoo import _, api, fields, models
+from odoo import Command, _, api, fields, models
 from odoo.fields import Domain
-from odoo.tools import SQL, html2plaintext, ormcache
+from odoo.tools import SQL, html2plaintext
 from odoo.tools.mail import (
     decode_message_header,
     email_normalize,
@@ -53,8 +53,6 @@ class Route(NamedTuple):
 
 
 class RoutingRecipients(NamedTuple):
-    email_to: list[str]
-    email_to_localparts: list[str]
     rcpt_tos: list[str]
     rcpt_tos_localparts: list[str]
     rcpt_tos_valid: list[str]
@@ -83,6 +81,7 @@ class MixinMailGateway(models.AbstractModel):
 
     _Attachment = Attachment
 
+    @api.model
     def _mail_is_thread(self, record_or_model: models.BaseModel) -> bool:
         return isinstance(record_or_model, self.pool["mixin.mail.thread"])
 
@@ -93,19 +92,29 @@ class MixinMailGateway(models.AbstractModel):
         route: Route,
         raise_exception: bool = True,
     ) -> None:
-        short_message = _("Mailbox unavailable - %s", error_message)
-        full_message = "Routing mail with Message-Id %s: route %s: %s" % (
+        _logger.info(
+            "Routing mail with Message-Id %s: route %s: %s",
             message_id,
             route,
             error_message,
         )
-        _logger.info(full_message)
         if raise_exception:
-            raise ValueError(short_message)
+            raise ValueError(_("Mailbox unavailable - %s", error_message))
 
     def _routing_create_bounce_email(
         self, email_from: str, body_html: Markup, message: EmailMessage, **mail_values
     ) -> None:
+        bounce_from = self._routing_get_bounce_from(message)
+        if not bounce_from:
+            _logger.info(
+                "Not bouncing mail with Message-Id %s: this database configures no "
+                "address to send a bounce from -- no bounce alias, no default-from, "
+                "no catchall, and no email on %s.",
+                decode_message_header(message, "Message-Id"),
+                self.env.user.login,
+            )
+            return
+
         bounce_to = decode_message_header(message, "Return-Path") or email_from
         bounced_subject = decode_message_header(message, "Subject")
         bounce_mail_values = {
@@ -114,13 +123,12 @@ class MixinMailGateway(models.AbstractModel):
             "subject": f"Re: {bounced_subject}" if bounced_subject else "Re:",
             "email_to": bounce_to,
             "auto_delete": True,
+            "email_from": bounce_from,
         }
-
-        bounce_mail_values["email_from"] = self._routing_get_bounce_from(message)
         bounce_mail_values.update(mail_values)
         self.env["mail.mail"].sudo().create(bounce_mail_values).send()
 
-    def _routing_get_bounce_from(self, message: EmailMessage) -> str:
+    def _routing_get_bounce_from(self, message: EmailMessage) -> str | Literal[False]:
         if bounce_from := self.env.company.bounce_email:
             return formataddr(("MAILER-DAEMON", bounce_from))
 
@@ -142,23 +150,9 @@ class MixinMailGateway(models.AbstractModel):
             self.env.company.default_from_email
             or self.env.company.catchall_email
             or self.env["mail.alias.domain"]._get_default_domain().default_from_email
+            or self.env.user.email_normalized
         )
-        return formataddr(("MAILER-DAEMON", noreply or self.env.user.email_normalized))
-
-    @api.model
-    @ormcache()
-    def _mail_get_blacklist_models(self) -> tuple[str, ...]:
-        bl_models = (
-            self.env["ir.model"]
-            .sudo()
-            .search(
-                [
-                    ("is_mail_blacklist", "=", True),
-                    ("model", "!=", "mixin.mail.thread.blacklist"),
-                ]
-            )
-        )
-        return tuple(model.model for model in bl_models if model.model in self.env)
+        return formataddr(("MAILER-DAEMON", noreply)) if noreply else False
 
     @api.model
     def _routing_bounce_increment(
@@ -169,7 +163,7 @@ class MixinMailGateway(models.AbstractModel):
         bounced_partner: ResPartner,
     ) -> None:
         counted_bounced_record = False
-        for model_name in self._mail_get_blacklist_models():
+        for model_name in self.env["ir.model"]._get_mail_blacklist_models():
             holders = (
                 self.env[model_name]
                 .sudo()
@@ -184,7 +178,7 @@ class MixinMailGateway(models.AbstractModel):
         if (
             bounced_record
             and not counted_bounced_record
-            and isinstance(bounced_record, self.pool["mixin.mail.thread"])
+            and self._mail_is_thread(bounced_record)
         ):
             bounced_record._message_receive_bounce(bounced_email, bounced_partner)
 
@@ -225,7 +219,7 @@ class MixinMailGateway(models.AbstractModel):
             message_dict["bounced_message"],
         )
 
-        if bounced_email:
+        if bounced_email or bounced_partner:
             bounced_model, bounced_res_id = (
                 bounced_message.model,
                 bounced_message.res_id,
@@ -236,10 +230,11 @@ class MixinMailGateway(models.AbstractModel):
                     self.env[bounced_model].sudo().browse(bounced_res_id).exists()
                 )
 
-            self._routing_bounce_increment(
-                bounced_record, bounced_model, bounced_email, bounced_partner
-            )
-            if bounced_message and (bounced_email or bounced_partner):
+            if bounced_email:
+                self._routing_bounce_increment(
+                    bounced_record, bounced_model, bounced_email, bounced_partner
+                )
+            if bounced_message:
                 self._routing_bounce_mark_notifications(
                     bounced_message, bounced_email, bounced_partner, message_dict
                 )
@@ -364,15 +359,19 @@ class MixinMailGateway(models.AbstractModel):
     ) -> bool:
         alias, model = route.alias, route.model
         message_id = message_dict["message_id"]
+        # `thread_id`, not `record_set`: a reply to a missing document arrives here
+        # with the id reset to None but `record_set` still a truthy browse of it,
+        # and it is the alias' owner that has to answer for the alias then.
+        owner = alias._alias_get_document("owner") if not thread_id else None
         if not message_dict.get("author_id"):
             self._routing_find_author(
-                message_dict, self._routing_link_document(record_set, alias)
+                message_dict, self._routing_link_document(record_set, owner)
             )
 
         if thread_id:
             obj = record_set[0]
         else:
-            obj = alias._alias_get_document("owner") or self.env[model]
+            obj = owner or self.env[model]
         error = obj._alias_get_error(message, message_dict, alias)
         if error:
             self._routing_warn(
@@ -393,11 +392,9 @@ class MixinMailGateway(models.AbstractModel):
 
     @api.model
     def _routing_link_document(
-        self, record_set: models.BaseModel, alias: MailAlias | None
+        self, record_set: models.BaseModel, alias_owner: models.BaseModel | None
     ) -> models.BaseModel:
-        link_doc = record_set
-        if not link_doc and alias:
-            link_doc = alias._alias_get_document("owner")
+        link_doc = record_set or alias_owner
         if link_doc and self._mail_is_thread(link_doc):
             return link_doc
         return self.env["mixin.mail.thread"]
@@ -426,7 +423,7 @@ class MixinMailGateway(models.AbstractModel):
     ) -> None:
         normalized_from = email_normalize(message_dict["email_from"])
         if normalized_from:
-            for model_name in self._mail_get_blacklist_models():
+            for model_name in self.env["ir.model"]._get_mail_blacklist_models():
                 self.env[model_name].sudo().search(  # noqa: E8507  the loop is over blacklist models, not records: one query per table
                     [
                         ("message_bounce", ">", 0),
@@ -500,7 +497,8 @@ class MixinMailGateway(models.AbstractModel):
             return False
         return (
             self.sudo().search_count(
-                Domain.AND([[("create_date", ">=", create_date_limit)], base_domain])
+                Domain.AND([[("create_date", ">=", create_date_limit)], base_domain]),
+                limit=threshold,
             )
             >= threshold
         )
@@ -737,6 +735,15 @@ class MixinMailGateway(models.AbstractModel):
     @api.model
     def _mail_find_referenced_message(self, message_dict: dict) -> MailMessage:
         MailMessage_ = self.env["mail.message"].sudo()
+        if "referenced_message_id" in message_dict:
+            return MailMessage_.browse(message_dict["referenced_message_id"] or ())
+        found = self._mail_search_referenced_message(message_dict)
+        message_dict["referenced_message_id"] = found.id
+        return found
+
+    @api.model
+    def _mail_search_referenced_message(self, message_dict: dict) -> MailMessage:
+        MailMessage_ = self.env["mail.message"].sudo()
         in_reply_to = (message_dict.get("in_reply_to") or "").strip()
         if in_reply_to and not self._mail_is_force_new_message_id(in_reply_to):
             if parent := MailMessage_.search(
@@ -823,6 +830,10 @@ class MixinMailGateway(models.AbstractModel):
         if dest_aliases or not reply_thread_id:
             return dest_aliases
 
+        # A reply routed by References alone would otherwise escape the contact
+        # policy the thread is published under, so the *record's own* alias still
+        # governs it. Only that alias: an alias the mail was never addressed to,
+        # belonging to another record, speaks for nothing here.
         target_record = self.env[reply_model].sudo().browse(reply_thread_id).exists()
         if (
             target_record
@@ -830,14 +841,7 @@ class MixinMailGateway(models.AbstractModel):
             and target_record.alias_id
         ):
             return target_record.alias_id
-
-        Alias = self.env["mail.alias"]
-        model_domain = [("alias_model_id", "=", reply_model_id)]
-        if Alias.search_count(
-            [*model_domain, ("alias_contact", "=", "everyone")], limit=1
-        ):
-            return dest_aliases
-        return Alias.search(model_domain, order="id", limit=1) or dest_aliases
+        return dest_aliases
 
     @api.model
     def _routing_get_alias_model(self, model: str) -> models.BaseModel:
@@ -854,6 +858,7 @@ class MixinMailGateway(models.AbstractModel):
         email_from: str,
     ) -> list[Route]:
         routes = []
+        unusable = None
         for alias in dest_aliases:
             user_id = (
                 self._mail_find_user_for_gateway(email_from, alias=alias).id
@@ -866,9 +871,16 @@ class MixinMailGateway(models.AbstractModel):
                 user_id,
                 alias,
             )
-            route = self._routing_get_alias_model(route.model)._routing_check_route(
-                message, message_dict, route, raise_exception=True
-            )
+            try:
+                route = self._routing_get_alias_model(route.model)._routing_check_route(
+                    message, message_dict, route, raise_exception=True
+                )
+            except ValueError as error:
+                # One broken alias among the addressees is that alias' problem.
+                # Raising here would discard the message for the *other* aliases
+                # it was legitimately addressed to as well.
+                unusable = unusable or error
+                continue
             if isinstance(route, Route):
                 _logger.info(
                     "Routing mail from %s to %s with Message-Id %s: direct alias match: %r",
@@ -878,6 +890,8 @@ class MixinMailGateway(models.AbstractModel):
                     route,
                 )
                 routes.append(route)
+        if not routes and unusable is not None:
+            raise unusable
         return routes
 
     @api.model
@@ -910,8 +924,6 @@ class MixinMailGateway(models.AbstractModel):
                 )
 
         recipients = RoutingRecipients(
-            email_to,
-            email_to_localparts,
             rcpt_tos,
             rcpt_tos_localparts,
             rcpt_tos_valid,
@@ -927,7 +939,6 @@ class MixinMailGateway(models.AbstractModel):
         recipients: RoutingRecipients,
         reply_model: str,
         reply_thread_id: int | Literal[False],
-        custom_values: dict | Literal[False] | None,
     ) -> list[Route] | None:
         email_from = message_dict["email_from"]
         dest_aliases = self._routing_get_reply_aliases(
@@ -948,14 +959,13 @@ class MixinMailGateway(models.AbstractModel):
         )
         if isinstance(route, Route):
             _logger.info(
-                "Routing mail from %s to %s with Message-Id %s: direct reply to msg: model: %s, thread_id: %s, custom_values: %s, uid: %s",
+                "Routing mail from %s to %s with Message-Id %s: direct reply to msg: model: %s, thread_id: %s, uid: %s",
                 email_from,
                 message_dict["to"],
                 message_dict["message_id"],
                 reply_model,
                 reply_thread_id,
-                None,
-                self.env.uid,
+                user_id,
             )
             return [route]
         if route is RouteVerdict.REFUSED:
@@ -1081,7 +1091,6 @@ class MixinMailGateway(models.AbstractModel):
                 recipients,
                 reply_model,
                 reply_thread_id,
-                custom_values,
             )
             if routes is not None:
                 return routes
@@ -1151,6 +1160,7 @@ class MixinMailGateway(models.AbstractModel):
         "bounced_msg_ids",
         "bounced_partner",
         "author_lookups",
+        "referenced_message_id",
     )
 
     @api.model
@@ -1306,19 +1316,19 @@ class MixinMailGateway(models.AbstractModel):
                 subtype_id=subtype_id,
                 partner_ids=partner_ids,
             )
-            new_msg = False
-            if thread_root._name == "mixin.mail.thread":
-                new_msg = thread_root.message_notify(**post_params)
-            else:
-                thread_root = thread_root.with_context(
-                    mail_post_autofollow_author_skip=not route_message_dict.get(
-                        "author_id"
-                    )
-                )
-                new_msg = thread_root.message_post(**post_params)
+            thread_root = thread_root.with_context(
+                mail_post_autofollow_author_skip=not route_message_dict.get("author_id")
+            )
+            new_msg = thread_root.message_post(**post_params)
 
             if new_msg and original_partner_ids:
-                new_msg.write({"partner_ids": original_partner_ids})
+                # Recorded after the post so the incoming email's own recipients
+                # are not notified a second time. LINK, not a bare id list: that
+                # is a Command.SET and would drop the recipients message_post was
+                # just given -- the parent-author ping among them.
+                new_msg.write(
+                    {"partner_ids": [Command.link(pid) for pid in original_partner_ids]}
+                )
         return thread_id
 
     @api.model
@@ -1341,17 +1351,19 @@ class MixinMailGateway(models.AbstractModel):
         if strip_attachments:
             msg_dict.pop("attachments", None)
 
-        msg_id = msg_dict.get("message_id")
+        msg_id = msg_dict["message_id"]
+        # Serialise on the Message-Id, then ask the table. Two messages whose ids
+        # collide under `hashtextextended` wait for each other and are then told
+        # apart by the search; a `try` lock cannot tell a collision from a
+        # duplicate and answers "duplicate", which discards mail for good.
+        self.env.cr.execute(
+            SQL("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", msg_id)
+        )
         is_duplicate = bool(
             self.env["mail.message"]
             .sudo()
             .search_count([("message_id", "=", msg_id)], limit=1)
         )
-        if not is_duplicate and msg_id:
-            self.env.cr.execute(
-                SQL("SELECT pg_try_advisory_xact_lock(hashtextextended(%s, 0))", msg_id)
-            )
-            is_duplicate = not self.env.cr.fetchone()[0]
 
         if is_duplicate:
             _logger.info(
@@ -1587,9 +1599,12 @@ class MixinMailGateway(models.AbstractModel):
             "partner_ids": message_dict.get("partner_ids"),
         }
         for model, thread_id, _custom_values, _user_id, alias in routes or ():
+            record_set = (
+                self.env[model].browse(thread_id) if thread_id else self.env[model]
+            )
             link_doc = self._routing_link_document(
-                self.env[model].browse(thread_id) if thread_id else self.env[model],
-                alias,
+                record_set,
+                None if record_set or not alias else alias._alias_get_document("owner"),
             )
             if not values.get("author_id"):
                 author = self._routing_find_author(message_dict, link_doc)
@@ -1646,18 +1661,12 @@ class MixinMailGateway(models.AbstractModel):
         if not normalized_email:
             return self.env["res.users"]
 
-        record_su = self.env["mixin.mail.thread"].sudo()
-        if alias and alias.alias_parent_model_id and alias.alias_parent_thread_id:
-            record_su = (
-                self.env[alias.alias_parent_model_id.sudo().model]
-                .browse(alias.alias_parent_thread_id)
-                .sudo()
-            )
-            record_su = (
-                record_su
-                if self._mail_is_thread(record_su)
-                else self.env["mixin.mail.thread"].sudo()
-            )
+        owner = alias._alias_get_document("owner") if alias else None
+        record_su = (
+            owner.sudo()
+            if owner is not None and self._mail_is_thread(owner)
+            else self.env["mixin.mail.thread"].sudo()
+        )
 
         partner = record_su._partner_find_from_emails_single(
             [email_value], filter_found=lambda p: p.user_ids, no_create=True

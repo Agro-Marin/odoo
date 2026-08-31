@@ -11,7 +11,7 @@ from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
 from odoo.addons.mail.tools.recipients import (
     RecipientData,
     RecipientRow,
-    build_recipient_data,
+    prepare_recipient_data,
 )
 
 if typing.TYPE_CHECKING:
@@ -339,7 +339,7 @@ class MailFollowers(models.Model):
             for res_id_to_update in to_update:
                 if not row.res_id and row.partner_id in doc_infos[res_id_to_update]:
                     continue
-                doc_infos[res_id_to_update][row.partner_id] = build_recipient_data(
+                doc_infos[res_id_to_update][row.partner_id] = prepare_recipient_data(
                     partner_id=row.partner_id,
                     active=row.active,
                     email_normalized=row.email_normalized,

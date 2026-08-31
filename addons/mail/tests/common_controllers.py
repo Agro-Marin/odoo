@@ -154,11 +154,11 @@ class MailControllerAttachmentCommon(MailControllerCommon):
                 if thread:
                     attachment.write({"res_model": thread._name, "res_id": thread.id})
                 if allowed:
-                    self._delete_attachment(attachment, token)
+                    self._remove_attachment(attachment, token)
                     self.assertFalse(attachment.exists())
                 else:
                     with self.assertRaises(JsonRpcException, msg="Wrong access token"):
-                        self._delete_attachment(attachment, token)
+                        self._remove_attachment(attachment, token)
 
     def _upload_attachment(self, document, route_kw):
         with mute_logger("odoo.http"), file_open("addons/web/__init__.py") as file:
@@ -181,7 +181,7 @@ class MailControllerAttachmentCommon(MailControllerCommon):
             )
             return data["attachment_id"]
 
-    def _delete_attachment(self, attachment, token):
+    def _remove_attachment(self, attachment, token):
         with mute_logger("odoo.http"):
             self.call_jsonrpc(
                 route="/mail/attachment/delete",

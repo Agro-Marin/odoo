@@ -6,6 +6,8 @@ import socket
 from datetime import datetime, timedelta
 from unittest.mock import DEFAULT, patch
 
+from markupsafe import Markup
+
 from odoo import exceptions
 from odoo.db import Cursor
 from odoo.tests import Form, RecordCapturer, tagged
@@ -4914,4 +4916,527 @@ class TestMailgatewayDedup(MailGatewayCommon):
             ),
             1,
             "only one mail.message should carry the duplicated Message-Id",
+        )
+
+
+@tagged("mail_gateway")
+class TestMailGatewayRegressions(MailGatewayCommon):
+    """Three defects the suite could not see, each reached through a whole email."""
+
+    def test_a_pinged_parent_author_stays_in_partner_ids(self):
+        """`partner_ids` is the recipient set the message records, and a plain
+        list of ids on an m2m is `Command.SET`. Recording the incoming email's
+        own recipients afterwards therefore used to drop whoever `message_post`
+        had just been given -- the parent's author, pinged on a reply to a note
+        -- leaving a `mail.notification` row for a partner the message denied
+        ever addressing.
+        """
+        author = self.env["res.partner"].create(
+            {"name": "Note Author", "email": "note.author@test.example.com"}
+        )
+        cc_partner = self.env["res.partner"].create(
+            {"name": "Cc Partner", "email": "cc.partner@test.example.com"}
+        )
+        note = self.test_record.message_post(
+            author_id=author.id,
+            body="internal note",
+            message_type="comment",
+            subtype_id=self.env.ref("mail.mt_note").id,
+        )
+
+        with self.mock_mail_gateway():
+            self.format_and_process(
+                MAIL_TEMPLATE,
+                self.email_from,
+                f"{self.alias.alias_full_name}, {cc_partner.email}",
+                extra=f"In-Reply-To:\r\n\t{note.message_id}\r\n",
+                msg_id="<ping-parent-author@test.example.com>",
+                subject="Re: internal note",
+                target_model="mail.test.gateway",
+            )
+
+        reply = self.test_record.message_ids[0]
+        self.assertEqual(reply.parent_id, note, "the note is the anchor")
+        self.assertIn(
+            author,
+            reply.notification_ids.res_partner_id,
+            "the parent's author is pinged on a reply to a note",
+        )
+        self.assertIn(
+            author,
+            reply.partner_ids,
+            "and a partner the gateway notified must stay a recipient of the "
+            "message: a bare id list is Command.SET and used to drop them",
+        )
+        self.assertIn(
+            cc_partner,
+            reply.partner_ids,
+            "the incoming email's own recognized recipients are still recorded",
+        )
+
+    def test_a_reply_is_not_refused_by_an_alias_it_never_wrote_to(self):
+        """A reply matching no alias used to be judged by an arbitrary alias of
+        the model -- the lowest id -- so one `alias_contact='followers'` alias
+        anywhere on the model bounced every reply from a non-follower, including
+        replies addressed nowhere near it.
+        """
+        self.alias.alias_contact = "followers"
+        restricted = self.env["mail.alias"].create(
+            {
+                "alias_contact": "followers",
+                "alias_domain_id": self.mail_alias_domain.id,
+                "alias_model_id": self.mail_test_gateway_model.id,
+                "alias_name": "restricted-elsewhere",
+            }
+        )
+        self.assertNotIn(
+            "everyone",
+            (self.alias + restricted).mapped("alias_contact"),
+            "the model must carry no open alias, or the old code short-circuited",
+        )
+        stranger = '"Stranger" <stranger@test.example.com>'
+        self.assertNotIn(
+            email_normalize(stranger),
+            self.test_record.message_partner_ids.mapped("email_normalized"),
+            "the sender is not a follower of the record they are replying to",
+        )
+
+        before = len(self.test_record.message_ids)
+        with self.mock_mail_gateway():
+            self.format_and_process(
+                MAIL_TEMPLATE,
+                stranger,
+                "not.an.alias@test.example.com",
+                extra=f"In-Reply-To:\r\n\t{self.fake_email.message_id}\r\n",
+                msg_id="<reply-to-no-alias@test.example.com>",
+                subject="Re: Generic Message",
+                target_model="mail.test.gateway",
+            )
+
+        self.test_record.invalidate_recordset()
+        self.assertEqual(
+            len(self.test_record.message_ids),
+            before + 1,
+            "the reply belongs on the thread it answers; an alias the mail was "
+            "never addressed to does not get to refuse it",
+        )
+        self.assertFalse(
+            self._new_mails.filtered(lambda mail: "MAILER-DAEMON" in mail.email_from),
+            "and nothing is bounced back to the sender",
+        )
+
+    def test_a_bounce_known_only_by_partner_still_marks_its_notification(self):
+        """`_routing_bounce_mark_notifications` builds its domain from the
+        partner *or* the email, but the caller only ever reached it when an
+        email had been parsed out. A DSN with no usable `Final-Recipient` names
+        its victim through the bounced message's single notification instead --
+        and if that partner has no email, the whole bounce used to be dropped.
+        """
+        victim = self.env["res.partner"].create(
+            {"name": "Victim", "email": "victim@remote.example.com"}
+        )
+        with self.mock_mail_gateway():
+            bounced = self.test_record.message_post(
+                body="outgoing",
+                message_type="comment",
+                partner_ids=victim.ids,
+                subtype_id=self.env.ref("mail.mt_comment").id,
+            )
+        self.env.flush_all()
+        notification = (
+            self.env["mail.notification"]
+            .sudo()
+            .search([("mail_message_id", "=", bounced.id)])
+        )
+        self.assertEqual(len(notification), 1, "one notification names the victim")
+        self.assertFalse(
+            notification.mail_email_address,
+            "the address used is not recorded on the notification either, so the "
+            "partner is the only handle the bounce has",
+        )
+        # the address is cleaned off the partner between the send and the bounce:
+        # a merge, an erasure request, a corrected typo
+        victim.email = False
+        self.env.flush_all()
+        self.assertFalse(victim.email_normalized)
+
+        boundary = "==BOUNDARY=="
+        bounce_mail = "\r\n".join(
+            [
+                "Return-Path: <>",
+                "From: MAILER-DAEMON <mailer-daemon@test.example.com>",
+                f"To: {self.alias_bounce}@{self.alias_domain}",
+                "Subject: Undelivered Mail Returned to Sender",
+                "Message-Id: <partner-only-bounce@test.example.com>",
+                "MIME-Version: 1.0",
+                f'Content-Type: multipart/report; report-type=delivery-status; boundary="{boundary}"',
+                "",
+                f"--{boundary}",
+                "Content-Type: text/plain; charset=utf-8",
+                "",
+                "Delivery failed.",
+                "",
+                f"--{boundary}",
+                "Content-Type: message/delivery-status",
+                "",
+                "Reporting-MTA: dns; test.example.com",
+                "",
+                f"--{boundary}",
+                "Content-Type: message/rfc822",
+                "",
+                f"Message-Id: {bounced.message_id}",
+                "Subject: Generic Message",
+                "",
+                "original body",
+                f"--{boundary}--",
+                "",
+            ]
+        )
+        with self.mock_mail_gateway():
+            self.env["mixin.mail.thread"].message_process(None, bounce_mail)
+
+        notification.invalidate_recordset()
+        self.assertEqual(
+            notification.notification_status,
+            "bounce",
+            "the bounce named its victim through the notification, not through "
+            "a Final-Recipient; a partner with no email is still a partner",
+        )
+        self.assertEqual(notification.failure_type, "mail_bounce")
+
+    def test_a_reply_is_still_judged_by_the_record_s_own_alias(self):
+        """The other half of the same fix, and the reason it is a narrowing
+        rather than a deletion.
+
+        Routing a reply on References alone would let anyone who learns a
+        Message-Id post into a followers-only thread by forging `In-Reply-To`.
+        The record's *own* alias still governs that -- what was removed is only
+        the fallback to an arbitrary alias of the model, which spoke for a
+        record the mail had nothing to do with.
+        """
+        group = self.env["mail.test.gateway.groups"].create(
+            {"alias_name": "own-alias-probe", "name": "Owns its alias"}
+        )
+        group.alias_id.alias_contact = "followers"
+        seed = group.message_post(
+            body="seed",
+            message_type="comment",
+            subtype_id=self.env.ref("mail.mt_comment").id,
+        )
+        outsider = self.env["res.partner"].create(
+            {"name": "Outsider", "email": "outsider@remote.example.com"}
+        )
+        self.assertNotIn(outsider, group.message_partner_ids)
+
+        def reply(msg_id):
+            before = len(group.message_ids)
+            with self.mock_mail_gateway():
+                self.format_and_process(
+                    MAIL_TEMPLATE,
+                    '"Outsider" <outsider@remote.example.com>',
+                    "somewhere-else@test.mycompany.com",
+                    extra=f"In-Reply-To:\r\n\t{seed.message_id}\r\n",
+                    msg_id=msg_id,
+                    subject=f"Re: seed {msg_id}",
+                    target_model="mail.test.gateway.groups",
+                )
+            group.invalidate_recordset()
+            return len(group.message_ids) > before
+
+        self.assertFalse(
+            reply("<own-alias-refuses@test.example.com>"),
+            "the record's own followers-only alias refuses a stranger's reply",
+        )
+        group.message_subscribe(partner_ids=outsider.ids)
+        self.assertTrue(
+            reply("<own-alias-accepts@test.example.com>"),
+            "and accepts the same reply once they follow the record",
+        )
+
+    def test_a_reply_to_a_vanished_document_is_judged_by_the_alias_owner(self):
+        """`_routing_check_target` resets `thread_id` to None on a missing
+        document but leaves `record_set` a truthy browse of the id that is gone.
+        Two different guards, and collapsing them is silent: the alias check then
+        runs against the empty model instead of the alias' owner, which for
+        `alias_contact='followers'` is `config_follower_no_record` -- a refusal
+        *and* `_alias_mark_invalid`, disabling a correctly configured alias.
+        """
+        owner = self.env["mail.test.gateway"].create({"name": "Owner doc"})
+        follower = self.env["res.partner"].create(
+            {"name": "Follower", "email": "follower@remote.example.com"}
+        )
+        owner.message_subscribe(partner_ids=follower.ids)
+        alias = self.env["mail.alias"].create(
+            {
+                "alias_contact": "followers",
+                "alias_domain_id": self.mail_alias_domain.id,
+                "alias_model_id": self.mail_test_gateway_model.id,
+                "alias_name": "owner-answers",
+                "alias_parent_model_id": self.mail_test_gateway_model.id,
+                "alias_parent_thread_id": owner.id,
+            }
+        )
+        vanished = self.env["mail.test.gateway"].browse(
+            max(self.env["mail.test.gateway"].search([]).ids) + 5000
+        )
+        self.assertTrue(vanished, "a browse of a missing id is still truthy")
+        self.assertFalse(vanished.exists(), "but the document is gone")
+
+        message = email.message_from_string(
+            "From: Follower <follower@remote.example.com>\r\n"
+            "To: x@y.example.com\r\nSubject: s\r\n"
+            "Message-Id: <vanished-doc@test.example.com>\r\n\r\nbody\r\n",
+            policy=email.policy.SMTP,
+        )
+        message_dict = {
+            "author_id": follower.id,
+            "email_from": "follower@remote.example.com",
+            "message_id": "<vanished-doc@test.example.com>",
+            "to": "x@y.example.com",
+        }
+        route = Route("mail.test.gateway", None, None, self.env.uid, alias)
+
+        with self.mock_mail_gateway():
+            accepted = self.env["mixin.mail.gateway"]._routing_check_alias_accepts(
+                message, message_dict, route, vanished, None
+            )
+        self.assertTrue(
+            accepted,
+            "the alias' owner document answers for the alias, and its follower "
+            "is the sender",
+        )
+        alias.invalidate_recordset()
+        self.assertEqual(
+            alias.alias_status,
+            "not_tested",
+            "a correctly configured alias must not be marked invalid because the "
+            "document being replied to was deleted",
+        )
+
+    def test_one_broken_alias_does_not_discard_the_other_addressees(self):
+        """`_routing_check_alias_routes` raised on the first unusable alias, which
+        threw away the routes of every *other* alias the mail was addressed to.
+        An alias whose target model stopped accepting mail is that alias' problem.
+        """
+        broken = self.env["mail.alias"].create(
+            {
+                "alias_contact": "everyone",
+                "alias_domain_id": self.mail_alias_domain.id,
+                "alias_model_id": self.mail_test_gateway_model.id,
+                "alias_name": "broken",
+            }
+        )
+        # the @api.constrains refuses this target, so reproduce the state a
+        # database reaches on its own: an alias that was valid when it was made
+        # and whose model later stopped storing documents
+        self.env.cr.execute(
+            "UPDATE mail_alias SET alias_model_id = %s WHERE id = %s",
+            [self.env["ir.model"]._get_id("mixin.mail.thread"), broken.id],
+        )
+        broken.invalidate_recordset()
+        self.assertEqual(broken.alias_model_id.model, "mixin.mail.thread")
+
+        with (
+            self.mock_mail_gateway(),
+            mute_logger("odoo.addons.mail.models.mixin_mail_gateway"),
+        ):
+            record = self.format_and_process(
+                MAIL_TEMPLATE,
+                self.email_from,
+                f"{broken.alias_full_name}, {self.alias.alias_full_name}",
+                msg_id="<broken-plus-good@test.example.com>",
+                subject="Broken and good",
+                target_model="mail.test.gateway",
+            )
+        self.assertTrue(
+            record,
+            "the usable alias still routes; one broken addressee does not "
+            "discard the mail for the others",
+        )
+
+    def test_a_mail_addressed_only_to_a_broken_alias_still_raises(self):
+        """The other half: swallowing the error when nothing routed would turn a
+        misconfiguration into silence."""
+        broken = self.env["mail.alias"].create(
+            {
+                "alias_contact": "everyone",
+                "alias_domain_id": self.mail_alias_domain.id,
+                "alias_model_id": self.mail_test_gateway_model.id,
+                "alias_name": "broken-alone",
+            }
+        )
+        self.env.cr.execute(
+            "UPDATE mail_alias SET alias_model_id = %s WHERE id = %s",
+            [self.env["ir.model"]._get_id("mixin.mail.thread"), broken.id],
+        )
+        broken.invalidate_recordset()
+
+        with (
+            self.mock_mail_gateway(),
+            mute_logger("odoo.addons.mail.models.mixin_mail_gateway"),
+            self.assertRaises(ValueError),
+        ):
+            self.format_and_process(
+                MAIL_TEMPLATE,
+                self.email_from,
+                broken.alias_full_name,
+                msg_id="<broken-alone@test.example.com>",
+                subject="Broken alone",
+                target_model="mail.test.gateway",
+            )
+
+    def test_a_database_with_no_sender_at_all_declines_to_bounce(self):
+        """`formataddr(("MAILER-DAEMON", False))` raises `AttributeError`, so a
+        database configuring no bounce address at all crashed the gateway instead
+        of bouncing. There is no address to send from; the answer is to send
+        nothing and say so, not to die inside `email.utils`.
+        """
+        self.env["res.company"].sudo().search([]).write({"alias_domain_id": False})
+        self.env["mail.alias.domain"].sudo().search([]).write({"default_from": False})
+        self.env.user.partner_id.email = False
+        self.env.flush_all()
+
+        message = email.message_from_string(
+            "From: someone@remote.example.com\r\nTo: nobody@nowhere.example.com\r\n"
+            "Subject: s\r\nMessage-Id: <no-sender@test.example.com>\r\n\r\nbody\r\n",
+            policy=email.policy.SMTP,
+        )
+        gateway = self.env["mixin.mail.thread"]
+        self.assertFalse(
+            gateway._routing_get_bounce_from(message),
+            "nothing is configured, so there is no bounce sender",
+        )
+        with self.mock_mail_gateway():
+            gateway._routing_create_bounce_email(
+                "someone@remote.example.com", Markup("<p>bounced</p>"), message
+            )
+        self.assertFalse(self._new_mails, "and no bounce is sent")
+
+    def test_an_exactly_addressed_alias_suppresses_the_same_local_part_elsewhere(self):
+        """`_routing_filter_local_aliases` is a fork-only rule and nothing tested it.
+
+        `alias_incoming_local` makes an alias answer on its local part whatever
+        the domain, which is deliberate. But when a mail names one alias by its
+        full address, an alias sharing only its local part on another domain was
+        never a recipient of that mail -- and routing both creates a record on
+        each model for a message addressed to one of them.
+        """
+        self.alias_c2.alias_incoming_local = True
+        self.assertEqual(
+            self.alias.alias_name,
+            self.alias_c2.alias_name,
+            "the fixture's two aliases share a local part across two domains",
+        )
+        self.assertNotEqual(self.alias.alias_model_id, self.alias_c2.alias_model_id)
+
+        with self.mock_mail_gateway():
+            record = self.format_and_process(
+                MAIL_TEMPLATE,
+                self.email_from,
+                self.alias.alias_full_name,
+                msg_id="<local-part-collision@test.example.com>",
+                subject="Local part collision",
+                target_model="mail.test.gateway",
+            )
+        self.assertTrue(record, "the exactly addressed alias routes")
+        self.assertEqual(
+            self.env["mail.test.gateway.company"].search_count(
+                [("name", "=", "Local part collision")]
+            ),
+            0,
+            "the alias that merely shares the local part on another domain was "
+            "not addressed and must not get a record too",
+        )
+
+    def test_a_local_part_alias_still_answers_for_a_domain_we_do_not_own(self):
+        """The other half, so the rule above cannot be widened into a ban.
+
+        With nothing addressed by full name, no local part is claimed, and
+        `alias_incoming_local` does what it exists for.
+        """
+        self.alias_c2.alias_incoming_local = True
+        with self.mock_mail_gateway():
+            self.format_and_process(
+                MAIL_TEMPLATE,
+                self.email_from,
+                f"{self.alias_c2.alias_name}@unowned.example.com",
+                msg_id="<local-part-elsewhere@test.example.com>",
+                subject="Local part elsewhere",
+                target_model="mail.test.gateway.company",
+            )
+        self.assertEqual(
+            self.env["mail.test.gateway.company"].search_count(
+                [("name", "=", "Local part elsewhere")]
+            ),
+            1,
+            "no alias was addressed by full name, so the local-part alias answers",
+        )
+
+    def test_the_creation_threshold_fires_exactly_at_the_threshold(self):
+        """The counter short-circuits at `limit=threshold`, which is only correct
+        because `search_count(limit=N)` returns `min(count, N)`. Get that backwards
+        and loop detection stops firing -- silently, since nothing else asserts on
+        the count.
+        """
+        sender = "loop.boundary@test.example.com"
+        self.env["mail.test.gateway"].create(
+            [{"name": f"Loop {index}", "email_from": sender} for index in range(3)]
+        )
+        limit = self.env.cr.now() - timedelta(minutes=120)
+        model = self.env["mail.test.gateway"]
+        for threshold, expected in ((2, True), (3, True), (4, False)):
+            with self.subTest(threshold=threshold):
+                self.assertEqual(
+                    model._detect_loop_sender_created_too_many(
+                        [False], sender, limit, threshold
+                    ),
+                    expected,
+                    "three records from this sender: a loop at a threshold of "
+                    "three, not at four",
+                )
+
+    def test_the_creation_counter_escapes_like_wildcards_in_the_address(self):
+        """`_` is a single-character wildcard to LIKE. An address carrying one
+        would otherwise count records belonging to addresses it never matched,
+        and trip loop detection on somebody else's mail.
+
+        On `mail.test.ticket` deliberately, NOT on the gateway fixture: the
+        blacklist mixin overrides the domain with an exact match on
+        `email_normalized` and never calls super, so a blacklist model exercises
+        no LIKE at all and would pass this whatever the base did. The escaping
+        being asserted here is only reachable through a plain thread model.
+        """
+        blacklist = self.env.registry["mixin.mail.thread.blacklist"]
+        self.assertNotIsInstance(
+            self.env["mail.test.ticket"],
+            blacklist,
+            "this model must reach the gateway's own domain, not the override",
+        )
+        self.assertIsInstance(
+            self.env["mail.test.gateway"],
+            blacklist,
+            "and the gateway fixture must not be used here, because it does not",
+        )
+
+        with_underscore = "a_b@test.example.com"
+        lookalike = "axb@test.example.com"
+        self.env["mail.test.ticket"].create(
+            [
+                {"name": "Underscore", "email_from": with_underscore},
+                {"name": "Lookalike", "email_from": lookalike},
+            ]
+        )
+        limit = self.env.cr.now() - timedelta(minutes=120)
+        model = self.env["mail.test.ticket"]
+        self.assertTrue(
+            model._detect_loop_sender_created_too_many(
+                [False], with_underscore, limit, 1
+            ),
+            "it still finds its own record",
+        )
+        self.assertFalse(
+            model._detect_loop_sender_created_too_many(
+                [False], with_underscore, limit, 2
+            ),
+            "but only its own -- `a_b@` must not also match `axb@`",
         )

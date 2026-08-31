@@ -251,8 +251,11 @@ class TestMailFlow(MailCommon, TestRecipients):
                         # be sure not to have catchall reply-to ! customers are in 'To' due to Reply-All
                         "incoming_email_to": f"{self.test_emails[0]}, {self.test_emails[1]}",
                         "notified_partner_ids": self.customer_zboing,
-                        # only recognized partners
-                        "partner_ids": self.partner_employee_2,
+                        # the recognized partners of the incoming email, plus the
+                        # parent's author, whom the gateway pinged through
+                        # message_post: a partner it notified is a partner it
+                        # addressed, and the two sets have to agree
+                        "partner_ids": self.customer_zboing + self.partner_employee_2,
                         "subject": "Re: Re: False",
                         "subtype_id": self.env.ref("mail.mt_comment"),
                     },
