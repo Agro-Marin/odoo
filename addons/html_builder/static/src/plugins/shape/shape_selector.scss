@@ -39,10 +39,15 @@
 
 .builder_select_page {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(var(--o-hb-shape-selector-grid-columns, 4), 1fr);
     gap: calc($o-we-item-spacing / 2);
     padding: $o-we-item-spacing;
     background-color: $o-we-bg-lighter;
+
+    // The device silhouettes are tall, so four to a row leaves them unreadable.
+    [data-shape-group-id="devices"] & {
+        --o-hb-shape-selector-grid-columns: 3;
+    }
 
     button {
         --PreviewAlphaBg-background-size: 16px;
