@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from datetime import date
 from itertools import chain
 
 from lxml import etree
@@ -350,3 +351,99 @@ class TestSelfAccessRights(TestHrCommon):
             .display_name,
             "FR******7890",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestSelfPersonalInformation(TestHrCommon):
+    """An employee must be able to see and correct their own personal data.
+
+    They have no access to `hr.employee` at all -- `security/ir.model.access.csv`
+    gives `base.group_user` no row on it -- and `hr.employee.public` mirrors
+    none of these fields, so Preferences is the only surface they have.
+    """
+
+    PERSONAL_FIELDS = (
+        "marital",
+        "spouse_complete_name",
+        "spouse_birthdate",
+        "children",
+        "legal_name",
+        "birthday",
+        "birthday_public_display",
+        "place_of_birth",
+        "country_of_birth",
+        "sex",
+    )
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.worker = new_test_user(
+            cls.env,
+            login="worker",
+            groups="base.group_user",
+            name="Worker",
+            email="worker@example.com",
+        )
+        cls.worker_employee = cls.env["hr.employee"].create(
+            {
+                "name": "Worker",
+                "user_id": cls.worker.id,
+                "marital": "married",
+                "children": 2,
+                "birthday": "1990-05-04",
+                "place_of_birth": "Culiacan",
+            }
+        )
+
+    def test_an_employee_reads_their_own_personal_information(self):
+        """Through `read`, which is the path the client takes.
+
+        Like every private_* field beside them these carry the employee's
+        `hr.group_hr_user` (a related inherits its target's groups), so raw
+        attribute traversal is refused; `res.users.read` elevates when every
+        requested field is self-readable, and that is what the preferences form
+        goes through.
+        """
+        self.env.invalidate_all()
+        me = self.worker.with_user(self.worker)
+
+        [values] = me.read(["marital", "children", "birthday", "place_of_birth"])
+
+        self.assertEqual(values["marital"], "married")
+        self.assertEqual(values["children"], 2)
+        self.assertEqual(values["birthday"], date(1990, 5, 4))
+        self.assertEqual(values["place_of_birth"], "Culiacan")
+
+    def test_an_employee_corrects_their_own_personal_information(self):
+        self.env.invalidate_all()
+        me = self.worker.with_user(self.worker)
+
+        me.write({"place_of_birth": "Mazatlan", "children": 3})
+
+        self.assertEqual(self.worker_employee.place_of_birth, "Mazatlan")
+        self.assertEqual(self.worker_employee.children, 3)
+
+    def test_the_employee_record_itself_stays_out_of_reach(self):
+        """Guard: this opens a self-service surface, not `hr.employee`."""
+        self.env.invalidate_all()
+        with self.assertRaises(AccessError):
+            self.worker_employee.with_user(self.worker).read(["marital"])
+
+    def test_the_bank_accounts_stay_out_of_the_self_writable_list(self):
+        """Guard: res_users.py documents that list as a payment-fraud vector."""
+        self.assertNotIn(
+            "employee_bank_account_ids",
+            self.env["res.users"].SELF_WRITEABLE_FIELDS,
+        )
+
+    def test_the_preferences_form_shows_them_to_a_plain_user(self):
+        view = self.env.ref("hr.res_users_view_form_preferences")
+        arch = etree.fromstring(
+            self.worker.with_user(self.worker).get_view(view.id)["arch"]
+        )
+        for field_name in self.PERSONAL_FIELDS:
+            self.assertTrue(
+                arch.xpath(f"//field[@name='{field_name}']"),
+                f"{field_name} was stripped from the preferences form",
+            )

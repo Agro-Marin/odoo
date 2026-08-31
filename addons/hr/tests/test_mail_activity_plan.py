@@ -1,7 +1,7 @@
 from freezegun import freeze_time
 
 from odoo import Command, fields
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import UserError
 from odoo.tests import tagged, users
 
 from odoo.addons.mail.tests.common import mail_new_test_user
@@ -311,22 +311,23 @@ class TestActivitySchedule(ActivityScheduleHRCase):
                 self.assertEqual(activities[1].user_id, self.user_coach)
                 self.assertEqual(activities[2].user_id, employee.user_id)
 
-            # Cases with errors
+            # An employee whose manager and coach are not set yet: the plan
+            # still launches, and says who the activities went to instead.
             self.employee_1.parent_id = False
             self.employee_1.coach_id = False
             form = self._instantiate_activity_schedule_wizard(employees)
             form.plan_id = self.plan_onboarding
-            self.assertTrue(form.has_error)
-            n_error = form.error.count("<li>")
-            self.assertEqual(n_error, 2)
+            self.assertFalse(form.has_error)
+            self.assertTrue(form.has_warning)
+            n_warning = form.warning.count("<li>")
+            self.assertEqual(n_warning, 2)
             self.assertIn(
-                f"Manager of employee {self.employee_1.name} is not set.", form.error
+                f"Manager of employee {self.employee_1.name} is not set.", form.warning
             )
             self.assertIn(
-                f"Coach of employee {self.employee_1.name} is not set.", form.error
+                f"Coach of employee {self.employee_1.name} is not set.", form.warning
             )
-            with self.assertRaises(ValidationError):
-                form.save()
+            form.save()
             self.employee_1.parent_id = self.employee_manager
             self.employee_1.coach_id = self.employee_coach
             self.employee_coach.user_id = False
@@ -385,3 +386,99 @@ class TestActivitySchedule(ActivityScheduleHRCase):
         with self._instantiate_activity_schedule_wizard(customers) as form:
             form.plan_id = self.plan_party
             self.assertEqual(form.plan_date, fields.Date.from_string("2023-08-31"))
+
+
+@tagged("mail_activity", "mail_activity_plan")
+class TestPlanLaunchWithoutFullSetup(ActivityScheduleHRCase):
+    """A plan must launch on an employee whose org chart is not filled in yet.
+
+    Onboarding is exactly the moment when the manager and the coach are still
+    blank, and that was exactly when the plan was refused: an unset relation
+    produced an `error`, `_check_consistency` turns any error into a
+    ValidationError on the scheduler itself, and the three launch buttons carry
+    `invisible="has_error"` on top of that.
+    """
+
+    def _plan_targeting(self, responsible_type):
+        return self.env["mail.activity.plan"].create(
+            {
+                "name": f"Test {responsible_type} plan",
+                "res_model": "hr.employee",
+                "template_ids": [
+                    Command.create(
+                        {
+                            "activity_type_id": self.activity_type_todo.id,
+                            "responsible_type": responsible_type,
+                            "summary": "Welcome",
+                        }
+                    )
+                ],
+            }
+        )
+
+    def _scheduler_for(self, employee, plan):
+        return (
+            self.env["mail.activity.schedule"]
+            .with_context(
+                active_model="hr.employee",
+                active_ids=employee.ids,
+                active_id=employee.id,
+            )
+            .create({"plan_id": plan.id})
+        )
+
+    def test_a_manager_plan_launches_on_an_employee_with_no_manager(self):
+        newcomer = self.env["hr.employee"].create({"name": "Newcomer"})
+        self.assertFalse(newcomer.parent_id, "the fixture must have no manager")
+
+        scheduler = self._scheduler_for(newcomer, self._plan_targeting("manager"))
+        self.assertFalse(scheduler.has_error)
+        self.assertTrue(scheduler.has_warning)
+        self.assertIn("Newcomer", scheduler.warning)
+
+        scheduler.action_schedule_plan()
+        activity = self.get_last_activities(newcomer)
+        self.assertEqual(len(activity), 1)
+        self.assertEqual(activity.user_id, self.env.user)
+
+    def test_a_coach_plan_launches_on_an_employee_with_no_coach(self):
+        newcomer = self.env["hr.employee"].create({"name": "Newcomer"})
+        self.assertFalse(newcomer.coach_id, "the fixture must have no coach")
+
+        scheduler = self._scheduler_for(newcomer, self._plan_targeting("coach"))
+        self.assertFalse(scheduler.has_error)
+        self.assertTrue(scheduler.has_warning)
+        self.assertIn("Newcomer", scheduler.warning)
+
+        scheduler.action_schedule_plan()
+        activity = self.get_last_activities(newcomer)
+        self.assertEqual(len(activity), 1)
+        self.assertEqual(activity.user_id, self.env.user)
+
+    def test_a_configured_manager_is_still_the_responsible(self):
+        """Guard: the happy path must stay silent and keep its assignee."""
+        scheduler = self._scheduler_for(
+            self.employee_1, self._plan_targeting("manager")
+        )
+        self.assertFalse(scheduler.has_error)
+        self.assertFalse(scheduler.has_warning)
+
+        scheduler.action_schedule_plan()
+        self.assertEqual(
+            self.get_last_activities(self.employee_1, limit=1).user_id,
+            self.user_manager,
+        )
+
+    def test_a_manager_without_a_user_still_only_warns(self):
+        """Guard: the neighbouring fallback path is untouched by this change."""
+        orphan_manager = self.env["hr.employee"].create({"name": "No Login"})
+        newcomer = self.env["hr.employee"].create(
+            {"name": "Newcomer", "parent_id": orphan_manager.id}
+        )
+
+        scheduler = self._scheduler_for(newcomer, self._plan_targeting("manager"))
+        self.assertFalse(scheduler.has_error)
+        self.assertTrue(scheduler.has_warning)
+
+        scheduler.action_schedule_plan()
+        self.assertEqual(self.get_last_activities(newcomer).user_id, self.env.user)
