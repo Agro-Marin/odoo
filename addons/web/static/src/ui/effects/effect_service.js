@@ -4,10 +4,13 @@
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
+import { warnUnknownOptions } from "@web/ui/overlay/presenter";
 
 import { RainbowMan } from "./rainbow_man.js";
 
 const effectRegistry = registry.category("effects");
+
+const EFFECT_OPTIONS = new Set(["onClose", "rootId", "sequence"]);
 
 /**
  * @param {import("@web/env").OdooEnv} env
@@ -49,9 +52,11 @@ class EffectService {
 
     /**
      * @param {{ type?: string, [key: string]: any }} [params]
+     * @param {{ rootId?: string, sequence?: number, onClose?: () => void }} [options]
      * @returns {() => void}
      */
-    add(params = {}) {
+    add(params = {}, options = {}) {
+        warnUnknownOptions("effect", options, EFFECT_OPTIONS);
         const type = params.type || "rainbow_man";
         if (!effectRegistry.contains(type)) {
             console.warn(`[effect] unknown effect type "${type}"; ignoring.`);
@@ -65,10 +70,18 @@ class EffectService {
         if (!Component) {
             return () => {};
         }
-        const remove = this.overlay.add(Component, {
-            ...props,
-            close: () => remove(),
-        });
+        const remove = this.overlay.add(
+            Component,
+            {
+                ...props,
+                close: () => remove(),
+            },
+            {
+                rootId: options.rootId,
+                sequence: options.sequence,
+                onRemove: options.onClose,
+            },
+        );
         return remove;
     }
 }

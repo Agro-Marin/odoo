@@ -12,13 +12,57 @@ import { compensateScrollbar } from "@web/core/utils/dom/scrolling";
 import { clamp } from "@web/core/utils/format/numbers";
 import { useBus, useForwardRefToParent } from "@web/core/utils/hooks";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
+import { useActiveElement } from "@web/ui/active_element";
 import { PRESENTED_PROPS } from "@web/ui/overlay/presenter";
-import { useActiveElement } from "@web/ui/ui_service";
 
+/**
+ * Used only when the sheet's declared slide-out duration cannot be read. It is
+ * not a second spelling of that duration: the stylesheet owns the number, and
+ * `slideOutFallbackDelay` derives the watchdog from it, so raising the animation
+ * can never leave a watchdog that fires mid-slide.
+ */
 const DISMISS_ANIMATION_FALLBACK_DELAY = 1000;
+
+/** Grace over the declared duration before the watchdog gives up on it. */
+const DISMISS_FALLBACK_MARGIN = 250;
 
 const SLIDE_IN_ANIMATION = "bottom-sheet-in";
 const SLIDE_OUT_ANIMATION = "bottom-sheet-out";
+
+/**
+ * @param {string} value a CSS <time>, e.g. "200ms" or "0.2s"
+ * @returns {number} milliseconds, or NaN
+ */
+function parseCssDuration(value) {
+    const match = /^\s*(-?[\d.]+)(ms|s)\s*$/.exec(value ?? "");
+    if (!match) {
+        return NaN;
+    }
+    const amount = Number(match[1]);
+    return match[2] === "s" ? amount * 1000 : amount;
+}
+
+/**
+ * The watchdog that closes the sheet if `animationend` never arrives. It has to
+ * outlast the animation, so it is read from the animation rather than guessed.
+ *
+ * @param {HTMLElement | null | undefined} containerEl
+ * @returns {number}
+ */
+function slideOutFallbackDelay(containerEl) {
+    if (!containerEl) {
+        return DISMISS_ANIMATION_FALLBACK_DELAY;
+    }
+    const declared = parseCssDuration(
+        getComputedStyle(containerEl).getPropertyValue(
+            "--BottomSheet-slideOut-duration",
+        ),
+    );
+    if (!Number.isFinite(declared) || declared <= 0) {
+        return DISMISS_ANIMATION_FALLBACK_DELAY;
+    }
+    return declared + DISMISS_FALLBACK_MARGIN;
+}
 
 /**
  * @param {HTMLElement} sheetEl
@@ -342,7 +386,7 @@ export class BottomSheet extends Component {
             );
             const fallbackTimer = browser.setTimeout(
                 onAnimationDone,
-                DISMISS_ANIMATION_FALLBACK_DELAY,
+                slideOutFallbackDelay(this.containerRef.el),
             );
             this.animationCleanups.push(() => {
                 browser.clearTimeout(fallbackTimer);
@@ -352,6 +396,17 @@ export class BottomSheet extends Component {
 
         this.state.isDismissing = true;
         this.state.isSnappingEnabled = false;
+    }
+
+    /**
+     * True once the overlay removal is in flight, which lasts as long as the
+     * caller's onClose. Distinct from `state.isDismissing`, which starts with
+     * the slide-out animation, before close() is called.
+     *
+     * @returns {boolean}
+     */
+    get isClosing() {
+        return Boolean(this.props.presentation?.isClosing);
     }
 
     /** @param {any} [closeParams] */

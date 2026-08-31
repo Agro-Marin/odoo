@@ -1,6 +1,6 @@
 // @ts-check
 
-import { describe, expect, test } from "@odoo/hoot";
+import { describe, expect, getFixture, test } from "@odoo/hoot";
 import { press, queryOne } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Component, onWillRender, useState, xml } from "@odoo/owl";
@@ -192,7 +192,11 @@ test("UI active element: trap focus - default focus with autofocus", async () =>
     expect(firstEvent.defaultPrevented).toBe(false);
 });
 
-test("do not become UI active element if no element to focus", async () => {
+test("become UI active element even with no element to focus, without taking the focus", async () => {
+    // Claiming the scope and moving the focus are two decisions. An element with
+    // nothing to focus still owns its hotkeys and commands -- otherwise a popover
+    // of plain text opened from a dialog sends its escape to the dialog -- but it
+    // must not steal the focus to say so.
     class MyComponent extends Component {
         static template = xml`
             <div>
@@ -211,8 +215,15 @@ test("do not become UI active element if no element to focus", async () => {
         }
     }
 
+    const outer = document.createElement("input");
+    getFixture().appendChild(outer);
+    outer.focus();
+
     await mountWithCleanup(MyComponent);
-    expect(/** @type {any} */ (getService("ui").activeElement)).toBe(document);
+    expect(/** @type {any} */ (getService("ui").activeElement)).toBe(
+        queryOne("#idActiveElement"),
+    );
+    expect(outer).toBeFocused();
 });
 
 test("become UI active element if no element to focus but the container is focusable", async () => {

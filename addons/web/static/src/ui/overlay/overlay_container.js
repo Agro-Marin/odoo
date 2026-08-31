@@ -14,6 +14,7 @@ import { reportUncaught } from "@web/core/errors/error_utils";
 import { sortBy } from "@web/core/utils/collections/arrays";
 import { ErrorHandler } from "@web/core/utils/components";
 import { rootIdOf } from "@web/ui/overlay/root_id";
+import { serviceBackedItems } from "@web/ui/service_backed_items";
 
 export const OVERLAY_SYMBOL = Symbol("Overlay");
 
@@ -27,7 +28,17 @@ const OVERLAY_ITEMS = Symbol("OverlayItems");
  */
 function useHostedSubEnv(baseEnv, extension) {
     if (baseEnv) {
-        /** @type {any} */ (useComponent()).__owl__.childEnv = baseEnv;
+        const node = /** @type {any} */ (useComponent()).__owl__;
+        if (!node || !("childEnv" in node)) {
+            // Replacing the child env has no public API. If Owl renames the
+            // field, a silent assignment would leave every hosted overlay on the
+            // container's env instead of its opener's.
+            throw new Error(
+                "useHostedSubEnv: owl no longer exposes __owl__.childEnv; " +
+                    "the hosted env would silently fall back to the container's.",
+            );
+        }
+        node.childEnv = baseEnv;
     }
     useChildSubEnv(extension);
 }
@@ -102,6 +113,7 @@ export class OverlayContainer extends Component {
     static template = "web.OverlayContainer";
     static components = { ErrorHandler, OverlayItem };
     static serviceName = "overlay";
+    static itemsKey = "overlays";
     static props = {
         overlays: { type: Object, optional: true },
         rootId: { type: String, optional: true },
@@ -110,7 +122,8 @@ export class OverlayContainer extends Component {
     setup() {
         this.root = useRef("root");
         this.state = useState({ rootId: this.props.rootId });
-        this.overlays = useState(this.props.overlays ?? this.serviceOverlays);
+        this.overlays = useState(serviceBackedItems(this, this.props.overlays));
+        this.containerRootIds = useState(this.service?.containerRootIds ?? []);
         useChildSubEnv({ [OVERLAY_ITEMS]: [] });
         if (!this.props.rootId) {
             useEffect(
@@ -120,22 +133,38 @@ export class OverlayContainer extends Component {
                 () => [this.root.el],
             );
         }
+        useEffect(
+            (rootId) => this.service?.registerContainer(rootId),
+            () => [this.state.rootId],
+        );
     }
 
     /**
-     * @returns {Record<number, any>}
+     * @returns {any}
      */
-    get serviceOverlays() {
-        const { name, serviceName } = /** @type {any} */ (this.constructor);
+    get service() {
+        // A container can be mounted standalone, with its overlays handed to it
+        // as a prop and no env services at all.
         // eslint-disable-next-line no-restricted-syntax
-        const service = this.env.services[serviceName];
-        if (!service) {
-            throw new Error(
-                `${name}.serviceName is "${serviceName}", but no such service is started in this env. ` +
-                    `Pass an \`overlays\` prop, or start the service.`,
-            );
+        return this.env.services?.[/** @type {any} */ (this.constructor).serviceName];
+    }
+
+    /**
+     * Whether this container takes the overlays that asked for the main
+     * document container when there is no such container to take them. The
+     * first mounted container adopts them, so the choice is deterministic when
+     * several shadow roots are up.
+     *
+     * @returns {boolean}
+     */
+    get adoptsUnrooted() {
+        const { rootId } = this.state;
+        if (rootId === undefined) {
+            // Already claims them by equality.
+            return false;
         }
-        return service.overlays;
+        const rootIds = this.containerRootIds;
+        return !rootIds.includes(undefined) && rootIds.indexOf(rootId) === 0;
     }
 
     /**
@@ -143,9 +172,15 @@ export class OverlayContainer extends Component {
      */
     get sortedOverlays() {
         const { rootId } = this.state;
+        const adoptsUnrooted = this.adoptsUnrooted;
         const mine = Object.values(
             /** @type {Record<string, any>} */ (this.overlays),
-        ).filter((overlay) => overlay.rootId === rootId);
+        ).filter(
+            (overlay) =>
+                !overlay.hasErrored &&
+                (overlay.rootId === rootId ||
+                    (adoptsUnrooted && overlay.rootId === undefined)),
+        );
         return sortBy(mine, (overlay) => overlay.sequence);
     }
 
@@ -154,6 +189,11 @@ export class OverlayContainer extends Component {
      * @param {Error} error
      */
     handleError(overlay, error) {
+        // Stop rendering it now rather than when the removal completes: removal
+        // awaits the caller's onClose, and anything that changes in that window
+        // re-renders a subtree that is still throwing, reporting the same crash
+        // twice.
+        overlay.hasErrored = true;
         overlay.remove();
         reportUncaught(error);
     }

@@ -13,6 +13,8 @@ import { registry } from "@web/core/registry";
 import { MainComponentsContainer } from "@web/ui/main_components_container";
 import { NotificationContainer } from "@web/ui/notification/notification_container";
 import { notificationService } from "@web/ui/notification/notification_service";
+import { OverlayContainer } from "@web/ui/overlay/overlay_container";
+import { serviceBackedItems } from "@web/ui/service_backed_items";
 
 test("can display a basic notification", async () => {
     await makeMockEnv();
@@ -447,12 +449,23 @@ test("a container whose service is not started says so", async () => {
     container.env = await makeMockEnv();
     let message = "";
     try {
-        void container.serviceNotifications;
+        serviceBackedItems(container, undefined);
     } catch (error) {
         message = error.message;
     }
     expect(message).toInclude("OrphanContainer");
     expect(message).toInclude("not_a_service");
+});
+
+test("the same lookup answers for the overlay container, and for a prop", async () => {
+    // Both containers resolve "the record this renders" the same way, so the
+    // message that names the missing service is written once.
+    const container = Object.create(OverlayContainer.prototype);
+    container.env = await makeMockEnv();
+    expect(() => serviceBackedItems(container, undefined)).not.toThrow();
+
+    const handed = {};
+    expect(serviceBackedItems(container, handed)).toBe(handed);
 });
 
 test("destroy() runs the onClose of every still-open notification", async () => {

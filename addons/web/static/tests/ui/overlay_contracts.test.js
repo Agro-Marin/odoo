@@ -69,7 +69,7 @@ test("overlay.add leaves nested values alone too", async () => {
     expect(seen[0]).toBe(carrier);
 });
 
-test("the popover presenter accepts only what Popover declares", async () => {
+test("the presenters share one option contract, and still name real typos", async () => {
     patchWithCleanup(odoo, { debug: "" });
     await mountWithCleanup(MainComponentsContainer);
     /** @type {string[]} */
@@ -92,9 +92,40 @@ test("the popover presenter accepts only what Popover declares", async () => {
     );
     await animationFrame();
 
-    expect(warnings.filter((w) => w.includes("onBack"))).toHaveLength(1);
-    expect(warnings.filter((w) => w.includes("nonsense"))).toHaveLength(1);
+    // `onBack` belongs to BottomSheet, which usePopover's useBottomSheet can
+    // route the same call to, so it is part of the contract the caller writes
+    // against and must not be reported as a mistake.
+    expect(warnings.filter((w) => w.includes("onBack"))).toHaveLength(0);
     expect(warnings.filter((w) => w.includes("position"))).toHaveLength(0);
+    expect(warnings.filter((w) => w.includes("nonsense"))).toHaveLength(1);
+});
+
+test("a dropdown rendered as a bottom sheet reports nothing about its popover options", async () => {
+    patchWithCleanup(odoo, { debug: "" });
+    await mountWithCleanup(MainComponentsContainer);
+    /** @type {string[]} */
+    const warnings = [];
+    patchWithCleanup(console, {
+        warn: (/** @type {string} */ message) => warnings.push(message),
+    });
+
+    const target = document.createElement("div");
+    /** @type {HTMLElement} */ (getFixture()).appendChild(target);
+    getService("bottom_sheet").add(
+        target,
+        probeComponent(() => {}),
+        {},
+        /** @type {any} */ ({
+            animation: false,
+            arrow: false,
+            holdOnHover: false,
+            onPositioned: () => {},
+            position: "bottom",
+        }),
+    );
+    await animationFrame();
+
+    expect(warnings).toHaveLength(0);
 });
 
 test("dialog.add names the options it will not act on, debug or not", async () => {

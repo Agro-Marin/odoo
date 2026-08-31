@@ -1,3 +1,9 @@
+// Every rule below is nested in this block, so the custom properties declared
+// here are always in scope: a `var()` fallback next to them is unreachable, and
+// the five that were there disagreed with the real durations (500ms/300ms
+// against 400ms/200ms). `slideOutFallbackDelay` in bottom_sheet.js reads the
+// declared duration to size its watchdog, so a fallback that lies is a number
+// waiting to be believed.
 .o_bottom_sheet {
     --BottomSheet-slideIn-duration: #{$o_BottomSheet_slideIn_duration};
     --BottomSheet-slideIn-easing: #{$o_BottomSheet_slideIn_easing};
@@ -50,7 +56,7 @@
         &::after {
             @include has-more-content-visual;
             opacity: 0;
-            transition: opacity var(--BottomSheet-slideIn-duration, 500ms);
+            transition: opacity var(--BottomSheet-slideIn-duration);
         }
     }
 
@@ -131,8 +137,8 @@
         opacity: 1;
 
         .o_bottom_sheet_sheet {
-            animation: var(--BottomSheet-slideIn-duration, 500ms) bottom-sheet-in
-                var(--BottomSheet-slideIn-easing, ease-out) forwards;
+            animation: var(--BottomSheet-slideIn-duration) bottom-sheet-in
+                var(--BottomSheet-slideIn-easing) forwards;
             @media (prefers-reduced-motion: reduce) {
                 animation: none;
             }
@@ -173,8 +179,8 @@
 
     &.o_bottom_sheet_dismissing {
         .o_bottom_sheet_sheet {
-            animation: var(--BottomSheet-slideOut-duration, 300ms) bottom-sheet-out
-                var(--BottomSheet-slideOut-easing, ease-in) forwards;
+            animation: var(--BottomSheet-slideOut-duration) bottom-sheet-out
+                var(--BottomSheet-slideOut-easing) forwards;
             @media (prefers-reduced-motion: reduce) {
                 animation: none;
             }
@@ -184,10 +190,10 @@
             opacity: 0;
             backdrop-filter: blur(0) grayscale(0%);
             transition:
-                opacity var(--BottomSheet-slideOut-duration, 300ms)
-                    var(--BottomSheet-slideOut-easing, ease-in),
-                backdrop-filter var(--BottomSheet-slideOut-duration, 300ms)
-                    var(--BottomSheet-slideOut-easing, ease-in);
+                opacity var(--BottomSheet-slideOut-duration)
+                    var(--BottomSheet-slideOut-easing),
+                backdrop-filter var(--BottomSheet-slideOut-duration)
+                    var(--BottomSheet-slideOut-easing);
             @media (prefers-reduced-motion: reduce) {
                 transition: none;
             }

@@ -27,8 +27,32 @@ class OverlayService {
         this.overlays = reactive(/** @type {Record<number, any>} */ ({}));
         /** @type {Map<number, Promise<void>>} */
         this.removing = new Map();
+        /**
+         * The rootId of every mounted container, in mount order. An overlay
+         * added without a rootId asks for "the main document container"; when
+         * no such container is mounted -- an app that lives entirely in a
+         * shadow root, like the external livechat embed -- the first container
+         * adopts it instead, so an overlay is never added to nothing.
+         *
+         * @type {(string | undefined)[]}
+         */
+        this.containerRootIds = reactive([]);
 
         mainComponents.add("OverlayContainer", mainComponentEntry(OverlayContainer));
+    }
+
+    /**
+     * @param {string | undefined} rootId
+     * @returns {() => void}
+     */
+    registerContainer(rootId) {
+        this.containerRootIds.push(rootId);
+        return () => {
+            const index = this.containerRootIds.indexOf(rootId);
+            if (index !== -1) {
+                this.containerRootIds.splice(index, 1);
+            }
+        };
     }
 
     /**

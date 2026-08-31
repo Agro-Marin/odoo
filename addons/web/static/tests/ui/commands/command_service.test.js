@@ -1183,3 +1183,12 @@ test("ensure that calling openPalette multiple times successfully loads the last
     expect(queryAllTexts(".o_command .o_command_name")).toEqual(["Command2"]);
     expect(".o_command_palette_search input").toHaveValue("Command");
 });
+
+test("the data-hotkeys provider defaults its scope, like the line above it does", async () => {
+    // adoptAccessKeys already fell back to the document; getVisibleElements did
+    // not, so calling the provider without an activeElement threw instead of
+    // reading the page.
+    const env = await makeMockEnv();
+    const provider = registry.category("command_provider").get("data-hotkeys");
+    expect(() => provider.provide(env)).not.toThrow();
+});

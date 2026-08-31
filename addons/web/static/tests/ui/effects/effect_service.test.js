@@ -6,6 +6,7 @@ import { advanceTime, animationFrame, runAllTimers } from "@odoo/hoot-mock";
 import { Component, markup, xml } from "@odoo/owl";
 import {
     getService,
+    makeMockEnv,
     mountWithCleanup,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
@@ -177,4 +178,24 @@ test("add() still returns a callable for an unknown effect type", async () => {
     const close = getService("effect").add({ type: "no_such_effect" });
     expect(typeof close).toBe("function");
     expect(() => close()).not.toThrow();
+});
+
+test("effect.add names the options it will not act on, like its siblings do", async () => {
+    // It was the one route to the overlay that validated nothing and passed no
+    // options object at all -- no rootId, no sequence, no onRemove.
+    patchWithCleanup(odoo, { debug: "" });
+    await makeMockEnv();
+    /** @type {string[]} */
+    const warnings = [];
+    patchWithCleanup(console, {
+        warn: (/** @type {string} */ message) => warnings.push(message),
+    });
+
+    getService("effect").add(
+        { message: "Well done" },
+        /** @type {any} */ ({ rootId: "somewhere", nonsense: 1 }),
+    );
+
+    expect(warnings.filter((w) => w.includes("nonsense"))).toHaveLength(1);
+    expect(warnings.filter((w) => w.includes("rootId"))).toHaveLength(0);
 });

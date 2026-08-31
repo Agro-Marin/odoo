@@ -97,7 +97,7 @@ commandProviderRegistry.add("data-hotkeys", {
             .overlayModifier;
         adoptAccessKeys(options.activeElement ?? document);
         for (const el of getVisibleElements(
-            options.activeElement,
+            options.activeElement ?? document,
             "[data-hotkey]:not(:disabled)",
         )) {
             const closest = /** @type {HTMLElement|null} */ (

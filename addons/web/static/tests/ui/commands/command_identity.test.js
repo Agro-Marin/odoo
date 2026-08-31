@@ -3,7 +3,12 @@
 import { expect, test } from "@odoo/hoot";
 import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
-import { getService, mountWithCleanup } from "@web/../tests/web_test_helpers";
+import {
+    getMockEnv,
+    getService,
+    makeMockEnv,
+    mountWithCleanup,
+} from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
 import { CommandPalette } from "@web/ui/commands/command_palette";
 import { MainComponentsContainer } from "@web/ui/main_components_container";
@@ -132,4 +137,40 @@ test("the palette placeholder is a string, not a lazy translation", async () => 
 
     const input = document.querySelector(".o_command_palette input");
     expect(input?.getAttribute("placeholder")).toBe("Search for a command...");
+});
+
+test("an identified command is qualified next to a plain namesake, not dropped", async () => {
+    // The (name, category) dedup keeps one command per name and category, so an
+    // identified command that stays unqualified beside a namesake carrying no
+    // identifier loses its row and the user cannot tell which one runs.
+    await makeMockEnv();
+    const command = getService("command");
+    command.add("Assign to ...", () => {}, {
+        global: true,
+        identifier: "Assignees",
+    });
+    command.add("Assign to ...", () => {}, { global: true });
+
+    const names = command.getCommands(document).map((c) => c.name);
+    expect(names).toEqual(["Assign to ... (Assignees)", "Assign to ..."]);
+
+    // The `command` provider answers synchronously; the registry's shape allows
+    // a promise, which is what the cast is for.
+    const provided = /** @type {{ name: string }[]} */ (
+        registry
+            .category("command_provider")
+            .get("command")
+            .provide(getMockEnv(), { activeElement: document })
+    ).map((c) => c.name);
+    expect(provided).toEqual(["Assign to ... (Assignees)", "Assign to ..."]);
+});
+
+test("a lone identified command keeps its plain name", async () => {
+    await makeMockEnv();
+    const command = getService("command");
+    command.add("Assign to ...", () => {}, {
+        global: true,
+        identifier: "Assignees",
+    });
+    expect(command.getCommands(document).map((c) => c.name)).toEqual(["Assign to ..."]);
 });

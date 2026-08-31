@@ -9,10 +9,10 @@ import { reverseForRTL } from "@web/core/position/utils";
 import { mergeClasses } from "@web/core/utils/dom/classname";
 import { useClickAway } from "@web/core/utils/dom/click_away";
 import { useForwardRefToParent } from "@web/core/utils/hooks";
+import { useActiveElement } from "@web/ui/active_element";
 import { OVERLAY_SYMBOL } from "@web/ui/overlay/overlay_container";
 import { PRESENTED_PROPS } from "@web/ui/overlay/presenter";
 import { watchForDetachedTarget } from "@web/ui/popover/detached_target_watcher";
-import { useActiveElement } from "@web/ui/ui_service";
 
 const POPOVERS = new WeakMap();
 /**
@@ -73,6 +73,16 @@ export class Popover extends Component {
     setup() {
         if (this.props.setActiveElement) {
             useActiveElement("ref");
+        } else if (this.props.closeOnEscape && odoo.debug) {
+            // Escape is dispatched to the registrations whose scope is the UI's
+            // active element. Declining to become one and asking for
+            // escape-to-close at the same time asks for a key that cannot be
+            // delivered -- and, with a dialog open, hands it to the dialog.
+            console.warn(
+                "[popover] closeOnEscape is set with setActiveElement disabled; " +
+                    "escape will reach whatever owns the UI instead. Handle escape " +
+                    "yourself, as Dropdown does, or let the popover claim the UI.",
+            );
         }
 
         useForwardRefToParent("ref");
@@ -120,10 +130,22 @@ export class Popover extends Component {
         }
     }
 
+    /**
+     * True from the moment close() is called until the overlay is actually
+     * removed -- a window as long as the caller's onClose, during which the
+     * popover is still on screen.
+     *
+     * @returns {boolean}
+     */
+    get isClosing() {
+        return Boolean(this.props.presentation?.isClosing);
+    }
+
     /** @returns {Object} */
     get defaultClassObj() {
         return mergeClasses(
             "o_popover popover mw-100 bs-popover-auto",
+            { o_popover_closing: this.isClosing },
             this.props.class,
         );
     }
@@ -165,15 +187,15 @@ export class Popover extends Component {
     }
 
     /**
+     * The anchor and the popover body are already excluded by `useClickAway`;
+     * the overlay container is the one region only this component knows about,
+     * and it is what keeps a nested popover from closing its parent.
+     *
      * @param {EventTarget} target
      * @returns {boolean}
      */
     isInside(target) {
-        return (
-            this.props.target?.contains(target) ||
-            this.popoverRef?.el?.contains(/** @type {Node} */ (target)) ||
-            /** @type {any} */ (this.env)[OVERLAY_SYMBOL]?.contains(target)
-        );
+        return Boolean(/** @type {any} */ (this.env)[OVERLAY_SYMBOL]?.contains(target));
     }
 
     /**

@@ -1,6 +1,6 @@
 // @ts-check
 
-import { expect, onError, test } from "@odoo/hoot";
+import { expect, getFixture, onError, test } from "@odoo/hoot";
 import { queryAll, queryOne, resize } from "@odoo/hoot-dom";
 import { animationFrame, mockTouch, runAllTimers } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
@@ -18,10 +18,12 @@ import {
     webModels,
 } from "@web/../tests/web_test_helpers";
 import { Dropdown } from "@web/components/dropdown/dropdown";
+import { getTabableElements } from "@web/core/utils/dom/ui";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { RainbowMan } from "@web/ui/effects/rainbow_man";
 import { MainComponentsContainer } from "@web/ui/main_components_container";
+import { OverlayContainer } from "@web/ui/overlay/overlay_container";
 import { makeOverlayPresenter } from "@web/ui/overlay/presenter";
 import {
     getDetachedTargetObserverCount,
@@ -601,4 +603,221 @@ test("a target watched before it is attached still reports its removal", async (
     await animationFrame();
     expect(detached).toBe(1);
     unwatch();
+});
+
+test("an app that lives only in a shadow root still gets its rootless overlays", async () => {
+    // The external livechat embed mounts its one container into a shadow root.
+    // Every `dialog.add` that does not thread a rootId asks for a main document
+    // container that does not exist there.
+    const host = document.createElement("div");
+    host.setAttribute("id", "o-livechat-root-1");
+    host.attachShadow({ mode: "open" });
+    getFixture().appendChild(host);
+
+    await makeMockEnv();
+    await mountWithCleanup(MainComponentsContainer, { target: host.shadowRoot });
+    await animationFrame();
+
+    getService("dialog").add(DialogContent, {});
+    await animationFrame();
+
+    expect("#o-livechat-root-1:shadow .o_dialog").toHaveCount(1);
+    expect(".o_dialog").toHaveCount(0);
+    expect(document.body).toHaveClass("modal-open");
+
+    await getService("dialog").closeAll();
+    await animationFrame();
+    expect(document.body).not.toHaveClass("modal-open");
+});
+
+test("a main document container still outranks a shadow one for rootless overlays", async () => {
+    const host = document.createElement("div");
+    host.setAttribute("id", "o-shadow-root-2");
+    host.attachShadow({ mode: "open" });
+    getFixture().appendChild(host);
+
+    await makeMockEnv();
+    await mountWithCleanup(MainComponentsContainer);
+    await mountWithCleanup(MainComponentsContainer, {
+        target: host.shadowRoot,
+        noMainContainer: true,
+    });
+    await animationFrame();
+
+    getService("dialog").add(DialogContent, {});
+    await animationFrame();
+
+    expect(".o_dialog").toHaveCount(1);
+    expect("#o-shadow-root-2:shadow .o_dialog").toHaveCount(0);
+
+    await getService("dialog").closeAll();
+    await animationFrame();
+});
+
+test("only the first shadow container adopts, so two of them do not double-render", async () => {
+    const hosts = ["o-shadow-a", "o-shadow-b"].map((id) => {
+        const host = document.createElement("div");
+        host.setAttribute("id", id);
+        host.attachShadow({ mode: "open" });
+        getFixture().appendChild(host);
+        return host;
+    });
+
+    await makeMockEnv();
+    for (const host of hosts) {
+        await mountWithCleanup(MainComponentsContainer, {
+            target: host.shadowRoot,
+            noMainContainer: true,
+        });
+    }
+    await animationFrame();
+
+    getService("dialog").add(DialogContent, {});
+    await animationFrame();
+
+    expect("#o-shadow-a:shadow .o_dialog").toHaveCount(1);
+    expect("#o-shadow-b:shadow .o_dialog").toHaveCount(0);
+
+    await getService("dialog").closeAll();
+    await animationFrame();
+});
+
+test.tags("mobile");
+test("opening a dropdown as a bottom sheet says nothing to the console", async () => {
+    // Every dropdown on a touch device is a bottom sheet, and Dropdown passes
+    // popover options to a call the breakpoint may route either way. Judging
+    // them against BottomSheet alone printed five lines per open, in production.
+    patchWithCleanup(odoo, { debug: "" });
+    /** @type {string[]} */
+    const warnings = [];
+    patchWithCleanup(console, {
+        warn: (/** @type {string} */ message) => warnings.push(message),
+    });
+
+    class Parent extends Component {
+        static template = xml`
+            <Dropdown>
+                <button class="opener">open</button>
+                <t t-set-slot="content"><span class="item">item</span></t>
+            </Dropdown>`;
+        static components = { Dropdown };
+        static props = ["*"];
+    }
+    await mountWithCleanup(Parent);
+    queryOne(".opener").click();
+    await animationFrame();
+    await animationFrame();
+
+    expect(".o_bottom_sheet").toHaveCount(1);
+    expect(warnings).toEqual([]);
+});
+
+test("a popover waiting on a slow onClose stops taking clicks", async () => {
+    // Teardown waits for the caller's onClose, so the popover is still on
+    // screen for the length of a round trip. It used to be indistinguishable
+    // from an open one, and still submitted.
+    await makeMockEnv();
+    await mountWithCleanup(MainComponentsContainer);
+
+    class Body extends Component {
+        static template = xml`<button class="pop-btn">go</button>`;
+        static props = ["*"];
+    }
+    /** @type {(v?: any) => void} */
+    let release = () => {};
+    const slow = new Promise((r) => (release = r));
+
+    const target = document.createElement("div");
+    getFixture().appendChild(target);
+    const close = getService("popover").add(target, Body, {}, { onClose: () => slow });
+    await animationFrame();
+    expect(".o_popover").not.toHaveClass("o_popover_closing");
+
+    close();
+    await animationFrame();
+    await animationFrame();
+
+    expect(".o_popover").toHaveCount(1);
+    expect(".o_popover").toHaveClass("o_popover_closing");
+    expect(".o_popover").toHaveAttribute("inert");
+    // `inert` is what the browser enforces against a real pointer; a scripted
+    // click is outside its scope either way. What is observable from here is
+    // that the subtree has left the tab order and cannot be reached.
+    expect(getTabableElements(queryOne(".o_popover"))).toHaveLength(0);
+    queryOne(".pop-btn").focus();
+    expect(queryOne(".pop-btn")).not.toBeFocused();
+
+    release();
+    await animationFrame();
+    expect(".o_popover").toHaveCount(0);
+});
+
+test("a dialog waiting on a slow onClose stops taking clicks too", async () => {
+    await makeMockEnv();
+    await mountWithCleanup(MainComponentsContainer);
+
+    class Body extends Component {
+        static template = xml`<Dialog><button class="dlg-btn">go</button></Dialog>`;
+        static components = { Dialog };
+        static props = ["*"];
+    }
+    /** @type {(v?: any) => void} */
+    let release = () => {};
+    const slow = new Promise((r) => (release = r));
+    const close = getService("dialog").add(Body, {}, { onClose: () => slow });
+    await animationFrame();
+
+    close();
+    await animationFrame();
+    await animationFrame();
+
+    expect(".o_dialog .modal").toHaveAttribute("inert");
+    expect(getTabableElements(queryOne(".o_dialog .modal"))).toHaveLength(0);
+    queryOne(".dlg-btn").focus();
+    expect(queryOne(".dlg-btn")).not.toBeFocused();
+
+    release();
+    await animationFrame();
+    expect(".o_dialog").toHaveCount(0);
+});
+
+test("the portal chatter shape: a second container in the same env, fed by a prop", async () => {
+    // portal_chatter.js mounts an OverlayContainer inside its shadow root with
+    // `overlays` handed in as a prop and an explicit rootId, on the SAME env as
+    // the page behind it. Both containers are then registered, so the
+    // document-rooted one keeps the overlays that named no root and the chatter
+    // only takes what asked for it by name.
+    const host = document.createElement("div");
+    host.setAttribute("id", "chatterRoot");
+    host.attachShadow({ mode: "open" });
+    getFixture().appendChild(host);
+
+    await makeMockEnv();
+    await mountWithCleanup(MainComponentsContainer);
+
+    const overlays = getService("overlay").overlays;
+    class ChatterRoot extends Component {
+        static components = { OverlayContainer };
+        static props = {};
+        static template = xml`<OverlayContainer overlays="overlays" rootId="'chatterRoot'"/>`;
+        setup() {
+            this.overlays = overlays;
+        }
+    }
+    await mountWithCleanup(ChatterRoot, {
+        target: host.shadowRoot,
+        noMainContainer: true,
+    });
+    await animationFrame();
+
+    getService("dialog").add(DialogContent, {}, { rootId: "chatterRoot" });
+    getService("dialog").add(DialogContent, {});
+    await animationFrame();
+
+    expect("#chatterRoot:shadow .o_dialog").toHaveCount(1);
+    expect(".o_dialog").toHaveCount(1);
+
+    await getService("dialog").closeAll();
+    await animationFrame();
+    document.body.classList.remove("modal-open");
 });

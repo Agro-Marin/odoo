@@ -8,6 +8,7 @@
             t-att-class="defaultClassObj"
             t-attf-style="--animation-time: {{ constructor.animationTime }}ms"
             t-att-role="props.role"
+            t-att-inert="isClosing or undefined"
             t-on-pointerenter="onPointerEnter"
             t-on-pointerleave="onPointerLeave"
         >

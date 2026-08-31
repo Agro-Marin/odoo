@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { markRaw } from "@odoo/owl";
+import { markRaw, reactive } from "@odoo/owl";
 import { rootIdOf } from "@web/ui/overlay/root_id";
 
 const SERVICE_OPTIONS = ["env", "onClose", "sequence", "useBottomSheet"];
@@ -9,17 +9,40 @@ const SERVICE_OPTIONS = ["env", "onClose", "sequence", "useBottomSheet"];
 const PRESENTER_SUPPLIED = ["close", "component", "componentProps", "slots", "target"];
 
 /**
- * @param {import("@odoo/owl").ComponentConstructor} component
+ * Every component a presenter can render. `usePopover`'s `useBottomSheet` hands
+ * one option bag to whichever presenter the breakpoint selects, so the contract
+ * the caller writes against is the union of them -- judging that bag against one
+ * component alone reports the other's options as unknown, which is five warnings
+ * per dropdown open on a touch device.
+ *
+ * Only the warning reads this. What each presenter *forwards* is still decided
+ * by its own `toProps`, so an option meant for the other side is still ignored,
+ * just not announced as a mistake.
+ *
+ * @type {Set<import("@odoo/owl").ComponentConstructor>}
+ */
+const PRESENTED_COMPONENTS = new Set();
+
+/** @type {{ size: number, options: Set<string> } | null} */
+let acceptedCache = null;
+
+/**
  * @returns {Set<string>}
  */
-function acceptedOptionsFor(component) {
+function acceptedOptions() {
+    if (acceptedCache?.size === PRESENTED_COMPONENTS.size) {
+        return acceptedCache.options;
+    }
     const accepted = new Set(SERVICE_OPTIONS);
-    for (const name of Object.keys(/** @type {any} */ (component).props ?? {})) {
-        accepted.add(name);
+    for (const component of PRESENTED_COMPONENTS) {
+        for (const name of Object.keys(/** @type {any} */ (component).props ?? {})) {
+            accepted.add(name);
+        }
     }
     for (const name of PRESENTER_SUPPLIED) {
         accepted.delete(name);
     }
+    acceptedCache = { size: PRESENTED_COMPONENTS.size, options: accepted };
     return accepted;
 }
 
@@ -52,6 +75,8 @@ export const PRESENTED_PROPS = {
     setActiveElement: { optional: true, type: Boolean },
 
     ref: { optional: true, type: Function },
+
+    presentation: { optional: true, type: Object },
 };
 
 /**
@@ -96,9 +121,14 @@ export function makeOverlayPresenter({
     onOpen,
     onClosed,
 }) {
-    const accepted = acceptedOptionsFor(component);
+    PRESENTED_COMPONENTS.add(component);
+    acceptedCache = null;
     return (target, hostedComponent, props = {}, options = {}) => {
-        warnUnknownOptions(scope ?? "overlay", options, accepted);
+        warnUnknownOptions(scope ?? "overlay", options, acceptedOptions());
+        // The overlay is torn down only once the caller's onClose has settled,
+        // and that can be a round trip. Until then it is still on screen and
+        // still takes clicks, so say so and stop taking them.
+        const presentation = reactive({ isClosing: false });
         const remove = overlay.add(
             component,
             {
@@ -106,6 +136,7 @@ export function makeOverlayPresenter({
                 ...toProps(options, target),
                 component: hostedComponent,
                 componentProps: markRaw(props),
+                presentation,
                 close: (/** @type {any} */ removeParams) => remove(removeParams),
             },
             {
@@ -113,6 +144,7 @@ export function makeOverlayPresenter({
                 sequence: options.sequence,
                 rootId: rootIdOf(target),
                 onRemove: async (/** @type {any} */ removeParams) => {
+                    presentation.isClosing = true;
                     try {
                         await options.onClose?.(removeParams);
                     } finally {

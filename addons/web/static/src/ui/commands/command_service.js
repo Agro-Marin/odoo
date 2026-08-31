@@ -289,25 +289,28 @@ class CommandService {
         const commands = [...this.registeredCommands.values()].filter(
             (command) => command.getScope() === activeElement || command.global,
         );
+        // An identifier says "this name may be ambiguous, qualify it when it
+        // is". Ambiguity is a property of the name, so the groups are keyed on
+        // every command answering to it -- including those carrying no
+        // identifier. Grouping only the identified ones left an identified
+        // command unqualified next to a plain namesake, and the (name, category)
+        // dedup downstream then dropped one of the two silently.
         /** @type {Map<string, CommandRegistration[]>} */
         const byName = new Map();
         for (const command of commands) {
-            if (command.identifier) {
-                const group = byName.get(command.name);
-                if (group) {
-                    group.push(command);
-                } else {
-                    byName.set(command.name, [command]);
-                }
+            const group = byName.get(command.name);
+            if (group) {
+                group.push(command);
+            } else {
+                byName.set(command.name, [command]);
             }
         }
         return commands.map((command) => {
-            const group = command.identifier && byName.get(command.name);
-            if (
-                group &&
-                group.length > 1 &&
-                group.some((c) => c.identifier !== command.identifier)
-            ) {
+            if (!command.identifier) {
+                return command;
+            }
+            const group = byName.get(command.name) ?? [];
+            if (group.some((c) => c.identifier !== command.identifier)) {
                 return {
                     ...command,
                     name: `${command.name} (${command.identifier})`,

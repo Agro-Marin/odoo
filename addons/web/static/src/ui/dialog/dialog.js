@@ -13,7 +13,7 @@ import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_owl";
 import { useForwardRefToParent } from "@web/core/utils/hooks";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
-import { useActiveElement } from "@web/ui/ui_service";
+import { useActiveElement } from "@web/ui/active_element";
 
 const useDialogDraggable = makeDraggableHook(
     /** @type {any} */ ({

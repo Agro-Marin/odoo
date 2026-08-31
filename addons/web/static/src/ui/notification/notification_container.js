@@ -5,10 +5,12 @@ import { Component, useState } from "@odoo/owl";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { Transition } from "@web/core/transition";
 import { ErrorHandler } from "@web/core/utils/components";
+import { serviceBackedItems } from "@web/ui/service_backed_items";
 
 import { Notification } from "./notification.js";
 export class NotificationContainer extends Component {
     static serviceName = "notification";
+    static itemsKey = "notifications";
     static notificationComponent = Notification;
     static props = {
         notifications: { type: Object, optional: true },
@@ -23,24 +25,8 @@ export class NotificationContainer extends Component {
     setup() {
         /** @type {Object<string, { props: Object }>} */
         this.notifications = useState(
-            this.props.notifications ?? this.serviceNotifications,
+            serviceBackedItems(this, this.props.notifications),
         );
-    }
-
-    /**
-     * @returns {Record<number, { props: Object }>}
-     */
-    get serviceNotifications() {
-        const { name, serviceName } = /** @type {any} */ (this.constructor);
-        // eslint-disable-next-line no-restricted-syntax
-        const service = this.env.services[serviceName];
-        if (!service) {
-            throw new Error(
-                `${name}.serviceName is "${serviceName}", but no such service is started in this env. ` +
-                    `A NotificationContainer subclass paired with its own service must declare that service's registry key.`,
-            );
-        }
-        return service.notifications;
     }
 
     /**

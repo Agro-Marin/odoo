@@ -1,7 +1,15 @@
 // @ts-check
 
 import { beforeEach, expect, getFixture, test } from "@odoo/hoot";
-import { click, queryOne, queryRect, resize, scroll, waitFor } from "@odoo/hoot-dom";
+import {
+    click,
+    press,
+    queryOne,
+    queryRect,
+    resize,
+    scroll,
+    waitFor,
+} from "@odoo/hoot-dom";
 import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
 import { Component, useRef, useState, xml } from "@odoo/owl";
 import {
@@ -12,6 +20,7 @@ import {
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { Deferred } from "@web/core/utils/concurrency";
+import { Dialog } from "@web/ui/dialog";
 import { MainComponentsContainer } from "@web/ui/main_components_container";
 import { Popover } from "@web/ui/popover/popover";
 import { usePopover } from "@web/ui/popover/popover_hook";
@@ -738,4 +747,81 @@ test("a popover whose target is not in the document does not build its content",
     expect(".p-content").toHaveCount(0);
     expect(".o_popover").toHaveCount(0);
     expect(Object.keys(getService("overlay").overlays)).toHaveLength(0);
+});
+
+test("escape closes the popover, not the dialog it was opened from", async () => {
+    // A popover whose content has nothing tabable used to never claim the UI, so
+    // its escape registration was scoped to the document while the modal owned
+    // the UI -- and one escape dismissed the dialog instead.
+    class InertContent extends Component {
+        static template = xml`<div class="inert-pop">plain text</div>`;
+        static props = ["*"];
+    }
+    class Host extends Component {
+        static template = xml`<Dialog><div class="host"><input class="dlg-input"/><span class="anchor">?</span></div></Dialog>`;
+        static components = { Dialog };
+        static props = ["*"];
+    }
+
+    await mountWithCleanup(MainComponentsContainer);
+    getService("dialog").add(Host, {});
+    await animationFrame();
+
+    getService("popover").add(queryOne(".anchor"), InertContent);
+    await animationFrame();
+    expect(".o_popover").toHaveCount(1);
+    expect(".o_dialog").toHaveCount(1);
+
+    await press("escape");
+    await animationFrame();
+    await animationFrame();
+
+    expect(".o_popover").toHaveCount(0);
+    expect(".o_dialog").toHaveCount(1);
+});
+
+test("a popover anchored outside a dialog is not left orphaned by escape", async () => {
+    class InertContent extends Component {
+        static template = xml`<div class="inert-pop">plain text</div>`;
+        static props = ["*"];
+    }
+    class Host extends Component {
+        static template = xml`<Dialog><div class="host"><input class="dlg-input"/></div></Dialog>`;
+        static components = { Dialog };
+        static props = ["*"];
+    }
+
+    await mountWithCleanup(MainComponentsContainer);
+    getService("dialog").add(Host, {});
+    await animationFrame();
+
+    const anchor = document.createElement("span");
+    getFixture().appendChild(anchor);
+    getService("popover").add(anchor, InertContent);
+    await animationFrame();
+
+    await press("escape");
+    await animationFrame();
+    await animationFrame();
+
+    expect(".o_popover").toHaveCount(0);
+    expect(".o_dialog").toHaveCount(1);
+});
+
+test("a popover with nothing to focus claims the UI without taking the focus", async () => {
+    class InertContent extends Component {
+        static template = xml`<div class="inert-pop">plain text</div>`;
+        static props = ["*"];
+    }
+
+    await mountWithCleanup(MainComponentsContainer);
+    const input = document.createElement("input");
+    getFixture().appendChild(input);
+    input.focus();
+
+    getService("popover").add(input, InertContent);
+    await animationFrame();
+
+    expect(getService("ui").activeElement).toBe(queryOne(".o_popover"));
+    expect(input).toBeFocused();
 });
