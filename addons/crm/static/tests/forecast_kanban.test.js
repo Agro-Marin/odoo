@@ -277,6 +277,49 @@ test("Forecast on years, until the end of the year of the latest data", async ()
 });
 
 test.tags("desktop");
+test("Add column extends the period the view is actually grouped by", async () => {
+    // The renderer used to read `granularity` off the field descriptor, which
+    // has no such property: it always resolved to "month" and expanded a period
+    // nothing read, so Add column did nothing at any other granularity.
+    mockDate("2021-10-10 00:00:00");
+    Lead._records = [{ id: 1, name: "Lead 1", date_deadline: "2021-10-15" }];
+    const endBounds = [];
+    onRpc("crm.lead", "web_read_group", ({ kwargs }) => {
+        const leaf = kwargs.domain.find((d) => Array.isArray(d) && d[1] === "<");
+        endBounds.push(leaf ? leaf[2] : null);
+    });
+    await mountView({
+        arch: kanbanArch,
+        searchViewArch: `
+                <search>
+                    <filter name="forecast" string="Forecast" context="{'forecast_filter':1}"/>
+                    <filter name='groupby_date_deadline' context="{'group_by':'date_deadline:year'}"/>
+                </search>`,
+        resModel: "crm.lead",
+        type: "kanban",
+        context: {
+            search_default_forecast: true,
+            search_default_groupby_date_deadline: true,
+            forecast_field: "date_deadline",
+        },
+        groupBy: ["date_deadline:year"],
+    });
+    const beforeAdd = endBounds.at(-1);
+
+    await quickCreateKanbanColumn();
+
+    // mount asks for the computed 4-year period; loadGroupedList then shrinks the
+    // period to the last group holding data (2022-01-01), so that is what one
+    // expand() must build on.
+    expect(beforeAdd).toBe("2025-01-01");
+    expect(endBounds.at(-1)).toBe("2023-01-01", {
+        message:
+            "Add column must extend the YEAR period; expanding the month slot " +
+            "instead would leave this at 2022-01-01",
+    });
+});
+
+test.tags("desktop");
 test("Forecast drag&drop and add column", async () => {
     mockDate("2023-09-01 00:00:00");
     Lead._fields.color = fields.Char();

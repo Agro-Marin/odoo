@@ -30,17 +30,14 @@ export class ForecastKanbanRenderer extends CrmKanbanRenderer {
     }
 
     async addForecastColumn() {
-        const { name, type, granularity } = this.props.list.groupByField;
+        const { list } = this.props;
         this.fillTemporalService
-            .getFillTemporalPeriod({
-                modelName: this.props.list.resModel,
-                field: {
-                    name,
-                    type,
-                },
-                granularity: granularity || "month",
+            .getFillTemporalPeriodForGroupBy({
+                modelName: list.resModel,
+                groupBySpec: list.groupBy[0],
+                fields: list.fields,
             })
             .expand();
-        await this.props.list.load();
+        await list.load();
     }
 }

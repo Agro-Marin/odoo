@@ -1,36 +1,34 @@
-import { animationFrame } from "@odoo/hoot-mock";
 import { describe, expect, test } from "@odoo/hoot";
-
-import { OdooBarChart } from "@spreadsheet/chart/odoo_chart/odoo_bar_chart";
-import { OdooChart } from "@spreadsheet/chart/odoo_chart/odoo_chart";
-import { OdooLineChart } from "@spreadsheet/chart/odoo_chart/odoo_line_chart";
-import { ChartDataSource } from "@spreadsheet/chart/data_source/chart_data_source";
-
+import { animationFrame } from "@odoo/hoot-mock";
+import * as spreadsheet from "@odoo/o-spreadsheet";
 import {
     createSpreadsheetWithChart,
     insertChartInSpreadsheet,
 } from "@spreadsheet/../tests/helpers/chart";
+import { addGlobalFilter, updateChart } from "@spreadsheet/../tests/helpers/commands";
+import {
+    defineSpreadsheetActions,
+    defineSpreadsheetModels,
+    getBasicServerData,
+    Partner,
+} from "@spreadsheet/../tests/helpers/data";
+import { THIS_YEAR_GLOBAL_FILTER } from "@spreadsheet/../tests/helpers/global_filter";
 import { insertListInSpreadsheet } from "@spreadsheet/../tests/helpers/list";
 import { createModelWithDataSource } from "@spreadsheet/../tests/helpers/model";
-import { addGlobalFilter, updateChart } from "@spreadsheet/../tests/helpers/commands";
-import { THIS_YEAR_GLOBAL_FILTER } from "@spreadsheet/../tests/helpers/global_filter";
+import { ChartDataSource } from "@spreadsheet/chart/data_source/chart_data_source";
+import { OdooBarChart } from "@spreadsheet/chart/odoo_chart/odoo_bar_chart";
+import { OdooChart } from "@spreadsheet/chart/odoo_chart/odoo_chart";
+import { OdooLineChart } from "@spreadsheet/chart/odoo_chart/odoo_line_chart";
+import { waitForDataLoaded } from "@spreadsheet/helpers/model";
 import {
-    mockService,
-    makeServerError,
     fields,
+    makeServerError,
+    mockService,
     onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import * as spreadsheet from "@odoo/o-spreadsheet";
-
 import { user } from "@web/core/user";
-import {
-    getBasicServerData,
-    defineSpreadsheetActions,
-    defineSpreadsheetModels,
-    Partner,
-} from "@spreadsheet/../tests/helpers/data";
-import { waitForDataLoaded } from "@spreadsheet/helpers/model";
+
 import { setGlobalFilterValue } from "../../helpers/commands.js";
 
 const { toZone } = spreadsheet.helpers;
@@ -406,7 +404,11 @@ test("Updating the domain keeps the global filters domain", async () => {
     model.getters.getChartRuntime(chartId); // force runtime computation
     await waitForDataLoaded(model);
     expect.verifySteps(["formatted_read_group"]);
-    expect(lastReadGroupDomain).toEqual(["&", ["1", "=", "1"], ["product", "in", [41]]]);
+    expect(lastReadGroupDomain).toEqual([
+        "&",
+        ["1", "=", "1"],
+        ["product", "in", [41]],
+    ]);
 });
 
 test("Can import/export an Odoo chart", async () => {
@@ -474,7 +476,7 @@ test("can import (export) contextual domain", async function () {
     await animationFrame();
     expect(model.exportData().sheets[0].figures[0].data.searchParams.domain).toBe(
         '[("foo", "=", uid)]',
-        { message: "the domain is exported with the dynamic parts" }
+        { message: "the domain is exported with the dynamic parts" },
     );
     expect.verifySteps(["formatted_read_group"]);
 });
@@ -502,13 +504,16 @@ test("charts with no legend", async () => {
     const bar = model.getters.getChartDefinition(barChartId);
     const line = model.getters.getChartDefinition(lineChartId);
     expect(
-        model.getters.getChartRuntime(pieChartId).chartJsConfig.options.plugins.legend.display
+        model.getters.getChartRuntime(pieChartId).chartJsConfig.options.plugins.legend
+            .display,
     ).toBe(true);
     expect(
-        model.getters.getChartRuntime(barChartId).chartJsConfig.options.plugins.legend.display
+        model.getters.getChartRuntime(barChartId).chartJsConfig.options.plugins.legend
+            .display,
     ).toBe(true);
     expect(
-        model.getters.getChartRuntime(lineChartId).chartJsConfig.options.plugins.legend.display
+        model.getters.getChartRuntime(lineChartId).chartJsConfig.options.plugins.legend
+            .display,
     ).toBe(true);
     model.dispatch("UPDATE_CHART", {
         definition: {
@@ -538,13 +543,16 @@ test("charts with no legend", async () => {
         sheetId,
     });
     expect(
-        model.getters.getChartRuntime(pieChartId).chartJsConfig.options.plugins.legend.display
+        model.getters.getChartRuntime(pieChartId).chartJsConfig.options.plugins.legend
+            .display,
     ).toBe(false);
     expect(
-        model.getters.getChartRuntime(barChartId).chartJsConfig.options.plugins.legend.display
+        model.getters.getChartRuntime(barChartId).chartJsConfig.options.plugins.legend
+            .display,
     ).toBe(false);
     expect(
-        model.getters.getChartRuntime(lineChartId).chartJsConfig.options.plugins.legend.display
+        model.getters.getChartRuntime(lineChartId).chartJsConfig.options.plugins.legend
+            .display,
     ).toBe(false);
 });
 
@@ -562,12 +570,12 @@ test("Bar chart with stacked attribute is supported", async () => {
         figureId: model.getters.getFigureIdFromChartId(chartId),
         sheetId,
     });
-    expect(model.getters.getChartRuntime(chartId).chartJsConfig.options.scales.x.stacked).toBe(
-        true
-    );
-    expect(model.getters.getChartRuntime(chartId).chartJsConfig.options.scales.y.stacked).toBe(
-        true
-    );
+    expect(
+        model.getters.getChartRuntime(chartId).chartJsConfig.options.scales.x.stacked,
+    ).toBe(true);
+    expect(
+        model.getters.getChartRuntime(chartId).chartJsConfig.options.scales.y.stacked,
+    ).toBe(true);
     model.dispatch("UPDATE_CHART", {
         definition: {
             ...definition,
@@ -577,31 +585,33 @@ test("Bar chart with stacked attribute is supported", async () => {
         figureId: model.getters.getFigureIdFromChartId(chartId),
         sheetId,
     });
-    expect(model.getters.getChartRuntime(chartId).chartJsConfig.options.scales.x.stacked).toBe(
-        false
-    );
-    expect(model.getters.getChartRuntime(chartId).chartJsConfig.options.scales.y.stacked).toBe(
-        false
-    );
+    expect(
+        model.getters.getChartRuntime(chartId).chartJsConfig.options.scales.x.stacked,
+    ).toBe(false);
+    expect(
+        model.getters.getChartRuntime(chartId).chartJsConfig.options.scales.y.stacked,
+    ).toBe(false);
 });
 
 test("Can copy/paste Odoo chart", async () => {
     const { model } = await createSpreadsheetWithChart({ type: "odoo_pie" });
     const sheetId = model.getters.getActiveSheetId();
     const chartId = model.getters.getChartIds(sheetId)[0];
-    model.dispatch("SELECT_FIGURE", { figureId: model.getters.getFigureIdFromChartId(chartId) });
+    model.dispatch("SELECT_FIGURE", {
+        figureId: model.getters.getFigureIdFromChartId(chartId),
+    });
     model.dispatch("COPY");
     model.dispatch("PASTE", { target: [toZone("A1")] });
     const chartIds = model.getters.getChartIds(sheetId);
     expect(chartIds.length).toBe(2);
     expect(model.getters.getChart(chartIds[1]) instanceof OdooChart).toBe(true);
     expect(JSON.stringify(model.getters.getChartRuntime(chartIds[1]))).toBe(
-        JSON.stringify(model.getters.getChartRuntime(chartId))
+        JSON.stringify(model.getters.getChartRuntime(chartId)),
     );
 
     expect(model.getters.getChart(chartId).dataSource).not.toBe(
         model.getters.getChart(chartIds[1]).dataSource,
-        { message: "The datasource is also duplicated" }
+        { message: "The datasource is also duplicated" },
     );
 });
 
@@ -610,7 +620,9 @@ test("Can cut/paste Odoo chart", async () => {
     const sheetId = model.getters.getActiveSheetId();
     const chartId = model.getters.getChartIds(sheetId)[0];
     const chartRuntime = model.getters.getChartRuntime(chartId);
-    model.dispatch("SELECT_FIGURE", { figureId: model.getters.getFigureIdFromChartId(chartId) });
+    model.dispatch("SELECT_FIGURE", {
+        figureId: model.getters.getFigureIdFromChartId(chartId),
+    });
     model.dispatch("CUT");
     model.dispatch("PASTE", { target: [toZone("A1")] });
     const chartIds = model.getters.getChartIds(sheetId);
@@ -618,7 +630,7 @@ test("Can cut/paste Odoo chart", async () => {
     expect(chartIds[0]).not.toBe(chartId);
     expect(model.getters.getChart(chartIds[0]) instanceof OdooChart).toBe(true);
     expect(JSON.stringify(model.getters.getChartRuntime(chartIds[0]))).toBe(
-        JSON.stringify(chartRuntime)
+        JSON.stringify(chartRuntime),
     );
 });
 
@@ -636,12 +648,12 @@ test("Duplicating a sheet correctly duplicates Odoo chart", async () => {
     expect(chartIds.length).toBe(1);
     expect(model.getters.getChart(chartIds[0]) instanceof OdooChart).toBe(true);
     expect(JSON.stringify(model.getters.getChartRuntime(chartIds[0]))).toBe(
-        JSON.stringify(model.getters.getChartRuntime(chartId))
+        JSON.stringify(model.getters.getChartRuntime(chartId)),
     );
 
     expect(model.getters.getChart(chartId).dataSource).not.toBe(
         model.getters.getChart(chartIds[0]).dataSource,
-        { message: "The datasource is also duplicated" }
+        { message: "The datasource is also duplicated" },
     );
 });
 
@@ -659,12 +671,12 @@ test("Line chart with stacked attribute is supported", async () => {
         figureId: model.getters.getFigureIdFromChartId(chartId),
         sheetId,
     });
-    expect(model.getters.getChartRuntime(chartId).chartJsConfig.options.scales.x.stacked).toBe(
-        undefined
-    );
-    expect(model.getters.getChartRuntime(chartId).chartJsConfig.options.scales.y.stacked).toBe(
-        true
-    );
+    expect(
+        model.getters.getChartRuntime(chartId).chartJsConfig.options.scales.x.stacked,
+    ).toBe(undefined);
+    expect(
+        model.getters.getChartRuntime(chartId).chartJsConfig.options.scales.y.stacked,
+    ).toBe(true);
     model.dispatch("UPDATE_CHART", {
         definition: {
             ...definition,
@@ -674,12 +686,12 @@ test("Line chart with stacked attribute is supported", async () => {
         figureId: model.getters.getFigureIdFromChartId(chartId),
         sheetId,
     });
-    expect(model.getters.getChartRuntime(chartId).chartJsConfig.options.scales.x.stacked).toBe(
-        undefined
-    );
-    expect(model.getters.getChartRuntime(chartId).chartJsConfig.options.scales.y.stacked).toBe(
-        false
-    );
+    expect(
+        model.getters.getChartRuntime(chartId).chartJsConfig.options.scales.x.stacked,
+    ).toBe(undefined);
+    expect(
+        model.getters.getChartRuntime(chartId).chartJsConfig.options.scales.y.stacked,
+    ).toBe(false);
 });
 
 test("Load odoo chart spreadsheet with models that cannot be accessed", async function () {
@@ -714,9 +726,9 @@ test("Line chart to support cumulative data", async () => {
     const chartId = model.getters.getChartIds(sheetId)[0];
     const definition = model.getters.getChartDefinition(chartId);
     await waitForDataLoaded(model);
-    expect(model.getters.getChartRuntime(chartId).chartJsConfig.data.datasets[0].data).toEqual([
-        1, 3,
-    ]);
+    expect(
+        model.getters.getChartRuntime(chartId).chartJsConfig.data.datasets[0].data,
+    ).toEqual([1, 3]);
     model.dispatch("UPDATE_CHART", {
         definition: {
             ...definition,
@@ -727,9 +739,9 @@ test("Line chart to support cumulative data", async () => {
         sheetId,
     });
     await waitForDataLoaded(model);
-    expect(model.getters.getChartRuntime(chartId).chartJsConfig.data.datasets[0].data).toEqual([
-        1, 4,
-    ]);
+    expect(
+        model.getters.getChartRuntime(chartId).chartJsConfig.data.datasets[0].data,
+    ).toEqual([1, 4]);
     model.dispatch("UPDATE_CHART", {
         definition: {
             ...definition,
@@ -740,9 +752,9 @@ test("Line chart to support cumulative data", async () => {
         sheetId,
     });
     await waitForDataLoaded(model);
-    expect(model.getters.getChartRuntime(chartId).chartJsConfig.data.datasets[0].data).toEqual([
-        1, 3,
-    ]);
+    expect(
+        model.getters.getChartRuntime(chartId).chartJsConfig.data.datasets[0].data,
+    ).toEqual([1, 3]);
 });
 
 test("cumulative line chart with past data before domain period without cumulated start", async () => {
@@ -756,9 +768,9 @@ test("cumulative line chart with past data before domain period without cumulate
     const sheetId = model.getters.getActiveSheetId();
     const chartId = model.getters.getChartIds(sheetId)[0];
     await waitForDataLoaded(model);
-    expect(model.getters.getChartRuntime(chartId).chartJsConfig.data.datasets[0].data).toEqual([
-        3, 7, 12,
-    ]);
+    expect(
+        model.getters.getChartRuntime(chartId).chartJsConfig.data.datasets[0].data,
+    ).toEqual([3, 7, 12]);
     const figure = model.exportData().sheets[0].figures[0];
     expect(figure.data.cumulative).toBe(true);
     expect(figure.data.cumulatedStart).toBe(undefined);
@@ -777,9 +789,13 @@ test("cumulative line chart with past data before domain period with cumulated s
     const sheetId = model.getters.getActiveSheetId();
     const chartId = model.getters.getChartIds(sheetId)[0];
     await waitForDataLoaded(model);
-    expect(model.getters.getChartRuntime(chartId).chartJsConfig.data.datasets[0].data).toEqual([
-        15, 19, 24,
-    ]);
+    // `probability` is declared `aggregator: "avg"`, so the group of records
+    // before the domain -- 10 and 2 -- starts the cumulation at their average, 6,
+    // and 6/+3/+4/+5 gives 9, 13, 18. This read 15, 19, 24 while the mock server
+    // aliased `avg` to `sum` and started it at 12, which no real server returns.
+    expect(
+        model.getters.getChartRuntime(chartId).chartJsConfig.data.datasets[0].data,
+    ).toEqual([9, 13, 18]);
     const figure = model.exportData().sheets[0].figures[0];
     expect(figure.data.cumulative).toBe(true);
     expect(figure.data.cumulatedStart).toBe(true);
@@ -798,9 +814,9 @@ test("update existing chart to cumulate past data", async () => {
     const sheetId = model.getters.getActiveSheetId();
     const chartId = model.getters.getChartIds(sheetId)[0];
     await waitForDataLoaded(model);
-    expect(model.getters.getChartRuntime(chartId).chartJsConfig.data.datasets[0].data).toEqual([
-        3, 7, 12,
-    ]);
+    expect(
+        model.getters.getChartRuntime(chartId).chartJsConfig.data.datasets[0].data,
+    ).toEqual([3, 7, 12]);
     const figure = model.exportData().sheets[0].figures[0];
     expect(figure.data.cumulative).toBe(true);
     expect(figure.data.cumulatedStart).toBe(false);
@@ -815,9 +831,13 @@ test("update existing chart to cumulate past data", async () => {
         sheetId,
     });
     await waitForDataLoaded(model);
-    expect(model.getters.getChartRuntime(chartId).chartJsConfig.data.datasets[0].data).toEqual([
-        15, 19, 24,
-    ]);
+    // `probability` is declared `aggregator: "avg"`, so the group of records
+    // before the domain -- 10 and 2 -- starts the cumulation at their average, 6,
+    // and 6/+3/+4/+5 gives 9, 13, 18. This read 15, 19, 24 while the mock server
+    // aliased `avg` to `sum` and started it at 12, which no real server returns.
+    expect(
+        model.getters.getChartRuntime(chartId).chartJsConfig.data.datasets[0].data,
+    ).toEqual([9, 13, 18]);
 });
 
 test("Can insert odoo chart from a different model", async () => {
@@ -836,7 +856,8 @@ test("Odoo chart legend color changes with background color update", async () =>
     const chartId = model.getters.getChartIds(sheetId)[0];
     const definition = model.getters.getChartDefinition(chartId);
     expect(
-        model.getters.getChartRuntime(chartId).chartJsConfig.options.plugins.legend.labels.color
+        model.getters.getChartRuntime(chartId).chartJsConfig.options.plugins.legend
+            .labels.color,
     ).toBe("#000000");
     model.dispatch("UPDATE_CHART", {
         definition: {
@@ -848,7 +869,8 @@ test("Odoo chart legend color changes with background color update", async () =>
         sheetId,
     });
     expect(
-        model.getters.getChartRuntime(chartId).chartJsConfig.options.plugins.legend.labels.color
+        model.getters.getChartRuntime(chartId).chartJsConfig.options.plugins.legend
+            .labels.color,
     ).toBe("#FFFFFF");
 });
 
@@ -1112,7 +1134,9 @@ test("See records when clicking on a geo chart country", async () => {
     mockService("action", fakeActionService);
     const { model } = await createSpreadsheetWithChart({
         type: "odoo_geo",
-        modelConfig: { external: { geoJsonService: { getAvailableRegions: () => [] } } },
+        modelConfig: {
+            external: { geoJsonService: { getAvailableRegions: () => [] } },
+        },
         definition: {
             type: "odoo_geo",
             legendPosition: "top",
@@ -1179,9 +1203,15 @@ test("See records when clicking on a sunburst chart slice", async () => {
     const runtime = model.getters.getChartRuntime(chartId);
 
     // Leaf value
-    let mockChart = { data: { datasets: [{ data: [{ groups: ["January 2020", "false"] }] }] } };
+    let mockChart = {
+        data: { datasets: [{ data: [{ groups: ["January 2020", "false"] }] }] },
+    };
     const event = { type: "click", native: new Event("click") };
-    await runtime.chartJsConfig.options.onClick(event, [{ datasetIndex: 0, index: 0 }], mockChart);
+    await runtime.chartJsConfig.options.onClick(
+        event,
+        [{ datasetIndex: 0, index: 0 }],
+        mockChart,
+    );
     expect(lastActionCalled?.domain).toEqual([
         "&",
         "&",
@@ -1192,7 +1222,11 @@ test("See records when clicking on a sunburst chart slice", async () => {
 
     // Non-leaf value
     mockChart = { data: { datasets: [{ data: [{ groups: ["February 2020"] }] }] } };
-    await runtime.chartJsConfig.options.onClick(event, [{ datasetIndex: 0, index: 0 }], mockChart);
+    await runtime.chartJsConfig.options.onClick(
+        event,
+        [{ datasetIndex: 0, index: 0 }],
+        mockChart,
+    );
     expect(lastActionCalled?.domain).toEqual([
         "&",
         ["date", ">=", "2020-02-01"],
@@ -1247,7 +1281,11 @@ test("See records when clicking on a treemap chart item", async () => {
     // Leaf value
     let mockChart = buildMockTreemapChart(["January 2020", "false"]);
     const event = { type: "click", native: new Event("click") };
-    await runtime.chartJsConfig.options.onClick(event, [{ datasetIndex: 0, index: 0 }], mockChart);
+    await runtime.chartJsConfig.options.onClick(
+        event,
+        [{ datasetIndex: 0, index: 0 }],
+        mockChart,
+    );
     expect(lastActionCalled?.domain).toEqual([
         "&",
         "&",
@@ -1258,7 +1296,11 @@ test("See records when clicking on a treemap chart item", async () => {
 
     // Non-leaf value
     mockChart = buildMockTreemapChart(["February 2020"]);
-    await runtime.chartJsConfig.options.onClick(event, [{ datasetIndex: 0, index: 0 }], mockChart);
+    await runtime.chartJsConfig.options.onClick(
+        event,
+        [{ datasetIndex: 0, index: 0 }],
+        mockChart,
+    );
     expect(lastActionCalled?.domain).toEqual([
         "&",
         ["date", ">=", "2020-02-01"],
@@ -1291,10 +1333,14 @@ test("import/export action xml id", async () => {
     const exported = model.exportData();
     expect(exported.sheets[0].figures[0].data.actionXmlId).toBe("test.my_action");
 
-    const { model: model2 } = await createModelWithDataSource({ spreadsheetData: exported });
+    const { model: model2 } = await createModelWithDataSource({
+        spreadsheetData: exported,
+    });
     const sheetId = model2.getters.getActiveSheetId();
     const chartId = model2.getters.getChartIds(sheetId)[0];
-    expect(model2.getters.getChartDefinition(chartId).actionXmlId).toBe("test.my_action");
+    expect(model2.getters.getChartDefinition(chartId).actionXmlId).toBe(
+        "test.my_action",
+    );
 });
 
 test("Show values is taken into account in the runtime", async () => {
@@ -1312,7 +1358,9 @@ test("Show values is taken into account in the runtime", async () => {
         sheetId,
     });
     const runtime = model.getters.getChartRuntime(chartId);
-    expect(runtime.chartJsConfig.options.plugins.chartShowValuesPlugin.showValues).toBe(true);
+    expect(runtime.chartJsConfig.options.plugins.chartShowValuesPlugin.showValues).toBe(
+        true,
+    );
 });
 
 test("Odoo line and bar charts display only horizontal grid lines", async () => {
@@ -1344,7 +1392,13 @@ test("Odoo line and bar charts display only horizontal grid lines", async () => 
 });
 
 test("Can configure the chart datasets", async () => {
-    const searchParams = { comparison: null, context: {}, domain: [], groupBy: [], orderBy: [] };
+    const searchParams = {
+        comparison: null,
+        context: {},
+        domain: [],
+        groupBy: [],
+        orderBy: [],
+    };
     const metaData = {
         groupBy: ["name", "bar"],
         measure: "probability",
@@ -1369,7 +1423,10 @@ test("Can configure the chart datasets", async () => {
     expect(definition.dataSets).toEqual([{}, {}]);
 
     model.dispatch("UPDATE_CHART", {
-        definition: { ...definition, dataSets: [{ label: "My dataset" }, { label: "Second" }] },
+        definition: {
+            ...definition,
+            dataSets: [{ label: "My dataset" }, { label: "Second" }],
+        },
         chartId,
         figureId: model.getters.getFigureIdFromChartId(chartId),
         sheetId,
@@ -1438,7 +1495,13 @@ test("Long labels are only truncated in the axis callback, not in the data given
         { name: "Guy", probability: 10 },
         { name: "Guy with a very very very long name", probability: 2 },
     ];
-    const searchParams = { comparison: null, context: {}, domain: [], groupBy: [], orderBy: [] };
+    const searchParams = {
+        comparison: null,
+        context: {},
+        domain: [],
+        groupBy: [],
+        orderBy: [],
+    };
     const { model } = await createSpreadsheetWithChart({
         type: "odoo_line",
         serverData,
@@ -1465,7 +1528,9 @@ test("Long labels are only truncated in the axis callback, not in the data given
     const fakeChart = { getLabelForValue: (value) => value };
     const scaleCallback = config.options.scales.x.ticks.callback.bind(fakeChart);
     expect(scaleCallback("Guy")).toBe("Guy");
-    expect(scaleCallback("Guy with a very very very long name")).toBe("Guy with a very very…");
+    expect(scaleCallback("Guy with a very very very long name")).toBe(
+        "Guy with a very very…",
+    );
 });
 
 test("can change chart granularity", async () => {
@@ -1485,13 +1550,17 @@ test("can change chart granularity", async () => {
         chartId,
         granularity: "year",
     });
-    expect(model.getters.getChartDefinition(chartId).metaData.groupBy).toEqual(["date:year"]);
+    expect(model.getters.getChartDefinition(chartId).metaData.groupBy).toEqual([
+        "date:year",
+    ]);
 });
 
 test("changing chart granularity reloads data source once with global filter", async () => {
     onRpc("partner", "formatted_read_group", ({ kwargs }) => {
         expect.step(kwargs.groupby[0]);
-        expect(kwargs.domain.length).toBe(3, { message: "Global filter domain is applied" });
+        expect(kwargs.domain.length).toBe(3, {
+            message: "Global filter domain is applied",
+        });
     });
     const { model } = await createSpreadsheetWithChart({
         type: "odoo_bar",
@@ -1510,7 +1579,7 @@ test("changing chart granularity reloads data source once with global filter", a
         { id: "42", type: "date", label: "Date", defaultValue: "last_90_days" },
         {
             chart: { [chartId]: { chain: "date", type: "date" } },
-        }
+        },
     );
     model.getters.getChartRuntime(chartId); // load the data
     await animationFrame();
@@ -1539,13 +1608,9 @@ test("available granularities without filter", async () => {
     const sheetId = model.getters.getActiveSheetId();
     const chartId = model.getters.getChartIds(sheetId)[0];
 
-    expect(model.getters.getAvailableChartGranularities(chartId).map((g) => g.value)).toEqual([
-        "day",
-        "week",
-        "month",
-        "quarter",
-        "year",
-    ]);
+    expect(
+        model.getters.getAvailableChartGranularities(chartId).map((g) => g.value),
+    ).toEqual(["day", "week", "month", "quarter", "year"]);
 });
 
 test("no available granularities when not grouped by a date", async () => {
@@ -1585,33 +1650,26 @@ test("available granularities with a date filter", async () => {
         { id: filterId, type: "date", label: "Date" },
         {
             chart: { [chartId]: { chain: "date", type: "date" } },
-        }
+        },
     );
     model.updateMode("dashboard");
-    expect(model.getters.getAvailableChartGranularities(chartId).map((g) => g.value)).toEqual([
-        "day",
-        "week",
-        "month",
-        "quarter",
-        "year",
-    ]);
+    expect(
+        model.getters.getAvailableChartGranularities(chartId).map((g) => g.value),
+    ).toEqual(["day", "week", "month", "quarter", "year"]);
     await setGlobalFilterValue(model, {
         id: filterId,
         value: { type: "relative", period: "last_90_days" },
     });
-    expect(model.getters.getAvailableChartGranularities(chartId).map((g) => g.value)).toEqual([
-        "day",
-        "week",
-        "month",
-        "quarter",
-    ]);
+    expect(
+        model.getters.getAvailableChartGranularities(chartId).map((g) => g.value),
+    ).toEqual(["day", "week", "month", "quarter"]);
     await setGlobalFilterValue(model, {
         id: filterId,
         value: { type: "relative", period: "today" },
     });
-    expect(model.getters.getAvailableChartGranularities(chartId).map((g) => g.value)).toEqual([
-        "day",
-    ]);
+    expect(
+        model.getters.getAvailableChartGranularities(chartId).map((g) => g.value),
+    ).toEqual(["day"]);
 });
 
 test("hour is an available granularity with a filtered datetime field", async () => {
@@ -1634,24 +1692,19 @@ test("hour is an available granularity with a filtered datetime field", async ()
         { id: filterId, type: "date", label: "Date" },
         {
             chart: { [chartId]: { chain: "create_date", type: "datetime" } },
-        }
+        },
     );
     model.updateMode("dashboard");
-    expect(model.getters.getAvailableChartGranularities(chartId).map((g) => g.value)).toEqual([
-        "day",
-        "week",
-        "month",
-        "quarter",
-        "year",
-    ]);
+    expect(
+        model.getters.getAvailableChartGranularities(chartId).map((g) => g.value),
+    ).toEqual(["day", "week", "month", "quarter", "year"]);
     await setGlobalFilterValue(model, {
         id: filterId,
         value: { type: "relative", period: "today" },
     });
-    expect(model.getters.getAvailableChartGranularities(chartId).map((g) => g.value)).toEqual([
-        "hour",
-        "day",
-    ]);
+    expect(
+        model.getters.getAvailableChartGranularities(chartId).map((g) => g.value),
+    ).toEqual(["hour", "day"]);
 });
 
 test("filtering a chart axis changes its granularity", async () => {
@@ -1674,7 +1727,7 @@ test("filtering a chart axis changes its granularity", async () => {
         { id: filterId, type: "date", label: "Date" },
         {
             chart: { [chartId]: { chain: "create_date", type: "datetime" } },
-        }
+        },
     );
     model.updateMode("dashboard");
 
@@ -1698,9 +1751,9 @@ test("filtering a chart axis changes its granularity", async () => {
             expectedGroupBy,
             {
                 message: `Expected groupBy to be ${expectedGroupBy} for value ${JSON.stringify(
-                    value
+                    value,
                 )}`,
-            }
+            },
         );
     }
 });
@@ -1725,7 +1778,7 @@ test("filtering doesn't change its granularity if not the horizontal axis", asyn
         { id: filterId, type: "date", label: "Date" },
         {
             chart: { [chartId]: { chain: "date", type: "date" } }, // the horizontal axis is create_date, not date
-        }
+        },
     );
     model.updateMode("dashboard");
 
@@ -1758,14 +1811,16 @@ test("filtering preserves manually changed granularity", async () => {
         { id: filterId, type: "date", label: "Date" },
         {
             chart: { [chartId]: { chain: "create_date", type: "datetime" } },
-        }
+        },
     );
     model.updateMode("dashboard");
     await setGlobalFilterValue(model, {
         id: filterId,
         value: { type: "relative", period: "last_90_days" },
     });
-    expect(model.getters.getChartDefinition(chartId).metaData.groupBy).toEqual(["create_date:day"]);
+    expect(model.getters.getChartDefinition(chartId).metaData.groupBy).toEqual([
+        "create_date:day",
+    ]);
     model.dispatch("UPDATE_CHART_GRANULARITY", {
         chartId,
         granularity: "week", // Manually change granularity to from day to week
@@ -1814,7 +1869,7 @@ test("filtering on 'day' doesn't change to hour if not datetime", async () => {
         { id: filterId, type: "date", label: "Date" },
         {
             chart: { [chartId]: { chain: "date", type: "date" } },
-        }
+        },
     );
     model.updateMode("dashboard");
 
@@ -1822,5 +1877,7 @@ test("filtering on 'day' doesn't change to hour if not datetime", async () => {
         id: filterId,
         value: { type: "relative", period: "today" },
     });
-    expect(model.getters.getChartDefinition(chartId).metaData.groupBy).toEqual(["date:day"]);
+    expect(model.getters.getChartDefinition(chartId).metaData.groupBy).toEqual([
+        "date:day",
+    ]);
 });

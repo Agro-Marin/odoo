@@ -1545,6 +1545,12 @@ test("Open record on new window", async () => {
         },
     });
     await mountWithCleanup(WebClient);
+    // Let the mount-time url restore finish. Dispatching straight away races it:
+    // `doAction` mints a navigation epoch, `loadState` fails its supersession check
+    // before reaching `getActionParams`, and the `get current_action` step below
+    // never happens -- correct behaviour, but it makes the sequence this test pins
+    // depend on how many microtasks the restore happens to take.
+    await animationFrame();
     await getService("action").doAction({
         res_model: "hr.employee",
         type: "ir.actions.act_window",
