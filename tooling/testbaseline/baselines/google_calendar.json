@@ -1,0 +1,8 @@
+{
+  "expected": {},
+  "note": "green. Update BOTH modules: -u google_calendar alone silently drops google_account's 8 TestGoogleService tests while still reporting a pass",
+  "run_spec": "-u google_calendar,google_account --test-enable --test-tags /google_calendar,/google_account",
+  "suite": "/google_calendar",
+  "tests_total": 112,
+  "verified_at": "14a4cc97b07"
+}

@@ -1,8 +1,8 @@
 {
     'name': 'Google Calendar',
-    'version': '1.0',
+    'version': '19.0.2.0.0',
     'category': 'Productivity',
-    'depends': ['google_account', 'calendar'],
+    'depends': ['google_account', 'calendar', 'credential'],
     'data': [
         'data/google_calendar_data.xml',
         'security/ir.model.access.csv',

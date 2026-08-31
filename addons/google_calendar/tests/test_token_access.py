@@ -1,8 +1,10 @@
 from odoo import Command, fields
 from odoo.tests.common import TransactionCase
 
+from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
 
-class TestTokenAccess(TransactionCase):
+
+class TestTokenAccess(EncryptionKeyCase, TransactionCase):
 
     @classmethod
     def setUpClass(cls):

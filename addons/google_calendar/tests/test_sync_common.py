@@ -16,6 +16,7 @@ from odoo.addons.google_calendar.models.mixin_google_calendar_sync import (
 from odoo.addons.google_calendar.models.res_users import ResUsers
 from odoo.addons.google_calendar.utils.google_calendar import GoogleCalendarService
 from odoo.addons.mail.tests.common import mail_new_test_user
+from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
 
 
 def patch_api(func):
@@ -26,7 +27,13 @@ def patch_api(func):
 
 
 @patch.object(ResUsers, '_get_google_calendar_token', lambda user: 'dummy-token')
-class TestSyncGoogle(HttpCase):
+class TestSyncGoogle(EncryptionKeyCase, HttpCase):
+    """`EncryptionKeyCase` first: a user's Google OAuth tokens rest in
+    `credential.credential` (ADR-0081), which refuses to store anything without
+    ODOO_API_ENCRYPTION_KEY. It supplies one per class rather than leaving a key
+    installed for the rest of the process.
+    """
+
 
     def setUp(self):
         super().setUp()

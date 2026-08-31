@@ -5,13 +5,37 @@ import requests
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
+# `_` is the translation function; a sentinel needs its own object.
+_UNSET = object()
+
 
 class ResUsersSettings(models.Model):
     _inherit = "res.users.settings"
 
     # Google Calendar tokens and synchronization information.
-    google_calendar_rtoken = fields.Char('Refresh Token', copy=False, groups='base.group_system')
-    google_calendar_token = fields.Char('User token', copy=False, groups='base.group_system')
+    #
+    # ADR-0081: the two tokens rest in credential.credential, encrypted,
+    # access-logged and rate-limited, and the fields become doors onto it so
+    # every reader and the session_info blacklist are unchanged. The validity is
+    # not a secret and stays a column of its own.
+    google_calendar_credential_id = fields.Many2one(
+        comodel_name='credential.credential',
+        string='Google Credential',
+        ondelete='restrict',
+        copy=False,
+        groups='base.group_system',
+        help="Holds this user's Google OAuth tokens.",
+    )
+    google_calendar_rtoken = fields.Char(
+        'Refresh Token', copy=False, groups='base.group_system',
+        compute='_compute_google_calendar_tokens',
+        inverse='_inverse_google_calendar_rtoken',
+    )
+    google_calendar_token = fields.Char(
+        'User token', copy=False, groups='base.group_system',
+        compute='_compute_google_calendar_tokens',
+        inverse='_inverse_google_calendar_token',
+    )
     google_calendar_token_validity = fields.Datetime('Token Validity', copy=False, groups='base.group_system')
     google_calendar_sync_token = fields.Char('Next Sync Token', copy=False, groups='base.group_system')
     google_calendar_cal_id = fields.Char('Calendar ID', copy=False, groups='base.group_system',
@@ -31,12 +55,63 @@ class ResUsersSettings(models.Model):
         ]
         return super()._get_fields_blacklist() + google_fields_blacklist
 
+    @api.depends('google_calendar_credential_id')
+    def _compute_google_calendar_tokens(self):
+        for settings in self:
+            credential = settings.google_calendar_credential_id.sudo()
+            settings.google_calendar_token = credential.oauth_access_token or False
+            settings.google_calendar_rtoken = credential.oauth_refresh_token or False
+
+    def _inverse_google_calendar_token(self):
+        for settings in self:
+            settings._google_store_tokens(access_token=settings.google_calendar_token)
+
+    def _inverse_google_calendar_rtoken(self):
+        for settings in self:
+            settings._google_store_tokens(refresh_token=settings.google_calendar_rtoken)
+
+    def _google_store_tokens(self, access_token=_UNSET, refresh_token=_UNSET):
+        """Write whichever tokens were given into this user's credential.
+
+        The default is a sentinel rather than None because None is a value a
+        caller means: `_set_google_auth_tokens(False, False, 0)` disconnects, and
+        that has to clear both rather than read as "leave these alone".
+        """
+        self.ensure_one()
+        values = {}
+        if access_token is not _UNSET:
+            values['oauth_access_token'] = access_token or False
+        if refresh_token is not _UNSET:
+            values['oauth_refresh_token'] = refresh_token or False
+
+        credential = self.google_calendar_credential_id.sudo()
+        if credential:
+            if any(values.values()):
+                credential.write(values)
+            else:
+                # Nothing left: the user disconnected, and holding no credential
+                # is what `_google_calendar_authenticated` reads.
+                self.google_calendar_credential_id = False
+                credential.unlink()
+            return
+        if not any(values.values()):
+            return
+        self.google_calendar_credential_id = self.env['credential.credential'].sudo().create({
+            'name': _("Google Calendar: %s", self.user_id.login),
+            'category_id': self.env.ref('credential.credential_category_oauth2').id,
+            'company_id': self.user_id.company_id.id,
+            # In the same create: the oauth2 constraint runs there.
+            **values,
+        }).id
+
     def _set_google_auth_tokens(self, access_token, refresh_token, ttl):
         self.sudo().write({
-            'google_calendar_rtoken': refresh_token,
-            'google_calendar_token': access_token,
             'google_calendar_token_validity': fields.Datetime.now() + timedelta(seconds=ttl) if ttl else False,
         })
+        for settings in self.sudo():
+            settings._google_store_tokens(
+                access_token=access_token, refresh_token=refresh_token
+            )
 
     def _google_calendar_authenticated(self):
         self.ensure_one()
