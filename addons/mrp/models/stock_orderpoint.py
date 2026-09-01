@@ -306,7 +306,7 @@ class StockWarehouseOrderpoint(models.Model):
                 )
                 if not qty_per_kit:
                     continue
-                qty_by_product_location, _dummy = component._quantity_in_progress(
+                qty_by_product_location, _dummy = component._get_quantity_in_progress(
                     orderpoint.location_id.ids
                 )
                 qty_in_progress = qty_by_product_location.get(
