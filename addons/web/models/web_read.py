@@ -381,8 +381,9 @@ class Base(models.AbstractModel):
         known_values=None,
     ) -> list[dict]:
         if len(self) != len(vals_list):
-            msg = "Each record must have a corresponding vals entry."
-            raise ValueError(msg)
+            raise UserError(
+                self.env._("Each record must have a corresponding vals entry.")
+            )
 
         for vals in vals_list:
             self._check_web_save_vals(vals)
