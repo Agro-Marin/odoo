@@ -1502,7 +1502,8 @@ export class TablePlugin extends Plugin {
             return;
         }
         table.classList.toggle("o_selected_table", true);
-        const columns = getTableCells(table);
+        const tableGrid = this.buildTableGrid(table);
+        const columns = tableGrid.flat();
         const startCol =
             [
                 selection.startContainer,
@@ -1521,14 +1522,12 @@ export class TablePlugin extends Plugin {
             closestElement(startCol, "tr"),
             closestElement(endCol, "tr"),
         ];
-        const [startColIndex, endColIndex] = [
-            getColumnIndex(startCol),
-            getColumnIndex(endCol),
-        ];
         const [startRowIndex, endRowIndex] = [
             getRowIndex(startRow),
             getRowIndex(endRow),
         ];
+        const startColIndex = tableGrid[startRowIndex].indexOf(startCol);
+        const endColIndex = tableGrid[endRowIndex].indexOf(endCol);
         const [minRowIndex, maxRowIndex] = [
             Math.min(startRowIndex, endRowIndex),
             Math.max(startRowIndex, endRowIndex),
@@ -1537,18 +1536,16 @@ export class TablePlugin extends Plugin {
             Math.min(startColIndex, endColIndex),
             Math.max(startColIndex, endColIndex),
         ];
-        const grid = [...table.querySelectorAll("tr")]
-            .filter((tr) => closestElement(tr, "table") === table)
-            .map((tr) => [...tr.children].filter(isTableCell));
-        for (const tds of grid.filter(
-            (_, index) => index >= minRowIndex && index <= maxRowIndex,
-        )) {
-            for (const td of tds.filter(
-                (_, index) => index >= minColIndex && index <= maxColIndex,
-            )) {
-                td.classList.toggle("o_selected_td", true);
-                this.dispatchTo("deselect_custom_selected_nodes_handlers", td);
-            }
+
+        const tdsToSelect = new Set(
+            tableGrid
+                .slice(minRowIndex, maxRowIndex + 1)
+                .flatMap((row) => row.slice(minColIndex, maxColIndex + 1)),
+        );
+
+        for (const td of tdsToSelect) {
+            td.classList.toggle("o_selected_td", true);
+            this.dispatchTo("deselect_custom_selected_nodes_handlers", td);
         }
     }
 
