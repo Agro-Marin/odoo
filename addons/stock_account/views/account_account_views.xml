@@ -7,7 +7,7 @@
         <field name="arch" type="xml">
             <field name="tag_ids" position="after">
                 <field name="account_stock_variation_id" invisible="account_type != 'asset_current'"/>
-                <field name="account_stock_expense_id" invisible="account_type != 'asset_current'" placeholder="For Perpetual Continental Only" groups="base.group_no_one"/>
+                <field name="account_stock_expense_id" invisible="account_type != 'asset_current'" placeholder="For Perpetual Continental Only"/>
             </field>
         </field>
     </record>
