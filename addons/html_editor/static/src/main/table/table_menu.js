@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { closestElement } from "@html_editor/utils/dom_traversal";
+import { getSelectedCellsMergeInfo } from "@html_editor/utils/table";
 import {
     Component,
     onMounted,
@@ -26,8 +27,11 @@ export class TableMenu extends Component {
         resetColumnWidth: Function,
         resetTableSize: Function,
         clearColumnContent: Function,
+        mergeSelectedCells: Function,
+        unmergeSelectedCell: Function,
         clearRowContent: Function,
         close: Function,
+        buildTableGrid: Function,
         dropdownState: Object,
         target: { validate: (el) => el.nodeType === Node.ELEMENT_NODE },
         document: { validate: (el) => el.nodeType === Node.DOCUMENT_NODE },
@@ -52,6 +56,9 @@ export class TableMenu extends Component {
                     this.isLast = !tr.nextElementSibling;
                     this.isTableHeader = [...tr.children][0].nodeName === "TH";
                 }
+                this.tableGrid = this.props.buildTableGrid(
+                    closestElement(this.props.target, "table"),
+                );
                 this.items =
                     this.props.type === "column" ? this.colItems() : this.rowItems();
                 this.updatePosition();
@@ -142,6 +149,11 @@ export class TableMenu extends Component {
 
     colItems() {
         const ltr = this.props.direction === "ltr";
+        const { canMerge, canUnmerge, cells, spanType } = getSelectedCellsMergeInfo(
+            this.props.document,
+            this.tableGrid,
+            this.props.target,
+        );
         return [
             !this.isFirst && {
                 name: "move_left",
@@ -192,10 +204,29 @@ export class TableMenu extends Component {
                 text: _t("Clear content"),
                 action: this.props.clearColumnContent.bind(this),
             },
+            cells.length > 1 && {
+                name: "merge_cell",
+                icon: "fa-compress",
+                text: _t("Merge Cells"),
+                disable: !canMerge,
+                tooltip: _t("Only rows or cells selection can be merged"),
+                action: () => this.props.mergeSelectedCells(cells, spanType),
+            },
+            canUnmerge && {
+                name: "unmerge_cell",
+                icon: "fa-compress",
+                text: _t("Unmerge Cells"),
+                action: this.props.unmergeSelectedCell.bind(this),
+            },
         ].filter(Boolean);
     }
 
     rowItems() {
+        const { canMerge, canUnmerge, cells, spanType } = getSelectedCellsMergeInfo(
+            this.props.document,
+            this.tableGrid,
+            this.props.target,
+        );
         return [
             this.isFirst &&
                 !this.isTableHeader && {
@@ -258,6 +289,20 @@ export class TableMenu extends Component {
                 icon: "fa-times-circle",
                 text: _t("Clear content"),
                 action: (target) => this.props.clearRowContent(target.parentElement),
+            },
+            cells.length > 1 && {
+                name: "merge_cell",
+                icon: "fa-compress",
+                text: _t("Merge Cells"),
+                disable: !canMerge,
+                tooltip: _t("Only rows or cells selection can be merged"),
+                action: () => this.props.mergeSelectedCells(cells, spanType),
+            },
+            canUnmerge && {
+                name: "unmerge_cell",
+                icon: "fa-compress",
+                text: _t("Unmerge Cells"),
+                action: this.props.unmergeSelectedCell.bind(this),
             },
         ].filter(Boolean);
     }

@@ -31,6 +31,7 @@ export class TableUIPlugin extends Plugin {
                 commandId: "openTablePicker",
             },
         ],
+        selectionchange_handlers: this.updateActiveCell.bind(this),
     };
 
     setup() {
@@ -50,22 +51,19 @@ export class TableUIPlugin extends Plugin {
         });
 
         /** @type {import("@html_editor/core/overlay_plugin").Overlay} */
-        this.mobilePicker = this.dependencies.overlay.createOverlay(
-            MobileTablePicker,
-            {
-                positionOptions: {
-                    updatePositionOnResize: false,
-                    // Docked to the bottom edge: on a phone the caret sits
-                    // near the middle and an anchored popover would land
-                    // under the virtual keyboard.
-                    onPositioned: (picker) => {
-                        picker.style.bottom = 0;
-                        picker.style.width = "100%";
-                        picker.style.removeProperty("top");
-                    },
+        this.mobilePicker = this.dependencies.overlay.createOverlay(MobileTablePicker, {
+            positionOptions: {
+                updatePositionOnResize: false,
+                // Docked to the bottom edge: on a phone the caret sits
+                // near the middle and an anchored popover would land
+                // under the virtual keyboard.
+                onPositioned: (picker) => {
+                    picker.style.bottom = 0;
+                    picker.style.width = "100%";
+                    picker.style.removeProperty("top");
                 },
             },
-        );
+        });
 
         this.columnMenuOverlayKey = "table-column-menu";
         this.rowMenuOverlayKey = "table-row-menu";
@@ -122,6 +120,15 @@ export class TableUIPlugin extends Plugin {
         } else {
             this.openPicker();
         }
+    }
+
+    updateActiveCell(selectionData) {
+        const selection = selectionData.editableSelection;
+        const selectedTd = closestElement(selection.startContainer, ".o_selected_td");
+        if (selection.isCollapsed || !selectedTd) {
+            return;
+        }
+        this.activeTd = false;
     }
 
     onMouseMove(ev) {
@@ -212,6 +219,11 @@ export class TableUIPlugin extends Plugin {
             resetTableSize: withAddStep(this.dependencies.table.resetTableSize),
             clearColumnContent: withAddStep(this.dependencies.table.clearColumnContent),
             clearRowContent: withAddStep(this.dependencies.table.clearRowContent),
+            mergeSelectedCells: withAddStep(this.dependencies.table.mergeSelectedCells),
+            unmergeSelectedCell: withAddStep(
+                this.dependencies.table.unmergeSelectedCell,
+            ),
+            buildTableGrid: this.dependencies.table.buildTableGrid,
         };
         if (td.cellIndex === 0) {
             registry
