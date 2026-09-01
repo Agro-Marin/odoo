@@ -13,4 +13,13 @@
         height: 100%;
         min-height: auto !important;
     }
+
+    // A portrait player at the 750px the landscape one gets would be taller
+    // than the viewport, so it keeps a phone-sized column instead.
+    &.media_iframe_video_size_for_vertical {
+        max-width: 315px;
+        &:has(iframe) {
+            aspect-ratio: 9 / 16;
+        }
+    }
 }

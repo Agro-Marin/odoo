@@ -15,6 +15,7 @@ export class EmbeddedVideoSelector extends VideoSelector {
                     platform: media.platform,
                     params: media.params || {},
                 }),
+                isVertical: media.isVertical,
             }),
         );
     }

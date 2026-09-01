@@ -93,6 +93,17 @@ export class EmbeddedVideoComponent extends ReadonlyEmbeddedVideoComponent {
         this.state.videoId = media.videoId;
         this.state.platform = media.platform;
         this.state.params = media.params;
+        // The orientation lives on the host, not in the embedded props: it is
+        // what the stylesheet reads, and it has to survive a save and reload.
+        if (media.isVertical) {
+            this.videoBlock.dataset.isVertical = "true";
+        } else {
+            delete this.videoBlock.dataset.isVertical;
+        }
+        this.videoBlock.classList.toggle(
+            "media_iframe_video_size_for_vertical",
+            !!media.isVertical,
+        );
         this.props.focusEditable();
     }
 }
