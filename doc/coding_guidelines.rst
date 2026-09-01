@@ -916,7 +916,7 @@ from the head-first reordering of §2.4.4**: ``_get_domain_legacy_keys`` and
 ``_get_domain_accessible_records`` return a ``Domain`` and are already right,
 though ``collection_head_order`` scores both ``tail``.
 
-**A hook does one job** ``[ratchet hookpurity]``. 16 are not hooks at all: the
+**A hook does one job** ``[ratchet hookpurity]``. 12 are not hooks at all: the
 declaring model also calls them on ``self`` (calls from tests do not count). Split
 it -- the hook keeps the name and delegates to a helper. ADR-0051, ADR-0049.
 
@@ -964,8 +964,8 @@ Two readings of the gate itself:
   into eighteen classes would exempt itself. **0** hook is exempt today,
   ``crm.team._get_default_team_id``.
 * **The reserved prefixes are worn by more than the hooks**
-  ``[gate doc_restated_counts]``. ``field_hook_naming.py --unbound``: **149**
-  names, at **214** definitions, wear one while no field declaration and no
+  ``[gate doc_restated_counts]``. ``field_hook_naming.py --unbound``: **148**
+  names, at **213** definitions, wear one while no field declaration and no
   binding decorator names them. A candidate population, not a violation count.
 
 2.4.2 Decorator-bound families the gate cannot reach
@@ -992,7 +992,7 @@ free-standing form.
 * ``unlink`` is the right verb: an ``@api.ondelete`` hook deletes nothing, it
   *guards* the ORM operation named ``unlink``. Do not "correct" one to
   ``_remove_``, which names a business method that deletes records.
-* **The canonical is ``_unlink_except_<the case that raises>``**, at **107** of
+* **The canonical is ``_unlink_except_<the case that raises>``**, at **108** of
   the 163 already. Name the case that raises and take the wording from the error:
   ``_unlink_except_master_data`` raises **when** the record is master data, while
   ``_unlink_if_manual`` states the opposite condition.
@@ -1062,7 +1062,7 @@ ways: 3 stems are written with two or more verbs drawn from one semantic family,
 and 103 groups of methods share a byte-identical body under different names.
 
 **Every figure in this section is measured, not stated**
-``[gate doc_restated_counts]``. The population is the 25,365 non-test methods
+``[gate doc_restated_counts]``. The population is the 25,368 non-test methods
 declared on a model class **in this repository** -- the population
 ``naming_vocabulary.py`` ratchets. The census stops here (ADR-0033), so every
 figure is a floor.
@@ -1243,7 +1243,7 @@ rediscover it as new.
 **The verb leads** ``[review]``. ``naming_vocabulary.classify`` partitions on the
 first token and stops, so a noun in front of the verb hides the verb from the rule
 *and* from its enforcement: ``_import_retrieve_partner_vals`` scores as the verb
-``import``, which carries no rule. Backlog: **138** model methods put an abolished
+``import``, which carries no rule. Backlog: **137** model methods put an abolished
 verb somewhere the ratchet cannot read it -- a candidate population, since some of
 those tokens belong to a noun or a field name.
 
@@ -1334,10 +1334,10 @@ no-verb figure in this section as excluding properties, or as not saying**
   deleting it: ``_get_related_bundle`` → ``_get_bundle_containing_path``.
 
 Backlog ``[gate doc_restated_counts]``. The ``fields`` family is converted:
-**207** definitions under **98** names in this repository spell it head-first and
+**206** definitions under **97** names in this repository spell it head-first and
 **18** spell it the other way. **The rule is general; the conversion reached one
-family** -- across **19** of them this repository spells **113** definitions
-head-first against **152** the other way. A name in the second count is a backlog
+family** -- across **19** of them this repository spells **128** definitions
+head-first against **153** the other way. A name in the second count is a backlog
 item, not an open question. Two cautions:
 ``naming_vocabulary._COLLECTION_HEADS`` is a **search**, so a head absent from it
 is measured by nothing; and ``ids`` is deliberately absent, because
@@ -1510,8 +1510,8 @@ not a namespace**, because it could not survive being moved to another.
 2.4.5 Converters
 ~~~~~~~~~~~~~~~~
 
-**``X_to_Y`` is the converter idiom, and ``to`` is the verb** ``[review]``. **100**
-definitions under **58** names are spelled that way and most are right: the name
+**``X_to_Y`` is the converter idiom, and ``to`` is the verb** ``[review]``. **98**
+definitions under **56** names are spelled that way and most are right: the name
 is the pair of representations, and it buys the searchable families ``_str_to_*``
 and ``_*_to_sql``. **``Y_from_X`` is the same idiom spelled backwards**, and
 almost every ``_from_`` name is innocent -- the verb leads and *from X* is a source
@@ -1702,12 +1702,12 @@ running the other way.
 2.4.7 Payload against read
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**``_get_`` is not a default.** At 5,800 definitions it is 22.9 % of every method
+**``_get_`` is not a default.** At 5,797 definitions it is 22.9 % of every method
 in this repository's model layer, having absorbed reading, building, deriving and
-computing. The split that matters is against ``_prepare_``: 684 definitions are
+computing. The split that matters is against ``_prepare_``: 669 definitions are
 payload builders -- they end in ``_vals``, ``_values``, ``_data``, ``_dict``,
 ``_context``, ``_defaults``, ``_list``, ``_args`` or ``_params`` -- yet are
-spelled ``get_*``, against 785 already spelled ``_prepare_*``.
+spelled ``get_*``, against 832 already spelled ``_prepare_*``.
 
 **Resolve it on the consumer, always** ``[review]``. Where the return value goes
 is visible at the call site; whether a value was "already there" is a question
@@ -1769,7 +1769,7 @@ anything else.
 ``[gate doc_restated_counts]``. It names the arithmetic where ``_generate_`` names
 the manufacture, and unlike ``_generate_`` it is owed no record, because the
 Provenance bullet above has already settled it: a scalar that answers a question
-is ``_get_`` whatever produced it. **10** model methods still wear it. Two
+is ``_get_`` whatever produced it. **7** model methods still wear it. Two
 cautions from draining it out of ``mrp``:
 
 * **The rename collides, and the collision is the finding.** Three of them
@@ -1794,9 +1794,7 @@ ORM is written. ``_set_replenish_data(new_lines, product, replenish_data)`` is
 it a builder** -- a caller writing ``data = obj._update_data(..., data)`` is
 rebinding a name, not receiving a new object.
 
-Backlog: **38** of this repository's **785** ``_prepare_*`` definitions call
-
-Backlog: **35** of this repository's **769** ``_prepare_*`` definitions call
+Backlog: **39** of this repository's **832** ``_prepare_*`` definitions call
 ``create()``, ``write()`` or ``unlink()`` in their own body. A candidate
 population -- only a builder whose **return value** is not the mapping it
 assembles is in the wrong family.
@@ -1844,8 +1842,8 @@ model was what refreshed it. Name the write: it is ``_sync_module_list``
 2.4.8 Predicates and validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**A ``bool`` return does not make a predicate** ``[review]``. **348** functions in
-this repository are annotated ``-> bool`` and are not predicates, against **246**
+**A ``bool`` return does not make a predicate** ``[review]``. **346** functions in
+this repository are annotated ``-> bool`` and are not predicates, against **248**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
 **answer** to a question about the subject is a predicate, a **converted value**
@@ -1912,7 +1910,7 @@ worth having:
   **Rename the half that is inside the workspace and say which half you left**,
   rather than leaving both because one of them is expensive.
 
-**Validation raises; predicates return.** ``_check_*`` (1,151 definitions) is
+**Validation raises; predicates return.** ``_check_*`` (1,145 definitions) is
 canonical and matches ``@api.constrains``. On model classes ``_validate_`` (0)
 plus ``_verify_``, ``_ensure_`` and ``_control_`` (0 together) are gone -- they
 were one operation under four names, all four verbs are abolished (§2.4.3), the
@@ -2169,7 +2167,7 @@ It is ``exhausted_count``.
 ~~~~~~~~~~~~~~~~~~~~~
 
 **Do not name a method for the act of running** -- *provisional*. ``_do_``,
-``_run_``, ``_perform_``, ``_execute_``, ``_process_`` and ``_handle_`` (192
+``_run_``, ``_perform_``, ``_execute_``, ``_process_`` and ``_handle_`` (179
 definitions) describe execution rather than behaviour; every method executes. Name
 the domain operation: ``_post_entries``, not ``_do_posting``. No mechanical
 rewrite exists.
@@ -2350,16 +2348,16 @@ both raise, and both are the Validation row.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **``_find_`` is three operations wearing one verb** ``[review]``. Pure ORM reads
-among them have been renamed to ``_get_``. Split by what the body does, the **26**
+among them have been renamed to ``_get_``. Split by what the body does, the **25**
 ``_find_*`` methods that remain are still not one thing:
 
-* **5** perform an ORM read -- and both also **write**, which is why they were
+* **4** perform an ORM read -- and both also **write**, which is why they were
   left (``_find_existing_rule_or_create`` searches then creates);
 * **20** do something else entirely, and the verb flatters them
   (``_find_available_name`` appends ``(2)``, ``(3)`` until unused: a derivation).
 
 The third kind is gone. **The canonical is ``_get_or_create_*``**: **1** methods
-here still spell it ``_find_``, against **27** spelling it ``_get_``. ``_find_``
+here still spell it ``_find_``, against **28** spelling it ``_get_``. ``_find_``
 is not in the abolished table, because classification needs the body: a pass keyed
 on the name scored both survivors as pure reads, and a check for ``create`` /
 ``write`` / ``unlink`` / ``copy`` moved them out.
@@ -2371,7 +2369,7 @@ inside ``except (ValidationError, RequestException)``: the contract is *fetch th
 remote bytes and store them locally*.
 
 **``_resolve_`` is the verb to keep** ``[review]``, at **39** definitions here
-against the size of ``_find_`` -- **26**. It is a **partial** producer, returning
+against the size of ``_find_`` -- **25**. It is a **partial** producer, returning
 the object or ``None`` meaning *not applicable*; a read that always answers is
 ``_get_``. Where a dispatch chain mixes the spellings, read it as the chain saying
 which branches can refuse.
@@ -2444,7 +2442,7 @@ existence check, is ``_get_or_create_directory``.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **``_update_``, not ``_set_``** ``[review]``, for a method that writes to records
-and is wired to nothing. ``_set_*`` (126 definitions) and ``_update_*`` (326) are
+and is wired to nothing. ``_set_*`` (124 definitions) and ``_update_*`` (346) are
 near-evenly split, so this is a backlog rather than a tidy-up. Three carve-outs,
 all bindings:
 
@@ -2462,8 +2460,8 @@ the duplicate report this section exists to produce.
 ``[gate doc_restated_counts]``. Making one table **agree with** another takes a
 create where the target is missing, a write where it differs and an unlink where
 the source is gone. **The canonical is ``_sync_*``**, and the tree had a family
-for it this section had never named: **62** definitions spell it ``_sync_*`` and
-**14** spell it ``_synchronize_*``, against ``_update_*``'s **326**. It is not
+for it this section had never named: **65** definitions spell it ``_sync_*`` and
+**13** spell it ``_synchronize_*``, against ``_update_*``'s **346**. It is not
 merged into ``_update_`` -- the verb carries a fact the other does not, that there
 is a source of truth elsewhere. ``[review]`` rather than ``ABOLISHED``, since not
 every ``_synchronize_`` is this operation.
@@ -2474,7 +2472,7 @@ moved one whose path had changed, and **deleted** a reservation whose path was
 cleared; it is ``_sync_path_reservations``. **Where a test and the method it
 covers disagree about what the operation is, prefer the test's word.**
 
-**``_post_`` is overloaded** ``[review]``. 137 definitions carry three unrelated
+**``_post_`` is overloaded** ``[review]``. 136 definitions carry three unrelated
 meanings -- ``account.move._post`` (accounting), ``message_post`` (mail) and HTTP
 handlers. Do not add a fourth: new code names the domain operation. The existing
 three are load-bearing.
@@ -3926,6 +3924,1400 @@ re-enveloper is nearly always assigned back over the receiver
 * **Do not extend this to a method that also does something else.** The rule is
   for a body that is one shaping call. A method that searches, then filters,
   returns rows the caller never held, and is a read.
+
+2.4.23 A per-addon pass does not own the names it reads
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+§2.4.14 says a rename carries its bindings and sizes that as cost. This section
+is the question one step earlier, which that framing skips: **whether the name
+is yours to rename at all.** A pass scoped to one addon reads that addon's
+``def`` statements and takes them for its worklist. The worklist is smaller than
+the file, and the difference is not a detail -- it is most of the disagreement
+between two sessions renaming adjacent modules at once.
+
+*Frozen reading* (§1.4) at ``baa42990470``, measured in a detached worktree over
+the ``odoo`` repository alone (ADR-0033's scope), model/wizard/report classes
+only. ``addons/mrp`` declares **766** definitions under **676** distinct names.
+**263** of those names are also declared elsewhere in the repository:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 10 60
+
+   * - Where else the name is declared
+     - Names
+     - What that does to a rename
+   * - nowhere -- mrp only
+     - 413
+     - mrp's to rename, and the only bucket that is
+   * - only in modules mrp **depends on**
+     - 162
+     - **a veto.** The declaring module owns the spelling; mrp is an overrider
+   * - only in modules that **depend on** mrp
+     - 41
+     - cost. mrp owns it; the overriders are rewritten in the same change
+   * - both directions
+     - 38
+     - cost, plus the veto if the upstream declaration is the contract
+   * - **no dependency relation either way**
+     - 22
+     - neither -- and this is where the substitution hazard lives
+
+**Under two thirds of the names in the file are the pass's to change.** Read
+from the ``def`` list alone, mrp offers 676 candidates; read from ownership, it
+offers 413, and 200 of the rejected ones are rejected for a reason no amount of
+care inside ``addons/mrp`` would surface.
+
+**The upstream bucket is a veto and not a cost** ``[review]``. §2.4.11 already
+says a pair split across two spellings is worse than a pair uniformly wrong, and
+an override renamed from the overriding end is exactly that pair: the parent
+still declares the old name, ``super()`` still resolves it, and the tree now
+spells one contract two ways. **Rename it where it is declared or not at all.**
+The cheap test is the first statement of the body -- a ``super()`` call naming
+the method is proof the name arrived from somewhere else -- but it is only a
+lower bound, because a method bound by name rather than by inheritance (§2.4.14)
+calls no ``super()`` and is owned even harder.
+
+**The reading changes what a family looks like, which is the argument for doing
+it first** ``[review]``. mrp declares **11** ``_should_*`` methods, and §2.4.20
+sends the whole family to ``_is_``/``_has_``/``_can_``. Six of the eleven
+override ``stock``. From the ``def`` list this is a backlog of eleven a
+determined pass could drain; from ownership it is five, and a *question* about
+the other six that neither module can answer alone -- which is the real argument
+for the ADR §2.4.20 says that family is owed, and it is invisible until the
+ownership is measured. **Do not report a family size from one module's ``def``
+list.**
+
+**The zero-relation bucket is not noise, and the same measurement tells its two
+halves apart** ``[review]``. Twenty-two mrp names are declared in modules with no
+dependency path to mrp in either direction, and they are two different things:
+
+* a **collision** -- one spelling, unrelated owners, nothing shared but the
+  word. ``action_start`` is the clear one: ``automation``, ``gamification``,
+  ``project`` and ``test_mail`` each declare it for a different operation, and
+  ``test_mail``'s is not even signature-compatible with the rest. A substitution
+  on one of these reaches every owner, and §2.4.4's *prefer the name that is
+  already qualified* is the whole defence;
+* an **incumbent convention** -- independent models asking the same question and
+  having independently reached the same words. ``_check_no_cyclic_dependencies``
+  stands on three mrp models, on ``project.task`` and on
+  ``esg.emission.source``; ``_default_sequence`` is the same shape across
+  ``event`` and four ``website`` modules, every one a ``default=`` hook
+  answering *what sequence does a new record of this model get*. That is not
+  duplication to resolve; it is the canonical §3 says naming standardisation
+  exists to produce, and the repair for a module still spelling it
+  ``_check_no_cycle`` is to **converge onto it**, not to mint a sixth spelling.
+
+**§2.4.25 divides this three ways and its split is the one to use**: collision,
+a name the framework **binds** (§2.4.14), and convention. The middle one is
+missing from the two above and is the easiest to mistake for a collision,
+because it looks like many owners spelling one word -- ``value_to_html`` is 19
+definitions in ``base``'s ``ir_qweb_fields.py``, one per field type, reached by
+dispatch. **That is not in this bucket at all**, and the reason is worth having:
+its owner is ``base``, which mrp depends on, so the dependency measurement puts
+it in the upstream bucket where it belongs. An earlier draft of this section
+cited it here, having carried the example over from a scan taken across four
+repositories while the counts came from the frozen one -- which is this
+section's own *state the population with the number* failing on the examples
+rather than on the numbers.
+
+**Nothing distinguishes the three from the names.** Each is one word appearing
+under owners that share no dependency. The discriminator is whether the bodies
+answer the same question, and it costs one reading each -- but you only know
+which twenty-two names to read after the dependency measurement, which is why
+this belongs here rather than in §2.4.4.
+
+**The bucket is a candidate population, and one of the twenty-two is not a
+member at all** ``[review]``. The index behind it reads every ``def`` in the
+tree, so it sees names a model never declares: ``_explode`` put ``credential``
+beside ``mrp.bom`` on the strength of two **nested functions inside a test
+method** that raise ``RuntimeError``. §2.4.13 counts nested functions and test
+methods as populations the vocabulary reaches differently, and an index built to
+answer *who else spells this* has to say which of them it counted. **Read the
+owner before believing the collision**; a bucket of twenty-two costs a few
+minutes to read and the reading is what makes it a finding rather than a
+number.
+
+**One spelling on two paired models is one entry, and a definition count reads
+it as two** ``[review]``. §2.4.3 already says to look for the same operation on
+the other half of a paired model -- template and variant, order and line, move
+and move line -- and gives the case where the pair hides *across* modules. The
+measurement here meets it inside one: ``_get_replenishment_order_notification``
+is declared on ``stock.warehouse.orderpoint`` and on ``product.replenish``, with
+different signatures, and ``mrp`` overrides both. A scan counting definitions
+reports two owners and invites you to disambiguate them; a scan counting names
+reports one and hides that there is anything to look at. **Only the model
+relationship reads it right**, and the repair it asks for is the opposite of a
+collision's: rename **both to one new name**, never split them, because the
+shared spelling was correct and the pair is the thing worth keeping findable.
+
+**And the correct outcome of a rename is sometimes divergence, which looks
+identical to an inconsistency** ``[review]``. The converse case is one spelling
+worn by two methods that share nothing: ``_action_generate_backorder_wizard``
+stood on ``stock.picking`` and on ``mrp.production``, different signatures,
+neither inheriting the other. Repairing both produces **two different names** --
+``_prepare_action_backorder_confirmation``, for the wizard model that one opens,
+and ``_prepare_action_backorder_wizard`` -- and a reviewer meeting them side by
+side in one branch sees one rename applied twice, inconsistently. It is not:
+
+* a **pair** (above) converges on one name, because the models are two halves of
+  one operation;
+* a **collision** diverges into two, because the models are unrelated and the
+  shared spelling was the defect.
+
+The two are indistinguishable from the diff and from the names, and the
+dependency reading that told them apart at planning time is the same reading
+that defends the result at review time. **Say which one it was in the commit
+message**, because that is the only place the next reader will find it: a
+divergence nobody explained is the shape a later pass "tidies" back into a
+collision.
+
+**The sharpest instance is a divergence inside one file**, and it is in the
+branch: ``68aad2090c3`` renamed ``ir.actions.server``'s private
+``_compute_website_url(self, website_path, xml_id)`` -- three arguments, and it
+assigns no field, so the hook prefix's claim (§2.4.1) was false -- to
+``_get_website_url``, and left **nineteen** genuine ``_compute_website_url``
+hooks alone, sixteen in this repository and three in the siblings. One of the
+nineteen is on the *same model, four lines above*, so ``ir_actions_server.py``
+now carries both spellings and both are right. A reviewer reading the diff
+alone sees one rename of twenty; the commit says which it was, which is what
+makes it legible.
+
+**§2.4.25 is the reading half of this split and should be read with it.** It
+divides a shared spelling three ways -- collision, a name the framework binds
+(§2.4.14), and convention -- and says the direction of the repair is what checks
+the classification. This section is the mechanical half: the dependency buckets
+above are what reduce 676 names to the twenty-two worth reading that way.
+**Measure first, read second**; neither half is any use alone, since the reading
+is too expensive to run over a whole module and the measurement cannot classify
+what it finds.
+
+**Two independent counts of one shared name are worth more than one**
+``[review]``. This entry first stated ``value_to_html`` at 34 definitions and
+§2.4.25 stated 35; the true figures are **20** non-test definitions and 35 for a
+plain ``grep``, and neither original was either. The disagreement is what
+surfaced the fifteen definitions in ``base``'s own test file, which §2.4.3's
+population excludes and both readings had silently included. **State the
+population with the number** -- "non-test definitions", not "definitions" -- and
+where two passes count the same name, compare before either writes it down.
+
+**And state it with a name list too, because diffing names does not fix this
+one** ``[review]``. ``tooling/testbaseline``'s README argues for comparing
+failure *names* rather than counts, and it is right: a count hides one test
+being fixed while another breaks. It does nothing for the failure one level up.
+Two readings of ``doc_restated_counts`` disagreed at 20 against 19 for two
+rounds, both correct -- 20 figures drifted in total, 19 of them in this file and
+the twentieth in ``doc/architecture/risks.md`` -- and neither reading said which
+files were in scope. **A name list is comparable only when the population is
+stated with it**; names beat counts against a moving tree and are equally blind
+to a scope nobody wrote down. The tell is a disagreement of exactly one or two
+that survives re-measurement: check the boundaries of both scans before
+re-deriving either.
+
+**Count occurrences under other owners, not definitions, before substituting**
+``[review]``. The definition count understates a substitution's blast radius by
+however much the name is *used*. ``mrp.workcenter.unblock`` is one definition;
+a whole-word search for ``unblock`` over the repository returns **79** sites, of
+which **3** are that method -- the view button, one Python call and one test.
+The other 76 are the web client's ``ui`` service, an unrelated owner in a layer
+below every model. That is ``5dc2ce4a72b``'s defect with a wider radius, and the
+only safe form of the rename is by line rather than by pattern. **A one-word
+public name (§2.4.21) is also nearly always a name some other layer has already
+taken**; the two rules point at the same names for different reasons.
+
+**And the search has to run over the file types the binding can live in.** The
+fourth binding of that rename was
+``doActionButton({type: "object", name: "unblock", resModel: "mrp.workcenter"})``
+in ``enterprise/mrp_workorder``'s JS -- another repository, another language,
+invisible to ``grep --include='*.py'`` and to every reading of the model. §2.4.14
+names this shape; what it does not say is that **the Python-only search fails
+silently and green**, because the method still exists, the module still installs
+and only the button stops working.
+
+**``button_`` is a rival spelling of ``action_``'s claim, and §2.4.16 does not
+name it** ``[review]``. That section makes the prefix a claim that the client
+invokes the method by name, and §2.4.21 tests the claim in three directions --
+but all four readings assume the prefix under discussion is ``action_``. *Frozen
+reading* at ``baa42990470`` over the ``odoo`` repository: **105** definitions
+under **71** names open with ``button_``, against ``action_``'s **1,514**. Every
+one makes the same claim; ``mrp`` alone has **11**. They are not a different
+family -- ``button_mark_done``, ``button_plan`` and ``button_unblock`` are
+named by ``type="object"`` buttons exactly as their ``action_`` neighbours are.
+**Do not add one.** The existing 105 are left as found here and are owed
+ADR-0053's weighing rather than a sweep: every one is public, several are named
+from JS and from ``noupdate`` data (§2.4.19), and ``button_validate`` alone
+carries 14 definitions across three repositories.
+
+* **The third spelling is no prefix at all, and it is the one worth repairing**
+  ``[review]``. §2.4.16 says the direction with the backlog in it is the one
+  that counts client-invoked methods *missing* the prefix, and a module that
+  spells the claim three ways has that backlog in its smallest bucket. mrp's
+  were ``unblock``, ``copy_to_bom`` and ``copy_existing_operations`` -- three
+  buttons, no prefix, and the last of them sat four lines from an
+  ``action_copy_existing_operations`` on ``mrp.bom`` that called it. **Search
+  from the XML** as §2.4.16 asks, and the bare names are what comes back;
+  searching from the ``def`` list finds the ``button_`` family and stops.
+
+**A run over a shared checkout does not measure a commit, and a moving checkout
+does not measure itself** ``[review]``. ``5dc2ce4a72b`` records the first half.
+The second half showed up twice in one hour while this section was being
+written, with six sessions renaming into one tree:
+
+* a full ``mrp`` suite died in ``ParseError`` on
+  ``stock.view_stock_picking_form`` -- another pass had renamed
+  ``do_print_picking`` on disk while the database still held the pre-rename
+  arch. Nothing in ``addons/mrp`` was wrong, and nothing in ``addons/stock``
+  was either;
+* a ``grep`` for that same name returned **zero** sites two minutes later,
+  because the missing one had been repaired in between. **A search that finds
+  nothing is not evidence in a tree somebody else is writing to.**
+
+**So verify a commit against the commit**: a detached worktree at a named tip
+carrying your files and nothing else, ``addons_path`` restricted to it. Symlink
+``node_modules`` in first or two ``TestMrpStockReports`` cases fail on
+``esbuild is required`` and you will spend the next twenty minutes reading a
+rename that is fine. And **hold back a file that carries somebody else's
+in-flight work**: ``git commit -- <path>`` commits working-tree content, so a
+file holding your rename *and* their uncommitted one ships calls to methods the
+branch does not define. Two mrp files were held back for exactly that reason,
+which cost this pass a second commit and no correctness.
+
+**A whole-file commit of a shared document publishes other sessions' claims as
+branch state** ``[review]``. §2.4.20's last paragraph warns that a whole-file
+write *loses* hunks that landed in between; this is the same mechanism running
+the other way, and it is the worse of the two because nothing looks wrong
+afterwards. Committing this file wholesale while five other passes were writing
+to it took their prose **and their uncommitted premises** onto the branch, so
+HEAD came to describe rename passes HEAD had not had: §2.4.25 asserts seven
+renames as completed fact while the code at that tip still declared every one of
+them.
+
+**The gated figures are where it is provable, and they moved the wrong way**
+``[gate doc_restated_counts]``. Measured at ``bea440c81ea`` in a detached
+worktree with nothing else checked out, three figures had been decremented for
+removals that were only partly committed, leaving the document **ahead** of the
+tree rather than behind it:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 32 14 14 14 26
+
+   * - Figure
+     - At ``baa42990470``
+     - HEAD states
+     - HEAD measures
+     -
+   * - ``calculate_family``
+     - 10
+     - 7
+     - **9**
+     - two of three removals uncommitted
+   * - ``hook_purity``
+     - 16
+     - 14
+     - **16**
+     - both uncommitted
+   * - ``unbound_hook_prefixes``
+     - 149, 214
+     - 148, 213
+     - **149, 214**
+     - uncommitted
+
+**Stale-because-the-code-moved is the ordinary condition this gate exists to
+report; ahead-of-the-code is a claim the tree contradicts**, and a reader who
+trusts the number has no way to tell which they are holding. So: **decrement a
+gated figure only in the commit that lands the change it counts.** A figure
+banked for work still sitting in a working tree is not early, it is wrong, and
+it is wrong in the direction that reads as done.
+
+* **"Author-attributed and measured clean" is not a property a reader can
+  check** ``[review]``, and this entry asserted it about two of the three above
+  before measuring them. The attribution says who moved the number and the
+  claim says they measured honestly; **neither says the measurement was taken
+  against a tree anyone else can reproduce**, which is the only thing that makes
+  a figure worth restating. Ask which commit it was measured at, and prefer a
+  *frozen reading* (§1.4) pinned to one over a live figure whose provenance is a
+  session that has since exited.
+
+2.4.24 A rule that offers a choice has already conceded a premise
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Several rules above hand the reader a decision between two spellings. Each is
+safe to take only after a question the rule does not ask, and answering the
+offered question first is how a rename lands on a name that is merely
+differently wrong.
+
+**A ``_synchronize_`` is not a ``_sync_`` until you have shown it converges**
+``[review]``. §2.4.12 prints that pair as a spelling -- 62 against 14 -- and a
+reader who picks the shorter one has already granted the premise, that the
+method makes one store agree with another. ``stock.move.line``'s
+``_synchronize_quant`` did not: handed a signed quantity and a location, it
+wrote that delta onto the matching quant. There is no source of truth anywhere
+in it, so it is the Mutation row, and it was wrong twice over -- once in the
+spelling the census can see, and once in wearing a verb that was never its
+family's. It is ``_update_quant_at_location``. **Read §2.4.12's own
+discriminator, "there is a source of truth elsewhere", before reading its
+counts.**
+
+**``_apply_`` has a third shape, and §2.4.3's object test cannot classify it**
+``[review]``. That row separates *apply a strategy, a rule, a rounding* from
+*update a record, a field, a quantity*, and both halves assume the operand is
+something the method already holds. Neither reaches the **two-phase operation**,
+where one method builds a description of the work and a second carries it out:
+``stock.move.line.write`` is ``_prepare_write(vals) -> plan``, then
+``super().write(plan.vals)``, then ``_apply_write(plan)``; ``stock.move`` pairs
+``_prepare_reservation_run`` with ``_apply_reservation_outcomes(ledger, ...)``.
+The verb is honest in both -- a built plan is what a policy is to the method
+executing it -- so **the sharper test is whether the operand describes the work
+or is the data being written**. A ``plan``, a ``ledger``, an inventory count and
+a putaway strategy describe it; ``_apply_quantity_deltas(deltas)`` is handed the
+numbers themselves, and is ``_settle_quant_moves_by_delta``.
+
+* **Where the verb survives, the object usually does not.** ``_apply_write``
+  named ``write`` -- a *reserved ORM operation* (§2.4.3) -- in the position its
+  operand ``plan`` should have held. The repair is ``_apply_write_plan``, and it
+  is §2.4.6's rule that a verb owes a noun doing the work, not §2.4.3's. That
+  rule is easy to skip once the verb question has been argued to a stop.
+
+**Reading a one-word public name on sight can end in leaving it** ``[review]``.
+§2.4.21 is right that there is nowhere in such a name for a discriminator to be,
+and its worked example -- ``pos.make.payment.check()`` -- is a name nobody ever
+finished. Stock carries the other outcome. *Frozen reading* (§1.4) at
+``baa42990470``, an ad-hoc scanner: **7** model classes in this workspace
+declare a bare ``def process(self)`` -- stock's three label and backorder
+wizards, ``product.label.layout``, ``expiry.picking.confirmation``, ``mrp``'s
+override of the second of stock's, and ``enterprise``'s ``propose.change`` --
+against **107** call sites spelling ``).process()``, of which **67** are exactly
+``Form.from_action(self.env, picking.button_validate()).save().process()``.
+There the receiver's model is whatever action ``button_validate`` returned, so
+**the caller cannot name it**, and the shared spelling is the only thing that
+makes one idiom serve all seven. That is §2.4.14's *bound by name, not by
+inheritance* arriving with no framework method to grep for: the dispatcher is a
+test helper and a returned action dict. **The test is whether the caller can
+name the model.** Where it cannot, renaming one owner breaks the contract for
+the rest, and the family is owed the ``AbstractModel`` §2.4.14 asks for rather
+than a rename. All seven are left as found, and this paragraph is the record
+that they were read and not missed.
+
+* **The button is not the second opinion here.** §2.4.16 would send five of the
+  seven to ``action_*`` on sight, since a ``<button type="object">`` names each
+  one. The binding is real and the rename is still wrong, because the *other*
+  caller -- the one that cannot name the model -- outnumbers it 107 to 5.
+  **Where two callers disagree about a name, the one that cannot be rewritten
+  decides.**
+
+**A nested function is also where dead code hides, and nothing reports it**
+``[review]``. §2.4.13 calls this population the cheapest in the tree to repair,
+because nothing outside the declaring body can reach it; that same fact is why
+an *uncalled* one survives indefinitely. ``ruff`` under ``odoo/ruff.toml``
+reports nothing for a nested ``def`` no line calls -- ``F811`` wants a
+redefinition and ``F841`` reads assignments -- it appears in no outline, and
+§2.4.19's search for ``^    def`` does not reach it either. ``stock.package``'s
+``_is_entirely_moved_by_move_lines`` held a ``_keys_groupby`` that nothing
+called, whose two-line body was written out a second time four lines below as
+the ``lambda`` inside ``records.grouped(...)``, under a ``precision_digits``
+assigned twice. **Grepping ``\bdef `` for the vocabulary finds this for free**,
+which is the argument for doing it even in a file whose class body reads clean.
+
+**§2.4.20's own safety recipe concedes the largest premise of all** ``[review]``.
+That section ends by forbidding a directory-wide ``ruff format`` after a rename
+and offering ``ruff format $(git diff --name-only -- '*.py')`` in its place, on
+the ground that it reflows the lines the longer name actually broke and nothing
+else. It does -- **in a tree with one author in it**. In this workspace
+``git diff --name-only`` names every dirty file in the path, which is every
+session's uncommitted work, so the narrow recipe silently widens to the
+directory-wide run the same paragraph forbids. It happened while this section
+was being written: a scope of ``-- 'addons/mrp/*.py'`` reformatted four files
+belonging to another session's pass. **Name your own files, or filter to what
+you actually edited**; the diff is a question about the checkout, not about you.
+
+Two things follow, and the second is the one that saves the work.
+
+* **The paragraph two above is what makes the accident survivable.** A file
+  reformatted under you is safe to restore *only* once you have shown its
+  content is exactly ``ruff format`` applied to its prior content -- and you
+  cannot show that for hunks you did not write. So the repair is not to restore:
+  it is to read every hunk in every affected file and confirm each one is
+  somebody's intended edit plus, at most, the reflow the formatter would have
+  produced anyway. Reverting on the assumption that a formatter is harmless is
+  how the edit is lost.
+* **Disclose the scope you actually ran, not the scope you meant.** The four
+  files above were recovered because the session that ran the command said which
+  glob it used; a reader given "I formatted my files" has nothing to check
+  against.
+
+**A scoped gate's zero concedes two premises, and the flag that scopes it means
+two things** ``[review]``. Running the architecture checkers over your own
+subtree before reading files is sound and catches what a reader cannot -- a
+multi-field hook is invisible unless you hold every ``compute=`` string in the
+file at once. But a **0** from one of them is an answer to a question with two
+unstated conditions, and the tooling states neither.
+
+*Frozen reading* (§1.4) at ``6d07815457d``, over the thirteen checkers in
+``tooling/architecture/`` that accept ``--roots``:
+
+* **``--roots`` replaces the default scope in ten of them and adds to it in
+  three.** ``external_dependency_pins``, ``mail_hook_keyword_check`` and
+  ``sql_placeholder`` say *"extra trees to scan"* and build
+  ``roots = [ROOT / r for r in SCAN_ROOTS]`` before appending yours; the other
+  ten say *"scan these paths instead"*. The flag is spelled identically in both.
+  So a scoped run of those three silently widens to the whole tree, and its
+  number is a statement about the repository wearing the look of a statement
+  about your subtree. ``sql_placeholder`` is the only one that gives itself away,
+  by printing its denominator -- *"cursor.execute call sites: 1609"*, which is
+  plainly not one addon. **Read the ``--roots`` help string before reading the
+  count.**
+* **Seven of the thirteen cannot tell you they scanned nothing.** Pointed at a
+  directory with no Python in it, ``module_depends_installable`` and
+  ``module_suite_lane`` refuse outright -- *"refusing to report a result measured
+  over nothing"* -- and ``facade_surface_check`` fails a sanity floor
+  (*"expected at least 100; the scan roots are empty or wrong"*), which is the
+  cheapest of the guards to add because it needs no special case for the empty
+  tree. The remaining seven print a bare ``0``, which is indistinguishable from
+  a clean scan. Every zero any of us reports from those rests on having pointed
+  the tool at a real tree, and nothing in the output says so.
+
+**And one gate's ``--roots`` is unsound in a way the others' is not**
+``[review]``. ``orphan_depends`` asks *does any field anywhere wire this
+method*; scoping removes the evidence for a **negative**, so it reports an
+override whose field is declared upstream. Diffing the output *sets* rather than
+their sizes across six addons under simultaneous work -- hr, stock, mrp,
+website, ``point_of_sale``, project -- gives **50** scoped findings, **1** in
+full scope, and **0** that full scope reports and a scoped run does not. The
+scoped set is a strict superset every time, and it must be: scoping can only
+remove wirings, and a method is reported when no wiring is found. **The test is
+whether the evidence for a negative could live outside the root**, and the error
+is one-directional, which turns the caution into a procedure: run the scoped
+form, and if it returns 0 you are clean and can stop, because the true set is a
+subset of what you already hold. Only a non-zero needs the full-scope run
+filtered to your paths. (``addons/stock`` reads 6 scoped and 0 in full; the one
+survivor across all six addons is itself a false positive, its field declared in
+``enterprise``.)
+
+**The three compose, and a zero is the only scoped reading you can act on
+directly** ``[review]``. A whole-tree question scoped down returns a strict
+superset of the true set; an appending ``--roots`` returns a superset of your
+subtree; an unguarded gate returns a ``0`` from a tree it may never have read.
+Each leaves a **zero** safe and a **non-zero** unusable, for a different reason
+-- the first makes a non-zero an upper bound, the second makes it
+unattributable, the third makes a zero meaningless unless you checked the scope
+yourself. So the procedure is: read the ``--roots`` help string, confirm the
+scan was non-empty, and then act on nothing but a zero.
+
+**``facade_surface_check`` has the guard the other twelve want** ``[review]``,
+and it is cheaper than either refusing an empty tree or printing a denominator:
+it asserts the expected *size* of a correct scan -- *"expected at least 100; the
+scan roots are empty or wrong"*. That subsumes the empty case with no special
+branch, and it is the only one of the four shapes that would also have caught an
+appending ``--roots``, since a floor calibrated to a subtree fails immediately
+when the scan silently widens to the repository. A new counting gate should
+carry one.
+
+2.4.25 A shared spelling is three things, and only one of them is a defect
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+§2.4.1 reads a spelling worn by two owners as a **collision** -- while a
+reserved prefix's claim is false the spelling is unowned, and another model is
+free to spell a real hook the same way -- and §2.4.21 generalises that to every
+namespace a module invents. §2.4.14 names a second reading, **bound by name**:
+the framework resolves the method on a model it looked up, and every model
+defining that name answers. Neither reaches the third, and a pass that knows
+only those two will break it.
+
+**Independent models may spell one question alike on purpose** ``[review]``. No
+dispatcher, no dependency relation in either direction, no declared interface --
+just the same question, answered separately, under the name it is owed. That is
+a **convention**, and the repair runs backwards from §2.4.1's: converge the
+outliers **onto** the shared spelling instead of renaming it away.
+
+*Frozen reading* (§1.4) at ``baa42990470``, an ad-hoc scanner over ``addons/``
+and ``enterprise/``, not re-derivable. ``_check_no_cyclic_dependencies`` stood at
+**5** definitions in **3** modules over **2** repositories -- ``mrp.routing``,
+``mrp.production.group``, ``mrp.workorder``, ``esg.emission.source`` and
+``project.task`` -- none of which depends on another. ``project`` alone spelled
+the same question three ways: that name on ``project.task``, ``_check_no_cycle``
+on ``project.task.dependency`` (a recursive CTE), and ``_cpm_check_acyclic`` on
+``project.project`` (an iterative DFS behind the critical-path entry point). All
+three now carry the majority spelling. ``automation.workflow.edge`` is the last
+``_check_no_cycle`` and is backlog, not oversight.
+
+**The count does not classify it; the bodies do** ``[review]``. Same frozen
+reading, and the two neighbours it separates are the same size:
+
+* ``_default_sequence`` -- **6** definitions in **6** modules (``event``,
+  ``mrp``, ``website``, ``website_blog``, ``website_event_exhibitor``,
+  ``website_sale``), every one a ``default=`` hook answering *what sequence does
+  a new record of this model get*. A convention. Leave it.
+* ``action_start`` -- **6** definitions in **5** modules (``automation``,
+  ``gamification`` twice, ``mrp``, ``project``, ``test_mail``) starting a runtime,
+  a goal, a challenge, a manufacturing order, a sprint and an activity. Six
+  operations, one spelling; ``test_mail``'s even takes an argument the others do
+  not, so they are not signature-compatible. A collision.
+* ``value_to_html`` at **20** definitions looks worse than either and is neither:
+  it is the ``ir.qweb.field`` protocol, one implementation per field type
+  (**19** in ``base``, **1** in ``mrp``), and §2.4.14 already owns it. A grep
+  finds **35**; the other **15** are in ``base``'s own test file, which §2.4.3's
+  population excludes. **Two independent readings of this name disagreed at 34
+  and 35 and both were wrong** -- the discrepancy is what surfaced the test
+  definitions, so a shared spelling is worth counting twice by two people before
+  it is written down.
+
+**§2.4.23 is the mechanical half of this split** ``[review]``. Reading every
+shared spelling is not affordable, and the three readings above are told apart
+only by reading bodies. Its dependency-direction bucketing is what reduces a
+module to the few names worth that: over ``addons/mrp``, **22** of **676** names
+sit in *no dependency relation either way*, and that bucket is exactly where a
+collision and a convention are indistinguishable from the spelling. Measure
+first, read second.
+
+**The direction of the repair is the check that you classified it right**
+``[review]``. A collision is repaired by renaming the minority owner to
+something *else*; a convention, by renaming the minority owner to the *majority
+spelling*. Write both candidate names down before choosing: if neither reads
+better than what is there, the population was a protocol and belongs to
+§2.4.14.
+
+**Converging the spelling is what makes the redundancy findable** ``[review]``.
+The three cycle checks above are three algorithms for one predicate, and while
+they wore three names no search could put them side by side -- which is *Naming
+standardization is instrumental* stated as a procedure rather than a slogan.
+Converging does not merge them and must not pretend to: it moves them into one
+grep so that merging becomes a decision somebody can take.
+
+**A qualifier that names an absence does not survive head-first reordering**
+``[review]``. §2.4.4's reorder test offers three outcomes -- the qualifier was
+noise, it is a namespace, or it reorders -- and all three assume it selects
+among things that **exist**. Where it names the absence of the thing, reordering
+lands it on the wrong subject: ``_update_rating_deadlines_missing`` asserts a
+property of the deadlines, when *missing* is a property of the steps, and the
+deadlines the method writes are precisely the ones that will not be missing
+afterwards. Keep it in front -- ``_seed_rating_deadlines`` (§2.4.20: seeding is
+creating, and this one creates nothing) is ``_update_missing_rating_deadlines``.
+§2.4.22 makes the neighbouring observation about ``_without_*`` naming what is
+absent from a *return*; this is the same fact reaching the *ordering* rule.
+
+**A suffix that names something the client renders is not §2.4.17's ``_impl``**
+``[review]``. §2.4.20 reads ``_show_X`` beside ``_show_X_helper`` as two
+questions under one name and calls ``_helper`` "``_impl`` under another word --
+a suffix standing where the discriminator was left unsaid". For
+``project.project`` that reading does not hold, and the evidence is one command
+away: ``show_project_profitability_helper`` is a key the client reads, twice in
+``project_right_side_panel.xml`` and once in its ``.js``, and the *profitability
+helper* is a named panel. The suffix names a thing. ``_is_profitability_shown``
+and ``_is_profitability_helper_shown`` ask about two subjects because there are
+two panels, and both are left as found. **Check the client for the token before
+calling a suffix a discriminator left unsaid** -- §2.4.19 already prescribes the
+command (``git grep -n '"<name>"' -- '*/static/src'``) for the public-against-
+private question, and it settles this one at the same cost.
+
+**Two owners of a name inside one file cannot be ordered, only line-scoped**
+``[review]``. §2.4.4 sizes the substitution hazard across repositories and
+prescribes running the *other* owner's callers first; inside one file there are
+no callers to order, and the whole-word boundary that protects a longer name
+(§2.4.20) does not help when the two spellings are identical. Three from one
+file in this pass, each of which a ``sed -i 's/\bx\b/…/g'`` would have got
+wrong:
+
+* ``day_capacity`` was a nested function **and** a correctly named ``dict``
+  parameter of a sibling method fifty-five lines above it -- the parameter is what
+  the nested function returns, which is why the author reached for the word
+  twice;
+* ``span`` was a nested function **and** the HTML element inside an XPath string
+  literal (``//span[normalize-space(.) = "--"]``) nearly 1,900 lines away;
+* ``_change_operator`` was a nested function here and, in
+  ``agromarin/product_asset_hr``, a test helper that changes an asset's
+  **operator** -- a different word wearing the same letters, at thirteen
+  occurrences.
+
+**The unit that separates them is a line range, and a nested function always
+has one.** §2.4.13 makes the point positively -- a nested ``def`` is reachable
+from nothing outside the body that declares it -- and the operational
+consequence is that its rename never needs to be wider than that body, so the
+cheapest names to repair are also the only ones a substitution can be *proved*
+safe on.
+
+**Where the return is the input minus what the method took, no row names it**
+``[review]``, and this pass stops there rather than guessing.
+``project.task._extract_priority(title)`` matches a priority marker in the
+title, writes ``self.priority``, and returns the title with the marker removed;
+``_extract_tags_and_users`` and ``hr_timesheet``'s ``_extract_planned_hours``
+are the same shape, all three reached from ``_inverse_display_name`` through the
+list this pass renamed to ``_get_extractors_in_group_order``. Three rows have a
+claim on them and none fits: §2.4.18's Extract yields candidate values and does
+not write, the Mutation row wants ``_update_`` and would state nothing about
+what comes back, and §2.4.15's tail rule is broken outright -- the name promises
+a priority and returns a title. **A residual is not a product.** Naming one
+costs a verb the vocabulary does not have, so the three are left as found and
+recorded here as read rather than missed; what unblocks them is the prior
+question of whether the residual should be a return at all, or the receiver's
+own field written in place.
+
+2.4.26 Evidence the declaring file does not carry
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+§2.4.23 asks whether a name is the pass's to rename and answers it from the
+dependency graph; §2.4.25 separates a collision from a convention by reading the
+bodies. Both are readings of *other files*. This section collects the rest of
+that class -- the decorator, the signature, the caller's local, the sibling
+repository -- on the argument that a naming pass which reads only the file it is
+sweeping will get a name wrong in a way no gate reports.
+
+**A convention can be wrong in every one of its copies, and then it is not the
+addon's to repair** ``[review]``. §2.4.25's third reading is the right one and
+its repair -- converge the outliers **onto** the shared spelling -- assumes the
+shared spelling is sound. Where it is not, an addon pass has no move: renaming
+its own copy leaves the tree spelling one convention two ways, which is
+§2.4.23's veto arriving with no dependency edge to warn you about it.
+
+*Frozen reading* (§1.4) at ``baa42990470`` / ``f4b4c17144b``, an ad-hoc scanner,
+not re-derivable. ``_load_demo_data`` and ``_load_scenario`` stand at **8**
+declarations across ``addons/`` and ``enterprise/`` on **4** unrelated models --
+``hr.employee``, ``hr.attendance``, ``hr.appraisal``, ``project.project`` -- and
+only **3** of the eight call ``super()``. Each of the four models is reached by
+its own ``ir.actions.server``; none can see the others. The convention is wrong
+in all of them: ``_load_demo_data`` returns a reload action while
+``_load_scenario`` does the loading, and *demo data*, *scenario* and the button's
+*Load sample data* are three nouns for one concept (§2.4.18) -- which is not demo
+data in the first place, since it loads on demand into a production database, the
+one thing Odoo's ``demo`` flag does not mean.
+
+* **The ``super()`` count is the test, and it costs one grep.** Overrides are one
+  contract and rename together; independent declarations at one spelling are a
+  convention and rename together too, but across every module that holds one.
+  §2.4.23 gives the cheap test for the first case -- a ``super()`` call naming the
+  method -- and the same command answers the second by what it **does not**
+  return. **Read the ratio, not the hit list.**
+* **Two more in ``hr``, each mirroring ``base``, each with 0 ``super()``
+  calls**: ``hr.employee._generate_missing_avatars`` mirrors ``res.users``'s, and
+  ``res.partner._action_show`` mirrors ``res.users``'s -- and the second is one of
+  the **19** private ``_action_*`` builders §2.4.28 counts as wrong. A reviewer
+  who greps for overriders sees a lone method in each case and concludes the
+  rename is free.
+* **All five are left as found and this paragraph is the record that they were
+  read**, on §2.4.21's model. Each repair is one change across two repositories
+  and four models; an addon pass that takes only its own quarter makes the tree
+  worse than it found it.
+
+**The count that decides an extension point lives in the sibling repository**
+``[review]``. §2.4.23's buckets are measured over ``odoo`` alone, which is
+ADR-0033's scope and the scope ``naming_vocabulary.py`` ratchets -- so its
+*overriders are rewritten in the same change* bucket looks like ordinary cost.
+For an addon that ``enterprise`` localises, that bucket is where the whole cost
+is, and §9's rule that a cross-repo change is guarded by a local Tier 1 run and
+nothing else is what makes it invisible until the rename is already spread.
+*Frozen reading* (§1.4) at the same pair of commits:
+``hr.version._get_whitelist_fields_from_template`` has **5** references in this
+repository and **21** overrides in ``enterprise``, **19** of them in ``l10n_*``
+modules. Its defect is one word out of order -- ``whitelist`` in front of
+``fields``, where §2.4.4's converted ``fields`` family puts it behind -- so it is
+**backlog, and this is the record of the measurement** rather than a rename.
+**Grep the siblings before choosing which head-first repair to spend a commit
+on**: the ones worth taking are those whose overriders you can count on one hand.
+
+**Where the signature proves one sibling private and not the next, the siblings
+are not evidence for each other** ``[review]``. Three fork-added methods sit in
+one block on ``hr.employee``. ``get_accounts_with_fixed_allocations`` returns a
+**recordset**, which does not survive serialisation, so §2.4.4's evidence proves
+the missing underscore an oversight and it is
+``_get_accounts_with_fixed_allocations``.
+``get_bank_account_salary_allocation`` returns a 2-tuple and
+``get_remaining_percentage`` a ``float``; both serialise perfectly, and
+``git grep '"<name>"' -- '*/static/src'`` is empty for both -- but §2.4.19 says
+that command settles the *presence* of a client caller, never its absence, and
+**an empty grep is not the proof the recordset is**. Both are left public. **Write
+down the ones you did not take**: a mixed block with no note reads as an
+oversight, and the next pass removes two surfaces without ADR-0053's weighing.
+
+**A ``@staticmethod`` has no receiver, so §2.4.5's receiver clause cannot rescue
+a leading ``_to_``** ``[review]``. That clause is what makes
+``attachment._to_http_stream()`` correct -- the receiver supplies the left
+operand. ``hr.employee._to_version_date(value)`` is a ``@staticmethod``, so there
+is no receiver, and its source representation is a **union** (``str``,
+``datetime``, ``date``), so no ``X_to_Y`` pair exists to name at all. That is the
+case §2.4.5's four limits do not reach, and it is what ``_coerce_`` is for --
+§2.4.8 already reads ``_coerce_bool(value, default)`` as a converter. It is
+``_coerce_date``. **Read the decorator before the receiver clause**, exactly as
+§2.4.11 asks for ``@contextmanager``.
+
+**A predicate written as a sentence hides its verb from the ratchet the way a
+noun does** ``[review]``. ``_periods_overlap(start_a, end_a, start_b, end_b)``
+and ``_period_contains(start, end, day)`` read as clauses, and
+``naming_vocabulary.classify`` partitions on ``periods`` and ``period``, which
+carry no rule (§2.4.4). The repair moves the subject behind the prefix and turns
+the sentence's verb into the noun: ``_has_period_overlap`` and
+``_is_day_in_period``. Nothing else makes either one greppable as a predicate.
+
+* **And it exposes a sibling, which is the finding.** ``hr.version`` also carried
+  ``_is_overlapping_period(date_from, date_to)``, already wearing a canonical
+  prefix; once the static helper it delegates to is ``_has_period_overlap`` the
+  two sit a word apart while asking different questions. Its body returns
+  ``False`` unless ``contract_date_start`` is set, so what overlaps is the
+  **contract**, not the version: ``_has_contract_overlap``. §2.4.7's *the rename
+  collides, and the collision is the finding*, arriving from the predicate side.
+* **A local bound to a method takes the method's spelling.** §2.4.10's memo rule
+  reaches a plain binding too:
+  ``contains = self.env["hr.version"]._period_contains`` was the caller repairing
+  the name in place, which is the evidence §2.4.15 reads at a call site and
+  §2.4.21 reads at an override point.
+
+**A ``_m2o`` tail is cardinality notation, so it promises a field and not a field
+name** ``[review]``. §2.4.5 reserves ``m2o`` / ``o2m`` / ``x2many`` as
+field-relation terms of art and §2.4.15 makes a ``_field`` tail a promise about
+the return; together they bind harder than either alone.
+``_get_employee_m2o_to_empty_on_archived_employees`` and
+``_get_user_m2o_to_empty_on_archived_employees`` return ``["parent_id",
+"coach_id"]`` and ``[]`` -- lists of **names**. Both also end in the model that
+declares them, which §2.4.4 rejects at the front of a name and which is no better
+at the back. They are ``_get_employee_field_names_to_empty_on_archive`` and
+``_get_user_field_names_to_empty_on_archive``.
+
+**A tuple every call site unpacks is §2.4.9's "name both", and the products' own
+locals are the two halves** ``[review]``. The rule is written there against the
+*call sites*, which answer whether to name both or split; the **body** is what
+supplies the two words once that is settled, and in all three of ``hr``'s cases
+the locals had already written them:
+
+* ``_classify_for_user_creation`` returned ``create_vals`` -- handed straight to
+  ``res.users.create()``, so §2.4.7's settled first bullet -- and ``blocked``, a
+  mapping of reason to employee names. It is
+  ``_prepare_user_vals_and_blocked_names``.
+* ``_split_users_by_archivability`` named the **axis** and neither product, while
+  returning locals called ``archivable`` and ``kept``. §2.4.22's Group row
+  canonicalises an axis name (``_grouped_*``) only where the return is a
+  *mapping*; a tuple owes both names. It is ``_split_users_archivable_and_kept``.
+* ``_split_version_vals`` named **one** of the two mappings it returns, which is
+  §2.4.12's *a name that announces one branch of three* with two branches. It is
+  ``_split_employee_and_version_vals``.
+
+**``_split_`` survives all three.** §2.4.18 abolishes it *of a document*; a
+partition of a recordset or of a mapping is the sense that section preserves, and
+substituting ``_prepare_`` would lose the one fact the verb carries -- that the
+two products exhaust one input.
+
+**A verb with no family behind it is the cheapest thing in §2.4.20 to move**
+``[review]``. That section says to read the abolished table as families and ask
+which row's discriminator the body satisfies. What it does not say is how to
+price the move, and the answer is the size of the family the spelling already
+buys. ``_repoint_bank_accounts`` and ``_propagate_calendar_to_resources`` both
+end in a ``write()`` against records and are wired to nothing, which is the
+Mutation row's own description of ``_update_``. ``_propagate_`` is the harder of
+the two only because it carries a direction the canonical drops -- but on a
+recordset method the receiver supplies the source (§2.4.6), so
+``_update_resource_calendars`` loses nothing. *Frozen reading* (§1.4) at
+``baa42990470``: ``_propagate_*`` stands at **6** definitions over ``odoo/`` and
+``addons/`` under **6** distinct names, no two of them the same operation.
+**A spelling under which no two methods share an operation is a row of the table
+written in a private word**, and moving it costs no searchable family because
+there was never one to lose. They are ``_update_bank_account_contact`` and
+``_update_resource_calendars``.
+
+**The nested population was wrong about its return in both of ``hr``'s cases**
+``[review]``, which is §2.4.13's argument for sweeping it made concrete.
+``remove_gap(versions)`` removed nothing: it returned the run of versions back to
+the first gap of four days or more -- a subset of what it was handed, which is
+§2.4.22's Narrow shape arriving with no ORM call to spell it, and therefore with
+nothing for a reader to recognise it by except the name. It is
+``get_versions_continuous``. ``timezones_at(employees, date_at=None)`` had no verb
+at all and returned a mapping its callers merge, so the shape wrote the name:
+``get_timezones_by_employee_id``. A third, ``_date_to_datetime``, was right but
+for the underscore §2.4.13 asks to drop. **All three were invisible to
+``^    def``**, and none cost a caller outside the body that declares it.
+
+**Two closing notes where a rule elsewhere reached into this pass** ``[review]``,
+recorded so the next reader does not re-derive them:
+
+* §2.4.28's ``_prepare_action_<what>`` reached ``hr``'s two notification
+  builders, ``_get_user_creation_notification`` and
+  ``_get_user_archive_notification``, which return an ``ir.actions.client`` the
+  client executes. They are byte-identical but for a title, so renaming them onto
+  the canonical **is** the duplicate report §3 asks a naming pass to produce.
+  **Do not finish the job by giving them one spelling** -- two identical private
+  names on unrelated models is §2.4.1's collision, manufactured on purpose. Keep
+  the subjects and let ``_prepare_action_user_*_notification`` be the grep that
+  finds the pair.
+* §2.4.4's *required parameter no JSON-RPC request can carry* is the half of the
+  signature evidence a sweep reading ``def`` lines already has in front of it,
+  and it proved two public spellings accidental here without any call-site work:
+  ``hr.version.get_values_from_contract_template(contract_template_id)`` and
+  ``resource.calendar.transfer_leaves_to_calendar(other_calendar, ...)`` each take
+  a **required recordset**. The first also fed ``write()`` in ``hr``, ``create()``
+  in its own model and ``write()`` in ``enterprise/hr_contract_salary`` -- three
+  consumers, every one §2.4.7's first bullet -- and its parameter was spelled
+  ``contract_template_id`` while holding a record, which is §2.4.15's tail rule
+  read against a parameter. They are ``_prepare_vals_from_contract_template``
+  (taking ``contract_template``) and ``_transfer_leaves_to_calendar``.
+
+**Where the caller's repair is the shape rather than the word, the body is what
+moves** ``[review]``. §2.4.15 reads a caller that writes ``.ids`` immediately
+after a call as the caller repairing the name in place, and every example there
+ends in a rename. The other outcome exists and is easy to miss:
+``mixin.hr.manager.department.report._get_managed_department_ids`` returned
+``hr.department._search(...)``, which is a ``Query``, and both of its call sites
+wrapped it in ``tuple(...)``. The ``_ids`` tail was not a false promise -- it was
+the two callers stating what they wanted, and agreeing. So the ``tuple()`` moved
+inside the method and the call sites dropped theirs; no behaviour changed, because
+the query was already being materialised at both sites, and the name became true
+without being touched. **Ask whether the callers are correcting the name or
+completing it**: a ``.ids`` after a recordset return corrects it, and an identical
+coercion at *every* call site completes it.
+
+**A hook bound only from a sibling repository reads as unbound from here, and
+``--unbound`` cannot tell it from a false claim** ``[review]``.
+``hr.employee.public._compute_manager_only_fields`` is named by **no**
+``compute=`` in this repository and its ``_get_field_names_manager_only`` returns
+``[]`` here; ``enterprise/hr_appraisal`` declares
+``next_appraisal_date = fields.Date(compute="_compute_manager_only_fields", …)``
+and overrides the list to fill it. So the prefix's claim (§2.4.1, §2.4.21) is
+**true**, and the method is correctly named for what its fields have in common --
+but every reading available inside ``odoo`` says otherwise, and it is one of the
+**149** names ``field_hook_naming.py --unbound`` reports. That count is described
+there as a candidate population; this is the shape that makes it one. **Before
+repairing an unbound hook prefix, grep the siblings for the ``compute=``**, not
+just for the method.
+
+**A hand reading of the files is not a substitute for the scoped gate, and this
+addon is the second measurement of that** ``[review]``. §2.4.27 argues it from
+``addons/website``, where a hand reading found three field-hook defects against
+the checkers' seven. ``addons/hr`` is sharper because the hand reading was not
+merely thinner -- it was **empty**. A pass that read six files closely enough to
+move twenty-two names found **none** of what one ``--roots`` invocation prints:
+``field_hook_naming.py`` reported **3** multi-field computes named for one of
+their fields, and ``compute_context_deps.py`` reported **2** computes branching on
+``self.env.user.has_group(...)`` with no ``@api.depends_context("uid")``. The two
+populations explain why: a multi-field hook is invisible unless you hold every
+``compute=`` string in the file at once, and an undeclared context read is
+invisible in the method entirely -- it is a fact about the *field declarations*
+elsewhere in the file. **Neither is a thing a reader reads; both are things a
+scanner joins.** And enumerate the checkers with ``ls
+tooling/architecture/*.py`` rather than from memory: the reading that found
+``addons/website``'s three field-hook defects against the checkers' seven had
+still never run ``compute_context_deps.py``, which prints **3** more for that
+addon, so the tally there is 8 rather than 5. **A remembered list of gates fails
+in exactly the way a hand reading of the file does.**
+
+**But ``--roots`` is only sound for a gate whose question the scanned files can
+answer, and one of them is not** ``[review]``. Scoping the root removes evidence,
+and evidence removed is evidence for a **negative**. ``field_hook_naming``,
+``compute_context_deps``, ``naming_vocabulary``, ``field_hook_purity``,
+``sql_placeholder``, ``order_line_qty``, ``mail_hook_keyword_check`` and
+``py_unresolved_calls`` all ask something the scanned files settle, and over
+``addons/hr`` every one of the eight reports the same count scoped as it does at
+full scope filtered to that subtree. ``orphan_depends`` asks *does any field
+anywhere wire this method*, and it does not:
+
+*Frozen reading* (§1.4) at ``3b3f073206f``, an ad-hoc scanner over the six addons
+under a naming pass at the time, comparing ``--roots <addon>`` against
+``--top 0`` filtered to the same addon:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 16 16 34
+
+   * - Addon
+     - ``--roots``
+     - Full scope
+     - In full scope but not in the scoped run
+   * - ``addons/mrp``
+     - 22
+     - 1
+     - 0
+   * - ``addons/hr``
+     - 10
+     - 1
+     - 0
+   * - ``addons/stock``
+     - 6
+     - 0
+     - 0
+   * - ``addons/website``
+     - 5
+     - 0
+     - 0
+   * - ``addons/point_of_sale``
+     - 5
+     - 0
+     - 0
+   * - ``addons/project``
+     - 3
+     - 0
+     - 0
+
+**Fifty-one findings, of which two survive full scope and only one is real.**
+``hr``'s ``_compute_manager_only_fields`` is a false positive even there, its
+field being declared in ``enterprise/hr_appraisal``. ``mrp``'s is the payoff:
+``stock.move._compute_display_assign_serial`` was dead three times over -- no
+field wired it, it opened a ``super()`` call to a method **no parent defines
+anywhere in the workspace**, and it read and wrote two fields that **no longer
+exist**, their only surviving trace being ``stock``'s stale ``.po`` entries. It
+could not have run, and running it would have raised twice. ``stock`` dropped the
+fields and left the override behind.
+
+Every one of the forty-nine phantoms is an override whose field is declared in a
+module the addon inherits from: ``base``'s avatar mixin, ``resource``'s
+``_compute_calendar_id``, ``mail``'s two ``mail.activity.schedule`` computes. The
+gate's own advice is *move the decorator onto the method a field names, or delete
+it*, and **deleting a live ``@api.depends`` from an override breaks invalidation
+with no test failure and a stale value** -- so a scoped run here does not waste a
+reading, it proposes a regression, and it proposes twenty-one of them in ``mrp``.
+**The one method in that subtree that did deserve deleting is the one the scoped
+form gives you no way to find**, since it arrives indistinguishable from the
+twenty-one.
+
+**This table was wrong when it was first written, in the way the section it sits
+in warns about** ``[review]``. Its numbers were measured against the shared
+workspace checkout while claiming a commit pin, and a peer was holding the
+deletion of ``_compute_display_assign_serial`` uncommitted at that moment -- so
+the first version read ``mrp`` at 21/0 and totalled 50/1. The correction is not
+the arithmetic. **A dirty-tree measurement did not perturb a figure here, it
+erased the only true positive in fifty-one**, and with it the entire case for
+running the full-scope form at all. §2.4.25 says a search that finds nothing is
+not evidence in a tree somebody else is writing to; this is the same rule for a
+search that finds *one fewer thing*, where nothing in the output marks the
+absence. **Re-derive in a detached worktree at the commit you intend to name**,
+which is what a *frozen reading* claims and what this one did not do.
+
+**The error is one-way, and that is what makes the scoped form still usable**
+``[review]``. The last column is zero in all six: the scoped output is a strict
+**superset** of the true set, always, because scoping can only remove wirings and
+a method is reported when no wiring is found -- so removing files can only add
+reports, never subtract. **False positives only, never false negatives.** Which
+gives the procedure rather than a prohibition: run the scoped form, and a **0**
+means genuinely clean, because the true set is a subset of what you already have.
+Only a non-zero result needs the full-scope run and a ``grep`` of your subtree.
+The ranking follows the same fact: ``mrp`` overrides the most inherited computes
+and scores worst, ``stock`` declares its own bindings and scores nearly clean.
+
+**Read §2.4.24 before trusting any scoped number, including the zeros above.**
+That section carries the two ways the flag itself misleads: a gate with no
+empty-scan guard returns 0 for a tree it never read exactly as it does for a clean
+one, and ``--roots`` has **two incompatible meanings** -- ten of the thirteen
+replace the default scope, while ``external_dependency_pins``,
+``mail_hook_keyword_check`` and ``sql_placeholder`` *append* to it, so a "scoped"
+run of those three silently measures the whole repository plus your subtree.
+
+**Both of those and the superset above compose into one usable rule** ``[review]``:
+**a zero is the only scoped reading you can act on directly.** Each failure mode
+leaves it safe and leaves a non-zero unusable, for a different reason --
+a whole-tree question scoped down reports a strict superset, so its zero means
+clean and its non-zero is an upper bound; an appending gate measures a superset of
+your subtree, so its zero means clean and its non-zero is unattributable. Three of
+the nine zeros reported for ``addons/hr`` in this section came from the appending
+three, and were only safe by that accident: the count was right and the warrant
+was wrong, and had any of them returned a finding it would have belonged to some
+other addon.
+
+**The test is whether the evidence for a negative could live outside the root**,
+and it has a second step this section has already given: hr's one surviving
+full-scope finding, ``_compute_manager_only_fields``, is *still* a false positive,
+because its field is declared in ``enterprise/hr_appraisal``. Full repository
+scope is the floor for a whole-tree question, not the ceiling.
+
+* **And the second of those is not a naming finding at all.**
+  ``res.partner.bank._compute_display_name`` masks an account number for users
+  outside ``hr.group_hr_user`` and ``resource.resource._compute_avatar_128``
+  substitutes a public avatar, so both compute a **different value per user**
+  under a cache key that does not include one. §3's *failures are fixed, not
+  tolerated* is what settles it: the gate that found them was run for a naming
+  pass, the defect it found was a cache-coherency one, and the fix is one
+  decorator each. **A scoped run does not return only the findings you went
+  looking for**, which is a second reason to do it before the reading rather than
+  after.
+
+2.4.27 A binding a gate cannot read
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+§2.4.14 says a rename carries its bindings and that ``git grep`` answers who
+holds one; §2.4.1 and §2.4.2 say which bindings the two field-hook gates read.
+This section is the gap between those claims -- a binding written down in the
+tree, in the shape the framework wants, and unreadable by the checker whose
+whole subject it is. Each costs the same thing: a hook that cannot be reported
+misnamed, so nobody reports it.
+
+**A binding written as a bare function reference is invisible to
+``field_hook_naming.py``, and only for three of its five keywords**
+``[review]``. ``_hook_name`` resolves an ``ast.Name`` for ``default=`` and
+``domain=`` -- its ``_CALLABLE_ATTRS`` -- and for ``compute=``, ``inverse=`` and
+``search=`` accepts a string constant or nothing. So ``compute="_compute_x"``
+is read and ``compute=_compute_x`` is read as *no binding at all*: the hook
+cannot be reported misnamed, and it does not count towards the bound set
+either. **Write the string for those three** -- §2.4.2's lambda rule already
+asks for the name wherever the keyword accepts one, and this is the same rule
+arriving one shape further down.
+
+**The other two keywords are the exact opposite, and the rule must not be read
+onto them** ``[review]``. ``default=`` and ``domain=`` take a **value**, not a
+method name: ``default="_default_x"`` stores that text in the column and
+``domain="[…]"`` is a domain expression, so the ORM gives neither a string form
+that could name a method, and ``_hook_name`` refuses a ``Constant`` for both --
+explicitly for ``domain``, and by falling through the ``_CALLABLE_ATTRS`` branch
+for ``default``. **There the bare reference is the only correct spelling and the
+gate reads it**, which is why it is in ``_CALLABLE_ATTRS`` at all. Do not
+"repair" one into a string; that is a working binding turned into a literal.
+
+*Frozen reading* (§1.4) at ``baa42990470``, an ad-hoc AST scanner over
+``addons/`` and ``odoo/addons/``. Of the three keywords that want a string,
+**4,804** declarations spell it and **5** use a bare reference -- and those 5
+are the whole blind spot. (``default=`` and ``domain=`` bind by reference
+**187** times, all of them right; ``selection=`` adds **85** more that §2.4.2's
+``ATTRS`` does not reach by either spelling.) **The blind spot is nearly empty,
+and that is what makes it worth naming.** Two of the five were
+``website.menu``'s
+``is_mega_menu = fields.Boolean(compute=_compute_field_is_mega_menu,
+inverse=_set_field_is_mega_menu)``; a third was ``res.lang.flag_image_url``'s
+``compute=_compute_field_flag_image_url``. **The same wrong name,
+``_compute_field_<field>``, in two modules that share nothing else** -- which
+is what an unreadable binding buys: not a pile of debt, a spelling nothing can
+push back on. Both are now ``_compute_<field>``, and ``_set_field_is_mega_menu``
+is the ``_inverse_<field>`` §2.4.12's first carve-out always said it was. The
+remaining two are honest: ``test_import_export`` binds ``compute_fn`` and
+``inverse_fn``, locals it builds per test, which no string could name.
+
+**Run the gate scoped to your subtree before reading the file, not after**
+``[review]``. Every checker under ``tooling/architecture/`` takes ``--roots``,
+and over ``addons/website`` a hand reading of the field hooks found three
+defects where ``field_hook_naming.py`` found five and ``field_hook_purity.py``
+two more. The two the reading missed are the two whose names are *plausible*:
+``theme.ir.ui.view.compute_arch_fs`` is a ``default=`` hook wearing a compute
+prefix and no underscore, and ``website.visitor._get_access_token`` is a
+``default=`` hook that reads exactly like the helper it should have been --
+which, split per §2.4.1, is what it now delegates to. **A gate finding is a
+fact and a reading is a hypothesis**: take the facts first and spend the
+reading on what is left.
+
+* **``--roots`` manufactures findings for any gate whose question ranges wider
+  than the root** ``[review]``, and the rule above is dangerous without this
+  one. **The test is whether the evidence for a *negative* could live outside
+  the scope** -- not a list of which checkers are safe, because the list rots
+  and the test does not. ``field_hook_naming``, ``field_hook_purity``,
+  ``compute_context_deps`` and ``naming_vocabulary`` ask something answerable
+  inside the files they read, so scoping them is sound and faster.
+  ``orphan_depends`` asks *does any field anywhere wire this method*, so
+  narrowing the root deletes the evidence that would answer yes and every
+  override in the subtree becomes a finding: over ``addons/website`` it reports
+  **5** scoped and **0** at full scope, and over ``addons/hr`` **10** against
+  **1**. Its own advice is to delete the decorator, so acting on the scoped
+  number removes live ``@api.depends`` from overrides and breaks invalidation
+  with no test to say so. **For such a gate, run it at full scope and filter
+  the output.** §2.4.26 carries the same finding from ``addons/hr``.
+
+* **And the list of checkers is itself a thing to enumerate rather than
+  recall** ``[review]``. The reading above ran three of them and stopped, which
+  is this rule obeyed against a remembered list -- ``compute_context_deps.py``
+  prints **3** more for ``addons/website``, all ``uid``, one of them a
+  ``_compute_is_visible`` that decides whether a menu entry is shown and
+  declared no context at all. **A remembered list of gates fails in exactly the
+  way a hand reading of a file does**, so spell ``ls tooling/architecture/*.py``
+  (§2.4.26).
+
+* **§2.4.23's dependency step belongs in front of the bodies, and what it buys
+  is safety rather than a shorter list** ``[review]``. Asking *is this name
+  declared above me* is one query against the manifest graph and it answers
+  the question §2.4.23 opens; running it before reading, rather than after,
+  is what makes a candidate list safe to act on in one pass. **How much it
+  removes is a fact about the addon's position, not about the rule**, and
+  reading it as a filter is how it gets mistrusted. *Frozen readings* (§1.4)
+  at ``68aad2090c3``: over ``addons/website`` and its siblings it took a
+  §2.4.28 candidate list of **2** to **0**, because both names were declared
+  in ``base`` and ``portal`` and one of them carries **10** overrides; over
+  ``addons/stock`` it removed **0 of 14**, every candidate being declared in
+  stock or downstream of it. Both results are correct. An addon that inherits
+  heavily prunes hard, and a foundational one prunes nothing and never could
+  -- **returning the whole list is the answer there, not a failure of the
+  step.** The six names this pass left alone (``_routing_map_key``,
+  ``_set_noupdate``, ``_filter_bundle_assets``, ``_get_addons_active`` and
+  ``portal``'s two wizard hooks) were settled this way before any scanner ran.
+
+**A pair holding each other's spelling is repaired by a permutation, not by two
+renames** ``[review]``. ``ir.actions.server`` declared
+``website_url = fields.Char(compute="_get_website_url")`` beside a
+``_compute_website_url(self, website_path, xml_id)`` that took two arguments,
+assigned no field and returned a string. Neither name was merely wrong: each
+stood in the other's place. Two sequential substitutions cannot express that --
+the first collides with the name the second is about to vacate -- so the edit
+needs a third, temporary spelling, and a reviewer reading the diff one hunk at
+a time sees a rename that appears to do nothing. **Say in the commit that it is
+a swap.**
+
+* **A swap is also where §2.4.4's "a name is not unique" bites hardest.**
+  ``_compute_website_url`` is ``mixin.website.published``'s compute hook,
+  implemented by twenty-odd models across three repositories; the
+  ``ir.actions.server`` pair is a private collision inside one file that shares
+  nothing with them but the spelling. §2.4.4 says to run the other owner's
+  callers first. **Where the other owner is a protocol many models implement,
+  the answer is not to order the substitutions but to scope them** -- the whole
+  repair fits in one file, and any command that could have reached a second
+  file was the wrong command.
+
+**A caller that builds a one-key mapping to reach a mapping-mutator is the
+mutator asking to be a converter** ``[review]``. §2.4.7 settles ``_prepare_``
+against ``_update_`` on the parameter list -- a method handed a mapping its
+caller owns is the Mutation row -- and that test is right about the name while
+saying nothing about whether the signature deserved to exist.
+``website.page.write`` wrote ``old_url_normalized = {"homepage_url": old_url}``,
+called ``website._handle_homepage_url(old_url_normalized)``, then read the key
+back out, purely because the only spelling of *strip a trailing slash* on offer
+took a ``vals`` dict. **The caller's variable names the operation it wanted** --
+§2.4.21 reads the call site for an extension point, and this is the same
+evidence for an ordinary helper -- and the class already had the honest shape
+one method away in ``_normalize_domain_url(url)``. The family is now
+``_update_vals`` with ``_update_vals_favicon`` / ``_update_vals_domain`` /
+``_update_vals_homepage_url``, which is what §2.4.7 asks for and leaves the
+surviving call site's shape visible instead of plausible. **Renaming a method
+correctly does not oblige you to keep its signature, and it is the rename that
+shows you the signature.**
+
+**A reshaped receiver returned beside a product is not a second product**
+``[review]``. §2.4.9 says a method returning two things either names both or
+splits, and the call sites decide which; §2.4.22 says ``self.with_context(...)``
+produces nothing, because the rows are already in ``self``. Read together they
+settle the tuple that threads an immutable receiver.
+``website.html.text.processor`` returns ``(updated_processor, placeholders)``,
+``(updated_processor, render, placeholders)`` and
+``(updated_processor, generated, translated)`` from methods whose callers all
+write ``updated_processor = updated_processor._x(…)`` -- §2.4.22's assignment
+tell, firing on the **first element of a tuple** rather than on the return.
+**The name owes only the products**, and §2.4.9's count of qualifiers against
+values must not count the envelope: ``_process_snippet`` is
+``_get_snippet_placeholders``, never ``_get_processor_and_placeholders``.
+
+* **The threading method itself is the re-envelope, whatever its verb.**
+  ``_update_processing_cache(cache_key, updates)`` writes nothing: it reads a
+  context key, copies it and returns ``self.with_context(...)``. It is
+  ``_with_processing_cache``, beside the ``_with_processing_context`` the same
+  class already spelled correctly -- §2.4.4's *look for the member that already
+  has a spelling* answering the question before the rule has to.
+
+**``_allow_`` is a fifth predicate prefix, and it is the permission mood of
+§2.4.6's ``_skip_``** ``[review]``. ``website.page._allow_to_use_cache(request)``
+and ``._allow_cache_insertion(layout)`` return ``bool`` and allow nothing;
+permitting is what the caller does with the answer, exactly as skipping was. It
+reads worse than the ``_should_`` family §2.4.8 parks, for the reason an
+imperative always does -- ``if page._allow_to_use_cache(request):`` parses as a
+statement with a stray ``if`` -- and worse than ``_skip_`` in one further way:
+it is spelled from the *subject's* side, so a reader takes it for a method that
+grants something rather than one that answers. Ask the question about the
+subject: ``_is_cache_usable``, ``_is_cache_insertion_allowed``. Three modules in
+two repositories override the first and a fourth patches it in a test, which is
+the ordinary §2.4.14 cost and not a reason to leave it.
+
+**A module's own machine doc is a binding, and its harness does not read member
+names** ``[review]``. §1.4 makes every figure in a ``machine_doc_v*/`` gated or
+frozen, and ``factcheck.sh`` resolves every backticked *path* -- so a document
+naming a file that moved fails, and a document naming a method that was renamed
+passes. ``addons/website``'s ``MODEL_MAP.md`` named
+``_get_form_writable_fields`` and ``get_authorized_fields()`` against a tree
+that had spelled them ``_get_fields_form_writable`` and
+``get_fields_authorized`` since well before this pass, and its harness was green
+throughout. **Grep the module's machine doc for every old name before you
+commit.** It is the one binding that is read by people, taken as a premise by
+whoever reads it first, and checked by nothing.
+
+2.4.28 The action dict is a payload, and its private builder is unmarked
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+§2.4.16 already decides this in one clause -- *built in Python and returned by
+something else* → ``_prepare_*`` or its public form -- and the tree does not
+agree with it by a wide enough margin that every author re-derives a spelling of
+their own. *Frozen reading* (§1.4) at ``baa42990470``, an ad-hoc scanner over
+``odoo/addons`` and ``addons``, not re-derivable: **653** model methods return a
+dict literal whose ``type`` is an ``ir.actions.*``.
+
+* **573** are public and **455** of those wear ``action_``. The public half of
+  §2.4.16 is settled and needs nothing from this section.
+* **80** are private, so no client can name one and the ``action_`` claim cannot
+  be true of any of them. **19** wear ``_action_`` anyway. Of the **61** left,
+  **30** open with ``_get_`` and **4** with ``_prepare_`` -- the rule §2.4.16
+  states is outnumbered 49 to 4 by the two spellings it rules out.
+
+**§2.4.7's consumer test does not reach this value, which is why the family
+drifted** ``[review]``. That section resolves ``_get_`` against ``_prepare_`` at
+the call site, and the call site here **forwards**: the dict is returned up one
+or more Python frames until the web client's action service executes it. Neither
+*feeds* ``create()``/``write()`` nor *a caller that merely reads it* describes a
+value that is passed on unread, so a reader applying the test in good faith gets
+no answer and reaches for ``_get_``. The bullet that does reach it is Provenance
+-- **an action dict is an artifact, built to be handed over** -- and a caller
+that forwards is delivering it, not reading it. The discriminator to state is
+**how far the value travels**, not who touches it first.
+
+**Convergence without a written rule is evidence the gap is real** ``[review]``,
+not that the tree is merely untidy. ``mrp``'s five private builders
+(``_get_mark_done_action``, ``_get_closed_redirect_action``,
+``_get_backorder_redirect_action``, ``_get_closing_action``, and
+``_get_still_used_notification``, which names the payload kind instead of the
+word) landed on one shape independently of each other and of
+``point_of_sale``'s. Authors do reach for a convention at this shape; there was
+none to reach.
+
+**The canonical is ``_prepare_action_<what>``, head-first** ``[review]``, and the
+ordering is not a taste question. §2.4.7 says a payload builder names **the
+consumer**, not the shape -- ``_prepare_eval_context``, not
+``_prepare_eval_vals`` -- and the consumer here is the action service, so
+``action`` is the consumer's name and belongs directly behind the verb, which is
+where §2.4.4's head-first rule puts it anyway. Two things follow that the
+trailing form loses:
+
+* ``_prepare_action_`` is a grep that finds every private builder in the tree and
+  nothing else, and it sorts each one beside the public ``action_*`` opener it
+  feeds.
+* The trailing form hides the verb in the way §2.4.4 describes.
+  ``point_of_sale``'s ``_close_session_action`` scored the verb ``close`` for
+  ``naming_vocabulary.classify`` and sorted beside ``_close_session``, which is
+  the method that **performs** the close rather than the one that offers it --
+  two unrelated operations adjacent under one apparent verb. It is
+  ``_prepare_action_force_close``.
+
+**A wizard-opening builder that creates the wizard first is still a builder**
+``[review]``. The ``create()`` in its body is the standard idiom for opening a
+wizard already bound to a record, and its result is spent on ``res_id``; the
+**return value** is still the mapping the method assembled, which is exactly the
+test §2.4.7's backlog bullet gives for staying in the payload family. Do not read
+the ``create()`` as evidence of a mutation.
+
+**``show_*`` is the public half's blind spot, and only §2.4.16's second direction
+finds it** ``[review]``. ``pos.session.show_cash_register`` and
+``show_journal_items`` were each named by a ``<button type="object">`` in the
+module's own views and each returned an ``act_window``, so the §2.4 table's
+``action_view_`` row applied twice over -- invoked by the client, and opening a
+view -- and neither wore the prefix. ``show`` is in no abolished list and will
+never be in one: a sweep started from the ``def`` has nothing to trip on. The
+direction that finds it is the XML, which is why §2.4.16 says **search from the
+client, not from the ``def``**. They are ``action_view_cash_register`` and
+``action_view_journal_items``.
+
+**A mail prefix on a method that posts nothing is §2.4.21's false claim, not
+§2.4.12's overloading** ``[review]``. ``pos.session.post_closing_cash_details``
+took the counted cash from the closing popup and wrote it to
+``cash_register_balance_end_real``; it posted no message, and it sat a few lines
+below ``update_closing_control_state_session``, which is the same operation on
+the same model correctly spelled. §2.4.12 governs which of ``post``'s three
+meanings a new method may take and separately parks the adverb reading; **it does
+not cover a fourth case where none of the readings is true of the body**, and
+that case is the one a grep for the mail family surfaces as a false positive
+forever. It is ``update_closing_cash_details``.
+
+**A public method nothing in the workspace names is not a naming finding, and a
+pass must hand it on rather than rename it** ``[review]``. §2.4.21 warns that
+*nothing greps it* is not the answer where the name carries a claim about a
+caller who may sit in a database column; the complement holds where it carries no
+such claim. Two of ``point_of_sale``'s are dead outright -- zero references in
+``odoo``, ``enterprise``, ``agromarin`` and ``design-themes``, in files of any
+type:
+
+* ``pos.session.find_product_by_barcode`` -- a one-line delegation to
+  ``product.template.load_product_from_pos``;
+* ``pos.config.execute``, whose whole body returns ``{"type":
+  "ir.actions.client", "tag": "reload"}``. That is ``res.config.settings``'s own
+  shape on a model that is not ``res.config.settings``, and
+  ``80e89c7a11d`` -- *add new settings form per POS* -- is where it arrived,
+  which makes the copy the finding rather than the name.
+
+**Renaming either one would move a corpse**, and deleting a public method is a
+surface change §2.4.4 weighs separately, so both are left as found and this
+paragraph is the record that they were read. **A public name with no caller
+anywhere is the cheapest deletion candidate a naming pass produces**; write it
+down, because the next pass will otherwise spend the same search.
+
+2.4.29 The callee settles the family the consumer test cannot reach
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+§2.4.7 resolves ``_get_`` against ``_prepare_`` **on the consumer**, and §2.4.28
+adds the case where the consumer forwards. There is a third case, cheaper than
+either, and it needs no call site at all: **a method whose whole body is
+``return self._prepare_X(...)`` is in ``_prepare_``'s family, because it returns
+that method's value unchanged.** A wrapper cannot belong to a different family
+from the thing it wraps -- §2.4.10 already says this for a stand-in reaching a
+name the framework resolves, and it is the same argument with the resolution
+done by hand.
+
+``pos.session`` is the worked example, and it is the shape §3's *naming
+standardization is instrumental* predicts: **ten** ``_get_*_vals`` methods sat
+in one file beside five ``_prepare_*`` ones, and **six** of the ten had a body
+that was one ``return self._prepare_debit_line_vals(...)`` or
+``_prepare_credit_line_vals(...)``. The other four assemble the mapping inline
+and are handed straight to ``MoveLine.create()`` or
+``BankStatementLine.create()``, which is §2.4.7's first bullet and settled. All
+ten are ``_prepare_*``.
+
+* **Read the callee before the call site.** The delegating six were decidable
+  from the body alone, in one line each; the consumer test would have needed
+  eleven call sites in two files.
+* **The caller's local had already written the answer down.** Every consumer
+  spells it ``tax_vals``, ``rounding_vals``, ``split_cash_statement_line_vals``,
+  ``combine_invoice_receivable_vals`` -- §2.4.4's *the variable is the strongest
+  evidence*, arriving from the other end.
+
+**A local named after the method that produced it is the caller reporting that
+the name gave it nothing** ``[review]``. ``_get_diff_vals`` returned a pair of
+move-line values and its call site opened
+``get_diff_vals_result = self._get_diff_vals(...)``, then immediately unpacked
+``source_vals, dest_vals``. A caller with a name for the value writes that name;
+a caller that writes *the result of calling that* has been handed a name it
+could not spend. **Grep a module for locals containing ``_result``, ``_res`` or
+the callee's own spelling** -- it is a short list and every hit is a name the
+consumer failed to understand. The method is ``_prepare_diff_line_vals`` and the
+local is ``diff_line_vals``, which the next line was already using.
+
+**A payload suffix does not survive the mapping changing owner** ``[review]``.
+``_get_products_and_taxes_dict(line, products, taxes, currency)`` is §2.4.7's
+*who owns the mapping* test with all three of its answers pointing the same way:
+the two mappings are its caller's, it adds to them in place, and the caller
+writes ``products_sold, taxes = self._get_products_and_taxes_dict(line,
+products_sold, taxes, currency)`` -- rebinding two names, not receiving two
+objects. It is ``_update_products_and_taxes``. The ``_dict`` tail was wrong on a
+second axis §2.4.15 governs and this one is worth stating separately: **the
+method returns a tuple**, so the tail named neither what came back nor how much
+of it.
+
+**A protocol namespace is closed by asking the dispatcher, and the repair is
+owed in every language that implements it** ``[review]``. §2.4.21 recorded two
+``_load_pos_data_*`` names as backlog "because their overrides are spread over
+three repositories", and that estimate was right in size and wrong about which
+tree the cost lives in. ``_load_pos_data_models`` returns **the list of models
+the loader will iterate**, and ``_load_pos_data_relations`` takes a model
+*name*; neither is dispatched per model, so both wore a claim about a caller
+that was false. They are ``_get_model_names_to_load`` and
+``_get_field_relations``, and the namespace is now exactly the four members the
+loader calls. The rename was **36** files: **21** Python overrides, and **13**
+``static/tests/**/data/*.data.js`` mock-server classes that reimplement the
+Python member so HOOT can run without a database.
+
+* **The mock server is a binding, and it is the one a Python-only sweep leaves
+  behind.** §2.4.14 names it for ``mail``; every addon with a JS client has it.
+  A Python-only rename here does not break the mock -- it leaves it overriding a
+  spelling nothing calls, which is worse, because the override silently stops
+  taking effect.
+* **No gate and no affected-suite tool reaches it** ``[review]``.
+  ``hoot --affected`` maps changed JS to suites by import-scan, and a
+  ``data/*.data.js`` mock is imported by the fixtures rather than by a test, so
+  **no diff selects these suites**. The failure this hides is not subtle:
+  ``point_of_sale``'s mock declared ``company_id`` on ``account.tax`` while this
+  fork carries ``company_ids`` -- and ``point_of_sale``'s own
+  ``_load_pos_data_fields`` had already been corrected to ``company_ids``, so
+  the two halves of one contract disagreed with each other. ``MockServer``
+  raised ``Unknown field "company_id" on record #1``, every suite sharing the
+  environment died in setup, and the module's whole JS suite read **273 failed /
+  23 passed** until the mock was synced, when it read **296 passed**. *Frozen
+  reading* (§1.4) at ``ab8a88a520b``: **105** mock files across ``odoo/addons``
+  and ``enterprise`` mirror a Python ``_load_pos_data_fields``, over **73**
+  models. **Run an addon's suites by name after renaming anything its mocks
+  mirror; do not trust ``--affected`` to find them.**
+* **Two measurement traps sit on the road to that conclusion**, and both make a
+  correct fix look ineffective. The warm runner has no file watcher, so a run
+  after an edit tests the sources as they were at boot until
+  ``hoot --stop --db <name>``; and suites batched across addons share one
+  database and pollute each other -- 80 ``pos_*`` suites in one invocation read
+  **216 failed / 65 passed**, and the same suites one addon at a time read
+  green. Neither is a fact about the code.
+
+**Where a test asserts two shapes and the body handles one, the test is the
+specification** ``[review]``. §2.4.12 says to prefer the test's word where the
+two disagree about what the operation *is*; the same holds for what it accepts.
+``pos_sale``'s ``saleDetails`` getter called ``JSON.parse`` unconditionally on a
+field its own suite feeds both as a JSON string and as an already-parsed array,
+so one of the two tests had never passed. This is not a naming defect and it is
+recorded here because a naming pass is how it was found: **running the suites
+that cover the names you touched is what turns a rename into a measurement**.
 
 2.5 Docstrings and comments
 ---------------------------
@@ -6623,6 +8015,79 @@ One row per change, one clause. The argument lives in the section it moved.
    * - Version
      - Date
      - Summary
+   * - 6.19
+     - 2026-09-01
+     - §2.4.23 gains the two readings a shared spelling needs that neither a
+       definition count nor a name count supplies. One spelling on two **paired
+       models** is one entry a definition count reports as two, and it converges
+       on a single new name rather than splitting -- the shared spelling was
+       correct. Its converse, one spelling worn by two unrelated methods,
+       **diverges** into two names, and the result is indistinguishable from an
+       inconsistent double rename unless the commit message says which it was:
+       a divergence nobody explained is what a later pass tidies back into a
+       collision. Found in ``stock``/``mrp`` during parallel passes over both.
+   * - 6.18
+     - 2026-09-01
+     - §2.4.23 extended after six parallel passes shared one checkout: a
+       whole-file commit of a shared document publishes other sessions' claims
+       as branch state, which is §2.4.20's whole-file hazard running the other
+       way and the worse of the two, because nothing looks wrong afterwards --
+       HEAD came to describe rename passes HEAD had not had, and three gated
+       figures had been decremented for removals only partly committed, leaving
+       the document **ahead** of the tree. Hence: decrement a gated figure only
+       in the commit that lands the change it counts, and read
+       "author-attributed and measured clean" as saying nothing a reader can
+       check, since it names who moved a number but not the commit it was
+       measured at.
+   * - 6.17
+     - 2026-09-01
+     - §2.4 tightened against a rename pass over ``addons/website``. New
+       §2.4.27: a binding a gate cannot read -- ``field_hook_naming.py``
+       resolves a bare function reference for ``default=`` / ``domain=``, where
+       it is the only correct spelling, and not for ``compute=`` / ``inverse=``
+       / ``search=``, where a hook so bound is neither reportable as misnamed
+       nor counted as bound; 5 in the bundled tree, two of them one wrong name
+       (``_compute_field_<field>``) in two unrelated modules. Also: run the
+       scoped gate before reading the file, because a gate finding is a fact
+       and a reading is a hypothesis; a pair holding each other's spelling is a
+       permutation needing a third temporary name, and is scoped to one file
+       rather than ordered; a caller that builds a one-key mapping to reach a
+       mapping-mutator is asking for a converter; §2.4.9's tuple rule does not
+       count a reshaped receiver as a second product; ``_allow_`` is the
+       permission mood of §2.4.6's ``_skip_``; and a ``machine_doc_v*``
+       harness resolves backticked paths but not backticked members, so a
+       renamed method leaves the module's own doc stale and green.
+   * - 6.16
+     - 2026-09-01
+     - §2.4 tightened against a rename pass over ``addons/mrp``. New §2.4.23: a
+       per-addon pass does not own the names it reads -- of ``addons/mrp``'s 676
+       method names, 263 are declared elsewhere in the repository and only 413
+       are the pass's to rename, so a worklist taken from the ``def`` list
+       overstates itself by a third; the upstream bucket is a **veto** and not a
+       cost, because renaming an override from the overriding end is the split
+       pair §2.4.11 already forbids, and the same measurement is what separates
+       §2.4.25's collision from its convention. Also: ``button_`` is a rival
+       spelling of ``action_``'s claim that §2.4.16 does not name, at 105
+       definitions, with the third spelling -- no prefix at all -- the one worth
+       repairing; count a name's occurrences under **other** owners before
+       substituting, not its definitions; and a run over a shared checkout does
+       not measure a commit, so a search that finds nothing is not evidence in a
+       tree somebody else is writing to.
+   * - 6.15
+     - 2026-09-01
+     - §2.4 tightened against a second rename pass over ``addons/project``. New
+       §2.4.25: a shared spelling is three things -- a collision (§2.4.1), a name
+       the framework binds (§2.4.14), or a **convention** independent models
+       arrived at separately, where the repair converges the outliers **onto**
+       the shared name instead of renaming it away; the count does not classify
+       it and the direction of the repair is the check that you classified it
+       right. Also: a qualifier naming an *absence* does not survive §2.4.4's
+       head-first reordering; a suffix naming something the client renders is not
+       §2.4.17's ``_impl``, which qualifies §2.4.20's reading of
+       ``_show_X_helper``; two owners of a name inside one file cannot be
+       ordered, only line-scoped, and a nested function always has a line range;
+       and a method returning its input minus what it took belongs to no row, so
+       three of them are left as found.
    * - 6.14
      - 2026-08-31
      - §2.4 tightened against a rename pass over ``addons/stock``. New §2.4.22:
