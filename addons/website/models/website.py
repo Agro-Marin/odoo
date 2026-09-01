@@ -513,6 +513,16 @@ class Website(models.Model):
     def unlink(self):
         self._remove_attachments_on_website_unlink()
 
+        # Go through the ORM instead of relying purely on the DB-level
+        # ondelete="cascade" FKs, so website.page/ir.ui.view/website.menu's
+        # own Python-level cleanup (COU bookkeeping, template cache
+        # invalidation, orphaned-view removal) runs instead of being
+        # silently bypassed. Pages first: their own unlink() removes views
+        # left with no other page/inherit_children_ids.
+        self.env["website.page"].search([("website_id", "in", self.ids)]).unlink()
+        self.env["ir.ui.view"].search([("website_id", "in", self.ids)]).unlink()
+        self.env["website.menu"].search([("website_id", "in", self.ids)]).unlink()
+
         companies = self.company_id
         res = super().unlink()
         self.env.registry.clear_cache()
