@@ -105,11 +105,11 @@ def _js_error_beacon(payload: dict) -> dict | None:
     if not message:
         return None
 
+    kind = payload.get("kind") if payload.get("kind") in _JS_ERROR_KINDS else "error"
+
     return {
         "message": message,
-        "kind": (
-            payload.get("kind") if payload.get("kind") in _JS_ERROR_KINDS else "error"
-        ),
+        "kind": kind,
         "phase": (
             payload.get("phase")
             if payload.get("phase") in _JS_ERROR_PHASES
@@ -122,7 +122,11 @@ def _js_error_beacon(payload: dict) -> dict | None:
         "cause": _str_field(payload.get("cause"), _MAX_ERROR_CAUSE_LEN),
         "line": _int_field(payload.get("line")),
         "col": _int_field(payload.get("col")),
-        "reloaded": bool(payload.get("reloaded")) if "reloaded" in payload else None,
+        "reloaded": (
+            bool(payload.get("reloaded"))
+            if kind == "asset_load_error" and "reloaded" in payload
+            else None
+        ),
     }
 
 

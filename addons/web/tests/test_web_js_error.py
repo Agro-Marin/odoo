@@ -125,6 +125,22 @@ class TestWebJsErrorBeacon(HttpCase):
             row = self.env["web.js.error"].search([("message", "=", message)], limit=1)
             self.assertEqual(row.reloaded, expected)
 
+    def test_js_error_reloaded_ignored_outside_asset_load_error(self):
+        self._beacon(
+            {
+                "message": "reloaded on wrong kind",
+                "kind": "error",
+                "reloaded": True,
+            }
+        )
+        row = self.env["web.js.error"].search(
+            [("message", "=", "reloaded on wrong kind")], limit=1
+        )
+        self.assertFalse(
+            row.reloaded,
+            "reloaded must only ever be set for asset_load_error records",
+        )
+
     def test_js_error_rate_limited_beacon_persists_nothing(self):
         from odoo.addons.web.controllers import observability
 
