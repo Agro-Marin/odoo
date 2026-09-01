@@ -744,15 +744,6 @@ class StockPackage(models.Model):
         return res
 
     def _get_all_children_package_dest_ids(self):
-        def get_all_children_ids(packages):
-            if packages.child_package_dest_ids:
-                return set(packages.ids) | get_all_children_ids(
-                    packages.child_package_dest_ids
-                )
-            else:
-                return set(packages.ids)
-
-        all_children_ids = set(self.ids)
         all_children_by_pack = defaultdict(list)
         all_children_ids = set(self.ids)
         for package in self:
@@ -818,11 +809,6 @@ class StockPackage(models.Model):
         return self
 
     def _check_move_lines_map_quant(self, move_lines):
-        precision_digits = self.env["decimal.precision"].get_precision("Product Unit")
-
-        def _keys_groupby(record):
-            return record.product_id, record.lot_id
-
         if not move_lines:
             return True
         precision_digits = self.env["decimal.precision"].get_precision("Product Unit")
