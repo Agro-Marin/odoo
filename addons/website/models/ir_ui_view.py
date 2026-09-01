@@ -41,7 +41,9 @@ class IrUiView(models.Model):
     )
     visibility_password = fields.Char(groups="base.group_system", copy=False)
     visibility_password_display = fields.Char(
-        compute="_compute_visibility_password_display", inverse="_inverse_visibility_password_display", groups="website.group_website_designer"
+        compute="_compute_visibility_password_display",
+        inverse="_inverse_visibility_password_display",
+        groups="website.group_website_designer",
     )
 
     @api.depends("visibility_password")
