@@ -106,6 +106,19 @@
             <field name="perm_create" eval="False" />
             <field name="perm_unlink" eval="False" />
         </record>
+        <record id="ir_rule_website_visitor_registration_desk" model="ir.rule">
+            <field
+                name="name">Website Visitor: registration desk: event visitors only</field>
+            <field name="model_id" ref="model_website_visitor" />
+            <field name="domain_force">[('event_registration_ids', '!=', False)]</field>
+            <field
+                name="groups"
+                eval="[(4, ref('event.group_event_registration_desk'))]" />
+            <field name="perm_read" eval="True" />
+            <field name="perm_write" eval="True" />
+            <field name="perm_create" eval="False" />
+            <field name="perm_unlink" eval="False" />
+        </record>
     </data>
 
     <record id="event.group_event_manager" model="res.groups">
