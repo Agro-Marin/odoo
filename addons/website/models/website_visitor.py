@@ -417,6 +417,7 @@ class WebsiteVisitor(models.Model):
             )
         """
         self.env.cr.execute(query, (timezone, self.id))
+        self.invalidate_recordset(["timezone"])
 
     def _update_visitor_last_visit(self):
         query = """
@@ -433,6 +434,7 @@ class WebsiteVisitor(models.Model):
              )
         """
         self.env.cr.execute(query, (self.id,), log_exceptions=False)
+        self.invalidate_recordset(["visit_count", "last_connection_datetime"])
 
     def _get_visitor_timezone(self):
         tz = request.cookies.get("tz") if request else None
