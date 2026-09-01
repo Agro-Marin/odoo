@@ -56,7 +56,7 @@ class ProjectTemplateCreateWizard(models.TransientModel):
             values=field_values, role_to_users_mapping=self.role_to_users_ids
         )
 
-    def create_project_from_template(self) -> dict[str, Any]:
+    def action_create_project_from_template(self) -> dict[str, Any]:
         return self._create_project_from_template().action_view_tasks()
 
     @api.model

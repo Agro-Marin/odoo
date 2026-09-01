@@ -38,7 +38,7 @@ class ProjectProject(models.Model):
     _rating_satisfaction_days = 30
     _track_duration_field = "phase_id"
 
-    def _compute_task_count(self) -> None:
+    def _compute_task_counts(self) -> None:
         closed_states = set(CLOSED_STATES)
         counts: dict[int, list[int]] = {}
         active_projects = self.filtered("active")
@@ -267,17 +267,17 @@ class ProjectProject(models.Model):
     )
     task_properties_definition = fields.PropertiesDefinition("Task Properties")
     task_count = fields.Integer(
-        compute="_compute_task_count",
+        compute="_compute_task_counts",
         string="Task Count",
         export_string_translation=False,
     )
     open_task_count = fields.Integer(
-        compute="_compute_task_count",
+        compute="_compute_task_counts",
         string="Open Task Count",
         export_string_translation=False,
     )
     closed_task_count = fields.Integer(
-        compute="_compute_task_count",
+        compute="_compute_task_counts",
         export_string_translation=False,
     )
     task_completion_percentage = fields.Float(
@@ -305,7 +305,7 @@ class ProjectProject(models.Model):
         export_string_translation=False,
     )
     update_count = fields.Integer(
-        compute="_compute_total_update_ids",
+        compute="_compute_update_count",
         export_string_translation=False,
     )
     last_update_id = fields.Many2one(
@@ -364,17 +364,17 @@ class ProjectProject(models.Model):
     )
     next_milestone_id = fields.Many2one(
         "project.milestone",
-        compute="_compute_next_milestone_id",
+        compute="_compute_next_milestone_indicators",
         groups="project.group_project_milestone",
         export_string_translation=False,
     )
     can_mark_milestone_as_done = fields.Boolean(
-        compute="_compute_next_milestone_id",
+        compute="_compute_next_milestone_indicators",
         groups="project.group_project_milestone",
         export_string_translation=False,
     )
     is_milestone_deadline_exceeded = fields.Boolean(
-        compute="_compute_next_milestone_id",
+        compute="_compute_next_milestone_indicators",
         groups="project.group_project_milestone",
         export_string_translation=False,
     )
@@ -477,12 +477,12 @@ class ProjectProject(models.Model):
     )
     risk_count = fields.Integer(
         "Risk Count",
-        compute="_compute_risk_count",
+        compute="_compute_risk_counts",
         export_string_translation=False,
     )
     high_risk_count = fields.Integer(
         "High/Critical Risks",
-        compute="_compute_risk_count",
+        compute="_compute_risk_counts",
         export_string_translation=False,
     )
 
@@ -560,7 +560,7 @@ class ProjectProject(models.Model):
             )
 
     @api.depends("milestone_ids", "milestone_ids.is_reached", "milestone_ids.deadline")
-    def _compute_next_milestone_id(self) -> None:
+    def _compute_next_milestone_indicators(self) -> None:
         milestones_per_project_id = {
             project.id: milestones
             for project, milestones in self.env["project.milestone"]._read_group(
@@ -646,17 +646,19 @@ class ProjectProject(models.Model):
             return
 
         task_set = set(tasks.ids)
-        deps_on, successors_of = self._cpm_collect_edges(tasks, task_set)
+        deps_on, successors_of = self._get_cpm_predecessors_and_successors(
+            tasks, task_set
+        )
         duration = {t.id: t._get_cpm_duration_hours() for t in tasks}
-        self._cpm_check_acyclic(task_set, deps_on)
-        topo = self._cpm_topological_order(task_set, deps_on, successors_of)
-        es, ef = self._cpm_forward_pass(topo, deps_on, duration)
-        ls_map = self._cpm_backward_pass(
+        self._check_no_cyclic_dependencies(task_set, deps_on)
+        topo = self._get_cpm_topological_order(task_set, deps_on, successors_of)
+        es, ef = self._get_cpm_earliest_start_and_finish(topo, deps_on, duration)
+        ls_map = self._get_cpm_latest_start(
             topo, deps_on, successors_of, duration, max(ef.values()) if ef else 0.0
         )
-        self._cpm_write_results(tasks, es, ef, ls_map)
+        self._update_cpm_schedule(tasks, es, ef, ls_map)
 
-    def _cpm_collect_edges(
+    def _get_cpm_predecessors_and_successors(
         self, tasks: Any, task_set: set[int]
     ) -> tuple[dict[int, list[tuple[int, str, float]]], dict[int, list[int]]]:
         deps_on: dict[int, list[tuple[int, str, float]]] = defaultdict(list)
@@ -686,7 +688,7 @@ class ProjectProject(models.Model):
                 add_edge(task.id, pred.id, "fs", 0.0)
         return deps_on, successors_of
 
-    def _cpm_check_acyclic(
+    def _check_no_cyclic_dependencies(
         self, task_set: set[int], deps_on: dict[int, list[tuple[int, str, float]]]
     ) -> None:
         _UNVISITED, _IN_STACK, _DONE = 0, 1, 2
@@ -717,7 +719,7 @@ class ProjectProject(models.Model):
                     color[node] = _DONE
                     dfs_stack.pop()
 
-    def _cpm_topological_order(
+    def _get_cpm_topological_order(
         self,
         task_set: set[int],
         deps_on: dict[int, list[tuple[int, str, float]]],
@@ -735,7 +737,7 @@ class ProjectProject(models.Model):
                     ready.append(succ_id)
         return topo
 
-    def _cpm_forward_pass(
+    def _get_cpm_earliest_start_and_finish(
         self,
         topo: list[int],
         deps_on: dict[int, list[tuple[int, str, float]]],
@@ -769,7 +771,7 @@ class ProjectProject(models.Model):
             ef[tid] = es[tid] + duration[tid]
         return es, ef
 
-    def _cpm_backward_pass(
+    def _get_cpm_latest_start(
         self,
         topo: list[int],
         deps_on: dict[int, list[tuple[int, str, float]]],
@@ -796,7 +798,7 @@ class ProjectProject(models.Model):
             ls_map[tid] = lf[tid] - duration[tid]
         return ls_map
 
-    def _cpm_write_results(
+    def _update_cpm_schedule(
         self,
         tasks: Any,
         es: dict[int, float],
@@ -806,7 +808,7 @@ class ProjectProject(models.Model):
         calendar = self.resource_calendar_id
         now = fields.Datetime.now()
 
-        def to_datetime(hours):
+        def hours_to_datetime(hours):
             if not hours:
                 return now
             if calendar:
@@ -820,14 +822,14 @@ class ProjectProject(models.Model):
             es_h = es.get(tid, 0.0)
             ls_h = ls_map.get(tid, 0.0)
             total_fl = ls_h - es_h
-            cpm_start = to_datetime(es_h)
+            cpm_start = hours_to_datetime(es_h)
             vals = {
                 "earliest_start": cpm_start,
-                "latest_start": to_datetime(ls_h),
+                "latest_start": hours_to_datetime(ls_h),
                 "total_float": total_fl,
                 "is_critical_path": abs(total_fl) < 0.01,
                 "cpm_date_start": cpm_start,
-                "cpm_date_end": to_datetime(ef.get(tid, 0.0)),
+                "cpm_date_end": hours_to_datetime(ef.get(tid, 0.0)),
             }
             key = repr(sorted(vals.items()))
             tasks_by_vals[key] |= task
@@ -887,13 +889,13 @@ class ProjectProject(models.Model):
             key=lambda t: -(t.total_float or 0.0),
         )
 
-        def load_per_assignee(task) -> float:
+        def get_load_per_assignee(task) -> float:
             hours = task.allocated_hours or task.planned_hours or 0.0
             return hours / max(len(task.user_ids), 1)
 
         user_slots: dict[int, list[tuple]] = defaultdict(list)
         for task in tasks:
-            share = load_per_assignee(task)
+            share = get_load_per_assignee(task)
             for user in task.user_ids:
                 user_slots[user.id].append(
                     (
@@ -908,7 +910,7 @@ class ProjectProject(models.Model):
         window_end = max(tasks.mapped("cpm_date_end"))
         day_capacity_per_calendar: dict = {}
 
-        def day_capacity(user):
+        def get_day_capacity(user):
             user_calendar = user.resource_calendar_id or calendar
             if user_calendar.id not in day_capacity_per_calendar:
                 day_capacity_per_calendar[user_calendar.id] = (
@@ -919,7 +921,7 @@ class ProjectProject(models.Model):
             return day_capacity_per_calendar[user_calendar.id]
 
         for task in leveling_order:
-            task_share = load_per_assignee(task)
+            task_share = get_load_per_assignee(task)
             if not task.user_ids or not task_share:
                 continue
             for user in task.user_ids:
@@ -933,7 +935,7 @@ class ProjectProject(models.Model):
                 ]
                 if not overlapping:
                     continue
-                capacity_by_day = day_capacity(user)
+                capacity_by_day = get_day_capacity(user)
                 load_by_day: dict = defaultdict(float)
                 for slot in [
                     *overlapping,
@@ -1134,7 +1136,7 @@ class ProjectProject(models.Model):
     _LIVE_RISK_STATE_EXCLUDED = "resolved"
 
     @api.depends("risk_ids", "risk_ids.risk_level", "risk_ids.active", "risk_ids.state")
-    def _compute_risk_count(self) -> None:
+    def _compute_risk_counts(self) -> None:
         if not self.ids:
             self.risk_count = 0
             self.high_risk_count = 0
@@ -1469,7 +1471,7 @@ class ProjectProject(models.Model):
                 project.access_instruction_message = ""
 
     @api.depends("update_ids")
-    def _compute_total_update_ids(self) -> None:
+    def _compute_update_count(self) -> None:
         update_count_per_project = dict(
             self.env["project.update"]._read_group(
                 [("project_id", "in", self.ids)],
@@ -1529,7 +1531,7 @@ class ProjectProject(models.Model):
             )
         ):
             waiting_tasks.state = "in_progress"
-        res = self._check_project_group_with_field(
+        res = self._sync_feature_group_to_usage(
             "allow_dependencies", "project.group_project_task_dependencies"
         )
         if res or res is False:
@@ -1537,12 +1539,12 @@ class ProjectProject(models.Model):
             self.env.ref("project.mt_project_task_waiting").sudo().hidden = not res
 
     def _inverse_allow_milestones(self) -> None:
-        self._check_project_group_with_field(
+        self._sync_feature_group_to_usage(
             "allow_milestones", "project.group_project_milestone"
         )
 
     def _inverse_allow_recurring_tasks(self) -> None:
-        self._check_project_group_with_field(
+        self._sync_feature_group_to_usage(
             "allow_recurring_tasks", "project.group_project_recurring_tasks"
         )
 
@@ -1847,7 +1849,7 @@ class ProjectProject(models.Model):
                 )
             vals.pop("last_update_status")
         if vals.get("privacy_visibility"):
-            self._change_privacy_visibility(vals["privacy_visibility"])
+            self._sync_access_to_privacy_visibility(vals["privacy_visibility"])
 
         if {"date_start", "date_end", "date"} & vals.keys():
             for project in self:
@@ -1905,14 +1907,14 @@ class ProjectProject(models.Model):
         return result
 
     @api.ondelete(at_uninstall=False)
-    def _check_project_group_at_removal(self) -> None:
-        self._check_project_group_with_field(
+    def _sync_feature_groups_on_unlink(self) -> None:
+        self._sync_feature_group_to_usage(
             "allow_dependencies", "project.group_project_task_dependencies"
         )
-        self._check_project_group_with_field(
+        self._sync_feature_group_to_usage(
             "allow_milestones", "project.group_project_milestone"
         )
-        self._check_project_group_with_field(
+        self._sync_feature_group_to_usage(
             "allow_recurring_tasks", "project.group_project_recurring_tasks"
         )
 
@@ -2000,7 +2002,7 @@ class ProjectProject(models.Model):
         )
 
     @api.model
-    def _check_project_group_with_field(
+    def _sync_feature_group_to_usage(
         self, field_name: str, group_name: str
     ) -> bool | None:
         has_user_group = bool(self.env.user.has_group(group_name))
@@ -2364,7 +2366,7 @@ class ProjectProject(models.Model):
     def _is_profitability_helper_shown(self) -> bool:
         return self.env.user.has_group("analytic.group_analytic_accounting")
 
-    def _get_profitability_aal_domain(self) -> list:
+    def _get_domain_profitability_aal(self) -> list:
         return [("account_id", "in", self.account_id.ids)]
 
     def _get_profitability_items(self, with_action: bool = True) -> dict:
@@ -2382,7 +2384,7 @@ class ProjectProject(models.Model):
     def _get_milestones(self) -> dict:
         self.check_singleton()
         return {
-            "data": self.milestone_ids._get_data_list(),
+            "data": self.milestone_ids._get_export_values_list(),
         }
 
     def _get_stat_buttons(self) -> list:
@@ -2541,7 +2543,7 @@ class ProjectProject(models.Model):
         )
         return profitability_values_dict, show_profitability
 
-    def _get_hide_partner(self) -> bool:
+    def _is_partner_hidden(self) -> bool:
         return False
 
     @api.model
@@ -2571,7 +2573,7 @@ class ProjectProject(models.Model):
         for project, analytic_account in zip(self, analytic_accounts, strict=True):
             project.account_id = analytic_account
 
-    def _get_projects_to_make_billable_domain(self) -> list:
+    def _get_domain_projects_to_make_billable(self) -> list:
         return [("partner_id", "!=", False)]
 
     @api.constrains(lambda self: self._get_plan_fnames())
@@ -2596,7 +2598,7 @@ class ProjectProject(models.Model):
             "default_company_id": unquote("company_id"),
         }
 
-    def _change_privacy_visibility(self, new_visibility: str) -> None:
+    def _sync_access_to_privacy_visibility(self, new_visibility: str) -> None:
         for project in self:
             if project.privacy_visibility == new_visibility:
                 continue
@@ -2611,16 +2613,19 @@ class ProjectProject(models.Model):
                 project.task_ids.access_token = ""
                 project.access_token = ""
 
-    def _check_project_sharing_access(self) -> bool:
+    def _is_project_sharing_accessible(self) -> bool:
         self.check_singleton()
         if self.privacy_visibility not in ["invited_users", "portal"]:
             return False
         if self.env.user._is_portal():
-            return self.env["project.collaborator"].search(
-                [
-                    ("project_id", "=", self.sudo().id),
-                    ("partner_id", "=", self.env.user.partner_id.id),
-                ]
+            return bool(
+                self.env["project.collaborator"].search_count(
+                    [
+                        ("project_id", "=", self.sudo().id),
+                        ("partner_id", "=", self.env.user.partner_id.id),
+                    ],
+                    limit=1,
+                )
             )
         return self.env.user._is_internal()
 

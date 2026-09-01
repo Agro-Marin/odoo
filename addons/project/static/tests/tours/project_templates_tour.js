@@ -24,7 +24,7 @@ registry.category("web_tour.tours").add("project_templates_tour", {
             run: "edit New Project",
         },
         {
-            trigger: 'button[name="create_project_from_template"]',
+            trigger: 'button[name="action_create_project_from_template"]',
             run: "click",
         },
         {
@@ -56,7 +56,7 @@ registry.category("web_tour.tours").add("project_templates_tour", {
             run: "edit New Project 2",
         },
         {
-            trigger: 'button[name="create_project_from_template"]',
+            trigger: 'button[name="action_create_project_from_template"]',
             run: "click",
         },
         {

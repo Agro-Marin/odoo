@@ -322,10 +322,10 @@ class ProjectTask(models.Model):
         if not self.partner_id and self.sale_line_id:
             self.partner_id = self.sale_line_id.partner_id
 
-    def _get_projects_to_make_billable_domain(self, additional_domain=None):
+    def _get_domain_projects_to_make_billable(self, additional_domain=None):
         return Domain.AND(
             [
-                super()._get_projects_to_make_billable_domain(additional_domain),
+                super()._get_domain_projects_to_make_billable(additional_domain),
                 [
                     ("partner_id", "!=", False),
                     ("allow_billable", "=", False),

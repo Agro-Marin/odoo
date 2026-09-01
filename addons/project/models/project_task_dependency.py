@@ -76,7 +76,7 @@ class ProjectTaskDependency(models.Model):
             )
 
     @api.constrains("task_id", "depends_on_id")
-    def _check_no_cycle(self) -> None:
+    def _check_no_cyclic_dependencies(self) -> None:
         self.flush_model(["task_id", "depends_on_id"])
         starts = [dep.task_id.id for dep in self]
         targets = [dep.depends_on_id.id for dep in self]

@@ -163,7 +163,7 @@ class TestProjectSharing(TestProjectSharingCommon):
         ):
             self.project_portal.with_user(
                 self.user_portal
-            )._check_project_sharing_access()
+            )._is_project_sharing_accessible()
         with project_share_form.collaborator_ids.new() as collaborator_form:
             collaborator_form.partner_id = self.user_portal.partner_id
             collaborator_form.access_mode = "edit"
@@ -190,7 +190,7 @@ class TestProjectSharing(TestProjectSharingCommon):
         self.assertTrue(
             self.project_portal.with_user(
                 self.user_portal
-            )._check_project_sharing_access(),
+            )._is_project_sharing_accessible(),
             "The portal user should have read access to the portal project with project sharing feature.",
         )
         project_share_wizard = (
@@ -275,7 +275,7 @@ class TestProjectSharing(TestProjectSharingCommon):
         self.assertTrue(
             self.project_portal.with_user(
                 self.user_portal
-            )._check_project_sharing_access(),
+            )._is_project_sharing_accessible(),
             "The portal user should have read access to the portal project with project sharing feature.",
         )
 
@@ -454,17 +454,17 @@ class TestProjectSharing(TestProjectSharingCommon):
         ):
             self.project_portal.with_user(
                 self.user_public
-            )._check_project_sharing_access()
+            )._is_project_sharing_accessible()
         self.assertTrue(
             self.project_portal.with_user(
                 self.user_projectuser
-            )._check_project_sharing_access(),
+            )._is_project_sharing_accessible(),
             "The internal user should have all accesses to project sharing feature of the portal project.",
         )
         self.assertFalse(
             self.project_portal.with_user(
                 self.user_portal
-            )._check_project_sharing_access(),
+            )._is_project_sharing_accessible(),
             "The portal user should not have any access to project sharing feature of the portal project.",
         )
         self.project_portal.write(
@@ -477,7 +477,7 @@ class TestProjectSharing(TestProjectSharingCommon):
         self.assertTrue(
             self.project_portal.with_user(
                 self.user_portal
-            )._check_project_sharing_access(),
+            )._is_project_sharing_accessible(),
             "The portal user can access to project sharing feature of the portal project.",
         )
 

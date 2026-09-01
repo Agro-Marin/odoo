@@ -52,7 +52,7 @@ class ProjectPhaseDeleteWizard(models.TransientModel):
         )
         projects.write({"active": False})
         self.phase_ids.write({"active": False})
-        return self._get_action()
+        return self._prepare_action_redirect()
 
     def action_unarchive_project(self) -> None:
         inactive_projects = (
@@ -64,9 +64,9 @@ class ProjectPhaseDeleteWizard(models.TransientModel):
 
     def action_unlink(self) -> dict[str, Any]:
         self.phase_ids.unlink()
-        return self._get_action()
+        return self._prepare_action_redirect()
 
-    def _get_action(self) -> dict[str, Any]:
+    def _prepare_action_redirect(self) -> dict[str, Any]:
         action = (
             self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
                 "project.project_phase_configure"

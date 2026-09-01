@@ -18,7 +18,7 @@ class TestProjectTemplateCreateWizard(TestSaleProjectCommon):
                     Command.create(
                         {
                             "product_id": cls.product_delivery_manual3.id,
-                            "product_uom_qty": 1,
+                            "product_qty": 1,
                         }
                     )
                 ],
@@ -110,7 +110,7 @@ class TestProjectTemplateCreateWizard(TestSaleProjectCommon):
                     Command.create(
                         {
                             "product_id": self.product_service_ordered_prepaid.id,
-                            "product_uom_qty": 1,
+                            "product_qty": 1,
                         }
                     )
                 ],
@@ -130,7 +130,7 @@ class TestProjectTemplateCreateWizard(TestSaleProjectCommon):
             Command.create(
                 {
                     "product_id": self.product_service_ordered_prepaid.id,
-                    "product_uom_qty": 1,
+                    "product_qty": 1,
                 }
             )
         ]

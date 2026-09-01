@@ -199,7 +199,9 @@ class ProjectCustomerPortal(CustomerPortal):
             return request.redirect("/my")
         if (
             project_sudo.collaborator_count
-            and project_sudo.with_user(request.env.user)._check_project_sharing_access()
+            and project_sudo.with_user(
+                request.env.user
+            )._is_project_sharing_accessible()
         ):
             return request.redirect(f"/my/projects/{project_id}/project_sharing")
         project_sudo = (
@@ -273,7 +275,7 @@ class ProjectCustomerPortal(CustomerPortal):
         project = request.env["project.project"].sudo().browse(project_id)
         if not (
             project.exists()
-            and project.with_user(request.env.user)._check_project_sharing_access()
+            and project.with_user(request.env.user)._is_project_sharing_accessible()
         ):
             return request.not_found()
         return request.render(
@@ -1018,7 +1020,7 @@ class ProjectCustomerPortal(CustomerPortal):
             )
             if not task_sudo.with_user(
                 request.env.uid
-            ).project_id._check_project_sharing_access():
+            ).project_id._is_project_sharing_accessible():
                 return request.not_found()
         except AccessError, MissingError:
             raise UserError(

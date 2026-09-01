@@ -57,7 +57,7 @@ class ProjectTaskRecurrence(models.Model):
     def _create_next_occurrences(self, occurrences_from: Self) -> Self:
         tasks_copy = self.env["project.task"]
 
-        def should_create_occurrence(task) -> bool:
+        def is_occurrence_allowed(task) -> bool:
             rec = task.recurrence_id.sudo()
             return (
                 rec.repeat_type != "until"
@@ -71,7 +71,7 @@ class ProjectTaskRecurrence(models.Model):
                 )
             )
 
-        occurrences_from = occurrences_from.filtered(should_create_occurrence)
+        occurrences_from = occurrences_from.filtered(is_occurrence_allowed)
 
         if occurrences_from:
             recurrence_by_task = {

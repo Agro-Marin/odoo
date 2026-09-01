@@ -517,7 +517,7 @@ class ProjectProject(models.Model):
             "other_costs": 12,
         }
 
-    def _get_profitability_aal_domain(self):
+    def _get_domain_profitability_aal(self):
         domain = [
             "|",
             ("project_id", "in", self.ids),
@@ -525,7 +525,7 @@ class ProjectProject(models.Model):
         ]
         return Domain.AND(
             [
-                super()._get_profitability_aal_domain(),
+                super()._get_domain_profitability_aal(),
                 domain,
             ]
         )
@@ -554,7 +554,7 @@ class ProjectProject(models.Model):
             self.env["account.analytic.line"]
             .sudo()
             ._read_group(
-                self.sudo()._get_profitability_aal_domain(),
+                self.sudo()._get_domain_profitability_aal(),
                 [
                     "timesheet_invoice_type",
                     "timesheet_invoice_id",

@@ -57,7 +57,7 @@ class ProjectForecastWizard(models.TransientModel):
         sim_count = min(self.simulation_count, 100_000)
         if not self.remaining_items or self.remaining_items <= 0:
             self.result_text = "No remaining items to forecast."
-            return self._reopen_wizard()
+            return self._prepare_action_reopen()
 
         throughput = self._get_weekly_throughput()
         if not throughput or all(t == 0 for t in throughput):
@@ -65,7 +65,7 @@ class ProjectForecastWizard(models.TransientModel):
                 "No historical throughput data available. "
                 "Close some tasks to build forecasting data."
             )
-            return self._reopen_wizard()
+            return self._prepare_action_reopen()
 
         results = []
         truncated = 0
@@ -130,7 +130,7 @@ class ProjectForecastWizard(models.TransientModel):
                 ),
             ]
         self.result_text = "\n".join(lines)
-        return self._reopen_wizard()
+        return self._prepare_action_reopen()
 
     def _get_weekly_throughput(self) -> list[int]:
         self.project_id.check_access("read")
@@ -179,7 +179,7 @@ class ProjectForecastWizard(models.TransientModel):
         )
         return [row[0] for row in self.env.cr.fetchall()]
 
-    def _reopen_wizard(self) -> dict:
+    def _prepare_action_reopen(self) -> dict:
         return {
             "type": "ir.actions.act_window",
             "res_model": self._name,

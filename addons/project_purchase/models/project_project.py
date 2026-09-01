@@ -161,10 +161,10 @@ class ProjectProject(models.Model):
             )
         return buttons
 
-    def _get_profitability_aal_domain(self):
+    def _get_domain_profitability_aal(self):
         return Domain.AND(
             [
-                super()._get_profitability_aal_domain(),
+                super()._get_domain_profitability_aal(),
                 [
                     "|",
                     ("move_line_id", "=", False),

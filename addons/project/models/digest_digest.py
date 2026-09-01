@@ -1,6 +1,6 @@
 from typing import Any
 
-from odoo import _, fields, models
+from odoo import _, api, fields, models
 from odoo.exceptions import AccessError
 
 from .project_task import CLOSED_STATES
@@ -11,11 +11,12 @@ class DigestDigest(models.Model):
 
     kpi_project_task_opened = fields.Boolean("Open Tasks")
     kpi_project_task_opened_value = fields.Integer(
-        compute="_compute_project_task_opened_value",
+        compute="_compute_kpi_project_task_opened_value",
         export_string_translation=False,
     )
 
-    def _compute_project_task_opened_value(self) -> None:
+    @api.depends_context("uid")
+    def _compute_kpi_project_task_opened_value(self) -> None:
         if not self.env.user.has_group("project.group_project_user"):
             raise AccessError(
                 _("Do not have access, skip this data for user's digest email")

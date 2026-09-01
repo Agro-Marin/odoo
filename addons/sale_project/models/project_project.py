@@ -1199,13 +1199,13 @@ class ProjectProject(models.Model):
     # Actions
     # ---------------------------------------------------
 
-    def _get_hide_partner(self):
+    def _is_partner_hidden(self):
         return not self.allow_billable
 
-    def _get_projects_to_make_billable_domain(self):
+    def _get_domain_projects_to_make_billable(self):
         return Domain.AND(
             [
-                super()._get_projects_to_make_billable_domain(),
+                super()._get_domain_projects_to_make_billable(),
                 [("allow_billable", "=", False)],
             ]
         )
@@ -1226,7 +1226,7 @@ class ProjectProject(models.Model):
                 default_line.task_id.milestone_id = milestone.id
 
         action = super().action_view_tasks()
-        action["context"]["hide_partner"] = self._get_hide_partner()
+        action["context"]["hide_partner"] = self._is_partner_hidden()
         action["context"]["allow_billable"] = self.allow_billable
         if self.env.context.get("from_sale_order_action"):
             context = dict(action.get("context", {}))

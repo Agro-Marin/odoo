@@ -542,12 +542,12 @@ class ProjectTask(models.Model):
     )
     subtask_count = fields.Integer(
         "Sub-task Count",
-        compute="_compute_subtask_count",
+        compute="_compute_subtask_counts",
         export_string_translation=False,
     )
     closed_subtask_count = fields.Integer(
         "Closed Sub-tasks Count",
-        compute="_compute_subtask_count",
+        compute="_compute_subtask_counts",
         export_string_translation=False,
     )
     subtask_completion_percentage = fields.Float(
@@ -566,12 +566,12 @@ class ProjectTask(models.Model):
     )
     predecessor_count = fields.Integer(
         string="Depending on Tasks",
-        compute="_compute_predecessor_count",
+        compute="_compute_predecessor_counts",
         compute_sudo=True,
     )
     closed_predecessor_count = fields.Integer(
         string="Closed Depending on Tasks",
-        compute="_compute_predecessor_count",
+        compute="_compute_predecessor_counts",
         compute_sudo=True,
     )
     successor_ids = fields.Many2many(
@@ -1020,7 +1020,7 @@ class ProjectTask(models.Model):
             for blocking_task in self.predecessor_ids
         )
 
-    def _apply_predecessor_block(self) -> None:
+    def _update_state_from_predecessors(self) -> None:
         blocked = self.sudo().filtered(
             lambda task: (
                 task.allow_dependencies
@@ -1275,7 +1275,7 @@ class ProjectTask(models.Model):
             task.recurring_count = tasks_count.get(task.recurrence_id.id, 0)
 
     @api.depends("predecessor_ids", "predecessor_ids.state")
-    def _compute_predecessor_count(self) -> None:
+    def _compute_predecessor_counts(self) -> None:
         tasks_with_dependency = self.filtered("allow_dependencies")
         tasks_without_dependency = self - tasks_with_dependency
         tasks_without_dependency.predecessor_count = 0
@@ -1338,7 +1338,7 @@ class ProjectTask(models.Model):
                 _("Error! You cannot create a recursive hierarchy of tasks.")
             )
 
-    def _get_attachments_search_domain(self) -> list:
+    def _get_domain_attachments(self) -> list:
         self.check_singleton()
         return [("res_id", "=", self.id), ("res_model", "=", "project.task")]
 
@@ -1407,16 +1407,16 @@ class ProjectTask(models.Model):
     def _get_elapsed_spans_wall_clock(self) -> dict[str, tuple[float, float]]:
         self.check_singleton()
 
-        def span(start, stop):
+        def get_span_hours_and_days(start, stop):
             if not (start and stop):
                 return 0.0, 0.0
             elapsed = stop - start
             return elapsed.total_seconds() / 3600, elapsed.days
 
         return {
-            "queue": span(self.create_date, self.date_assign),
-            "lead": span(self.create_date, self.date_closed),
-            "cycle": span(self.date_assign, self.date_closed),
+            "queue": get_span_hours_and_days(self.create_date, self.date_assign),
+            "lead": get_span_hours_and_days(self.create_date, self.date_closed),
+            "cycle": get_span_hours_and_days(self.date_assign, self.date_closed),
         }
 
     def _get_elapsed_spans_calendar(
@@ -1425,7 +1425,7 @@ class ProjectTask(models.Model):
         self.check_singleton()
         items, item_starts, item_stops = index
 
-        def span(start, stop):
+        def get_span_hours_and_days(start, stop):
             if not (start and stop) or start >= stop:
                 return 0.0, 0.0
             low, high = localized(start), localized(stop)
@@ -1440,9 +1440,9 @@ class ProjectTask(models.Model):
             return data["hours"], data["days"]
 
         return {
-            "queue": span(self.create_date, self.date_assign),
-            "lead": span(self.create_date, self.date_closed),
-            "cycle": span(self.date_assign, self.date_closed),
+            "queue": get_span_hours_and_days(self.create_date, self.date_assign),
+            "lead": get_span_hours_and_days(self.create_date, self.date_closed),
+            "cycle": get_span_hours_and_days(self.date_assign, self.date_closed),
         }
 
     def _update_elapsed_times(
@@ -1576,7 +1576,7 @@ class ProjectTask(models.Model):
                 task.allocation_state = "under_allocated"
 
     @api.depends("child_ids", "child_ids.state")
-    def _compute_subtask_count(self) -> None:
+    def _compute_subtask_counts(self) -> None:
         if not any(self._ids):
             for task in self:
                 task.subtask_count, task.closed_subtask_count = (
@@ -1635,6 +1635,7 @@ class ProjectTask(models.Model):
                 task.step_id = default_step_by_project[project.id]
 
     @api.depends("user_ids")
+    @api.depends_context("lang")
     def _compute_portal_user_names(self) -> None:
         if self._origin:
             self.invalidate_recordset(fnames=["user_ids"])
@@ -1658,6 +1659,7 @@ class ProjectTask(models.Model):
         )
         return [("id", "in", sql)]
 
+    @api.depends_context("uid")
     def _compute_display_parent_task_button(self) -> None:
         accessible_parent_tasks = self.parent_id.with_user(
             self.env.user
@@ -1665,6 +1667,7 @@ class ProjectTask(models.Model):
         for task in self:
             task.display_parent_task_button = task.parent_id in accessible_parent_tasks
 
+    @api.depends_context("uid")
     def _compute_current_user_same_company_partner(self) -> None:
         commercial_partner_id = self.env.user.partner_id.commercial_partner_id
         for task in self:
@@ -1673,6 +1676,7 @@ class ProjectTask(models.Model):
                 and commercial_partner_id == task.partner_id.commercial_partner_id
             )
 
+    @api.depends_context("uid")
     def _compute_display_follow_button(self) -> None:
         if not self.env.user.share:
             self.display_follow_button = False
@@ -1750,7 +1754,7 @@ class ProjectTask(models.Model):
         self.priority = str(min(len(match.group(1)), 3))
         return re.subn(priority_group, "", title)[0]
 
-    def _get_groups(self) -> list:
+    def _get_extractors_in_group_order(self) -> list:
         return [
             lambda task, title: task._extract_tags_and_users(title),
             lambda task, title: task._extract_priority(title),
@@ -1771,7 +1775,9 @@ class ProjectTask(models.Model):
             if not match:
                 continue
             title = task.display_name
-            for group, extract_data in enumerate(task._get_groups(), start=1):
+            for group, extract_data in enumerate(
+                task._get_extractors_in_group_order(), start=1
+            ):
                 if match.group(group):
                     title = extract_data(task, title)
             task.name = title.strip()
@@ -2190,7 +2196,7 @@ class ProjectTask(models.Model):
             (
                 tasks.filtered("predecessor_ids") | tasks.successor_ids
             )._sync_dependency_rows()
-        tasks._apply_predecessor_block()
+        tasks._update_state_from_predecessors()
         self_ctx._task_message_auto_subscribe_notify(
             {task: task.user_ids - self_ctx.env.user for task in tasks}
         )
@@ -2695,9 +2701,7 @@ class ProjectTask(models.Model):
         )
 
     @api.model
-    def _calculate_planned_dates(
-        self, date_start, date_stop, user_id=None, calendar=None
-    ):
+    def _get_planned_dates(self, date_start, date_stop, user_id=None, calendar=None):
         if not (date_start and date_stop):
             raise UserError(
                 _(
@@ -2775,7 +2779,7 @@ class ProjectTask(models.Model):
         comodel: str,
         additional_domain: list | None = None,
     ) -> list | bool:
-        def _change_operator(domain) -> str:
+        def get_domain_on_id_and_name(domain) -> Domain:
             new_domain = []
             for dom in domain:
                 if len(dom) == 3:
@@ -2828,7 +2832,7 @@ class ProjectTask(models.Model):
         )
         if filtered_domain.is_true():
             return self.env[comodel]
-        filtered_domain = _change_operator(filtered_domain)
+        filtered_domain = get_domain_on_id_and_name(filtered_domain)
         if additional_domain:
             filtered_domain &= Domain(additional_domain)
         return self.env[comodel].search(filtered_domain)
@@ -3294,7 +3298,7 @@ class ProjectTask(models.Model):
 
         return super()._message_post_after_hook(message, msg_vals)
 
-    def _get_projects_to_make_billable_domain(self, additional_domain=None) -> list:
+    def _get_domain_projects_to_make_billable(self, additional_domain=None) -> list:
         return Domain("partner_id", "!=", False) & Domain(
             additional_domain or Domain.TRUE
         )
@@ -3360,7 +3364,7 @@ class ProjectTask(models.Model):
             project = self.parent_id.project_id._filtered_access("read")
             if project:
                 url = f"/my/projects/{self.parent_id.project_id.id}/task/{self.parent_id.id}"
-                if project._check_project_sharing_access():
+                if project._is_project_sharing_accessible():
                     url = f"/my/projects/{self.parent_id.project_id.id}?task_id={self.parent_id.id}"
                 return {
                     "name": "Portal Parent Task",
@@ -3666,7 +3670,7 @@ class ProjectTask(models.Model):
             and self.with_user(user).has_access("read")
             and self.project_id
             and self.project_id.with_user(user).has_access("read")
-            and self.project_id._check_project_sharing_access()
+            and self.project_id._is_project_sharing_accessible()
         ):
             return {
                 "type": "ir.actions.act_url",
@@ -3809,11 +3813,8 @@ class ProjectTask(models.Model):
         self, thread_id, *, project_sharing_id=None, token=None, **kwargs
     ) -> Self:
         if project_sharing_id:
-            if (
-                result_token
-                := ProjectSharingChatter._check_project_access_and_get_token(
-                    self, project_sharing_id, self._name, thread_id, token
-                )
+            if result_token := ProjectSharingChatter._get_task_post_token(
+                self, project_sharing_id, self._name, thread_id, token
             ):
                 token = result_token
         return super()._get_thread_with_access(
@@ -3828,7 +3829,7 @@ class ProjectTask(models.Model):
         project = self.project_id
         if not (
             project
-            and project._check_project_sharing_access()
+            and project._is_project_sharing_accessible()
             and project._get_thread_with_access(project.id)
         ):
             return {}

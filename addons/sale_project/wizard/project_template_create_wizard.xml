@@ -41,7 +41,7 @@
             <xpath expr="//field[@name='date_start']" position="attributes">
                 <attribute name="invisible">not template_id</attribute>
             </xpath>
-            <xpath expr="//form/footer/button[@name='create_project_from_template']" position="attributes">
+            <xpath expr="//form/footer/button[@name='action_create_project_from_template']" position="attributes">
                 <attribute name="name">action_create_project_from_so</attribute>
             </xpath>
         </field>

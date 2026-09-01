@@ -196,12 +196,12 @@ class ProjectUpdate(models.Model):
                 ),
                 ("deadline", "=", False),
             ]
-        )._get_data_list()
+        )._get_export_values_list()
         updated_milestones = self._get_last_updated_milestone(project)
         domain = Domain("project_id", "=", project.id)
         if project.last_update_id.create_date:
             domain &= Domain("create_date", ">", project.last_update_id.create_date)
-        created_milestones = Milestone.search(domain)._get_data_list()
+        created_milestones = Milestone.search(domain)._get_export_values_list()
         return {
             "show_section": (
                 (list_milestones or updated_milestones or created_milestones) and True
@@ -259,7 +259,7 @@ class ProjectUpdate(models.Model):
         )
         return [
             {
-                **milestone._get_data(),
+                **milestone._get_export_values(),
                 "new_value": mapped_result[milestone.id]["new_value"],
                 "old_value": mapped_result[milestone.id]["old_value"],
             }

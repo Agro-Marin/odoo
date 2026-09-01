@@ -22,10 +22,10 @@ class ProjectProject(models.Model):
         sequence_per_invoice_type["manufacturing_order"] = 12
         return sequence_per_invoice_type
 
-    def _get_profitability_aal_domain(self):
+    def _get_domain_profitability_aal(self):
         return Domain.AND(
             [
-                super()._get_profitability_aal_domain(),
+                super()._get_domain_profitability_aal(),
                 Domain("category", "!=", "manufacturing_order"),
             ]
         )

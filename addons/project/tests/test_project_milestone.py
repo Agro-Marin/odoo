@@ -463,7 +463,7 @@ class TestProjectMilestone(TestProjectCommon):
             {"deadline": fields.Date.today() + relativedelta(days=-1)}
         )
 
-        (self.project_pigs | self.project_goats)._compute_next_milestone_id()
+        (self.project_pigs | self.project_goats)._compute_next_milestone_indicators()
 
         self.assertTrue(
             self.project_goats.is_milestone_deadline_exceeded,

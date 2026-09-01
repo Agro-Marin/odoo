@@ -7,9 +7,9 @@ from . import wizard
 def _set_allow_billable_in_project(env):
     Project = env["project.project"]
     Task = env["project.task"]
-    projects = Project.search(Project._get_projects_to_make_billable_domain())
+    projects = Project.search(Project._get_domain_projects_to_make_billable())
     (non_billable_projects,) = Task._read_group(
-        Task._get_projects_to_make_billable_domain(
+        Task._get_domain_projects_to_make_billable(
             [("project_id", "not in", projects.ids)]
         ),
         [],

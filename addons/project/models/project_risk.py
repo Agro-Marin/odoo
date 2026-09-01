@@ -63,7 +63,7 @@ class ProjectRisk(models.Model):
     )
     risk_score = fields.Integer(
         "Risk Score",
-        compute="_compute_risk_score",
+        compute="_compute_risk_score_and_level",
         store=True,
         help="Probability × Impact (1–25).",
     )
@@ -75,7 +75,7 @@ class ProjectRisk(models.Model):
             ("critical", "Critical"),
         ],
         string="Risk Level",
-        compute="_compute_risk_score",
+        compute="_compute_risk_score_and_level",
         store=True,
     )
     response_strategy = fields.Selection(
@@ -122,7 +122,7 @@ class ProjectRisk(models.Model):
                 )
 
     @api.depends("probability", "impact")
-    def _compute_risk_score(self) -> None:
+    def _compute_risk_score_and_level(self) -> None:
         for risk in self:
             score = int(risk.probability or 0) * int(risk.impact or 0)
             risk.risk_score = score

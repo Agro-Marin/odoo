@@ -88,13 +88,13 @@ class ProjectWorkflowStepDeleteWizard(models.TransientModel):
         )
         tasks.write({"active": False})
         self.step_ids.write({"active": False})
-        return self._get_action()
+        return self._prepare_action_close()
 
     def action_unlink(self) -> dict[str, Any]:
         self.step_ids.unlink()
-        return self._get_action()
+        return self._prepare_action_close()
 
-    def _get_action(self) -> dict[str, Any]:
+    def _prepare_action_close(self) -> dict[str, Any]:
         return {
             "type": "ir.actions.act_window_close",
             "infos": {

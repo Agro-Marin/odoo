@@ -330,10 +330,10 @@ class TestProjectSubtasks(TestProjectCommon):
 
         task_count_with_subtasks_including_archived = 6
         task_count_in_project_pigs = self.project_pigs.task_count
-        self.project_goats._compute_task_count()
+        self.project_goats._compute_task_counts()
         task_count_in_project_goats = self.project_goats.task_count
         project_goats_duplicated = self.project_goats.copy()
-        self.project_pigs._compute_task_count()
+        self.project_pigs._compute_task_counts()
 
         def dfs(task) -> None:
             visited[task.id] = True

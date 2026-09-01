@@ -38,10 +38,10 @@ class TestProjectProject(TransactionCase):
             ]
         )
         projects_to_make_billable = Project.search(
-            Project._get_projects_to_make_billable_domain()
+            Project._get_domain_projects_to_make_billable()
         )
         (non_billable_projects,) = Task._read_group(
-            Task._get_projects_to_make_billable_domain(
+            Task._get_domain_projects_to_make_billable(
                 [("project_id", "not in", projects_to_make_billable.ids)]
             ),
             [],

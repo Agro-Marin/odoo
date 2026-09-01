@@ -54,13 +54,13 @@ class ProjectMilestone(models.Model):
     )
     task_count = fields.Integer(
         "# of Tasks",
-        compute="_compute_task_count",
+        compute="_compute_task_counts",
         groups="project.group_project_milestone",
         export_string_translation=False,
     )
     done_task_count = fields.Integer(
         "# of Done Tasks",
-        compute="_compute_task_count",
+        compute="_compute_task_counts",
         groups="project.group_project_milestone",
         export_string_translation=False,
     )
@@ -90,7 +90,7 @@ class ProjectMilestone(models.Model):
             )
 
     @api.depends("task_ids.milestone_id")
-    def _compute_task_count(self) -> None:
+    def _compute_task_counts(self) -> None:
         all_and_done_task_count_per_milestone = {
             milestone.id: (
                 count,
@@ -169,7 +169,7 @@ class ProjectMilestone(models.Model):
     def update_is_reached(self, is_reached: bool) -> dict:
         self.check_singleton()
         self.update({"is_reached": is_reached})
-        return self._get_data()
+        return self._get_export_values()
 
     def action_view_tasks(self) -> dict:
         self.check_singleton()
@@ -205,12 +205,12 @@ class ProjectMilestone(models.Model):
             "sequence",
         ]
 
-    def _get_data(self) -> dict:
+    def _get_export_values(self) -> dict:
         self.check_singleton()
         return {field: self[field] for field in self._get_fields_to_export()}
 
-    def _get_data_list(self) -> list[dict]:
-        return [ms._get_data() for ms in self]
+    def _get_export_values_list(self) -> list[dict]:
+        return [ms._get_export_values() for ms in self]
 
     def copy(self, default: ValuesType | None = None) -> Self:
         default = dict(default or {})
@@ -221,6 +221,7 @@ class ProjectMilestone(models.Model):
                 milestone_mapping[old_milestone.id] = new_milestone.id
         return new_milestones
 
+    @api.depends_context("lang", "display_milestone_deadline")
     def _compute_display_name(self) -> None:
         super()._compute_display_name()
         if not self.env.context.get("display_milestone_deadline"):

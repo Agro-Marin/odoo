@@ -115,13 +115,13 @@ class ProjectWorkflowStep(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> ProjectWorkflowStep:
         records = super().create(vals_list)
-        records._seed_rating_deadlines()
+        records._update_missing_rating_deadlines()
         return records
 
     def write(self, vals: dict) -> bool:
         res = super().write(vals)
         if {"rating_active", "rating_status", "rating_status_period"} & vals.keys():
-            self._seed_rating_deadlines()
+            self._update_missing_rating_deadlines()
         return res
 
     def action_open_delete_wizard(self, stage_view: bool = False) -> dict[str, Any]:
@@ -157,20 +157,20 @@ class ProjectWorkflowStep(models.Model):
         "yearly": 365,
     }
 
-    def _next_rating_deadline(self):
+    def _get_next_rating_deadline(self):
         self.check_singleton()
         return fields.Datetime.now() + timedelta(
             days=self._RATING_PERIOD_DAYS.get(self.rating_status_period, 0)
         )
 
-    def _seed_rating_deadlines(self) -> None:
+    def _update_missing_rating_deadlines(self) -> None:
         for step in self:
             if (
                 step.rating_active
                 and step.rating_status == "periodic"
                 and not step.rating_request_deadline
             ):
-                step.rating_request_deadline = step._next_rating_deadline()
+                step.rating_request_deadline = step._get_next_rating_deadline()
 
     @api.model
     def _send_rating_all(self) -> None:
@@ -183,7 +183,7 @@ class ProjectWorkflowStep(models.Model):
         )
         for step in steps:
             step._get_rating_tasks()._send_task_rating_mail()
-            step.rating_request_deadline = step._next_rating_deadline()
+            step.rating_request_deadline = step._get_next_rating_deadline()
             self.env.cr.commit()
 
     def _get_rating_tasks(self):
