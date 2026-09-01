@@ -210,8 +210,6 @@ class StockPutawayRule(models.Model):
                 location_dest_id = putaway_rule._get_last_used_location(product)
                 location_out = location_dest_id or location_out
 
-            child_locations = location_out.child_internal_location_ids
-
             if not putaway_rule.storage_category_id:
                 if location_out in checked_locations:
                     continue
@@ -221,7 +219,7 @@ class StockPutawayRule(models.Model):
                     return location_out
                 checked_locations.add(location_out)
                 continue
-            child_locations = child_locations.filtered(
+            child_locations = location_out.child_internal_location_ids.filtered(
                 lambda loc, putaway_rule=putaway_rule: (
                     loc.storage_category_id == putaway_rule.storage_category_id
                 )
