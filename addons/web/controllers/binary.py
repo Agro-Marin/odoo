@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import io
 import logging
 import unicodedata
@@ -213,6 +214,21 @@ class Binary(http.Controller):
         else:
             cursor_manager = nullcontext(env.cr)
         with cursor_manager as rw_cr:
+            # Serialize concurrent regenerations of the same bundle: without
+            # this, many simultaneous cache misses for the same
+            # filename/unique (e.g. right after a deploy) each independently
+            # rebuild and write the same attachment. pg_advisory_xact_lock is
+            # held for the lifetime of this transaction and released
+            # automatically on commit/rollback, so a losing request simply
+            # waits, then finds the bundle already regenerated. Same idiom as
+            # api_doc.py's _doc_index_cache: blake2b rather than hash(), the
+            # lock key must be stable across processes, which PYTHONHASHSEED
+            # makes str.__hash__ not.
+            digest = hashlib.blake2b(filename.encode(), digest_size=8).digest()
+            rw_cr.execute(
+                "SELECT pg_advisory_xact_lock(%s)",
+                (int.from_bytes(digest, "big", signed=True),),
+            )
             rw_env = api.Environment(rw_cr, env.user.id, {})
             try:
                 if filename.endswith(".map"):

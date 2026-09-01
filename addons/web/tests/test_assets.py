@@ -1,11 +1,13 @@
+import hashlib
 import logging
 import time
 from unittest.mock import patch
 
 import odoo
 import odoo.tests
+from odoo.db.cursor import Cursor
 from odoo.modules.module import get_manifest
-from odoo.tests.common import HttpCase
+from odoo.tests.common import HttpCase, tagged
 from odoo.tools import mute_logger
 from odoo.tools.sass_embedded import SassCompileError, close_sass_compiler
 
@@ -224,3 +226,42 @@ class TestWebAssetsCursors(HttpCase):
             ],
             "Only one readwrite cursor should be used to generate assets without replica",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestWebAssetsRegenerationLock(HttpCase):
+    """F014: a cache-miss regeneration takes a stable per-bundle advisory
+    lock, so concurrent misses for the same bundle serialize instead of
+    racing to independently rebuild it."""
+
+    def test_regeneration_takes_a_stable_per_bundle_advisory_lock(self):
+        bundle_name = "web.assets_frontend"
+        self.env["ir.attachment"].search(
+            [("url", "=like", f"/web/assets/%/{bundle_name}.min.css")]
+        ).unlink()
+        version = self.env["ir.qweb"]._get_asset_bundle(bundle_name).get_version("css")
+        url = f"/web/assets/{version}/{bundle_name}.min.css"
+
+        lock_calls = []
+        original_execute = Cursor.execute
+
+        def spy_execute(cr_self, query, params=None, **kwargs):
+            if "pg_advisory_xact_lock" in str(query):
+                lock_calls.append(params)
+            return original_execute(cr_self, query, params, **kwargs)
+
+        with patch.object(Cursor, "execute", spy_execute):
+            response = self.url_open(url, allow_redirects=False)
+        self.assertEqual(response.status_code, 200)
+
+        self.assertEqual(
+            len(lock_calls), 1, "Expected exactly one advisory lock acquisition"
+        )
+        # Same filename must always hash to the same lock key, so a second
+        # concurrent miss for the same bundle blocks on the first rather than
+        # taking an unrelated/no-op lock.
+        digest = hashlib.blake2b(
+            f"{bundle_name}.min.css".encode(), digest_size=8
+        ).digest()
+        expected_key = int.from_bytes(digest, "big", signed=True)
+        self.assertEqual(lock_calls[0], (expected_key,))
