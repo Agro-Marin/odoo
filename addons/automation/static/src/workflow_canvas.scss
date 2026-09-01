@@ -1,101 +1,101 @@
 .o_workflow_canvas {
     .o_workflow_canvas_paper {
         overflow: auto;
-        border: 1px solid var(--bs-border-color);
-        border-radius: var(--bs-border-radius);
-        background-color: var(--bs-body-bg);
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius);
+        background-color: var(--body-bg);
     }
 
     .o_workflow_canvas_node {
-        fill: var(--bs-tertiary-bg);
-        stroke: var(--bs-border-color);
+        fill: var(--tertiary-bg);
+        stroke: var(--border-color);
         stroke-width: 1;
         cursor: move;
     }
 
     .o_workflow_canvas_type_wait {
-        fill: var(--bs-warning-bg-subtle);
-        stroke: var(--bs-warning);
+        fill: var(--warning-bg-subtle);
+        stroke: var(--warning);
         stroke-dasharray: 6 3;
     }
 
     .o_workflow_canvas_type_approval {
-        fill: var(--bs-info-bg-subtle);
-        stroke: var(--bs-info);
+        fill: var(--info-bg-subtle);
+        stroke: var(--info);
         stroke-dasharray: 2 3;
     }
 
     .o_workflow_canvas_type_subflow {
-        fill: var(--bs-secondary-bg);
-        stroke: var(--bs-secondary-color);
+        fill: var(--secondary-bg);
+        stroke: var(--secondary-color);
         stroke-width: 2;
     }
 
     .o_workflow_canvas_label {
-        fill: var(--bs-body-color);
+        fill: var(--body-color);
         font-size: 12px;
         pointer-events: none;
     }
 
     .o_workflow_canvas_link {
-        stroke: var(--bs-secondary-color);
+        stroke: var(--secondary-color);
         stroke-width: 1.5;
     }
 
     .o_workflow_canvas_on_success {
-        stroke: var(--bs-success);
+        stroke: var(--success);
     }
 
     .o_workflow_canvas_on_error {
-        stroke: var(--bs-danger);
+        stroke: var(--danger);
         stroke-dasharray: 5 3;
     }
 
     .o_workflow_canvas_always {
-        stroke: var(--bs-secondary-color);
+        stroke: var(--secondary-color);
     }
 
     .o_workflow_canvas_expression {
-        stroke: var(--bs-info);
+        stroke: var(--info);
         stroke-dasharray: 2 2;
     }
 
     .o_workflow_canvas_selected .o_workflow_canvas_link {
-        stroke: var(--bs-primary);
+        stroke: var(--primary);
         stroke-width: 3;
     }
 
     .o_workflow_canvas_run_waiting {
-        fill: var(--bs-body-bg);
-        stroke: var(--bs-border-color);
+        fill: var(--body-bg);
+        stroke: var(--border-color);
         stroke-dasharray: 3 3;
     }
 
     .o_workflow_canvas_run_ready {
-        stroke: var(--bs-primary);
+        stroke: var(--primary);
         stroke-width: 2;
     }
 
     .o_workflow_canvas_run_in_progress {
-        fill: var(--bs-primary-bg-subtle);
-        stroke: var(--bs-primary);
+        fill: var(--primary-bg-subtle);
+        stroke: var(--primary);
         stroke-width: 2;
     }
 
     .o_workflow_canvas_run_paused {
-        fill: var(--bs-warning-bg-subtle);
-        stroke: var(--bs-warning);
+        fill: var(--warning-bg-subtle);
+        stroke: var(--warning);
         stroke-width: 2;
     }
 
     .o_workflow_canvas_run_done {
-        fill: var(--bs-success-bg-subtle);
-        stroke: var(--bs-success);
+        fill: var(--success-bg-subtle);
+        stroke: var(--success);
     }
 
     .o_workflow_canvas_run_error {
-        fill: var(--bs-danger-bg-subtle);
-        stroke: var(--bs-danger);
+        fill: var(--danger-bg-subtle);
+        stroke: var(--danger);
         stroke-width: 2;
     }
 
@@ -104,12 +104,12 @@
     }
 
     .o_workflow_canvas_edge_label {
-        fill: var(--bs-secondary-color);
+        fill: var(--secondary-color);
         font-size: 10px;
     }
 
     .o_workflow_canvas_edge_label_bg {
-        fill: var(--bs-body-bg);
+        fill: var(--body-bg);
         stroke: none;
     }
 }
