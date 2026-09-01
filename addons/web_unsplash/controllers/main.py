@@ -118,11 +118,12 @@ class Web_Unsplash(http.Controller):
 
             image = image_process(image, verify_resolution=True)
             mimetype = guess_mimetype(image)
-            # append image extension in name
-            query += mimetypes.guess_extension(mimetype) or ""
+            # append image extension in name, without mutating the shared
+            # search-term `query` across the loop's iterations
+            image_query = query + (mimetypes.guess_extension(mimetype) or "")
 
             # /unsplash/5gR788gfd/lion
-            url_frags = ["unsplash", key, query]
+            url_frags = ["unsplash", key, image_query]
 
             attachment_data = {
                 "name": "_".join(url_frags),
