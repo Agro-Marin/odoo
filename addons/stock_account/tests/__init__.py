@@ -1,5 +1,6 @@
 from . import test_account_move
 from . import test_anglo_saxon_valuation_reconciliation_common
+from . import test_closing_date_fallback
 from . import test_lot_valuation
 from . import test_post_deferral_contract
 from . import test_review_fixes
