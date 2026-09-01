@@ -19,6 +19,7 @@ POST_SUBTYPE_XMLIDS = {"comment": "mail.mt_comment", "note": "mail.mt_note"}
 
 if typing.TYPE_CHECKING:
     from .mail_activity_type import MailActivityType
+    from .mail_message_subtype import MailMessageSubtype
     from .mail_template import MailTemplate
     from .res_partner import ResPartner
     from odoo.addons.base.models.ir_model import IrModel
@@ -78,6 +79,16 @@ class IrActionsServer(models.Model):
     )
     partner_ids: ResPartner = fields.Many2many(
         "res.partner", compute="_compute_followers_info", readonly=False, store=True
+    )
+    subtype_ids: MailMessageSubtype = fields.Many2many(
+        "mail.message.subtype",
+        string="Subscriptions",
+        domain="['&', ('hidden', '=', False), '|', ('res_model', '=', False), ('res_model', '=', model_name)]",
+        compute="_compute_subtype_ids",
+        readonly=False,
+        store=True,
+        help="Which notifications the added followers subscribe to. "
+        "Leave empty to use the document's default subscriptions.",
     )
 
     template_id: MailTemplate = fields.Many2one(
@@ -258,6 +269,22 @@ class IrActionsServer(models.Model):
                 action.followers_partner_field_name = (
                     action._default_partner_field_name()
                 )
+
+    @api.depends("model_id")
+    def _compute_subtype_ids(self) -> None:
+        """A subtype belongs to a model; retargeting the action drops the stale ones.
+
+        Same reasoning as `activity_type_id` above, and the same shape: the
+        field stays writable, the compute only prunes what the new model
+        cannot emit.
+        """
+        for action in self:
+            model = action.model_id.model
+            action.subtype_ids = action.subtype_ids.filtered(
+                lambda subtype, model=model: (
+                    not subtype.res_model or subtype.res_model == model
+                )
+            )
 
     def _default_partner_field_name(self) -> str | Literal[False]:
         self.check_singleton()
@@ -484,9 +511,15 @@ class IrActionsServer(models.Model):
         records = self._get_records_targeted().with_context(self._get_run_context())
         if not records:
             return
+        # An empty selection is not "no subtypes" and not "every subtype": it is
+        # "whatever the document subscribes to by default", which is what every
+        # action saved before this field existed has always done.
+        subtype_ids = self.subtype_ids.ids or None
         for partner_ids, batch in self._get_follower_batches(records).items():
             if subscribe:
-                batch.message_subscribe(partner_ids=list(partner_ids))
+                batch.message_subscribe(
+                    partner_ids=list(partner_ids), subtype_ids=subtype_ids
+                )
             else:
                 batch.message_unsubscribe(partner_ids=list(partner_ids))
 

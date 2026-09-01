@@ -1833,3 +1833,62 @@ class TestServerActionsRunContext(MailCommon):
             self.outsider,
             "the assignee is the action's to decide, not the caller's",
         )
+
+
+@tagged("ir_actions")
+class TestServerActionsFollowerSubtypes(MailCommon, TestServerActionsBase):
+    """ "Add Followers" can say WHAT the new follower hears about.
+
+    Without a choice the action subscribes with the model's default subtypes,
+    which is everything the model considers noteworthy. An automation that only
+    wants somebody to see, say, discussions had no way to say so.
+    """
+
+    def _followers_subtypes(self):
+        follower = self.env["mail.followers"].search(
+            [
+                ("res_model", "=", self.test_partner._name),
+                ("res_id", "=", self.test_partner.id),
+                ("partner_id", "=", self.env.ref("base.partner_admin").id),
+            ]
+        )
+        self.assertEqual(len(follower), 1)
+        return follower.subtype_ids
+
+    def _run_followers_action(self, **values):
+        self.test_partner.message_unsubscribe(self.test_partner.message_partner_ids.ids)
+        self.action.write(
+            {
+                "state": "followers",
+                "partner_ids": [(4, self.env.ref("base.partner_admin").id)],
+                **values,
+            }
+        )
+        self.action.with_context(self.context).run()
+
+    def test_a_chosen_subtype_is_the_only_one_subscribed(self):
+        comment = self.env.ref("mail.mt_comment")
+        self._run_followers_action(subtype_ids=[(6, 0, comment.ids)])
+        self.assertEqual(
+            self._followers_subtypes(),
+            comment,
+            "the action must subscribe to exactly what it was told",
+        )
+
+    def test_leaving_the_field_empty_keeps_the_model_defaults(self):
+        """The pre-existing behaviour, pinned.
+
+        Every "Add Followers" action saved before this field existed has it
+        empty, and must keep subscribing the way it always did. Reading the
+        empty field as "all subtypes" would silently widen all of them.
+        """
+        defaults, _internal, _external = self.env[
+            "mail.message.subtype"
+        ].default_subtypes(self.test_partner._name)
+        self._run_followers_action()
+        self.assertEqual(self._followers_subtypes(), defaults)
+
+    def test_the_choice_is_restricted_to_subtypes_the_model_can_emit(self):
+        """A subtype of another model must not be offerable for this one."""
+        field = self.env["ir.actions.server"]._fields["subtype_ids"]
+        self.assertIn("res_model", field.domain, field.domain)
