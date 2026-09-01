@@ -16,8 +16,6 @@ from _repo_root import (
     sibling_repo_paths,
 )
 
-ADR = "0081"
-
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="credential_storage")
 ALLOWLIST = Path(__file__).with_name("credential_storage_allowlist.json")
 
@@ -312,7 +310,6 @@ def save_allowlist(fields: dict[str, str]) -> None:
     ALLOWLIST.write_text(
         json.dumps(
             {
-                "adr": ADR,
                 "note": (
                     "Stored Char/Text fields holding a third-party secret, which "
                     "belong in credential.credential. This list is the backlog: an "
@@ -336,7 +333,7 @@ def offenders() -> list[Finding]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="ADR-0081: a credential is stored in the vault, and nowhere else.",
+        description="A credential is stored in the vault, and nowhere else.",
     )
     parser.add_argument(
         "--check", action="store_true", help="fail on an unlisted field"
@@ -394,7 +391,7 @@ def main() -> int:
         return 0
 
     print(
-        f"ADR-{ADR}: {len(bad)} field(s) store a third-party secret in the clear.\n"
+        f"{len(bad)} field(s) store a third-party secret in the clear.\n"
         "`credential.credential` encrypts at rest, fingerprints for comparison "
         "without decrypting,\n"
         "access-logs every read and rate-limits it. Hold a Many2one to one "

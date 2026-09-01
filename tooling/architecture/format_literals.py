@@ -10,8 +10,6 @@ from _repo_root import find_odoo_root
 
 # No record yet. ADRs are a work in progress in this fork and this gate does not
 # wait on one; `UNRECORDED_GATES` is where that is declared rather than hidden.
-ADR = "unrecorded"
-
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="format_literals")
 
 # A scope that registers a format, a reader or a writer IS the declaration, not

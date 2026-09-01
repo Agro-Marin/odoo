@@ -10,8 +10,6 @@ from xml.parsers import expat
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import SIBLING_REPOS, find_odoo_root
 
-ADR = "0032"
-
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="xml_reference_coherence")
 ANALYZER = Path(__file__).with_suffix(".mjs")
 PINNED = Path(__file__).resolve().parent / "xml_reference_coherence.txt"

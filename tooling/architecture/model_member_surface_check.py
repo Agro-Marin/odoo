@@ -22,8 +22,6 @@ from env_model_surface_check import (
     iter_scope_files,
 )
 
-ADR = "0029"
-
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="model_member_surface_check")
 
 _VALUE_ACCESSORS = frozenset({"lang", "_lang"})

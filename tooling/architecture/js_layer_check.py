@@ -9,8 +9,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 from js_imports import collect_imports
 
-ADR = "0019"
-
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_layer_check")
 WEB_SRC = ROOT / "addons" / "web" / "static" / "src"
 

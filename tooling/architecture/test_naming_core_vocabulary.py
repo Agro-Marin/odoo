@@ -93,9 +93,6 @@ class TestTheAllowlistIsArgued(unittest.TestCase):
     def setUp(self):
         self.raw = json.loads(ncv.ALLOWLIST.read_text(encoding="utf-8"))
 
-    def test_it_cites_its_record(self):
-        self.assertEqual(self.raw["adr"], ncv.ADR)
-
     def test_every_entry_carries_a_reason(self):
         for name, why in self.raw["names"].items():
             self.assertGreater(

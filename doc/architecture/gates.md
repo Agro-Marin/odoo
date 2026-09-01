@@ -457,7 +457,7 @@ expected set from the gates the workflows actually drive rather than from a list
 beside it, so the next retirement fails instead of lingering.
 
 **DB-backed integration gate** (`.github/workflows/integration_tests.yml`,
-ADR-0007) — boots PostgreSQL 18 and runs twelve suites, **each against its own
+ADR-0007) — boots PostgreSQL 18 and runs twenty-five suites, **each against its own
 database**:
 
 | Suite | Database | Notes |
@@ -474,6 +474,19 @@ database**:
 | `mixin_report_sql` | `ci_sql_report` | added 2026-08-28, and the cheapest lane here — the module depends on `base` alone. Its 30 tests had been run by nothing at all: this lane named seven other suites, `module_installability.yml` enables only one `test_lint` class, and pytest collects none of it because the cases are `TransactionCase` while `testpaths` holds the DB-free tiers. The suite was patching the abstract mixins in place rather than building a real report, so five correctness defects sat behind that gap; rewritten against concrete fixture models it runs 78 |
 | `test_read_group` | `ci_read_group` | added 2026-08-28. The only coverage of the five `read_group/` units — `_empty`, `fill`, `format`, `mixin`, `sql` — and reachable by neither DB-free tier by construction: a `read_group` is a `GROUP BY`, and what it groups is decided by SQL the in-memory path never runs |
 | `test_access_rights` | `ci_access_rights` | added 2026-08-28. Record rules and ACLs, the one subsystem here where a wrong answer is a security answer rather than a broken one. One of its 52 skips for want of an HTTP server and is reported as skipped |
+| `hr_work_entry`, `hr_work_entry_holidays` | `ci_hr_work_entry` | added 2026-08-30 — 71 tests that ran in no workflow. The pair installs together because both live in `odoo/addons`; the three enterprise bridges cannot be in this lane. Neither module has a tour, so the `--no-http` run is the whole suite |
+| `hr_holidays` | `ci_hr_holidays` | added 2026-08-30, and run `--no-http`, so its tour classes are reported as skipped rather than as passes |
+| `document_extract` account branch | `ci_docext_account` | installs `document_extract_account_purchase`, whose closure is `document_extract_account` and `document_extract`; runs all three tags. 149 tests measured 2026-09-01. Split from the six-module lane so no two independent suites share a database. Not the whole family — `document_extract_ai` lives in agromarin and `document_extract_account_bank_statement` in enterprise, neither visible to this checkout, while `document_extract_barcode` and `document_extract_ocr` declare external dependencies `requirements-addons.txt` does not carry |
+| `document_extract` recruitment branch | `ci_docext_recruit` | installs `document_extract_hr_recruitment_skills`, whose closure is `document_extract_hr_recruitment`; 13 tests |
+| `document_extract` expense branch | `ci_docext_expense` | installs `document_extract_hr_expense`; 9 tests |
+| `test_base_order` | `ci_base_order` | one module: `sale` and `purchase` now arrive through `test_base_order`'s own `depends`, where they belong — without them the suite reports 67 errors, 55 of them `KeyError: 'order_lock_so'`, a scope artefact that reads exactly like a broken module. Runs `/test_base_order` and `/base_order` together because both are that one closure; 281 tests, 0 failed |
+| `approval` | `ci_approval` | added 2026-08-28, and not a repair — it passes at 544 tests, one skipped for want of something the environment cannot provide. The scope is the module's own `addons/approval/machine_doc_v1/conventions.md`, which states `-i approval --test-tags '/approval'` |
+| `api_ai` | `ci_api_ai` | 181 tests. Installing it installs `api_transport` and `credential`, whose own suites stay unrun by the decision in CLAUDE.md §9.6 — naming modules in `--test-tags` rather than counting what a lane installs is what holds that line |
+| `project_hr` | `ci_project_hr` | 33 tests |
+| `exchange` | `ci_exchange` | installs `exchange`, whose closure is `mixin_encryption`; runs both tags, 86 tests |
+| `date_range` | `ci_date_range` | installs `test_date_range`, whose closure is `date_range`; runs both tags, 37 tests |
+| `account_coa` | `ci_account_coa` | 30 tests |
+| `test_performance_compare` | `ci_perf_compare` | 1 test, and it is the cheapest lane here |
 
 Adding `test_orm` paid for itself on the first run:
 `TestBackendDifferential.test_divergence_ilike_unaccent` asserted PostgreSQL's

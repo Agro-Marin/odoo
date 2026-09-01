@@ -123,7 +123,7 @@ happen, and it needed no schema knowledge to detect.
 than an error, because an addon may legitimately keep a helper module beside its
 scripts. Measured across this repository's two addon trees — the scope CI
 reproduces, a workspace reading being whatever checkouts happened to be on
-disk: **265** scripts in `migrations/` and **5** in `upgrades/`, all correctly
+disk: **271** scripts in `migrations/` and **5** in `upgrades/`, all correctly
 prefixed, **0** dropped.
 
 A risk stated at the level of its hardest half hides the half that is cheap to
@@ -174,7 +174,7 @@ addon tests in 2026-08 while every gate and both tiers stayed green.
 
 **Cost.** A green boundary job reads as "the framework works" when it means "the
 structure holds". The integration lane is the only one that runs addon tests,
-and it runs twelve suites.
+and it runs twenty-five suites.
 
 **What would close it.** Broadening the integration lane is the only lever;
 adding structural gates cannot reach this class of defect by construction.
@@ -185,7 +185,7 @@ adding structural gates cannot reach this class of defect by construction.
 sat at `Accepted` for a week while naming a subsystem that does not exist, then
 at `Proposed` for a fortnight while nobody built it.
 
-**Evidence.** `doc/adr/README.md`, and each record's own Amendments section. The
+**Evidence.** The decision register, and each record's own Amendments section. The
 existence check (`TestReferencedNamesExist`) caught the false `Accepted` and
 exempts the unbuilt statuses.
 

@@ -17,8 +17,6 @@ import field_hook_naming as fh
 import naming_vocabulary as nv
 from _repo_root import find_odoo_root
 
-ADR = "0051"
-
 ROOT = find_odoo_root(Path(__file__).resolve())
 
 

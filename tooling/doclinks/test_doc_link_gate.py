@@ -67,12 +67,6 @@ class TestScanCoverage:
             "can disagree about which one is current"
         )
 
-    def test_the_adr_log_is_scanned_as_markdown_not_only_for_citations(self):
-        files = set(gate._glob_files(gate.DEFAULT_SCAN_GLOBS, gate.DEFAULT_EXCLUDES))
-        on_disk = set((gate.REPO_ROOT / "doc" / "adr").glob("*.md"))
-        assert on_disk, "the ADR log has moved; this test is blind"
-        assert on_disk <= files, f"unwatched ADRs: {on_disk - files}"
-
     def test_third_party_trees_are_excluded(self):
         files = gate._glob_files(gate.DEFAULT_SCAN_GLOBS, gate.DEFAULT_EXCLUDES)
         assert not [f for f in files if "node_modules" in f.parts]
@@ -263,61 +257,6 @@ class TestHeadingSlugs:
         assert gate.scan(globs=["*.md"], excludes=[]) == []
 
 
-class TestAdrCitations:
-    def test_the_citation_form_is_recognised(self):
-        assert gate.RE_ADR.findall("see ADR-0001 and ADR-0013") == ["0001", "0013"]
-
-    def test_a_bare_number_is_not_a_citation(self):
-        assert gate.RE_ADR.findall("0001 is not a citation") == []
-
-    def test_a_partial_number_is_not_a_citation(self):
-        assert gate.RE_ADR.findall("ADR-1 ADR-00011") == []
-
-    def test_the_letters_placeholder_is_not_a_citation(self):
-        assert gate.RE_ADR.findall("write it as ADR-NNNN") == []
-
-    def test_existing_adrs_resolve(self):
-        numbers = sorted(
-            p.name[:4] for p in gate.ADR_DIR.glob("[0-9][0-9][0-9][0-9]-*.md")
-        )
-        assert numbers, "no ADRs on disk — the fixture this rests on is gone"
-        for number in numbers:
-            assert gate.adr_exists(number), number
-
-    def test_a_missing_adr_does_not_resolve(self):
-        assert not gate.adr_exists("9999")
-
-    def test_resolution_does_not_depend_on_the_slug(self):
-        first = min(gate.ADR_DIR.glob("[0-9][0-9][0-9][0-9]-*.md"))
-        assert gate.adr_exists(first.name[:4])
-
-    def test_the_tree_has_no_dangling_citations(self):
-        assert [
-            (v.source_file, v.line, v.raw_path) for v in gate.scan_adr_citations()
-        ] == []
-
-    def test_it_actually_scans_something(self):
-        files = gate._glob_files(gate.ADR_SCAN_GLOBS, gate.DEFAULT_EXCLUDES)
-        assert len(files) > 500
-        cited = sum(
-            len(gate.RE_ADR.findall(f.read_text(encoding="utf-8", errors="ignore")))
-            for f in files
-        )
-        assert cited > 50, f"only {cited} citations found; the scan set has shrunk"
-
-    def test_the_gates_that_cite_adrs_as_rationale_are_in_scope(self):
-        scanned = {
-            str(f.relative_to(gate.REPO_ROOT))
-            for f in gate._glob_files(gate.ADR_SCAN_GLOBS, gate.DEFAULT_EXCLUDES)
-        }
-        assert "tooling/architecture/layer_check.py" in scanned
-        assert "doc/architecture/ARCHITECTURE.md" in scanned
-
-    def test_this_gate_plants_no_live_citation_of_its_own(self):
-        source = Path(gate.__file__).read_text(encoding="utf-8")
-        assert gate.RE_ADR.findall(source) == []
-
-
 class TestItRefusesAScanThatReachedNothing:
     def _empty_checkout(self, tmp_path, monkeypatch):
         monkeypatch.setattr(gate, "REPO_ROOT", tmp_path)
@@ -329,18 +268,9 @@ class TestItRefusesAScanThatReachedNothing:
         assert gate._main() == 2
         assert "refusing to report a pass" in capsys.readouterr().err
 
-    def test_documents_but_no_citation_source_is_refused(
-        self, tmp_path, monkeypatch, capsys
-    ):
-        self._empty_checkout(tmp_path, monkeypatch)
-        (tmp_path / "CLAUDE.md").write_text("# Root\n", encoding="utf-8")
-        assert gate._main() == 2
-        assert "citation source" in capsys.readouterr().err
-
     def test_the_real_tree_is_not_refused(self):
         scanned = gate._glob_files(gate.DEFAULT_SCAN_GLOBS, gate.DEFAULT_EXCLUDES)
-        cited = gate._glob_files(gate.ADR_SCAN_GLOBS, gate.DEFAULT_EXCLUDES)
-        assert scanned and cited, (
+        assert scanned, (
             "the globs reach nothing in this checkout, so the guard above would "
             "fire on every run"
         )

@@ -14,11 +14,6 @@ class TestRootResolution:
         assert gate.COMPONENTS.is_dir(), gate.COMPONENTS
         assert gate.COMPONENTS.name == "components"
 
-    def test_it_cites_an_accepted_record(self):
-        matches = list((gate.ROOT / "doc" / "adr").glob(f"{gate.ADR}-*.md"))
-        assert matches, gate.ADR
-        assert "**Status:** Accepted" in matches[0].read_text(encoding="utf-8")
-
 
 class TestDetection:
     def test_a_data_service_is_a_site(self, tmp_path):

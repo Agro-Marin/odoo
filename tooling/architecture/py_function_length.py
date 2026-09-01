@@ -13,8 +13,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import _sources
 from _repo_root import find_odoo_root
 
-ADR = "0025"
-
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="py_function_length")
 
 SCOPE = ROOT / "odoo"

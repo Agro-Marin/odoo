@@ -42,9 +42,6 @@ on:
       # every_scanned_tree (tooling/architecture/) pins it.
       - 'odoo/**'
       - 'addons/**'
-      # test_adr_coherence.py fact-checks doc/adr/ (index ↔ files, cross-refs,
-      # referenced repo paths) — an ADR edit must retrigger it.
-      - 'doc/adr/**'
       # The JS gates (js_layer_check, js_cycle_check, named_export_coherence)
       # read client source under both addon trees; `odoo/**` and `addons/**`
       # above already cover every `static/src/**` path they scan, so the three

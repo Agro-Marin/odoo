@@ -21,8 +21,6 @@ import _consumer_scopes
 import doc_measured
 from _repo_root import find_odoo_root
 
-ADR = "0022"
-
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_field_record_surface")
 WEB_SRC = ROOT / "addons" / "web" / "static" / "src"
 CONTRACT = WEB_SRC / "fields" / "field_record_contract.js"

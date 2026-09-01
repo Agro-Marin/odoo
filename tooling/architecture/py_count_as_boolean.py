@@ -12,8 +12,6 @@ import _count_gate
 import _sources
 from _repo_root import find_odoo_root, sibling_repos_root
 
-ADR = "0057"
-
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="py_count_as_boolean")
 
 SCOPE = ROOT / "odoo"

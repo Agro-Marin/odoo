@@ -9,8 +9,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
-ADR = "0029"
-
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="env_model_surface_check")
 CORE = REPO_ROOT / "odoo"
 

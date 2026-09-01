@@ -1,5 +1,4 @@
 {
-  "adr": "0048",
   "note": "Modules whose name carries 'edi' as a component. `l10n_*` is exempt by rule and is not listed. Add an entry only with the category that justifies it; there is no --update.",
   "modules": {
     "account_edi": "queue - transmission framework for the other two; upstream name",

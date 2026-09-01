@@ -60,8 +60,6 @@ import _sources
 import naming_vocabulary as nv
 from _repo_root import find_odoo_root
 
-ADR = "0079"
-
 ROOT = find_odoo_root(Path(__file__).resolve())
 CORE = ROOT / "odoo"
 

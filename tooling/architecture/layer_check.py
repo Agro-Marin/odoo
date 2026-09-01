@@ -13,13 +13,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
-ADR = "0005"
-
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="layer_check")
 PKG_ROOT = ROOT / "odoo"
-
-
-UNRECORDED = "unrecorded"
 
 
 @dataclass(frozen=True)
@@ -29,7 +24,6 @@ class Contract:
     forbidden: tuple[str, ...]
     allow: tuple[str, ...]
     rationale: str
-    adr: str
     allow_exact: tuple[str, ...] = ()
     source_exact: tuple[str, ...] = ()
     # True when the contract bounds *import-time* cost rather than use: an
@@ -81,7 +75,6 @@ KNOWN_VIOLATIONS: tuple[Known, ...] = (
 CONTRACTS: tuple[Contract, ...] = (
     Contract(
         name="libs-is-dependency-free",
-        adr="0004",
         source=("odoo.libs",),
         forbidden=("odoo",),
         allow=("odoo.libs",),
@@ -93,7 +86,6 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="db-is-orm-agnostic",
-        adr="0003",
         source=("odoo.db",),
         forbidden=("odoo.orm", "odoo.models", "odoo.fields", "odoo.api"),
         allow=("odoo.libs",),
@@ -104,7 +96,6 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="tools-stays-below-the-serving-tier",
-        adr="0075",
         source=("odoo.tools",),
         forbidden=("odoo.http",),
         allow=(),
@@ -120,7 +111,6 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="tools-does-not-reach-the-orm-runtime",
-        adr=UNRECORDED,
         source=("odoo.tools",),
         forbidden=("odoo.orm.runtime",),
         allow=(),
@@ -133,7 +123,6 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="orm-helpers-and-registration-stay-below-runtime",
-        adr=UNRECORDED,
         source=("odoo.orm.helpers", "odoo.orm.registration"),
         forbidden=("odoo.orm.runtime",),
         allow=(),
@@ -146,7 +135,6 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="orm-components-are-pure-python",
-        adr="0002",
         source=("odoo.orm.components",),
         forbidden=("odoo",),
         allow=("odoo.orm.components", "odoo.libs"),
@@ -158,7 +146,6 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="orm-layer1-below-models-and-runtime",
-        adr="0001",
         source=("odoo.orm.fields", "odoo.orm.domain"),
         forbidden=("odoo.orm.models", "odoo.orm.runtime", "odoo.models", "odoo.api"),
         allow=(),
@@ -170,7 +157,6 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="orm-layer0-is-foundational",
-        adr="0001",
         source=(
             "odoo.orm.primitives",
             "odoo.orm.parsing",
@@ -199,7 +185,6 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="transaction-primitive-is-transport-agnostic",
-        adr="0003",
         source=("odoo.service.transaction",),
         forbidden=("odoo.http",),
         allow=(),
@@ -211,7 +196,6 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="root-modules-are-foundational",
-        adr="0016",
         source=("odoo.exceptions", "odoo.release"),
         forbidden=("odoo",),
         allow=("odoo.libs",),
@@ -224,7 +208,6 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="orm-models-below-runtime",
-        adr="0001",
         source=("odoo.orm.models",),
         forbidden=("odoo.orm.runtime",),
         allow=(),
@@ -235,7 +218,6 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="core-does-not-depend-on-addons",
-        adr=UNRECORDED,
         source=(
             "odoo._monkeypatches",
             "odoo.api",
@@ -270,7 +252,6 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="facade-boundary",
-        adr="0008",
         source=("odoo.addons", "addons"),
         forbidden=("odoo.orm",),
         allow=(),
@@ -282,7 +263,6 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="orm-seams-stay-below-models-and-runtime",
-        adr="0001",
         source=("odoo.orm._recordset", "odoo.orm.decorators"),
         forbidden=("odoo.orm.models", "odoo.orm.runtime", "odoo.models", "odoo.api"),
         allow=(),
@@ -294,7 +274,6 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="db-resilience-below-connectivity",
-        adr=UNRECORDED,
         source=(
             "odoo.db.breaker",
             "odoo.db.lag",
@@ -328,7 +307,6 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="http-features-below-serving",
-        adr=UNRECORDED,
         source=(
             "odoo.http.openapi",
             "odoo.http._params",
@@ -361,7 +339,6 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="orm-below-the-serving-tier",
-        adr=UNRECORDED,
         source=("odoo.orm",),
         forbidden=("odoo.service", "odoo.http", "odoo.cli"),
         allow=(),

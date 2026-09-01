@@ -16,8 +16,6 @@ from _repo_root import (
     sibling_repo_paths,
 )
 
-ADR = "0080"
-
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="exchange_vocabulary")
 ALLOWLIST = Path(__file__).with_name("exchange_vocabulary_allowlist.json")
 
@@ -27,7 +25,7 @@ SKIP_DIRS = frozenset({"__pycache__", "node_modules", ".git", "tests", "migratio
 
 # A module reaching one of these is talking to a counterparty, whatever its name
 # says. The list is deliberately about *protocols and authorities*, not about the
-# word "edi" -- ADR-0048 established that the word names three different things,
+# word "edi" -- that word names three different things,
 # and `l10n_co_dian`, `myinvois` and `l10n_id_efaktur_coretax` carry none of it
 # while holding the same transmission model as the ones that do.
 EXCHANGE_TOKENS = re.compile(
@@ -138,7 +136,6 @@ def save_allowlist(fields: dict[str, str]) -> None:
     ALLOWLIST.write_text(
         json.dumps(
             {
-                "adr": ADR,
                 "note": (
                     "Selection fields named *state, in a module that talks to a "
                     "counterparty, whose values are not exchange.transmission's. "
@@ -162,7 +159,7 @@ def offenders() -> list[Finding]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="ADR-0080: one exchange lifecycle, not forty-seven.",
+        description="One exchange lifecycle, not forty-seven.",
     )
     parser.add_argument(
         "--check", action="store_true", help="fail on an unlisted field"
@@ -224,7 +221,7 @@ def main() -> int:
         return 0
 
     print(
-        f"ADR-{ADR}: {len(bad)} state selection(s) spell an exchange lifecycle of "
+        f"{len(bad)} state selection(s) spell an exchange lifecycle of "
         "their own.\n"
         "A transmission's phase is exchange.transmission.state -- "
         f"{' | '.join(CANONICAL)} -- and what is\n"

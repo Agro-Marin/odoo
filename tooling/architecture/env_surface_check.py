@@ -17,8 +17,6 @@ from _orm_layer_scope import SCOPE
 from _orm_layer_scope import iter_scope_files as _iter_scope_files
 from _repo_root import find_odoo_root
 
-ADR = "0029"
-
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="env_surface_check")
 CORE = REPO_ROOT / "odoo"
 ENVIRONMENT_PY = CORE / "orm" / "runtime" / "environment.py"

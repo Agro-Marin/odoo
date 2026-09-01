@@ -20,25 +20,6 @@ from ._shared import (
 
 
 class TestReferencedArtifacts(unittest.TestCase):
-    def test_adrs_exist(self) -> None:
-        adr_dir = ROOT / "doc" / "adr"
-        numbers = sorted(set(re.findall(r"ADR-(\d{4})", DOC)))
-        self.assertTrue(numbers, "the page cites no ADR; the pattern has rotted")
-        for number in numbers:
-            self.assertTrue(
-                list(adr_dir.glob(f"{number}-*.md")),
-                f"ARCHITECTURE.md references ADR-{number}, which does not exist",
-            )
-
-    def test_adr_range_is_complete(self) -> None:
-
-        match = re.search(r"architecture decisions, (\d{4})–(\d{4})", DOC)
-        self.assertIsNotNone(match, "the ADR range is no longer stated")
-        on_disk = sorted(
-            p.name[:4] for p in (ROOT / "doc" / "adr").glob("[0-9][0-9][0-9][0-9]-*.md")
-        )
-        self.assertEqual((match.group(1), match.group(2)), (on_disk[0], on_disk[-1]))
-
     def test_documented_commands_exist(self) -> None:
         scripts = re.findall(r"^python (\S+\.py)", DOC, re.MULTILINE)
         self.assertTrue(

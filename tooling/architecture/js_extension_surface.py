@@ -16,8 +16,6 @@ import _consumer_scopes
 import doc_measured
 from _repo_root import find_odoo_root
 
-ADR = "0020"
-
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_extension_surface")
 WEB = ROOT / "addons" / "web"
 PINNED = Path(__file__).resolve().parent / "extension_surface_web.txt"

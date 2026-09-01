@@ -402,8 +402,12 @@ env:
   # which this checkout can see, and `document_extract_barcode` and
   # `document_extract_ocr` declare external dependencies (zxing-cpp, rapidocr,
   # onnxruntime) that requirements-addons.txt does not carry.
-  DOCUMENT_EXTRACT_INSTALL: document_extract,document_extract_account,document_extract_account_purchase,document_extract_hr_expense,document_extract_hr_recruitment,document_extract_hr_recruitment_skills
-  DOCUMENT_EXTRACT_TEST_TAGS: /document_extract,/document_extract_account,/document_extract_account_purchase,/document_extract_hr_expense,/document_extract_hr_recruitment,/document_extract_hr_recruitment_skills
+  DOCEXT_ACCOUNT_INSTALL: document_extract_account_purchase
+  DOCEXT_ACCOUNT_TEST_TAGS: /document_extract,/document_extract_account,/document_extract_account_purchase
+  DOCEXT_RECRUIT_INSTALL: document_extract_hr_recruitment_skills
+  DOCEXT_RECRUIT_TEST_TAGS: /document_extract_hr_recruitment,/document_extract_hr_recruitment_skills
+  DOCEXT_EXPENSE_INSTALL: document_extract_hr_expense
+  DOCEXT_EXPENSE_TEST_TAGS: /document_extract_hr_expense
 
   # `test_base_order` is `category: Hidden/Tests` -- a module whose entire
   # purpose is to exercise `base_order`'s mixins against concrete models, 219
@@ -420,7 +424,7 @@ env:
   #
   # `/base_order` rides along because the mixins' own suite is in the same
   # position and needs the same registry.
-  BASE_ORDER_INSTALL: test_base_order,sale,purchase
+  BASE_ORDER_INSTALL: test_base_order
   BASE_ORDER_TEST_TAGS: /test_base_order,/base_order
 
   # `approval` is the largest suite this fork owns that no lane ran: 545 test
@@ -451,8 +455,18 @@ env:
   # AgroMarin nowhere. ADR-0079 rejected author-based scoping for exactly this,
   # and `module_suite_lane` finds them because it asks whether a lane names a
   # module rather than whether the module is ours. 68 tests, all passing.
-  SMALL_SUITES_INSTALL: api_ai,project_hr,mixin_encryption,date_range,test_date_range,account_coa,test_performance_compare,exchange
-  SMALL_SUITES_TEST_TAGS: /api_ai,/project_hr,/mixin_encryption,/date_range,/test_date_range,/account_coa,/test_performance_compare,/exchange
+  API_AI_INSTALL: api_ai
+  API_AI_TEST_TAGS: /api_ai
+  PROJECT_HR_INSTALL: project_hr
+  PROJECT_HR_TEST_TAGS: /project_hr
+  EXCHANGE_INSTALL: exchange
+  EXCHANGE_TEST_TAGS: /exchange,/mixin_encryption
+  DATE_RANGE_INSTALL: test_date_range
+  DATE_RANGE_TEST_TAGS: /date_range,/test_date_range
+  ACCOUNT_COA_INSTALL: account_coa
+  ACCOUNT_COA_TEST_TAGS: /account_coa
+  PERF_COMPARE_INSTALL: test_performance_compare
+  PERF_COMPARE_TEST_TAGS: /test_performance_compare
 
 jobs:
   base-smoke:
@@ -1002,37 +1016,108 @@ jobs:
             exit 1
           fi
 
-      - name: Run document_extract suite
-        # Its own database (ci_document_extract), same reasoning as the suites
-        # above.
+      - name: Run document_extract account branch suite
+        # Its own database (ci_docext_account). The install is ONE module: everything else
+        # it pulls is that module's own dependency closure, not a second suite
+        # sharing the database.
         run: |
           set -o pipefail
           python odoo-bin \
             --addons-path=odoo/addons,addons \
-            -d ci_document_extract \
+            -d ci_docext_account \
             --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
             --db-template=template0 \
-            -i "${DOCUMENT_EXTRACT_INSTALL}" \
-            --test-enable --test-tags "${DOCUMENT_EXTRACT_TEST_TAGS}" \
+            -i "${{ env.DOCEXT_ACCOUNT_INSTALL }}" \
+            --test-enable --test-tags "${{ env.DOCEXT_ACCOUNT_TEST_TAGS }}" \
             --stop-after-init \
             --max-cron-threads=0 --no-http \
-            --log-level=test --logfile=/dev/stdout | tee /tmp/document-extract-suite.log
+            --log-level=test --logfile=/dev/stdout | tee /tmp/docext-account.log
 
-      - name: Assert the document_extract suite actually ran
-        # Same guard as the suites above, and it earns its place here more than
-        # most: the failure this lane exists to catch is a consumer's tests not
-        # running, which reports as success.
+      - name: Assert the document_extract account branch suite actually ran
+        # Measured 143+ on 2026-09-01; the floor sits under it. Guards the
+        # shape this lane can lose silently: a tag that stops selecting anything
+        # shrinks the run without failing it.
         run: |
-          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/document-extract-suite.log \
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/docext-account.log \
                 | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
           if [ -z "$RAN" ]; then
-            echo "::error::no test-result summary in the log — document_extract did not report a count"
+            echo "::error::no test-result summary in the log — document_extract account branch did not report a count"
             exit 1
           fi
-          echo "document_extract tests run: $RAN (floor: 165)"
-          if [ "$RAN" -lt 165 ]; then
-            echo "::error::only $RAN document_extract tests ran, below the floor of 165 —"
-            echo "::error::a consumer's suite was skipped rather than failed."
+          echo "document_extract account branch tests run: $RAN (floor: 143)"
+          if [ "$RAN" -lt 143 ]; then
+            echo "::error::only $RAN tests ran, below the floor of 143 —"
+            echo "::error::a suite in this lane was skipped rather than failed."
+            exit 1
+          fi
+
+      - name: Run document_extract recruitment branch suite
+        # Its own database (ci_docext_recruit). The install is ONE module: everything else
+        # it pulls is that module's own dependency closure, not a second suite
+        # sharing the database.
+        run: |
+          set -o pipefail
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_docext_recruit \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "${{ env.DOCEXT_RECRUIT_INSTALL }}" \
+            --test-enable --test-tags "${{ env.DOCEXT_RECRUIT_TEST_TAGS }}" \
+            --stop-after-init \
+            --max-cron-threads=0 --no-http \
+            --log-level=test --logfile=/dev/stdout | tee /tmp/docext-recruit.log
+
+      - name: Assert the document_extract recruitment branch suite actually ran
+        # Measured 12+ on 2026-09-01; the floor sits under it. Guards the
+        # shape this lane can lose silently: a tag that stops selecting anything
+        # shrinks the run without failing it.
+        run: |
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/docext-recruit.log \
+                | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no test-result summary in the log — document_extract recruitment branch did not report a count"
+            exit 1
+          fi
+          echo "document_extract recruitment branch tests run: $RAN (floor: 12)"
+          if [ "$RAN" -lt 12 ]; then
+            echo "::error::only $RAN tests ran, below the floor of 12 —"
+            echo "::error::a suite in this lane was skipped rather than failed."
+            exit 1
+          fi
+
+      - name: Run document_extract expense branch suite
+        # Its own database (ci_docext_expense). The install is ONE module: everything else
+        # it pulls is that module's own dependency closure, not a second suite
+        # sharing the database.
+        run: |
+          set -o pipefail
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_docext_expense \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "${{ env.DOCEXT_EXPENSE_INSTALL }}" \
+            --test-enable --test-tags "${{ env.DOCEXT_EXPENSE_TEST_TAGS }}" \
+            --stop-after-init \
+            --max-cron-threads=0 --no-http \
+            --log-level=test --logfile=/dev/stdout | tee /tmp/docext-expense.log
+
+      - name: Assert the document_extract expense branch suite actually ran
+        # Measured 8+ on 2026-09-01; the floor sits under it. Guards the
+        # shape this lane can lose silently: a tag that stops selecting anything
+        # shrinks the run without failing it.
+        run: |
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/docext-expense.log \
+                | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no test-result summary in the log — document_extract expense branch did not report a count"
+            exit 1
+          fi
+          echo "document_extract expense branch tests run: $RAN (floor: 8)"
+          if [ "$RAN" -lt 8 ]; then
+            echo "::error::only $RAN tests ran, below the floor of 8 —"
+            echo "::error::a suite in this lane was skipped rather than failed."
             exit 1
           fi
 
@@ -1102,36 +1187,213 @@ jobs:
             exit 1
           fi
 
-      - name: Run api_ai, project_hr and mixin_encryption suites
-        # Their own database (ci_small_suites), same reasoning as the suites
-        # above.
+      - name: Run api_ai suite
+        # Its own database (ci_api_ai). The install is ONE module: everything else
+        # it pulls is that module's own dependency closure, not a second suite
+        # sharing the database.
         run: |
           set -o pipefail
           python odoo-bin \
             --addons-path=odoo/addons,addons \
-            -d ci_small_suites \
+            -d ci_api_ai \
             --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
             --db-template=template0 \
-            -i "${SMALL_SUITES_INSTALL}" \
-            --test-enable --test-tags "${SMALL_SUITES_TEST_TAGS}" \
+            -i "${{ env.API_AI_INSTALL }}" \
+            --test-enable --test-tags "${{ env.API_AI_TEST_TAGS }}" \
             --stop-after-init \
             --max-cron-threads=0 --no-http \
-            --log-level=test --logfile=/dev/stdout | tee /tmp/small-suites.log
+            --log-level=test --logfile=/dev/stdout | tee /tmp/api-ai.log
 
-      - name: Assert the small suites actually ran
-        # 300 tests across the seven. The floor sits under that, and it guards
-        # the shape this lane is most likely to lose: seven tags, and dropping
-        # one shrinks the run without failing it.
+      - name: Assert the api_ai suite actually ran
+        # Measured 173+ on 2026-09-01; the floor sits under it. Guards the
+        # shape this lane can lose silently: a tag that stops selecting anything
+        # shrinks the run without failing it.
         run: |
-          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/small-suites.log \
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/api-ai.log \
                 | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
           if [ -z "$RAN" ]; then
-            echo "::error::no test-result summary in the log — the small suites did not report a count"
+            echo "::error::no test-result summary in the log — api_ai did not report a count"
             exit 1
           fi
-          echo "small-suite tests run: $RAN (floor: 290)"
-          if [ "$RAN" -lt 290 ]; then
-            echo "::error::only $RAN tests ran, below the floor of 290 —"
-            echo "::error::one of the seven suites was skipped rather than failed."
+          echo "api_ai tests run: $RAN (floor: 173)"
+          if [ "$RAN" -lt 173 ]; then
+            echo "::error::only $RAN tests ran, below the floor of 173 —"
+            echo "::error::a suite in this lane was skipped rather than failed."
             exit 1
           fi
+
+      - name: Run project_hr suite
+        # Its own database (ci_project_hr). The install is ONE module: everything else
+        # it pulls is that module's own dependency closure, not a second suite
+        # sharing the database.
+        run: |
+          set -o pipefail
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_project_hr \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "${{ env.PROJECT_HR_INSTALL }}" \
+            --test-enable --test-tags "${{ env.PROJECT_HR_TEST_TAGS }}" \
+            --stop-after-init \
+            --max-cron-threads=0 --no-http \
+            --log-level=test --logfile=/dev/stdout | tee /tmp/project-hr.log
+
+      - name: Assert the project_hr suite actually ran
+        # Measured 31+ on 2026-09-01; the floor sits under it. Guards the
+        # shape this lane can lose silently: a tag that stops selecting anything
+        # shrinks the run without failing it.
+        run: |
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/project-hr.log \
+                | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no test-result summary in the log — project_hr did not report a count"
+            exit 1
+          fi
+          echo "project_hr tests run: $RAN (floor: 31)"
+          if [ "$RAN" -lt 31 ]; then
+            echo "::error::only $RAN tests ran, below the floor of 31 —"
+            echo "::error::a suite in this lane was skipped rather than failed."
+            exit 1
+          fi
+
+      - name: Run exchange suite
+        # Its own database (ci_exchange). The install is ONE module: everything else
+        # it pulls is that module's own dependency closure, not a second suite
+        # sharing the database.
+        run: |
+          set -o pipefail
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_exchange \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "${{ env.EXCHANGE_INSTALL }}" \
+            --test-enable --test-tags "${{ env.EXCHANGE_TEST_TAGS }}" \
+            --stop-after-init \
+            --max-cron-threads=0 --no-http \
+            --log-level=test --logfile=/dev/stdout | tee /tmp/exchange.log
+
+      - name: Assert the exchange suite actually ran
+        # Measured 82+ on 2026-09-01; the floor sits under it. Guards the
+        # shape this lane can lose silently: a tag that stops selecting anything
+        # shrinks the run without failing it.
+        run: |
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/exchange.log \
+                | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no test-result summary in the log — exchange did not report a count"
+            exit 1
+          fi
+          echo "exchange tests run: $RAN (floor: 82)"
+          if [ "$RAN" -lt 82 ]; then
+            echo "::error::only $RAN tests ran, below the floor of 82 —"
+            echo "::error::a suite in this lane was skipped rather than failed."
+            exit 1
+          fi
+
+      - name: Run date_range suite
+        # Its own database (ci_date_range). The install is ONE module: everything else
+        # it pulls is that module's own dependency closure, not a second suite
+        # sharing the database.
+        run: |
+          set -o pipefail
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_date_range \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "${{ env.DATE_RANGE_INSTALL }}" \
+            --test-enable --test-tags "${{ env.DATE_RANGE_TEST_TAGS }}" \
+            --stop-after-init \
+            --max-cron-threads=0 --no-http \
+            --log-level=test --logfile=/dev/stdout | tee /tmp/date-range.log
+
+      - name: Assert the date_range suite actually ran
+        # Measured 35+ on 2026-09-01; the floor sits under it. Guards the
+        # shape this lane can lose silently: a tag that stops selecting anything
+        # shrinks the run without failing it.
+        run: |
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/date-range.log \
+                | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no test-result summary in the log — date_range did not report a count"
+            exit 1
+          fi
+          echo "date_range tests run: $RAN (floor: 35)"
+          if [ "$RAN" -lt 35 ]; then
+            echo "::error::only $RAN tests ran, below the floor of 35 —"
+            echo "::error::a suite in this lane was skipped rather than failed."
+            exit 1
+          fi
+
+      - name: Run account_coa suite
+        # Its own database (ci_account_coa). The install is ONE module: everything else
+        # it pulls is that module's own dependency closure, not a second suite
+        # sharing the database.
+        run: |
+          set -o pipefail
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_account_coa \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "${{ env.ACCOUNT_COA_INSTALL }}" \
+            --test-enable --test-tags "${{ env.ACCOUNT_COA_TEST_TAGS }}" \
+            --stop-after-init \
+            --max-cron-threads=0 --no-http \
+            --log-level=test --logfile=/dev/stdout | tee /tmp/account-coa.log
+
+      - name: Assert the account_coa suite actually ran
+        # Measured 28+ on 2026-09-01; the floor sits under it. Guards the
+        # shape this lane can lose silently: a tag that stops selecting anything
+        # shrinks the run without failing it.
+        run: |
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/account-coa.log \
+                | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no test-result summary in the log — account_coa did not report a count"
+            exit 1
+          fi
+          echo "account_coa tests run: $RAN (floor: 28)"
+          if [ "$RAN" -lt 28 ]; then
+            echo "::error::only $RAN tests ran, below the floor of 28 —"
+            echo "::error::a suite in this lane was skipped rather than failed."
+            exit 1
+          fi
+
+      - name: Run test_performance_compare suite
+        # Its own database (ci_perf_compare). The install is ONE module: everything else
+        # it pulls is that module's own dependency closure, not a second suite
+        # sharing the database.
+        run: |
+          set -o pipefail
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_perf_compare \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "${{ env.PERF_COMPARE_INSTALL }}" \
+            --test-enable --test-tags "${{ env.PERF_COMPARE_TEST_TAGS }}" \
+            --stop-after-init \
+            --max-cron-threads=0 --no-http \
+            --log-level=test --logfile=/dev/stdout | tee /tmp/perf-compare.log
+
+      - name: Assert the test_performance_compare suite actually ran
+        # Measured 1+ on 2026-09-01; the floor sits under it. Guards the
+        # shape this lane can lose silently: a tag that stops selecting anything
+        # shrinks the run without failing it.
+        run: |
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/perf-compare.log \
+                | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no test-result summary in the log — test_performance_compare did not report a count"
+            exit 1
+          fi
+          echo "test_performance_compare tests run: $RAN (floor: 1)"
+          if [ "$RAN" -lt 1 ]; then
+            echo "::error::only $RAN tests ran, below the floor of 1 —"
+            echo "::error::a suite in this lane was skipped rather than failed."
+            exit 1
+          fi
+

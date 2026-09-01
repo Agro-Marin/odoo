@@ -3,8 +3,8 @@
 > One of the views indexed by [`ARCHITECTURE.md`](ARCHITECTURE.md).
 > This view answers *where does code live and what may it import*. For *what runs
 > when*, see [`runtime.md`](runtime.md); for the checkers that hold these rules
-> shut, [`gates.md`](gates.md); for why a given rule exists, `doc/adr/` and the
-> gate's own module docstring.
+> shut, [`gates.md`](gates.md); for why a given rule exists, the gate's own
+> module docstring.
 
 The map below is checked against the tree; every contract in the table is a
 program that runs on each push.

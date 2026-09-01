@@ -12,8 +12,6 @@ from js_imports import collect_imports
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root, sibling_repos_root
 
-ADR = "0072"
-
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="cross_repo_coherence")
 SIBLING_REPOS_ROOT = sibling_repos_root(ROOT)
 

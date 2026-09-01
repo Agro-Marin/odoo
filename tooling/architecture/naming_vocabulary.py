@@ -16,8 +16,6 @@ import _ast_cache
 import _sources
 from _repo_root import find_odoo_root
 
-ADR = "0033"
-
 ROOT = find_odoo_root(Path(__file__).resolve())
 SCAN_ROOTS = ("odoo", "addons")
 

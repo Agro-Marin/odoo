@@ -113,7 +113,11 @@ def test_empty_tree_raises_rather_than_reporting_clean(tmp_path):
 
 def test_real_tree_measurement_is_non_trivial():
     found = jfl.measure()
-    assert len(found) > 50, f"expected the real budget, measured {len(found)}"
+    # Deliberately far below the jsfunclen floor.  The exact offender count is
+    # the ratchet's to hold; restating it here made every improvement to the
+    # tree a failure of this test -- it broke when the floor reached 47.  This
+    # asserts only that the scan reached a real tree, not how big the debt is.
+    assert len(found) > 10, f"expected the real budget, measured {len(found)}"
     assert found[0].lines > 2 * jfl.MAX_LINES, (
         f"the longest function measured {found[0].lines} lines, under "
         f"{2 * jfl.MAX_LINES} -- either the tree improved dramatically or the "

@@ -11,8 +11,6 @@ from js_layer_check import ROOT
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import SIBLING_REPOS
 
-ADR = "0047"
-
 WEB_STATIC = ROOT / "addons" / "web" / "static"
 COMPONENTS = WEB_STATIC / "src" / "components"
 

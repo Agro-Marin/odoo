@@ -8,8 +8,6 @@ from pathlib import Path
 from js_import_resolution import EXCLUDED_PARTS, addon_static_dirs
 from js_layer_check import ROOT
 
-ADR = "0027"
-
 FORCED_RENDER = re.compile(r"\.\s*render\s*\(\s*true\s*\)")
 
 WEB_ADDON = "web"

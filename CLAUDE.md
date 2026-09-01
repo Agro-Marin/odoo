@@ -228,5 +228,4 @@ Edit `doc/coding_guidelines.rst` directly. Its *Change protocol* binds what you 
 
 - The same PR updates the `CLAUDE.md` files that summarise the rule — this one included — and adds a row to Appendix D.
 - Rules are retired into Appendix C, never deleted silently.
-- A rule whose rationale is architectural **cites its record** as a bare `ADR-NNNN`, never a summary of it: `tooling/doclinks` scans the guide and fails on a citation that does not resolve, so the pointer cannot rot while a restated argument would.
-- A rule with no record may be one worth writing — `doc/adr/README.md` states when one is owed.
+- A rule whose rationale is architectural states that rationale in the rule itself, or in the gate's own module docstring.

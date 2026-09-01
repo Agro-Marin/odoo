@@ -13,8 +13,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from _repo_root import find_odoo_root
 
-ADR = "unrecorded"
-
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="order_line_qty")
 
 FIELD = "product_uom_qty"

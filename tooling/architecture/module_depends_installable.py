@@ -11,8 +11,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from _repo_root import find_odoo_root
 
-ADR = "0062"
-
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="module_depends_installable")
 
 MANIFEST = "__manifest__.py"

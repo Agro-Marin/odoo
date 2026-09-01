@@ -8,8 +8,6 @@ from pathlib import Path
 from js_import_resolution import EXCLUDED_PARTS, addon_static_dirs
 from js_layer_check import ROOT
 
-ADR = "0069"
-
 ATTACH_SHADOW = re.compile(r"\.\s*attachShadow\s*\(")
 
 HELPER = "addons/web/static/src/core/utils/dom/ui.js"

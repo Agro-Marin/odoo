@@ -30,7 +30,6 @@ DEFAULT_SCAN_GLOBS = [
     "CLAUDE.md",
     "addons/*/CLAUDE.md",
     "doc/*.md",
-    "doc/adr/*.md",
     "doc/architecture/**/*.md",
     "odoo/**/README.md",
     "tooling/**/*.md",
@@ -48,20 +47,6 @@ REF_PATTERNS = [
     re.compile(r"`([^`\s]+\.md)`"),
     re.compile(r"\[[^\]]+\]\((#[\w-]+)\)"),
 ]
-
-RE_ADR = re.compile(r"\bADR[-‑](\d{4})\b")
-
-ADR_SCAN_GLOBS = [
-    "doc/**/*.md",
-    "doc/*.rst",
-    "odoo/**/*.py",
-    "tooling/**/*.py",
-    "tooling/**/*.md",
-    ".github/workflows/*.yml",
-]
-
-ADR_DIR = REPO_ROOT / "doc" / "adr"
-
 
 PLACEHOLDER_MARKERS = (
     "~",
@@ -221,43 +206,6 @@ def _glob_match(path: str, pattern: str) -> bool:
     return fnmatch.fnmatch(path, pattern)
 
 
-def adr_exists(number: str) -> bool:
-
-    return bool(list(ADR_DIR.glob(f"{number}-*.md")))
-
-
-def scan_adr_citations(
-    globs: list[str] | None = None,
-    excludes: list[str] | None = None,
-) -> list[Violation]:
-    files = _glob_files(globs or ADR_SCAN_GLOBS, excludes or DEFAULT_EXCLUDES)
-    violations: list[Violation] = []
-    for source_file in files:
-        try:
-            content = source_file.read_text(encoding="utf-8")
-        except OSError, UnicodeDecodeError:
-            continue
-        if "ADR" not in content:
-            continue
-        line_starts = [0]
-        for i, ch in enumerate(content):
-            if ch == "\n":
-                line_starts.append(i + 1)
-        for match in RE_ADR.finditer(content):
-            number = match.group(1)
-            if adr_exists(number):
-                continue
-            violations.append(
-                Violation(
-                    source_file=str(source_file.relative_to(REPO_ROOT)),
-                    line=bisect_right(line_starts, match.start()),
-                    raw_path=f"ADR-{number}",
-                    resolved_path=str(ADR_DIR / f"{number}-*.md"),
-                )
-            )
-    return violations
-
-
 def scan(
     globs: list[str] | None = None,
     excludes: list[str] | None = None,
@@ -384,11 +332,10 @@ def _main() -> int:
     args = parser.parse_args()
 
     scanned = _glob_files(DEFAULT_SCAN_GLOBS, DEFAULT_EXCLUDES)
-    cited = _glob_files(ADR_SCAN_GLOBS, DEFAULT_EXCLUDES)
-    if not scanned or not cited:
+    if not scanned:
         print(
-            f"doc_link_gate: matched {len(scanned)} document(s) and "
-            f"{len(cited)} citation source(s) — refusing to report a pass. "
+            f"doc_link_gate: matched {len(scanned)} document(s) "
+            f"— refusing to report a pass. "
             f"A scan that reaches nothing produces no violations, and this "
             f"gate's baseline is a hard zero, so silence is indistinguishable "
             f"from success. Check the globs against the tree they name.",
@@ -396,7 +343,7 @@ def _main() -> int:
         )
         return 2
 
-    violations = scan() + scan_adr_citations()
+    violations = scan()
 
     if args.update_baseline:
         data = write_baseline(args.baseline, violations)

@@ -8,8 +8,6 @@ from pathlib import Path
 from js_imports import collect_imports
 from js_layer_check import ROOT
 
-ADR = "0023"
-
 ADDON_ROOTS: tuple[Path, ...] = (ROOT / "addons", ROOT / "odoo" / "addons")
 
 EXCLUDED_PARTS = frozenset({"lib", "legacy", "__pycache__", "node_modules"})

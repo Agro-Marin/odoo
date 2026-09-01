@@ -16,8 +16,6 @@ import doc_measured
 from _repo_root import find_odoo_root
 from js_import_resolution import EXCLUDED_PARTS
 
-ADR = "0028"
-
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_private_access")
 WEB_SRC = ROOT / "addons" / "web" / "static" / "src"
 

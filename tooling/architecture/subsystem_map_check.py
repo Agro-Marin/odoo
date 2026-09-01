@@ -12,8 +12,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
-ADR = "0030"
-
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="subsystem_map_check")
 
 ARCHITECTURE_MD = REPO_ROOT / "doc" / "architecture" / "module.md"

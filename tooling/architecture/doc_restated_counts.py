@@ -19,8 +19,6 @@ import field_hook_purity
 import naming_vocabulary
 from _repo_root import find_odoo_root
 
-ADR = "0041"
-
 _ast_cache.enable()
 
 ROOT = find_odoo_root(Path(__file__).resolve())
@@ -186,14 +184,6 @@ def duck_typed_hooks() -> tuple[int, ...]:
             )
         )
     return tuple(counts)
-
-
-def adr_range() -> tuple[int, ...]:
-    numbers = sorted(
-        int(path.name[:4])
-        for path in (ROOT / "doc" / "adr").glob("[0-9][0-9][0-9][0-9]-*.md")
-    )
-    return (numbers[0], numbers[-1])
 
 
 ARCHITECTURE = ROOT / "doc" / "architecture" / "ARCHITECTURE.md"
@@ -450,13 +440,6 @@ _MEASUREMENTS: tuple[Figure, ...] = (
         re.compile(r"stands\s+at\s+\*\*(\d[\d,]*)\s+specifiers\*\*"),
         public_surface_specifiers,
         _plain,
-    ),
-    Figure(
-        "adr_range",
-        ARCHITECTURE,
-        re.compile(r"architecture\s+decisions,\s+(\d{4})–(\d{4})"),
-        adr_range,
-        _padded,
     ),
     Figure(
         "vocabulary_population",

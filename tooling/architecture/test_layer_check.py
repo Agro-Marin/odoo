@@ -1,5 +1,4 @@
 import ast
-import re
 from collections import Counter
 from pathlib import Path
 
@@ -587,62 +586,6 @@ def test_every_contract_has_a_source_and_rationale():
         assert c.source, f"{c.name} has no source"
         assert c.forbidden, f"{c.name} forbids nothing"
         assert c.rationale.strip(), f"{c.name} has no rationale"
-
-
-UNRECORDED_CONTRACTS = frozenset(
-    {
-        "tools-does-not-reach-the-orm-runtime",
-        "orm-helpers-and-registration-stay-below-runtime",
-        "core-does-not-depend-on-addons",
-        "db-resilience-below-connectivity",
-        "http-features-below-serving",
-        "orm-below-the-serving-tier",
-    }
-)
-
-
-def test_every_contract_names_an_adr_that_exists():
-    adr_dir = lc.ROOT / "doc" / "adr"
-    numbers = {p.name[:4] for p in adr_dir.glob("[0-9][0-9][0-9][0-9]-*.md")}
-    for c in lc.CONTRACTS:
-        if c.adr == lc.UNRECORDED:
-            continue
-        assert c.adr in numbers, (
-            f"{c.name} names ADR-{c.adr}, which is not in doc/adr/. A contract "
-            f"cites the record that argues for it; if the record moved, follow it."
-        )
-
-
-def test_every_contract_names_an_accepted_adr():
-
-    adr_dir = lc.ROOT / "doc" / "adr"
-    status_re = re.compile(r"^-\s*\*\*Status:\*\*\s*(\S+)", re.MULTILINE)
-    for c in lc.CONTRACTS:
-        if c.adr == lc.UNRECORDED:
-            continue
-        (path,) = adr_dir.glob(f"{c.adr}-*.md")
-        match = status_re.search(path.read_text(encoding="utf-8"))
-        kind = match.group(1) if match else "<none>"
-        assert kind == "Accepted", (
-            f"{c.name} cites ADR-{c.adr}, whose status is {kind}. A contract "
-            f"enforces a decision that has landed; cite an Accepted record, or "
-            f"set adr=UNRECORDED until this one is."
-        )
-
-
-def test_the_unrecorded_contracts_are_pinned_and_shrinking():
-    unrecorded = {c.name for c in lc.CONTRACTS if c.adr == lc.UNRECORDED}
-    new = unrecorded - UNRECORDED_CONTRACTS
-    assert not new, (
-        f"contract(s) with no ADR: {sorted(new)}. A boundary worth failing CI "
-        f"over is worth a decision record — write one and set adr=, or add the "
-        f"name to UNRECORDED_CONTRACTS with your reason for deferring."
-    )
-    written_up = UNRECORDED_CONTRACTS - unrecorded
-    assert not written_up, (
-        f"{sorted(written_up)} now name an ADR. Good — remove them from "
-        f"UNRECORDED_CONTRACTS so the count cannot drift back up."
-    )
 
 
 def test_core_test_framework_modules_are_not_test_files():

@@ -12,8 +12,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
-ADR = "0004"
-
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="facade_surface_check")
 
 FACADES: tuple[str, ...] = (

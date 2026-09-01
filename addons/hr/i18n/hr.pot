@@ -5404,3 +5404,31 @@ msgstr ""
 #: model:ir.model.fields,field_description:hr.field_hr_employee__work_permit_name
 msgid "work_permit_name"
 msgstr ""
+
+#. module: hr
+#. odoo-python
+#: code:addons/hr/models/hr_employee.py:0
+msgid "%s has no related contact."
+msgstr ""
+
+#. module: hr
+#. odoo-python
+#: code:addons/hr/models/hr_employee.py:0
+msgid "A contract end date requires a contract start date."
+msgstr ""
+
+#. module: hr
+#. odoo-python
+#: code:addons/hr/wizard/hr_bank_account_wizard.py:0
+msgid ""
+"Bank account %s is allocated on several lines; each bank account can only be"
+" used once."
+msgstr ""
+
+#. module: hr
+#. odoo-python
+#: code:addons/hr/models/hr_employee.py:0
+msgid ""
+"Could not generate a unique Badge ID after %(attempts)s attempts. Please set"
+" one manually."
+msgstr ""

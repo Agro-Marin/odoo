@@ -51820,3 +51820,72 @@ msgstr ""
 #: code:addons/base/models/ir_ui_view.py:0
 msgid "“%(attribute)s” value must be an integer (%(value)s)"
 msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/res_partner_identifier_type.py:0
+msgid "%(name)s cannot be empty."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/res_partner_identifier_type.py:0
+msgid "%(name)s: the format is not a valid regular expression (%(error)s)."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/res_partner_identifier.py:0
+msgid "%(partner)s already has a %(type)s."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/res_partner_identifier.py:0
+msgid "%(value)s is already the %(type)s of %(other)s."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/res_partner_identifier_type.py:0
+msgid "%(value)s is not a valid %(name)s."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/res_partner.py:0
+msgid "%s and its possible duplicates"
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/wizard/base_partner_merge.py:0
+msgid ""
+"Grouping by similar names needs the pg_trgm PostgreSQL extension, which this"
+" database does not have."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/res_partner.py:0
+msgid "Partners: %(tag)s"
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/res_partner.py:0
+msgid "Private Address"
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/res_partner.py:0
+msgid "There is no identifier type with code %(code)s."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/wizard/base_partner_merge.py:0
+msgid ""
+"You have to specify a filter for your selection, or tick Similar Names."
+msgstr ""

@@ -13,8 +13,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import _consumer_scopes
 from _repo_root import find_odoo_root
 
-ADR = "0022"
-
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_arch_info_surface")
 WEB_SRC = ROOT / "addons" / "web" / "static" / "src"
 VIEWS = WEB_SRC / "views"

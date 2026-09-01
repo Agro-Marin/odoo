@@ -12151,7 +12151,6 @@ msgstr ""
 msgid "scrap, correction or consumption"
 msgstr ""
 
-
 #. module: stock
 #: model:ir.actions.server,name:stock.click_dashboard_graph
 msgid "stock.click_dashboard_graph"
@@ -12218,3 +12217,26 @@ msgstr ""
 msgid "“%s” is not a whole number."
 msgstr ""
 
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_move_line.py:0
+msgid " - %(lot)s, on %(product)s"
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid ""
+"Deleting the hard-blocked location %(locations)s requires the \"Unlock "
+"Locations: All (Hard)\" permission."
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_move_line.py:0
+msgid ""
+"These Lot/Serial Numbers exist but are archived, so they cannot receive stock:\n"
+"%(lots)s\n"
+"\n"
+"Un-archive one to use it again, or enter a different number."
+msgstr ""

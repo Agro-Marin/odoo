@@ -18,8 +18,6 @@ from _repo_root import (
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _ast_cache
 
-ADR = "0068"
-
 ROOT = find_odoo_root(Path(__file__).resolve())
 ALLOWLIST = Path(__file__).with_name("payment_vocabulary_allowlist.json")
 
@@ -120,10 +118,9 @@ def save_allowlist(models: dict[str, str]) -> None:
     ALLOWLIST.write_text(
         json.dumps(
             {
-                "adr": ADR,
                 "note": (
                     "Models whose _name carries 'payment' as a dotted component, "
-                    "each annotated with which of ADR-0070's nine categories it "
+                    "each annotated with which of the nine categories it "
                     "is. `l10n_*` is exempt by rule and is not listed. Add an "
                     "entry only with the category that justifies it; there is no "
                     "--update."
@@ -192,7 +189,7 @@ def _run_prune() -> int:
 
 def _report_unlisted(models: dict, bad: list) -> None:
     print(
-        f"ADR-{ADR}: {len(bad)} model name(s) carry 'payment' without an entry "
+        f"{len(bad)} model name(s) carry 'payment' without an entry "
         "saying which of the nine things they are.\n"
         "A capability is a method; a capability bound to a journal is a channel;\n"
         "an attempt against a PSP is a transaction; money that moved is a\n"
@@ -206,7 +203,7 @@ def _report_unlisted(models: dict, bad: list) -> None:
 
 def _report_uncategorised(unnamed: dict) -> None:
     print(
-        f"\nADR-{ADR}: {len(unnamed)} allowlist entry/entries name no category.\n"
+        f"\n{len(unnamed)} allowlist entry/entries name no category.\n"
         "An entry reads '<category>' or '<category> -- <clarifier>', where the\n"
         "category is one of: " + ", ".join(CATEGORIES) + ".\n",
         file=sys.stderr,
@@ -217,7 +214,7 @@ def _report_uncategorised(unnamed: dict) -> None:
 
 def _report_collisions(models: dict, collisions: dict) -> None:
     print(
-        f"\nADR-{ADR}: {len(collisions)} _description string(s) are shared by "
+        f"\n{len(collisions)} _description string(s) are shared by "
         "more than one payment-named model.\n"
         "A description is what a user reads to tell two models apart, and the\n"
         "pair this gate was written for -- method and channel -- was\n"

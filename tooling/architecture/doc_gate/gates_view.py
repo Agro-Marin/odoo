@@ -17,6 +17,31 @@ from ._shared import (
     _ordinal_word,
 )
 
+_ADDON_ROOTS = (ROOT / "addons", ROOT / "odoo" / "addons")
+
+
+def _depends(module: str) -> list[str]:
+    for root in _ADDON_ROOTS:
+        manifest = root / module / "__manifest__.py"
+        if manifest.exists():
+            return list(
+                ast.literal_eval(manifest.read_text(encoding="utf-8")).get(
+                    "depends", []
+                )
+            )
+    return []
+
+
+def _closure(module: str) -> set[str]:
+    seen: set[str] = set()
+    pending = list(_depends(module))
+    while pending:
+        name = pending.pop()
+        if name not in seen:
+            seen.add(name)
+            pending.extend(_depends(name))
+    return seen
+
 
 class TestGateInventoryIsWiredShut(unittest.TestCase):
     WORKFLOW = ROOT / ".github" / "workflows" / "architecture.yml"
@@ -395,10 +420,17 @@ class TestTheEnforcedClaimIsBounded(unittest.TestCase):
             "every suite must declare its own module set",
         )
         for spec in installs:
-            self.assertNotIn(
-                ",",
-                spec,
-                f"suites are combined into one database again ({spec!r}); the "
+            modules = [m.strip() for m in spec.split(",")]
+            if len(modules) == 1:
+                continue
+            # A module cannot be installed without its dependencies, so a spec
+            # naming one module's own closure is one suite, not several sharing
+            # a database.  Independent suites are what interfere -- the
+            # base/test_http view-inheritance clash -- and only they are banned.
+            self.assertTrue(
+                [m for m in modules if set(modules) - {m} <= _closure(m)],
+                f"independent suites are combined into one database ({spec!r}); "
+                f"no listed module's dependencies cover the rest, so the "
                 f"base/test_http view-inheritance clash comes back",
             )
 

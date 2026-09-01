@@ -19,8 +19,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import doc_measured
 from _repo_root import find_odoo_root
 
-ADR = "0024"
-
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_mixin_coupling")
 WEB_SRC = ROOT / "addons" / "web" / "static" / "src"
 ANALYZER = Path(__file__).with_suffix(".mjs")

@@ -117,7 +117,7 @@ test("every live double-patch is consciously allowlisted", () => {
     // `unknown` is empty both when every live pair is allowlisted and when the
     // registry introspection returns nothing at all -- only the second is a
     // broken audit, and the assertion below cannot tell them apart. Same guard
-    // tooling/architecture/test_gate_adr_coverage.py puts on its own discovery
+    // the architecture gates put on their own discovery
     // rule. Measured at 329145a4b82, this bundle carries 25 live pairs; the
     // floor sits far under that so an addon legitimately dropping a patch
     // cannot trip it, while a getPatchedTargets() that stops reporting is

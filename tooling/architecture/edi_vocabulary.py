@@ -13,8 +13,6 @@ from _repo_root import (
     sibling_repo_paths,
 )
 
-ADR = "0048"
-
 ROOT = find_odoo_root(Path(__file__).resolve())
 ALLOWLIST = Path(__file__).with_name("edi_vocabulary_allowlist.json")
 
@@ -51,7 +49,6 @@ def save_allowlist(modules: dict[str, str]) -> None:
     ALLOWLIST.write_text(
         json.dumps(
             {
-                "adr": ADR,
                 "note": (
                     "Modules whose name carries 'edi' as a component. `l10n_*` is "
                     "exempt by rule and is not listed. Add an entry only with the "
@@ -127,7 +124,7 @@ def main() -> int:
         return 0
 
     print(
-        f"ADR-{ADR}: {len(bad)} module name(s) carry 'edi' without an entry saying why.\n"
+        f"{len(bad)} module name(s) carry 'edi' without an entry saying why.\n"
         "'EDI' names three things here and only partner interchange is one of them.\n"
         "A module whose counterparty is a tax authority is named for the document or\n"
         "the regime (_cfdi, _fiscal), not _edi. If this one really does exchange\n"

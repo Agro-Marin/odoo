@@ -148,9 +148,6 @@ the directory is the count. No number is written here on purpose:
 
    python tooling/ratchet/ratchet.py --list
 
-Every architecture gate declares its record as a module-level ``ADR`` constant,
-which ``test_gate_adr_coverage.py`` checks resolves to an ``Accepted`` record.
-
 Consequences:
 
 * **The ruff ratchet measures ``odoo/``, not ``addons/``.** For addons, ``ruff``
@@ -418,13 +415,8 @@ Change protocol
   repository's, each sibling's, and the per-module ones -- in the same PR, plus
   an Appendix D row.
 * Retire rules into Appendix C. Do not delete them silently.
-* **A rule whose rationale is architectural cites its record**, as a bare
-  ``ADR-NNNN``. ``tooling/doclinks`` fails on a citation that does not resolve.
-  Do not summarise the record here.
-* **A rule with no record may be one worth writing.** Style and naming are this
-  document's own business; a rule constraining what may import what, what may be
-  overridden, or what a gate holds at zero is a decision, and
-  ``doc/adr/README.md`` states when a record is owed.
+* **A rule whose rationale is architectural states it here**, or points at the
+  gate's own module docstring.
 
 ----
 
@@ -1266,7 +1258,7 @@ those tokens belong to a noun or a field name.
 form of a getter is ``get_*``, of a payload builder ``prepare_*``, down the table
 (ADR-0053). **A public rename is weighed differently**: an RPC caller leaves no
 trace in any tree a gate can scan, so weigh it as a public-surface change, give it
-the record ``doc/adr/README.md`` asks for, and rewrite every repository in one
+and rewrite every repository in one
 change or none. **A rename that cannot be completed inside the workspace is not
 begun.**
 
@@ -1760,8 +1752,8 @@ more than half its floor, and is owed its own record.
 
 **The assemble verbs are abolished on paper and enforced for one shape**
 ``[review]``: ``naming_vocabulary.py`` reports one only when the name also ends in
-a payload suffix. **17** model methods open with one of those four verbs and the
-ratchet flags **1**. The gap hides two things -- the suffix list is short, and
+a payload suffix. **16** model methods open with one of those four verbs and the
+ratchet flags **0**. The gap hides two things -- the suffix list is short, and
 *object construction takes ``_prepare_`` too*, a factory having a consumer like
 anything else.
 
@@ -2695,9 +2687,8 @@ mirror. That buys an estimate of the work, not a veto.
   survives ``ruff format`` untouched.
 * **Computed from data** -- a migration, not a rename.
 * **Reachable from outside the workspace** -- a public method an integration may
-  call over RPC. Weigh it as a public-surface change, give it the record
-  ``doc/adr/README.md`` asks for, and consider leaving the old name as a
-  delegating shim. **A CLI subcommand is this category too, and the least
+  call over RPC. Weigh it as a public-surface change, and consider leaving the
+  old name as a delegating shim. **A CLI subcommand is this category too, and the least
   visible member of it**: ``odoo-bin db drop`` is written down in shell history,
   runbooks, cron entries and other people's scripts, none of which this
   workspace can rewrite and none of which any grep here can see, because the

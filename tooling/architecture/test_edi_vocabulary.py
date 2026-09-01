@@ -95,7 +95,6 @@ class TestTheAllowlistFile:
         gate.save_allowlist({"b_edi": "two", "a_edi": "one"})
         payload = json.loads((tmp_path / "a.json").read_text(encoding="utf-8"))
         assert list(payload["modules"]) == ["a_edi", "b_edi"], "entries are sorted"
-        assert payload["adr"] == gate.ADR
         assert gate.load_allowlist() == {"a_edi": "one", "b_edi": "two"}
 
 

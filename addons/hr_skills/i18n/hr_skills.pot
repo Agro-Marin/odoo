@@ -2412,3 +2412,37 @@ msgstr ""
 #: code:addons/hr_skills/models/hr_individual_skill_mixin.py:0
 msgid "• %(skill_name)s from %(valid_from)s to %(valid_to)s"
 msgstr ""
+
+#. module: hr_skills
+#. odoo-python
+#: code:addons/hr_skills/models/mixin_hr_individual_skill.py:0
+msgid "%(skill)s: %(level)s from %(valid_from)s to %(valid_to)s"
+msgstr ""
+
+#. module: hr_skills
+#. odoo-python
+#: code:addons/hr_skills/models/hr_employee.py:0
+msgid "Certification missing or expiring soon"
+msgstr ""
+
+#. module: hr_skills
+#. odoo-python
+#: code:addons/hr_skills/models/mixin_hr_individual_skill.py:0
+msgid ""
+"The following skills have their valid stop date prior to their valid start date:\n"
+"%(collisions)s"
+msgstr ""
+
+#. module: hr_skills
+#. odoo-python
+#: code:addons/hr_skills/models/mixin_hr_individual_skill.py:0
+msgid "no end date"
+msgstr ""
+
+#. module: hr_skills
+#. odoo-python
+#: code:addons/hr_skills/models/mixin_hr_individual_skill.py:0
+msgid ""
+"• %(new_skills)s conflicts with the existing skill/certification "
+"%(existing)s from %(valid_from)s to %(valid_to)s"
+msgstr ""

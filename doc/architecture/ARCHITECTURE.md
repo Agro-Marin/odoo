@@ -10,9 +10,8 @@ and the index of the views. Per-addon maps live in
 | new to the core | *Context* and *Forces* below, then [`module.md`](module.md) |
 | placing new code | *Where to add code* below |
 | debugging a runtime path | [`runtime.md`](runtime.md) |
-| changing a boundary | [`gates.md`](gates.md), then `doc/adr/` |
-| wondering why a rule exists | `doc/adr/`, then the gate's own module docstring |
-| deciding whether a decision is owed a record | *When a decision needs a record* in [`doc/adr/README.md`](../adr/README.md) |
+| changing a boundary | [`gates.md`](gates.md) |
+| wondering why a rule exists | the gate's own module docstring |
 | judging a change's cost | [`qualities.md`](qualities.md) |
 
 ## Context
@@ -150,11 +149,10 @@ lifecycle*](runtime.md#request-lifecycle-http).
 | **Scenarios** | end-to-end threads — installing a module, upgrading a populated database | [`scenarios.md`](scenarios.md) |
 | **Qualities** | how much the forces cost, measured — so a change can fail one | [`qualities.md`](qualities.md) |
 | **Risks** | where the implementation and the design demonstrably disagree | [`risks.md`](risks.md) |
-| **Decisions** | why the architecture is this way, dated and immutable — architecture decisions, 0001–0085 | `doc/adr/` |
 
 Rationale is not a view. Each gate's module docstring carries its own, beside
-the `MEASURED` block `doc_measured.py` keeps fresh; decisions are in
-`doc/adr/`; investigation write-ups are in `agromarin-knowledge/research/`.
+the `MEASURED` block `doc_measured.py` keeps fresh; investigation write-ups are
+in `agromarin-knowledge/research/`.
 
 Two subsystems document themselves deeper than any view:
 `odoo/db/README.md` and `odoo/http/README.md` — the latter carries the

@@ -8,8 +8,6 @@ from pathlib import Path
 from js_import_resolution import EXCLUDED_PARTS, addon_static_dirs
 from js_layer_check import ROOT
 
-ADR = "0026"
-
 BRIDGE_CALL = re.compile(
     r"""odoo\s*\.\s*loader\s*\.\s*modules\s*\.\s*get\s*\(\s*(['"])(?P<spec>[^'"]+)\1"""
 )

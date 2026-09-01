@@ -9,8 +9,6 @@ from pathlib import Path
 
 from js_layer_check import ROOT
 
-ADR = "0046"
-
 COMPONENTS = ROOT / "addons" / "web" / "static" / "src" / "components"
 
 DATA_SERVICES = ("orm", "field", "name")

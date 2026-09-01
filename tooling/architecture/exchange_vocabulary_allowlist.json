@@ -1,5 +1,4 @@
 {
-  "adr": "0080",
   "note": "Selection fields named *state, in a module that talks to a counterparty, whose values are not exchange.transmission's. Each entry is a lifecycle this workspace spells its own way and has not yet moved onto `exchange`. Entries come off as modules port; there is no --update, because a flag that rewrote this list would let the next one in silently.",
   "fields": {
     "account_edi.edi_state": "a transmission lifecycle awaiting the port to exchange (ADR-0080)",

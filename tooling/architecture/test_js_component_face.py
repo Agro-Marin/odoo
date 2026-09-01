@@ -7,11 +7,6 @@ class TestRootResolution:
     def test_it_points_at_the_components_tree(self):
         assert gate.COMPONENTS.is_dir(), gate.COMPONENTS
 
-    def test_it_cites_an_accepted_record(self):
-        matches = list((gate.ROOT / "doc" / "adr").glob(f"{gate.ADR}-*.md"))
-        assert matches, gate.ADR
-        assert "**Status:** Accepted" in matches[0].read_text(encoding="utf-8")
-
 
 class TestFaceDetection:
     def test_a_face_is_the_sibling_module(self, tmp_path):

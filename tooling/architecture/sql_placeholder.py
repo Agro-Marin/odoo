@@ -9,8 +9,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
-ADR = "unrecorded"
-
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="sql_placeholder")
 
 SCAN_ROOTS = ("addons", "odoo", "tools", "tooling")
