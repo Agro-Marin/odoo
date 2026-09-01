@@ -930,12 +930,18 @@ class SurveySurvey(models.Model):
             if "certification_give_badge" in vals
             else self.browse()
         )
+        surveys_opening_changed = self.browse()
         if "date_open" in vals and "date_schedule_applied" not in vals:
-            vals = dict(vals, date_schedule_applied=False)
+            new_date_open = fields.Datetime.to_datetime(vals["date_open"])
+            surveys_opening_changed = self.filtered(
+                lambda s: s.date_open != new_date_open
+            )
         if "slug" in vals:
             vals = dict(vals, slug=self._normalize_slug(vals["slug"]))
 
         result = super().write(vals)
+        if surveys_opening_changed:
+            surveys_opening_changed.write({"date_schedule_applied": False})
         if surveys_changing_badge:
             surveys_changing_badge.sudo()._handle_certification_badges(vals)
 

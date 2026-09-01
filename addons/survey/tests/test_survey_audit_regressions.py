@@ -402,6 +402,19 @@ class TestScheduledOpenClose(TestSurveyAuditCommon):
         survey.invalidate_recordset()
         self.assertTrue(survey.active)
 
+    def test_rewriting_the_same_open_date_does_not_re_arm_the_schedule(self):
+        survey = self._scored_survey(date_open="2020-01-01 00:00:00")
+        survey.action_archive()
+        self.assertTrue(survey.date_schedule_applied)
+        survey.write({"date_open": "2020-01-01 00:00:00"})
+        self.assertTrue(
+            survey.date_schedule_applied,
+            "rewriting date_open with its own value must not re-arm the schedule",
+        )
+        self.env["survey.survey"]._cron_scheduled_open_close()
+        survey.invalidate_recordset()
+        self.assertFalse(survey.active, "a hand-archived survey must stay archived")
+
 
 @tagged("post_install", "-at_install")
 class TestQuota(TestSurveyAuditCommon):
