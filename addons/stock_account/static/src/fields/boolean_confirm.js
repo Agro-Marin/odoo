@@ -12,6 +12,7 @@ import { ConfirmationDialog } from "@web/ui/dialog";
 export class ConfirmCheckBox extends CheckBox {
     onClick(ev) {
         ev.preventDefault();
+        ev.stopPropagation();
 
         if (ev.target.tagName !== "INPUT") {
             return;
