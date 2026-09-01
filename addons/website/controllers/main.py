@@ -1372,6 +1372,9 @@ class Website(Home):
         ["/website/theme_upload_font"], type="jsonrpc", auth="user", website=True
     )
     def theme_upload_font(self, name, data):
+        if not request.env.user.has_group("website.group_website_restricted_editor"):
+            raise werkzeug.exceptions.Forbidden
+
         def check_content(filename, data):
             ext = filename.rsplit(".")[-1].lower()
             if ext == "otf":
