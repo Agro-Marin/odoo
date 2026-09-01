@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 REQUEST_TIMEOUT = 10
 
 
-class Web_Unsplash(http.Controller):
+class Web_Unsplash(HTML_Editor):
     def _get_access_key(self):
         """Use this method to get the key, needed for internal reason"""
         return (
@@ -133,7 +133,7 @@ class Web_Unsplash(http.Controller):
                 "res_id": res_id,
                 "res_model": res_model,
             }
-            attachment = HTML_Editor._attachment_create(self, **attachment_data)
+            attachment = self._attachment_create(**attachment_data)
             if value.get("description"):
                 attachment.description = value.get("description")
             attachment.generate_access_token()
