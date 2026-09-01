@@ -24,6 +24,10 @@ class Base(models.AbstractModel):
         first_call = not field_names
 
         if not (self and self._name == "res.users"):
+            # res.users defines SELF_WRITEABLE_FIELDS to give access to the
+            # user to modify themselves, we skip the check in that case
+            # because the user does not have write permission on themselves
+            # TODO update res.users
             self.check_access("write" if self else "create")
 
         field_names = self._onchange_get_known_field_names(field_names)
