@@ -199,6 +199,55 @@ class TestWebsiteEventSaleCartSeats(TestWebsiteEventSaleCommon):
         self.assertIn("cannot raise manually", res["warning"])
         self.assertEqual(line.product_uom_qty, 1)
 
+    def test_cart_update_quantity_decrease_on_sold_out_ticket_is_honored(self):
+        """A decreasing quantity update on a sold-out ticket must not be
+        silently refused: the sold-out guard only concerns additions."""
+        ticket = self.env["event.event.ticket"].create(
+            {
+                "event_id": self.event.id,
+                "name": "Limited",
+                "product_id": self.product_event.id,
+                "price": 100,
+                "seats_max": 2,
+                "seats_limited": True,
+            }
+        )
+        res_add = self.empty_cart._cart_add(
+            self.product_event.id,
+            2,
+            event_ticket_id=ticket.id,
+        )
+        line = self.env["sale.order.line"].browse(res_add["line_id"])
+        self.assertEqual(line.product_uom_qty, 2)
+
+        self.env["event.registration"].create(
+            [
+                {
+                    "event_id": self.event.id,
+                    "event_ticket_id": ticket.id,
+                    "partner_id": self.partner_admin.id,
+                    "state": "open",
+                }
+                for _dummy in range(2)
+            ]
+        )
+        self.env.flush_all()
+        self.assertEqual(ticket.seats_available, 0)
+
+        new_qty, warning = self.empty_cart._get_updated_quantity(
+            line,
+            self.product_event.id,
+            1,
+            line.product_uom_id.id,
+            event_ticket_id=ticket.id,
+        )
+        self.assertEqual(
+            new_qty,
+            1,
+            "A decrease on a sold-out ticket must be honored, not refused",
+        )
+        self.assertFalse(warning)
+
     def test_cart_quantity_decrease_cancels_registrations(self):
         """Decreasing an event line quantity cancels the newest registrations."""
         res_add = self.empty_cart._cart_add(

@@ -75,7 +75,7 @@ class SaleOrder(models.Model):
             if slot
             else ticket.seats_available
         )
-        if ticket.seats_limited and ticket_seats_available <= 0:
+        if ticket.seats_limited and qty_added > 0 and ticket_seats_available <= 0:
             # Keep the existing line's quantity unchanged, and do not create a
             # new line, if no ticket is available anymore
             new_qty = existing_qty
