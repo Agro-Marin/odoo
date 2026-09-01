@@ -937,7 +937,7 @@ class StockQuant(models.Model):
     def action_view_quants(self):
         self = self.with_context(search_default_internal_loc=1)
         self = self._with_view_context()
-        return self._get_quants_action(extend=True)
+        return self._prepare_action_quants(extend=True)
 
     @api.model
     def action_view_inventory(self):
@@ -2175,7 +2175,7 @@ class StockQuant(models.Model):
         unpack=False,
         up_to_parent_packages=False,
     ):
-        def set_parent_package(quant_ids, package, limit_ids):
+        def update_ancestor_package_dests(quant_ids, package, limit_ids):
             seen = set()
             while package.parent_package_id and not (
                 limit_ids and package.id in limit_ids
@@ -2197,7 +2197,7 @@ class StockQuant(models.Model):
             result_package_id = package_dest_id
             if not unpack and not package_dest_id:
                 result_package_id = quant.package_id
-                set_parent_package(quant_ids, result_package_id, limit_ids)
+                update_ancestor_package_dests(quant_ids, result_package_id, limit_ids)
             move_vals.append(
                 quant.with_context(inventory_name=message)._prepare_inventory_move_vals(
                     quant.quantity,
@@ -2326,7 +2326,7 @@ class StockQuant(models.Model):
         return self
 
     @api.model
-    def _get_quants_action(self, extend=False):
+    def _prepare_action_quants(self, extend=False):
         if (
             not self.env["ir.config_parameter"]
             .sudo()

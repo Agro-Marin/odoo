@@ -288,7 +288,7 @@ class ProductProduct(models.Model):
     def _compute_count_moves(self):
         one_year_ago = fields.Datetime.now() - relativedelta(years=1)
 
-        def _counts_by_product(picking_code):
+        def get_count_by_product(picking_code):
             return dict(
                 self.env["stock.move.line"]._read_group(
                     [
@@ -302,8 +302,8 @@ class ProductProduct(models.Model):
                 )
             )
 
-        res_incoming = _counts_by_product("incoming")
-        res_outgoing = _counts_by_product("outgoing")
+        res_incoming = get_count_by_product("incoming")
+        res_outgoing = get_count_by_product("outgoing")
         for product in self:
             product.count_moves_in = res_incoming.get(product._origin, 0)
             product.count_moves_out = res_outgoing.get(product._origin, 0)
@@ -685,7 +685,7 @@ class ProductProduct(models.Model):
             ("product_id", "=", self.id),
             ("category_id", "=", self.product_tmpl_id.categ_id.id),
         ]
-        return self.env["product.template"]._get_action_view_putaway_rules(domain)
+        return self.env["product.template"]._prepare_action_view_putaway_rules(domain)
 
     def action_view_storage_category_capacity(self):
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
@@ -703,7 +703,7 @@ class ProductProduct(models.Model):
         action["domain"] = [("product_id", "in", self.ids)]
         return action
 
-    def preview_next_lot(self):
+    def get_next_lot_preview(self):
         self.check_singleton()
         sequence = self.lot_sequence_id
         return sequence.preview_next() if sequence else False

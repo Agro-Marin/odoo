@@ -180,7 +180,7 @@
                 sample="1"
                 js_class="stock_list_view">
                 <header>
-                    <button name="do_unreserve" type="object" string="Unreserve" />
+                    <button name="action_unreserve" type="object" string="Unreserve" />
                     <button
                         name="action_assign"
                         type="object"
@@ -396,7 +396,7 @@
                         full_name="partner_id"
                         groups="stock.group_stock_sign_delivery" />
                     <button
-                        name="do_print_picking"
+                        name="action_print_picking"
                         string="Print"
                         groups="stock.group_stock_user"
                         type="object"
@@ -1023,8 +1023,9 @@
         <field name="binding_model_id" ref="stock.model_stock_picking" />
         <field name="binding_view_types">form</field>
         <field name="state">code</field>
-        <field name="code">if records:
-                records.do_unreserve()</field>
+        <field
+            name="code">if records:
+                records.action_unreserve()</field>
     </record>
 
     <record id="action_print_labels" model="ir.actions.server">

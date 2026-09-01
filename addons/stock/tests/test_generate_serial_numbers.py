@@ -109,7 +109,7 @@ class StockGenerateCommon(TransactionCase):
     def test_generate_01_sn(self):
         nbre_of_lines = 5
         move = self.get_new_move(nbre_of_lines)
-        move._do_unreserve()
+        move._unreserve()
         move._generate_serial_numbers("001", nbre_of_lines)
 
         generated_numbers = ["001", "002", "003", "004", "005"]
@@ -121,7 +121,7 @@ class StockGenerateCommon(TransactionCase):
     def test_generate_02_prefix_suffix(self):
         nbre_of_lines = 10
         move = self.get_new_move(nbre_of_lines)
-        move._do_unreserve()
+        move._unreserve()
         move._generate_serial_numbers("bilou-87", nbre_of_lines)
         generated_numbers = [
             "bilou-87",
@@ -140,7 +140,7 @@ class StockGenerateCommon(TransactionCase):
             self.assertEqual(move_line.lot_name, generated_numbers.pop(0))
 
         move = self.get_new_move(nbre_of_lines)
-        move._do_unreserve()
+        move._unreserve()
         move._generate_serial_numbers("005-ccc", nbre_of_lines)
         generated_numbers = [
             "005-ccc",
@@ -208,7 +208,7 @@ class StockGenerateCommon(TransactionCase):
     def test_generate_04_generate_in_multiple_time(self):
         nbre_of_lines = 10
         move = self.get_new_move(nbre_of_lines)
-        move._do_unreserve()
+        move._unreserve()
         move._generate_serial_numbers("001", 3)
         move._generate_serial_numbers("bilou-64", 2)
         move._generate_serial_numbers("ro-1337-bot", 4)
@@ -260,7 +260,7 @@ class StockGenerateCommon(TransactionCase):
         )
 
         move = self.get_new_move(nbre_of_lines)
-        move._do_unreserve()
+        move._unreserve()
         move._generate_serial_numbers("001", nbre_of_lines)
 
         for move_line in move.move_line_ids:

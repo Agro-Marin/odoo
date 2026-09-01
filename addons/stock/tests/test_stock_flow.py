@@ -2376,9 +2376,9 @@ class TestStockFlow(TestStockCommon):
         move_with_ancestors._action_confirm()
         other_move._action_confirm()
 
-        move_mto_alone._do_unreserve()
-        move_with_ancestors._do_unreserve()
-        other_move._do_unreserve()
+        move_mto_alone._unreserve()
+        move_with_ancestors._unreserve()
+        other_move._unreserve()
 
         self.assertEqual(move_mto_alone.state, "waiting")
         self.assertEqual(move_with_ancestors.state, "waiting")
@@ -2412,7 +2412,7 @@ class TestStockFlow(TestStockCommon):
         backorder_wizard = Form(
             self.env["stock.backorder.confirmation"].with_context(res_dict["context"])
         ).save()
-        backorder_wizard.process_cancel_backorder()
+        backorder_wizard.action_cancel_backorder()
 
         self.assertFalse(picking.backorder_ids)
 
@@ -2508,7 +2508,7 @@ class TestStockFlow(TestStockCommon):
             picking_ask,
             "Only ask backorder for picking with setting 'set'",
         )
-        backorder_wizard.process_cancel_backorder()
+        backorder_wizard.action_cancel_backorder()
 
         self.assertEqual(pickings.mapped("state"), ["done", "done", "done"])
         self.assertFalse(picking_ask.backorder_ids)
@@ -2581,7 +2581,7 @@ class TestStockFlow(TestStockCommon):
                 }
             )
         )
-        replenish_wizard.launch_replenishment()
+        replenish_wizard.action_replenish()
         incoming_picking = self.env["stock.picking"].search(
             [
                 ("product_id", "=", product.id),
@@ -3066,7 +3066,7 @@ class TestStockFlow(TestStockCommon):
         self.assertEqual(move_a.quantity, 10)
         self.assertEqual(move_b.quantity, 10)
 
-        picking_in.do_unreserve()
+        picking_in.action_unreserve()
         self.assertEqual(move_a.quantity, 0)
         self.assertEqual(move_b.quantity, 0)
 
@@ -3125,7 +3125,7 @@ class TestStockFlow(TestStockCommon):
                 "scrap_qty": 1.0,
             }
         )
-        scrap.do_scrap()
+        scrap._action_done()
 
         self.assertEqual(scrap.move_ids.state, "done")
 
@@ -3163,7 +3163,7 @@ class TestStockFlow(TestStockCommon):
                 "scrap_qty": 1.0,
             }
         )
-        scrap.do_scrap()
+        scrap._action_done()
 
         picking.action_cancel()
 

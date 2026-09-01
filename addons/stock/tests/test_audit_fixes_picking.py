@@ -372,7 +372,7 @@ class TestAuditFixesPicking(TestStockCommon):
             "after": 0,
         }
         for picking in open_pickings:
-            expected[self.PickingObj.calculate_date_category(picking.date_planned)] += 1
+            expected[self.PickingObj.get_date_category(picking.date_planned)] += 1
 
         picking_type.invalidate_recordset(["kanban_dashboard_graph"])
         [graph_data] = json.loads(picking_type.kanban_dashboard_graph)

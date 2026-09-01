@@ -345,7 +345,7 @@ class TestPickingTypeDashboard(TestStockCommon):
     def test_get_action_refuses_more_than_one_type(self):
         picking_types = self.env["stock.picking.type"].search([], limit=2)
         with self.assertRaises(ValueError):
-            picking_types._get_action("stock.action_picking_tree_ready")
+            picking_types._prepare_action_by_xml_id("stock.action_picking_tree_ready")
 
 
 @tagged("post_install", "-at_install")

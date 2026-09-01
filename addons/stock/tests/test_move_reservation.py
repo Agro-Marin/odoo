@@ -138,7 +138,7 @@ class TestMoveReservation(TestStockCommon):
         p = self._product()
         self._add_stock(p, self.stock_loc, 10)
         move = self._move(p, self.stock_loc, self.customer_loc, 5, self.out_type)
-        move._do_unreserve()
+        move._unreserve()
         self.assertFalse(move.move_line_ids)
         move._action_assign(force_qty=3)
         self.assertEqual(len(move.move_line_ids), 1)
@@ -210,7 +210,7 @@ class TestMoveReservation(TestStockCommon):
 
         self.assertEqual((self._reserved(p, loc_a), self._reserved(p, loc_b)), (0, 5))
         self.assertEqual(ml.result_package_id, pkg)
-        move._do_unreserve()
+        move._unreserve()
         self.assertEqual((self._reserved(p, loc_a), self._reserved(p, loc_b)), (0, 0))
 
 

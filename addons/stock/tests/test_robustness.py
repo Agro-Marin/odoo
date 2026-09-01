@@ -91,7 +91,7 @@ class TestRobustness(TransactionCase):
         self.assertEqual(move1.state, "assigned")
         self.assertEqual(move1.product_qty, 12)
 
-        move1._do_unreserve()
+        move1._unreserve()
 
     def test_location_usage(self):
         test_stock_location = self.env["stock.location"].create(
@@ -158,10 +158,10 @@ class TestRobustness(TransactionCase):
         move1._action_assign()
 
         self.assertEqual(move1.move_line_ids.package_id, package)
-        package.unpack()
+        package.action_unpack()
         self.assertEqual(move1.move_line_ids.package_id, self.env["stock.package"])
 
-        move1._do_unreserve()
+        move1._unreserve()
         self.assertEqual(
             len(self.env["stock.quant"]._gather(self.product1, self.stock_location)), 1
         )

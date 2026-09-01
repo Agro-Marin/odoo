@@ -123,7 +123,7 @@ class TestScrapReferences(TransactionCase):
             {"product_id": product.id, "scrap_qty": 1.0, "location_id": stock.id}
         )
         with self.assertRaises(UserError) as caught:
-            scrap.do_scrap()
+            scrap._action_done()
         self.assertIn(self.env.company.display_name, str(caught.exception))
         self.assertEqual(scrap.state, "draft")
 
@@ -149,7 +149,7 @@ class TestScrapBatchCost(TransactionCase):
         self.env.flush_all()
         self.env.invalidate_all()
         before = self.env.cr.sql_log_count
-        scraps.do_scrap()
+        scraps._action_done()
         self.env.flush_all()
         return self.env.cr.sql_log_count - before
 

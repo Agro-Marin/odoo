@@ -74,7 +74,7 @@ class MixinDateCategory(models.AbstractModel):
         }
 
     @api.model
-    def calculate_date_category(self, value):
+    def get_date_category(self, value):
         if not value:
             return ""
         if value.tzinfo is None:

@@ -11,7 +11,7 @@
                 </group>
                 <footer>
                     <button
-                        name="open_at_date"
+                        name="action_view_products_at_date"
                         string="Confirm"
                         type="object"
                         class="btn-primary"

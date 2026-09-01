@@ -876,7 +876,7 @@ class StockMove(models.Model):
         now = fields.Datetime.now()
         virtual_available_dict = product_moves._get_forecast_virtual_available(now)
 
-        def virtual_qty(key, product_id, idx):
+        def get_virtual_qty(key, product_id, idx):
             entry = virtual_available_dict.get(key, {}).get(product_id)
             return entry[idx] if entry else 0.0
 
@@ -890,7 +890,7 @@ class StockMove(models.Model):
                 )
                 continue
             key = move._get_forecast_virtual_key(now)
-            qty_free = virtual_qty(key, move.product_id.id, 1)
+            qty_free = get_virtual_qty(key, move.product_id.id, 1)
             if (
                 move.state == "draft"
                 and move._is_consuming()
@@ -900,7 +900,7 @@ class StockMove(models.Model):
                 continue
             if move._is_consuming():
                 if move.state == "draft":
-                    virtual_available = virtual_qty(key, move.product_id.id, 0)
+                    virtual_available = get_virtual_qty(key, move.product_id.id, 0)
                     if (
                         move.product_id.uom_id.compare(
                             virtual_available, move.product_qty
@@ -915,7 +915,7 @@ class StockMove(models.Model):
                         move.location_id.warehouse_id
                     ].add(move.id)
             elif move.picking_type_id.code == "incoming":
-                forecast_availability = virtual_qty(key, move.product_id.id, 0)
+                forecast_availability = get_virtual_qty(key, move.product_id.id, 0)
                 if move.state == "draft":
                     forecast_availability += move.product_qty
                 move.forecast_availability = forecast_availability
@@ -1131,7 +1131,7 @@ class StockMove(models.Model):
             move.move_line_ids.picked = move.picked
 
     def _inverse_quantity(self):
-        def _process_decrease(move, quantity):
+        def decrease_move_line_quantities(move, quantity):
             mls_to_unlink = set()
             for ml in reversed(move.move_line_ids.sorted("id")):
                 if self.env.context.get("unreserve_unpicked_only") and ml.picked:
@@ -1167,7 +1167,7 @@ class StockMove(models.Model):
             if move.product_uom_id.compare(delta_qty, 0) > 0:
                 move._update_quantity_done(move.quantity)
             elif move.product_uom_id.compare(delta_qty, 0) < 0:
-                _process_decrease(move, abs(delta_qty))
+                decrease_move_line_quantities(move, abs(delta_qty))
 
     def _inverse_product_qty(self):
         raise UserError(
@@ -1186,7 +1186,7 @@ class StockMove(models.Model):
                 and move.move_line_ids.lot_id == move.lot_ids
             ):
                 continue
-            move._apply_lot_ids_to_move_lines()
+            move._update_move_lines_for_lots()
         self.env.add_to_compute(self._fields["quantity"], self)
 
     def _inverse_description_picking(self):
@@ -1683,7 +1683,7 @@ class StockMove(models.Model):
 
         new_push_moves = moves._reverse_negative_demand()
 
-        moves._filter_to_assign_at_confirm()._action_assign()
+        moves._filtered_to_assign_at_confirm()._action_assign()
         new_push_moves._confirm_pushed_moves()
         return moves
 
@@ -1941,7 +1941,7 @@ class StockMove(models.Model):
                 and not (m.state == "done" and m.location_dest_usage == "inventory")
             ),
         )
-        moves_to_cancel._do_unreserve(force=True)
+        moves_to_cancel._unreserve(force=True)
         moves_to_cancel.picked = False
         cancel_moves_origin = (
             self.env["ir.config_parameter"]
@@ -2261,7 +2261,7 @@ class StockMove(models.Model):
             return 0
         return self._serial_line_count(self.product_qty)
 
-    def _apply_lot_ids_to_move_lines(self):
+    def _update_move_lines_for_lots(self):
         self.check_singleton()
         product = self.product_id
         (
@@ -2675,7 +2675,7 @@ class StockMove(models.Model):
     def _delay_alert_get_documents(self):
         return list(self.mapped("picking_id"))
 
-    def _do_unreserve(self, force=False):
+    def _unreserve(self, force=False):
         moves_to_unreserve = OrderedSet()
         for move in self:
             if (
@@ -2898,11 +2898,11 @@ class StockMove(models.Model):
             lambda m: m.state == "done",
         ).mapped("move_line_ids")
 
-        def _keys_in_groupby(ml):
+        def get_destination_key(ml):
             return (ml.location_dest_id, ml.lot_id, ml.result_package_id, ml.owner_id)
 
         grouped_move_lines_in = {}
-        for k, g in groupby(move_lines_in, key=_keys_in_groupby):
+        for k, g in groupby(move_lines_in, key=get_destination_key):
             grouped_move_lines_in[k] = sum(ml.quantity_product_uom for ml in g)
 
         return grouped_move_lines_in
@@ -2922,13 +2922,13 @@ class StockMove(models.Model):
             reserved_moves_out_siblings | moves_out_siblings_to_consider
         ).move_line_ids
 
-        def _keys_out_groupby(ml):
+        def get_source_key(ml):
             return (ml.location_id, ml.lot_id, ml.package_id, ml.owner_id)
 
         grouped_move_lines_out = defaultdict(float)
-        for k, g in groupby(move_lines_out_done, key=_keys_out_groupby):
+        for k, g in groupby(move_lines_out_done, key=get_source_key):
             grouped_move_lines_out[k] += sum(ml.quantity_product_uom for ml in g)
-        for k, g in groupby(move_lines_out_reserved, key=_keys_out_groupby):
+        for k, g in groupby(move_lines_out_reserved, key=get_source_key):
             grouped_move_lines_out[k] += sum(ml.quantity_product_uom for ml in g)
 
         return grouped_move_lines_out
@@ -3248,18 +3248,18 @@ class StockMove(models.Model):
             "origin": origin,
         }
 
-    def _merge_move_itemgetter(self, distinct_fields, excluded_fields=None):
+    def _get_merge_key(self, distinct_fields, excluded_fields=None):
         field_names = set(distinct_fields or []) - set(excluded_fields or [])
         float_fields = {
             f_name for f_name in field_names if self._fields[f_name].type == "float"
         }
         non_float_fields = tuple(field_names - float_fields)
 
-        def base_getter(move):
+        def get_non_float_key(move):
             return tuple(move[f_name] for f_name in non_float_fields)
 
         if not float_fields:
-            return base_getter
+            return get_non_float_key
 
         float_precision = {
             f_name: (self._fields[f_name].get_digits(self.env) or (False, 2))[1]
@@ -3280,7 +3280,7 @@ class StockMove(models.Model):
                 else price_unit_prec
             )
 
-        def _get_formatted_float_fields(move, f_name, precision):
+        def get_float_value_formatted(move, f_name, precision):
             rounded_value = float_round(
                 move[f_name],
                 precision_digits=precision[f_name],
@@ -3288,9 +3288,9 @@ class StockMove(models.Model):
             return "{:.{precision}f}".format(rounded_value, precision=precision[f_name])
 
         return lambda move: (
-            base_getter(move)
+            get_non_float_key(move)
             + tuple(
-                _get_formatted_float_fields(move, f_name, float_precision)
+                get_float_value_formatted(move, f_name, float_precision)
                 for f_name in float_fields
             )
         )
@@ -3311,7 +3311,7 @@ class StockMove(models.Model):
         )
         neg_qty_moves.picking_id = False
         excluded_fields = self._prepare_merge_negative_moves_excluded_distinct_fields()
-        neg_key = self._merge_move_itemgetter(distinct_fields, excluded_fields)
+        neg_key = self._get_merge_key(distinct_fields, excluded_fields)
 
         moves_to_unlink, merged_moves, moves_by_neg_key = self._merge_positive_moves(
             candidate_moves_set,
@@ -3346,7 +3346,7 @@ class StockMove(models.Model):
         moves_to_unlink = self.env["stock.move"]
         merged_moves = self.env["stock.move"]
         moves_by_neg_key = defaultdict(lambda: self.env["stock.move"])
-        merge_key = self._merge_move_itemgetter(distinct_fields)
+        merge_key = self._get_merge_key(distinct_fields)
         for candidate_moves in candidate_moves_set:
             candidate_moves = (
                 candidate_moves.filtered(
@@ -3370,7 +3370,7 @@ class StockMove(models.Model):
         moves_to_cancel = self.env["stock.move"]
         price_unit_prec = self.env["decimal.precision"].get_precision("Product Price")
 
-        def unit_price(total_value, quantity, uom):
+        def get_unit_price(total_value, quantity, uom):
             if uom.is_zero(quantity):
                 return 0
             return float_round(
@@ -3396,7 +3396,7 @@ class StockMove(models.Model):
                         {
                             "product_uom_qty": pos_move.product_uom_qty
                             + neg_move.product_uom_qty,
-                            "price_unit": unit_price(
+                            "price_unit": get_unit_price(
                                 new_total_value,
                                 new_product_qty,
                                 pos_move.product_id.uom_id,
@@ -3422,7 +3422,7 @@ class StockMove(models.Model):
                     {
                         "product_uom_qty": neg_move.product_uom_qty
                         + pos_move.product_uom_qty,
-                        "price_unit": unit_price(
+                        "price_unit": get_unit_price(
                             new_total_value,
                             neg_move.product_qty + pos_move.product_qty,
                             neg_move.product_id.uom_id,
@@ -3453,7 +3453,7 @@ class StockMove(models.Model):
                 and m.product_uom_id.compare(m.quantity, new_qty) == 1
             ),
         )
-        move_to_unreserve._do_unreserve()
+        move_to_unreserve._unreserve()
         still_reserved = self - move_to_unreserve
         still_reserved.filtered(lambda m: m.state == "assigned").write(
             {"state": "partially_available"},
@@ -3893,13 +3893,13 @@ class StockMove(models.Model):
             to_visit.fetch([target_field])
             next_ids = set(to_visit[target_field].ids)
 
-    def _rollup_move_dests(self, seen=False) -> OrderedSet[int]:
-        return self._rollup_moves(origin=False, seen=seen)
+    def _rollup_move_dest_ids(self, seen=False) -> OrderedSet[int]:
+        return self._rollup_move_ids(origin=False, seen=seen)
 
-    def _rollup_move_origs(self, seen=False) -> OrderedSet[int]:
-        return self._rollup_moves(seen=seen)
+    def _rollup_move_orig_ids(self, seen=False) -> OrderedSet[int]:
+        return self._rollup_move_ids(seen=seen)
 
-    def _rollup_moves(self, origin=True, seen=False) -> OrderedSet[int]:
+    def _rollup_move_ids(self, origin=True, seen=False) -> OrderedSet[int]:
         target_field = "move_orig_ids" if origin else "move_dest_ids"
         if not seen:
             seen = OrderedSet()
@@ -4617,7 +4617,7 @@ class StockMove(models.Model):
             or (self.date_reservation and self.date_reservation <= fields.Date.today())
         )
 
-    def _filter_to_assign_at_confirm(self):
+    def _filtered_to_assign_at_confirm(self):
         return self.filtered(
             lambda move: (
                 move.state in ("confirmed", "partially_available")

@@ -686,19 +686,19 @@ class StockPickingType(models.Model):
         return action
 
     def action_view_pickings_late(self):
-        return self._get_action("stock.action_picking_tree_late")
+        return self._prepare_action_by_xml_id("stock.action_picking_tree_late")
 
     def action_view_pickings_backorder(self):
-        return self._get_action("stock.action_picking_tree_backorder")
+        return self._prepare_action_by_xml_id("stock.action_picking_tree_backorder")
 
     def action_view_pickings_waiting(self):
-        return self._get_action("stock.action_picking_tree_waiting")
+        return self._prepare_action_by_xml_id("stock.action_picking_tree_waiting")
 
     def action_view_pickings_ready(self):
-        return self._get_action("stock.action_picking_tree_ready")
+        return self._prepare_action_by_xml_id("stock.action_picking_tree_ready")
 
     def action_view_moves_ready(self):
-        return self._get_action("stock.action_get_picking_type_ready_moves")
+        return self._prepare_action_by_xml_id("stock.action_get_picking_type_ready_moves")
 
     def action_view_moves_analysis(self):
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
@@ -718,7 +718,7 @@ class StockPickingType(models.Model):
             "outgoing": "stock.action_picking_tree_outgoing",
             "internal": "stock.action_picking_tree_internal",
         }
-        return self._get_action(
+        return self._prepare_action_by_xml_id(
             action_by_code.get(self.code, "stock.stock_picking_action_picking_type")
         )
 
@@ -900,7 +900,7 @@ class StockPickingType(models.Model):
                 f"an operation type action opens one type at a time, got {self!r}"
             )
 
-    def _get_action(self, action_xmlid):
+    def _prepare_action_by_xml_id(self, action_xmlid):
         self._check_single_or_empty()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(action_xmlid)
         context = {}

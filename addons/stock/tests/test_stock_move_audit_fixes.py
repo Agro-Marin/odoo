@@ -329,7 +329,7 @@ class TestStockMoveAuditFixes(TransactionCase):
         upstream._action_assign()
         upstream.picked = True
         upstream._action_done()
-        downstream._do_unreserve(force=True)
+        downstream._unreserve(force=True)
         downstream.write({"state": "confirmed"})
         self.env.flush_all()
         return downstream.ids

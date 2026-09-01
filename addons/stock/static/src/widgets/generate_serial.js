@@ -110,7 +110,7 @@ export class GenerateDialog extends Component {
     }
 
     async _onGenerateCustomSerial() {
-        const preview = await this.orm.call("product.product", "preview_next_lot", [
+        const preview = await this.orm.call("product.product", "get_next_lot_preview", [
             [this.props.move.data.product_id.id],
         ]);
         if (preview) {

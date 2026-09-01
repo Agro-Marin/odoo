@@ -1197,7 +1197,7 @@ class TestStockQuant(TestStockCommon):
         picking.move_ids.picked = True
         picking.button_validate()
 
-        package.unpack()
+        package.action_unpack()
 
         quant = self.env["stock.quant"].search(
             [("product_id", "=", self.productA.id), ("on_hand", "=", True)]
@@ -1387,7 +1387,7 @@ class TestStockQuant(TestStockCommon):
         self.assertEqual(len(self.productA.stock_quant_ids), 1)
         with self.assertRaises(UserError):
             quant.with_context(inventory_mode=True).write({"package_id": False})
-        package.with_context(inventory_mode=True).unpack()
+        package.with_context(inventory_mode=True).action_unpack()
         self.assertFalse(quant.exists())
         self.assertFalse(self.productA.stock_quant_ids.package_id)
 
@@ -1908,7 +1908,7 @@ class TestStockQuant(TestStockCommon):
             }
         )
         picking.button_validate()
-        package.unpack()
+        package.action_unpack()
 
         quant = self.env["stock.quant"].search(
             [

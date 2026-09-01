@@ -41,7 +41,7 @@
                         class="oe_highlight"
                         data-hotkey="q" />
                     <button
-                        name="process_cancel_backorder"
+                        name="action_cancel_backorder"
                         string="No Backorder"
                         type="object"
                         class="btn-danger"

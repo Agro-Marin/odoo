@@ -502,7 +502,7 @@ class ReportStockReport_Reception(models.AbstractModel):
                 out.move_orig_ids = False
                 new_out._recompute_state()
         out.procure_method = "make_to_stock"
-        out._do_unreserve()
+        out._unreserve()
         return True
 
     def _share_source_references(self, in_move, out_move):

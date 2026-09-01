@@ -233,7 +233,7 @@ class TestMoveLineRequant(TransactionCase):
             out._action_confirm()
             out._action_assign()
             taken = out.move_line_ids.lot_id
-            out._do_unreserve()
+            out._unreserve()
             out._action_cancel()
             return taken
 

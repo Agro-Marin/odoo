@@ -189,11 +189,11 @@ class TestReviewCompoundingFixes(TestStockCommon):
                 "location_id": self.stock_location.id,
             }
         )
-        scrap.do_scrap()
+        scrap._action_done()
         self.assertEqual(scrap.state, "done")
         first_name = scrap.name
         with self.assertRaises(UserError):
-            scrap.do_scrap()
+            scrap._action_done()
         self.assertEqual(scrap.name, first_name)
 
     def test_lot_batch_relocate_each_single_location(self):

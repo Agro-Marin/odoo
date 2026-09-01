@@ -596,11 +596,11 @@ class StockRule(models.Model):
 
     @api.model
     def run(self, procurements, raise_user_error=True):
-        def raise_exception(procurement_errors):
+        def prepare_procurement_error(procurement_errors):
             if raise_user_error:
                 _dummy, errors = zip(*procurement_errors, strict=False)
-                raise UserError("\n".join(errors))
-            raise ProcurementException(procurement_errors)
+                return UserError("\n".join(errors))
+            return ProcurementException(procurement_errors)
 
         actions_to_run = defaultdict(list)
         procurement_errors = []
@@ -625,7 +625,7 @@ class StockRule(models.Model):
                 actions_to_run[action].append((procurement, rule))
 
         if procurement_errors:
-            raise_exception(procurement_errors)
+            raise prepare_procurement_error(procurement_errors)
 
         runners = self._get_action_runners()
         for action, action_procurements in actions_to_run.items():
@@ -659,7 +659,7 @@ class StockRule(models.Model):
                 procurement_errors += e.procurement_exceptions
 
         if procurement_errors:
-            raise_exception(procurement_errors)
+            raise prepare_procurement_error(procurement_errors)
         return True
 
     def _get_route_buckets(self, route_ids, packaging_uom_id, product_id, warehouse_id):

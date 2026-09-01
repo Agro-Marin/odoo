@@ -277,7 +277,7 @@ class StockLot(models.Model):
         return super(StockLot, self.with_context(context)).default_get(fields)
 
     def _compute_delivery_ids(self):
-        delivery_ids_by_lot = self._find_delivery_ids_by_lot()
+        delivery_ids_by_lot = self._get_delivery_ids_by_lot()
         for lot in self:
             lot.delivery_ids = delivery_ids_by_lot.get(lot.id, [])
 
@@ -636,7 +636,7 @@ class StockLot(models.Model):
             ]
         )
 
-    def _find_delivery_ids_by_lot(self):
+    def _get_delivery_ids_by_lot(self):
         all_lot_ids = set(self.ids)
         barren_lines = defaultdict(set)
         parent_map = defaultdict(set)

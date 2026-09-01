@@ -820,7 +820,7 @@ class TestBatchPicking(TransactionCase):
 
         Form.from_action(
             self.env, self.batch.action_done()
-        ).save().process_cancel_backorder()
+        ).save().action_cancel_backorder()
 
         self.assertEqual(self.picking_client_1.state, "done")
         self.assertEqual(self.picking_client_2.state, "done")
@@ -1169,7 +1169,7 @@ class TestBatchPicking02(TransactionCase):
         self.assertFalse((picking_1 | picking_2).user_id.id)
         action = batch.action_done()
         self.assertEqual(batch.picking_ids, picking_1 | picking_2)
-        Form.from_action(self.env, action).save().process_cancel_backorder()
+        Form.from_action(self.env, action).save().action_cancel_backorder()
         self.assertEqual(batch.state, "done")
         self.assertEqual(batch.picking_ids, picking_2)
 

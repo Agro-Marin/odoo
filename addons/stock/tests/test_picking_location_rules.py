@@ -265,7 +265,7 @@ class TestPickingLocationRules(TransactionCase):
                 "location_id": self.warehouse.lot_stock_id.id,
             }
         )
-        scrap.do_scrap()
+        scrap._action_done()
         scrap_move = scrap.move_ids
         self.assertEqual(scrap_move.location_dest_usage, "inventory")
         scrap_destination = scrap_move.location_dest_id

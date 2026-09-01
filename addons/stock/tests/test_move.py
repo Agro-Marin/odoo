@@ -1085,7 +1085,7 @@ class TestStockMove(TestStockCommon):
             1.0,
         )
 
-        move1._do_unreserve()
+        move1._unreserve()
 
         self.assertEqual(move1.quantity, 0.0)
         self.assertEqual(len(move1.move_line_ids), 0)
@@ -2834,7 +2834,7 @@ class TestStockMove(TestStockCommon):
             30.0,
         )
 
-        move1._do_unreserve()
+        move1._unreserve()
         self.assertEqual(len(move1.move_line_ids), 0)
         self.assertEqual(
             self.env["stock.quant"]._get_available_quantity(
@@ -2881,7 +2881,7 @@ class TestStockMove(TestStockCommon):
             50.0,
         )
 
-        move1._do_unreserve()
+        move1._unreserve()
         self.assertEqual(len(move1.move_line_ids), 0)
         self.assertEqual(
             self.env["stock.quant"]._get_available_quantity(
@@ -2934,7 +2934,7 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(quants.quantity, 2.0)
         self.assertEqual(quants.reserved_quantity, 2.0)
 
-        move1._do_unreserve()
+        move1._unreserve()
         self.assertEqual(
             self.env["stock.quant"]._get_available_quantity(
                 self.productA, self.stock_location
@@ -2989,7 +2989,7 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(quants.quantity, 2.0)
         self.assertEqual(quants.reserved_quantity, 2.0)
 
-        move1._do_unreserve()
+        move1._unreserve()
         self.assertEqual(
             self.env["stock.quant"]._get_available_quantity(
                 self.productA, self.stock_location
@@ -3039,7 +3039,7 @@ class TestStockMove(TestStockCommon):
         move1._action_assign()
         self.assertEqual(move1.state, "assigned")
         self.assertEqual(len(move1.move_line_ids), 1)
-        move1._do_unreserve()
+        move1._unreserve()
 
         quants = self.gather_relevant(self.productA, self.stock_location)
         self.assertEqual(len(quants), 2.0)
@@ -3094,7 +3094,7 @@ class TestStockMove(TestStockCommon):
         )
         self.assertEqual(q1.reserved_quantity + q2.reserved_quantity, 20)
 
-        move1._do_unreserve()
+        move1._unreserve()
         self.assertEqual(move1.state, "confirmed")
         self.assertEqual(len(move1.move_line_ids), 0)
         self.assertEqual(
@@ -4233,7 +4233,7 @@ class TestStockMove(TestStockCommon):
         picking.action_confirm()
         picking.action_assign()
         p01_move.product_uom_qty = 0
-        picking.do_unreserve()
+        picking.action_unreserve()
         picking.action_assign()
         p01_move.product_uom_qty = 1
         self.assertEqual(p01_move.state, "confirmed")
@@ -6297,7 +6297,7 @@ class TestStockMove(TestStockCommon):
                 "scrap_qty": 5.0,
             }
         )
-        scrap.do_scrap()
+        scrap._action_done()
 
         with self.assertRaises(UserError):
             picking.button_validate()
@@ -6488,7 +6488,7 @@ class TestStockMove(TestStockCommon):
         scrap_form.location_id = self.stock_location
         scrap_form.scrap_qty = 1
         scrap = scrap_form.save()
-        scrap.do_scrap()
+        scrap._action_done()
         self.assertEqual(scrap.state, "done")
         move = scrap.move_ids[0]
         self.assertEqual(move.state, "done")
@@ -6511,9 +6511,9 @@ class TestStockMove(TestStockCommon):
             }
         )
         self.assertEqual(scrap.name, "New", "Name should be New in draft state")
-        scrap.do_scrap()
+        scrap._action_done()
         self.assertTrue(
-            scrap.name.startswith("SP/"), "Sequence should be Changed after do_scrap"
+            scrap.name.startswith("SP/"), "Sequence should be Changed after _action_done"
         )
         self.assertEqual(scrap.state, "done")
         move = scrap.move_ids[0]
@@ -6553,7 +6553,7 @@ class TestStockMove(TestStockCommon):
                 "scrap_qty": 1,
             }
         )
-        scrap.do_scrap()
+        scrap._action_done()
         self.assertEqual(move1.state, "confirmed")
         self.assertEqual(len(move1.move_line_ids), 0)
 
@@ -7905,7 +7905,7 @@ class TestStockMove(TestStockCommon):
         second_backorder.move_ids.picked = True
         backorder_wizard_dict = second_backorder.button_validate()
         backorder_wizard_form = Form.from_action(self.env, backorder_wizard_dict)
-        backorder_wizard_form.save().process_cancel_backorder()
+        backorder_wizard_form.save().action_cancel_backorder()
 
         aggregate_values = delivery.move_line_ids._get_aggregated_product_quantities()
         self.assertEqual(len(aggregate_values), 3)

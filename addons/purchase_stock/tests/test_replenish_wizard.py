@@ -25,7 +25,7 @@ class TestReplenishWizard(PurchaseTestCommon):
                 }
             )
         )
-        genrated_picking = replenish_wizard.launch_replenishment()
+        genrated_picking = replenish_wizard.action_replenish()
         links = genrated_picking.get("params", {}).get("links")
         url = (links and links[0].get("url", "")) or ""
         purchase_order_id, model_name = self._url_extract_rec_id_and_model(url)
@@ -74,7 +74,7 @@ class TestReplenishWizard(PurchaseTestCommon):
                 }
             )
         )
-        genrated_picking = replenish_wizard.launch_replenishment()
+        genrated_picking = replenish_wizard.action_replenish()
         links = genrated_picking.get("params", {}).get("links")
         url = (links and links[0].get("url", "")) or ""
         purchase_order_id, model_name = self._url_extract_rec_id_and_model(url)
@@ -136,7 +136,7 @@ class TestReplenishWizard(PurchaseTestCommon):
                 }
             )
         )
-        genrated_picking = replenish_wizard.launch_replenishment()
+        genrated_picking = replenish_wizard.action_replenish()
         links = genrated_picking.get("params", {}).get("links")
         url = (links and links[0].get("url", "")) or ""
         purchase_order_id, model_name = self._url_extract_rec_id_and_model(url)
@@ -186,7 +186,7 @@ class TestReplenishWizard(PurchaseTestCommon):
                 }
             )
         )
-        genrated_picking = replenish_wizard.launch_replenishment()
+        genrated_picking = replenish_wizard.action_replenish()
         links = genrated_picking.get("params", {}).get("links")
         url = (links and links[0].get("url", "")) or ""
         purchase_order_id, model_name = self._url_extract_rec_id_and_model(url)
@@ -236,7 +236,7 @@ class TestReplenishWizard(PurchaseTestCommon):
                 }
             )
         )
-        genrated_picking = replenish_wizard.launch_replenishment()
+        genrated_picking = replenish_wizard.action_replenish()
         links = genrated_picking.get("params", {}).get("links")
         url = (links and links[0].get("url", "")) or ""
         purchase_order_id, model_name = self._url_extract_rec_id_and_model(url)
@@ -281,7 +281,7 @@ class TestReplenishWizard(PurchaseTestCommon):
                 }
             )
         )
-        generated_picking = replenish_wizard.launch_replenishment()
+        generated_picking = replenish_wizard.action_replenish()
         links = generated_picking.get("params", {}).get("links")
         url = (links and links[0].get("url", "")) or ""
         purchase_order_id, model_name = self._url_extract_rec_id_and_model(url)
@@ -450,7 +450,7 @@ class TestReplenishWizard(PurchaseTestCommon):
                 "route_id": self.route_buy.id,
             }
         )
-        replenish_wizard.launch_replenishment()
+        replenish_wizard.action_replenish()
         last_po_id = self.env["purchase.order"].search(
             [
                 ("origin", "ilike", "%Manual Replenishment%"),
@@ -505,7 +505,7 @@ class TestReplenishWizard(PurchaseTestCommon):
                 "supplier_id": product.seller_ids[2].id,
             }
         )
-        replenish_wizard.launch_replenishment()
+        replenish_wizard.action_replenish()
         po = self.env["purchase.order"].search([("partner_id", "=", partner_b.id)])
         self.assertEqual(po.amount_untaxed, 10, "best price is 10$")
 
@@ -549,7 +549,7 @@ class TestReplenishWizard(PurchaseTestCommon):
         )
         wizard_form.route_id = interwh_route
         wizard = wizard_form.save()
-        generated_picking = wizard.launch_replenishment()
+        generated_picking = wizard.action_replenish()
         links = generated_picking.get("params", {}).get("links")
         url = (links and links[0].get("url", "")) or ""
         stock_picking_id, model_name = self._url_extract_rec_id_and_model(url)
@@ -589,7 +589,7 @@ class TestReplenishWizard(PurchaseTestCommon):
                 "supplier_id": price_list_pack_of_6.id,
             }
         )
-        replenish_wizard.launch_replenishment()
+        replenish_wizard.action_replenish()
         po = self.env["purchase.order"].search(
             [("partner_id", "=", self.vendor.id)], order="id DESC", limit=1
         )
@@ -621,7 +621,7 @@ class TestReplenishWizard(PurchaseTestCommon):
                 "supplier_id": price_list_pack_of_6.id,
             }
         )
-        replenish_wizard.launch_replenishment()
+        replenish_wizard.action_replenish()
         po = self.env["purchase.order"].search(
             [("partner_id", "=", self.vendor.id)], order="id DESC", limit=1
         )
@@ -653,7 +653,7 @@ class TestReplenishWizard(PurchaseTestCommon):
                 "supplier_id": price_list_pack_of_6.id,
             }
         )
-        replenish_wizard.launch_replenishment()
+        replenish_wizard.action_replenish()
         po = self.env["purchase.order"].search(
             [("partner_id", "=", self.vendor.id)], order="id DESC", limit=1
         )
@@ -685,7 +685,7 @@ class TestReplenishWizard(PurchaseTestCommon):
                 "supplier_id": price_list_uom.id,
             }
         )
-        replenish_wizard.launch_replenishment()
+        replenish_wizard.action_replenish()
         po = self.env["purchase.order"].search(
             [("partner_id", "=", self.vendor.id)], order="id DESC", limit=1
         )

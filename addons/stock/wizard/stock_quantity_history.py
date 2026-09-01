@@ -13,7 +13,7 @@ class StockQuantityHistory(models.TransientModel):
         help="Choose a date to get the inventory at that date",
     )
 
-    def open_at_date(self):
+    def action_view_products_at_date(self):
         tree_view_id = self.env.ref("stock.product_product_stock_tree").id
         form_view_id = self.env.ref("stock.product_form_view_procurement_button").id
         search_view_id = self.env.ref("stock.product_search_form_view_stock_report").id

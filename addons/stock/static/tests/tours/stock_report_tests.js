@@ -124,7 +124,7 @@ registry.category("web_tour.tours").add("test_forecast_replenishment", {
             run: "click",
         },
         {
-            trigger: "button[name=launch_replenishment]",
+            trigger: "button[name=action_replenish]",
             run: "click",
         },
         {

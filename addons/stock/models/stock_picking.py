@@ -456,7 +456,7 @@ class StockPicking(models.Model):
             ).date = vals["date_done"]
         if vals.get("signature"):
             for picking in self:
-                picking._attach_sign()
+                picking._attach_signed_delivery_slip()
         if vals.get("move_ids"):
             self._update_is_cancelled()
             self._autoconfirm_picking()
@@ -1146,7 +1146,7 @@ class StockPicking(models.Model):
                     }
         return None
 
-    def do_print_picking(self):
+    def action_print_picking(self):
         self.write({"printed": True})
         return self.env.ref("stock.action_report_picking").report_action(self)
 
@@ -1210,7 +1210,7 @@ class StockPicking(models.Model):
         }
 
     def action_next_transfer(self):
-        return self._get_pickings_action(
+        return self._prepare_action_pickings(
             self._get_next_transfers(), _("Next Transfers")
         )
 
@@ -1262,8 +1262,8 @@ class StockPicking(models.Model):
                 subtype_id=subtype_id,
             )
 
-    def do_unreserve(self):
-        self.move_ids._do_unreserve()
+    def action_unreserve(self):
+        self.move_ids._unreserve()
         return True
 
     def button_validate(self):
@@ -1300,7 +1300,7 @@ class StockPicking(models.Model):
             pickings_not_to_backorder.with_context(cancel_backorder=True)._action_done()
         if pickings_to_backorder:
             pickings_to_backorder.with_context(cancel_backorder=False)._action_done()
-        report_actions = self._get_autoprint_report_actions()
+        report_actions = self._prepare_actions_autoprint()
         another_action = self._get_reception_report_action()
         if another_action and not report_actions:
             return another_action
@@ -1431,12 +1431,12 @@ class StockPicking(models.Model):
         if not self.env.context.get("skip_backorder"):
             pickings_to_backorder = self._get_pickings_to_backorder()
             if pickings_to_backorder:
-                return pickings_to_backorder._action_generate_backorder_wizard(
+                return pickings_to_backorder._prepare_action_backorder_confirmation(
                     show_transfers=self._should_show_transfers(),
                 )
         return True
 
-    def _action_generate_backorder_wizard(self, show_transfers=False):
+    def _prepare_action_backorder_confirmation(self, show_transfers=False):
         view = self.env.ref("stock.view_backorder_confirmation")
         return {
             "name": _("Create Backorder?"),
@@ -1523,7 +1523,7 @@ class StockPicking(models.Model):
             move_line_vals = self._prepare_entire_pack_move_line_vals(all_packages)
             pack_move_lines = self.env["stock.move.line"].create(move_line_vals)
             pack_move_lines._apply_putaway_strategy()
-            self.move_line_ids.result_package_id._apply_package_dest_for_entire_packs(
+            self.move_line_ids.result_package_id._update_package_dest_for_entire_packs(
                 allowed_package_ids=all_package_ids,
             )
             return True
@@ -1622,10 +1622,10 @@ class StockPicking(models.Model):
 
     def action_view_returns(self):
         self.check_singleton()
-        return self._get_pickings_action(self.return_ids, _("Returns"))
+        return self._prepare_action_pickings(self.return_ids, _("Returns"))
 
     @api.model
-    def _get_pickings_action(self, pickings, name):
+    def _prepare_action_pickings(self, pickings, name):
         if len(pickings) == 1:
             return {
                 "type": "ir.actions.act_window",
@@ -1647,7 +1647,7 @@ class StockPicking(models.Model):
             Command.link(stock_reference.id) for stock_reference in reference
         ]
 
-    def _attach_sign(self):
+    def _attach_signed_delivery_slip(self):
         self.check_singleton()
         report = self.env["ir.actions.report"]._render_qweb_pdf(
             "stock.action_report_delivery",
@@ -1678,7 +1678,7 @@ class StockPicking(models.Model):
         )
         to_confirm._action_confirm()
 
-    def _autoprint_action(self, report_xmlid, records, data=None):
+    def _prepare_action_autoprint(self, report_xmlid, records, data=None):
         if not records:
             return None
         action = self.env.ref(report_xmlid).report_action(
@@ -1690,14 +1690,14 @@ class StockPicking(models.Model):
         return action
 
     def _autoprint_delivery_slip(self):
-        action = self._autoprint_action(
+        action = self._prepare_action_autoprint(
             "stock.action_report_delivery",
             self.filtered(lambda p: p.picking_type_id.auto_print_delivery_slip),
         )
         return [action] if action else []
 
     def _autoprint_return_slip(self):
-        action = self._autoprint_action(
+        action = self._prepare_action_autoprint(
             "stock.return_label_report",
             self.filtered(lambda p: p.picking_type_id.auto_print_return_slip),
         )
@@ -1707,7 +1707,7 @@ class StockPicking(models.Model):
         if not self.env.user.has_group("stock.group_reception_report"):
             return []
         actions = []
-        report_action = self._autoprint_action(
+        report_action = self._prepare_action_autoprint(
             "stock.stock_reception_report_action",
             self.filtered(
                 lambda p: (
@@ -1733,7 +1733,7 @@ class StockPicking(models.Model):
                     lambda m: math.ceil(m.product_uom_qty),
                 )
             )
-            label_action = self._autoprint_action(
+            label_action = self._prepare_action_autoprint(
                 "stock.label_picking",
                 moves_to_print,
                 data={"docids": moves_to_print.ids, "quantity": quantities},
@@ -1792,7 +1792,7 @@ class StockPicking(models.Model):
     def _autoprint_package_report(self):
         if not self.env.user.has_group("stock.group_tracking_lot"):
             return []
-        action = self._autoprint_action(
+        action = self._prepare_action_autoprint(
             "stock.action_report_picking_packages",
             self.filtered(
                 lambda p: (
@@ -1925,7 +1925,7 @@ class StockPicking(models.Model):
             "stock.action_picking_tree_internal",
         )
 
-    def _get_autoprint_report_actions(self):
+    def _prepare_actions_autoprint(self):
         return [
             *self._autoprint_delivery_slip(),
             *self._autoprint_return_slip(),
@@ -1980,7 +1980,7 @@ class StockPicking(models.Model):
         return documents
 
     def _log_less_quantities_than_expected(self, moves):
-        def _keys_in_groupby(move):
+        def get_picking_responsible_key(move):
             return (move.picking_id, move.product_id.responsible_id)
 
         def _render_note_exception_quantity(rendering_context):
@@ -2007,7 +2007,7 @@ class StockPicking(models.Model):
             moves,
             "move_dest_ids",
             "DOWN",
-            _keys_in_groupby,
+            get_picking_responsible_key,
         )
         documents = self._less_quantities_than_expected_add_documents(moves, documents)
         self._log_activity(_render_note_exception_quantity, documents)
@@ -2080,7 +2080,7 @@ class StockPicking(models.Model):
             pickings = package_move_lines.picking_id
             if (
                 pickings._is_single_transfer()
-                and pickings._check_move_lines_map_quant_package(package)
+                and pickings._is_package_entirely_moved(package)
             ):
                 move_lines_to_pack = package_move_lines.filtered(
                     lambda ml: (
@@ -2094,10 +2094,10 @@ class StockPicking(models.Model):
                             "is_entire_pack": True,
                         },
                     )
-        self.move_line_ids.result_package_id._apply_package_dest_for_entire_packs()
+        self.move_line_ids.result_package_id._update_package_dest_for_entire_packs()
 
-    def _check_move_lines_map_quant_package(self, package):
-        return package._check_move_lines_map_quant(
+    def _is_package_entirely_moved(self, package):
+        return package._is_entirely_moved_by_move_lines(
             self.move_line_ids.filtered(
                 lambda ml: (
                     ml.product_id.is_storable

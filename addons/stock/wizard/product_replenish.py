@@ -132,7 +132,7 @@ class ProductReplenish(models.TransientModel):
         delay = sum(route.rule_ids.mapped("delay"))
         return fields.Datetime.add(now, days=delay)
 
-    def launch_replenishment(self):
+    def action_replenish(self):
         self.check_singleton()
         now = self.env.cr.now()
         self.env["stock.rule"].with_context(clean_context(self.env.context)).run(
@@ -150,7 +150,7 @@ class ProductReplenish(models.TransientModel):
             ]
         )
         move = self._get_record_to_notify(now)
-        notification = self._get_replenishment_order_notification(move)
+        notification = self._prepare_action_replenishment_order_notification(move)
         act_window_close = {
             "type": "ir.actions.act_window_close",
             "infos": {"done": True},
@@ -185,7 +185,7 @@ class ProductReplenish(models.TransientModel):
             ]
         return False
 
-    def _get_replenishment_order_notification(self, move):
+    def _prepare_action_replenishment_order_notification(self, move):
         link = self._get_replenishment_order_notification_link(move)
         if not link:
             return False

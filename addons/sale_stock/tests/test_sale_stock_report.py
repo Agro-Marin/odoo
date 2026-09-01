@@ -135,7 +135,7 @@ class TestSaleStockReports(TestReportsCommon):
         pick_delivery = so.picking_ids.filtered(
             lambda p: p.picking_type_id == warehouse.pick_type_id
         )
-        pick_delivery.do_unreserve()
+        pick_delivery.action_unreserve()
         _, _, lines = self.get_report_forecast(
             product_template_ids=product.product_tmpl_id.ids
         )
@@ -634,7 +634,7 @@ class TestSaleStockInvoices(TestSaleCommon):
         action = return_wizard.action_create_returns()
         delivery02 = self.env["stock.picking"].browse(action["res_id"])
 
-        delivery02.do_unreserve()
+        delivery02.action_unreserve()
         move_form = Form(
             delivery02.move_ids, view="stock.view_stock_move_form_operations"
         )
@@ -663,7 +663,7 @@ class TestSaleStockInvoices(TestSaleCommon):
         self.assertNotIn("LOT0001", text)
 
         delivery03 = delivery02.backorder_ids
-        delivery03.do_unreserve()
+        delivery03.action_unreserve()
         move_form = Form(
             delivery03.move_ids, view="stock.view_stock_move_form_operations"
         )

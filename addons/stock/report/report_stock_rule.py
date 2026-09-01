@@ -139,7 +139,7 @@ class ReportStockReport_Stock_Rule(models.AbstractModel):
         topo_rank = self._topological_rank(all_locations, edges)
         warehouse_rank = {wh.id: idx for idx, wh in enumerate(warehouses)}
 
-        def group_key(location):
+        def get_usage_rank(location):
             if location.usage in ("supplier", "production"):
                 return 0
             if location.usage == "customer":
@@ -149,7 +149,7 @@ class ReportStockReport_Stock_Rule(models.AbstractModel):
                 return 1 + warehouse_rank[wh.id] / (len(warehouse_rank) + 1)
             return 2
 
-        return all_locations.sorted(key=lambda loc: (group_key(loc), topo_rank[loc.id]))
+        return all_locations.sorted(key=lambda loc: (get_usage_rank(loc), topo_rank[loc.id]))
 
     @api.model
     def _topological_rank(self, locations, edges):

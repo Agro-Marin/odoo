@@ -21,7 +21,7 @@
                 </group>
                 <footer>
                     <button
-                        name="print_report"
+                        name="action_print_rules_report"
                         string="Overview"
                         type="object"
                         data-hotkey="q"

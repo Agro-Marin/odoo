@@ -81,8 +81,8 @@ class TestVirtualAvailable(TestStockCommon):
         self.picking_out.action_assign()
         self.picking_out_2.action_assign()
         self.assertAlmostEqual(32.0, self.product_3.qty_free)
-        self.picking_out.do_unreserve()
-        self.picking_out_2.do_unreserve()
+        self.picking_out.action_unreserve()
+        self.picking_out_2.action_unreserve()
         self.assertAlmostEqual(40.0, self.product_3.qty_free)
 
     def test_archive_product_1(self):

@@ -260,7 +260,7 @@ class StockScrap(models.Model):
             "picking_id": self.picking_id.id,
         }
 
-    def do_scrap(self):
+    def _action_done(self):
         self._check_company()
         already_done = self.filtered(lambda s: s.state == "done")
         if already_done:
@@ -278,7 +278,7 @@ class StockScrap(models.Model):
         moves.with_context(is_scrap=True)._action_done()
         self.write({"state": "done", "date_done": fields.Datetime.now()})
         for scrap in self.filtered("should_replenish"):
-            scrap.do_replenish()
+            scrap._replenish_scrapped_quantity()
         return True
 
     def _check_shortfall_is_not_an_unnamed_lot(self):
@@ -329,7 +329,7 @@ class StockScrap(models.Model):
         self.check_singleton()
         return self.env["stock.move"].create(self._prepare_move_values())
 
-    def do_replenish(self, values=False):
+    def _replenish_scrapped_quantity(self, values=False):
         self.check_singleton()
         values = values or {}
         self.with_context(clean_context(self.env.context)).env["stock.rule"].run(
@@ -387,7 +387,7 @@ class StockScrap(models.Model):
         if self.product_uom_id.is_zero(self.scrap_qty):
             raise UserError(_("You can only enter positive quantities."))
         if self.check_available_qty():
-            return self.do_scrap()
+            return self._action_done()
         else:
             self._check_shortfall_is_not_an_unnamed_lot()
             ctx = dict(self.env.context)

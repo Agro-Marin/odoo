@@ -137,7 +137,7 @@ class TestStockMoveReviewFixes(TestStockCommon):
                 "",
             )
 
-    def test_merge_move_itemgetter_single_non_float_field(self):
+    def test_get_merge_key_single_non_float_field(self):
         Move = self.env["stock.move"]
         picking = self._create_out_picking()
         move = Move.create(
@@ -150,17 +150,17 @@ class TestStockMoveReviewFixes(TestStockCommon):
                 "picking_id": picking.id,
             },
         )
-        key_fn = Move._merge_move_itemgetter(["product_id"])
+        key_fn = Move._get_merge_key(["product_id"])
         key = key_fn(move)
         self.assertIsInstance(key, tuple)
         self.assertEqual(key, (move.product_id,))
 
-        key_fn2 = Move._merge_move_itemgetter(["product_id", "price_unit"])
+        key_fn2 = Move._get_merge_key(["product_id", "price_unit"])
         key2 = key_fn2(move)
         self.assertIsInstance(key2, tuple)
         self.assertEqual(len(key2), 2)
 
-        key_fn3 = Move._merge_move_itemgetter(["price_unit"])
+        key_fn3 = Move._get_merge_key(["price_unit"])
         self.assertIsInstance(key_fn3(move), tuple)
 
     def test_internal_move_forecast_still_computed(self):

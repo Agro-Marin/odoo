@@ -160,7 +160,7 @@ class TestStockReplenish(TestStockCommon):
         self.env.flush_all()
 
         now = self.env.cr.now()
-        wizard.launch_replenishment()
+        wizard.action_replenish()
         notified = wizard._get_record_to_notify(now)
 
         self.assertTrue(notified, "a move should have been created and notified")

@@ -398,8 +398,8 @@ class RepairOrder(models.Model):
             if 'under_warranty' in vals:
                 repair._update_sale_order_line_price()
         if moves_to_reassign:
-            moves_to_reassign._do_unreserve()
-            moves_to_reassign._filter_to_assign_at_confirm()._action_assign()
+            moves_to_reassign._unreserve()
+            moves_to_reassign._filtered_to_assign_at_confirm()._action_assign()
         return res
 
     @api.ondelete(at_uninstall=False)
@@ -566,7 +566,7 @@ class RepairOrder(models.Model):
         return self.write({'state': 'under_repair'})
 
     def action_unreserve(self):
-        return self.move_ids.filtered(lambda m: m.state in ('assigned', 'partially_available'))._do_unreserve()
+        return self.move_ids.filtered(lambda m: m.state in ('assigned', 'partially_available'))._unreserve()
 
     def action_validate(self):
         self.check_singleton()

@@ -6,7 +6,7 @@ from .blocked_location_common import BlockedLocationCase
 class TestCompletion(BlockedLocationCase):
     def _unreserved_delivery(self, location, quantity=10.0):
         picking = self._create_delivery(self.normal_user, location, quantity)
-        picking.do_unreserve()
+        picking.action_unreserve()
         return picking
 
     def test_reserved_completion_passes_a_soft_block(self):
@@ -58,7 +58,7 @@ class TestCompletion(BlockedLocationCase):
         picking = self._create_delivery(
             self.force_out_user, self.soft_out_location, 10.0
         )
-        picking.do_unreserve()
+        picking.action_unreserve()
         picking.with_user(self.force_out_user).move_ids.quantity = 10.0
         picking.move_ids.picked = True
         picking.with_user(self.force_out_user).button_validate()

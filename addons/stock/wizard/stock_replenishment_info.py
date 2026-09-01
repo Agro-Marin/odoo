@@ -374,7 +374,7 @@ class StockReplenishmentOption(models.TransientModel):
                     qty_to_order=record.qty_to_order,
                 )
 
-    def select_route(self):
+    def action_select_route(self):
         if self.product_id.uom_id.compare(self.qty_free, self.qty_to_order) < 0:
             return {
                 "type": "ir.actions.act_window",
@@ -389,13 +389,13 @@ class StockReplenishmentOption(models.TransientModel):
                 "target": "new",
                 "name": _("Quantity available too low"),
             }
-        return self.order_all()
+        return self.action_order_full_quantity()
 
-    def order_avbl(self):
+    def action_order_available_quantity(self):
         self.replenishment_info_id.orderpoint_id.route_id = self.route_id
         self.replenishment_info_id.orderpoint_id.qty_to_order = self.qty_free
         return {"type": "ir.actions.act_window_close"}
 
-    def order_all(self):
+    def action_order_full_quantity(self):
         self.replenishment_info_id.orderpoint_id.route_id = self.route_id
         return {"type": "ir.actions.act_window_close"}

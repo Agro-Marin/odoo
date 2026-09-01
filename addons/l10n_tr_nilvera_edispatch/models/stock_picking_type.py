@@ -16,7 +16,7 @@ class StockPickingType(models.Model):
             raise UserError(_("Only 3 characters are allowed in the Sequence Prefix by GİB"))
         return super()._onchange_sequence_code()
 
-    def _get_action(self, action_xmlid):
-        action = super()._get_action(action_xmlid)
+    def _prepare_action_by_xml_id(self, action_xmlid):
+        action = super()._prepare_action_by_xml_id(action_xmlid)
         action['context']['restricted_picking_type_code'] = self.code
         return action

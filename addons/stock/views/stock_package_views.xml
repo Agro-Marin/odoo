@@ -141,7 +141,7 @@
         <field name="arch" type="xml">
             <form string="Package">
                 <header>
-                    <button name="unpack" string="Unpack" type="object" />
+                    <button name="action_unpack" string="Unpack" type="object" />
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">

@@ -72,7 +72,7 @@ class StockBackorderConfirmation(models.TransientModel):
             return pickings_to_validate.button_validate()
         return True
 
-    def process_cancel_backorder(self):
+    def action_cancel_backorder(self):
         pickings_to_validate_ids = self.env.context.get("button_validate_picking_ids")
         if pickings_to_validate_ids:
             pickings_to_validate = self.env["stock.picking"].browse(

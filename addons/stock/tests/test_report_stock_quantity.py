@@ -289,7 +289,7 @@ class TestReportStockQuantity(tests.TransactionCase):
             inventory_at_date_wizard = self.env["stock.quantity.history"].create(
                 {"inventory_datetime": inv_datetime}
             )
-            r = inventory_at_date_wizard.open_at_date()
+            r = inventory_at_date_wizard.action_view_products_at_date()
             return next(
                 (product["qty_available"], product["qty_available_virtual"])
                 for product in self.env[r["res_model"]]

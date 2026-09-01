@@ -618,7 +618,7 @@ class StockPackage(models.Model):
         action["domain"] = [("id", "in", move_lines.picking_id.ids)]
         return action
 
-    def _apply_dest_to_package(self, processed_package_ids=None):
+    def _update_parent_packages_from_dest(self, processed_package_ids=None):
         if processed_package_ids is None:
             processed_package_ids = set()
         packages_todo = self.filtered(lambda p: p.id not in processed_package_ids)
@@ -664,11 +664,11 @@ class StockPackage(models.Model):
             packages_todo.parent_package_id.package_dest_id
             or packages_todo.parent_package_id.parent_package_id
         ):
-            packages_todo.parent_package_id._apply_dest_to_package(
+            packages_todo.parent_package_id._update_parent_packages_from_dest(
                 processed_package_ids
             )
 
-    def _apply_package_dest_for_entire_packs(self, allowed_package_ids=None):
+    def _update_package_dest_for_entire_packs(self, allowed_package_ids=None):
         for container, packages in self.grouped("parent_package_id").items():
             if (
                 container.child_package_ids == packages
@@ -678,7 +678,7 @@ class StockPackage(models.Model):
                     continue
                 packages.package_dest_id = container
         if self.package_dest_id:
-            self.package_dest_id._apply_package_dest_for_entire_packs(
+            self.package_dest_id._update_package_dest_for_entire_packs(
                 allowed_package_ids
             )
 
@@ -774,7 +774,7 @@ class StockPackage(models.Model):
     def _get_all_package_dest_ids(self):
         return list(self._walk_dest_tree(self, "package_dest_id"))
 
-    def unpack(self):
+    def action_unpack(self):
         self.child_package_ids.parent_package_id = False
         quants = self.quant_ids
         if quants:
@@ -808,12 +808,12 @@ class StockPackage(models.Model):
         self.check_singleton()
         return self
 
-    def _check_move_lines_map_quant(self, move_lines):
+    def _is_entirely_moved_by_move_lines(self, move_lines):
         if not move_lines:
             return True
         precision_digits = self.env["decimal.precision"].get_precision("Product Unit")
 
-        def by_product_and_lot(records, quantity_field):
+        def get_quantity_by_product_and_lot(records, quantity_field):
             return {
                 key: sum(group.mapped(quantity_field))
                 for key, group in records.grouped(
@@ -821,8 +821,8 @@ class StockPackage(models.Model):
                 ).items()
             }
 
-        quantities = by_product_and_lot(self.contained_quant_ids, "quantity")
-        operations = by_product_and_lot(move_lines, "quantity_product_uom")
+        quantities = get_quantity_by_product_and_lot(self.contained_quant_ids, "quantity")
+        operations = get_quantity_by_product_and_lot(move_lines, "quantity_product_uom")
 
         return all(
             float_is_zero(

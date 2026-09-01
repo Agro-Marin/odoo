@@ -274,7 +274,7 @@ class SaleOrderLine(models.Model):
         for line in lines_display_qty_widget.filtered(lambda l: l.state == "done"):
             combined_moves = (
                 line.move_ids
-                | self.env["stock.move"].browse(line.move_ids._rollup_move_origs())
+                | self.env["stock.move"].browse(line.move_ids._rollup_move_orig_ids())
             ).filtered(lambda m, line=line: m.product_id == line.product_id)
             all_moves |= combined_moves
             line_all_moves_cached[line.id] = combined_moves

@@ -21,7 +21,7 @@ class TestOverviewGraph(BaseCommon):
         }
         for day, expected_category in month_day_to_category.items():
             dt = datetime(2024, 6, day, 14, 0)
-            category = self.env["stock.picking"].calculate_date_category(dt)
+            category = self.env["stock.picking"].get_date_category(dt)
             self.assertEqual(
                 category, expected_category, f"Wrong category calculated for {dt}"
             )
@@ -38,7 +38,7 @@ class TestOverviewGraph(BaseCommon):
         }
 
         for dt, expected_category in datetime_to_category.items():
-            category = self.env["stock.picking"].calculate_date_category(dt)
+            category = self.env["stock.picking"].get_date_category(dt)
             self.assertEqual(
                 category, expected_category, f"Wrong category calculated for {dt}"
             )
@@ -55,7 +55,7 @@ class TestOverviewGraph(BaseCommon):
         }
 
         for dt, expected_category in datetime_to_category.items():
-            category = self.env["stock.picking"].calculate_date_category(dt)
+            category = self.env["stock.picking"].get_date_category(dt)
             self.assertEqual(
                 category, expected_category, f"Wrong category calculated for {dt}"
             )

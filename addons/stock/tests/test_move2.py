@@ -996,18 +996,18 @@ class TestPickShip(TestStockCommon):
         picking_pick, picking_client = self.create_pick_ship()
 
         self.assertEqual(picking_pick.state, "confirmed")
-        picking_pick.do_unreserve()
+        picking_pick.action_unreserve()
         self.assertEqual(picking_pick.state, "confirmed")
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 10.0
         )
         picking_pick.action_assign()
         self.assertEqual(picking_pick.state, "assigned")
-        picking_pick.do_unreserve()
+        picking_pick.action_unreserve()
         self.assertEqual(picking_pick.state, "confirmed")
 
         self.assertEqual(picking_client.state, "waiting")
-        picking_client.do_unreserve()
+        picking_client.action_unreserve()
         self.assertEqual(picking_client.state, "waiting")
 
     def test_return_only_one_product(self):
@@ -1488,7 +1488,7 @@ class TestSinglePicking(TestStockCommon):
         backorder_wizard = Form(
             self.env["stock.backorder.confirmation"].with_context(res_dict["context"])
         ).save()
-        backorder_wizard.process_cancel_backorder()
+        backorder_wizard.action_cancel_backorder()
 
         backorder = self.env["stock.picking"].search(
             [("backorder_id", "=", delivery_order.id)]
@@ -3413,7 +3413,7 @@ class TestStockUOM(TestStockCommon):
             }
         )
         picking_in.action_confirm()
-        picking_in.do_unreserve()
+        picking_in.action_unreserve()
 
         self.assertEqual(move.product_uom_qty, 60.00, "Wrong T_GT quantity")
         self.assertEqual(move.product_qty, 134400.00, "Wrong T_LBS quantity")
@@ -3550,7 +3550,7 @@ class TestRoutes(TestStockCommon):
             )
         )
 
-        genrated_picking = replenish_wizard.launch_replenishment()
+        genrated_picking = replenish_wizard.action_replenish()
         links = genrated_picking.get("params", {}).get("links")
         url = (links and links[0].get("url", "")) or ""
         picking_id, model_name = self.url_extract_rec_id_and_model(url)

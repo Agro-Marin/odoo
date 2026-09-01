@@ -485,7 +485,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
         linked_moves_per_out = {}
         ins_ids = set(ins._ids)
         for out in outs:
-            linked_move_ids = out._rollup_move_origs() - ins_ids
+            linked_move_ids = out._rollup_move_orig_ids() - ins_ids
             linked_moves_per_out[out] = self.env["stock.move"].browse(linked_move_ids)
 
         all_linked_move_ids = {
@@ -512,7 +512,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
             in_id_to_in_data[in_.id] = {
                 "qty": in_.product_qty,
                 "move": in_,
-                "move_dests": in_._rollup_move_dests(),
+                "move_dests": in_._rollup_move_dest_ids(),
             }
             product_id = in_.product_id.id
             ins_per_product[product_id].add(in_.id)
@@ -716,7 +716,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
     @api.model
     def action_reserve_linked_picks(self, move_id):
         move_id = self.env["stock.move"].browse(move_id)
-        move_ids = move_id.browse(move_id._rollup_move_origs()).filtered(
+        move_ids = move_id.browse(move_id._rollup_move_orig_ids()).filtered(
             lambda m: m.state not in ["draft", "cancel", "assigned", "done"]
         )
         if move_ids:
@@ -726,11 +726,11 @@ class StockForecasted_Product_Product(models.AbstractModel):
     @api.model
     def action_unreserve_linked_picks(self, move_id):
         move_id = self.env["stock.move"].browse(move_id)
-        move_ids = move_id.browse(move_id._rollup_move_origs()).filtered(
+        move_ids = move_id.browse(move_id._rollup_move_orig_ids()).filtered(
             lambda m: m.state not in ["draft", "cancel", "done"]
         )
         if move_ids:
-            move_ids._do_unreserve()
+            move_ids._unreserve()
         return move_ids
 
 

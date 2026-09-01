@@ -215,7 +215,7 @@ class StockPicking(models.Model):
         ).code
 
         if picking_type_code == "repair_operation":
-            action = self._get_action("repair.action_picking_repair_graph")
+            action = self._prepare_action_by_xml_id("repair.action_picking_repair_graph")
             if self:
                 action["context"].update({
                     "default_picking_type_id": self.picking_type_id,

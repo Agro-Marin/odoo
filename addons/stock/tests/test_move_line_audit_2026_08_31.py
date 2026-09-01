@@ -318,17 +318,17 @@ class TestSynchronizeQuantSignature(MoveLineAuditCase):
     def test_a_misspelled_override_is_a_type_error(self):
         line = self._line()
         with self.assertRaises(TypeError):
-            line._synchronize_quant(-1.0, self.src, packge=False)
+            line._update_quant_at_location(-1.0, self.src, packge=False)
 
     def test_the_named_override_still_works(self):
         line = self._line()
-        available, _in_date = line._synchronize_quant(-1.0, self.src, package=False)
+        available, _in_date = line._update_quant_at_location(-1.0, self.src, package=False)
         self.assertIsNotNone(available)
 
     def test_no_caller_asks_for_the_removed_action(self):
         line = self._line()
         with self.assertRaises(TypeError):
-            line._synchronize_quant(-1.0, self.src, action="reserved")
+            line._update_quant_at_location(-1.0, self.src, action="reserved")
 
 
 @tagged("post_install", "-at_install")

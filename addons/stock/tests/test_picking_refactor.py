@@ -278,7 +278,7 @@ class TestPickingRefactor(TestStockCommon):
                     ],
                 },
             )
-        actions = pickings._get_autoprint_report_actions()
+        actions = pickings._prepare_actions_autoprint()
         self.assertEqual(
             len(actions),
             1,
@@ -331,7 +331,7 @@ class TestPickingRefactor(TestStockCommon):
                 },
             )
             pickings |= picking
-        actions = pickings._get_autoprint_report_actions()
+        actions = pickings._prepare_actions_autoprint()
         self.assertEqual(
             len(actions),
             1,
@@ -593,7 +593,7 @@ class TestPickingRefactor(TestStockCommon):
         time.tzset()
         try:
             self.assertEqual(
-                self.PickingObj.calculate_date_category(dt),
+                self.PickingObj.get_date_category(dt),
                 "today",
                 "naive UTC datetimes must not be reinterpreted in the OS timezone",
             )

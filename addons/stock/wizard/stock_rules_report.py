@@ -65,7 +65,7 @@ class StockRulesReport(models.TransientModel):
             "warehouse_ids": self.warehouse_ids.ids,
         }
 
-    def print_report(self):
+    def action_print_rules_report(self):
         self.check_singleton()
         data = self._prepare_report_data()
         return self.env.ref("stock.action_report_stock_rule").report_action(

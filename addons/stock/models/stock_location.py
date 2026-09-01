@@ -797,14 +797,14 @@ class StockLocation(models.Model):
     def _invalidate_location_tree(self):
         self.invalidate_model(["child_internal_location_ids"])
 
-    def _filter_putaway_access(self):
+    def _filtered_putaway_access(self):
         return self
 
     def _get_putaway_strategy(
         self, product, quantity=0, package=None, packaging=None, additional_qty=None
     ):
         self.check_singleton()
-        destination = self._filter_putaway_access()
+        destination = self._filtered_putaway_access()
         products = self.env.context.get("products", self.env["product.product"])
         products |= product
         package_type = self.env["stock.package.type"]
@@ -1734,7 +1734,7 @@ class StockLocation(models.Model):
         moves = move_lines.move_id
         line_count = len(move_lines)
         move_count = len(moves)
-        moves._do_unreserve()
+        moves._unreserve()
 
         self.sudo().message_post(
             body=Markup("<b>%s</b><br/>%s")

@@ -994,7 +994,7 @@ class StockWarehouseOrderpoint(models.Model):
 
     @api.model
     def action_view_orderpoints(self):
-        return self._get_orderpoint_action()
+        return self._prepare_action_orderpoint_replenish()
 
     def action_stock_replenishment_info(self):
         self.check_singleton()
@@ -1052,7 +1052,7 @@ class StockWarehouseOrderpoint(models.Model):
         if len(self) == 1:
             notification = self.with_context(
                 written_after=now,
-            )._get_replenishment_order_notification()
+            )._prepare_action_replenishment_order_notification()
         self.action_remove_manual_qty_to_order()
         self._unlink_processed_orderpoints()
         return notification
@@ -1171,7 +1171,7 @@ class StockWarehouseOrderpoint(models.Model):
         }
 
     @api.model
-    def _get_orderpoint_action(self):
+    def _prepare_action_orderpoint_replenish(self):
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "stock.action_orderpoint_replenish",
         )
@@ -1187,14 +1187,14 @@ class StockWarehouseOrderpoint(models.Model):
             .search([])
         )
         if self.env.context.get("force_orderpoint_recompute", False):
-            orderpoints._refresh_stored_values()
+            orderpoints._reset_stored_values()
         orderpoints -= orderpoints._unlink_processed_orderpoints()
         self.env["stock.replenishment.report"]._create_missing_orderpoints(
             orderpoints,
         )
         return action
 
-    def _refresh_stored_values(self):
+    def _reset_stored_values(self):
         stored = ("qty_to_order_computed", "deadline_date", "actual_lead_time_avg")
         for field_name in stored:
             self.env.add_to_compute(self._fields[field_name], self)
@@ -1227,7 +1227,7 @@ class StockWarehouseOrderpoint(models.Model):
         return domain & Domain("write_date", ">=", written_after)
 
     @api.model
-    def _get_replenishment_notification(self, title, label, url):
+    def _prepare_action_replenishment_notification(self, title, label, url):
         return {
             "type": "ir.actions.client",
             "tag": "display_notification",
@@ -1240,7 +1240,7 @@ class StockWarehouseOrderpoint(models.Model):
             },
         }
 
-    def _get_replenishment_order_notification(self):
+    def _prepare_action_replenishment_order_notification(self):
         self.check_singleton()
         move = self.env["stock.move"].search(
             self._get_replenishment_source_domain(),
@@ -1253,7 +1253,7 @@ class StockWarehouseOrderpoint(models.Model):
             )
             or move.location_id.usage == "transit"
         ) and move.picking_id:
-            return self._get_replenishment_notification(
+            return self._prepare_action_replenishment_notification(
                 _("The inter-warehouse transfers have been generated"),
                 move.picking_id.name,
                 "/odoo/action-stock.stock_picking_action_picking_type/"

@@ -32,7 +32,7 @@ class StockReplenishmentInfo(models.TransientModel):
 class StockReplenishmentOption(models.TransientModel):
     _inherit = "stock.replenishment.option"
 
-    def select_route(self):
+    def action_select_route(self):
         if self.env.context.get("replenish_id"):
             replenish = self.env["product.replenish"].browse(
                 self.env.context.get("replenish_id")
@@ -46,4 +46,4 @@ class StockReplenishmentOption(models.TransientModel):
                 "target": "new",
                 "view_mode": "form",
             }
-        return super().select_route()
+        return super().action_select_route()

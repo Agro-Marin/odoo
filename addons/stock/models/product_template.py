@@ -670,7 +670,7 @@ class ProductTemplate(models.Model):
             ("product_id.product_tmpl_id", "=", self.id),
             ("category_id", "=", self.categ_id.id),
         ]
-        return self._get_action_view_putaway_rules(domain)
+        return self._prepare_action_view_putaway_rules(domain)
 
     def action_view_storage_category_capacity(self):
         self.check_singleton()
@@ -820,7 +820,7 @@ class ProductTemplate(models.Model):
         quants_to_reset._apply_inventory()
 
     @api.model
-    def _get_action_view_putaway_rules(self, domain):
+    def _prepare_action_view_putaway_rules(self, domain):
         return {
             "name": _("Putaway Rules"),
             "type": "ir.actions.act_window",

@@ -412,7 +412,7 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         wizard = Form(
             self.env[(res_dict.get("res_model"))].with_context(res_dict["context"])
         ).save()
-        wizard.process_cancel_backorder()
+        wizard.action_cancel_backorder()
 
         activity = self.env["mail.activity"].search(
             [("res_id", "=", self.so.id), ("res_model", "=", "sale.order")]
@@ -2396,7 +2396,7 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         )
         Form.from_action(
             self.env(user=inventory_admin_user), pick.button_validate()
-        ).save().process_cancel_backorder()
+        ).save().action_cancel_backorder()
 
     def test_reduce_qty_ordered_no_backorder(self):
         so_1 = self._get_new_sale_order(amount=3, product=self.test_product_delivery)
@@ -2408,7 +2408,7 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         delivery_picking.move_ids.quantity = 2
         Form.from_action(
             self.env, delivery_picking.button_validate()
-        ).save().process_cancel_backorder()
+        ).save().action_cancel_backorder()
         self.assertEqual(so_1.line_ids.product_qty, 3)
         self.assertEqual(so_1.line_ids.qty_transferred, 2)
 
@@ -3287,7 +3287,7 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         picking.move_ids[0].quantity = 2
         backorder_wizard_dict = picking.button_validate()
         backorder_wizard_form = Form.from_action(self.env, backorder_wizard_dict)
-        backorder_wizard_form.save().process_cancel_backorder()
+        backorder_wizard_form.save().action_cancel_backorder()
         self.assertFalse(sale_order.line_ids.display_qty_widget)
 
     def test_create_route_update_so_quantity(self):

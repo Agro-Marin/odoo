@@ -160,7 +160,7 @@ class TestForcedOperationAudit(BlockedLocationCase):
         picking = self._create_delivery(
             self.force_out_user, self.soft_out_location, 50.0
         )
-        picking.do_unreserve()
+        picking.action_unreserve()
         picking.with_user(self.force_out_user).move_ids.quantity = 50.0
         picking.move_ids.picked = True
         picking.with_user(self.force_out_user).button_validate()

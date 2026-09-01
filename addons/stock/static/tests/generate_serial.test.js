@@ -102,7 +102,7 @@ test("double-click on Generate emits a single command batch", async () => {
 test("Generate is held disabled until the New preview lands", async () => {
     const { move, applied } = makeMove();
     const previewDone = new Deferred();
-    onRpc("preview_next_lot", async () => {
+    onRpc("get_next_lot_preview", async () => {
         expect.step("preview-rpc");
         await previewDone;
         return "SN0001";

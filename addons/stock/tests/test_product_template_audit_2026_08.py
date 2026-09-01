@@ -329,7 +329,7 @@ class TestProductTemplateStorabilityOff(TransactionCase):
         self.assertEqual(move.state, "assigned")
         self.assertEqual(sum(move.move_line_ids.mapped("quantity")), 4.0)
 
-        move._do_unreserve()
+        move._unreserve()
         self.assertEqual(move.state, "confirmed")
         self.assertFalse(move.move_line_ids)
         self.assertEqual(self._get_quant(product).reserved_quantity, 0.0)

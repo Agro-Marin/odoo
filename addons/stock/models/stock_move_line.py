@@ -355,7 +355,7 @@ class StockMoveLine(models.Model):
             ml._settle_quant_move()
 
         if next_moves := done_lines._get_pending_dest_moves():
-            next_moves._do_unreserve()
+            next_moves._unreserve()
             next_moves._action_assign()
 
         if done_lines.move_id:
@@ -367,7 +367,7 @@ class StockMoveLine(models.Model):
     def write(self, vals):
         plan = self._prepare_write(vals)
         res = super().write(plan.vals)
-        self._apply_write(plan)
+        self._apply_write_plan(plan)
         return res
 
     def _prepare_write(self, vals):
@@ -400,7 +400,7 @@ class StockMoveLine(models.Model):
         next_moves = requanted._get_pending_dest_moves()
         requanted._log_quant_corrections(vals)
         reverted_in_dates = to_restock._revert_quant_moves(
-            to_restock._filter_keeping_destination(vals, updates)
+            to_restock._filtered_keeping_destination(vals, updates)
         )
         deltas = to_adjust._get_quantity_deltas(vals, updates)
 
@@ -425,11 +425,11 @@ class StockMoveLine(models.Model):
             progressed=progressed,
         )
 
-    def _apply_write(self, plan):
+    def _apply_write_plan(self, plan):
         if plan.progressed:
             plan.progressed.date = fields.Datetime.now()
-        plan.to_restock._reapply_quant_moves(plan.reverted_in_dates)
-        plan.to_adjust._apply_quantity_deltas(plan.deltas)
+        plan.to_restock._settle_quant_moves_again(plan.reverted_in_dates)
+        plan.to_adjust._settle_quant_moves_by_delta(plan.deltas)
 
         survivors = self.exists()
 
@@ -438,7 +438,7 @@ class StockMoveLine(models.Model):
             if mls_to_update := survivors._get_lines_not_entire_pack():
                 mls_to_update.write({"is_entire_pack": False})
 
-            plan.next_moves._do_unreserve()
+            plan.next_moves._unreserve()
             plan.next_moves._action_assign()
 
         if plan.moves_to_recompute_state:
@@ -721,10 +721,10 @@ class StockMoveLine(models.Model):
             if package_history_vals:
                 self.env["stock.package.history"].create(package_history_vals)
 
-        mls_todo._apply_done_quant_moves()
+        mls_todo._settle_quant_moves_done()
 
         if not self.env.context.get("ignore_dest_packages"):
-            mls_todo.result_package_id._apply_dest_to_package()
+            mls_todo.result_package_id._update_parent_packages_from_dest()
 
         affected_pickings = mls_todo.picking_id
         if affected_pickings:
@@ -853,7 +853,7 @@ class StockMoveLine(models.Model):
             ),
         )
 
-    def _apply_done_quant_moves(self):
+    def _settle_quant_moves_done(self):
         ml_ids_to_ignore = OrderedSet()
         for ml in self.with_context(quants_cache=self._get_quants_cache()):
             ml.with_context(bypass_entire_pack=True)._settle_quant_move(
@@ -1013,7 +1013,7 @@ class StockMoveLine(models.Model):
                 sml.location_dest_id = putaway_location
             excluded_smls.discard(sml.id)
 
-    def _apply_quant_move(
+    def _update_quants(
         self, *, quantity=None, reverse=False, in_date=False, release_reserved=False
     ):
         self.check_singleton()
@@ -1030,14 +1030,14 @@ class StockMoveLine(models.Model):
                 self.location_dest_id,
                 self.package_id,
             )
-        available_qty, in_date = self._synchronize_quant(
+        available_qty, in_date = self._update_quant_at_location(
             -qty,
             from_loc,
             package=from_package,
             in_date=in_date,
             reserved_delta=-qty if release_reserved and not reverse else None,
         )
-        self._synchronize_quant(
+        self._update_quant_at_location(
             qty,
             to_loc,
             package=self.package_id if reverse else self.result_package_id,
@@ -1060,7 +1060,7 @@ class StockMoveLine(models.Model):
                 adjust_ids.add(ml.id)
         return self.browse(restock_ids), self.browse(adjust_ids)
 
-    def _filter_keeping_destination(self, vals, updates):
+    def _filtered_keeping_destination(self, vals, updates):
         return self.filtered(
             lambda ml: (
                 not ml._get_changed_write_fields(vals, updates).intersection(
@@ -1073,14 +1073,14 @@ class StockMoveLine(models.Model):
         keep = set((keeping_destination or self.browse())._ids)
         in_dates = {}
         for ml in self.with_context(quants_cache=self._get_quants_cache()):
-            _available_qty, in_date = ml._apply_quant_move(reverse=True)
+            _available_qty, in_date = ml._update_quants(reverse=True)
             if ml.id in keep:
                 in_dates[ml.id] = in_date
         if self.move_id:
             self.move_id._check_quantity()
         return in_dates
 
-    def _reapply_quant_moves(self, in_dates=None):
+    def _settle_quant_moves_again(self, in_dates=None):
         in_dates = in_dates or {}
         for ml in self.with_context(quants_cache=self._get_quants_cache()):
             ml._settle_quant_move(in_date=in_dates.get(ml.id, False))
@@ -1092,7 +1092,7 @@ class StockMoveLine(models.Model):
             for ml in self
         }
 
-    def _apply_quantity_deltas(self, deltas):
+    def _settle_quant_moves_by_delta(self, deltas):
         for ml in self.with_context(quants_cache=self._get_quants_cache()):
             ml._settle_quant_move(quantity=deltas[ml.id])
         if self.move_id:
@@ -1133,7 +1133,7 @@ class StockMoveLine(models.Model):
         ml_ids_to_ignore=None,
     ):
         self.check_singleton()
-        available_qty, _in_date = self._apply_quant_move(
+        available_qty, _in_date = self._update_quants(
             quantity=quantity, in_date=in_date, release_reserved=release_reserved
         )
         if self.product_id.uom_id.compare(available_qty, 0) < 0:
@@ -1170,12 +1170,12 @@ class StockMoveLine(models.Model):
             )
 
     def _reserve_quants(self):
-        return self._apply_reservation_sign(1)
+        return self._update_reservations_by_sign(1)
 
     def _release_quants(self):
-        return self._apply_reservation_sign(-1)
+        return self._update_reservations_by_sign(-1)
 
-    def _apply_reservation_sign(self, sign):
+    def _update_reservations_by_sign(self, sign):
         holding = self._filtered_holding_reservation()
         deltas = defaultdict(float)
         for ml in holding:
@@ -1288,7 +1288,7 @@ class StockMoveLine(models.Model):
     def _get_outdated_candidates(self, ml_ids_to_ignore):
         self.check_singleton()
 
-        def current_picking_first(candidate):
+        def get_candidate_rank(candidate):
             date = candidate.picking_id.date_planned or candidate.move_id.date
             return (
                 candidate.picking_id != self.move_id.picking_id,
@@ -1301,7 +1301,7 @@ class StockMoveLine(models.Model):
             [(name, "=", self[name].id) for name in RESERVATION_KEY_FIELDS]
         )
         domain &= Domain("id", "not in", tuple(ml_ids_to_ignore))
-        return self.search(domain).sorted(current_picking_first)
+        return self.search(domain).sorted(get_candidate_rank)
 
     def _get_aggregated_properties(self, move_line=False, move=False):
         move = move or move_line.move_id
@@ -1336,7 +1336,7 @@ class StockMoveLine(models.Model):
         backorders = self._get_backorders()
         base_key_by_move = {}
 
-        def base_key(move):
+        def get_line_key(move):
             key = base_key_by_move.get(move.id)
             if key is None:
                 key = base_key_by_move[move.id] = self._get_aggregated_properties(
@@ -1348,7 +1348,7 @@ class StockMoveLine(models.Model):
         undelivered_key = {}
         backorder_lines_by_base = defaultdict(lambda: self.env["stock.move.line"])
         for bo_line in backorders.move_line_ids:
-            backorder_lines_by_base[base_key(bo_line.move_id)] |= bo_line
+            backorder_lines_by_base[get_line_key(bo_line.move_id)] |= bo_line
 
         for move_line in self:
             if except_package and move_line.result_package_id:
@@ -1366,7 +1366,7 @@ class StockMoveLine(models.Model):
             )
             undelivered_key.setdefault(move_line.move_id, line_key)
             if line_key not in aggregated_move_lines:
-                agg_keys_by_base[base_key(move_line.move_id)].append(line_key)
+                agg_keys_by_base[get_line_key(move_line.move_id)].append(line_key)
                 aggregated_move_lines[line_key] = {
                     **aggregated_properties,
                     "quantity": quantity,
@@ -1388,7 +1388,7 @@ class StockMoveLine(models.Model):
         if strict:
             return aggregated_move_lines
         self._add_undelivered_quantities(
-            aggregated_move_lines, undelivered_key, backorder_lines_by_base, base_key
+            aggregated_move_lines, undelivered_key, backorder_lines_by_base, get_line_key
         )
         self._aggregate_empty_moves(
             aggregated_move_lines, agg_keys_by_base, self.picking_id | backorders
@@ -1396,13 +1396,13 @@ class StockMoveLine(models.Model):
         return aggregated_move_lines
 
     def _add_undelivered_quantities(
-        self, aggregated_move_lines, undelivered_key, backorder_lines_by_base, base_key
+        self, aggregated_move_lines, undelivered_key, backorder_lines_by_base, get_line_key
     ):
         for move, line_key in undelivered_key.items():
             entry = aggregated_move_lines[line_key]
             uom = entry["product_uom_id"]
             backorder_lines = backorder_lines_by_base.get(
-                base_key(move), self.env["stock.move.line"]
+                get_line_key(move), self.env["stock.move.line"]
             )
             undelivered = move.product_uom_qty + sum(
                 backorder_lines.move_id.mapped("product_uom_qty")
@@ -1488,19 +1488,19 @@ class StockMoveLine(models.Model):
         )
         if not domain.is_false():
 
-            def _match_key(record):
+            def get_reservation_key_ids(record):
                 return tuple(record[name].id for name in RESERVATION_KEY_FIELDS)
 
             empty = self.env["stock.move.line"]
             dirty_by_key = defaultdict(lambda: empty)
             for move_line in dirty_move_lines:
-                dirty_by_key[_match_key(move_line)] |= move_line
+                dirty_by_key[get_reservation_key_ids(move_line)] |= move_line
             deleted_by_key = defaultdict(lambda: empty)
             for move_line in deleted_move_lines:
-                deleted_by_key[_match_key(move_line)] |= move_line
+                deleted_by_key[get_reservation_key_ids(move_line)] |= move_line
 
             for quant in self.env["stock.quant"].search(domain):
-                key = _match_key(quant)
+                key = get_reservation_key_ids(quant)
                 dirty_lines = dirty_by_key.get(key, empty)
                 deleted_lines = deleted_by_key.get(key, empty)
                 quants.append(
@@ -1567,7 +1567,7 @@ class StockMoveLine(models.Model):
             pickings = move_lines.picking_id
             if (
                 not pickings._is_single_transfer()
-                or not pickings._check_move_lines_map_quant_package(package)
+                or not pickings._is_package_entirely_moved(package)
             ):
                 ids_to_update.update(
                     pickings.move_line_ids.filtered(
@@ -1841,7 +1841,7 @@ class StockMoveLine(models.Model):
         from_package_wizard=False,
     ):
         move_lines = all_lines or self
-        action = move_lines._check_destinations()
+        action = move_lines._prepare_action_choose_destination()
         if action:
             return action
         if self._should_display_put_in_pack_wizard(
@@ -1957,7 +1957,7 @@ class StockMoveLine(models.Model):
         self._update_quant_reservations(deltas)
         return moves_to_recompute_state
 
-    def _synchronize_quant(
+    def _update_quant_at_location(
         self,
         quantity,
         location,
@@ -2030,7 +2030,7 @@ class StockMoveLine(models.Model):
             in_date=in_date,
         )
 
-    def _check_destinations(self):
+    def _prepare_action_choose_destination(self):
         if len(self.location_dest_id) > 1:
             view_id = self.env.ref("stock.stock_package_destination_form_view").id
             wiz = self.env["stock.package.destination"].create(

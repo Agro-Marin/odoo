@@ -1378,7 +1378,7 @@ class TestStockQuantImprovements(TestStockCommon):
             ]
         )
         picking.action_confirm()
-        picking.move_ids._do_unreserve()
+        picking.move_ids._unreserve()
         self.env.flush_all()
 
         StockMove = type(self.env["stock.move"])
@@ -1394,7 +1394,7 @@ class TestStockQuantImprovements(TestStockCommon):
             self.env.flush_all()
         return len(calls), picking.move_ids.mapped("state")
 
-    def test_action_assign_does_not_refresh_orderpoints_per_move(self):
+    def test_action_assign_does_not_reset_orderpoint_values_per_move(self):
         few, few_states = self._count_orderpoint_searches_on_assign(2, "AQA")
         many, many_states = self._count_orderpoint_searches_on_assign(20, "AQB")
 

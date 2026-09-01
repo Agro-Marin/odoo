@@ -143,7 +143,7 @@ class StockMove(models.Model):
     def _get_sale_order_lines(self):
         self.check_singleton()
         return (
-            self + self.browse(self._rollup_move_origs() | self._rollup_move_dests())
+            self + self.browse(self._rollup_move_orig_ids() | self._rollup_move_dest_ids())
         ).sale_line_id
 
     def _get_source_document(self):

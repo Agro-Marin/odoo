@@ -204,7 +204,7 @@ class StockWarehouseOrderpoint(models.Model):
             values["supplierinfo"] = self.supplier_id
         return values
 
-    def _get_replenishment_order_notification(self):
+    def _prepare_action_replenishment_order_notification(self):
         self.check_singleton()
         order = (
             self.env["purchase.order.line"]
@@ -212,12 +212,12 @@ class StockWarehouseOrderpoint(models.Model):
             .order_id
         )
         if order:
-            return self._get_replenishment_notification(
+            return self._prepare_action_replenishment_notification(
                 _("The following replenishment order has been generated"),
                 order.display_name,
                 f"/odoo/action-purchase.action_purchase_order_3/{order.id}",
             )
-        return super()._get_replenishment_order_notification()
+        return super()._prepare_action_replenishment_order_notification()
 
     def _get_replenishment_multiple_alternative_map(self, qty_by_orderpoint):
         bought = self.filtered(

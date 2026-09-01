@@ -405,7 +405,7 @@ class TestPacking(TestPackingCommon):
         delivery_company_a.action_confirm()
         delivery_company_a.move_ids.quantity = 5.0
         delivery_company_a.button_validate()
-        reusable_box.unpack()
+        reusable_box.action_unpack()
 
         other_picking_company_b = (
             self.env["stock.picking"]

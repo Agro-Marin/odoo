@@ -1310,7 +1310,7 @@ class TestPacking(TestPackingCommon):
 
         stor_category.max_weight = 45
         stor_category.package_capacity_ids.quantity = 2
-        internal_picking.do_unreserve()
+        internal_picking.action_unreserve()
         internal_picking.action_assign()
         self.assertRecordValues(
             internal_picking.move_line_ids,
@@ -1456,7 +1456,7 @@ class TestPacking(TestPackingCommon):
 
         stor_category.max_weight = 200
         stor_category.package_capacity_ids.quantity = 1
-        internal_picking.do_unreserve()
+        internal_picking.action_unreserve()
         internal_picking.action_assign()
         self.assertRecordValues(
             internal_picking.move_line_ids,
@@ -1590,7 +1590,7 @@ class TestPacking(TestPackingCommon):
         )
         receipt.action_confirm()
 
-        receipt.do_unreserve()
+        receipt.action_unreserve()
         self.env["stock.move.line"].create(
             [
                 {
@@ -1645,7 +1645,7 @@ class TestPacking(TestPackingCommon):
         )
         receipt.action_confirm()
 
-        receipt.do_unreserve()
+        receipt.action_unreserve()
         moves = receipt.move_ids
         self.env["stock.move.line"].create(
             [

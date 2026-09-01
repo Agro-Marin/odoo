@@ -102,7 +102,7 @@
                 <field name="route_id" />
                 <field name="lead_time" />
                 <button
-                    name="select_route"
+                    name="action_select_route"
                     string="Select Route"
                     type="object"
                     class="btn btn-link" />
@@ -120,9 +120,9 @@
                     <field name="warning_message" />
                 </div>
                 <footer>
-                    <button name="order_avbl" type="object" class="btn-primary" invisible="qty_free &lt;= 0.0"> Order <field name="qty_free" />
+                    <button name="action_order_available_quantity" type="object" class="btn-primary" invisible="qty_free &lt;= 0.0"> Order <field name="qty_free" />
                     </button>
-                    <button name="order_all" type="object"> Order <field name="qty_to_order" />
+                    <button name="action_order_full_quantity" type="object"> Order <field name="qty_to_order" />
                     </button>
                     <button string="Cancel" class="btn-secondary" special="cancel" />
                 </footer>

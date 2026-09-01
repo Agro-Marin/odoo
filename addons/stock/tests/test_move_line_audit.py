@@ -238,7 +238,7 @@ class TestMoveLineUntrackedCompensation(TestStockCommon):
                 "company_id": self.env.company.id,
             }
         )
-        line._synchronize_quant(-1.0, self.stock_location, lot=lot)
+        line._update_quant_at_location(-1.0, self.stock_location, lot=lot)
 
         tracked, untracked = self._quantities(product, lot)
         self.assertEqual(tracked, 49.0, "the removal must land on the lot itself")
@@ -267,7 +267,7 @@ class TestMoveLineUntrackedCompensation(TestStockCommon):
                 "company_id": self.env.company.id,
             }
         )
-        line._synchronize_quant(-20.0, self.stock_location, lot=lot)
+        line._update_quant_at_location(-20.0, self.stock_location, lot=lot)
 
         tracked, untracked = self._quantities(product, lot)
         self.assertEqual(tracked, -7.0)

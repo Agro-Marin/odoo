@@ -477,7 +477,7 @@ class TestAuditProductMultiCompany(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestAuditLotPreview(TransactionCase):
-    def test_preview_next_lot_does_not_consume(self):
+    def test_get_next_lot_preview_does_not_consume(self):
         product = self.env["product.product"].create(
             {"name": "Preview Product", "is_storable": True, "tracking": "serial"},
         )
@@ -486,7 +486,7 @@ class TestAuditLotPreview(TransactionCase):
         )
         product.product_tmpl_id.lot_sequence_id = sequence
         number_before = sequence.number_next_actual
-        preview = product.preview_next_lot()
+        preview = product.get_next_lot_preview()
         year = fields.Date.today().year
         self.assertEqual(preview, f"LOT-{year}-{number_before:04d}")
         self.assertEqual(

@@ -277,7 +277,7 @@ class TestAuditFixesCore(TestStockCommon):
         quant = self.Quant._gather(self.productB, self.stock_location, strict=True)
         self.assertAlmostEqual(sum(quant.mapped("reserved_quantity")), 5.0)
 
-        calls = self._spy_calls(_sml, _sml.StockMoveLine, "_synchronize_quant")
+        calls = self._spy_calls(_sml, _sml.StockMoveLine, "_update_quant_at_location")
         line.location_dest_id = self.pack_location
         self.assertEqual(
             calls["n"],
@@ -389,7 +389,7 @@ class TestAuditFixesCore(TestStockCommon):
         m2._action_confirm()
         m2._action_assign()
 
-        calls = self._spy_calls(_sm, _sm.StockMove, "_do_unreserve")
+        calls = self._spy_calls(_sm, _sm.StockMove, "_unreserve")
         self.MoveLine.create(
             [
                 {

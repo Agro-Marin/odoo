@@ -213,9 +213,9 @@ class StockPicking(models.Model):
                 'fname': driver_name[1] if len(driver_name) > 1 else '\u200B',
                 'tckn': driver.vat,
             })
-        scheduled_date_local = fields.Datetime.context_timestamp(
+        date_planned_local = fields.Datetime.context_timestamp(
             self.with_context(tz='Europe/Istanbul'),
-            self.scheduled_date,
+            self.date_planned,
         )
         date_done_local = fields.Datetime.context_timestamp(
             self.with_context(tz='Europe/Istanbul'),
@@ -227,8 +227,8 @@ class StockPicking(models.Model):
             'uuid': dispatch_uuid,
             'picking': self,
             'current_company': self.env.company.partner_id,
-            'issue_date': scheduled_date_local.date().strftime('%Y-%m-%d'),
-            'issue_time': scheduled_date_local.time().strftime('%H:%M:%S'),
+            'issue_date': date_planned_local.date().strftime('%Y-%m-%d'),
+            'issue_time': date_planned_local.time().strftime('%H:%M:%S'),
             'actual_date': date_done_local.strftime('%Y-%m-%d'),
             'actual_time': date_done_local.strftime('%H:%M:%S'),
             'line_count': len(self.move_ids),
@@ -474,10 +474,10 @@ class StockPicking(models.Model):
     def _update_data_from_xml(self, file_data):
         tree = file_data['xml_tree']
         # Dispatch Scheduled Date & Time
-        scheduled_datetime = self._get_tag_text('./cbc:IssueDate', tree) + " " + self._get_tag_text('./cbc:IssueTime', tree)
+        date_planned = self._get_tag_text('./cbc:IssueDate', tree) + " " + self._get_tag_text('./cbc:IssueTime', tree)
 
         vals_to_update = {
-            'scheduled_date': scheduled_datetime,
+            'date_planned': date_planned,
             'origin': self._get_tag_text('./cbc:ID', tree),  # sequence of the e-Receipt obtained from XML.
             'move_ids': [Command.create(value) for value in self._import_receipt_lines(tree)],
         }

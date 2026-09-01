@@ -453,7 +453,7 @@ class TestAuditOrderpointFixes(TransactionCase):
             },
         )
         out_move._action_confirm()
-        self.env["stock.warehouse.orderpoint"]._get_orderpoint_action()
+        self.env["stock.warehouse.orderpoint"]._prepare_action_orderpoint_replenish()
         orderpoint = self.env["stock.warehouse.orderpoint"].search(
             [
                 ("product_id", "=", self.product.id),

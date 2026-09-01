@@ -322,7 +322,7 @@
         <field name="state">code</field>
         <field name="code">
         if records:
-            records.picking_ids.do_unreserve()
+            records.picking_ids.action_unreserve()
         </field>
     </record>
 

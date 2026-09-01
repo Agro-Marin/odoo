@@ -1615,7 +1615,7 @@ class TestReports(TestReportsCommon):
         delivery2 = delivery2_form.save()
         delivery2.action_confirm()
         delivery2.move_ids.quantity = delivery1.move_ids.quantity
-        delivery2.do_unreserve()
+        delivery2.action_unreserve()
         self.assertEqual(delivery2.move_ids.forecast_availability, -200)
 
         for picking in [delivery1, delivery2, receipt1, receipt2]:
@@ -1785,7 +1785,7 @@ class TestReports(TestReportsCommon):
             move.product_uom_qty = 3
         delivery = delivery_form.save()
         delivery.action_confirm()
-        delivery.do_unreserve()
+        delivery.action_unreserve()
         self.assertRecordValues(
             delivery.move_ids,
             [

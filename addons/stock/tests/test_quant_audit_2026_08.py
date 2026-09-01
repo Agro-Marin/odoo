@@ -526,7 +526,7 @@ class TestQuantActionDomain(TestStockCommon):
         built = (
             self.env["stock.quant"]
             .with_context(skip_quant_tasks=True)
-            ._get_quants_action()
+            ._prepare_action_quants()
         )
         conditions = [
             (condition.field_expr, condition.operator, condition.value)

@@ -463,8 +463,8 @@ class TestReorderingRule(TransactionCase):
             lambda m: m.product_id == product_buy_mto
         ).procure_method = "make_to_order"
         customer_picking.action_confirm()
-        self.env["stock.warehouse.orderpoint"]._get_orderpoint_action()
-        self.env["stock.warehouse.orderpoint"]._get_orderpoint_action()
+        self.env["stock.warehouse.orderpoint"]._prepare_action_orderpoint_replenish()
+        self.env["stock.warehouse.orderpoint"]._prepare_action_orderpoint_replenish()
 
         orderpoint_product = self.env["stock.warehouse.orderpoint"].search(
             [("product_id", "=", product.id)]
@@ -489,7 +489,7 @@ class TestReorderingRule(TransactionCase):
         self.assertEqual(po_line_product_mto.product_uom_qty, 10.0)
         self.assertEqual(po_line_product.product_uom_qty, 20.0)
 
-        self.env["stock.warehouse.orderpoint"]._get_orderpoint_action()
+        self.env["stock.warehouse.orderpoint"]._prepare_action_orderpoint_replenish()
         orderpoint_product = self.env["stock.warehouse.orderpoint"].search(
             [("product_id", "=", product.id)]
         )
@@ -515,7 +515,7 @@ class TestReorderingRule(TransactionCase):
         customer_picking.action_confirm()
         self.env["stock.warehouse.orderpoint"].flush_model()
 
-        self.env["stock.warehouse.orderpoint"]._get_orderpoint_action()
+        self.env["stock.warehouse.orderpoint"]._prepare_action_orderpoint_replenish()
         orderpoint_product = self.env["stock.warehouse.orderpoint"].search(
             [("product_id", "=", product.id)]
         )
@@ -569,7 +569,7 @@ class TestReorderingRule(TransactionCase):
             lambda m: m.product_id == product_buy_mto
         ).procure_method = "make_to_order"
         customer_picking.action_confirm()
-        self.env["stock.warehouse.orderpoint"]._get_orderpoint_action()
+        self.env["stock.warehouse.orderpoint"]._prepare_action_orderpoint_replenish()
         orderpoint_product = self.env["stock.warehouse.orderpoint"].search(
             [("product_id", "=", product.id)]
         )
@@ -594,7 +594,7 @@ class TestReorderingRule(TransactionCase):
         self.assertEqual(po_line_product.product_uom_qty, 20.0)
 
         self.env["stock.warehouse.orderpoint"].flush_model()
-        self.env["stock.warehouse.orderpoint"]._get_orderpoint_action()
+        self.env["stock.warehouse.orderpoint"]._prepare_action_orderpoint_replenish()
         orderpoint_product = self.env["stock.warehouse.orderpoint"].search(
             [("product_id", "=", product.id)]
         )
@@ -620,7 +620,7 @@ class TestReorderingRule(TransactionCase):
         customer_picking.action_confirm()
         self.env["stock.warehouse.orderpoint"].flush_model()
 
-        self.env["stock.warehouse.orderpoint"]._get_orderpoint_action()
+        self.env["stock.warehouse.orderpoint"]._prepare_action_orderpoint_replenish()
         orderpoint_product = self.env["stock.warehouse.orderpoint"].search(
             [("product_id", "=", product.id)]
         )
@@ -1031,7 +1031,7 @@ class TestReorderingRule(TransactionCase):
         delivery.action_confirm()
 
         delivery.move_ids.flush_recordset()
-        self.env["stock.warehouse.orderpoint"]._get_orderpoint_action()
+        self.env["stock.warehouse.orderpoint"]._prepare_action_orderpoint_replenish()
 
         orderpoint = self.env["stock.warehouse.orderpoint"].search(
             [("product_id", "=", self.product_01.id)]

@@ -39,7 +39,7 @@
                 </group>
                 <footer>
                     <button
-                        name="launch_replenishment"
+                        name="action_replenish"
                         string="Confirm"
                         type="object"
                         data-hotkey="q"

@@ -183,7 +183,7 @@ class StockReturnPicking(models.TransientModel):
             for return_move in self.product_return_moves.move_id:
                 return_move.move_dest_ids.filtered(
                     lambda m: m.state not in ("done", "cancel")
-                )._do_unreserve()
+                )._unreserve()
 
             new_picking = self.picking_id.copy(self._prepare_picking_default_values())
             new_picking.user_id = False

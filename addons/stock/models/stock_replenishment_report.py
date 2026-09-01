@@ -49,7 +49,7 @@ class StockReplenishmentReport(models.AbstractModel):
         replenish_ids = set(locations.ids)
         ancestors_by_location = {}
 
-        def replenish_ancestors(location):
+        def get_replenish_ancestor_ids(location):
             if not location:
                 return ()
             ancestors = ancestors_by_location.get(location.id)
@@ -71,14 +71,14 @@ class StockReplenishmentReport(models.AbstractModel):
             ["product_id", "location_id"],
             ["product_qty:sum"],
         ):
-            for replenish_id in replenish_ancestors(location):
+            for replenish_id in get_replenish_ancestor_ids(location):
                 net_qty[product, replenish_id] -= qty
         for product, location, qty in Quant._read_group(
             domain_quant,
             ["product_id", "location_id"],
             ["quantity:sum"],
         ):
-            for replenish_id in replenish_ancestors(location):
+            for replenish_id in get_replenish_ancestor_ids(location):
                 net_qty[product, replenish_id] += qty
         return net_qty
 
