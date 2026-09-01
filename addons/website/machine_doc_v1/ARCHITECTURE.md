@@ -5,7 +5,7 @@ High-level structure, data flow, and runtime organization for
 
 > **See also**: `INTERACTIONS.md` — the public-site Interaction framework
 > lifecycle (the website analog of web's STATE_MANAGEMENT). `DIRECTORY_MAP.md` —
-> all 143 `static/src` directories mapped to subsystem + responsibility.
+> all 142 `static/src` directories mapped to subsystem + responsibility.
 > `MODEL_MAP.md`, `ROUTE_MAP.md`, `CONVENTIONS.md`, `TEST_TAGS.md`.
 
 ## Module Identity
@@ -134,7 +134,7 @@ Top-level layout (detailed maps are separate docs):
 | `controllers/` | 7 `.py` — 8 Controller classes (public pages, sitemap, form builder, model pages, dashboard) | `ROUTE_MAP.md` |
 | `models/` | 36 `.py` — 61 model classes (website, mixins, pages/menus, framework extensions, themes, visitors) | `MODEL_MAP.md` |
 | `wizard/` | 4 `.py` + XML — transient wizards (robots, blocked domains, language install, portal) | `MODEL_MAP.md` |
-| `static/src/` | 346 JS across 143 directories (two runtimes) | `DIRECTORY_MAP.md` |
+| `static/src/` | 346 JS across 142 directories (two runtimes) | `DIRECTORY_MAP.md` |
 | `static/tests/` | 218 `.js` (HOOT suites + 86 tours) | `TEST_TAGS.md` |
 | `tests/` | 47 Python test files | `TEST_TAGS.md` |
 | `views/` · `data/` · `security/` · `i18n/` | QWeb templates, ~66 `s_*` snippet templates, fixtures, ACLs, translations | — |
@@ -211,7 +211,7 @@ recolor the whole UI:
 | Python (models) | 36 files (61 model classes) |
 | Python (wizard) | 4 `.py` + XML |
 | Python (tests) | 47 |
-| JavaScript (src) | 346 across 143 directories |
+| JavaScript (src) | 346 across 142 directories |
 | JavaScript (`.edit.js` variants) | 31 |
 | JavaScript (tests) | 217 (incl. 86 tours) |
 | SCSS | 153 |
