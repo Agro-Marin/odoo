@@ -486,6 +486,20 @@ class WebsiteEventController(http.Controller):
                 raise UserError(
                     _("This ticket is not available for sale for this event")
                 )
+        for slot_id in list(
+            filter(
+                lambda x: x is not None,
+                [
+                    form_details[field] if "event_slot_id" in field else None
+                    for field in form_details
+                ],
+            )
+        ):
+            if (
+                int(slot_id) not in event.event_slot_ids.ids
+                and len(event.event_slot_ids.ids) > 0
+            ):
+                raise UserError(_("This slot is not available for this event"))
         registrations = {}
         general_answer_ids = []
         general_identification_answers = {}
