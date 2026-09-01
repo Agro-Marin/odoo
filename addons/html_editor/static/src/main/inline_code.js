@@ -194,7 +194,7 @@ export class InlineCodePlugin extends Plugin {
 
         let textNode = selection.startContainer;
         const wholeText = textNode.wholeText;
-        const textHasTwoTicks = /`[^`]+`/.test(wholeText);
+        const textHasTwoTicks = /`[^ `][^`]*`/.test(wholeText);
         if (textHasTwoTicks && wholeText.replace(/`/g, "").length) {
             let offset = selection.startOffset;
             let sibling = textNode.previousSibling;

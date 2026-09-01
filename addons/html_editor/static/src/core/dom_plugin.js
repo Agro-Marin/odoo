@@ -163,6 +163,7 @@ export class DomPlugin extends Plugin {
         for (const cb of this.getResource("before_insert_processors")) {
             container = cb(container, block);
         }
+        this.dispatchTo("before_insert_handlers");
         if (!container.hasChildNodes()) {
             return [];
         }

@@ -3,7 +3,7 @@ import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { Plugin } from "@html_editor/plugin";
 import { baseContainerGlobalSelector } from "@html_editor/utils/base_container";
 import { closestBlock, isBlock } from "@html_editor/utils/blocks";
-import { getTextColorOrClass, TEXT_CLASSES_REGEX } from "@html_editor/utils/color";
+import { getColorOrClass, TEXT_CLASSES_REGEX } from "@html_editor/utils/color";
 import {
     removeClass,
     removeEmptyTextNodes,
@@ -709,7 +709,7 @@ export class ListPlugin extends Plugin {
         }
         const dir = li.getAttribute("dir") || ul.getAttribute("dir");
         const textAlign = li.style.getPropertyValue("text-align");
-        const liColorStyle = getTextColorOrClass(li);
+        const liColorStyle = getColorOrClass(li);
         const liFontSizeStyle = getFontSizeOrClass(li);
         const wrapChildren = (parent, tag) => {
             const wrapper = this.document.createElement(tag);

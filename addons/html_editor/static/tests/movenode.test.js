@@ -1,7 +1,7 @@
 import { captionEmbedding } from "@html_editor/others/embedded_components/backend/caption/caption";
 import { EMBEDDED_COMPONENT_PLUGINS, MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { describe, expect, getFixture, test } from "@odoo/hoot";
-import { click, hover } from "@odoo/hoot-dom";
+import { click, hover, queryOne } from "@odoo/hoot-dom";
 import { animationFrame, tick } from "@odoo/hoot-mock";
 import { contains } from "@web/../tests/web_test_helpers";
 
@@ -29,6 +29,31 @@ test("should show the hook when hovering a P", async () => {
     expect(".oe-sidewidget-move").toHaveCount(1);
     expect(".oe-sidewidget-move").toHaveRect({ top: 0, left: 5 });
 });
+test("should place the hook against the form sheet border when it would overflow", async () => {
+    // The editable starts at the very left, so the hook's natural position,
+    // 25px further left, falls outside the form sheet. It has to be pulled back
+    // against the sheet's border instead of being drawn under it.
+    const { el } = await setupEditor("<p>a[]</p><p>b</p>", {
+        styleContent: `
+.odoo-editor-editable {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100px;
+}
+`,
+    });
+    const sheet = getFixture();
+    sheet.classList.add("o_form_sheet");
+
+    await hover(el.querySelector("p"));
+    expect(".oe-sidewidget-move").toHaveCount(1);
+    expect(".oe-sidewidget-move").toHaveClass("oe_movewidget_border");
+    expect(queryOne(".oe-sidewidget-move").getBoundingClientRect().left).toBe(
+        sheet.getBoundingClientRect().left - 5.5,
+    );
+});
+
 test("should show the hook when hovering the second P", async () => {
     const { el } = await setupEditor("<p>a[]</p><p>b</p>", {
         styleContent: styles,

@@ -47,6 +47,7 @@ import { ListPlugin } from "./main/list/list_plugin.js";
 import { LocalOverlayPlugin } from "./main/local_overlay_plugin.js";
 import { DoubleClickImagePreviewPlugin } from "./main/media/dblclick_image_preview_plugin.js";
 import { FilePlugin } from "./main/media/file_plugin.js";
+import { UserSignaturePlugin } from "./main/user_signature_plugin.js";
 import { IconColorPlugin } from "./main/media/icon_color_plugin.js";
 import { IconPlugin } from "./main/media/icon_plugin.js";
 import { ImageCropPlugin } from "./main/media/image_crop_plugin.js";
@@ -147,6 +148,7 @@ export const MAIN_PLUGINS = [
     InlineCodePlugin,
     TableResizePlugin,
     FilePlugin,
+    UserSignaturePlugin,
     PlaceholderPlugin,
     SelectionPlaceholderPlugin,
 ];

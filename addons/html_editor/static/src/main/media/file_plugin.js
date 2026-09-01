@@ -8,7 +8,10 @@ import { Plugin } from "@html_editor/plugin";
 import { closestElement, firstLeaf, lastLeaf } from "@html_editor/utils/dom_traversal";
 import { nodeSize } from "@html_editor/utils/position";
 import { withSequence } from "@html_editor/utils/resource";
+import { createFileViewer, FileModel } from "@web/components/file_viewer";
+import { downloadFile } from "@web/core/network/download";
 import { _t } from "@web/core/translation";
+import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
 
 import { DISABLED_NAMESPACE } from "../toolbar/toolbar_plugin.js";
 
@@ -76,12 +79,21 @@ export class FilePlugin extends Plugin {
     };
 
     setup() {
+        this.fileViewer = createFileViewer();
         this.editable.addEventListener("click", this.onClick.bind(this));
         this.editable.addEventListener("keydown", this.onKeyDown.bind(this));
         this.document.addEventListener("pointerdown", this.onPointerDown.bind(this));
     }
 
     onClick(ev) {
+        // The mimetype icon previews or downloads the attachment.
+        const fileImage = closestElement(ev.target, ".o_file_image");
+        if (fileImage) {
+            this.openFile(fileImage);
+            return;
+        }
+
+        // Everything else in the box edits the file name.
         const fileNameEl = closestElement(
             ev.target,
             ".o_file_name_container .o_link_readonly",
@@ -197,6 +209,38 @@ export class FilePlugin extends Plugin {
         const fileCards = attachments.map(this.renderDownloadBox.bind(this));
         fileCards.forEach(this.dependencies.dom.insert);
         this.dependencies.history.addStep();
+    }
+
+    /**
+     * Preview the attachment the clicked icon stands for, or download it when
+     * the viewer cannot render its mimetype.
+     *
+     * @param {HTMLElement} fileImage the `.o_file_image` node
+     */
+    openFile(fileImage) {
+        const fileBox = closestElement(fileImage, ".o_file_box");
+        const fileModel = Object.assign(new FileModel(), {
+            id: fileBox.dataset.attachmentId,
+            name: fileImage.title,
+            mimetype: fileImage.dataset.mimetype,
+        });
+        if (fileModel.isViewable) {
+            this.fileViewer.open(fileModel);
+            return;
+        }
+        try {
+            downloadFile(fileModel.downloadUrl);
+        } catch {
+            this.services.dialog.add(AlertDialog, {
+                title: _t("Missing File"),
+                body: _t(
+                    "Oops, the file %s could not be found. Please replace this file box by a new one to re-upload the file.",
+                    fileModel.name,
+                ),
+                confirm: () => {},
+                confirmLabel: _t("Close"),
+            });
+        }
     }
 
     renderDownloadBox(attachment) {

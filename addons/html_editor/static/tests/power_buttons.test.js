@@ -30,6 +30,14 @@ describe("visibility", () => {
         expect(".o_we_power_buttons").toBeVisible();
     });
 
+    test("should hide power buttons when the block's font size differs", async () => {
+        await setupEditor(
+            `<p><span style="font-size: 36px;" data-oe-zws-empty-inline="">[]\u200B</span></p>`,
+        );
+        expect(".o-we-hint").toHaveCount(0);
+        expect(".o_we_power_buttons").not.toBeVisible();
+    });
+
     test("should show power buttons on P tag containing em (italic)", async () => {
         await setupEditor(`<p><em data-oe-zws-empty-inline="">[]\u200B</em></p>`);
         expect(".o_we_power_buttons").toBeVisible();
@@ -228,7 +236,7 @@ describe("buttons", () => {
         const { editor } = await setupEditor("<p>[]<br></p>");
         click(".o_we_power_buttons .power_button.oi-ellipsis-v");
         await expectElementCount(".o-we-powerbox", 1);
-        expect(queryAllTexts(".o-we-command-name").length).toBe(27);
+        expect(queryAllTexts(".o-we-command-name").length).toBe(28);
         await insertText(editor, "head");
         await animationFrame();
         expect(queryAllTexts(".o-we-command-name")).toEqual([
@@ -240,7 +248,7 @@ describe("buttons", () => {
             press("backspace");
         }
         await animationFrame();
-        expect(queryAllTexts(".o-we-command-name").length).toBe(27);
+        expect(queryAllTexts(".o-we-command-name").length).toBe(28);
     });
 
     test("should close the powerbox on pointerdown outside and not reopen it on subsequent keydown", async () => {
@@ -286,7 +294,7 @@ describe("buttons", () => {
         const { editor } = await setupEditor("<p>[]<br></p>");
         click(".o_we_power_buttons .power_button.oi-ellipsis-v");
         await expectElementCount(".o-we-powerbox", 1);
-        expect(queryAllTexts(".o-we-command-name").length).toBe(27);
+        expect(queryAllTexts(".o-we-command-name").length).toBe(28);
         await insertText(editor, "head");
         await animationFrame();
         expect(queryAllTexts(".o-we-command-name")).toEqual([
@@ -302,7 +310,7 @@ describe("buttons", () => {
         const { editor } = await setupEditor("<p>[]<br></p>");
         click(".o_we_power_buttons .power_button.oi-ellipsis-v");
         await expectElementCount(".o-we-powerbox", 1);
-        expect(queryAllTexts(".o-we-command-name").length).toBe(27);
+        expect(queryAllTexts(".o-we-command-name").length).toBe(28);
         await insertText(editor, "head");
         await animationFrame();
         expect(queryAllTexts(".o-we-command-name")).toEqual([
@@ -318,7 +326,7 @@ describe("buttons", () => {
         const { el, editor } = await setupEditor("<p>[]<br></p>");
         click(".o_we_power_buttons .power_button.oi-ellipsis-v");
         await expectElementCount(".o-we-powerbox", 1);
-        expect(queryAllTexts(".o-we-command-name").length).toBe(27);
+        expect(queryAllTexts(".o-we-command-name").length).toBe(28);
         await insertText(editor, "head");
         await animationFrame();
         expect(queryAllTexts(".o-we-command-name")).toEqual([

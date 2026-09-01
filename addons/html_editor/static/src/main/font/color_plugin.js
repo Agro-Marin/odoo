@@ -1,19 +1,21 @@
 /** @odoo-module native */
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { Plugin } from "@html_editor/plugin";
-import { isBlock } from "@html_editor/utils/blocks";
+import { closestBlock, isBlock } from "@html_editor/utils/blocks";
 import {
     BG_CLASSES_REGEX,
     COLOR_COMBINATION_CLASSES_REGEX,
+    getColorOrClass,
     hasAnyNodesColor,
     hasColor,
     hasTextColorClass,
     TEXT_CLASSES_REGEX,
 } from "@html_editor/utils/color";
-import { fillEmpty, unwrapContents } from "@html_editor/utils/dom";
+import { fillEmpty, removeStyle, unwrapContents } from "@html_editor/utils/dom";
 import {
     ICON_SELECTOR,
     isEmptyBlock,
+    isPhrasingContent,
     isRedundantElement,
     isTextNode,
     isVisibleTextNode,
@@ -23,6 +25,7 @@ import {
 import {
     closestElement,
     descendants,
+    findUpTo,
     selectElements,
 } from "@html_editor/utils/dom_traversal";
 import {
@@ -67,6 +70,8 @@ export class ColorPlugin extends Plugin {
         "getElementColors",
         "getColorCombination",
         "applyColor",
+        "requestColor",
+        "getActiveColorInfo",
     ];
     /** @type {import("plugins").EditorResources} */
     resources = {
@@ -74,7 +79,7 @@ export class ColorPlugin extends Plugin {
             {
                 id: "applyColor",
                 run: ({ color, mode }) => {
-                    this.applyColor(color, mode);
+                    this.requestColor(color, mode);
                     this.dependencies.history.addStep();
                 },
                 isAvailable: isHtmlContentSupported,
@@ -82,6 +87,12 @@ export class ColorPlugin extends Plugin {
         ],
         remove_all_formats_handlers: this.removeAllColor.bind(this),
         color_combination_getters: getColorCombinationFromClass,
+
+        /** Handlers */
+        beforeinput_handlers: this.onBeforeInput.bind(this),
+        before_insert_handlers: this.beforeInsert.bind(this),
+        selectionchange_handlers: this.clearPendingColors.bind(this),
+        delete_handlers: this.convertEmptyColorToPendingIntent.bind(this),
 
         has_format_predicates: [
             (node) => hasColor(closestElement(node), "color"),
@@ -91,6 +102,148 @@ export class ColorPlugin extends Plugin {
             TEXT_CLASSES_REGEX.test(className) || BG_CLASSES_REGEX.test(className),
         normalize_handlers: this.normalize.bind(this),
     };
+
+    setup() {
+        /**
+         * Colours picked on a collapsed selection and not yet written to the
+         * DOM, keyed by mode.
+         */
+        this.activeColorInfo = {};
+    }
+
+    getActiveColorInfo() {
+        return this.activeColorInfo;
+    }
+
+    onBeforeInput(ev) {
+        if (
+            ev.inputType === "insertText" &&
+            this.dependencies.selection.getEditableSelection().isCollapsed
+        ) {
+            this.applyPendingColors();
+        }
+    }
+
+    beforeInsert() {
+        if (this.dependencies.selection.getEditableSelection().isCollapsed) {
+            this.applyPendingColors();
+        }
+    }
+
+    /**
+     * Discard the pending colours when the selection moves.
+     */
+    clearPendingColors() {
+        if (this.skipNextColorClear) {
+            this.skipNextColorClear = false;
+            return;
+        }
+        this.activeColorInfo = {};
+    }
+
+    applyPendingColors() {
+        for (const [mode, color] of Object.entries(this.activeColorInfo)) {
+            this.applyColor(color, mode);
+        }
+    }
+
+    /**
+     * Set a colour on the current selection.
+     *
+     * A non-collapsed selection is coloured in the DOM straight away. A
+     * collapsed one mutates nothing: the colour is recorded and applied the
+     * next time the user types or an insert happens.
+     *
+     * @param {string} color
+     * @param {"color"|"backgroundColor"} mode
+     * @param {boolean} [previewMode=false]
+     */
+    requestColor(color, mode, previewMode = false) {
+        const selection = this.dependencies.selection.getEditableSelection();
+        if (!selection.isCollapsed) {
+            this.applyColor(color, mode, previewMode);
+            return;
+        }
+        const block = closestBlock(selection.anchorNode);
+        const colorNode = findUpTo(
+            closestElement(selection.anchorNode),
+            block,
+            (node) => getColorOrClass(node, mode),
+        );
+        const current = colorNode && getColorOrClass(colorNode, mode);
+        if ((current?.value ?? "") === color) {
+            // Picking the colour it already has: nothing to record.
+            delete this.activeColorInfo[mode];
+        } else {
+            this.activeColorInfo[mode] = color;
+        }
+        this.skipNextColorClear = true;
+        this.dispatchTo("color_requested_handlers");
+    }
+
+    /**
+     * When a delete leaves the caret inside an empty coloured inline, turn that
+     * colour back into a pending intent so it survives for the next character.
+     */
+    convertEmptyColorToPendingIntent() {
+        const selection = this.dependencies.selection.getEditableSelection();
+        const anchorNode = selection.anchorNode;
+        let element = closestElement(anchorNode);
+        const cursor = this.dependencies.selection.preserveSelection();
+        while (
+            isZWS(element) &&
+            isPhrasingContent(element) &&
+            !this.isUnremovable(element)
+        ) {
+            const color = getColorOrClass(element, "color");
+            const bgColor = getColorOrClass(element, "backgroundColor");
+            if (!color && !bgColor) {
+                break;
+            }
+            const parent = element.parentElement;
+            if (color) {
+                this.activeColorInfo.color = color.value;
+                this.colorElement(element, "", "color");
+            }
+            if (bgColor) {
+                this.activeColorInfo.backgroundColor = bgColor.value;
+                this.colorElement(element, "", "backgroundColor");
+            }
+            // Clearing the last colour property leaves `style=""` behind on
+            // some paths, which is not a reason to keep the element.
+            const nonZwsAttrs = element
+                .getAttributeNames()
+                .filter(
+                    (attr) =>
+                        attr !== "data-oe-zws-empty-inline" &&
+                        !(attr === "style" && !element.getAttribute("style")),
+                );
+            if (["FONT", "SPAN"].includes(element.nodeName) && !nonZwsAttrs.length) {
+                cursor.update(callbacksForCursorUpdate.unwrap(element));
+                unwrapContents(element);
+            }
+            element = parent;
+        }
+        if (
+            Object.keys(this.activeColorInfo).length &&
+            anchorNode.isConnected &&
+            anchorNode.nodeType === Node.TEXT_NODE &&
+            anchorNode.textContent === "\u200b"
+        ) {
+            cursor.update(callbacksForCursorUpdate.remove(anchorNode));
+            anchorNode.remove();
+            this.skipNextColorClear = true;
+        }
+        cursor.restore();
+    }
+
+    /**
+     * @param {Node} node
+     * @returns {boolean}
+     */
+    isUnremovable(node) {
+        return this.getResource("unremovable_node_predicates").some((p) => p(node));
+    }
 
     normalize(root) {
         for (const el of selectElements(root, "font")) {
@@ -220,7 +373,7 @@ export class ColorPlugin extends Plugin {
             ) {
                 zws = selection.anchorNode;
             } else {
-                zws = this.dependencies.format.insertAndSelectZws();
+                zws = this.dependencies.format.getOrCreateZws();
             }
             this.dependencies.selection.setSelection(
                 {
@@ -463,6 +616,11 @@ export class ColorPlugin extends Plugin {
                     }
                     if (node.textContent) {
                         font.appendChild(node);
+                        if (isTextNode(node) && isZWS(node)) {
+                            // Flag the placeholder so the pass below can tell a
+                            // font holding only it from one holding real text.
+                            font.setAttribute("data-oe-zws-empty-inline", "");
+                        }
                     } else {
                         fillEmpty(font);
                     }

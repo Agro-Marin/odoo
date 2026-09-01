@@ -6,12 +6,13 @@ import {
     manuallyDispatchProgrammaticEvent,
     pointerUp,
     press,
+    queryAllTexts,
     queryOne,
     waitFor,
     waitForNone,
 } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { contains } from "@web/../tests/web_test_helpers";
+import { contains, patchTranslations } from "@web/../tests/web_test_helpers";
 
 import { base64Img, setupEditor } from "./_helpers/editor.js";
 import {
@@ -709,4 +710,110 @@ test("Correctly determine the mimetype of an image with wrong extension", async 
     imageEl.setAttribute("src", imgSrc);
     const mimetype = await getFetchedMimetype(imageEl);
     expect(mimetype).toBe("image/png");
+});
+
+test("the image padding and size labels are translated", async () => {
+    patchTranslations({
+        html_editor: {
+            None: "Ninguno",
+            Small: "Pequeño",
+            Default: "Predeterminado",
+        },
+    });
+    await setupEditor(`
+        <img class="img-fluid test-image" src="${base64Img}">
+    `);
+    await click("img.test-image");
+    await waitFor(".o-we-toolbar");
+
+    await click(".o-we-toolbar [name='image_padding'] .dropdown-toggle");
+    await animationFrame();
+    expect(queryAllTexts(".image_padding_selector .dropdown-item").slice(0, 2)).toEqual([
+        "Ninguno",
+        "Pequeño",
+    ]);
+
+    await click(".o-we-toolbar [name='image_size'] .dropdown-toggle");
+    await animationFrame();
+    expect(queryAllTexts(".image_size_selector .dropdown-item")[0]).toBe("Predeterminado");
+});
+
+test("image alignment option should be available for images", async () => {
+    await setupEditor(`
+        <p><img class="img-fluid test-image" src="${base64Img}"></p>
+    `);
+    await click("img.test-image");
+    await waitFor(".o-we-toolbar");
+    await expectElementCount(".o-we-toolbar button[title='Set image alignment']", 1);
+});
+
+test("change image's alignment to 'Wrap text'", async () => {
+    await setupEditor(`
+        <p><img class="img-fluid" src="${base64Img}"></p>
+    `);
+    await click("img");
+    await waitFor(".o-we-toolbar");
+    await click(".o-we-toolbar button[title='Set image alignment']");
+    await animationFrame();
+    await click(".o-we-toolbar-dropdown .btn[title='Wrap text']");
+    await animationFrame();
+    expect("img").toHaveClass("float-start");
+});
+
+test("change image's alignment to 'Break text'", async () => {
+    await setupEditor(`
+        <p><img class="img-fluid" src="${base64Img}"></p>
+    `);
+    await click("img");
+    await waitFor(".o-we-toolbar");
+    await click(".o-we-toolbar button[title='Set image alignment']");
+    await animationFrame();
+    await click(".o-we-toolbar-dropdown .btn[title='Break text']");
+    await animationFrame();
+    expect("img").toHaveClass("d-block");
+});
+
+test("change image's alignment to 'Wrap text' then 'Break text' then 'Inline'", async () => {
+    await setupEditor(`
+        <p><img class="img-fluid" src="${base64Img}"></p>
+    `);
+    await click("img");
+    await waitFor(".o-we-toolbar");
+
+    await click(".o-we-toolbar button[title='Set image alignment']");
+    await animationFrame();
+    await click(".o-we-toolbar-dropdown .btn[title='Wrap text']");
+    await animationFrame();
+    expect("img").toHaveClass("float-start");
+
+    await click(".o-we-toolbar button[title='Set image alignment']");
+    await animationFrame();
+    await click(".o-we-toolbar-dropdown .btn[title='Break text']");
+    await animationFrame();
+    expect("img").not.toHaveClass("float-start");
+    expect("img").toHaveClass("d-block");
+
+    await click(".o-we-toolbar button[title='Set image alignment']");
+    await animationFrame();
+    await click(".o-we-toolbar-dropdown .btn[title='Inline']");
+    await animationFrame();
+    expect("img").not.toHaveClass("float-start");
+    expect("img").not.toHaveClass("d-block");
+});
+
+test("the size dropdown shows the image's actual width when set to Default", async () => {
+    await setupEditor(`
+        <img src="${base64Img}" style="width: 50%;">
+    `);
+    await click("img");
+    await waitFor(".o-we-toolbar");
+    expect(queryOne(".o-we-toolbar .dropdown-toggle[title='Resize image']")).toHaveText("50%");
+
+    await click(".o-we-toolbar .dropdown-toggle[title='Resize image']");
+    await animationFrame();
+    await click(".image_size_selector .dropdown-item:contains('Default')");
+    await animationFrame();
+    expect(queryOne(".o-we-toolbar .dropdown-toggle[title='Resize image']")).toHaveText(
+        queryOne("img").getBoundingClientRect().width + "px",
+    );
 });

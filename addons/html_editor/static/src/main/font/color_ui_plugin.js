@@ -51,6 +51,7 @@ export class ColorUIPlugin extends Plugin {
             100,
             this.updateSelectedColor.bind(this),
         ),
+        color_requested_handlers: this.updateSelectedColor.bind(this),
         get_background_color_processors: this.getBackgroundColorProcessor.bind(this),
         apply_background_color_processors:
             this.applyBackgroundColorProcessor.bind(this),
@@ -64,7 +65,7 @@ export class ColorUIPlugin extends Plugin {
         this.selectedColors = reactive({ color: "", backgroundColor: "" });
         this.previewableApplyColor = this.dependencies.history.makePreviewableOperation(
             (color, mode, previewMode) =>
-                this.dependencies.color.applyColor(color, mode, previewMode),
+                this.dependencies.color.requestColor(color, mode, previewMode),
         );
     }
 
@@ -152,19 +153,24 @@ export class ColorUIPlugin extends Plugin {
             }
         }
 
-        this.selectedColors.backgroundColor = backgroundColor || "#00000000";
+        // A colour picked on a collapsed selection is not in the DOM yet, so
+        // the swatch has to read the pending value first.
+        const pending = this.dependencies.color.getActiveColorInfo();
+        this.selectedColors.backgroundColor =
+            pending.backgroundColor ?? (backgroundColor || "#00000000");
 
         const nodes = this.dependencies.selection.getTargetedNodes().filter(isTextNode);
         if (nodes.length === 0) {
-            this.selectedColors.color = "";
+            this.selectedColors.color = pending.color ?? "";
             return;
         }
         const el = closestElement(nodes[0]);
         if (!el) {
-            this.selectedColors.color = "";
+            this.selectedColors.color = pending.color ?? "";
             return;
         }
-        this.selectedColors.color = this.dependencies.color.getElementColors(el).color;
+        this.selectedColors.color =
+            pending.color ?? this.dependencies.color.getElementColors(el).color;
     }
 
     getBackgroundColorProcessor(backgroundColor) {

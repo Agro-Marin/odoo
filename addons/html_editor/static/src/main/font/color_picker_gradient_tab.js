@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { Component, useState } from "@odoo/owl";
+import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { applyOpacityToGradient, isColorGradient } from "@web/core/utils/format/colors";
@@ -41,6 +41,18 @@ export class ColorPickerGradientTab extends Component {
         });
         this.applyOpacityToGradient = applyOpacityToGradient;
         this.DEFAULT_GRADIENT_COLORS = DEFAULT_GRADIENT_COLORS;
+        this.customGradientButton = useRef("customGradientButton");
+        useEffect(
+            () => {
+                // Expanding the picker inserts focusable controls after the
+                // button. Focus it so Tab walks into them instead of leaving
+                // the picker.
+                if (this.state.showGradientPicker) {
+                    this.customGradientButton.el?.focus();
+                }
+            },
+            () => [this.state.showGradientPicker],
+        );
     }
 
     getCurrentGradientColor() {

@@ -12,6 +12,7 @@ import { _t } from "@web/core/translation";
 
 import { Plugin } from "../../plugin.js";
 import { ImageDescription, ImageDescriptionPopover } from "./image_description.js";
+import { ImageAlignSelector } from "./image_align_selector.js";
 import { ImageToolbarDropdown } from "./image_toolbar_dropdown.js";
 import { ImageTransformButton } from "./image_transform_button.js";
 
@@ -22,18 +23,24 @@ function hasShape(imagePlugin, shapeName) {
 export const IMAGE_SHAPES = ["rounded", "rounded-circle", "shadow", "img-thumbnail"];
 
 const IMAGE_PADDING = [
-    { name: "None", value: 0 },
-    { name: "Small", value: 1 },
-    { name: "Medium", value: 2 },
-    { name: "Large", value: 3 },
-    { name: "XL", value: 5 },
+    { name: _t("None"), value: 0 },
+    { name: _t("Small"), value: 1 },
+    { name: _t("Medium"), value: 2 },
+    { name: _t("Large"), value: 3 },
+    { name: _t("XL"), value: 5 },
+];
+
+const IMAGE_ALIGNMENT = [
+    { icon: "oi-text-inline", value: "", title: _t("Inline") },
+    { icon: "oi-text-wrap", value: "float-start", title: _t("Wrap text") },
+    { icon: "oi-text-break", value: "d-block", title: _t("Break text") },
 ];
 
 const IMAGE_SIZE = [
-    { name: "Default", value: "" },
-    { name: "100%", value: "100%" },
-    { name: "50%", value: "50%" },
-    { name: "25%", value: "25%" },
+    { name: _t("Default"), value: "" },
+    { name: _t("100%"), value: "100%" },
+    { name: _t("50%"), value: "50%" },
+    { name: _t("25%"), value: "25%" },
 ];
 
 /**
@@ -193,6 +200,7 @@ export class ImagePlugin extends Plugin {
                 Component: ImageToolbarDropdown,
                 props: {
                     name: "image_size",
+                    icon: "fa-expand",
                     getDisplay: () => this.imageSize,
                     items: IMAGE_SIZE,
                     onSelected: (item) => {
@@ -203,6 +211,21 @@ export class ImagePlugin extends Plugin {
                 isAvailable: (selection) =>
                     isHtmlContentSupported(selection) &&
                     (this.config.allowImageResize ?? true),
+            },
+            {
+                id: "image_alignment",
+                description: _t("Set image alignment"),
+                groupId: "image_modifiers",
+                Component: ImageAlignSelector,
+                props: {
+                    items: IMAGE_ALIGNMENT,
+                    getDisplay: () => this.imageAlignment,
+                    focusEditable: () => this.dependencies.selection.focusEditable(),
+                    onSelected: (item) => {
+                        this.setImageAlignment(item);
+                    },
+                },
+                isAvailable: isHtmlContentSupported,
             },
             {
                 id: "image_transform",
@@ -232,6 +255,7 @@ export class ImagePlugin extends Plugin {
 
     setup() {
         this.imageSize = reactive({ displayName: "Default" });
+        this.imageAlignment = reactive({ displayIcon: "oi-text-inline" });
         this.addDomListener(this.editable, "pointerdown", (e) => {
             const selection = this.dependencies.selection.getEditableSelection();
             if (selection.isCollapsed && e.target.tagName === "IMG") {
@@ -257,7 +281,9 @@ export class ImagePlugin extends Plugin {
         if (!targetedImg) {
             return "Default";
         }
-        return targetedImg.style.width || "Default";
+        // With no width of its own the image renders at its natural size, and
+        // "Default" says nothing about what that is. Report the real width.
+        return targetedImg.style.width || `${targetedImg.width}px`;
     }
 
     setImagePadding({ size } = {}) {
@@ -420,6 +446,37 @@ export class ImagePlugin extends Plugin {
 
     updateImageParams() {
         this.imageSize.displayName = this.imageSizeName;
+        this.imageAlignment.displayIcon = this.imageAlignmentIcon;
+    }
+
+    /**
+     * @returns {string} the icon class of the targeted image's alignment
+     */
+    get imageAlignmentIcon() {
+        const targetedImg = this.getTargetedImage();
+        if (targetedImg) {
+            for (const { value, icon } of IMAGE_ALIGNMENT) {
+                if (value && targetedImg.classList.contains(value)) {
+                    return icon;
+                }
+            }
+        }
+        return "oi-text-inline";
+    }
+
+    setImageAlignment(alignment) {
+        const targetedImg = this.getTargetedImage();
+        if (!targetedImg) {
+            return;
+        }
+        targetedImg.classList.remove(
+            ...IMAGE_ALIGNMENT.map(({ value }) => value).filter(Boolean),
+        );
+        if (alignment.value) {
+            targetedImg.classList.add(alignment.value);
+        }
+        this.imageAlignment.displayIcon = alignment.icon;
+        this.dependencies.history.addStep();
     }
 
     openImageDescriptionPopover() {

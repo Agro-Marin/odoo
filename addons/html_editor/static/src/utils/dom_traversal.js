@@ -307,3 +307,22 @@ export const selectElements = function* (root, selector) {
         yield elem;
     }
 };
+
+/**
+ * Move keyboard focus to the next or previous focusable element in the given
+ * list, wrapping around at either end.
+ *
+ * @param {Iterable<HTMLElement>} elements
+ * @param {boolean} [backward=false] move focus backward instead of forward
+ */
+export function trapFocus(elements, backward = false) {
+    if (!elements || !elements.length) {
+        return;
+    }
+    const focusableElements = Array.from(elements).filter((el) => !el.disabled);
+    const currentIndex = focusableElements.indexOf(document.activeElement);
+    const nextIndex =
+        (currentIndex + (backward ? -1 : 1) + focusableElements.length) %
+        focusableElements.length;
+    focusableElements[nextIndex]?.focus();
+}

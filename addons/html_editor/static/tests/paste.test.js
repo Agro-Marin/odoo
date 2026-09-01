@@ -12,6 +12,7 @@ import {
     manuallyDispatchProgrammaticEvent as dispatch,
     press,
     waitFor,
+    waitForNone,
 } from "@odoo/hoot-dom";
 import { animationFrame, tick } from "@odoo/hoot-mock";
 import { dataURItoBlob, onRpc, patchWithCleanup } from "@web/../tests/web_test_helpers";
@@ -21,6 +22,7 @@ import { cleanLinkArtifacts, unformat } from "./_helpers/format.js";
 import { getContent, setSelection } from "./_helpers/selection.js";
 import { expectElementCount } from "./_helpers/ui_expectations.js";
 import {
+    insertText,
     pasteHtml,
     pasteOdooEditorHtml,
     pasteText,
@@ -3161,7 +3163,7 @@ describe("link", () => {
                     pasteText(editor, "abc www.odoo.com xyz");
                 },
                 contentAfter:
-                    '<p>abc <a href="http://www.odoo.com">www.odoo.com</a> xyz[]</p>',
+                    '<p>abc <a href="https://www.odoo.com">www.odoo.com</a> xyz[]</p>',
             });
         });
 
@@ -3172,8 +3174,8 @@ describe("link", () => {
                     pasteText(editor, "odoo.com\ngoogle.com");
                 },
                 contentAfter:
-                    '<div><a href="http://odoo.com">odoo.com</a></div>' +
-                    '<p><a href="http://google.com">google.com</a>[]</p>',
+                    '<div><a href="https://odoo.com">odoo.com</a></div>' +
+                    '<p><a href="https://google.com">google.com</a>[]</p>',
             });
         });
 
@@ -3494,7 +3496,7 @@ describe("link", () => {
                 stepFunction: async (editor) => {
                     pasteText(editor, "www.odoo.com");
                 },
-                contentAfter: '<p><a href="http://www.odoo.com">www.odoo.com</a>[]</p>',
+                contentAfter: '<p><a href="https://www.odoo.com">www.odoo.com</a>[]</p>',
             });
         });
 
@@ -3505,7 +3507,7 @@ describe("link", () => {
                     pasteText(editor, "abc www.odoo.com xyz");
                 },
                 contentAfter:
-                    '<p>abc <a href="http://www.odoo.com">www.odoo.com</a> xyz[]</p>',
+                    '<p>abc <a href="https://www.odoo.com">www.odoo.com</a> xyz[]</p>',
             });
         });
 
@@ -3578,6 +3580,18 @@ describe("images", () => {
             await expectElementCount(".o-we-powerbox", 1);
             await press("Enter");
             expect(getContent(el)).toBe(`<p>ab<img src="${imgUrl}">[]cd</p>`);
+        });
+
+        test("should close the powerbox after an undo when pasting an image URL", async () => {
+            const { el, editor } = await setupEditor("<p>a[]b</p>");
+            await insertText(editor, "x");
+            expect(getContent(el)).toBe(`<p>ax[]b</p>`);
+            pasteText(editor, imgUrl);
+            await animationFrame();
+            await expectElementCount(".o-we-powerbox", 1);
+            undo(editor);
+            await waitForNone(".o-we-powerbox");
+            expect(getContent(el)).toBe(`<p>ax[]b</p>`);
         });
 
         test("should paste and transform an image URL in a span", async () => {

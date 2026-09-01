@@ -2,7 +2,12 @@
 import { Plugin } from "@html_editor/plugin";
 import { removeClass } from "@html_editor/utils/dom";
 import { isEditorTab, isEmptyBlock, isProtected } from "@html_editor/utils/dom_info";
-import { descendants, selectElements } from "@html_editor/utils/dom_traversal";
+import {
+    closestElement,
+    descendants,
+    firstLeaf,
+    selectElements,
+} from "@html_editor/utils/dom_traversal";
 import { debounce } from "@web/core/utils/timing";
 
 import { closestBlock } from "../utils/blocks.js";
@@ -35,6 +40,12 @@ export class HintPlugin extends Plugin {
         normalize_handlers: this.normalize.bind(this),
         clean_for_save_handlers: ({ root }) => this.clearHints(root),
         content_updated_handlers: this.updateHints.bind(this),
+
+        /** Predicates */
+        // The power buttons sit on the hint line. When the hint is
+        // suppressed they would overlap the text, so hide them too.
+        power_buttons_visibility_predicates: ({ anchorNode }) =>
+            Boolean(closestElement(anchorNode, ".o-we-hint")),
 
         hint_targets_providers: (selectionData, editable) => {
             if (
@@ -94,18 +105,28 @@ export class HintPlugin extends Plugin {
                     const nodeHint = hints.find((h) =>
                         target.matches(h.selector),
                     )?.text;
-                    if (
-                        target &&
-                        nodeHint &&
-                        isEmptyBlock(target) &&
-                        !isProtected(target) &&
-                        !descendants(target).some(isEditorTab)
-                    ) {
+                    if (target && nodeHint && this.shouldDisplayHint(target)) {
                         this.makeHint(target, nodeHint);
                     }
                 }
             }
         }
+    }
+
+    shouldDisplayHint(el) {
+        let shouldDisplay =
+            isEmptyBlock(el) && !isProtected(el) && !descendants(el).some(isEditorTab);
+        if (shouldDisplay && el.childNodes.length) {
+            // A hint is drawn on the block's own line height. If the caret sits
+            // in an inline with another font size, the two do not line up and
+            // the hint would overlap the text, so drop it.
+            const hintFontSize = parseInt(getComputedStyle(el).fontSize);
+            const childFontSize = parseInt(
+                getComputedStyle(firstLeaf(el).parentElement).fontSize,
+            );
+            shouldDisplay = childFontSize === hintFontSize;
+        }
+        return shouldDisplay;
     }
 
     makeHint(el, text) {

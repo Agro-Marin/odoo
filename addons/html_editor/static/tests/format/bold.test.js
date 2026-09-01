@@ -141,24 +141,6 @@ test("should make a selection ending with bold text fully bold", async () => {
     });
 });
 
-test("should get ready to type in bold", async () => {
-    await testEditor({
-        contentBefore: "<p>ab[]cd</p>",
-        stepFunction: bold,
-        contentAfterEdit: `<p>ab<strong data-oe-zws-empty-inline="">\u200B[]</strong>cd</p>`,
-        contentAfter: `<p>ab[]cd</p>`,
-    });
-});
-
-test("should get ready to type in not bold", async () => {
-    await testEditor({
-        contentBefore: `<p><strong>ab[]cd</strong></p>`,
-        stepFunction: bold,
-        contentAfterEdit: `<p><strong>ab</strong><span data-oe-zws-empty-inline="">\u200B[]</span><strong>cd</strong></p>`,
-        contentAfter: `<p><strong>ab[]cd</strong></p>`,
-    });
-});
-
 describe("Redundant bold tags", () => {
     test(`should remove a strong tag that was redundant while performing the command.`, async () => {
         await testEditor({
@@ -312,14 +294,14 @@ test("should make two paragraphs (separated with whitespace) bold, then not bold
     });
 });
 
-test("should insert a span zws when toggling a formatting command twice", () =>
+test("should remove bold format on formatting bold twice", () =>
     testEditor({
         contentBefore: `<p>[]<br></p>`,
         stepFunction: async (editor) => {
             bold(editor);
             bold(editor);
         },
-        contentAfterEdit: `<p o-we-hint-text='Type "/" for commands' class="o-we-hint"><span data-oe-zws-empty-inline="">\u200B[]</span></p>`,
+        contentAfterEdit: `<p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p>`,
     }));
 
 test("should type in bold", async () => {
@@ -342,9 +324,7 @@ test("should type in bold", async () => {
     patchWithCleanup(console, { warn: () => {} });
 
     bold(editor);
-    expect(getContent(el)).toBe(
-        `<p>ab<strong data-oe-zws-empty-inline="">\u200B[]</strong>cd</p>`,
-    );
+    expect(getContent(el)).toBe(`<p>ab[]cd</p>`);
 
     await typeChar(editor, "x");
     expect(getContent(el)).toBe(`<p>ab<strong>x[]</strong>cd</p>`);
@@ -353,9 +333,7 @@ test("should type in bold", async () => {
     expect(getContent(el)).toBe(`<p>ab<strong>xy[]</strong>cd</p>`);
 
     bold(editor);
-    expect(getContent(el)).toBe(
-        `<p>ab<strong>xy</strong><span data-oe-zws-empty-inline="">\u200B[]</span>cd</p>`,
-    );
+    expect(getContent(el)).toBe(`<p>ab<strong>xy[]</strong>cd</p>`);
     await typeChar(editor, "z");
     expect(getContent(el)).toBe(`<p>ab<strong>xy</strong>z[]cd</p>`);
 });
@@ -364,25 +342,19 @@ test.tags("desktop");
 test("create bold with shortcut + selected with arrow", async () => {
     const { editor, el } = await setupEditor("<p>ab[]cd</p>");
     await press(["control", "b"]);
-    expect(getContent(el)).toBe(
-        `<p>ab<strong data-oe-zws-empty-inline="">\u200B[]</strong>cd</p>`,
-    );
+    expect(getContent(el)).toBe(`<p>ab[]cd</p>`);
 
     await simulateArrowKeyPress(editor, ["Shift", "ArrowRight"]);
     await tick();
     await animationFrame();
     await expectElementCount(".o-we-toolbar", 1);
-    expect(getContent(el)).toBe(
-        `<p>ab<strong data-oe-zws-empty-inline="">\u200B</strong>[c]d</p>`,
-    );
+    expect(getContent(el)).toBe(`<p>ab[c]d</p>`);
 
     await simulateArrowKeyPress(editor, ["Shift", "ArrowLeft"]);
     await tick();
     await animationFrame();
     await expectElementCount(".o-we-toolbar", 0);
-    expect(getContent(el)).toBe(
-        `<p>ab<strong data-oe-zws-empty-inline="">\u200B[]</strong>cd</p>`,
-    );
+    expect(getContent(el)).toBe(`<p>ab[]cd</p>`);
 });
 
 const styleContentBold = `.boldClass { font-weight: bold; }`;
@@ -444,49 +416,18 @@ describe("inside container font-weight: 500 and strong being strong-weight: 500"
     });
 });
 
-test("should remove empty bold tag when changing selection", async () => {
-    const { editor, el } = await setupEditor("<p>ab[]cd</p>");
-
-    bold(editor);
-    await tick();
-    expect(getContent(el)).toBe(
-        `<p>ab<strong data-oe-zws-empty-inline="">\u200B[]</strong>cd</p>`,
-    );
-
-    await simulateArrowKeyPress(editor, "ArrowLeft");
-    await tick();
-    expect(getContent(el)).toBe(`<p>a[]bcd</p>`);
-});
-
-test("should remove multiple formatted empty bold tag when changing selection", async () => {
-    const { editor, el } = await setupEditor("<p>ab[]cd</p>");
-
-    bold(editor);
-    italic(editor);
-    await tick();
-    expect(getContent(el)).toBe(
-        `<p>ab<strong data-oe-zws-empty-inline=""><em data-oe-zws-empty-inline="">\u200B[]</em></strong>cd</p>`,
-    );
-
-    await simulateArrowKeyPress(editor, "ArrowLeft");
-    await tick();
-    expect(getContent(el)).toBe(`<p>a[]bcd</p>`);
-});
-
 test("should not remove empty bold tag in an empty block when changing selection", async () => {
     const { editor, el } = await setupEditor("<p>abcd</p><p>[]<br></p>");
 
     bold(editor);
     await tick();
     expect(getContent(el)).toBe(
-        `<p>abcd</p><p o-we-hint-text='Type "/" for commands' class="o-we-hint"><strong data-oe-zws-empty-inline="">\u200B[]</strong></p>`,
+        `<p>abcd</p><p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p>`,
     );
 
     await simulateArrowKeyPress(editor, "ArrowUp");
     await tick();
-    expect(getContent(el)).toBe(
-        `<p>[]abcd</p><p><strong data-oe-zws-empty-inline="">\u200B</strong></p>`,
-    );
+    expect(getContent(el)).toBe(`<p>[]abcd</p><p><br></p>`);
 });
 
 test("should not add history step for bold on collapsed selection", async () => {
@@ -495,9 +436,7 @@ test("should not add history step for bold on collapsed selection", async () => 
     patchWithCleanup(console, { warn: () => {} });
 
     await press(["ctrl", "b"]);
-    expect(getContent(el)).toBe(
-        `<p>abcd<strong data-oe-zws-empty-inline="">\u200B[]</strong></p>`,
-    );
+    expect(getContent(el)).toBe(`<p>abcd[]</p>`);
 
     await insertText(editor, "A");
     expect(getContent(el)).toBe(`<p>abcd<strong>A[]</strong></p>`);

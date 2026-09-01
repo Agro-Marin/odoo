@@ -8,6 +8,7 @@ import { unformat } from "../_helpers/format.js";
 import { getContent } from "../_helpers/selection.js";
 import { expandToolbar } from "../_helpers/toolbar.js";
 import { expectElementCount } from "../_helpers/ui_expectations.js";
+import { insertText } from "../_helpers/user_actions.js";
 import { execCommand } from "../_helpers/userCommands.js";
 
 test("should do nothing if no format is set", async () => {
@@ -1253,4 +1254,19 @@ test("should remove format on content with colored icon element", async () => {
     );
     execCommand(editor, "removeFormat");
     expect(el.querySelector("i.fa").classList.contains("bg-o-color-1")).toBe(false);
+});
+
+test("remove format on a collapsed cursor removes format from the next typed char", async () => {
+    const { editor, el } = await setupEditor(`<p><strong>ab[]cd</strong></p>`);
+    await press(["control", "Space"]);
+    await insertText(editor, "x");
+    expect(getContent(el)).toBe(`<p><strong>ab</strong>x[]<strong>cd</strong></p>`);
+});
+
+test("remove format discards a pending format intent", async () => {
+    const { editor, el } = await setupEditor(`<p>ab[]cd</p>`);
+    await press(["ctrl", "b"]); // pending bold, no DOM change
+    await press(["control", "space"]); // should drop the pending intent
+    await insertText(editor, "x");
+    expect(getContent(el)).toBe(`<p>abx[]cd</p>`);
 });
