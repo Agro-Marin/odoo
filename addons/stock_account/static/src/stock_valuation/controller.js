@@ -14,6 +14,7 @@ export class StockValuationReportController {
         this.state = reactive({
             date: DateTime.now(),
         });
+        this.loadRequestId = 0;
     }
 
     async load() {
@@ -23,6 +24,7 @@ export class StockValuationReportController {
     }
 
     async loadReportData() {
+        const requestId = ++this.loadRequestId;
         const kwargs = {
             date: this.state.date.toISODate() || false,
         };
@@ -32,6 +34,12 @@ export class StockValuationReportController {
             [],
             kwargs,
         );
+        if (requestId !== this.loadRequestId) {
+            // A more recent loadReportData() call started after this one; discard
+            // this stale response so an out-of-order resolution can't overwrite
+            // the data of the request the user is actually waiting on.
+            return;
+        }
         this.data = res.data;
         if (this.data.inventory_loss) {
             for (const line of this.data.inventory_loss.lines) {
