@@ -338,7 +338,10 @@ class HTML_Editor(http.Controller):
         hide_dm_logo=False,
         hide_dm_share=False,
         start_from=False,
+        is_vertical=False,
     ):
+        # `is_vertical` frames the player in the editor; it is not part of the
+        # embed URL, so it is accepted and dropped here rather than forwarded.
         return get_video_url_data(
             video_url,
             autoplay=autoplay,

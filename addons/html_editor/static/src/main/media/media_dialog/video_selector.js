@@ -1,10 +1,16 @@
 /** @odoo-module native */
 import { Switch } from "@html_editor/components/switch/switch";
+import { closestElement } from "@html_editor/utils/dom_traversal";
 import { Component, onMounted, status, useRef, useState } from "@odoo/owl";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { debounce } from "@web/core/utils/timing";
+
+// The orientation is a framing choice, not something the player reads from the
+// URL: `urlParameter` still has to return a key for `syncOptionsWithUrl`, so it
+// returns this sentinel instead of a real query parameter.
+const VERTICAL_PARAMETER = "vertical";
 
 class VideoOption extends Component {
     static template = "html_editor.VideoOption";
@@ -65,12 +71,15 @@ export class VideoSelector extends Component {
             platform: null,
             vimeoPreviews: [],
             errorMessage: "",
+            isVertical: false,
         });
 
         this.PLATFORMS = {
             youtube: "youtube",
             dailymotion: "dailymotion",
             vimeo: "vimeo",
+            instagram: "instagram",
+            facebook: "facebook",
         };
 
         this.platformParams = {
@@ -105,6 +114,16 @@ export class VideoSelector extends Component {
                         (option) => option.id === "hide_controls",
                     )[0].value,
             },
+            is_vertical: {
+                label: _t("Vertical"),
+                description: _t("For portrait videos such as Shorts or Reels"),
+                platforms: [
+                    this.PLATFORMS.youtube,
+                    this.PLATFORMS.instagram,
+                    this.PLATFORMS.facebook,
+                ],
+                urlParameter: () => VERTICAL_PARAMETER,
+            },
             start_from: {
                 label: _t("Start at"),
                 platforms: [
@@ -130,6 +149,10 @@ export class VideoSelector extends Component {
                     if (!src.startsWith("https:") && !src.startsWith("http:")) {
                         this.state.urlInput = "https:" + this.state.urlInput;
                     }
+                    this.state.isVertical = !!closestElement(
+                        this.props.media,
+                        ".media_iframe_video",
+                    )?.dataset.isVertical;
                     await this.syncOptionsWithUrl();
                     if (status(this) === "destroyed") {
                         return;
@@ -180,6 +203,9 @@ export class VideoSelector extends Component {
     async onChangeOption(optionId) {
         this.state.options = this.state.options.map((option) => {
             if (option.id === optionId) {
+                if (option.id === "is_vertical") {
+                    this.state.isVertical = !this.state.isVertical;
+                }
                 return { ...option, value: !option.value && "00:00" };
             }
             return option;
@@ -266,6 +292,9 @@ export class VideoSelector extends Component {
             platform,
             videoId,
             params,
+            // Sibling of `params`, not a member of it: `params` is spread into
+            // the player's query string, and the orientation is ours.
+            isVertical: this.state.isVertical,
         });
         if (platform !== this.state.platform) {
             this.state.platform = platform;
@@ -284,9 +313,16 @@ export class VideoSelector extends Component {
         return selectedMedia.map((video) => {
             const div = document.createElement("div");
             div.dataset.oeExpression = video.src;
+            const isVertical = !!video.isVertical;
+            if (isVertical) {
+                div.dataset.isVertical = "true";
+            }
+            const sizeClass = isVertical
+                ? "media_iframe_video_size_for_vertical"
+                : "media_iframe_video_size";
             div.innerHTML =
                 '<div class="css_editable_mode_display"></div>' +
-                '<div class="media_iframe_video_size" contenteditable="false"></div>' +
+                `<div class="${sizeClass}" contenteditable="false"></div>` +
                 '<iframe frameborder="0" contenteditable="false" allowfullscreen="allowfullscreen"></iframe>';
 
             div.querySelector("iframe").src = video.src;
@@ -318,6 +354,13 @@ export class VideoSelector extends Component {
     async syncOptionsWithUrl() {
         await this.updateVideo();
         if (!URL.canParse(this.state.urlInput)) {
+            // An embed code has no query string to read the options back from,
+            // but the orientation is ours and survives it.
+            this.state.options = this.state.options.map((option) =>
+                option.id === "is_vertical"
+                    ? { ...option, value: this.state.isVertical ? "1" : "" }
+                    : { ...option },
+            );
             return;
         }
         const parsedUrl = new URL(this.state.urlInput);
@@ -337,6 +380,9 @@ export class VideoSelector extends Component {
                     break;
                 case "startTime":
                     value = urlParams.get("startTime") || urlParams.get("start");
+                    break;
+                case VERTICAL_PARAMETER:
+                    value = this.state.isVertical ? "1" : "";
                     break;
                 default:
                     value = this.state.urlInput.includes(urlParameter);

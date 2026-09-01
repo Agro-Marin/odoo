@@ -18,6 +18,7 @@ class TestVideoUtils(common.BaseCase):
         "vimeo_player_unlisted_video": "https://player.vimeo.com/video/795669787?h=0763fdb816",
         "dailymotion": "https://www.dailymotion.com/video/x7svr6t",
         "instagram": "https://www.instagram.com/p/B6dXGTxggTG/",
+        "instagram_reel": "https://www.instagram.com/reel/DAbC1_efGHi/",
         "dailymotion_hub_no_video": "http://www.dailymotion.com/hub/x9q_Galatasaray",
         "dailymotion_hub_#video": "http://www.dailymotion.com/hub/x9q_Galatasaray#video=x2jvvep",
         "dai.ly": "https://dai.ly/x578has",
@@ -71,6 +72,11 @@ class TestVideoUtils(common.BaseCase):
         self.assertIsNotNone(
             re.search(
                 tools.player_regexes["instagram"], TestVideoUtils.urls["instagram"]
+            )
+        )
+        self.assertIsNotNone(
+            re.search(
+                tools.player_regexes["instagram"], TestVideoUtils.urls["instagram_reel"]
             )
         )
         self.assertIsNotNone(
@@ -213,6 +219,14 @@ class TestVideoUtils(common.BaseCase):
             tools.get_video_source_data(TestVideoUtils.urls["instagram"])[1],
         )
         self.assertEqual(
+            "instagram",
+            tools.get_video_source_data(TestVideoUtils.urls["instagram_reel"])[0],
+        )
+        self.assertEqual(
+            "DAbC1_efGHi",
+            tools.get_video_source_data(TestVideoUtils.urls["instagram_reel"])[1],
+        )
+        self.assertEqual(
             "facebook",
             tools.get_video_source_data(TestVideoUtils.urls["facebook_video"])[0],
         )
@@ -272,6 +286,10 @@ class TestVideoUtils(common.BaseCase):
         self.assertEqual(
             "instagram",
             tools.get_video_url_data(TestVideoUtils.urls["instagram"])["platform"],
+        )
+        self.assertEqual(
+            "instagram",
+            tools.get_video_url_data(TestVideoUtils.urls["instagram_reel"])["platform"],
         )
 
     def test_valid_video_url(self):

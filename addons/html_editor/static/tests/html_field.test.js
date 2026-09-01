@@ -1320,6 +1320,50 @@ test("add Vimeo video link in 'Videos' tab of MediaDialog", async () => {
     await click(queryOne(".modal-footer").firstChild);
 });
 
+test.tags("desktop");
+test("the Vertical option reframes the video preview to 9:16", async () => {
+    const shortsUrl = "https://www.youtube.com/shorts/qAgW3oG7Zmc";
+    await mountView({
+        type: "form",
+        resId: 1,
+        resModel: "partner",
+        arch: `
+            <form>
+                <field name="txt" widget="html"/>
+            </form>`,
+    });
+    setSelectionInHtmlField();
+
+    await onRpc("/html_editor/video_url/data", async () => ({
+        video_id: "qAgW3oG7Zmc",
+        platform: "youtube",
+        embed_url: "https://www.youtube.com/embed/qAgW3oG7Zmc?rel=0&autoplay=0",
+        params: { rel: 0, autoplay: 0 },
+    }));
+
+    await insertText(htmlEditor, "/video");
+    await waitFor(".o-we-powerbox");
+    await press("Enter");
+    await contains(".modal-body .nav-link:contains('Videos')").click();
+    await waitFor("textarea[id='o_video_text']");
+
+    const input = queryOne("textarea[id='o_video_text']");
+    input.value = shortsUrl;
+    manuallyDispatchProgrammaticEvent(input, "input", {
+        inputType: "insertText",
+    });
+    await waitFor(".o_video_dialog_options", { timeout: 1500 });
+
+    // The preview opens in the 16:9 frame every video used to get.
+    expect(".o_video_preview .media_iframe_video_size").toHaveCount(1);
+    expect(".o_video_preview .media_iframe_video_size_for_vertical").toHaveCount(0);
+
+    // The switch input is visually-hidden, so click it rather than its label.
+    queryOne(".o_video_dialog_options label:contains('Vertical') input").click();
+    await waitFor(".o_video_preview .media_iframe_video_size_for_vertical");
+    expect(".o_video_preview .media_iframe_video_size").toHaveCount(0);
+});
+
 test("MediaDialog contains 'Videos' tab by default in html field", async () => {
     await mountView({
         type: "form",
