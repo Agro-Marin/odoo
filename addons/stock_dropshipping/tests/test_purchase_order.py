@@ -1,5 +1,3 @@
-from unittest import skip
-
 from odoo import Command
 from odoo.tests import Form
 from odoo.tests.common import tagged
@@ -23,7 +21,6 @@ class TestPurchaseOrder(ValuationReconciliationTestCommon):
             limit=1,
         )
 
-    @skip("Temporary to fast merge new valuation")
     def test_qty_received_does_sync_after_changing_validated_move_quantity(self):
         self.product_a.standard_price = 5.0
         cost_methods = ["standard", "fifo", "average"]
