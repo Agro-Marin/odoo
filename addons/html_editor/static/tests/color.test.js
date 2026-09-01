@@ -3,7 +3,7 @@ import { after, before, describe, expect, test } from "@odoo/hoot";
 import { setupEditor, testEditor } from "./_helpers/editor.js";
 import { unformat } from "./_helpers/format.js";
 import { getContent } from "./_helpers/selection.js";
-import { setColor } from "./_helpers/user_actions.js";
+import { insertText, setColor } from "./_helpers/user_actions.js";
 
 const redToBlueGradient = "linear-gradient(rgb(255, 0, 0), rgb(0, 0, 255))";
 const greenToBlueGradient = "linear-gradient(rgb(0, 255, 0), rgb(0, 0, 255))";
@@ -49,20 +49,23 @@ test("should apply a background color to a slice of text in a span in a font", a
 });
 
 test("should get ready to type with a different color", async () => {
-    await testEditor({
-        contentBefore: "<p>ab[]cd</p>",
-        stepFunction: setColor("rgb(255, 0, 0)", "color"),
-        contentAfter: '<p>ab<font style="color: rgb(255, 0, 0);">\u200B[]</font>cd</p>',
-    });
+    const { el, editor } = await setupEditor("<p>ab[]cd</p>");
+    await setColor("rgb(255, 0, 0)", "color")(editor);
+    expect(getContent(el)).toBe("<p>ab[]cd</p>");
+    await insertText(editor, "x");
+    expect(getContent(el)).toBe(
+        '<p>ab<font style="color: rgb(255, 0, 0);">x[]</font>cd</p>',
+    );
 });
 
 test("should get ready to type with a different background color", async () => {
-    await testEditor({
-        contentBefore: "<p>ab[]cd</p>",
-        stepFunction: setColor("rgb(255, 0, 0)", "backgroundColor"),
-        contentAfter:
-            '<p>ab<font style="background-color: rgb(255, 0, 0);">\u200B[]</font>cd</p>',
-    });
+    const { el, editor } = await setupEditor("<p>ab[]cd</p>");
+    await setColor("rgb(255, 0, 0)", "backgroundColor")(editor);
+    expect(getContent(el)).toBe("<p>ab[]cd</p>");
+    await insertText(editor, "x");
+    expect(getContent(el)).toBe(
+        '<p>ab<font style="background-color: rgb(255, 0, 0);">x[]</font>cd</p>',
+    );
 });
 
 test("should apply a color on empty selection", async () => {
