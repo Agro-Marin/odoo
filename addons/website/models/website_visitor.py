@@ -29,6 +29,8 @@ class WebsiteTrack(models.Model):
         "Visit Date", default=fields.Datetime.now, required=True, readonly=True
     )
 
+    _visitor_id_visit_datetime_idx = models.Index("(visitor_id, visit_datetime)")
+
 
 class WebsiteVisitor(models.Model):
     _name = "website.visitor"
