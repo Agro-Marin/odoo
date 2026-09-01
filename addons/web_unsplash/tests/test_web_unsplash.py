@@ -1,8 +1,11 @@
 import base64
+from unittest.mock import Mock, patch
 
 from lxml import etree
 
-from odoo.tests import TransactionCase, new_test_user, tagged
+from odoo.exceptions import UserError
+from odoo.tests import HttpCase, TransactionCase, new_test_user, tagged
+from odoo.tools.json import scriptsafe as json_safe
 
 
 @tagged("post_install", "-at_install")
@@ -79,3 +82,127 @@ class TestWebUnsplash(TransactionCase):
         )
         result = self.qweb_image.from_html(partner, None, element)
         self.assertEqual(result, payload)
+
+
+# A 1x1 GIF pixel: real, valid image bytes so image_process()/guess_mimetype()
+# in the controller have something genuine to work with.
+GIF_PIXEL = base64.b64decode("R0lGODlhAQABAIAAAP///wAAACwAAAAAAQABAAACAkQBADs=")
+
+
+@tagged("post_install", "-at_install")
+class TestWebUnsplashController(HttpCase):
+    """HttpCase coverage of /web_unsplash/attachment/add, pinning the
+    per-image extension (WU-01) and partial-batch-failure (WU-02) fixes.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.admin_user = new_test_user(
+            cls.env, login="unsplash_http_admin", groups="base.group_system"
+        )
+
+    def _post_unsplash_urls(self, unsplashurls, query="cat"):
+        self.authenticate(self.admin_user.login, self.admin_user.login)
+        response = self.url_open(
+            "/web_unsplash/attachment/add",
+            headers={"Content-Type": "application/json"},
+            data=json_safe.dumps(
+                {"params": {"unsplashurls": unsplashurls, "query": query}}
+            ),
+        )
+        self.assertEqual(200, response.status_code)
+        result = response.json()
+        self.assertNotIn("error", result, result.get("error"))
+        return result["result"]
+
+    def test_single_image_gets_one_extension(self):
+        """A single-image upload gets an extension-suffixed attachment name."""
+        with patch(
+            "odoo.addons.web_unsplash.controllers.main.requests.get",
+            return_value=Mock(status_code=200, content=GIF_PIXEL),
+        ):
+            uploads = self._post_unsplash_urls(
+                {
+                    "key1": {
+                        "url": "https://images.unsplash.com/photo-1",
+                        "download_url": "https://api.unsplash.com/photos/1/download",
+                    }
+                }
+            )
+        self.assertEqual(1, len(uploads))
+        self.assertEqual(1, uploads[0]["name"].count(".gif"))
+        self.assertTrue(uploads[0]["name"].endswith(".gif"))
+
+    def test_multi_image_batch_does_not_accumulate_extensions(self):
+        """Each image in a multi-image batch gets only its own extension --
+        regression test for WU-01 (query mutated in place across the loop).
+        """
+        with patch(
+            "odoo.addons.web_unsplash.controllers.main.requests.get",
+            return_value=Mock(status_code=200, content=GIF_PIXEL),
+        ):
+            uploads = self._post_unsplash_urls(
+                {
+                    "key1": {
+                        "url": "https://images.unsplash.com/photo-1",
+                        "download_url": "https://api.unsplash.com/photos/1/download",
+                    },
+                    "key2": {
+                        "url": "https://images.unsplash.com/photo-2",
+                        "download_url": "https://api.unsplash.com/photos/2/download",
+                    },
+                    "key3": {
+                        "url": "https://images.unsplash.com/photo-3",
+                        "download_url": "https://api.unsplash.com/photos/3/download",
+                    },
+                }
+            )
+        self.assertEqual(3, len(uploads))
+        for upload in uploads:
+            self.assertEqual(
+                1,
+                upload["name"].count(".gif"),
+                f"extension accumulated in {upload['name']!r}",
+            )
+
+    def test_batch_survives_one_failed_image(self):
+        """One image failing image_process() does not drop the rest of the
+        batch -- regression test for WU-02 (image_process ran unguarded).
+        """
+        calls = []
+
+        def _image_process_side_effect(image, verify_resolution=True):
+            calls.append(image)
+            if len(calls) == 2:
+                raise UserError("boom")
+            return image
+
+        with (
+            patch(
+                "odoo.addons.web_unsplash.controllers.main.requests.get",
+                return_value=Mock(status_code=200, content=GIF_PIXEL),
+            ),
+            patch(
+                "odoo.addons.web_unsplash.controllers.main.image_process",
+                side_effect=_image_process_side_effect,
+            ),
+        ):
+            uploads = self._post_unsplash_urls(
+                {
+                    "key1": {
+                        "url": "https://images.unsplash.com/photo-1",
+                        "download_url": "https://api.unsplash.com/photos/1/download",
+                    },
+                    "key2": {
+                        "url": "https://images.unsplash.com/photo-2",
+                        "download_url": "https://api.unsplash.com/photos/2/download",
+                    },
+                    "key3": {
+                        "url": "https://images.unsplash.com/photo-3",
+                        "download_url": "https://api.unsplash.com/photos/3/download",
+                    },
+                }
+            )
+        self.assertEqual(3, len(calls))
+        self.assertEqual(2, len(uploads))
