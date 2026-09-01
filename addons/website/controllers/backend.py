@@ -23,7 +23,7 @@ class WebsiteBackend(http.Controller):
         }
 
         current_website = (
-            website_id and Website.browse(website_id)
+            website_id and Website.browse(website_id).exists()
         ) or Website.get_current_website()
         multi_website = request.env.user.has_group("website.group_multi_website")
         websites = (
