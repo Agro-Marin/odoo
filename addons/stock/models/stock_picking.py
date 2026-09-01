@@ -1032,7 +1032,6 @@ class StockPicking(models.Model):
 
     @api.depends("move_ids.move_dest_ids")
     def _compute_show_next_pickings(self):
-        self.mapped("move_ids.move_dest_ids.picking_id")
         for picking in self:
             next_pickings = picking.move_ids.move_dest_ids.picking_id
             picking.show_next_pickings = bool(next_pickings - picking.return_ids)
