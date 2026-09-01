@@ -95,6 +95,17 @@ def mark_modified(records: models.BaseModel, fnames: list[str]) -> None:
         records.modified(fnames)
 
 
+def mark_modified_after_init(records: models.BaseModel, fnames: list[str]) -> None:
+    # The reflection helpers run from two windows: registry.init_models(), where
+    # the work must wait for the post-init queue, and
+    # loading.run_post_update_model_checks(), which is already past it. Reaching
+    # post_init there raises by design, so outside the window do the work now.
+    if records.pool.in_init_phase:
+        records.pool.post_init(mark_modified, records, fnames)
+    else:
+        mark_modified(records, fnames)
+
+
 def compute_modules(records: models.BaseModel) -> None:
     installed = records.env["ir.module.module"].search_fetch(
         [("state", "=", "installed")], ["name"]

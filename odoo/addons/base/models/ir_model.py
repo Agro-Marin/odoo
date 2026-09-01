@@ -15,7 +15,7 @@ from .ir_model_common import (
     MODULE_UNINSTALL_FLAG,
     compute_modules,
     inherit_xmlid,
-    mark_modified,
+    mark_modified_after_init,
     model_xmlid,
     reload_schema,
     select_en,
@@ -420,7 +420,7 @@ class IrModel(models.Model):
             ids = upsert_en(self, cols, rows, ["model"])
             for row, id_ in zip(rows, ids, strict=True):
                 model_ids[row[0]] = id_
-            self.pool.post_init(mark_modified, self.browse(ids), cols[1:])
+            mark_modified_after_init(self.browse(ids), cols[1:])
 
         add_value = self._get_id.__cache__.add_value
         for name, id_ in model_ids.items():
@@ -597,5 +597,5 @@ class IrModelInherit(models.Model):
         if rows:
             ids = upsert_en(self, cols, rows, ["model_id", "parent_id"])
             inh_ids.update(dict(zip(rows, ids, strict=True)))
-            self.pool.post_init(mark_modified, self.browse(ids), cols[1:])
+            mark_modified_after_init(self.browse(ids), cols[1:])
         return inh_ids

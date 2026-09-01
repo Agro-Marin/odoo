@@ -14,6 +14,10 @@ class _RegistryInitPhaseMixin(_RegistryStubs):
         self._init_phase = None
 
     @property
+    def in_init_phase(self) -> bool:
+        return self._init_phase is not None
+
+    @property
     def init_phase(self) -> InitModelsPhase:
         if self._init_phase is None:
             raise RuntimeError(

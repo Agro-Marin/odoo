@@ -20,7 +20,7 @@ from .ir_model_common import (
     MODULE_UNINSTALL_FLAG,
     compute_modules,
     field_xmlid,
-    mark_modified,
+    mark_modified_after_init,
     prepare_compute,
     reload_schema,
     select_en,
@@ -1162,7 +1162,7 @@ class IrModelFields(models.Model):
             ids = upsert_en(self, cols, rows, ["model", "name"])
             for row, id_ in zip(rows, ids, strict=True):
                 field_ids[row[:2]] = id_
-            self.pool.post_init(mark_modified, self.browse(ids), cols[2:])
+            mark_modified_after_init(self.browse(ids), cols[2:])
 
         module = self.env.context.get("module")
         if not module:
