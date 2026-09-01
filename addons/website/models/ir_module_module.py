@@ -203,8 +203,12 @@ class IrModuleModule(models.Model):
                     for k, v in old_stored_translations.items()
                     if k in valid_langs
                 }
+                if cur_lang in old_translations:
+                    source_translation = old_translations.pop(cur_lang)
+                else:
+                    source_translation = old_translations.get("en_US", "")
                 translation_dictionary = old_field.get_translation_dictionary(
-                    old_translations.pop(cur_lang, old_translations["en_US"]),
+                    source_translation,
                     old_translations,
                 )
                 translations = defaultdict(dict)
