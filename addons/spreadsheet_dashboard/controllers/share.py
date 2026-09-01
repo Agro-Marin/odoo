@@ -3,9 +3,11 @@ from odoo.http import request
 
 
 class DashboardShareRoute(http.Controller):
-    @http.route(['/dashboard/share/<int:share_id>/<token>'], type='http', auth='public')
+    @http.route(["/dashboard/share/<int:share_id>/<token>"], type="http", auth="public")
     def share_portal(self, share_id=None, token=None):
-        share = request.env["spreadsheet.dashboard.share"].sudo().browse(share_id).exists()
+        share = (
+            request.env["spreadsheet.dashboard.share"].sudo().browse(share_id).exists()
+        )
         if not share:
             raise request.not_found()
         share._check_dashboard_access(token)
@@ -24,8 +26,12 @@ class DashboardShareRoute(http.Controller):
             },
         )
 
-    @http.route(["/dashboard/download/<int:share_id>/<token>"],
-                type='http', auth='public', readonly=True)
+    @http.route(
+        ["/dashboard/download/<int:share_id>/<token>"],
+        type="http",
+        auth="public",
+        readonly=True,
+    )
     def download(self, token=None, share_id=None):
         share = request.env["spreadsheet.dashboard.share"].sudo().browse(share_id)
         share._check_dashboard_access(token)
@@ -43,10 +49,7 @@ class DashboardShareRoute(http.Controller):
     )
     def get_shared_dashboard_data(self, share_id, token):
         share = (
-            request.env["spreadsheet.dashboard.share"]
-            .sudo()
-            .browse(share_id)
-            .exists()
+            request.env["spreadsheet.dashboard.share"].sudo().browse(share_id).exists()
         )
         if not share:
             raise request.not_found()
