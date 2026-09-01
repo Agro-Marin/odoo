@@ -45,6 +45,8 @@ function toIgnore(node) {
         "BR",
         "LI",
         ".FA",
+        "COL",
+        "COLGROUP",
     ].includes(node);
 }
 
@@ -4237,27 +4239,27 @@ describe("Paste HTML tables", () => {
                 );
             },
             contentAfter: `<table class="table table-bordered o_table">
-${"            "}
-${"            "}
-            <tbody><tr>
+            <colgroup><col style="width: 187px;">
+            <col style="width: 211px;">
+            <col style="width: 187px;"><col style="width: 211px;"></colgroup><tbody><tr style="height: 15pt;">
                 <td>Italic
                         then also BOLD</td>
                 <td><s>Italic strike</s></td>
             </tr>
-            <tr>
+            <tr style="height: 15pt;">
                 <td>Just bold Just Italic</td>
                 <td>Bold underline</td>
             </tr>
-            <tr>
+            <tr style="height: 15pt;">
                 <td>Color text</td>
                 <td><s>Color strike and underline</s></td>
             </tr>
-            <tr>
+            <tr style="height: 15pt;">
                 <td>Color background</td>
                 <td>Color text on color background</td>
             </tr>
-            <tr>
-                <td>14pt MONO TEXT
+            <tr style="height: 20.25pt;">
+                <td colspan="2">14pt MONO TEXT
                 []</td>
             </tr>
         </tbody></table>`,
@@ -4336,19 +4338,19 @@ ${"            "}
                 );
             },
             contentAfter: `<table class="table table-bordered o_table">
-${"        "}
-${"            "}
-${"            "}
-${"        "}
+        <colgroup>
+            <col style="width: 170px;">
+            <col style="width: 187px;">
+        </colgroup>
         <tbody>
-            <tr>
+            <tr style="height: 21px;">
                 <td>
                     Italic then also
                     BOLD
                 </td>
                 <td>Italic strike</td>
             </tr>
-            <tr>
+            <tr style="height: 21px;">
                 <td>
                     Just
                         Bold Just
@@ -4356,19 +4358,19 @@ ${"        "}
                 </td>
                 <td>Bold underline</td>
             </tr>
-            <tr>
+            <tr style="height: 21px;">
                 <td>Color text</td>
                 <td>Color
                     strike and underline</td>
             </tr>
-            <tr>
+            <tr style="height: 21px;">
                 <td>Color background
                 </td>
                 <td>Color
                     text on color background</td>
             </tr>
-            <tr>
-                <td>14pt MONO TEXT[]</td>
+            <tr style="height: 21px;">
+                <td rowspan="1" colspan="2">14pt MONO TEXT[]</td>
             </tr>
         </tbody>
     </table>`,
@@ -4471,8 +4473,8 @@ ${"        "}
                 );
             },
             contentAfter: `<table class="table table-bordered o_table">
-${"        "}
-${"        "}
+        <colgroup></colgroup>
+        <colgroup></colgroup>
         <tbody><tr>
             <td><i>Italic then also BOLD</i></td>
             <td><i><s>Italic strike</s></i></td>
@@ -4496,7 +4498,7 @@ ${"        "}
             </td>
         </tr>
         <tr>
-            <td>
+            <td colspan="2">
                 14pt MONO TEXT[]
             </td>
         </tr>
@@ -4528,6 +4530,47 @@ ${"        "}
                     <tbody>
                         <tr>
                             <td><p>[]<br></p></td>
+                        </tr>
+                    </tbody>
+                </table>
+            `),
+        });
+    });
+
+    test("should keep colspan and rowspan when pasting a table", async () => {
+        await testEditor({
+            contentBefore: `
+                <p>[]<br></p>
+            `,
+            stepFunction: async (editor) => {
+                pasteHtml(
+                    editor,
+                    unformat(`
+                        <table>
+                            <tbody>
+                                <tr>
+                                    <td rowspan="2">a</td>
+                                    <td colspan="2">b</td>
+                                </tr>
+                                <tr>
+                                    <td>c</td>
+                                    <td>d</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    `),
+                );
+            },
+            contentAfter: unformat(`
+                <table class="table table-bordered o_table">
+                    <tbody>
+                        <tr>
+                            <td rowspan="2">a</td>
+                            <td colspan="2">b</td>
+                        </tr>
+                        <tr>
+                            <td>c</td>
+                            <td>d[]</td>
                         </tr>
                     </tbody>
                 </table>

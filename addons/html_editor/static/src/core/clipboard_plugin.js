@@ -22,6 +22,7 @@ import {
 import { childNodes, closestElement } from "../utils/dom_traversal.js";
 import { parseHTML } from "../utils/html.js";
 import { DIRECTIONS } from "../utils/position.js";
+import { getRowIndex } from "../utils/table.js";
 import { isHtmlContentSupported } from "./selection_plugin.js";
 
 /**
@@ -63,6 +64,8 @@ export const CLIPBOARD_WHITELISTS = {
         "TBODY",
         "TR",
         "TD",
+        "COLGROUP",
+        "COL",
         "IMG",
         "BR",
         "A",
@@ -89,8 +92,8 @@ export const CLIPBOARD_WHITELISTS = {
         /^btn/,
         /^fa/,
     ],
-    attributes: ["class", "href", "src", "target"],
-    styledTags: ["SPAN", "B", "STRONG", "I", "S", "U", "FONT", "TD"],
+    attributes: ["class", "href", "src", "target", "colspan", "rowspan"],
+    styledTags: ["SPAN", "B", "STRONG", "I", "S", "U", "FONT", "TD", "COL", "TR", "TH"],
 };
 
 const ONLY_LINK_REGEX = /^(https?:\/\/)?([\w-]+\.)+[\w-]+(\/[\w-./?%&=]*)?$/i;
@@ -468,7 +471,7 @@ export class ClipboardPlugin extends Plugin {
                 } else {
                     node = this.dependencies.dom.setTagName(node, "TBODY");
                 }
-            } else if (["TD", "TH"].includes(node.nodeName)) {
+            } else if (["TD", "TH", "COL"].includes(node.nodeName)) {
                 if (isEmptyBlock(node)) {
                     const baseContainer =
                         this.dependencies.baseContainer.createBaseContainer();
@@ -478,6 +481,10 @@ export class ClipboardPlugin extends Plugin {
 
                 if (node.hasAttribute("bgcolor") && !node.style["background-color"]) {
                     node.style["background-color"] = node.getAttribute("bgcolor");
+                }
+
+                if (node.hasAttribute("width")) {
+                    node.style["width"] = node.getAttribute("width") + "px";
                 }
             } else if (node.nodeName === "FONT") {
                 if (node.hasAttribute("color") && !node.style["color"]) {
@@ -515,7 +522,32 @@ export class ClipboardPlugin extends Plugin {
                     CLIPBOARD_WHITELISTS.styledTags.includes(node.nodeName) &&
                     attribute.name === "style"
                 ) {
+                    const width = node.style.width;
+                    const height = node.style.height;
                     node.removeAttribute(attribute.name);
+                    // The width of a first-row cell belongs to the column, not
+                    // to the cell: with merged cells the two no longer line up,
+                    // so hand it over to a <col> instead of dropping it.
+                    if (
+                        ["TD", "TH"].includes(node.nodeName) &&
+                        getRowIndex(node) === 0 &&
+                        width
+                    ) {
+                        const table = closestElement(node, "table");
+                        let colgroup = table.querySelector("colgroup");
+                        if (!colgroup) {
+                            colgroup = this.document.createElement("colgroup");
+                            table.prepend(colgroup);
+                        }
+                        const col = this.document.createElement("col");
+                        colgroup.append(col);
+                        col.style.width = width;
+                    } else if (node.nodeName === "COL" && width) {
+                        node.style.width = width;
+                    }
+                    if (node.nodeName === "TR" && height) {
+                        node.style.height = height;
+                    }
                     if (["SPAN", "FONT"].includes(node.tagName)) {
                         for (const unwrappedNode of unwrapContents(node)) {
                             this.cleanForPaste(unwrappedNode);

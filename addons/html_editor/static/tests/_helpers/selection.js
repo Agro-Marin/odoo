@@ -42,7 +42,7 @@ function getTextContent(node, selection, options) {
     return text.replace(/\u00a0/g, "&nbsp;");
 }
 
-const VOID_ELEMS = new Set(["BR", "IMG", "INPUT", "HR"]);
+const VOID_ELEMS = new Set(["BR", "IMG", "INPUT", "HR", "COL"]);
 
 function _getElemContent(el, selection, options) {
     let result = "";
