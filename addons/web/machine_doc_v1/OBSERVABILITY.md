@@ -147,7 +147,7 @@ Four properties make it safe to run against a shared tree:
 
 1. **Reversible exactly.** Every inserted line carries a `// trace-stamp`
    trailing comment; `--revert` removes lines carrying it and nothing else. An
-   apply/revert cycle over `addons/web/static/src` returns all 814 files
+   apply/revert cycle over `addons/web/static/src` returns all 821 files
    byte-identical.
 2. **Idempotent.** A second `--apply` stamps 0 lines.
 3. **Lint-clean on arrival — and `--fix` must NOT be run.** A stamped tree
@@ -161,7 +161,7 @@ Four properties make it safe to run against a shared tree:
    handle **multi-line imports** (a braced list spread over lines is invisible to
    a single-line pattern, so the probe sorts ahead of an import that precedes
    it), and every emitted line must fit prettier's 88 columns.
-4. **Hand-instrumented files are left alone.** 14 files place
+4. **Hand-instrumented files are left alone.** 16 files place
    `useRenderCounter` by hand with labels that machine-doc pages cite
    (`LIST_EDIT_RENDER_COST.md` names `list.ListRenderer`) and that render-budget
    suites assert on. Stamping beside one would make a component publish two
@@ -179,7 +179,7 @@ sharing one label would merge their counts into a single plausible-looking wrong
 number. `--check` reports both the over-width lines and the qualified labels.
 
 `--check` also reports which functions the stamp would push past `jsfunclen`'s
-80-line budget, because that floor is exact in both directions. Two functions in
+90-line budget, because that floor is exact in both directions. Two functions in
 `web` sit at the edge; measured, the stamp moved the count **77 -> 78**, so one
 of the two crossed and the other did not.
 
@@ -193,7 +193,7 @@ module has.**
 
 | Key | Call sites | So a count of N means |
 |---|---|---|
-| `asset` js | 19 | N events across 19 kinds — cache hits, bundle fetches, import-map injections. **Not bundles.** |
+| `asset` js | 17 | N events across 19 kinds — cache hits, bundle fetches, import-map injections. **Not bundles.** |
 | `asset` boot | 6 | N boot phases reached, of 6 possible |
 | `asset` env | 5 | N env/service-wave milestones |
 | `asset` templates | 2 | N compile-or-register events; roughly per template, but the two are summed |

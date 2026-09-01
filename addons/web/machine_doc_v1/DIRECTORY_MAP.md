@@ -63,12 +63,12 @@
 | `core/hotkeys/` | shared | 2 | The `hotkey` service and the `useHotkey` registration hook |
 | `core/l10n/` | shared | 8 | Luxon-based date/datetime parsing, formatting, serialization, and the `localization` service |
 | `core/l10n/utils/` | shared | 5 | Locale helpers: `Intl.ListFormat` list formatting, locale codes, normalisation, unaccent + its table |
-| `core/lib/` | shared | 2 | Lazy ESM loaders for import-map libraries: `chartjs.js` (`loadChartJS`) and `fullcalendar.js` (`loadFullCalendar`) |
+| `core/lib/` | shared | 3 | Lazy ESM loaders for import-map libraries: `chartjs.js` (`loadChartJS`) and `fullcalendar.js` (`loadFullCalendar`) |
 | `core/navigation/` | shared | 1 | Keyboard arrow-key navigation hook for selectable item lists |
 | `core/network/` | shared | 12 | RPC stack: `rpc.js`, the x2many command constants, the RAM/IndexedDB cache, in-flight dedup, model-mutation constants, download helper, Content-Disposition parser, and the `orm` / `http` / `slow_rpc` / `result_set_cache_invalidator` services |
 | `core/network/web_vitals/` | shared | 1 | `web_vitals` service — `PerformanceObserver` capture of LCP/FCP/CLS/TTFB/INP, beaconed to `/web/observability/cwv` on `pagehide` |
 | `core/position/` | shared | 2 | Hook and geometry utilities for repositioning a popper element against a target |
-| `core/py_js/` | shared | 16 | Python expression tokenizer, parser and interpreter used by `domain=` / `context=` evaluation |
+| `core/py_js/` | shared | 17 | Python expression tokenizer, parser and interpreter used by `domain=` / `context=` evaluation |
 | `core/tree/` | shared | 17 | Data-only condition-tree primitives: AST, domain ↔ tree ↔ Python-expression conversions, virtual operators, and the `tree_processor` service |
 | `core/utils/` | shared | 27 | Cross-cutting utilities: reactivity (`SignalStore`, `effect`, `derived`), `patch`, concurrency, hooks, timing, IndexedDB, URLs, macros, PDF.js loader, render instrumentation |
 | `core/utils/collections/` | shared | 3 | Array/object helpers: groupBy, sortBy, unique, intersection, cartesian, zip |
@@ -107,7 +107,7 @@
 | `fields/display/progress_bar/` | features | 2 | Progress-bar field and its kanban variant |
 | `fields/display/stat_info/` | features | 1 | Stat button content showing a formatted value with a label (key `statinfo`) |
 | `fields/display/statusbar/` | features | 1 | Horizontal pipeline status bar for Selection and Many2one columns |
-| `fields/hooks/` | features | 1 | OWL hooks shared across field widgets (`record_observer.js`) |
+| `fields/hooks/` | features | 2 | OWL hooks shared across field widgets (`record_observer.js`) |
 | `fields/media/` | features | 0 | Widget category parent — see the child directories |
 | `fields/media/attachment_image/` | features | 1 | Read-only image display field for Many2one attachment references |
 | `fields/media/binary/` | features | 1 | File upload/download field for Binary columns |
@@ -161,7 +161,7 @@
 | `model/relational_model/` | entities | 41 | Relational data model: `RelationalModel`, `RelationalRecord`, lists and groups, save/validation orchestration, edit-state ownership |
 | `public/` | pages | 17 | Public (anonymous) page runtime: the `public.interactions` service, `Interaction`/`Colibri`, frontend boot (`public_boot.js`, `public_boot_instance.js`), early-boot `lazyloader.js` / `minimal_dom.js`, login-page interactions, database manager |
 | `scss/` | misc | 0 | Shared SCSS base (variables, mixins, backend styles) — 32 `.scss`, no JS |
-| `search/` | widgets | 17 | Search model and its mixins (domain, group-by, favorites, properties, query, split-domain), search facets/state/context, arch parser, layout, pager hook |
+| `search/` | widgets | 18 | Search model and its mixins (domain, group-by, favorites, properties, query, split-domain), search facets/state/context, arch parser, layout, pager hook |
 | `search/action_menus/` | widgets | 1 | Action/Print dropdown menus executing server actions on selected records |
 | `search/breadcrumbs/` | widgets | 1 | Breadcrumb trail over the action stack with back-navigation |
 | `search/cog_menu/` | widgets | 1 | Cog dropdown merging Action, Print, and registry-based menu items |
@@ -175,7 +175,7 @@
 | `search/search_panel/` | widgets | 3 | Sidebar filter panel with category trees and grouped checkbox filters |
 | `search/utils/` | widgets | 3 | Search option definitions and domain generators: date periods, group-by descriptors, misc |
 | `search/with_search/` | widgets | 1 | Wrapper creating a `SearchModel` and injecting it into the sub-environment |
-| `ui/` | shared | 11 | Overlay-layer root: the `ui` service (active element, block UI), viewport tracking, the activation stack, `MainComponentsContainer`, the `form_dialog_stack` and `scss_error_display` services, plus the `commands` / `dialog` / `notification` / `popover` / `tooltip` faces |
+| `ui/` | shared | 13 | Overlay-layer root: the `ui` service (active element, block UI), viewport tracking, the activation stack, `MainComponentsContainer`, the `form_dialog_stack` and `scss_error_display` services, plus the `commands` / `dialog` / `notification` / `popover` / `tooltip` faces |
 | `ui/alert/` | shared | 1 | `dismiss_alert` service: one delegated click listener dismissing arch-declared alerts |
 | `ui/block/` | shared | 1 | Full-screen overlay blocking the UI during long operations |
 | `ui/bottom_sheet/` | shared | 2 | Mobile slide-up panel with drag-to-dismiss and snap points, and its service |
@@ -190,7 +190,7 @@
 | `ui/popover/` | shared | 4 | `popover` service, the component, its hook, and the detached-target watcher |
 | `ui/pwa/` | shared | 2 | `pwa` service (install prompt) and the Safari install-instructions dialog |
 | `ui/tooltip/` | shared | 2 | `tooltip` service driven by `data-tooltip` attributes, and its component |
-| `views/` | widgets | 32 | View infrastructure: the `view` service, `View` component, arch compiler, view utilities/measurements, standard props, action helper, view buttons, the shared multi-record renderer layer (`multi_record_selection.js`, `multi_record_group.js`), and the per-view faces (form, list, kanban, calendar, graph, pivot) |
+| `views/` | widgets | 33 | View infrastructure: the `view` service, `View` component, arch compiler, view utilities/measurements, standard props, action helper, view buttons, the shared multi-record renderer layer (`multi_record_selection.js`, `multi_record_group.js`), and the per-view faces (form, list, kanban, calendar, graph, pivot) |
 | `views/calendar/` | widgets | 9 | Calendar view: arch parser, model, controller, renderer, record wrapper, date-range and utility helpers |
 | `views/calendar/calendar_common/` | widgets | 3 | Day/week/month renderer and its event popover |
 | `views/calendar/calendar_filter_section/` | widgets | 1 | Collapsible sidebar filter section for one calendar filter field |
