@@ -75,7 +75,7 @@ class IrQwebFieldImage(models.AbstractModel):
             if options.get("qweb_img_responsive", True)
             else ["img"]
         )
-        aclasses += options.get("class", "").split()
+        aclasses += (options.get("class") or "").split()
         classes = " ".join(map(escape, aclasses))
 
         if (

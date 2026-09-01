@@ -19,6 +19,7 @@ from . import test_image
 from . import test_ir_asset_scope
 from . import test_ir_model
 from . import test_ir_qweb
+from . import test_ir_qweb_fields
 from . import test_ir_ui_view
 from . import test_js
 from . import test_js_addons
