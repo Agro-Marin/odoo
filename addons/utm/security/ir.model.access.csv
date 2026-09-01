@@ -5,7 +5,7 @@ access_utm_medium_user,access_utm_medium_user,model_utm_medium,base.group_user,1
 access_utm_medium_system,utm.medium.system,model_utm_medium,base.group_system,1,1,1,1
 access_utm_source_user,access_utm_source_user,model_utm_source,base.group_user,1,1,1,0
 access_utm_source_system,utm.source.system,model_utm_source,base.group_system,1,1,1,1
-access_utm_stage_user,mail.utm.stage,model_utm_stage,base.group_user,1,0,0,0
-access_utm_stage_system,mail.utm.stage,model_utm_stage,base.group_system,1,1,1,1
+access_utm_stage_user,utm.stage,model_utm_stage,base.group_user,1,0,0,0
+access_utm_stage_system,utm.stage,model_utm_stage,base.group_system,1,1,1,1
 access_utm_tag_user,utm.tag,model_utm_tag,base.group_user,1,0,0,0
 access_utm_tag_system,utm.tag,model_utm_tag,base.group_system,1,1,1,1
