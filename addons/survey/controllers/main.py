@@ -872,8 +872,12 @@ class Survey(http.Controller):
 
         # This route is auth="public" and creates a record per POST. Without a ceiling,
         # a respondent holding one valid answer token can fill the filestore one upload
-        # at a time; the previous file for the same question is also released here, so
-        # re-uploading does not accumulate.
+        # at a time. Re-uploading before the line is saved does NOT release the earlier
+        # attachment for the same question (nothing ties an orphan attachment to a
+        # question until `_save_lines` runs) — MAX_UPLOADS_PER_ANSWER below is what
+        # actually caps it; the `previous`/`superseded` cleanup further down only
+        # replaces the file once it is referenced by a saved answer line.
+        answer_sudo._lock()
         Attachment = request.env["ir.attachment"].sudo()
         own_domain = [
             ("res_model", "=", answer_sudo._name),
