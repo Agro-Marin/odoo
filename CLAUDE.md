@@ -16,8 +16,10 @@ Diverged from upstream past the point where merging or cherry-picking between th
 | Branch | Rule |
 |---|---|
 | `19.0` | Pristine mirror of upstream `github.com/odoo/odoo` 19.0. **Not** an AgroMarin working branch, **not** the stable/production line. Exists to be read: diff against it, source upstream fixes from it, then **re-implement by hand** on `19.0-marin`. Never commit AgroMarin work here. |
-| `19.0-marin` | Active AgroMarin production branch, forked from `19.0`. All work lands here via PR; this is the integration branch to build on. Nothing is ever merged in from `19.0` — **"this would conflict with upstream" is not a reason to hold back a refactor**, there is no merge for it to conflict with. Posture: *Scope and precedence*, `doc/coding_guidelines.rst`. |
+| `19.0-marin` | Active AgroMarin production branch, forked from `19.0`. All work lands here, directly or via PR; this is the integration branch to build on. Nothing is ever merged in from `19.0` — **"this would conflict with upstream" is not a reason to hold back a refactor**, there is no merge for it to conflict with. Posture: *Scope and precedence*, `doc/coding_guidelines.rst`. |
 | Feature branches | Cut from `19.0-marin`, merged back into it via PR. |
+
+**No branch carries protection as of 2026-09-01 — direct pushes are allowed.** Feature branches and PRs stay preferred for planned work; never force-push a shared branch.
 
 ## Checkout Requirements
 
