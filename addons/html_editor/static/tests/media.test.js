@@ -2,7 +2,7 @@ import { ImageCrop } from "@html_editor/main/media/image_crop";
 import { ImageSelector } from "@html_editor/main/media/media_dialog/image_selector";
 import { EDITABLE_MEDIA_CLASS } from "@html_editor/utils/dom_info";
 import { describe, expect, test } from "@odoo/hoot";
-import { click, dblclick, press, waitFor, waitForNone } from "@odoo/hoot-dom";
+import { click, dblclick, press, queryOne, waitFor, waitForNone } from "@odoo/hoot-dom";
 import { animationFrame, tick } from "@odoo/hoot-mock";
 import { makeMockEnv, onRpc, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { delay } from "@web/core/utils/concurrency";
@@ -434,4 +434,40 @@ test("double-click on image in Media Dialog executes onClickAttachment only once
     await animationFrame();
     await dblclick(".o_existing_attachment_cell .o_button_area");
     expect(executionCount).toBe(1);
+});
+
+test("deleting an attachment asks with a red Delete and a way out", async () => {
+    onRpc("ir.attachment", "search_read", () => [
+        {
+            id: 1,
+            name: "logo",
+            mimetype: "image/png",
+            image_src: "/web/static/img/logo2.png",
+            access_token: false,
+            public: true,
+        },
+    ]);
+    const env = await makeMockEnv();
+    await setupEditor(
+        `<p> <img class="img-fluid" src="/web/static/img/logo.png"> </p>`,
+        { env },
+    );
+    await click("img");
+    await tick();
+    await waitFor(".o-we-toolbar");
+    await click("button[name='replace_image']");
+    await animationFrame();
+
+    // The trash badge only shows on hover, so click the element itself.
+    queryOne(".o_existing_attachment_remove").click();
+    // Scoped by its own wording: the media dialog is still on screen behind it.
+    const footer =
+        ".o_dialog:contains('Are you sure you want to delete this file?') .modal-footer";
+    await waitFor(footer);
+
+    expect(`${footer} button.btn-danger`).toHaveCount(1);
+    expect(`${footer} button.btn-danger`).toHaveText("Delete");
+    // Confirming is not the only way out of a destructive question.
+    expect(`${footer} button.btn-secondary`).toHaveCount(1);
+    expect(`${footer} button.btn-primary`).toHaveCount(0);
 });
