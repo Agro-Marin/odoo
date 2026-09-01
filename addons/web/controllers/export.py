@@ -25,6 +25,13 @@ from .export_writers import (
 
 _logger = logging.getLogger(__name__)
 
+# CSV/XLSX export has no inherent row cap: a domain-based export materializes
+# every matching record (and, for XLSX, the whole workbook) in memory before
+# responding. This is a safety net against an unrestricted domain forcing
+# unbounded memory use, not a product-facing limit; override via the
+# web.export_max_rows system parameter if a deployment needs a different cap.
+_EXPORT_MAX_ROWS_DEFAULT = 100_000
+
 
 class Export(http.Controller):
     @http.route("/web/export/formats", type="jsonrpc", auth="user", readonly=True)
@@ -469,7 +476,21 @@ class ExportFormat:
         order = params.get("order") or None
         self._check_export_order(Model, order)
 
-        records = Model.browse(ids) if ids else Model.search(domain, order=order)
+        if ids:
+            records = Model.browse(ids)
+        else:
+            max_rows = int(
+                request.env["ir.config_parameter"]
+                .sudo()
+                .get_param("web.export_max_rows", _EXPORT_MAX_ROWS_DEFAULT)
+            )
+            records = Model.search(domain, order=order, limit=max_rows)
+            if len(records) >= max_rows:
+                _logger.warning(
+                    "Export of %s truncated at %d rows (web.export_max_rows)",
+                    model,
+                    max_rows,
+                )
 
         groupby = params.get("groupby")
         if not import_compat and groupby:

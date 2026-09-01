@@ -320,3 +320,27 @@ class TestFormatRegistration(TransactionCase):
         )
         self.assertEqual(document.mimetype, XLSX_MIMETYPE)
         self.assertIn("INV/1", _sheet_text(document.data))
+
+
+@tagged("post_install", "-at_install", "web_export")
+class TestExportMaxRows(ExportControllerCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.env["res.partner"].create([{"name": f"xmaxrowtest {i}"} for i in range(5)])
+        cls.domain = [["name", "like", "xmaxrowtest"]]
+
+    def test_domain_export_is_capped_by_web_export_max_rows(self):
+        self.env["ir.config_parameter"].sudo().set_param("web.export_max_rows", "2")
+        response = self._export("csv", domain=self.domain)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        rows = [line for line in response.text.splitlines()[1:] if line]
+        self.assertEqual(len(rows), 2)
+
+    def test_ids_export_is_not_capped_by_web_export_max_rows(self):
+        self.env["ir.config_parameter"].sudo().set_param("web.export_max_rows", "2")
+        partner_ids = self.env["res.partner"].search(self.domain).ids
+        response = self._export("csv", ids=partner_ids, domain=[])
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        rows = [line for line in response.text.splitlines()[1:] if line]
+        self.assertEqual(len(rows), 5)
