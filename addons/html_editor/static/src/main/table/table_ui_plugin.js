@@ -6,6 +6,7 @@ import { reactive } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 
+import { MobileTablePicker } from "./mobile_table_picker.js";
 import { TableMenu } from "./table_menu.js";
 import { TablePicker } from "./table_picker.js";
 
@@ -48,6 +49,24 @@ export class TableUIPlugin extends Plugin {
             },
         });
 
+        /** @type {import("@html_editor/core/overlay_plugin").Overlay} */
+        this.mobilePicker = this.dependencies.overlay.createOverlay(
+            MobileTablePicker,
+            {
+                positionOptions: {
+                    updatePositionOnResize: false,
+                    // Docked to the bottom edge: on a phone the caret sits
+                    // near the middle and an anchored popover would land
+                    // under the virtual keyboard.
+                    onPositioned: (picker) => {
+                        picker.style.bottom = 0;
+                        picker.style.width = "100%";
+                        picker.style.removeProperty("top");
+                    },
+                },
+            },
+        );
+
         this.columnMenuOverlayKey = "table-column-menu";
         this.rowMenuOverlayKey = "table-row-menu";
         this.activeTd = null;
@@ -84,9 +103,22 @@ export class TableUIPlugin extends Plugin {
         });
     }
 
+    openMobilePicker() {
+        this.mobilePicker.open({
+            props: {
+                editable: this.editable,
+                close: () => {
+                    this.mobilePicker.close();
+                    this.dependencies.selection.focusEditable();
+                },
+                insertTable: (params) => this.dependencies.table.insertTable(params),
+            },
+        });
+    }
+
     openPickerOrInsertTable() {
         if (this.services.ui.isSmall) {
-            this.dependencies.table.insertTable({ cols: 3, rows: 3 });
+            this.openMobilePicker();
         } else {
             this.openPicker();
         }
