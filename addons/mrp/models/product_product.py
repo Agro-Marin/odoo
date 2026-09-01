@@ -144,7 +144,7 @@ class ProductProduct(models.Model):
         boms = {}
         for company, products in self.grouped("company_id").items():
             boms.update(
-                self.env["mrp.bom"]._bom_find(
+                self.env["mrp.bom"]._get_bom_by_product(
                     products,
                     bom_type="normal",
                     company_id=(company or self.env.company).id,
@@ -157,7 +157,7 @@ class ProductProduct(models.Model):
 
     def _get_components(self):
         self.check_singleton()
-        bom_kit = self.env["mrp.bom"]._bom_find(
+        bom_kit = self.env["mrp.bom"]._get_bom_by_product(
             self, bom_type="phantom", company_id=self.env.company.id
         )[self]
         if not bom_kit:
@@ -199,7 +199,9 @@ class ProductProduct(models.Model):
         bom_kits = (
             self.env["mrp.bom"]
             .sudo()
-            ._bom_find(self, bom_type="phantom", company_id=self.env.company.id)
+            ._get_bom_by_product(
+                self, bom_type="phantom", company_id=self.env.company.id
+            )
         )
         kits = self.filtered(bom_kits.get)
         regular_products = self - kits
@@ -296,7 +298,7 @@ class ProductProduct(models.Model):
         return action
 
     def action_view_quants(self):
-        bom_kits = self.env["mrp.bom"]._bom_find(
+        bom_kits = self.env["mrp.bom"]._get_bom_by_product(
             self, bom_type="phantom", company_id=self.env.company.id
         )
         components = self - self.browse().union(*bom_kits)

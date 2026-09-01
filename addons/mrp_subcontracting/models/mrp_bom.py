@@ -27,7 +27,7 @@ class MrpBom(models.Model):
         bom_type="subcontract",
         subcontractor=False,
     ):
-        domain = self._bom_find_domain(
+        domain = self._get_domain_bom(
             product, picking_type=picking_type, company_id=company_id, bom_type=bom_type
         )
         if subcontractor:

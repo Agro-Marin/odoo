@@ -63,7 +63,7 @@ class StockMove(models.Model):
         valuation_price_unit_total, valuation_total_qty = (
             super()._get_valuation_price_and_qty(related_aml, to_curr)
         )
-        boms = self.env["mrp.bom"]._bom_find(
+        boms = self.env["mrp.bom"]._get_bom_by_product(
             related_aml.product_id,
             company_id=related_aml.company_id.id,
             bom_type="phantom",

@@ -59,7 +59,7 @@ class PurchaseOrderLine(models.Model):
         for line in self:
             product_by_company[line.company_id].add(line.product_id.id)
         kits_by_company = {
-            company: self.env["mrp.bom"]._bom_find(
+            company: self.env["mrp.bom"]._get_bom_by_product(
                 self.env["product.product"].browse(product_ids),
                 company_id=company.id,
                 bom_type="phantom",
@@ -147,7 +147,7 @@ class PurchaseOrderLine(models.Model):
                 )
         sale_line_product = self._get_sale_order_line_product()
         if sale_line_product:
-            bom = self.env["mrp.bom"]._bom_find(
+            bom = self.env["mrp.bom"]._get_bom_by_product(
                 self.env["product.product"].browse(sale_line_product.id),
                 company_id=picking.company_id.id,
                 bom_type="phantom",
@@ -175,7 +175,7 @@ class PurchaseOrderLine(models.Model):
             and (
                 self.env["mrp.bom"]
                 .sudo()
-                ._bom_find(
+                ._get_bom_by_product(
                     self.product_id, bom_type="phantom", company_id=self.company_id.id
                 )[self.product_id]
             )
@@ -184,7 +184,7 @@ class PurchaseOrderLine(models.Model):
         return super()._get_procurement_qty(previous_product_qty=previous_product_qty)
 
     def _get_stock_move_dests_initial_demand(self, move_dests):
-        kit_bom = self.env["mrp.bom"]._bom_find(
+        kit_bom = self.env["mrp.bom"]._get_bom_by_product(
             self.product_id, bom_type="phantom", company_id=self.company_id.id
         )[self.product_id]
         if kit_bom:

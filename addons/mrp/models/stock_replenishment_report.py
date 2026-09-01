@@ -15,7 +15,9 @@ class StockReplenishmentReport(models.AbstractModel):
             products = self.env["product.product"].browse(batch_ids)
             kit_ids = {
                 k.id
-                for k in self.env["mrp.bom"]._bom_find(products, bom_type="phantom")
+                for k in self.env["mrp.bom"]._get_bom_by_product(
+                    products, bom_type="phantom"
+                )
             }
             non_kit_ids.extend(id_ for id_ in products.ids if id_ not in kit_ids)
             products.invalidate_recordset()

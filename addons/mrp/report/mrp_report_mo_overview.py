@@ -101,7 +101,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             missing_components = production.bom_id.bom_line_ids.filtered(
                 lambda bom_line: (
                     bom_line not in current_bom_lines
-                    and not bom_line._skip_bom_line(production.product_id)
+                    and not bom_line._is_bom_line_skipped(production.product_id)
                 )
             )
             missing_operations = (
@@ -1143,7 +1143,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             replenishments.append(replenishment)
             total_ordered += replenishment["summary"]["quantity"]
 
-        in_transit_line = self._add_transit_line(
+        in_transit_line = self._prepare_transit_line(
             move_raw, forecast, production, level, current_index
         )
         if in_transit_line:
@@ -1274,7 +1274,9 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
 
         return replenishments
 
-    def _add_transit_line(self, move_raw, forecast, production, level, current_index):
+    def _prepare_transit_line(
+        self, move_raw, forecast, production, level, current_index
+    ):
         def is_related_to_production(document, production):
             if not document:
                 return False
@@ -1461,7 +1463,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                 warehouse.lot_stock_id,
                 read=False,
             )
-            forecast_lines = self._add_origins_to_forecast(forecast_lines)
+            forecast_lines = self._add_forecast_origins(forecast_lines)
             for product in unknown_products:
                 extra_docs = self._get_extra_replenishments(product)
                 extra_docs.sort(
@@ -1473,10 +1475,10 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                         forecast_lines,
                     )
                 )
-                updated_forecast_lines = self._add_extra_in_forecast(
+                updated_forecast_lines = self._add_forecast_extras(
                     product_forecast_lines, extra_docs, product.uom_id.rounding
                 )
-                replenish_data = self._set_replenish_data(
+                replenish_data = self._update_replenish_data(
                     updated_forecast_lines, product, replenish_data
                 )
 
@@ -1515,13 +1517,13 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                     )
                 if component_move.product_uom_id.compare(required_qty, 0) <= 0:
                     break
-            replenish_data = self._set_replenish_data(
+            replenish_data = self._update_replenish_data(
                 product_lines, product, replenish_data
             )
 
         return replenish_data
 
-    def _set_replenish_data(self, new_lines, product, replenish_data):
+    def _update_replenish_data(self, new_lines, product, replenish_data):
         if product.id not in replenish_data["products"]:
             replenish_data["products"][product.id] = {"forecast": []}
         replenish_data["products"][product.id]["forecast"] += new_lines
@@ -1534,7 +1536,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             )
         return replenish_data["products"][product.id]["resupply_rules"]
 
-    def _add_origins_to_forecast(self, forecast_lines):
+    def _add_forecast_origins(self, forecast_lines):
         new_lines = []
         for line in filter(
             lambda line: (
@@ -1594,7 +1596,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             return move.production_id
         return False
 
-    def _add_extra_in_forecast(self, forecast_lines, extras, product_rounding):
+    def _add_forecast_extras(self, forecast_lines, extras, product_rounding):
         if not extras:
             return forecast_lines
 
@@ -1676,7 +1678,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             )
             wh_manufacture_rules -= rules
             rules_delay += sum(rule.delay for rule in wh_manufacture_rules)
-            related_bom = self.env["mrp.bom"]._bom_find(product)[product]
+            related_bom = self.env["mrp.bom"]._get_bom_by_product(product)[product]
             if not related_bom:
                 return False
             return {

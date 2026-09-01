@@ -304,7 +304,8 @@ class MrpWorkcenter(models.Model):
             load[workcenter.id] += duration_sum
         late = dict(
             MrpWorkorder._read_group(
-                Domain("workcenter_id", "in", self.ids) & MrpWorkorder._late_domain(),
+                Domain("workcenter_id", "in", self.ids)
+                & MrpWorkorder._get_domain_late(),
                 ["workcenter_id"],
                 ["__count"],
             )
@@ -339,7 +340,7 @@ class MrpWorkcenter(models.Model):
 
     OEE_WINDOW_MONTHS = 1
 
-    def _oee_window_start(self):
+    def _get_oee_window_start(self):
         return fields.Datetime.to_string(
             fields.Datetime.now()
             - relativedelta.relativedelta(months=self.OEE_WINDOW_MONTHS)
@@ -358,7 +359,7 @@ class MrpWorkcenter(models.Model):
             "mrp.workcenter.productivity"
         ]._read_group(
             [
-                ("date_start", ">=", self._oee_window_start()),
+                ("date_start", ">=", self._get_oee_window_start()),
                 ("workcenter_id", "in", self.ids),
                 ("date_end", "!=", False),
             ],
@@ -386,7 +387,7 @@ class MrpWorkcenter(models.Model):
             workcenter.id: (expected, spent)
             for workcenter, expected, spent in self.env["mrp.workorder"]._read_group(
                 [
-                    ("date_start", ">=", self._oee_window_start()),
+                    ("date_start", ">=", self._get_oee_window_start()),
                     ("workcenter_id", "in", self.ids),
                     ("state", "=", "done"),
                 ],
@@ -499,7 +500,7 @@ class MrpWorkcenter(models.Model):
             wc.id: unavailable_per_resource.get(wc.resource_id.id, []) for wc in self
         }
 
-    def _planning_horizon(self):
+    def _get_planning_horizon(self):
         iterations = max(
             int(
                 self.env["ir.config_parameter"]
@@ -519,7 +520,7 @@ class MrpWorkcenter(models.Model):
         extra_leaves_slots=None,
     ):
         self.check_singleton()
-        iterations, step = self._planning_horizon()
+        iterations, step = self._get_planning_horizon()
         revert = to_timezone(start_datetime.tzinfo)
         start_datetime = localized(start_datetime)
         duration = max(duration, 1 / 60)
@@ -533,7 +534,7 @@ class MrpWorkcenter(models.Model):
                 for start, stop in extra_leaves_slots or []
             ]
         )
-        walk = self._walk_forward if forward else self._walk_backward
+        walk = self._get_slot_forward if forward else self._get_slot_backward
         slot = walk(
             start_datetime, duration, iterations, step, blocked, reservations_to_ignore
         )
@@ -574,7 +575,7 @@ class MrpWorkcenter(models.Model):
         return best, reasons
 
     @api.model
-    def _unplannable_error(self, subject, reasons):
+    def _prepare_unplannable_error(self, subject, reasons):
         if not reasons:
             return _(
                 "%(subject)s cannot be planned: it has no work center to run on.",
@@ -588,7 +589,9 @@ class MrpWorkcenter(models.Model):
             ),
         )
 
-    def _available_intervals(self, date_start, date_stop, reservations_to_ignore):
+    def _get_intervals_available_and_occupied(
+        self, date_start, date_stop, reservations_to_ignore
+    ):
         resource = self.resource_id
         available = self.resource_calendar_id._work_intervals_batch(
             date_start,
@@ -611,11 +614,11 @@ class MrpWorkcenter(models.Model):
         return available, occupied
 
     @staticmethod
-    def _first_conflict(interval, occupied, blocked):
+    def _get_first_conflict(interval, occupied, blocked):
         conflict = interval & occupied or interval & blocked
         return next(iter(conflict), None)
 
-    def _walk_forward(
+    def _get_slot_forward(
         self,
         start_datetime,
         duration,
@@ -628,13 +631,13 @@ class MrpWorkcenter(models.Model):
         start_interval = None
         for n in range(iterations):
             date_start = start_datetime + step * n
-            available, occupied = self._available_intervals(
+            available, occupied = self._get_intervals_available_and_occupied(
                 date_start, date_start + step, reservations_to_ignore
             )
             for start, stop, records in available:
                 start_interval = start_interval or start
                 interval_minutes = (stop - start).total_seconds() / 60
-                while conflict := self._first_conflict(
+                while conflict := self._get_first_conflict(
                     Intervals(
                         [
                             (
@@ -659,7 +662,7 @@ class MrpWorkcenter(models.Model):
                 remaining -= interval_minutes
         return None
 
-    def _walk_backward(
+    def _get_slot_backward(
         self,
         start_datetime,
         duration,
@@ -673,13 +676,13 @@ class MrpWorkcenter(models.Model):
         now = localized(fields.Datetime.now())
         for n in range(iterations):
             date_stop = start_datetime - step * n
-            available, occupied = self._available_intervals(
+            available, occupied = self._get_intervals_available_and_occupied(
                 date_stop - step, date_stop, reservations_to_ignore
             )
             for start, stop, records in reversed(available):
                 stop_interval = stop_interval or stop
                 interval_minutes = (stop - start).total_seconds() / 60
-                while conflict := self._first_conflict(
+                while conflict := self._get_first_conflict(
                     Intervals(
                         [
                             (

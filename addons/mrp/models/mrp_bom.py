@@ -222,7 +222,7 @@ class MrpBom(models.Model):
                 }
             )
             boms_to_check = (
-                self.search(Domain.OR(self._bom_find_domain(p) for p in reached))
+                self.search(Domain.OR(self._get_domain_bom(p) for p in reached))
                 - checked
                 if reached
                 else self.browse()
@@ -267,7 +267,7 @@ class MrpBom(models.Model):
     def _check_no_cycle_from(self, components, finished_products, subcomponents):
         visited = set()
 
-        def _walk(components, finished_products):
+        def check_for_cycle(components, finished_products):
             self._add_missing_subcomponents(components, subcomponents)
             for component in components:
                 if component in finished_products:
@@ -281,21 +281,23 @@ class MrpBom(models.Model):
                 if component.id in visited:
                     continue
                 if subcomponents[component]:
-                    _walk(subcomponents[component], finished_products | component)
+                    check_for_cycle(
+                        subcomponents[component], finished_products | component
+                    )
                 visited.add(component.id)
 
-        _walk(components, finished_products)
+        check_for_cycle(components, finished_products)
 
     def _add_missing_subcomponents(self, products, subcomponents):
         unknown = products.filtered(lambda p: p not in subcomponents)
         if not unknown:
             return
-        bom_by_product = self._bom_find(unknown)
+        bom_by_product = self._get_bom_by_product(unknown)
         for product in unknown:
             subcomponents[product] = (
                 bom_by_product[product]
                 .bom_line_ids.filtered(
-                    lambda line, product=product: not line._skip_bom_line(product)
+                    lambda line, product=product: not line._is_bom_line_skipped(product)
                 )
                 .product_id
             )
@@ -308,7 +310,7 @@ class MrpBom(models.Model):
         grouped_by_components = defaultdict(lambda: self.env["product.product"])
         for finished in finished_products:
             components = self.bom_line_ids.filtered(
-                lambda line, finished=finished: not line._skip_bom_line(finished)
+                lambda line, finished=finished: not line._is_bom_line_skipped(finished)
             ).product_id
             grouped_by_components[components] |= finished
         return list(grouped_by_components.items())
@@ -372,7 +374,7 @@ class MrpBom(models.Model):
             for product in variants:
                 total_variant_cost_share = sum(
                     byproducts.filtered(
-                        lambda bp, product=product: not bp._skip_bom_line(product)
+                        lambda bp, product=product: not bp._is_bom_line_skipped(product)
                     ).mapped("cost_share")
                 )
                 if float_compare(total_variant_cost_share, 100, precision_digits=2) > 0:
@@ -618,7 +620,7 @@ class MrpBom(models.Model):
         )
 
     @api.model
-    def _bom_find_domain(
+    def _get_domain_bom(
         self, products, picking_type=None, company_id=False, bom_type=False
     ):
         domain = (
@@ -641,12 +643,14 @@ class MrpBom(models.Model):
         return domain
 
     @api.model
-    def _bom_find(self, products, picking_type=None, company_id=False, bom_type=False):
+    def _get_bom_by_product(
+        self, products, picking_type=None, company_id=False, bom_type=False
+    ):
         bom_by_product = defaultdict(lambda: self.env["mrp.bom"])
         products = products.filtered(lambda p: p.type != "service")
         if not products:
             return bom_by_product
-        domain = self._bom_find_domain(
+        domain = self._get_domain_bom(
             products,
             picking_type=picking_type,
             company_id=company_id,
@@ -682,14 +686,14 @@ class MrpBom(models.Model):
         return bom_by_product
 
     @api.model
-    def _explosion_scratch(self):
+    def _get_explosion_scratch(self):
         scratch = self.env.context.get("bom_cost_share_cache")
         return ExplodeScratch() if scratch is None else scratch
 
     def _explode(
         self, product, quantity, picking_type=False, never_attribute_values=False
     ):
-        self = self.with_context(bom_cost_share_cache=self._explosion_scratch())
+        self = self.with_context(bom_cost_share_cache=self._get_explosion_scratch())
         product_boms = self._get_kit_closure(
             product, picking_type, never_attribute_values
         )
@@ -712,7 +716,9 @@ class MrpBom(models.Model):
                 bom_lines.popleft()
             )
 
-            if current_line._skip_bom_line(current_product, never_attribute_values):
+            if current_line._is_bom_line_skipped(
+                current_product, never_attribute_values
+            ):
                 continue
 
             line_quantity = current_qty * current_line.product_qty
@@ -798,13 +804,14 @@ class MrpBom(models.Model):
         while frontier:
             products = self.env["product.product"].browse()
             for line, parent in frontier:
-                if line.product_id not in product_boms and not line._skip_bom_line(
-                    parent, never_attribute_values
+                if (
+                    line.product_id not in product_boms
+                    and not line._is_bom_line_skipped(parent, never_attribute_values)
                 ):
                     products |= line.product_id
             if not products:
                 break
-            bom_by_product = self._bom_find(
+            bom_by_product = self._get_bom_by_product(
                 products,
                 picking_type=picking_type,
                 company_id=self.company_id.id,
@@ -843,7 +850,9 @@ class MrpBom(models.Model):
         skip_unmark = self.env.context.get("skip_bom_outdated_unmark")
         for production in productions:
             bom = production.bom_id
-            if production.state == "draft" or self._matches_production(bom, production):
+            if production.state == "draft" or self._is_bom_matching_production(
+                bom, production
+            ):
                 outdated |= production
             else:
                 current |= production
@@ -852,7 +861,7 @@ class MrpBom(models.Model):
             current.filtered("is_outdated_bom").is_outdated_bom = False
 
     @api.model
-    def _matches_production(self, bom, production):
+    def _is_bom_matching_production(self, bom, production):
         if bom.product_id:
             return production.product_id == bom.product_id
         return production.product_tmpl_id == bom.product_tmpl_id
@@ -948,7 +957,7 @@ class MrpBom(models.Model):
         return self.env["documents.document"].search(domain)
 
     @api.model
-    def _skip_for_no_variant(
+    def _is_skipped_for_no_variant(
         self, product, bom_attribute_values, never_attribute_values=False
     ):
         no_variant_bom_attributes = bom_attribute_values.filtered(

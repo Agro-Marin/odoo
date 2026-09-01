@@ -161,7 +161,7 @@ class MrpUnbuild(models.Model):
     def _compute_bom_id(self):
         orders_without_mo = self.filtered(lambda order: not order.mo_id)
         boms_by_company = {
-            company.id: self.env["mrp.bom"]._bom_find(
+            company.id: self.env["mrp.bom"]._get_bom_by_product(
                 orders.product_id, company_id=company.id
             )
             for company, orders in orders_without_mo.grouped("company_id").items()
@@ -415,7 +415,7 @@ class MrpUnbuild(models.Model):
                     unbuild.product_id, unbuild.product_uom_id, unbuild.product_qty
                 )
                 for byproduct in unbuild.bom_id.byproduct_ids:
-                    if byproduct._skip_bom_line(unbuild.product_id):
+                    if byproduct._is_bom_line_skipped(unbuild.product_id):
                         continue
                     quantity = byproduct.product_qty * factor
                     moves += unbuild._generate_move_from_bom_line(

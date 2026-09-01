@@ -22,7 +22,7 @@ class MrpWorkorder(models.Model):
     LATE_STATES = ("blocked", "ready")
 
     @api.model
-    def _late_domain(self):
+    def _get_domain_late(self):
         return Domain("state", "in", self.LATE_STATES) & Domain(
             "date_start", "<", fields.Datetime.now()
         )
@@ -30,7 +30,7 @@ class MrpWorkorder(models.Model):
     def _search_is_late(self, operator, value):
         if operator not in ("in", "not in"):
             return NotImplemented
-        return [("id", operator, self._late_domain())]
+        return [("id", operator, self._get_domain_late())]
 
     @api.depends("state", "date_start")
     def _compute_is_late(self):
@@ -633,7 +633,7 @@ class MrpWorkorder(models.Model):
 
     def _inverse_duration(self):
 
-        def _float_duration_to_second(duration):
+        def _float_duration_to_seconds(duration):
             minutes = duration // 1
             seconds = (duration % 1) * 60
             return minutes * 60 + seconds
@@ -651,7 +651,7 @@ class MrpWorkorder(models.Model):
                     order.state = "progress"
                 enddate = fields.Datetime.now()
                 date_start = enddate - timedelta(
-                    seconds=_float_duration_to_second(delta_duration)
+                    seconds=_float_duration_to_seconds(delta_duration)
                 )
                 end_dates = order.time_ids.filtered("date_end").mapped("date_end")
                 if end_dates:
@@ -659,7 +659,7 @@ class MrpWorkorder(models.Model):
                     if latest_end > date_start:
                         date_start = latest_end
                         enddate = latest_end + timedelta(
-                            seconds=_float_duration_to_second(delta_duration)
+                            seconds=_float_duration_to_seconds(delta_duration)
                         )
                 if (
                     order.duration_expected >= new_order_duration
@@ -696,7 +696,7 @@ class MrpWorkorder(models.Model):
                     else:
                         new_time_line_duration = timeline.duration - duration_to_remove
                         timeline.date_start = timeline.date_end - timedelta(
-                            seconds=_float_duration_to_second(new_time_line_duration)
+                            seconds=_float_duration_to_seconds(new_time_line_duration)
                         )
                         break
                 timelines_to_unlink.unlink()
@@ -762,9 +762,9 @@ class MrpWorkorder(models.Model):
     @api.onchange("date_start", "duration_expected", "workcenter_id")
     def _onchange_date_start(self):
         if self.date_start and self.workcenter_id:
-            self.date_end = self._calculate_date_finished()
+            self.date_end = self._get_date_end()
 
-    def _calculate_date_finished(self, date_start=False, new_workcenter=False):
+    def _get_date_end(self, date_start=False, new_workcenter=False):
         workcenter = new_workcenter or self.workcenter_id
         if not workcenter.resource_calendar_id:
             duration_in_seconds = self.duration_expected * 60
@@ -781,7 +781,7 @@ class MrpWorkorder(models.Model):
     @api.onchange("date_end")
     def _onchange_date_finished(self):
         if self.date_start and self.date_end and self.workcenter_id:
-            self.duration_expected = self._calculate_duration_expected()
+            self.duration_expected = self._get_duration_expected_from_dates()
         if not self.date_end and self.date_start:
             raise UserError(
                 _(
@@ -790,7 +790,7 @@ class MrpWorkorder(models.Model):
                 )
             )
 
-    def _calculate_duration_expected(self, date_start=False, date_end=False):
+    def _get_duration_expected_from_dates(self, date_start=False, date_end=False):
         if not self.workcenter_id.resource_calendar_id:
             return (
                 (date_end or self.date_end) - (date_start or self.date_start)
@@ -819,7 +819,9 @@ class MrpWorkorder(models.Model):
         new_workcenter, previous_workcenter_by_id = self._update_write_workcenter(
             values
         )
-        derived_vals = self._get_write_date_vals(values, new_workcenter)
+        derived_vals = self._prepare_derived_date_vals_by_workorder(
+            values, new_workcenter
+        )
         res = self._write_grouped_by_derived_vals(values, derived_vals)
         self._post_write_qty_produced(values)
         self._post_write_workcenter(previous_workcenter_by_id, new_workcenter)
@@ -867,7 +869,7 @@ class MrpWorkorder(models.Model):
                 ).workcenter_id = new_workcenter
         return new_workcenter, previous_workcenter_by_id
 
-    def _get_write_date_vals(self, values, new_workcenter):
+    def _prepare_derived_date_vals_by_workorder(self, values, new_workcenter):
         if "date_start" not in values and "date_end" not in values:
             return {}
         derived_vals = {}
@@ -884,7 +886,7 @@ class MrpWorkorder(models.Model):
                         "The planned end date of the work order cannot be prior to the planned start date, please correct this to save the work order."
                     )
                 )
-            derived = workorder._get_derived_date_vals(
+            derived = workorder._prepare_derived_date_vals(
                 values, date_start, date_end, new_workcenter
             )
             if derived:
@@ -892,7 +894,7 @@ class MrpWorkorder(models.Model):
             workorder._update_production_dates(values, derived)
         return derived_vals
 
-    def _get_derived_date_vals(self, values, date_start, date_end, new_workcenter):
+    def _prepare_derived_date_vals(self, values, date_start, date_end, new_workcenter):
         self.check_singleton()
         if "duration_expected" in values or self.env.context.get(
             "bypass_duration_calculation"
@@ -900,19 +902,19 @@ class MrpWorkorder(models.Model):
             return {}
         if values.get("date_start") and values.get("date_end"):
             return {
-                "date_end": self._calculate_date_finished(
+                "date_end": self._get_date_end(
                     date_start=date_start, new_workcenter=new_workcenter
                 )
             }
         if date_start and not date_end:
             return {
-                "date_end": self._calculate_date_finished(
+                "date_end": self._get_date_end(
                     date_start=date_start, new_workcenter=new_workcenter
                 )
             }
         if date_start and date_end:
             return {
-                "duration_expected": self._calculate_duration_expected(
+                "duration_expected": self._get_duration_expected_from_dates(
                     date_start=date_start, date_end=date_end
                 )
             }
@@ -969,7 +971,7 @@ class MrpWorkorder(models.Model):
                 previous_workcenter=previous_workcenter_by_id[workorder.id]
             )
             if workorder.date_start:
-                workorder.date_end = workorder._calculate_date_finished(
+                workorder.date_end = workorder._get_date_end(
                     new_workcenter=new_workcenter
                 )
 
@@ -994,7 +996,7 @@ class MrpWorkorder(models.Model):
 
         for workorder in res:
             if workorder.date_start and not workorder.date_end:
-                workorder.date_end = workorder._calculate_date_finished()
+                workorder.date_end = workorder._get_date_end()
 
         for mo in res.mapped("production_id"):
             if len(set(mo.workorder_ids.mapped("sequence"))) != len(mo.workorder_ids):
@@ -1053,7 +1055,9 @@ class MrpWorkorder(models.Model):
             reservations_to_ignore=self.reservation_ids,
         )
         if best is None:
-            raise UserError(workcenters._unplannable_error(self.display_name, reasons))
+            raise UserError(
+                workcenters._prepare_unplannable_error(self.display_name, reasons)
+            )
         workcenter, date_start, date_end, duration_expected = best
         self.write(
             {
@@ -1129,7 +1133,7 @@ class MrpWorkorder(models.Model):
                 wo.with_context(bypass_duration_calculation=True).write(vals)
             else:
                 if not wo.date_start or wo.date_start > date_start:
-                    vals["date_end"] = wo._calculate_date_finished(date_start)
+                    vals["date_end"] = wo._get_date_end(date_start)
                 if wo.date_end and wo.date_end < date_start:
                     vals["date_end"] = date_start
                 wo.with_context(bypass_duration_calculation=True).write(vals)
@@ -1415,7 +1419,7 @@ class MrpWorkorder(models.Model):
         if self.qty_producing:
             self.qty_producing = quantity
 
-    def _intervals_duration(self, intervals):
+    def _get_duration_of_intervals(self, intervals):
         if not intervals:
             return 0.0
         spans = [
@@ -1436,7 +1440,7 @@ class MrpWorkorder(models.Model):
             loss_type_times[time.loss_id.loss_type] |= time
         duration = 0
         for times in loss_type_times.values():
-            duration += self._intervals_duration(
+            duration += self._get_duration_of_intervals(
                 [(t.date_start or now, t.date_end or now, t) for t in times]
             )
         return duration
@@ -1465,6 +1469,6 @@ class MrpWorkorder(models.Model):
     def _get_theoretical_operation_cost(self, without_employee_cost=False):
         return self._get_machine_cost(self.get_duration())
 
-    def _set_cost_mode(self):
+    def _update_cost_mode(self):
         for workorder in self:
             workorder.cost_mode = workorder.operation_id.cost_mode or "actual"

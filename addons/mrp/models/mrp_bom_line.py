@@ -56,7 +56,7 @@ class MrpBomLine(models.Model):
         for (company, picking_type), lines in self.grouped(
             lambda line: (line.bom_id.company_id, line.bom_id.picking_type_id)
         ).items():
-            bom_by_product = Bom._bom_find(
+            bom_by_product = Bom._get_bom_by_product(
                 lines.product_id, picking_type=picking_type, company_id=company.id
             )
             for line in lines:
@@ -127,7 +127,7 @@ class MrpBomLine(models.Model):
         lines.bom_id.with_context(
             skip_bom_outdated_unmark=True
         )._update_outdated_bom_in_productions()
-        if not self._chatter_is_muted():
+        if not self._is_chatter_muted():
             for bom, added in lines.grouped("bom_id").items():
                 bom.message_post(
                     body=Markup("{}<ul>{}</ul>").format(
@@ -155,7 +155,7 @@ class MrpBomLine(models.Model):
             )._update_outdated_bom_in_productions()
 
         tracked = [name for name in self._CHATTER_TRACKED_FIELDS if name in vals]
-        if not tracked or self._chatter_is_muted():
+        if not tracked or self._is_chatter_muted():
             return super().write(vals)
 
         before = {
@@ -204,7 +204,7 @@ class MrpBomLine(models.Model):
         return result
 
     def _unlink_notify(self, boms):
-        if self._chatter_is_muted():
+        if self._is_chatter_muted():
             return super().unlink()
 
         for bom, lines in self.grouped("bom_id").items():
@@ -225,7 +225,7 @@ class MrpBomLine(models.Model):
             )
         return super().unlink()
 
-    def _chatter_is_muted(self):
+    def _is_chatter_muted(self):
         return bool(
             self.env.context.get("tracking_disable")
             or self.env.context.get("mail_notrack")

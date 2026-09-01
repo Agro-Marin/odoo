@@ -33,7 +33,7 @@ class RepairOrder(models.Model):
             bom = (
                 self.env["mrp.bom"]
                 .sudo()
-                ._bom_find(
+                ._get_bom_by_product(
                     op.product_id, company_id=op.company_id.id, bom_type="phantom"
                 )[op.product_id]
             )
@@ -78,7 +78,7 @@ class RepairOrder(models.Model):
         return action
 
     def _get_action_add_from_catalog_extra_context(self):
-        bom = self.env["mrp.bom"]._bom_find(
+        bom = self.env["mrp.bom"]._get_bom_by_product(
             self.product_id, company_id=self.company_id.id
         )[self.product_id]
         product_ids = [line.product_id.id for line in bom.bom_line_ids] if bom else []

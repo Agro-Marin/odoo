@@ -4718,12 +4718,12 @@ class TestBoMAuditFixes(TestMrpCommon):
         mixin = type(self.env["mixin.bom.variant.line"])
         for model in ("mrp.bom.line", "mrp.bom.byproduct"):
             self.assertIs(
-                type(self.env[model])._skip_bom_line,
-                mixin._skip_bom_line,
+                type(self.env[model])._is_bom_line_skipped,
+                mixin._is_bom_line_skipped,
                 f"{model} should inherit the shared rule, not carry a copy",
             )
-        operation = type(self.env["mrp.routing.workcenter"])._skip_bom_line
-        self.assertIsNot(operation, mixin._skip_bom_line)
+        operation = type(self.env["mrp.routing.workcenter"])._is_bom_line_skipped
+        self.assertIsNot(operation, mixin._is_bom_line_skipped)
         for model in ("mrp.bom.line", "mrp.bom.byproduct", "mrp.routing.workcenter"):
             fields = self.env[model]._fields
             self.assertIn("bom_product_template_attribute_value_ids", fields)
@@ -4749,23 +4749,23 @@ class TestBoMAuditFixes(TestMrpCommon):
             return product
 
         root = kit(3, 3, "KIT")
-        bom = self.env["mrp.bom"]._bom_find(root, bom_type="phantom")[root]
+        bom = self.env["mrp.bom"]._get_bom_by_product(root, bom_type="phantom")[root]
         self.env.invalidate_all()
         searches = []
-        original = type(self.env["mrp.bom"])._bom_find
+        original = type(self.env["mrp.bom"])._get_bom_by_product
 
         def counting(model, products, **kwargs):
             searches.append(len(products))
             return original(model, products, **kwargs)
 
-        type(self.env["mrp.bom"])._bom_find = counting
+        type(self.env["mrp.bom"])._get_bom_by_product = counting
         try:
             _boms, lines = bom._explode(root, 1.0)
         finally:
-            type(self.env["mrp.bom"])._bom_find = original
+            type(self.env["mrp.bom"])._get_bom_by_product = original
         self.assertEqual(len(lines), 27)
         self.assertLessEqual(
-            len(searches), 4, "one _bom_find per level, not one per node"
+            len(searches), 4, "one _get_bom_by_product per level, not one per node"
         )
 
     def test_explode_skips_restricted_lines_without_resolving_them(self):
@@ -4808,7 +4808,9 @@ class TestBoMAuditFixes(TestMrpCommon):
             }
         )
         variant = template.product_variant_ids[0]
-        bom = self.env["mrp.bom"]._bom_find(variant, bom_type="phantom")[variant]
+        bom = self.env["mrp.bom"]._get_bom_by_product(variant, bom_type="phantom")[
+            variant
+        ]
         _boms, lines = bom._explode(variant, 1.0)
         self.assertEqual([line.product_id for line, _vals in lines], [kept])
 
@@ -4847,7 +4849,7 @@ class TestBoMAuditFixes(TestMrpCommon):
             {"product_tmpl_id": template.id, "product_id": first.id, "sequence": 5}
         )
         template_bom = Bom.create({"product_tmpl_id": template.id, "sequence": 5})
-        found = Bom._bom_find(first | second)
+        found = Bom._get_bom_by_product(first | second)
         self.assertEqual(found[first], variant_bom)
         self.assertEqual(found[second], template_bom)
 
@@ -4858,7 +4860,7 @@ class TestBoMAuditFixes(TestMrpCommon):
             {"product_tmpl_id": template.id, "product_id": first.id, "sequence": 10}
         )
         template_bom = Bom.create({"product_tmpl_id": template.id, "sequence": 5})
-        found = Bom._bom_find(first | second)
+        found = Bom._get_bom_by_product(first | second)
         self.assertEqual(found[first], template_bom)
         self.assertEqual(found[second], template_bom)
 
@@ -4880,10 +4882,10 @@ class TestBoMAuditFixes(TestMrpCommon):
                 "sequence": 1,
             }
         )
-        batch = Bom._bom_find(variants)
+        batch = Bom._get_bom_by_product(variants)
         for variant in variants:
             self.assertEqual(
                 batch[variant],
-                Bom._bom_find(variant)[variant],
+                Bom._get_bom_by_product(variant)[variant],
                 f"the two paths disagree for {variant.display_name}",
             )

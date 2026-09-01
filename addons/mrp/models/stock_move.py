@@ -604,7 +604,7 @@ class StockMove(models.Model):
             boms.update(
                 self.env["mrp.bom"]
                 .sudo()
-                ._bom_find(
+                ._get_bom_by_product(
                     self.browse(move_ids).product_id,
                     company_id=company.id,
                     bom_type="phantom",
@@ -617,7 +617,7 @@ class StockMove(models.Model):
         moves_ids_to_unlink = OrderedSet()
         phantom_moves_vals_list = []
         self = self.with_context(
-            bom_cost_share_cache=self.env["mrp.bom"]._explosion_scratch()
+            bom_cost_share_cache=self.env["mrp.bom"]._get_explosion_scratch()
         )
         explodable = self.filtered(lambda move: move._is_explodable())
         kit_boms = explodable._get_kit_boms()

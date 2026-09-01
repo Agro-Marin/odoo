@@ -61,7 +61,7 @@ class ProductProduct(models.Model):
 
     def _set_price_from_bom(self, boms_to_recompute=False):
         self.check_singleton()
-        bom = self.env["mrp.bom"]._bom_find(self)[self]
+        bom = self.env["mrp.bom"]._get_bom_by_product(self)[self]
         if bom:
             self.standard_price = self._compute_bom_price(
                 bom, boms_to_recompute=boms_to_recompute
@@ -87,13 +87,13 @@ class ProductProduct(models.Model):
             boms_to_recompute = []
         total = 0
         for opt in bom.operation_ids:
-            if opt._skip_bom_line(self):
+            if opt._is_bom_line_skipped(self):
                 continue
 
             total += opt.cost
 
         for line in bom.bom_line_ids:
-            if line._skip_bom_line(self):
+            if line._is_bom_line_skipped(self):
                 continue
 
             if line.child_bom_id and line.child_bom_id in boms_to_recompute:

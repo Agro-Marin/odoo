@@ -32,7 +32,7 @@ class MrpBom(models.Model):
                 total_variant_cost_share = sum(
                     lines.filtered(
                         lambda bl, product=product: (
-                            not bl._skip_bom_line(product)
+                            not bl._is_bom_line_skipped(product)
                             and not bl.product_uom_id.is_zero(bl.product_qty)
                         )
                     ).mapped("cost_share")
@@ -84,7 +84,7 @@ class MrpBomLine(models.Model):
         if variant_cache_key not in cache:
             variant_bom_lines = self.bom_id.bom_line_ids.filtered(
                 lambda bl: (
-                    not bl._skip_bom_line(product)
+                    not bl._is_bom_line_skipped(product)
                     and not bl.product_uom_id.is_zero(bl.product_qty)
                 )
             )

@@ -10,7 +10,7 @@ class MixinStockReplenish(models.AbstractModel):
     @api.depends("route_id")
     def _compute_show_bom(self):
         for rec in self:
-            rec.show_bom = rec._get_show_bom(rec.route_id)
+            rec.show_bom = rec._is_bom_shown(rec.route_id)
 
-    def _get_show_bom(self, route):
+    def _is_bom_shown(self, route):
         return any(r.action == "manufacture" for r in route.rule_ids)

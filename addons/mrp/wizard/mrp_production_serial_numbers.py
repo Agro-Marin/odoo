@@ -42,7 +42,7 @@ class MrpProductionSerials(models.TransientModel):
         for wizard in self:
             wizard.lot_quantity = round(wizard.production_id.product_qty)
 
-    def _serial_names(self):
+    def _get_names_from_serial_numbers(self):
         self.check_singleton()
         return list(
             dict.fromkeys(
@@ -52,7 +52,7 @@ class MrpProductionSerials(models.TransientModel):
 
     @api.onchange("serial_numbers")
     def _onchange_serial_numbers(self):
-        self.serial_numbers = "\n".join(self._serial_names())
+        self.serial_numbers = "\n".join(self._get_names_from_serial_numbers())
 
     def action_generate_serial_numbers(self):
         self.check_singleton()
@@ -76,7 +76,7 @@ class MrpProductionSerials(models.TransientModel):
         mos = self.production_id._split_productions(amounts=split_amounts)
         for mo, serial in zip(mos[: len(lots)], lots, strict=True):
             mo.lot_producing_ids = [Command.link(serial.id)]
-        return self._closing_action(mos)
+        return self._get_closing_action(mos)
 
     def action_apply(self):
         self.check_singleton()
@@ -87,9 +87,9 @@ class MrpProductionSerials(models.TransientModel):
         ):
             self.production_id.qty_producing = len(self.production_id.lot_producing_ids)
         (self.workorder_id or self.production_id).set_qty_producing()
-        return self._closing_action()
+        return self._get_closing_action()
 
-    def _closing_action(self, mos=False):
+    def _get_closing_action(self, mos=False):
         mos = mos or self.production_id
         print_actions = mos._autoprint_mass_generated_lots()
         if print_actions:
@@ -107,7 +107,7 @@ class MrpProductionSerials(models.TransientModel):
         self.check_singleton()
         if not self.serial_numbers:
             raise UserError(self.env._("There is no serial numbers to apply."))
-        lots = self._serial_names()
+        lots = self._get_names_from_serial_numbers()
         if not lots:
             raise UserError(self.env._("No valid serial numbers provided."))
         existing_lots = (

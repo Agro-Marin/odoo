@@ -12,7 +12,7 @@ class StockMove(models.Model):
         if self.product_id != alive.product_id:
             return order_line, self.env["mrp.bom"]
         product = order_line.product_id.with_company(order_line.company_id)
-        bom = self.env["mrp.bom"]._bom_find(
+        bom = self.env["mrp.bom"]._get_bom_by_product(
             product, company_id=order_line.company_id.id, bom_type="phantom"
         )[product]
         return order_line, bom
@@ -21,7 +21,7 @@ class StockMove(models.Model):
         order_line = self.sale_line_id
         if len(order_line) == 1 and self.product_id != order_line.product_id:
             product = order_line.product_id.with_company(order_line.company_id)
-            kit_bom = self.env["mrp.bom"]._bom_find(
+            kit_bom = self.env["mrp.bom"]._get_bom_by_product(
                 product, company_id=order_line.company_id.id, bom_type="phantom"
             )[product]
             if kit_bom:

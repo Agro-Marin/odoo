@@ -40,7 +40,7 @@ class SaleOrderLine(models.Model):
         def find(line):
             company = line.company_id
             if company not in found_per_company:
-                found_per_company[company] = self.env["mrp.bom"]._bom_find(
+                found_per_company[company] = self.env["mrp.bom"]._get_bom_by_product(
                     self.env["product.product"].browse(products_per_company[company]),
                     company_id=company.id,
                     bom_type="phantom",
@@ -224,7 +224,7 @@ class SaleOrderLine(models.Model):
         bom = (
             self.env["mrp.bom"]
             .sudo()
-            ._bom_find(
+            ._get_bom_by_product(
                 self.product_id, bom_type="phantom", company_id=self.company_id.id
             )[self.product_id]
         )

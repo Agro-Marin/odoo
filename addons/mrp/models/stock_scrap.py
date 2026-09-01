@@ -77,7 +77,7 @@ class StockScrap(models.Model):
     @api.onchange("product_id")
     def _onchange_product_id(self):
         if self.product_is_kit:
-            self.bom_id = self.env["mrp.bom"]._bom_find(
+            self.bom_id = self.env["mrp.bom"]._get_bom_by_product(
                 self.product_id, company_id=self.company_id.id, bom_type="phantom"
             )[self.product_id]
         else:

@@ -370,11 +370,11 @@ class MrpRoutingWorkcenter(models.Model):
             },
         }
 
-    def _skip_bom_line(self, product, never_attribute_values=False):
+    def _is_bom_line_skipped(self, product, never_attribute_values=False):
         self.check_singleton()
         if not self.active:
             return True
-        return super()._skip_bom_line(product, never_attribute_values)
+        return super()._is_bom_line_skipped(product, never_attribute_values)
 
     def action_view_operation_form(self):
         return {

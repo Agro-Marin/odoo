@@ -75,7 +75,7 @@ class StockWarehouseOrderpoint(models.Model):
                 manufacture_rule.company_id,
             ] |= orderpoint
         for (picking_type, company), orderpoints in orderpoints_by_lookup.items():
-            boms = self.env["mrp.bom"]._bom_find(
+            boms = self.env["mrp.bom"]._get_bom_by_product(
                 orderpoints.product_id,
                 picking_type=picking_type,
                 company_id=company.id,
@@ -218,7 +218,7 @@ class StockWarehouseOrderpoint(models.Model):
                 )
         for (rule, company), orderpoints in by_lookup.items():
             products = orderpoints.product_id
-            boms = Bom._bom_find(
+            boms = Bom._get_bom_by_product(
                 products,
                 picking_type=rule.picking_type_id,
                 bom_type="normal",
@@ -229,7 +229,7 @@ class StockWarehouseOrderpoint(models.Model):
                 boms.update(
                     {
                         product: bom
-                        for product, bom in Bom._bom_find(
+                        for product, bom in Bom._get_bom_by_product(
                             unmatched,
                             picking_type=False,
                             bom_type="normal",
@@ -263,7 +263,7 @@ class StockWarehouseOrderpoint(models.Model):
                 lambda orderpoint, company=company: orderpoint.company_id == company,
             )
             boms_by_product.update(
-                self.env["mrp.bom"]._bom_find(
+                self.env["mrp.bom"]._get_bom_by_product(
                     in_company.product_id,
                     picking_type=False,
                     bom_type="normal",
@@ -276,7 +276,9 @@ class StockWarehouseOrderpoint(models.Model):
         return result
 
     def _quantity_in_progress(self):
-        bom_kits = self.env["mrp.bom"]._bom_find(self.product_id, bom_type="phantom")
+        bom_kits = self.env["mrp.bom"]._get_bom_by_product(
+            self.product_id, bom_type="phantom"
+        )
         bom_kit_orderpoints = {
             orderpoint: bom_kits[orderpoint.product_id]
             for orderpoint in self
@@ -304,7 +306,7 @@ class StockWarehouseOrderpoint(models.Model):
                 )
                 if not qty_per_kit:
                     continue
-                qty_by_product_location, _dummy = component._get_quantity_in_progress(
+                qty_by_product_location, _dummy = component._quantity_in_progress(
                     orderpoint.location_id.ids
                 )
                 qty_in_progress = qty_by_product_location.get(

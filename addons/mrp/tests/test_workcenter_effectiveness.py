@@ -358,7 +358,7 @@ class TestWorkcenterLate(common.TestMrpCommon):
     def test_the_late_count_matches_the_filter_it_links_to(self):
         Workorder = self.env["mrp.workorder"]
         listed = Workorder.search(
-            Domain("id", "in", self.workorders.ids) & Workorder._late_domain()
+            Domain("id", "in", self.workorders.ids) & Workorder._get_domain_late()
         )
         self.workcenter.invalidate_recordset()
         self.assertEqual(len(listed), self.workcenter.workorder_late_count)
@@ -370,7 +370,7 @@ class TestWorkcenterLate(common.TestMrpCommon):
             [("id", "in", self.workorders.ids), ("is_late", "=", True)]
         )
         by_domain = Workorder.search(
-            Domain("id", "in", self.workorders.ids) & Workorder._late_domain()
+            Domain("id", "in", self.workorders.ids) & Workorder._get_domain_late()
         )
         self.assertEqual(
             by_field,

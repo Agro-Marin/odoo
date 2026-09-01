@@ -24,9 +24,9 @@ class SaleOrder(models.Model):
             kit_bom = (
                 self.env["mrp.bom"]
                 .sudo()
-                ._bom_find(product, company_id=self.company_id.id, bom_type="phantom")[
-                    product
-                ]
+                ._get_bom_by_product(
+                    product, company_id=self.company_id.id, bom_type="phantom"
+                )[product]
             )
             _, bom_sub_lines = kit_bom._explode(product, quantity=1.0)
             unavailable_component_qties = {}
@@ -60,7 +60,7 @@ class SaleOrder(models.Model):
             line_kit_bom = (
                 self.env["mrp.bom"]
                 .sudo()
-                ._bom_find(
+                ._get_bom_by_product(
                     line.product_id, company_id=self.company_id.id, bom_type="phantom"
                 )[line.product_id]
             )

@@ -1546,11 +1546,11 @@ class TestMrpAuditFixes(TestMrpCommon):
         made = self._audit_availability_population()
         production = self.env["mrp.production"]
         candidates = production.search(
-            production._components_availability_open_domain()
+            production._get_domain_components_availability_open()
             & Domain(
                 "move_raw_ids",
                 "any",
-                production._components_availability_unsettled_move_domain(),
+                production._get_domain_components_availability_unsettled_move(),
             )
         )
         self.assertNotIn(
@@ -1942,7 +1942,7 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.assertLess(
             marginal,
             0.5,
-            "_are_finished_serials_already_produced was called once per serial "
+            "_is_any_finished_serial_already_produced was called once per serial "
             "byproduct line and opened with a search_count every time. N=2 cost "
             "%d, N=20 cost %d, marginal %.2f" % (small, large, marginal),
         )
@@ -2109,7 +2109,7 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
 
         MrpBom = type(self.env["mrp.bom"])
-        unpatched = MrpBom._bom_find
+        unpatched = MrpBom._get_bom_by_product
 
         def explosions_for(count):
             calls = []
@@ -2119,7 +2119,7 @@ class TestMrpAuditFixes(TestMrpCommon):
                 return unpatched(bom_self, *args, **kwargs)
 
             self.env.flush_all()
-            self.patch(MrpBom, "_bom_find", counting)
+            self.patch(MrpBom, "_get_bom_by_product", counting)
             self.env["mrp.production"].create(
                 [
                     {"product_id": finished.id, "bom_id": bom.id, "product_qty": 1.0}
@@ -2247,7 +2247,7 @@ class TestMrpAuditFixes(TestMrpCommon):
             }
         )
 
-        scratch = self.env["mrp.bom"]._explosion_scratch()
+        scratch = self.env["mrp.bom"]._get_explosion_scratch()
         resolved = {}
         for company, expected in ((self.env.company, first), (other, second)):
             _boms, lines = bom.with_context(
@@ -2932,7 +2932,9 @@ class TestMrpAuditFixes(TestMrpCommon):
         best, reasons = empty._pick_earliest_slot(datetime(2026, 1, 1, 8, 0), {})
         self.assertIsNone(best)
         self.assertFalse(reasons)
-        self.assertIn("no work center", empty._unplannable_error("WO/1", reasons))
+        self.assertIn(
+            "no work center", empty._prepare_unplannable_error("WO/1", reasons)
+        )
 
     def test_work_order_efficiency_follows_the_duration_it_is_measured_against(self):
         component, finished = self.env["product.product"].create(
@@ -3129,7 +3131,7 @@ class TestMrpAuditFixes(TestMrpCommon):
         wizard = self.env["mrp.production.serials"].create(
             {"production_id": production.id, "serial_numbers": "DUP-1\nDUP-1\nDUP-2"}
         )
-        self.assertEqual(wizard._serial_names(), ["DUP-1", "DUP-2"])
+        self.assertEqual(wizard._get_names_from_serial_numbers(), ["DUP-1", "DUP-2"])
         self.assertEqual(
             wizard._parse_serial_numbers().mapped("name"),
             ["DUP-1", "DUP-2"],

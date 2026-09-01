@@ -23,11 +23,11 @@ class MixinBomVariantLine(models.AbstractModel):
         help="BOM Product Variants needed to apply this line.",
     )
 
-    def _skip_bom_line(self, product, never_attribute_values=False):
+    def _is_bom_line_skipped(self, product, never_attribute_values=False):
         self.check_singleton()
         if not product or product._name == "product.template":
             return False
-        return self.env["mrp.bom"]._skip_for_no_variant(
+        return self.env["mrp.bom"]._is_skipped_for_no_variant(
             product,
             self.bom_product_template_attribute_value_ids,
             never_attribute_values,

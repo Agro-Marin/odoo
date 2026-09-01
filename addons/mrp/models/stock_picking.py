@@ -245,11 +245,11 @@ class StockPicking(models.Model):
             moves, documents
         )
 
-        def _keys_in_groupby(move):
+        def get_groupby_key(move):
             return (move.raw_material_production_id, move.product_id.responsible_id)
 
         production_documents = self._log_activity_get_documents(
-            moves, "move_dest_ids", "DOWN", _keys_in_groupby
+            moves, "move_dest_ids", "DOWN", get_groupby_key
         )
         return {**documents, **production_documents}
 

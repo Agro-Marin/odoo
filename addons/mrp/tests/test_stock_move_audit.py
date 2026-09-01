@@ -367,13 +367,13 @@ class TestStockMoveAudit(TestMrpCommon):
             self.env.invalidate_all()
             calls = []
             bom_model = type(self.env["mrp.bom"])
-            find = bom_model._bom_find
+            find = bom_model._get_bom_by_product
 
             def counted(records, products, **kwargs):
                 calls.append(len(products))
                 return find(records, products, **kwargs)
 
-            self.patch(bom_model, "_bom_find", counted)
+            self.patch(bom_model, "_get_bom_by_product", counted)
             picking.action_confirm()
             self.env.flush_all()
             return len(calls)
@@ -384,7 +384,7 @@ class TestStockMoveAudit(TestMrpCommon):
         self.assertLessEqual(
             many - few,
             10 - 2,
-            "`_bom_find` takes a recordset and returns a dict -- it is built to be "
+            "`_get_bom_by_product` takes a recordset and returns a dict -- it is built to be "
             "asked once. Asked once per move it cost three calls per kit instead "
             "of one (measured: %d calls for 2 kits, %d for 10)" % (few, many),
         )

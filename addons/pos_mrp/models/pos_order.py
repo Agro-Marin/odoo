@@ -6,7 +6,7 @@ class PosOrderLine(models.Model):
 
     def _get_stock_moves_to_consider(self, stock_moves, product):
         self.check_singleton()
-        bom = product.env['mrp.bom']._bom_find(product, company_id=stock_moves.company_id.id, bom_type='phantom').get(product)
+        bom = product.env['mrp.bom']._get_bom_by_product(product, company_id=stock_moves.company_id.id, bom_type='phantom').get(product)
         if not bom:
             return super()._get_stock_moves_to_consider(stock_moves, product)
         boms, components = bom._explode(product, self.qty)
@@ -20,7 +20,7 @@ class PosOrder(models.Model):
     _inherit = "pos.order"
 
     def _get_pos_anglo_saxon_price_unit(self, product, partner_id, quantity):
-        bom = product.env['mrp.bom']._bom_find(product, company_id=self.mapped('picking_ids.move_line_ids').company_id.id, bom_type='phantom')[product]
+        bom = product.env['mrp.bom']._get_bom_by_product(product, company_id=self.mapped('picking_ids.move_line_ids').company_id.id, bom_type='phantom')[product]
         if not bom:
             return super()._get_pos_anglo_saxon_price_unit(product, partner_id, quantity)
         _dummy, components = bom._explode(product, quantity)

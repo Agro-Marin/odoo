@@ -60,7 +60,7 @@ class StockRule(models.Model):
         for procurement in procurements:
             product_by_company[procurement.company_id].add(procurement.product_id.id)
         kits_by_company = {
-            company: self.env["mrp.bom"]._bom_find(
+            company: self.env["mrp.bom"]._get_bom_by_product(
                 self.env["product.product"].browse(product_ids),
                 company_id=company.id,
                 bom_type="phantom",
@@ -234,7 +234,7 @@ class StockRule(models.Model):
             return values["bom_id"]
         if values.get("orderpoint_id", False) and values["orderpoint_id"].bom_id:
             return values["orderpoint_id"].bom_id
-        bom = self.env["mrp.bom"]._bom_find(
+        bom = self.env["mrp.bom"]._get_bom_by_product(
             product_id,
             picking_type=self.picking_type_id,
             bom_type="normal",
@@ -242,7 +242,7 @@ class StockRule(models.Model):
         )[product_id]
         if bom:
             return bom
-        return self.env["mrp.bom"]._bom_find(
+        return self.env["mrp.bom"]._get_bom_by_product(
             product_id, picking_type=False, bom_type="normal", company_id=company_id.id
         )[product_id]
 
@@ -362,7 +362,7 @@ class StockRule(models.Model):
         if "bom" in values:
             bom = values["bom"]
         else:
-            bom = self.env["mrp.bom"]._bom_find(
+            bom = self.env["mrp.bom"]._get_bom_by_product(
                 product,
                 picking_type=manufacture_rule.picking_type_id,
                 company_id=manufacture_rule.company_id.id,
