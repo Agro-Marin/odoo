@@ -6,6 +6,7 @@ import requests
 import werkzeug.utils
 
 from odoo import _, http, modules
+from odoo.exceptions import UserError
 from odoo.http import request
 from odoo.libs.filesystem import guess_mimetype
 from odoo.tools.image import image_process
@@ -109,15 +110,13 @@ class Web_Unsplash(http.Controller):
 
                 # get mime-type of image url because unsplash url dosn't contains mime-types in url
                 image = req.content
-            except requests.exceptions.ConnectionError:
-                logger.exception("Connection Error")
-                continue
-            except requests.exceptions.Timeout:
-                logger.exception("Timeout")
+
+                image = image_process(image, verify_resolution=True)
+                mimetype = guess_mimetype(image)
+            except requests.exceptions.RequestException, UserError:
+                logger.exception("Failed to fetch or process Unsplash image")
                 continue
 
-            image = image_process(image, verify_resolution=True)
-            mimetype = guess_mimetype(image)
             # append image extension in name, without mutating the shared
             # search-term `query` across the loop's iterations
             image_query = query + (mimetypes.guess_extension(mimetype) or "")
