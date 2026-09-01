@@ -65,24 +65,17 @@ class ResPartner(models.Model):
         }
 
     def _get_all_addr(self):
+        # An employee's home address is a private child of their work contact
+        # (ADR-0086 step 4), so this reads the child's own address rather than
+        # six prefixed columns on the employee. It keeps the "employee" contact
+        # type the ISO20022 and batch-payment callers already expect, and still
+        # puts the home address first.
         self.check_singleton()
-        employee_id = self.env["hr.employee"].search(
-            [("id", "in", self.employee_ids.ids)],
-            limit=1,
-        )
-        if not employee_id:
+        private = self.child_ids.filtered(lambda partner: partner.type == "private")
+        if not private:
             return super()._get_all_addr()
-
-        pstl_addr = {
-            "contact_type": "employee",
-            "street": employee_id.private_street,
-            "street2": employee_id.private_street2,
-            "zip": employee_id.private_zip,
-            "city": employee_id.private_city,
-            "state": employee_id.private_state_id.code,
-            "country": employee_id.private_country_id.code,
-        }
-        return [pstl_addr] + super()._get_all_addr()
+        home = dict(private[0]._get_all_addr()[0], contact_type="employee")
+        return [home] + super()._get_all_addr()
 
     @api.depends("employee_ids")
     def _compute_employee(self):
