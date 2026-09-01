@@ -266,8 +266,9 @@ class StockPickingBatch(models.Model):
                 lambda b: b.picking_type_id != picking_type
             )
         res = super().write(vals)
-        if not self.picking_ids:
-            self.filtered(lambda b: b.state == "in_progress").action_cancel()
+        self.filtered(
+            lambda b: b.state == "in_progress" and not b.picking_ids
+        ).action_cancel()
         if vals.get("picking_type_id"):
             self._sanity_check()
             for batch in batches_to_rename:
