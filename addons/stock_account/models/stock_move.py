@@ -221,7 +221,12 @@ class StockMove(models.Model):
                     move, 0
                 )
 
-    @api.depends("value", "remaining_qty", "product_id.standard_price")
+    @api.depends(
+        "value",
+        "remaining_qty",
+        "product_id.standard_price",
+        "move_line_ids.lot_id.standard_price",
+    )
     def _compute_remaining_value(self):
         for move in self:
             if not move.is_in:
@@ -231,6 +236,23 @@ class StockMove(models.Model):
             ratio = move.remaining_qty / valued_qty if valued_qty else 0
             if move.product_id.cost_method == "fifo":
                 move.remaining_value = ratio * move.value if ratio else 0
+            elif move.product_id.lot_valuated:
+                qty = sum(move.move_line_ids.mapped("quantity_product_uom"))
+                if qty:
+                    unit_cost = (
+                        sum(
+                            (
+                                move_line.lot_id.standard_price
+                                or move.product_id.standard_price
+                            )
+                            * move_line.quantity_product_uom
+                            for move_line in move.move_line_ids
+                        )
+                        / qty
+                    )
+                else:
+                    unit_cost = move.product_id.standard_price
+                move.remaining_value = move.remaining_qty * unit_cost
             else:
                 move.remaining_value = move.remaining_qty * move.standard_price
 
