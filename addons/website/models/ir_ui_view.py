@@ -57,11 +57,18 @@ class IrUiView(models.Model):
         crypt_context = self.env.user._crypt_context()
         for r in self:
             if r.type == "qweb":
+                # visibility_password is written via sudo() below (it has
+                # groups="base.group_system"), which bypasses the normal
+                # write ACL/record-rule check; check_access re-asserts that
+                # the current (non-sudo) user is actually allowed to write
+                # to this record at all, instead of a field self-assignment
+                # that only achieved this as a side effect of re-entering
+                # the full COW write() override.
+                r.check_access("write")
                 r.sudo().visibility_password = (
                     r.visibility_password_display
                     and crypt_context.hash(r.visibility_password_display)
                 ) or ""
-                r.visibility = r.visibility
 
     def _compute_first_page_id(self):
         # One search for every view, not one per view. This backs the
