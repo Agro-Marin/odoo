@@ -373,15 +373,16 @@ class ProductTemplate(models.Model):
                         ),
                     )
 
-        templates_to_reset = self.browse()
-        templates_losing_storage = self.browse()
-        if "is_storable" in vals:
-            if vals["is_storable"]:
-                templates_to_reset = self.filtered(lambda tmpl: not tmpl.is_storable)
-            else:
-                templates_losing_storage = self.filtered("is_storable")
+        was_storable = {tmpl.id: tmpl.is_storable for tmpl in self}
 
         res = super().write(vals)
+
+        templates_to_reset = self.filtered(
+            lambda tmpl: not was_storable[tmpl.id] and tmpl.is_storable
+        )
+        templates_losing_storage = self.filtered(
+            lambda tmpl: was_storable[tmpl.id] and not tmpl.is_storable
+        )
         Quant = self.env["stock.quant"].sudo()
         if templates_to_reset:
             products = templates_to_reset.with_context(
