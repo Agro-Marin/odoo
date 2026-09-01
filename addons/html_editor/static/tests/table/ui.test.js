@@ -1494,6 +1494,113 @@ test("move column right operation", async () => {
     );
 });
 
+test("move column left/right is disabled when a colspan is in the way", async () => {
+    const { el } = await setupEditor(
+        unformat(`
+        <table class="table table-bordered o_table">
+            <tbody>
+                <tr>
+                    <td><br></td>
+                    <td class="a"><br></td>
+                    <td class="b"><br></td>
+                    <td><br></td>
+                    <td class="c"><br></td>
+                    <td><br></td>
+                </tr>
+                <tr>
+                    <td><br></td>
+                    <td><br></td>
+                    <td colspan="2"><br></td>
+                    <td><br></td>
+                    <td><br></td>
+                </tr>
+            </tbody>
+        </table>`),
+    );
+    await expectElementCount(".o-we-table-menu", 0);
+
+    // The column right of "a" is the first the colspan covers.
+    await hover(el.querySelector("td.a"));
+    await waitFor("[data-type='column'].o-we-table-menu");
+    await click("[data-type='column'].o-we-table-menu");
+    await animationFrame();
+    expect("div[name='move_right']").toHaveClass("disabled");
+    expect("div[name='move_left']").not.toHaveClass("disabled");
+
+    await click("[data-type='column'].o-we-table-menu");
+    await animationFrame();
+
+    // "b" is itself covered by the colspan, so neither way works.
+    await hover(el.querySelector("td.b"));
+    await animationFrame();
+    await waitFor("[data-type='column'].o-we-table-menu");
+    await click("[data-type='column'].o-we-table-menu");
+    await animationFrame();
+    expect("div[name='move_right']").toHaveClass("disabled");
+    expect("div[name='move_left']").toHaveClass("disabled");
+
+    await click("[data-type='column'].o-we-table-menu");
+    await animationFrame();
+
+    // The column left of "c" is the last the colspan covers.
+    await hover(el.querySelector("td.c"));
+    await animationFrame();
+    await waitFor("[data-type='column'].o-we-table-menu");
+    await click("[data-type='column'].o-we-table-menu");
+    await animationFrame();
+    expect("div[name='move_right']").not.toHaveClass("disabled");
+    expect("div[name='move_left']").toHaveClass("disabled");
+});
+
+test("move column right in a table whose rows are shortened by a rowspan", async () => {
+    const { el, editor } = await setupEditor(
+        unformat(`
+        <table>
+            <tbody>
+                <tr><td class="a">1[]</td><td class="b">2</td><td class="c">3</td></tr>
+                <tr><td rowspan="2">4</td><td>5</td><td>6</td></tr>
+                <tr><td>7</td><td>8</td></tr>
+            </tbody>
+        </table>`),
+    );
+    await expectElementCount(".o-we-table-menu", 0);
+
+    await hover(el.querySelector("td.b"));
+    await waitFor("[data-type='column'].o-we-table-menu");
+
+    await click("[data-type='column'].o-we-table-menu");
+    await waitFor("div[name='move_right']");
+
+    expect("div[name='move_right']").not.toHaveClass("disabled");
+    await click("div[name='move_right']");
+    expect(getContent(el)).toBe(
+        unformat(`
+        <p data-selection-placeholder=""><br></p>
+        <table>
+            <tbody>
+                <tr><td class="a">1[]</td><td class="c">3</td><td class="b">2</td></tr>
+                <tr><td rowspan="2">4</td><td>6</td><td>5</td></tr>
+                <tr><td>8</td><td>7</td></tr>
+            </tbody>
+        </table>
+        <p data-selection-placeholder=""><br></p>`),
+    );
+
+    undo(editor);
+    expect(getContent(el)).toBe(
+        unformat(`
+        <p data-selection-placeholder=""><br></p>
+        <table>
+            <tbody>
+                <tr><td class="a">1[]</td><td class="b">2</td><td class="c">3</td></tr>
+                <tr><td rowspan="2">4</td><td>5</td><td>6</td></tr>
+                <tr><td>7</td><td>8</td></tr>
+            </tbody>
+        </table>
+        <p data-selection-placeholder=""><br></p>`),
+    );
+});
+
 test("move row above operation", async () => {
     const { el, editor } = await setupEditor(
         unformat(`
@@ -1648,6 +1755,55 @@ test("move row below operation", async () => {
         </table>
         <p data-selection-placeholder=""><br></p>`),
     );
+});
+
+test("move row up/down is disabled when a rowspan is in the way", async () => {
+    const { el } = await setupEditor(
+        unformat(`
+        <table>
+            <tbody>
+                <tr><td><br></td><td><br></td></tr>
+                <tr><td class="a"><br></td><td><br></td></tr>
+                <tr><td class="b"><br></td><td rowspan="2"><br></td></tr>
+                <tr><td><br></td></tr>
+                <tr><td class="c"><br></td><td><br></td></tr>
+                <tr><td><br></td><td><br></td></tr>
+            </tbody>
+        </table>`),
+    );
+    await expectElementCount(".o-we-table-menu", 0);
+
+    // The row below "a" is the first the rowspan covers.
+    await hover(el.querySelector("td.a"));
+    await waitFor("[data-type='row'].o-we-table-menu");
+    await click("[data-type='row'].o-we-table-menu");
+    await animationFrame();
+    expect("div[name='move_down']").toHaveClass("disabled");
+    expect("div[name='move_up']").not.toHaveClass("disabled");
+
+    await click("[data-type='row'].o-we-table-menu");
+    await animationFrame();
+
+    // "b" is itself covered by the rowspan, so neither way works.
+    await hover(el.querySelector("td.b"));
+    await animationFrame();
+    await waitFor("[data-type='row'].o-we-table-menu");
+    await click("[data-type='row'].o-we-table-menu");
+    await animationFrame();
+    expect("div[name='move_down']").toHaveClass("disabled");
+    expect("div[name='move_up']").toHaveClass("disabled");
+
+    await click("[data-type='row'].o-we-table-menu");
+    await animationFrame();
+
+    // The row above "c" is the last the rowspan covers.
+    await hover(el.querySelector("td.c"));
+    await animationFrame();
+    await waitFor("[data-type='row'].o-we-table-menu");
+    await click("[data-type='row'].o-we-table-menu");
+    await animationFrame();
+    expect("div[name='move_down']").not.toHaveClass("disabled");
+    expect("div[name='move_up']").toHaveClass("disabled");
 });
 
 test("move header row below operation", async () => {

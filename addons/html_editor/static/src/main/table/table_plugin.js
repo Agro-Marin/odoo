@@ -649,25 +649,40 @@ export class TablePlugin extends Plugin {
      * @param {HTMLTableCellElement} cell
      */
     moveColumn(position, cell) {
-        const columnIndex = getColumnIndex(cell);
-        const nColumns = cell.parentElement.children.length;
+        const table = closestElement(cell, "table");
+        const tableGrid = this.buildTableGrid(table);
+        const columnIndex = tableGrid[0].indexOf(cell);
+        const nColumns = tableGrid[0].length;
+        const moveLeft = position === "left";
         if (
             columnIndex < 0 ||
-            (position === "left" && columnIndex === 0) ||
-            (position !== "left" && columnIndex === nColumns - 1)
+            (moveLeft && columnIndex === 0) ||
+            (!moveLeft && columnIndex === nColumns - 1)
         ) {
             return;
         }
 
-        const trs = cell.parentElement.parentElement.children;
-        const tdsToMove = [...trs].map((tr) => tr.children[columnIndex]);
+        // A cell spanning several rows shows up once per row of the grid.
+        const tdsToMove = new Set(tableGrid.map((row) => row[columnIndex]));
         const selectionToRestore = this.dependencies.selection.getEditableSelection();
-        if (position === "left") {
-            tdsToMove.forEach((td) => td.previousElementSibling.before(td));
-        } else {
-            tdsToMove.forEach((td) => td.nextElementSibling.after(td));
+        for (const td of tdsToMove) {
+            const rowIndex = getRowIndex(td);
+            const rowGrid = tableGrid[rowIndex];
+            // The grid neighbour may be inherited from a rowSpan above, in
+            // which case it is no sibling of `td`: walk back towards the moved
+            // column until a cell this row actually owns turns up.
+            let index = moveLeft ? columnIndex - 1 : columnIndex + 1;
+            while (index !== columnIndex) {
+                const neighbour = rowGrid[index];
+                if (neighbour && getRowIndex(neighbour) === rowIndex) {
+                    moveLeft ? neighbour.before(td) : neighbour.after(td);
+                    break;
+                }
+                index += moveLeft ? 1 : -1;
+            }
         }
         this.dependencies.selection.setSelection(selectionToRestore);
+        this.tableGridMap.delete(table);
     }
     /**
      * @param {'up'|'down'} position
@@ -702,6 +717,7 @@ export class TablePlugin extends Plugin {
             });
         }
         this.dependencies.selection.setSelection(selectionToRestore);
+        this.tableGridMap?.delete(closestElement(row, "table"));
     }
 
     /**
