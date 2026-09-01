@@ -35,7 +35,7 @@ export class StockValuationReport extends Component {
         this._t = _t;
 
         onWillStart(async () => {
-            await this.controller.load(this.data);
+            await this.controller.load();
         });
 
         useChildSubEnv({
