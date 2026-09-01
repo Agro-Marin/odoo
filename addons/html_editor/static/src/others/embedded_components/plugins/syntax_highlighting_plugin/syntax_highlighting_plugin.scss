@@ -85,6 +85,13 @@
             display: flex;
         }
     }
+
+    &.o-code-wrap {
+        pre,
+        textarea {
+            white-space: pre-wrap !important;
+        }
+    }
 }
 
 // The dark half, folded in from `syntax_highlighting_plugin.dark.scss`.

@@ -31,6 +31,7 @@ export class CodeToolbar extends Component {
         onLanguageChange: { type: Function },
         currentLanguage: { type: String },
         convertToParagraph: { type: Function },
+        toggleCodeWrap: { type: Function },
     };
     static components = { Dropdown, DropdownItem, CopyButton };
 
