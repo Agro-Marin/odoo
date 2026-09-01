@@ -6,6 +6,11 @@ _logger = logging.getLogger(__name__)
 
 
 class WebCwvMetric(models.Model):
+    # ACL grants base.group_system read/unlink only (ir.model.access.csv);
+    # there is intentionally no company-scoping ir.rule, so any system admin
+    # sees every company's beacons in a multi-company install. Global
+    # telemetry by design pending a product decision on whether
+    # multi-company isolation is required (t29543).
     _name = "web.cwv.metric"
     _description = "Core Web Vitals Metric"
     _order = "recorded_at desc"
