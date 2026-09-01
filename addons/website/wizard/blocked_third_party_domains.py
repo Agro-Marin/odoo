@@ -39,6 +39,15 @@ class WebsiteCustom_Blocked_Third_Party_Domains(models.TransientModel):
                 if domain:
                     domains.append(domain)
 
+        # models/website.py's _compute_blocked_third_party_domains only
+        # recognizes "#ignore_default" as the very first line; normalize its
+        # position here so any ordering the user typed still takes effect.
+        ignore_default_lines = [d for d in domains if d.startswith("#ignore_default")]
+        if ignore_default_lines:
+            for line in ignore_default_lines:
+                domains.remove(line)
+            domains = ignore_default_lines + domains
+
         website = self.website_id or self.env["website"].get_current_website()
         website.custom_blocked_third_party_domains = "\n".join(domains)
         return {"type": "ir.actions.act_window_close"}
