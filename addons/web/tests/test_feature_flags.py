@@ -13,32 +13,32 @@ class TestFeatureFlagsResolver(TransactionCase):
         self.ICP.set_param(f"web.feature.{name}", value)
 
     def test_resolve_returns_empty_dict_when_no_flags_set(self):
-        result = self.ir_http._get_feature_flags(self.ICP)
+        result = self.ir_http._get_feature_flags()
         self.assertEqual(result, {})
 
     def test_only_prefixed_keys_are_included(self):
         self.ICP.set_param("web.feature.enabled", "true")
         self.ICP.set_param("web.unrelated", "ignore-me")
         self.ICP.set_param("base.show_effect", "true")
-        result = self.ir_http._get_feature_flags(self.ICP)
+        result = self.ir_http._get_feature_flags()
         self.assertEqual(set(result.keys()), {"enabled"})
 
     def test_bool_literal_parsing(self):
         self._set("on_flag", "true")
         self._set("off_flag", "false")
-        result = self.ir_http._get_feature_flags(self.ICP)
+        result = self.ir_http._get_feature_flags()
         self.assertIs(result["on_flag"], True)
         self.assertIs(result["off_flag"], False)
 
     def test_null_literal_parsing(self):
         self._set("explicit_null", "null")
-        result = self.ir_http._get_feature_flags(self.ICP)
+        result = self.ir_http._get_feature_flags()
         self.assertIsNone(result["explicit_null"])
 
     def test_integer_parsing(self):
         self._set("retries", "3")
         self._set("negative", "-1")
-        result = self.ir_http._get_feature_flags(self.ICP)
+        result = self.ir_http._get_feature_flags()
         self.assertEqual(result["retries"], 3)
         self.assertIsInstance(result["retries"], int)
         self.assertEqual(result["negative"], -1)
@@ -46,52 +46,52 @@ class TestFeatureFlagsResolver(TransactionCase):
 
     def test_float_parsing(self):
         self._set("ratio", "0.25")
-        result = self.ir_http._get_feature_flags(self.ICP)
+        result = self.ir_http._get_feature_flags()
         self.assertEqual(result["ratio"], 0.25)
         self.assertIsInstance(result["ratio"], float)
 
     def test_arbitrary_string_passthrough(self):
         self._set("strategy", "ab_test_cohort_42")
-        result = self.ir_http._get_feature_flags(self.ICP)
+        result = self.ir_http._get_feature_flags()
         self.assertEqual(result["strategy"], "ab_test_cohort_42")
 
     def test_scientific_notation_and_infinity_stay_strings(self):
         self._set("scientific", "1.5e2")
         self._set("infinity", "inf")
         self._set("not_a_number", "nan")
-        result = self.ir_http._get_feature_flags(self.ICP)
+        result = self.ir_http._get_feature_flags()
         self.assertEqual(result["scientific"], "1.5e2")
         self.assertEqual(result["infinity"], "inf")
         self.assertEqual(result["not_a_number"], "nan")
 
     def test_empty_string_parses_to_truthy(self):
         self.ICP.create({"key": "web.feature.bare", "value": ""})
-        result = self.ir_http._get_feature_flags(self.ICP)
+        result = self.ir_http._get_feature_flags()
         self.assertIs(result["bare"], True)
 
     def test_flags_cached_second_call_issues_no_query(self):
         self._set("cache_probe", "true")
-        first = self.ir_http._get_feature_flags(self.ICP)
+        first = self.ir_http._get_feature_flags()
         self.assertIs(first["cache_probe"], True)
         with self.assertQueryCount(0):
-            second = self.ir_http._get_feature_flags(self.ICP)
+            second = self.ir_http._get_feature_flags()
         self.assertEqual(second, first)
 
     def test_param_change_invalidates_cache(self):
         self._set("inval_probe", "1")
-        self.assertEqual(self.ir_http._get_feature_flags(self.ICP)["inval_probe"], 1)
+        self.assertEqual(self.ir_http._get_feature_flags()["inval_probe"], 1)
         self._set("inval_probe", "2")
-        self.assertEqual(self.ir_http._get_feature_flags(self.ICP)["inval_probe"], 2)
+        self.assertEqual(self.ir_http._get_feature_flags()["inval_probe"], 2)
         self._set("created_probe", "true")
-        self.assertIs(self.ir_http._get_feature_flags(self.ICP)["created_probe"], True)
+        self.assertIs(self.ir_http._get_feature_flags()["created_probe"], True)
         self.ICP.search([("key", "=", "web.feature.inval_probe")]).unlink()
-        self.assertNotIn("inval_probe", self.ir_http._get_feature_flags(self.ICP))
+        self.assertNotIn("inval_probe", self.ir_http._get_feature_flags())
 
     def test_returned_dict_mutation_cannot_poison_cache(self):
         self._set("mut_probe", "true")
-        flags = self.ir_http._get_feature_flags(self.ICP)
+        flags = self.ir_http._get_feature_flags()
         flags["mut_probe"] = "tampered"
-        self.assertIs(self.ir_http._get_feature_flags(self.ICP)["mut_probe"], True)
+        self.assertIs(self.ir_http._get_feature_flags()["mut_probe"], True)
 
     def test_value_typing_parity_with_js(self):
         self._set("a", "true")
@@ -100,7 +100,7 @@ class TestFeatureFlagsResolver(TransactionCase):
         self._set("d", "0")
         self._set("e", "1.5")
         self._set("f", "hello world")
-        result = self.ir_http._get_feature_flags(self.ICP)
+        result = self.ir_http._get_feature_flags()
         self.assertEqual(
             result,
             {
