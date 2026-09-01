@@ -310,11 +310,10 @@ class StockPicking(models.Model):
                 )
             )
 
-        carrier_trackers = []
         try:
             carrier_trackers = json.loads(self.carrier_tracking_url)
         except ValueError:
-            carrier_trackers = self.carrier_tracking_url
+            pass
         else:
             msg = _("Tracking links for shipment:") + Markup("<br/>")
             for tracker in carrier_trackers:
