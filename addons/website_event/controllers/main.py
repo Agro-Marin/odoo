@@ -361,7 +361,7 @@ class WebsiteEventController(http.Controller):
                 ),  # next is used if the ticket id isn't known (alone event case)
             }
             for tid, count in ticket_order.items()
-            if count
+            if count > 0
         ]
 
     @http.route(
