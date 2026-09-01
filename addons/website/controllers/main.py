@@ -1440,7 +1440,12 @@ class Website(Home):
                         or "/." in entry.filename
                     ):
                         continue
-                    data = zip_file.read(entry)
+                    try:
+                        data = zip_file.read(entry)
+                    except zipfile.BadZipFile, EOFError, OSError:
+                        raise UserError(
+                            _("File '%s' is corrupted", entry.filename)
+                        ) from None
                     if not check_content(entry.filename, data):
                         continue
                     result.append(
