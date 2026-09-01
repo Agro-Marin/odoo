@@ -98,8 +98,6 @@ class WebsitePagePropertiesBase(models.TransientModel):
                 record.can_publish = self._is_ir_ui_view_published(
                     target
                 ) or self._is_ir_ui_view_unpublished(target)
-
-                record.can_publish = False
             elif "can_publish" in target._fields:
                 record.can_publish = target.can_publish
             else:
