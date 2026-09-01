@@ -87,10 +87,12 @@ class Web_Unsplash(http.Controller):
         query = slugify(query)
 
         res_model = kwargs.get("res_model", "ir.ui.view")
+        res_id = None
         if res_model != "ir.ui.view" and kwargs.get("res_id"):
-            res_id = int(kwargs["res_id"])
-        else:
-            res_id = None
+            try:
+                res_id = int(kwargs["res_id"])
+            except TypeError, ValueError:
+                res_id = None
 
         for key, value in unsplashurls.items():
             url = value.get("url")
