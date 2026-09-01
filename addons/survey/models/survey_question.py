@@ -593,17 +593,18 @@ class SurveyQuestion(models.Model):
         "survey_id.question_and_page_ids.sequence",
     )
     def _compute_page_id(self) -> None:
-        for question in self:
-            if question.is_page:
-                question.page_id = None
-            else:
-                page = None
-                for q in question.survey_id.question_and_page_ids.sorted():
-                    if q == question:
-                        break
-                    if q.is_page:
-                        page = q
-                question.page_id = page
+        for survey, questions in self.grouped("survey_id").items():
+            page_by_question = {}
+            page = None
+            for q in survey.question_and_page_ids.sorted():
+                if q.is_page:
+                    page = q
+                else:
+                    page_by_question[q.id] = page
+            for question in questions:
+                question.page_id = (
+                    None if question.is_page else page_by_question.get(question.id)
+                )
 
     @api.depends("question_type", "validation_email")
     def _compute_save_as_email(self) -> None:
@@ -691,10 +692,7 @@ class SurveyQuestion(models.Model):
     )
     def _compute_is_scored_question(self) -> None:
         for question in self:
-            if (
-                question.is_scored_question is None
-                or question.scoring_type == "no_scoring"
-            ):
+            if question.scoring_type == "no_scoring":
                 question.is_scored_question = False
             elif question.question_type == "date":
                 question.is_scored_question = bool(question.answer_date)

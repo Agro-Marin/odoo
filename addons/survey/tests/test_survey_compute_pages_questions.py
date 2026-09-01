@@ -76,3 +76,80 @@ class TestSurveyComputePagesQuestions(common.TestSurveyCommon):
         self.assertEqual(
             page0_q2.page_id, page_1, "Question 3 should now belong to page 2"
         )
+
+    def test_compute_page_id_batch_create_out_of_sequence_order(self):
+        """A One2many's in-cache order right after a batch create() is command
+        order, not the model's (sequence, id) order — _compute_page_id must
+        not assume the sort is already correct."""
+        with self.with_user("survey_manager"):
+            survey = self.env["survey.survey"].create(
+                {
+                    "title": "Out of order survey",
+                    "question_and_page_ids": [
+                        (
+                            0,
+                            0,
+                            {
+                                "is_page": True,
+                                "question_type": False,
+                                "title": "P1",
+                                "sequence": 1,
+                            },
+                        ),
+                        (
+                            0,
+                            0,
+                            {
+                                "title": "Q1c",
+                                "question_type": "text_box",
+                                "sequence": 4,
+                            },
+                        ),
+                        (
+                            0,
+                            0,
+                            {
+                                "title": "Q1a",
+                                "question_type": "text_box",
+                                "sequence": 2,
+                            },
+                        ),
+                        (
+                            0,
+                            0,
+                            {
+                                "title": "Q1b",
+                                "question_type": "text_box",
+                                "sequence": 3,
+                            },
+                        ),
+                        (
+                            0,
+                            0,
+                            {
+                                "is_page": True,
+                                "question_type": False,
+                                "title": "P2",
+                                "sequence": 5,
+                            },
+                        ),
+                        (
+                            0,
+                            0,
+                            {
+                                "title": "Q2a",
+                                "question_type": "text_box",
+                                "sequence": 6,
+                            },
+                        ),
+                    ],
+                }
+            )
+        questions = {q.title: q for q in survey.question_and_page_ids}
+        for title in ("Q1c", "Q1a", "Q1b"):
+            self.assertEqual(
+                questions[title].page_id,
+                questions["P1"],
+                f"{title} should belong to P1, read right after batch create",
+            )
+        self.assertEqual(questions["Q2a"].page_id, questions["P2"])
