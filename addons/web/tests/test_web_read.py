@@ -1,4 +1,5 @@
-from odoo.tests import common
+from odoo.exceptions import AccessError
+from odoo.tests import common, new_test_user
 
 
 @common.tagged("post_install", "-at_install", "web_unit", "web_read")
@@ -148,3 +149,17 @@ class TestWebReadFieldContext(common.TransactionCase):
         )
         child_ids = [c["id"] for c in res[0]["child_ids"]]
         self.assertEqual(child_ids, sorted(child_ids, reverse=True))
+
+
+@common.tagged("post_install", "-at_install", "web_unit", "web_read")
+class TestWebReadIdOnlyAccessCheck(common.TransactionCase):
+    def test_id_only_spec_enforces_access(self):
+        mail_server = (
+            self.env["ir.mail_server"]
+            .sudo()
+            .create({"name": "Test SMTP", "smtp_host": "localhost"})
+        )
+        user = new_test_user(self.env, login="web_read_unprivileged")
+        record = mail_server.with_user(user)
+        with self.assertRaises(AccessError):
+            record.web_read({"id": {}})
