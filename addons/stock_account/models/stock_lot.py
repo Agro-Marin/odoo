@@ -154,10 +154,7 @@ class StockLot(models.Model):
         product_values = []
         for lot in self:
             lot_old_price = old_price.get(lot)
-            if (
-                lot.product_id.cost_method != "average"
-                or lot.standard_price == lot_old_price
-            ):
+            if lot.standard_price == lot_old_price:
                 continue
             product = lot.product_id
             product_values.append(
