@@ -208,13 +208,10 @@ export class FontPlugin extends Plugin {
                         this.updateFontSizeSelectorParams();
                     },
                     onSelected: (item) => {
-                        this.dependencies.format.requestFormat(
-                            "setFontSizeClassName",
-                            {
-                                formatProps: { className: item.className },
-                                applyStyle: true,
-                            },
-                        );
+                        this.dependencies.format.requestFormat("setFontSizeClassName", {
+                            formatProps: { className: item.className },
+                            applyStyle: true,
+                        });
                         this.updateFontSizeSelectorParams();
                         this.dependencies.selection.focusEditable();
                     },
