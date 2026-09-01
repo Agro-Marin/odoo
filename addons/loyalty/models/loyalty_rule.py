@@ -194,9 +194,11 @@ class LoyaltyRule(models.Model):
 
     def _compute_amount(self, currency_to):
         self.check_singleton()
+        # No date: `_get_conversion_rate` falls back to `context_today`, the
+        # buyer's own calendar day. `Date.today()` handed it the server's UTC
+        # date, already tomorrow for the last six hours of every local day.
         return self.currency_id._convert(
             self.minimum_amount,
             currency_to,
             self.company_id or self.env.company,
-            fields.Date.today(),
         )
