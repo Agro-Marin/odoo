@@ -3728,7 +3728,7 @@ between, and this file has no index to protect it. Read a clean copy with
 and re-read the anchor immediately before each write.
 
 2.4.21 A prefix is a claim, and the claim is checkable
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 §2.4.1 argues this for field hooks -- a reserved prefix asserts that a field
 declaration somewhere names this method, and while the assertion is false the
@@ -3853,7 +3853,7 @@ were read and not missed. A naming pass that guesses here writes a name that is
 merely differently wrong.
 
 2.4.22 Reshaping the receiver is not producing a value
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **A method whose whole body is one ORM shaping call hands back the receiver
 reshaped, and the vocabulary above has no row for it** ``[review]``. Every verb
