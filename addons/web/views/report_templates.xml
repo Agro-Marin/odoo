@@ -188,7 +188,7 @@
                                     <span class="text-nowrap">2,350.00</span>
                                 </td>
                                 <td class="text-end d-md-table-cell">
-                                    <span id="line_tax_ids">15%</span>
+                                    <span id="line_tax_ids_2">15%</span>
                                 </td>
                                 <td class="text-end o_price_total">
                                     <span class="text-nowrap">$ <span class="oe_currency_value">
