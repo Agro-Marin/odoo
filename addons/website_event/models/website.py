@@ -82,7 +82,7 @@ class Website(models.Model):
                     content_container.attrib.pop("id", None)
 
                     if sections_arch:
-                        for section in wrap.xpath("//section"):
+                        for section in wrap.xpath("./section"):
                             # to be properly editable, the content needs to be contained within a
                             # single empty oe_structure, unlike 'wrap' that has the event menu inside
                             wrap.remove(section)
