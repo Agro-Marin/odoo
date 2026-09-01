@@ -13,6 +13,7 @@ import {
     wrapInlinesInBlocks,
 } from "@html_editor/utils/dom";
 import {
+    getDeepestEditablePosition,
     getDeepestPosition,
     isElement,
     isEmptyBlock,
@@ -189,6 +190,7 @@ export class ListPlugin extends Plugin {
         normalize_handlers: this.normalize.bind(this),
         step_added_handlers: this.updateToolbarButtons.bind(this),
         delete_handlers: this.adjustListPaddingOnDelete.bind(this),
+        before_insert_separator_handlers: this.exitList.bind(this),
 
         delete_backward_overrides: this.handleDeleteBackward.bind(this),
         delete_range_overrides: this.handleDeleteRange.bind(this),
@@ -1225,6 +1227,32 @@ export class ListPlugin extends Plugin {
         if (isListItem(listItem)) {
             this.adjustListPadding(listItem.parentElement);
         }
+    }
+
+    /**
+     * Split the list at the given block and outdent the trailing half out of
+     * it, so that a caller inserting a block-level node lands beside the list
+     * instead of inside a list item.
+     *
+     * @param {HTMLElement} blockEl
+     */
+    exitList(blockEl) {
+        const li = isListItemElement(blockEl)
+            ? blockEl
+            : isListItemElement(blockEl.parentElement)
+              ? blockEl.parentElement
+              : null;
+        if (!li) {
+            return;
+        }
+        const [, after] = this.dependencies.split.splitElementBlock({
+            targetNode: blockEl,
+            targetOffset: nodeSize(blockEl),
+            blockToSplit: li,
+        });
+        const [anchorNode, anchorOffset] = getDeepestEditablePosition(after, 0);
+        this.dependencies.selection.setSelection({ anchorNode, anchorOffset });
+        this.liToBlocks(after);
     }
 
     updateToolbarButtons() {
