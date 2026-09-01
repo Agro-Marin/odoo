@@ -37,14 +37,6 @@ test("should insert a banner with focus inside followed by a paragraph", async (
                 </div><p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         ),
     );
-
-    await insertText(editor, "/");
-    await animationFrame();
-    await expectElementCount(".o-we-powerbox", 1);
-
-    await insertText(editor, "banner");
-    await animationFrame();
-    await expectElementCount(".o-we-powerbox", 0);
 });
 
 test("press 'ctrl+a' inside a banner should select all the banner content", async () => {
@@ -437,4 +429,73 @@ test("Monospace banner should unindent on shift+tab", async () => {
     expect(unformat(getContent(el))).toBe(
         unformat(wrap([`\u200b\u200b[a() {`, `\u200b\u200bx = 1;`, `\u200b\u200b}]`])),
     );
+});
+
+test("a banner command from inside a banner switches its type in place", async () => {
+    const { el, editor } = await setupEditor("<p>Test[]</p>");
+    await insertText(editor, "/bannerinfo");
+    await animationFrame();
+    expect(".active .o-we-command-name").toHaveText("Banner Info");
+    await press("enter");
+    expect(unformat(getContent(el))).toBe(
+        unformat(
+            `<p data-selection-placeholder=""><br></p><div class="o_editor_banner user-select-none o-contenteditable-false lh-1 d-flex align-items-center alert alert-info pb-0 pt-3 ps-3 pe-3" data-oe-role="status" contenteditable="false" role="status">
+                    <i class="o_editor_banner_icon mb-3 fst-normal" data-oe-aria-label="Banner Info" aria-label="Banner Info">💡</i>
+                    <div class="o_editor_banner_content o-contenteditable-true w-100 px-3" contenteditable="true">
+                        <p>Test[]</p>
+                    </div>
+                </div><p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
+        ),
+    );
+
+    await insertText(editor, "/bannersuccess");
+    await animationFrame();
+    expect(".active .o-we-command-name").toHaveText("Banner Success");
+    await press("enter");
+    expect(unformat(getContent(el))).toBe(
+        unformat(
+            `<p data-selection-placeholder=""><br></p><div class="o_editor_banner user-select-none o-contenteditable-false lh-1 d-flex align-items-center alert alert-success pb-0 pt-3 ps-3 pe-3" data-oe-role="status" contenteditable="false" role="status">
+                    <i class="o_editor_banner_icon mb-3 fst-normal" data-oe-aria-label="Banner Success" aria-label="Banner Success">✅</i>
+                    <div class="o_editor_banner_content o-contenteditable-true w-100 px-3" contenteditable="true">
+                        <p>Test[]</p>
+                    </div>
+                </div><p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
+        ),
+    );
+});
+
+test("the powerbox hides only the banner's own type, not the other four", async () => {
+    const { editor } = await setupEditor("<p>Test[]</p>");
+    await insertText(editor, "/bannerinfo");
+    await animationFrame();
+    await press("enter");
+
+    await insertText(editor, "/banner");
+    await animationFrame();
+    await expectElementCount(".o-we-powerbox", 1);
+    expect(".o-we-command-name").not.toHaveText("Banner Info");
+});
+
+test("switching to the monospace banner keeps its font class off the others", async () => {
+    const { el, editor } = await setupEditor("<p>Test[]</p>");
+    await insertText(editor, "/bannerinfo");
+    await animationFrame();
+    await press("enter");
+
+    await insertText(editor, "/monospace");
+    await animationFrame();
+    expect(".active .o-we-command-name").toHaveText("Monospace");
+    await press("enter");
+    const banner = el.querySelector(".o_editor_banner");
+    expect(banner.classList.contains("font-monospace")).toBe(true);
+    expect(banner.classList.contains("alert-secondary")).toBe(true);
+    // The monospace banner has no emoji, so the icon of the info banner is gone.
+    expect(banner.querySelector(".o_editor_banner_icon")).toBe(null);
+
+    await insertText(editor, "/bannerdanger");
+    await animationFrame();
+    await press("enter");
+    expect(banner.classList.contains("font-monospace")).toBe(false);
+    expect(banner.classList.contains("alert-danger")).toBe(true);
+    expect(banner.querySelector(".o_editor_banner_icon")).not.toBe(null);
 });

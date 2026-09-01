@@ -558,6 +558,11 @@ test("should insert a 3x3 table on type `/table` in mobile view", async () => {
     const { el, editor } = await setupEditor("<p>[]<br></p>");
     await insertText(editor, "/table");
     await waitFor(".o-we-powerbox ");
+    // On mobile the command opens the size picker; a second Enter accepts its
+    // 3x3 default.
+    await press("Enter");
+    await animationFrame();
+
     await press("Enter");
     await tick();
     expect(getContent(el)).toBe(

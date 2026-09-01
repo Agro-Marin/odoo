@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { closestElement } from "@html_editor/utils/dom_traversal";
+import { getRowIndex, getSelectedCellsMergeInfo } from "@html_editor/utils/table";
 import {
     Component,
     onMounted,
@@ -26,8 +27,11 @@ export class TableMenu extends Component {
         resetColumnWidth: Function,
         resetTableSize: Function,
         clearColumnContent: Function,
+        mergeSelectedCells: Function,
+        unmergeSelectedCell: Function,
         clearRowContent: Function,
         close: Function,
+        buildTableGrid: Function,
         dropdownState: Object,
         target: { validate: (el) => el.nodeType === Node.ELEMENT_NODE },
         document: { validate: (el) => el.nodeType === Node.DOCUMENT_NODE },
@@ -52,6 +56,9 @@ export class TableMenu extends Component {
                     this.isLast = !tr.nextElementSibling;
                     this.isTableHeader = [...tr.children][0].nodeName === "TH";
                 }
+                this.tableGrid = this.props.buildTableGrid(
+                    closestElement(this.props.target, "table"),
+                );
                 this.items =
                     this.props.type === "column" ? this.colItems() : this.rowItems();
                 this.updatePosition();
@@ -140,20 +147,61 @@ export class TableMenu extends Component {
         this.props.close();
     }
 
+    /**
+     * Whether the row the menu hangs off, or the one it would swap with, holds
+     * a cell spanning several rows. Such a swap would tear the span apart.
+     *
+     * @param {'move_up'|'move_down'} position
+     * @returns {boolean}
+     */
+    isCurrentOrAdjacentCellRowSpanned(position) {
+        const rowIndex = getRowIndex(this.props.target);
+        const adjacentRowIndex = position === "move_down" ? rowIndex + 1 : rowIndex - 1;
+        return (
+            this.tableGrid[rowIndex]?.some((cell) => cell?.rowSpan > 1) ||
+            this.tableGrid[adjacentRowIndex]?.some((cell) => cell?.rowSpan > 1)
+        );
+    }
+
+    /**
+     * Whether the column the menu hangs off, or the one it would swap with,
+     * holds a cell spanning several columns. Such a swap would tear the span
+     * apart.
+     *
+     * @param {'move_left'|'move_right'} position
+     * @returns {boolean}
+     */
+    isCurrentOrAdjacentCellColSpanned(position) {
+        const columnIndex = this.tableGrid[0].indexOf(this.props.target);
+        const adjacentIndex = position === "move_right" ? columnIndex + 1 : columnIndex - 1;
+        return this.tableGrid.some(
+            (row) => row[columnIndex]?.colSpan > 1 || row[adjacentIndex]?.colSpan > 1,
+        );
+    }
+
     colItems() {
         const ltr = this.props.direction === "ltr";
+        const { canMerge, canUnmerge, cells, spanType } = getSelectedCellsMergeInfo(
+            this.props.document,
+            this.tableGrid,
+            this.props.target,
+        );
         return [
             !this.isFirst && {
                 name: "move_left",
                 icon: "fa-chevron-left disabled",
                 text: ltr ? _t("Move left") : _t("Move right"),
                 action: this.props.moveColumn.bind(this, "left"),
+                disable: this.isCurrentOrAdjacentCellColSpanned("move_left"),
+                tooltip: _t("Merged columns cannot be moved left or right."),
             },
             !this.isLast && {
                 name: "move_right",
                 icon: "fa-chevron-right",
                 text: ltr ? _t("Move right") : _t("Move left"),
                 action: this.props.moveColumn.bind(this, "right"),
+                disable: this.isCurrentOrAdjacentCellColSpanned("move_right"),
+                tooltip: _t("Merged columns cannot be moved left or right."),
             },
             {
                 name: "insert_left",
@@ -192,10 +240,29 @@ export class TableMenu extends Component {
                 text: _t("Clear content"),
                 action: this.props.clearColumnContent.bind(this),
             },
+            cells.length > 1 && {
+                name: "merge_cell",
+                icon: "fa-compress",
+                text: _t("Merge Cells"),
+                disable: !canMerge,
+                tooltip: _t("Only rows or cells selection can be merged"),
+                action: () => this.props.mergeSelectedCells(cells, spanType),
+            },
+            canUnmerge && {
+                name: "unmerge_cell",
+                icon: "fa-compress",
+                text: _t("Unmerge Cells"),
+                action: this.props.unmergeSelectedCell.bind(this),
+            },
         ].filter(Boolean);
     }
 
     rowItems() {
+        const { canMerge, canUnmerge, cells, spanType } = getSelectedCellsMergeInfo(
+            this.props.document,
+            this.tableGrid,
+            this.props.target,
+        );
         return [
             this.isFirst &&
                 !this.isTableHeader && {
@@ -216,12 +283,16 @@ export class TableMenu extends Component {
                 icon: "fa-chevron-up",
                 text: _t("Move up"),
                 action: (target) => this.props.moveRow("up", target.parentElement),
+                disable: this.isCurrentOrAdjacentCellRowSpanned("move_up"),
+                tooltip: _t("Merged rows cannot be moved up or down."),
             },
             !this.isLast && {
                 name: "move_down",
                 icon: "fa-chevron-down",
                 text: _t("Move down"),
                 action: (target) => this.props.moveRow("down", target.parentElement),
+                disable: this.isCurrentOrAdjacentCellRowSpanned("move_down"),
+                tooltip: _t("Merged rows cannot be moved up or down."),
             },
             !this.isTableHeader && {
                 name: "insert_above",
@@ -258,6 +329,20 @@ export class TableMenu extends Component {
                 icon: "fa-times-circle",
                 text: _t("Clear content"),
                 action: (target) => this.props.clearRowContent(target.parentElement),
+            },
+            cells.length > 1 && {
+                name: "merge_cell",
+                icon: "fa-compress",
+                text: _t("Merge Cells"),
+                disable: !canMerge,
+                tooltip: _t("Only rows or cells selection can be merged"),
+                action: () => this.props.mergeSelectedCells(cells, spanType),
+            },
+            canUnmerge && {
+                name: "unmerge_cell",
+                icon: "fa-compress",
+                text: _t("Unmerge Cells"),
+                action: this.props.unmergeSelectedCell.bind(this),
             },
         ].filter(Boolean);
     }

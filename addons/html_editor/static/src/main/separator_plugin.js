@@ -7,11 +7,7 @@ import { _t } from "@web/core/translation";
 import { Plugin } from "../plugin.js";
 import { closestBlock } from "../utils/blocks.js";
 import { fillEmpty } from "../utils/dom.js";
-import {
-    isEmptyBlock,
-    isListItemElement,
-    paragraphRelatedElementsSelector,
-} from "../utils/dom_info.js";
+import { isEmptyBlock, paragraphRelatedElementsSelector } from "../utils/dom_info.js";
 import { closestElement, firstLeaf, selectElements } from "../utils/dom_traversal.js";
 
 export class SeparatorPlugin extends Plugin {
@@ -58,14 +54,20 @@ export class SeparatorPlugin extends Plugin {
     };
 
     insertSeparator() {
-        const selection =
+        let selection =
             this.dependencies.selection.getSelectionData().deepEditableSelection;
         const block = closestBlock(selection.startContainer);
-        const element =
-            closestElement(
-                selection.startContainer,
-                paragraphRelatedElementsSelector,
-            ) || (block && !isListItemElement(block) ? block : null);
+        // A list item is not a paragraph-related element, so inside one the
+        // lookup below finds nothing and the command used to do nothing at
+        // all. The list plugin answers this by splitting the list and
+        // outdenting the caret out of it, which moves the selection.
+        this.dispatchTo("before_insert_separator_handlers", block);
+        selection =
+            this.dependencies.selection.getSelectionData().deepEditableSelection;
+        const element = closestElement(
+            selection.startContainer,
+            paragraphRelatedElementsSelector,
+        );
 
         if (element && element !== this.editable) {
             const sep = this.document.createElement("hr");

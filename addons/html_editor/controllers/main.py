@@ -274,6 +274,23 @@ class HTML_Editor(http.Controller):
             attachment = IrAttachment.sudo().create(attachment_data)
             if not attachment_data["public"]:
                 attachment.sudo().generate_access_token()
+            # The bypass above hands a portal user an unrestricted create, so
+            # bound what they may leave behind. Checked after the create rather
+            # than before because the mimetype and the size are what
+            # ir.attachment infers, not what the caller claimed; raising here
+            # rolls the request transaction back, so nothing is persisted.
+            if request.env.user.share:
+                max_portal_file_size = (
+                    request.env["ir.config_parameter"]
+                    .sudo()
+                    .get_param_int("html_editor.max_portal_file_size", 100_000_000)
+                )
+                if not (attachment.mimetype or "").startswith("image/"):
+                    raise AccessError(_("Non-internal users can only upload images."))
+                if attachment.file_size >= max_portal_file_size:
+                    raise AccessError(
+                        _("Non-internal users cannot upload files this large.")
+                    )
         else:
             attachment = get_existing_attachment(
                 IrAttachment, attachment_data
@@ -549,7 +566,12 @@ class HTML_Editor(http.Controller):
                 continue
             req = requests.get(url, timeout=15)
             name = "_".join([media[media_id]["query"], url.split("/")[-1]])
-            IrAttachment = request.env["ir.attachment"]
+            # Superuser for the lookup as well as for the create: these
+            # attachments hang off ir.ui.view, which portal cannot read, so a
+            # portal user searching for one raises instead of finding it. The
+            # SVG mimetype is the reason the create needs it. Both are safe
+            # because the bytes come from the whitelisted media library.
+            IrAttachment = request.env["ir.attachment"].with_user(SUPERUSER_ID)
             attachment_data = {
                 "name": name,
                 "mimetype": req.headers.get("content-type"),
@@ -558,11 +580,9 @@ class HTML_Editor(http.Controller):
                 "res_model": "ir.ui.view",
                 "res_id": 0,
             }
-            attachment = get_existing_attachment(IrAttachment, attachment_data)
-            if not attachment:
-                attachment = IrAttachment.with_user(SUPERUSER_ID).create(
-                    attachment_data
-                )
+            attachment = get_existing_attachment(
+                IrAttachment, attachment_data
+            ) or IrAttachment.create(attachment_data)
             if media[media_id]["is_dynamic_svg"]:
                 colorParams = urlencode(media[media_id]["dynamic_colors"])
                 attachment["url"] = (

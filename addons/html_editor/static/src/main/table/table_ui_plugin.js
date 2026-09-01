@@ -2,10 +2,12 @@
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { Plugin } from "@html_editor/plugin";
 import { closestElement } from "@html_editor/utils/dom_traversal";
+import { getRowIndex } from "@html_editor/utils/table";
 import { reactive } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 
+import { MobileTablePicker } from "./mobile_table_picker.js";
 import { TableMenu } from "./table_menu.js";
 import { TablePicker } from "./table_picker.js";
 
@@ -30,6 +32,7 @@ export class TableUIPlugin extends Plugin {
                 commandId: "openTablePicker",
             },
         ],
+        selectionchange_handlers: this.updateActiveCell.bind(this),
     };
 
     setup() {
@@ -44,6 +47,21 @@ export class TableUIPlugin extends Plugin {
                         picker.style.right = `${window.innerWidth - left - popperRect.width}px`;
                         picker.style.removeProperty("left");
                     }
+                },
+            },
+        });
+
+        /** @type {import("@html_editor/core/overlay_plugin").Overlay} */
+        this.mobilePicker = this.dependencies.overlay.createOverlay(MobileTablePicker, {
+            positionOptions: {
+                updatePositionOnResize: false,
+                // Docked to the bottom edge: on a phone the caret sits
+                // near the middle and an anchored popover would land
+                // under the virtual keyboard.
+                onPositioned: (picker) => {
+                    picker.style.bottom = 0;
+                    picker.style.width = "100%";
+                    picker.style.removeProperty("top");
                 },
             },
         });
@@ -84,12 +102,34 @@ export class TableUIPlugin extends Plugin {
         });
     }
 
+    openMobilePicker() {
+        this.mobilePicker.open({
+            props: {
+                editable: this.editable,
+                close: () => {
+                    this.mobilePicker.close();
+                    this.dependencies.selection.focusEditable();
+                },
+                insertTable: (params) => this.dependencies.table.insertTable(params),
+            },
+        });
+    }
+
     openPickerOrInsertTable() {
         if (this.services.ui.isSmall) {
-            this.dependencies.table.insertTable({ cols: 3, rows: 3 });
+            this.openMobilePicker();
         } else {
             this.openPicker();
         }
+    }
+
+    updateActiveCell(selectionData) {
+        const selection = selectionData.editableSelection;
+        const selectedTd = closestElement(selection.startContainer, ".o_selected_td");
+        if (selection.isCollapsed || !selectedTd) {
+            return;
+        }
+        this.activeTd = false;
     }
 
     onMouseMove(ev) {
@@ -180,8 +220,19 @@ export class TableUIPlugin extends Plugin {
             resetTableSize: withAddStep(this.dependencies.table.resetTableSize),
             clearColumnContent: withAddStep(this.dependencies.table.clearColumnContent),
             clearRowContent: withAddStep(this.dependencies.table.clearRowContent),
+            mergeSelectedCells: withAddStep(this.dependencies.table.mergeSelectedCells),
+            unmergeSelectedCell: withAddStep(
+                this.dependencies.table.unmergeSelectedCell,
+            ),
+            buildTableGrid: this.dependencies.table.buildTableGrid,
         };
-        if (td.cellIndex === 0) {
+        // Not `cellIndex === 0`: in a row that a rowspan from above reaches
+        // into, the first <td> is not the row's first grid square, and hanging
+        // the row menu off it puts the handle in the middle of the table.
+        const grid = this.dependencies.table.buildTableGrid(
+            closestElement(td, "table"),
+        );
+        if (grid[getRowIndex(td.parentElement)][0] === td) {
             registry
                 .category(this.config.localOverlayContainers.key)
                 .add(this.rowMenuOverlayKey, {

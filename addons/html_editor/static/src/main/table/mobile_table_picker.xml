@@ -1,0 +1,20 @@
+<templates xml:space="preserve">
+    <t t-name="html_editor.MobileTablePicker">
+        <div class="o-we-mobile-tablepicker bg-light shadow p-2" role="dialog" aria-modal="true" aria-label="Table Size">
+            <div class="input-group mb-2">
+                <label class="input-group-text" for="o_we_table_rows">Rows</label>
+                <input id="o_we_table_rows" t-ref="rows" type="number" min="1" max="100"
+                    class="form-control form-control-sm border-dark-subtle"
+                    t-model="state.rows" title="Number of rows" t-on-input="updateSize"/>
+                <label class="input-group-text" for="o_we_table_cols">Columns</label>
+                <input id="o_we_table_cols" t-ref="cols" type="number" min="1" max="12"
+                    class="form-control form-control-sm border-dark-subtle"
+                    t-model="state.cols" title="Number of columns" t-on-input="updateSize"/>
+            </div>
+            <div class="d-flex justify-content-end">
+                <button class="o-we-mobile-tablepicker-discard btn btn-sm btn-secondary me-1" t-on-click="() => this.props.close()">Discard</button>
+                <button class="o-we-mobile-tablepicker-apply btn btn-sm btn-primary" t-on-click="insertTable">Apply</button>
+            </div>
+        </div>
+    </t>
+</templates>

@@ -1,6 +1,6 @@
 import { findInSelection } from "@html_editor/utils/selection";
 import { expect, test } from "@odoo/hoot";
-import { press, queryOne, waitFor } from "@odoo/hoot-dom";
+import { click, edit, press, queryOne, waitFor } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 
 import { setupEditor } from "../_helpers/editor.js";
@@ -58,6 +58,102 @@ test("can add a table using the powerbox and keyboard", async () => {
         </table>
         <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
     );
+});
+
+test.tags("mobile");
+test("on mobile, the table command asks for a size instead of inserting 3x3", async () => {
+    const { el, editor } = await setupEditor("<p>a[]</p>");
+    await insertText(editor, "/");
+    await waitFor(".o-we-powerbox");
+    await expectElementCount(".o-we-mobile-tablepicker", 0);
+
+    await insertText(editor, "table");
+    await animationFrame();
+
+    await press("Enter");
+    await waitFor(".o-we-mobile-tablepicker");
+    await expectElementCount(".o-we-powerbox", 0);
+    // Nothing is inserted until the size is confirmed. The caret marker is
+    // gone from the editable because the picker focuses its first input.
+    expectContentToBe(el, "<p>a</p>");
+    expect(el.querySelector("table")).toBe(null);
+
+    await press("Enter");
+    await animationFrame();
+    await expectElementCount(".o-we-mobile-tablepicker", 0);
+    expectContentToBe(
+        el,
+        `<p>a</p>
+        <table class="table table-bordered o_table">
+            <tbody>
+                <tr>
+                    <td><p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p></td>
+                    <td><p><br></p></td>
+                    <td><p><br></p></td>
+                </tr>
+                <tr>
+                    <td><p><br></p></td>
+                    <td><p><br></p></td>
+                    <td><p><br></p></td>
+                </tr>
+                <tr>
+                    <td><p><br></p></td>
+                    <td><p><br></p></td>
+                    <td><p><br></p></td>
+                </tr>
+            </tbody>
+        </table>
+        <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
+    );
+});
+
+test.tags("mobile");
+test("on mobile, Apply inserts the table at the size that was typed", async () => {
+    const { el, editor } = await setupEditor("<p>a[]</p>");
+    await insertText(editor, "/");
+    await waitFor(".o-we-powerbox");
+    await insertText(editor, "table");
+    await animationFrame();
+    await press("Enter");
+    await waitFor(".o-we-mobile-tablepicker");
+
+    await click("#o_we_table_rows");
+    await edit("1");
+    await click("#o_we_table_cols");
+    await edit("2");
+    await click(".o-we-mobile-tablepicker-apply");
+    await animationFrame();
+
+    await expectElementCount(".o-we-mobile-tablepicker", 0);
+    expectContentToBe(
+        el,
+        `<p>a</p>
+        <table class="table table-bordered o_table">
+            <tbody>
+                <tr>
+                    <td><p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p></td>
+                    <td><p><br></p></td>
+                </tr>
+            </tbody>
+        </table>
+        <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
+    );
+});
+
+test.tags("mobile");
+test("on mobile, Discard closes the picker without inserting a table", async () => {
+    const { el, editor } = await setupEditor("<p>a[]</p>");
+    await insertText(editor, "/");
+    await waitFor(".o-we-powerbox");
+    await insertText(editor, "table");
+    await animationFrame();
+    await press("Enter");
+    await waitFor(".o-we-mobile-tablepicker");
+
+    await click(".o-we-mobile-tablepicker-discard");
+    await animationFrame();
+    await expectElementCount(".o-we-mobile-tablepicker", 0);
+    expectContentToBe(el, "<p>a[]</p>");
 });
 
 test.tags("desktop");
