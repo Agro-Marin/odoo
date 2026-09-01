@@ -1,3 +1,5 @@
+import werkzeug.exceptions
+
 from odoo import http
 from odoo.http import request
 
@@ -8,5 +10,9 @@ class WebsiteWebClient(WebClient):
     @http.route()
     def bundle(self, bundle_name, **bundle_params):
         if "website_id" in bundle_params:
-            request.update_context(website_id=int(bundle_params["website_id"]))
+            try:
+                website_id = int(bundle_params["website_id"])
+            except TypeError, ValueError:
+                raise werkzeug.exceptions.BadRequest from None
+            request.update_context(website_id=website_id)
         return super().bundle(bundle_name, **bundle_params)
