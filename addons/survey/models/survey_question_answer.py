@@ -126,9 +126,19 @@ class SurveyQuestionAnswer(models.Model):
                 answer_idx = answer.question_id.suggested_answer_ids.ids.index(
                     answer.id
                 )
-                answer.value_label = chr(65 + answer_idx) if answer_idx < 26 else ""
+                answer.value_label = self._index_to_letters(answer_idx)
             else:
                 answer.value_label = answer.value or ""
+
+    @staticmethod
+    def _index_to_letters(index: int) -> str:
+        """Spreadsheet-style column naming: 0 -> "A", 25 -> "Z", 26 -> "AA", ..."""
+        letters = ""
+        index += 1
+        while index > 0:
+            index, remainder = divmod(index - 1, 26)
+            letters = chr(65 + remainder) + letters
+        return letters
 
     def _get_answer_matching_domain(
         self, row_id: int | bool = False

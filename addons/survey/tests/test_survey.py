@@ -1271,3 +1271,20 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
                     }
                 )
                 self.assertEqual(user_input_line.answer_score, expected_score)
+
+    @users("survey_manager")
+    def test_value_label_past_26_answers_stays_distinct(self):
+        question = self.env["survey.question"].create(
+            {
+                "survey_id": self.env["survey.survey"].create({"title": "S"}).id,
+                "title": "Image choices",
+                "question_type": "simple_choice",
+                "suggested_answer_ids": [Command.create({}) for _ in range(28)],
+            }
+        )
+        labels = question.suggested_answer_ids.mapped("value_label")
+        self.assertEqual(len(labels), len(set(labels)), "every label must be unique")
+        self.assertNotIn("", labels, "no answer should get an empty label")
+        self.assertEqual(labels[25], "Z")
+        self.assertEqual(labels[26], "AA")
+        self.assertEqual(labels[27], "AB")
