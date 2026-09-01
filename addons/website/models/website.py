@@ -1530,7 +1530,9 @@ class Website(models.Model):
 
         website_id = self.env.context.get("website_id")
         if website_id:
-            return self.browse(website_id)
+            context_website = self.browse(website_id).exists()
+            if context_website:
+                return context_website
 
         if not is_frontend_request and not fallback:
             return self.browse(False)
