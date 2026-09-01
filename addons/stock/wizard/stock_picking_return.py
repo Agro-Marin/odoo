@@ -269,8 +269,7 @@ class StockReturnPicking(models.TransientModel):
         action = self.action_create_returns()
         if self.picking_id.picking_type_id.code == "incoming":
             return_picking = self.env["stock.picking"].browse([action["res_id"]])
-            exchange_picking = self._create_exchange(return_picking)
-            exchange_picking.return_id = return_picking
+            self._create_exchange(return_picking)
             return action
 
         proc_list = []
