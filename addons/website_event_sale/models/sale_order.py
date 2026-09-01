@@ -110,7 +110,9 @@ class SaleOrder(models.Model):
         if not event_ticket_id:
             return values
 
-        ticket = self.env["event.event.ticket"].browse(event_ticket_id)
+        ticket = self.env["event.event.ticket"].browse(event_ticket_id).exists()
+        if not ticket:
+            raise UserError(_("The provided ticket doesn't exist"))
 
         if ticket.product_id.id != product_id:
             raise UserError(_("The ticket doesn't match with this product."))

@@ -248,6 +248,19 @@ class TestWebsiteEventSaleCartSeats(TestWebsiteEventSaleCommon):
         )
         self.assertFalse(warning)
 
+    def test_prepare_order_line_values_unknown_ticket_raises(self):
+        """`_prepare_order_line_values` must reject a nonexistent
+        `event_ticket_id` with its own friendly `UserError`, not rely on
+        the ORM's generic `MissingError` triggered by the next line
+        reading a field off the browsed (nonexistent) ticket."""
+        with self.assertRaisesRegex(UserError, "provided ticket doesn't exist"):
+            self.empty_cart._prepare_order_line_values(
+                self.product_event.id,
+                1,
+                self.env.ref("uom.product_uom_unit").id,
+                event_ticket_id=-1,
+            )
+
     def test_cart_quantity_decrease_cancels_registrations(self):
         """Decreasing an event line quantity cancels the newest registrations."""
         res_add = self.empty_cart._cart_add(
