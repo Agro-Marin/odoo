@@ -64,7 +64,18 @@ _env_found="$(_discover_env "$WORKSPACE" "$WORKSPACE" \
     || true)"
 VENV_PY="${VENV_PY:-$(printf '%s' "$_env_found" | sed -n 1p)}"
 ODOO_CONF="${ODOO_CONF:-$(printf '%s' "$_env_found" | sed -n 2p)}"
-[ -n "$VENV_PY" ] && [ -x "$VENV_PY" ] || VENV_PY="$(command -v python3)"
+if [ -z "$VENV_PY" ] || [ ! -x "$VENV_PY" ]; then
+    VENV_PY="$(command -v python3)"
+    # A discovery miss silently falls back to system python3, whose grammar
+    # can differ from this repo's own floor (a comma-except line the repo's
+    # actual interpreter accepts can be a SyntaxError under system python3,
+    # reported as an ordinary PARSE_FAILED assertion -- indistinguishable
+    # from real doc staleness). Loud on the miss so that distinction is not
+    # lost silently.
+    echo "factcheck.sh: no <env>.conf paired with a <env>/bin/python venv" \
+        "found under $WORKSPACE or $(dirname "$WORKSPACE")/{config,venv};" \
+        "falling back to system '$VENV_PY'. Export VENV_PY to override." >&2
+fi
 DOC="$WEB/machine_doc_v1"
 PASS=0
 FAIL=0
@@ -279,6 +290,7 @@ count_prod_decls() {
     files=$(grep -REl --include='*.js' \
         --exclude-dir=filestore --exclude-dir=sessions \
         --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=__pycache__ \
+        --exclude-dir=worktrees \
         "$pattern" "$ADDONS/" 2>/dev/null \
         | grep -v "machine_doc\|\.test\.js\|\.md$")
     if [ -z "$files" ]; then
@@ -611,7 +623,7 @@ assert_eq "CONVENTIONS gotcha #10 carries no stale form_controller.js line cites
 # Gotcha #5 cites 17 /web/image URL patterns and 7 /web/content. Count DECLARED
 # ROUTE URLs, not grep hits: the old raw grep counted 20 because docstrings and
 # helper strings mention the prefix too, and it would have passed at any value.
-read -r IMG_URLS CONTENT_URLS <<<"$(python3 - "$WEB/controllers" <<'PYEOF'
+read -r IMG_URLS CONTENT_URLS <<<"$("$VENV_PY" - "$WEB/controllers" <<'PYEOF'
 import ast, pathlib, sys
 urls = set()
 for f in sorted(pathlib.Path(sys.argv[1]).glob("*.py")):
@@ -1356,7 +1368,7 @@ assert_eq "webclient.py no longer serves /web/tests/legacy" \
 # Count route-decorated FUNCTIONS, not @route occurrences: one handler carries
 # two decorators, so occurrence-counting over-reports handlers by one. URLs are
 # the distinct route strings those decorators declare.
-read -r ROUTE_HANDLERS ROUTE_URLS <<<"$(python3 - "$WEB/controllers" <<'PYEOF'
+read -r ROUTE_HANDLERS ROUTE_URLS <<<"$("$VENV_PY" - "$WEB/controllers" <<'PYEOF'
 import ast, pathlib, sys
 n = 0; urls = set()
 for f in sorted(pathlib.Path(sys.argv[1]).glob("*.py")):
