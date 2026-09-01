@@ -20,7 +20,13 @@
                         <group name="external">
                             <label for="balance" class="oe_inline"/>
                             <div>
-                                <field name="balance" class="oe_inline"/>
+                                <!-- The badge widget renders nothing while balance
+                                     is unset, which is the state of an account the
+                                     IAP server has never answered for. -->
+                                <field name="is_balance_below_warning_threshold" invisible="1"/>
+                                <field name="balance" class="oe_inline" widget="badge"
+                                    decoration-danger="is_balance_below_warning_threshold"
+                                    decoration-success="not is_balance_below_warning_threshold"/>
                                 <button type="object"
                                     name="action_buy_credits" class="btn-link py-0">
                                     <i class="oi oi-arrow-right"/>
