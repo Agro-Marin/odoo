@@ -367,7 +367,7 @@ class StockLocation(models.Model):
                         "%(location)s is a %(usage)s location. Only internal "
                         "locations can be blocked.",
                         location=location.display_name,
-                        usage=location._block_usage_label(),
+                        usage=location._get_usage_label(),
                     ),
                 )
 
@@ -443,7 +443,7 @@ class StockLocation(models.Model):
         locations._invalidate_location_tree()
         locations.filtered(
             lambda location: location.block_type != "none",
-        )._apply_block_metadata()
+        )._update_block_metadata()
         return locations
 
     def write(self, vals):
@@ -465,7 +465,7 @@ class StockLocation(models.Model):
             if vals["block_type"] == "none":
                 transitioning._remove_block_metadata()
             else:
-                transitioning._apply_block_metadata()
+                transitioning._update_block_metadata()
         return res
 
     def copy_data(self, default=None):
@@ -576,10 +576,10 @@ class StockLocation(models.Model):
     def _compute_effective_block_type(self):
         for location in self:
             location.effective_block_type = merge_block_types(
-                *location._own_and_ancestor_block_types(),
+                *location._get_block_types_self_and_ancestors(),
             )
 
-    def _own_and_ancestor_block_types(self):
+    def _get_block_types_self_and_ancestors(self):
         self.check_singleton()
         block_types = []
         location = self
@@ -1240,7 +1240,7 @@ class StockLocation(models.Model):
             annual_date = annual_date.replace(day=day, year=today.year + 1)
         return annual_date
 
-    def _quantity_domains_from_context(self) -> tuple[Domain, Domain, Domain]:
+    def _get_domains_quantity_from_context(self) -> tuple[Domain, Domain, Domain]:
         location_ids = self._resolve_scope_ids_from_context()
         fell_back = location_ids is None
         if fell_back:
@@ -1271,7 +1271,7 @@ class StockLocation(models.Model):
                 or "no scope keys",
                 self.env.companies.ids,
             )
-        return self._quantity_domains(location_ids)
+        return self._get_domains_quantity(location_ids)
 
     def _resolve_scope_ids_from_context(self) -> set[int] | None:
         context = self.env.context
@@ -1311,7 +1311,7 @@ class StockLocation(models.Model):
             and any(candidate.parent_path.startswith(path) for path in parent_paths)
         }
 
-    def _move_destination_domains(self, leaf) -> tuple[Domain, Domain]:
+    def _get_domains_move_destination(self, leaf) -> tuple[Domain, Domain]:
         done = leaf("location_dest_id")
         if self.env.context.get("skip_in_progress"):
             return done, ~done
@@ -1351,7 +1351,7 @@ class StockLocation(models.Model):
             ),
         )
 
-    def _quantity_domains(self, location_ids) -> tuple[Domain, Domain, Domain]:
+    def _get_domains_quantity(self, location_ids) -> tuple[Domain, Domain, Domain]:
         if not location_ids:
             return (Domain.FALSE,) * 3
         location_ids = list(location_ids)
@@ -1361,10 +1361,10 @@ class StockLocation(models.Model):
             dest_out = Domain("location_dest_id", "not in", location_ids)
         else:
             loc_domain = Domain("location_id", "child_of", location_ids)
-            dest_in, dest_out = self._move_destination_domains(
+            dest_in, dest_out = self._get_domains_move_destination(
                 lambda field: Domain(field, "child_of", location_ids),
             )
-        return self._blocked_quantity_domains(
+        return self._get_domains_quantity_unblocked(
             (
                 loc_domain,
                 dest_in & ~loc_domain,
@@ -1372,7 +1372,7 @@ class StockLocation(models.Model):
             ),
         )
 
-    def _blocked_quantity_domains(self, domains):
+    def _get_domains_quantity_unblocked(self, domains):
         if self.env.user.has_group(GROUP_STOCK_USER):
             return domains
         if self.env.su and self.env.context.get(CONTEXT_BLOCK_BYPASS):
@@ -1380,7 +1380,7 @@ class StockLocation(models.Model):
         domain_quant, domain_move_in, domain_move_out = domains
         blocked = Domain("effective_block_type", "in", OUTGOING_BLOCK_TYPES)
         blocked_location = Domain("location_id", "any", blocked)
-        blocked_destination, __ = self._move_destination_domains(
+        blocked_destination, __ = self._get_domains_move_destination(
             lambda field: Domain(field, "any", blocked),
         )
         return (
@@ -1389,19 +1389,19 @@ class StockLocation(models.Model):
             domain_move_out & ~blocked_location,
         )
 
-    def _block_usage_label(self):
+    def _get_usage_label(self):
         self.check_singleton()
         return dict(
             self._fields["usage"]._description_selection(self.env),
         )[self.usage]
 
     @api.model
-    def _block_type_label(self, block_type):
+    def _get_block_type_label(self, block_type):
         return dict(
             self._fields["block_type"]._description_selection(self.env),
         )[block_type or "none"]
 
-    def _block_decision(self, direction):
+    def _get_block_decision(self, direction):
         self.check_singleton()
         if direction not in ("in", "out"):
             raise ValueError(f"direction must be 'in' or 'out', got {direction!r}")
@@ -1433,13 +1433,13 @@ class StockLocation(models.Model):
         return False, None
 
     def _is_operation_allowed(self, direction):
-        return self._block_decision(direction)[0]
+        return self._get_block_decision(direction)[0]
 
     def _check_operation_allowed(self, direction):
         self.check_singleton()
         if self._is_operation_allowed(direction):
             return
-        block_label = self._block_type_label(self.effective_block_type)
+        block_label = self._get_block_type_label(self.effective_block_type)
         if direction == "in":
             raise UserError(
                 self.env._(
@@ -1464,7 +1464,7 @@ class StockLocation(models.Model):
         elif quantity and quantity < 0:
             self._check_operation_allowed("out")
 
-    def _blocked_types_excluded_from_gathering(self, reserving=False):
+    def _get_block_types_excluded_from_gathering(self, reserving=False):
         env = self.env
         if env.su:
             return OUTGOING_BLOCK_TYPES if reserving else ()
@@ -1528,7 +1528,7 @@ class StockLocation(models.Model):
                 self.env._(
                     "Deleting the hard-blocked location %(locations)s requires "
                     'the "Unlock Locations: All (Hard)" permission.',
-                    locations=blocked._block_location_names(),
+                    locations=blocked._get_display_names_joined(),
                 ),
             )
 
@@ -1543,7 +1543,7 @@ class StockLocation(models.Model):
                     self.env._(
                         "Lifting a hard block on %(locations)s requires the "
                         '"Unlock Locations: All (Hard)" permission.',
-                        locations=lifting._block_location_names(),
+                        locations=lifting._get_display_names_joined(),
                     ),
                 )
         if vals.get("active") is False:
@@ -1555,7 +1555,7 @@ class StockLocation(models.Model):
                     self.env._(
                         "Archiving the hard-blocked location %(locations)s "
                         'requires the "Unlock Locations: All (Hard)" permission.',
-                        locations=archiving._block_location_names(),
+                        locations=archiving._get_display_names_joined(),
                     ),
                 )
         if "location_id" in vals:
@@ -1575,14 +1575,14 @@ class StockLocation(models.Model):
                     self.env._(
                         "Moving %(locations)s out from under a hard block "
                         'requires the "Unlock Locations: All (Hard)" permission.',
-                        locations=escaping._block_location_names(),
+                        locations=escaping._get_display_names_joined(),
                     ),
                 )
 
-    def _block_location_names(self):
+    def _get_display_names_joined(self):
         return ", ".join(self.mapped("display_name"))
 
-    def _apply_block_metadata(self):
+    def _update_block_metadata(self):
         if not self:
             return
         reserved_by_location = self._reserved_quantities_by_uom()
@@ -1604,14 +1604,16 @@ class StockLocation(models.Model):
             )
         for location in self:
             location.sudo().message_post(
-                body=location._block_message_body(reserved_by_location[location.id]),
+                body=location._prepare_block_message_body(
+                    reserved_by_location[location.id]
+                ),
             )
 
-    def _block_message_body(self, reserved_by_uom):
+    def _prepare_block_message_body(self, reserved_by_uom):
         self.check_singleton()
         body = Markup("<p><b>%s</b> %s</p>") % (
             self.env._("Location Blocked:"),
-            self._block_type_label(self.block_type),
+            self._get_block_type_label(self.block_type),
         )
         quantities = self._format_reserved_quantities(reserved_by_uom)
         if quantities:

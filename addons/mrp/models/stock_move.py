@@ -843,8 +843,8 @@ class StockMove(models.Model):
             vals["lot_id"] = self.production_id.lot_producing_ids.ids[0]
         return vals
 
-    def _key_assign_picking(self):
-        keys = super()._key_assign_picking()
+    def _get_picking_assignation_key(self):
+        keys = super()._get_picking_assignation_key()
         return keys + (self.created_production_id,)
 
     def _prepare_merge_moves_distinct_fields(self):

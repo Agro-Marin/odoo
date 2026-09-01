@@ -1151,7 +1151,7 @@ read both spellings before choosing either**; the shared caller is where to look
 **The verb leads** ``[review]``. ``naming_vocabulary.classify`` partitions on the
 first token and stops, so a noun in front of the verb hides the verb from the rule
 *and* from its enforcement: ``_import_retrieve_partner_vals`` scores as the verb
-``import``, which carries no rule. Backlog: **142** model methods put an abolished
+``import``, which carries no rule. Backlog: **138** model methods put an abolished
 verb somewhere the ratchet cannot read it -- a candidate population, since some of
 those tokens belong to a noun or a field name.
 
@@ -1210,7 +1210,7 @@ and **read the result**:
 Backlog ``[gate doc_restated_counts]``. The ``fields`` family is converted:
 **207** definitions under **98** names in this repository spell it head-first and
 **18** spell it the other way. **The rule is general; the conversion reached one
-family** -- across **19** of them this repository spells **95** definitions
+family** -- across **19** of them this repository spells **104** definitions
 head-first against **159** the other way. A name in the second count is a backlog
 item, not an open question. Two cautions:
 ``naming_vocabulary._COLLECTION_HEADS`` is a **search**, so a head absent from it
@@ -1329,12 +1329,12 @@ precisely because ``_to_`` is what a search for a converter spells.
 2.4.7 Payload against read
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**``_get_`` is not a default.** At 5,756 definitions it is 22.7 % of every method
+**``_get_`` is not a default.** At 5,791 definitions it is 22.8 % of every method
 in this repository's model layer, having absorbed reading, building, deriving and
-computing. The split that matters is against ``_prepare_``: 686 definitions are
+computing. The split that matters is against ``_prepare_``: 684 definitions are
 payload builders -- they end in ``_vals``, ``_values``, ``_data``, ``_dict``,
 ``_context``, ``_defaults``, ``_list``, ``_args`` or ``_params`` -- yet are
-spelled ``get_*``, against 772 already spelled ``_prepare_*``.
+spelled ``get_*``, against 778 already spelled ``_prepare_*``.
 
 **Resolve it on the consumer, always** ``[review]``. Where the return value goes
 is visible at the call site; whether a value was "already there" is a question
@@ -1396,7 +1396,7 @@ anything else.
 ``[gate doc_restated_counts]``. It names the arithmetic where ``_generate_`` names
 the manufacture, and unlike ``_generate_`` it is owed no record, because the
 Provenance bullet above has already settled it: a scalar that answers a question
-is ``_get_`` whatever produced it. **10** model methods still wear it. Two
+is ``_get_`` whatever produced it. **13** model methods still wear it. Two
 cautions from draining it out of ``mrp``:
 
 * **The rename collides, and the collision is the finding.** Three of them
@@ -1421,7 +1421,7 @@ ORM is written. ``_set_replenish_data(new_lines, product, replenish_data)`` is
 it a builder** -- a caller writing ``data = obj._update_data(..., data)`` is
 rebinding a name, not receiving a new object.
 
-Backlog: **37** of this repository's **772** ``_prepare_*`` definitions call
+Backlog: **37** of this repository's **778** ``_prepare_*`` definitions call
 ``create()``, ``write()`` or ``unlink()`` in their own body. A candidate
 population -- only a builder whose **return value** is not the mapping it
 assembles is in the wrong family.
@@ -1655,12 +1655,12 @@ a hook prefix here at all, because nothing points at the method.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **``_update_``, not ``_set_``** ``[review]``, for a method that writes to records
-and is wired to nothing. ``_set_*`` (134 definitions) and ``_update_*`` (315) are
+and is wired to nothing. ``_set_*`` (127 definitions) and ``_update_*`` (322) are
 near-evenly split, so this is a backlog rather than a tidy-up. Three carve-outs,
 all bindings:
 
 * an ``inverse=`` target is ``_inverse_<field>`` and was never a ``_set_``
-  question -- 251 against 3 now that the count is drained;
+  question -- 253 against 1 now that the count is drained;
 * ``set_values`` / ``get_values`` on ``res.config.settings`` are *bound by name,
   not by inheritance* (§2.4.14);
 * ``set_param`` on ``ir.config_parameter`` is public and reached from JS and XML
@@ -1674,7 +1674,7 @@ the duplicate report this section exists to produce.
 create where the target is missing, a write where it differs and an unlink where
 the source is gone. **The canonical is ``_sync_*``**, and the tree had a family
 for it this section had never named: **62** definitions spell it ``_sync_*`` and
-**14** spell it ``_synchronize_*``, against ``_update_*``'s **315**. It is not
+**14** spell it ``_synchronize_*``, against ``_update_*``'s **322**. It is not
 merged into ``_update_`` -- the verb carries a fact the other does not, that there
 is a source of truth elsewhere. ``[review]`` rather than ``ABOLISHED``, since not
 every ``_synchronize_`` is this operation.

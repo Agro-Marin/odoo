@@ -263,7 +263,7 @@ class ProductTemplate(models.Model):
                     continue
                 template_ids.append(product_tmpl.id)
                 quantities.append(qty)
-            self.browse(template_ids)._set_qty_available(quantities)
+            self.browse(template_ids)._update_qty_available(quantities)
         return product_templates
 
     def _check_qty_available_update(self, quantities):
@@ -313,7 +313,7 @@ class ProductTemplate(models.Model):
                     ),
                 )
 
-    def _set_qty_available(self, quantities):
+    def _update_qty_available(self, quantities):
         template_ids = []
         quantities_to_apply = []
         for template, qty in zip(self, quantities, strict=True):
@@ -325,7 +325,7 @@ class ProductTemplate(models.Model):
             return
         templates_to_apply = self.browse(template_ids)
         templates_to_apply._check_qty_available_update(quantities_to_apply)
-        templates_to_apply.product_variant_id._apply_qty_available(quantities_to_apply)
+        templates_to_apply.product_variant_id._update_qty_available(quantities_to_apply)
 
     def write(self, vals):
         if vals.get("company_id"):
@@ -623,7 +623,7 @@ class ProductTemplate(models.Model):
     def _inverse_qty_available(self):
         if self.env.context.get("skip_qty_available_update", False):
             return
-        self._set_qty_available([template.qty_available for template in self])
+        self._update_qty_available([template.qty_available for template in self])
 
     @api.onchange("tracking")
     def _onchange_tracking(self):

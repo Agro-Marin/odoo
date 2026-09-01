@@ -86,15 +86,15 @@ class TestProductQuantityScope(TransactionCase):
         ]
         self.assertFalse(
             offenders,
-            "the scope lives on stock.location as _quantity_domains / "
-            "_quantity_domains_from_context / _resolve_scope_ids_from_context, and "
+            "the scope lives on stock.location as _get_domains_quantity / "
+            "_get_domains_quantity_from_context / _resolve_scope_ids_from_context, and "
             "get_context_record_ids is a function in stock.tools.quantity; "
             "these are stale and are never called: " + ", ".join(offenders),
         )
         Location = type(self.env["stock.location"])
         for name in (
-            "_quantity_domains",
-            "_quantity_domains_from_context",
+            "_get_domains_quantity",
+            "_get_domains_quantity_from_context",
             "_resolve_scope_ids_from_context",
         ):
             self.assertTrue(hasattr(Location, name), f"stock.location lost {name}")
@@ -102,14 +102,14 @@ class TestProductQuantityScope(TransactionCase):
     def test_strict_scope_already_skips_in_progress(self):
         Location = self.env["stock.location"]
         location_ids = self.stock_location.ids
-        strict = Location.with_context(strict=True)._quantity_domains(location_ids)
+        strict = Location.with_context(strict=True)._get_domains_quantity(location_ids)
         strict_skipping = Location.with_context(
             strict=True, skip_in_progress=True
-        )._quantity_domains(location_ids)
+        )._get_domains_quantity(location_ids)
         self.assertEqual(repr(strict), repr(strict_skipping))
         self.assertNotIn("location_final_id", repr(strict))
-        plain = Location._quantity_domains(location_ids)
-        skipping = Location.with_context(skip_in_progress=True)._quantity_domains(
+        plain = Location._get_domains_quantity(location_ids)
+        skipping = Location.with_context(skip_in_progress=True)._get_domains_quantity(
             location_ids
         )
         self.assertIn("location_final_id", repr(plain))
@@ -282,7 +282,9 @@ class TestProductQuantityScope(TransactionCase):
                 self.assertTrue(result["context"]["search_default_filter_not_snoozed"])
 
     def test_prepare_quantities_scope_carries_the_dates_without_reading(self):
-        location_domains = self.env["stock.location"]._quantity_domains_from_context()
+        location_domains = self.env[
+            "stock.location"
+        ]._get_domains_quantity_from_context()
         self.env.flush_all()
         past = fields.Datetime.now() - datetime.timedelta(days=5)
         queries_before = self.env.cr.sql_log_count
@@ -347,7 +349,9 @@ class TestProductQuantityScope(TransactionCase):
     def test_prepare_quantities_vals_accepts_preresolved_location_domains(self):
         self._stock_up(self.product, 6)
         Product = self.env["product.product"]
-        location_domains = self.env["stock.location"]._quantity_domains_from_context()
+        location_domains = self.env[
+            "stock.location"
+        ]._get_domains_quantity_from_context()
         vals = self.product._prepare_quantities_vals(
             QuantityFilters(), location_domains=location_domains
         )
@@ -362,17 +366,17 @@ class TestProductQuantityScope(TransactionCase):
         Product = self.env["product.product"]
         cls = type(self.env["stock.location"])
         calls = []
-        original = cls._quantity_domains_from_context
+        original = cls._get_domains_quantity_from_context
 
         def counting(records):
             calls.append(1)
             return original(records)
 
-        cls._quantity_domains_from_context = counting
+        cls._get_domains_quantity_from_context = counting
         try:
             Product.search([("qty_free", ">", 0)])
         finally:
-            cls._quantity_domains_from_context = original
+            cls._get_domains_quantity_from_context = original
         self.assertEqual(
             len(calls),
             1,
@@ -924,17 +928,17 @@ class TestProductQuantityScope(TransactionCase):
         self._stock_up(self.product, 6)
         cls = type(self.env["stock.location"])
         calls = []
-        original = cls._quantity_domains_from_context
+        original = cls._get_domains_quantity_from_context
 
         def counting(records):
             calls.append(1)
             return original(records)
 
-        cls._quantity_domains_from_context = counting
+        cls._get_domains_quantity_from_context = counting
         try:
             self.env["product.template"].search([("qty_available_virtual", ">", 0)])
         finally:
-            cls._quantity_domains_from_context = original
+            cls._get_domains_quantity_from_context = original
         self.assertEqual(
             len(calls),
             1,

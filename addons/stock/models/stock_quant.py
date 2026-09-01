@@ -611,7 +611,7 @@ class StockQuant(models.Model):
         self.last_count_date = False
         date_by_quant = self._read_move_line_dates(is_inventory=True)
         for quant in self:
-            quant.last_count_date = date_by_quant.get(quant._move_line_match_key())
+            quant.last_count_date = date_by_quant.get(quant._get_move_line_match_key())
 
     @api.depends(
         "product_id", "location_id", "lot_id", "package_id", "owner_id", "in_date"
@@ -620,7 +620,7 @@ class StockQuant(models.Model):
         now = fields.Datetime.now()
         date_by_quant = self._read_move_line_dates(is_inventory=False)
         for quant in self:
-            date_last_movement = date_by_quant.get(quant._move_line_match_key())
+            date_last_movement = date_by_quant.get(quant._get_move_line_match_key())
             quant.date_last_movement = date_last_movement
             dates = [d for d in (date_last_movement, quant.in_date) if d]
             quant.days_since_last_movement = (
@@ -803,7 +803,7 @@ class StockQuant(models.Model):
     def _search_on_hand(self, operator, value):
         if operator != "in":
             return NotImplemented
-        return self.env["stock.location"]._quantity_domains_from_context()[0]
+        return self.env["stock.location"]._get_domains_quantity_from_context()[0]
 
     def _read_group_select(self, aggregate_spec, query):
         if aggregate_spec == "inventory_quantity:sum" and self.env.context.get(
@@ -944,12 +944,12 @@ class StockQuant(models.Model):
     @api.model
     def action_view_quants(self):
         self = self.with_context(search_default_internal_loc=1)
-        self = self._set_view_context()
+        self = self._with_view_context()
         return self._get_quants_action(extend=True)
 
     @api.model
     def action_view_inventory(self):
-        self = self._set_view_context()
+        self = self._with_view_context()
         if (
             not self.env["ir.config_parameter"]
             .sudo()
@@ -1199,7 +1199,7 @@ class StockQuant(models.Model):
                 )
             if quant.product_uom_id.compare(quant.inventory_diff_quantity, 0) > 0:
                 move_vals.append(
-                    quant._get_inventory_move_values(
+                    quant._prepare_inventory_move_vals(
                         quant.inventory_diff_quantity,
                         inventory_location,
                         quant.location_id,
@@ -1208,7 +1208,7 @@ class StockQuant(models.Model):
                 )
             else:
                 move_vals.append(
-                    quant._get_inventory_move_values(
+                    quant._prepare_inventory_move_vals(
                         -quant.inventory_diff_quantity,
                         quant.location_id,
                         inventory_location,
@@ -1255,7 +1255,7 @@ class StockQuant(models.Model):
     def _get_forbidden_fields_write(self):
         return ["product_id", "location_id", "lot_id", "package_id", "owner_id"]
 
-    def _get_inventory_move_values(
+    def _prepare_inventory_move_vals(
         self,
         qty,
         location_id,
@@ -1311,7 +1311,7 @@ class StockQuant(models.Model):
             }
         ]
 
-    def _move_line_match_key(self):
+    def _get_move_line_match_key(self):
         self.check_singleton()
         return (
             self.location_id.id,
@@ -1507,28 +1507,28 @@ class StockQuant(models.Model):
                 ),
             )
         domains.append(self._get_expiration_domain())
-        excluded = self._blocked_excluded_types()
+        excluded = self._get_block_types_excluded()
         if excluded is None:
             excluded = self.env[
                 "stock.location"
-            ]._blocked_types_excluded_from_gathering()
+            ]._get_block_types_excluded_from_gathering()
         if excluded:
             domains.append(
                 Domain("location_id.effective_block_type", "not in", excluded),
             )
         return Domain.AND(domains)
 
-    def _blocked_gather_context(self, reserving=False):
-        if self._blocked_excluded_types() is not None:
+    def _with_block_gather_context(self, reserving=False):
+        if self._get_block_types_excluded() is not None:
             return self
-        excluded = self.env["stock.location"]._blocked_types_excluded_from_gathering(
+        excluded = self.env["stock.location"]._get_block_types_excluded_from_gathering(
             reserving=reserving,
         )
         return self.with_context(
             **{CONTEXT_BLOCK_EXCLUDED_TYPES: internal_payload(excluded)},
         )
 
-    def _blocked_excluded_types(self):
+    def _get_block_types_excluded(self):
         return read_internal_payload(self.env.context, CONTEXT_BLOCK_EXCLUDED_TYPES)
 
     def _get_expiration_domain(self):
@@ -1660,7 +1660,7 @@ class StockQuant(models.Model):
             )
         return res
 
-    def _reservation_key(self):
+    def _get_reservation_key(self):
         self.check_singleton()
         return (self.location_id, self.lot_id, self.package_id, self.owner_id)
 
@@ -1694,7 +1694,7 @@ class StockQuant(models.Model):
         allow_negative=False,
     ):
         quants = (
-            self._blocked_gather_context()
+            self._with_block_gather_context()
             .sudo()
             ._gather(
                 product_id,
@@ -1775,7 +1775,7 @@ class StockQuant(models.Model):
             return 0.0
         return float(math.floor(round(quantity, precision_digits)))
 
-    def _reservation_candidates(self, quants):
+    def _get_reservation_candidates(self, quants):
         ledger = self.env.context.get("reservation_ledger")
         return [
             ReservationCandidate(
@@ -1783,7 +1783,7 @@ class StockQuant(models.Model):
                 quant.quantity,
                 quant.reserved_quantity
                 + (ledger.get_pending(quant) if ledger is not None else 0.0),
-                quant._reservation_key(),
+                quant._get_reservation_key(),
             )
             for quant in quants
         ]
@@ -1799,7 +1799,7 @@ class StockQuant(models.Model):
         owner_id=None,
         strict=False,
     ):
-        self = self._blocked_gather_context(reserving=True).sudo()
+        self = self._with_block_gather_context(reserving=True).sudo()
 
         removal_strategy = self._get_removal_strategy(product_id, location_id)
         self = self.with_context(_gather_removal_strategy=removal_strategy)
@@ -1861,7 +1861,7 @@ class StockQuant(models.Model):
             return []
 
         reserved = distribute_reservation(
-            self._reservation_candidates(quants),
+            self._get_reservation_candidates(quants),
             quantity,
             precision_digits,
             whole_units=whole_units,
@@ -2207,7 +2207,7 @@ class StockQuant(models.Model):
                 result_package_id = quant.package_id
                 set_parent_package(quant_ids, result_package_id, limit_ids)
             move_vals.append(
-                quant.with_context(inventory_name=message)._get_inventory_move_values(
+                quant.with_context(inventory_name=message)._prepare_inventory_move_vals(
                     quant.quantity,
                     quant.location_id,
                     location_dest_id or quant.location_id,
@@ -2317,7 +2317,7 @@ class StockQuant(models.Model):
             barcode += tracking_ai + self.lot_id.name
         return barcode
 
-    def _set_view_context(self):
+    def _with_view_context(self):
         if not self.env.user.has_group("stock.group_stock_multi_locations"):
             company_user = self.env.company
             warehouse = self.env["stock.warehouse"].search(

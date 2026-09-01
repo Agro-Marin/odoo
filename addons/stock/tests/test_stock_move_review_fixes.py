@@ -365,7 +365,7 @@ class TestStockMoveReviewFixes(TestStockCommon):
                 "picking_id": picking.id,
             },
         )
-        self.assertIn(move.company_id, move._key_assign_picking())
+        self.assertIn(move.company_id, move._get_picking_assignation_key())
 
     def test_compute_dependencies_locked(self):
         registry = self.env.registry

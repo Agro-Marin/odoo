@@ -2191,7 +2191,7 @@ class StockWarehouse(models.Model):
             return
         self.env["res.partner"].browse(partner_id).with_company(
             company
-        )._set_stock_property_locations(transit_location)
+        )._update_stock_property_locations(transit_location)
 
     @api.model
     def _warehouse_redirect_warning(self):

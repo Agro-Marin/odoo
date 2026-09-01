@@ -234,7 +234,7 @@ class TestForcedOperationAudit(BlockedLocationCase):
 
     def test_audit_body_is_markup(self):
         entries = []
-        body = self.Move._blocked_audit_body(entries)
+        body = self.Move._prepare_block_audit_body(entries)
         self.assertIsInstance(body, Markup)
 
 

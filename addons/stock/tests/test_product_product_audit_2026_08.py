@@ -382,7 +382,7 @@ class TestProductProductAudit(TransactionCase):
                 if reversed_order:
                     products = served + stranded
                 with self.subTest(warehouseless_first=not reversed_order):
-                    products._apply_qty_available([4.0] * len(products))
+                    products._update_qty_available([4.0] * len(products))
                     self.env.invalidate_all()
                     self.assertEqual(
                         served.qty_available,

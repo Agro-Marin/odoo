@@ -393,9 +393,9 @@ class ProductProduct(models.Model):
     def _inverse_qty_available(self):
         if self.env.context.get("skip_qty_available_update", False):
             return
-        self._apply_qty_available([product.qty_available for product in self])
+        self._update_qty_available([product.qty_available for product in self])
 
-    def _apply_qty_available(self, quantities):
+    def _update_qty_available(self, quantities):
         product_ids = []
         quantities_to_apply = []
         for product, quantity in zip(self, quantities, strict=True):
@@ -549,7 +549,7 @@ class ProductProduct(models.Model):
     def _get_quantity_totals(self, field, location_domains=None):
         location_domains = (
             location_domains
-            or self.env["stock.location"]._quantity_domains_from_context()
+            or self.env["stock.location"]._get_domains_quantity_from_context()
         )
         candidates = self._get_quantity_search_candidates(
             location_domains=location_domains
@@ -606,7 +606,7 @@ class ProductProduct(models.Model):
 
         product_ids = set()
         domain_quant = self._narrow_quantity_domains(
-            self.env["stock.location"]._quantity_domains_from_context()[0],
+            self.env["stock.location"]._get_domains_quantity_from_context()[0],
             Domain.TRUE,
             Domain.TRUE,
             filters,
@@ -811,7 +811,7 @@ class ProductProduct(models.Model):
             move_out &= Domain([("move_line_ids.package_id", "=", package_id)])
         return quant, move_in, move_out
 
-    def _quantity_line_leaves(self, filters):
+    def _get_domains_quantity_leaves(self, filters):
         in_leaves = Domain.TRUE
         out_leaves = Domain.TRUE
         narrowed = False
@@ -837,7 +837,7 @@ class ProductProduct(models.Model):
     def _prepare_quantities_scope(self, filters, location_domains=None):
         domain_quant_loc, domain_move_in_loc, domain_move_out_loc = (
             location_domains
-            or self.env["stock.location"]._quantity_domains_from_context()
+            or self.env["stock.location"]._get_domains_quantity_from_context()
         )
         product_domain = Domain([("product_id", "in", self.ids)])
         domain_quant = product_domain & domain_quant_loc
@@ -877,7 +877,7 @@ class ProductProduct(models.Model):
             state_done_future = Domain([("state", "=", "done"), ("date", ">", to_date)])
             domain_move_in_done = state_done_future & domain_move_in_done
             domain_move_out_done = state_done_future & domain_move_out_done
-            in_leaves, out_leaves = self._quantity_line_leaves(filters)
+            in_leaves, out_leaves = self._get_domains_quantity_leaves(filters)
             if in_leaves is not None:
                 domain_move_in_done_lines = (
                     Domain([("move_id", "any", domain_move_in_done)]) & in_leaves
@@ -1046,7 +1046,7 @@ class ProductProduct(models.Model):
     def _get_quantity_search_candidates(self, location_domains=None):
         domain_quant_loc, domain_move_in_loc, domain_move_out_loc = (
             location_domains
-            or self.env["stock.location"]._quantity_domains_from_context()
+            or self.env["stock.location"]._get_domains_quantity_from_context()
         )
         Quant = self.env["stock.quant"]
         Move = self.env["stock.move"]

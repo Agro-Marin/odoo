@@ -25,7 +25,7 @@ class ResCompany(models.Model):
             .search([("code", "=", "stock.dropshipping")])
             .mapped("company_id")
         )
-        self._companies_without(having)._create_dropship_sequence()
+        self._get_companies_without(having)._create_dropship_sequence()
 
     def _create_per_company_sequences(self):
         super()._create_per_company_sequences()
@@ -67,7 +67,7 @@ class ResCompany(models.Model):
             .search([("code", "=", "dropship")])
             .company_id
         )
-        self._companies_without(having)._create_dropship_picking_type()
+        self._get_companies_without(having)._create_dropship_picking_type()
 
     def _create_per_company_picking_types(self):
         super()._create_per_company_picking_types()
@@ -115,7 +115,7 @@ class ResCompany(models.Model):
             .search([("route_id", "=", dropship_route.id)])
             .mapped("company_id")
         )
-        self._companies_without(having)._create_dropship_rule()
+        self._get_companies_without(having)._create_dropship_rule()
 
     def _create_per_company_rules(self):
         super()._create_per_company_rules()

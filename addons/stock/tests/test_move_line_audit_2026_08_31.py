@@ -279,8 +279,8 @@ class TestReservationKeyHasOneDefinition(MoveLineAuditCase):
         picking = self._outgoing(product, 2.0)
         line = picking.move_line_ids
 
-        stored = line._reservation_key()
-        moved = line._reservation_key({"location_id": self.customer})
+        stored = line._get_reservation_key()
+        moved = line._get_reservation_key({"location_id": self.customer})
 
         self.assertEqual(len(stored), len(RESERVATION_KEY_FIELDS))
         self.assertEqual(stored[0], moved[0], "product must be untouched")
@@ -293,8 +293,8 @@ class TestReservationKeyHasOneDefinition(MoveLineAuditCase):
         line = self._outgoing(product, 2.0).move_line_ids
 
         self.assertEqual(
-            line._reservation_key(),
-            line._reservation_key({"location_dest_id": self.customer}),
+            line._get_reservation_key(),
+            line._get_reservation_key({"location_dest_id": self.customer}),
         )
 
     def test_rendered_keys_tracks_logged_relations(self):

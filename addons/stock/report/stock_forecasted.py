@@ -41,7 +41,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
             ]
         return [("product_id", "in", product_ids)]
 
-    def _move_domain(self, product_template_ids, product_ids, wh_location_ids):
+    def _get_domain_move(self, product_template_ids, product_ids, wh_location_ids):
         move_domain = self._get_domain_product(product_template_ids, product_ids)
         move_domain += [("product_uom_qty", "!=", 0)]
         out_domain = move_domain + [
@@ -60,18 +60,20 @@ class StockForecasted_Product_Product(models.AbstractModel):
         ]
         return in_domain, out_domain
 
-    def _move_draft_domain(self, product_template_ids, product_ids, wh_location_ids):
-        in_domain, out_domain = self._move_domain(
+    def _get_domain_move_draft(
+        self, product_template_ids, product_ids, wh_location_ids
+    ):
+        in_domain, out_domain = self._get_domain_move(
             product_template_ids, product_ids, wh_location_ids
         )
         in_domain += [("state", "=", "draft")]
         out_domain += [("state", "=", "draft")]
         return in_domain, out_domain
 
-    def _move_confirmed_domain(
+    def _get_domain_move_confirmed(
         self, product_template_ids, product_ids, wh_location_ids
     ):
-        in_domain, out_domain = self._move_domain(
+        in_domain, out_domain = self._get_domain_move(
             product_template_ids, product_ids, wh_location_ids
         )
         confirmed_states = ["waiting", "confirmed", "partially_available", "assigned"]
@@ -174,7 +176,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
                 }
             )
 
-        in_domain, out_domain = self._move_draft_domain(
+        in_domain, out_domain = self._get_domain_move_draft(
             product_template_ids, product_ids, wh_location_ids
         )
         in_sum = {
@@ -453,7 +455,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
         return demand
 
     def _get_report_moves(self, product_template_ids, product_ids, wh_location_ids):
-        in_domain, out_domain = self._move_confirmed_domain(
+        in_domain, out_domain = self._get_domain_move_confirmed(
             product_template_ids, product_ids, wh_location_ids
         )
         past_domain = [("date_reservation", "<=", date.today())]
@@ -474,8 +476,8 @@ class StockForecasted_Product_Product(models.AbstractModel):
         outs = past_outs | future_outs
 
         ins = self.env["stock.move"].search(in_domain, order="priority desc, date, id")
-        outs._rollup_move_origs_fetch()
-        ins._rollup_move_dests_fetch()
+        outs._prefetch_rollup_move_origs()
+        ins._prefetch_rollup_move_dests()
 
         return ins, outs, self._get_linked_moves_per_out(ins, outs)
 

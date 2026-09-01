@@ -435,12 +435,12 @@ class TestQuantBlockedContextProtocol(TestStockCommon):
         )
 
     def test_the_model_uses_the_shared_protocol(self):
-        scoped = self.Quant._blocked_gather_context()
+        scoped = self.Quant._with_block_gather_context()
         self.assertEqual(
-            scoped._blocked_excluded_types(),
+            scoped._get_block_types_excluded(),
             read_internal_payload(scoped.env.context, CONTEXT_BLOCK_EXCLUDED_TYPES),
         )
-        self.assertIsNone(self.Quant._blocked_excluded_types())
+        self.assertIsNone(self.Quant._get_block_types_excluded())
 
 
 @tagged("post_install", "-at_install")

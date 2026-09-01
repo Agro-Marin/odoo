@@ -631,8 +631,8 @@ class TestQuantFormLookups(TestStockCommon):
         self.assertIn(
             "owner_id",
             conditions,
-            "owner_id is part of the quant's identity in _move_line_match_key and "
-            "_reservation_key; history cannot be the one place it is dropped",
+            "owner_id is part of the quant's identity in _get_move_line_match_key and "
+            "_get_reservation_key; history cannot be the one place it is dropped",
         )
 
     def test_the_constraint_methods_are_named_and_scoped_as_constraints(self):

@@ -1663,7 +1663,7 @@ class TestWarehouse(TestStockCommon):
     def test_a_warehouse_address_keeps_its_locations_without_a_transit(self):
         vendor = self.env["res.partner"].create({"name": "Acme Supplies"})
         supplier_location = self.env.ref("stock.stock_location_suppliers")
-        vendor.with_company(self.env.company)._set_stock_property_locations(
+        vendor.with_company(self.env.company)._update_stock_property_locations(
             supplier_location
         )
         self.env.company.internal_transit_location_id = False

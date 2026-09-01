@@ -1141,7 +1141,7 @@ class StockMoveLine(models.Model):
                 abs(available_qty), ml_ids_to_ignore=ml_ids_to_ignore
             )
 
-    def _reservation_key(self, overrides=None):
+    def _get_reservation_key(self, overrides=None):
         self.check_singleton()
         overrides = overrides or {}
         return tuple(overrides.get(name, self[name]) for name in RESERVATION_KEY_FIELDS)
@@ -1176,10 +1176,10 @@ class StockMoveLine(models.Model):
         return self._apply_reservation_sign(-1)
 
     def _apply_reservation_sign(self, sign):
-        holding = self._reservation_holding_lines()
+        holding = self._filtered_holding_reservation()
         deltas = defaultdict(float)
         for ml in holding:
-            deltas[ml._reservation_key()] += sign * ml.quantity_product_uom
+            deltas[ml._get_reservation_key()] += sign * ml.quantity_product_uom
         holding._update_quant_reservations(deltas)
         return holding
 
@@ -1898,7 +1898,7 @@ class StockMoveLine(models.Model):
                 return action
         return package
 
-    def _reservation_holding_lines(self):
+    def _filtered_holding_reservation(self):
         return self.filtered(
             lambda ml: (
                 not ml.product_uom_id._is_zero_stored(
@@ -1937,11 +1937,11 @@ class StockMoveLine(models.Model):
             if not ml.product_uom_id._is_zero_stored(
                 ml.quantity_product_uom, ml.product_id.uom_id
             ) and not ml._should_bypass_reservation(ml.location_id):
-                deltas[ml._reservation_key()] -= ml.quantity_product_uom
+                deltas[ml._get_reservation_key()] -= ml.quantity_product_uom
 
             new_location = updates.get("location_id", ml.location_id)
             if not ml._should_bypass_reservation(new_location):
-                deltas[ml._reservation_key(updates)] += new_reserved_qty
+                deltas[ml._get_reservation_key(updates)] += new_reserved_qty
 
             if (
                 "quantity" in vals

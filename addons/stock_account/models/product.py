@@ -547,7 +547,7 @@ class ProductProduct(models.Model):
             return False
         domain = (
             Domain([("product_id", "=", self.id)])
-            & self.env["stock.location"]._quantity_domains_from_context()[0]
+            & self.env["stock.location"]._get_domains_quantity_from_context()[0]
         )
         physical_qty = sum(
             self.env["stock.quant"].sudo().search(domain).mapped("quantity")

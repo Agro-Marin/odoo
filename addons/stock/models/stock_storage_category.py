@@ -21,12 +21,12 @@ class StockStorageCategory(models.Model):
     product_capacity_ids = fields.One2many(
         comodel_name="stock.storage.category.capacity",
         compute="_compute_storage_capacity_ids",
-        inverse="_set_storage_capacity_ids",
+        inverse="_inverse_storage_capacity_ids",
     )
     package_capacity_ids = fields.One2many(
         comodel_name="stock.storage.category.capacity",
         compute="_compute_storage_capacity_ids",
-        inverse="_set_storage_capacity_ids",
+        inverse="_inverse_storage_capacity_ids",
     )
     allow_new_product = fields.Selection(
         selection=[
@@ -66,7 +66,7 @@ class StockStorageCategory(models.Model):
             "product.template"
         ]._get_weight_uom_name_from_ir_config_parameter()
 
-    def _set_storage_capacity_ids(self):
+    def _inverse_storage_capacity_ids(self):
         for storage_category in self:
             storage_category.capacity_ids = (
                 storage_category.product_capacity_ids

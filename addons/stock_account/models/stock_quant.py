@@ -125,7 +125,7 @@ class StockQuant(models.Model):
             else:
                 super(StockQuant, inventories)._apply_inventory(date)
 
-    def _get_inventory_move_values(
+    def _prepare_inventory_move_vals(
         self,
         qty,
         location_id,
@@ -133,7 +133,7 @@ class StockQuant(models.Model):
         package_id=False,
         package_dest_id=False,
     ):
-        res_move = super()._get_inventory_move_values(
+        res_move = super()._prepare_inventory_move_vals(
             qty, location_id, location_dest_id, package_id, package_dest_id
         )
         if not self.env.context.get("inventory_name"):

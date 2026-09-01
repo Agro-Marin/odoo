@@ -874,7 +874,7 @@ class StockMove(models.Model):
 
         product_moves = self - not_product_moves
         now = fields.Datetime.now()
-        virtual_available_dict = product_moves._forecast_prefetch_virtual_available(now)
+        virtual_available_dict = product_moves._get_forecast_virtual_available(now)
 
         def virtual_qty(key, product_id, idx):
             entry = virtual_available_dict.get(key, {}).get(product_id)
@@ -889,7 +889,7 @@ class StockMove(models.Model):
                     rounding_method="HALF-UP",
                 )
                 continue
-            key = move._forecast_virtual_key(now)
+            key = move._get_forecast_virtual_key(now)
             qty_free = virtual_qty(key, move.product_id.id, 1)
             if (
                 move.state == "draft"
@@ -920,9 +920,11 @@ class StockMove(models.Model):
                     forecast_availability += move.product_qty
                 move.forecast_availability = forecast_availability
 
-        self._forecast_apply_outgoing(outgoing_unreserved_moves_per_warehouse)
+        self._update_forecast_availability_outgoing(
+            outgoing_unreserved_moves_per_warehouse
+        )
 
-    def _forecast_wh_date_key(self, now, incoming=False):
+    def _get_forecast_warehouse_date_key(self, now, incoming=False):
         warehouse_id = (
             self.location_dest_id.warehouse_id.id
             if incoming
@@ -930,22 +932,22 @@ class StockMove(models.Model):
         )
         return warehouse_id, max(self.date or now, now)
 
-    def _forecast_virtual_key(self, now):
+    def _get_forecast_virtual_key(self, now):
         self.check_singleton()
         if self.state == "assigned":
             return None
         if self._is_consuming():
             if self.state != "draft":
                 return None
-            return self._forecast_wh_date_key(now)
+            return self._get_forecast_warehouse_date_key(now)
         if self.picking_type_id.code == "incoming":
-            return self._forecast_wh_date_key(now, incoming=True)
+            return self._get_forecast_warehouse_date_key(now, incoming=True)
         return None
 
-    def _forecast_prefetch_virtual_available(self, now):
+    def _get_forecast_virtual_available(self, now):
         prefetch_virtual_available = defaultdict(set)
         for move in self:
-            if (key := move._forecast_virtual_key(now)) is not None:
+            if (key := move._get_forecast_virtual_key(now)) is not None:
                 prefetch_virtual_available[key].add(move.product_id.id)
         virtual_available_dict = {}
         for key_context, product_ids in prefetch_virtual_available.items():
@@ -966,7 +968,9 @@ class StockMove(models.Model):
             }
         return virtual_available_dict
 
-    def _forecast_apply_outgoing(self, outgoing_unreserved_moves_per_warehouse):
+    def _update_forecast_availability_outgoing(
+        self, outgoing_unreserved_moves_per_warehouse
+    ):
         for warehouse, moves_ids in outgoing_unreserved_moves_per_warehouse.items():
             if not warehouse:
                 continue
@@ -1006,13 +1010,13 @@ class StockMove(models.Model):
                 "waiting",
                 "partially_available",
             ]:
-                move.date_reservation = move._reservation_date()
+                move.date_reservation = move._get_date_reservation()
             elif move.picking_type_id.reservation_method == "manual":
                 move.date_reservation = False
             else:
                 move.date_reservation = move.date_reservation
 
-    def _reservation_date(self, common_days=None, priority_days=None):
+    def _get_date_reservation(self, common_days=None, priority_days=None):
         self.check_singleton()
         picking_type = self.picking_type_id
         if common_days is None:
@@ -1022,9 +1026,11 @@ class StockMove(models.Model):
         days = priority_days if self.priority == "1" else common_days
         return fields.Date.to_date(self.date) - timedelta(days=days)
 
-    def _set_reservation_date_from_days(self, common_days, priority_days):
+    def _update_date_reservation_from_days(self, common_days, priority_days):
         for move in self:
-            move.date_reservation = move._reservation_date(common_days, priority_days)
+            move.date_reservation = move._get_date_reservation(
+                common_days, priority_days
+            )
 
     @api.depends("product_uom_id")
     def _compute_packaging_uom_id(self):
@@ -1986,7 +1992,7 @@ class StockMove(models.Model):
         return True
 
     def _action_done(self, cancel_backorder=False):
-        self = self.with_context(**self._blocked_completion_context())
+        self = self.with_context(**self._prepare_block_completion_context())
 
         moves = self.filtered(lambda move: move.state == "draft")._action_confirm(
             merge=False,
@@ -2029,7 +2035,7 @@ class StockMove(models.Model):
         moves_todo._push_and_assign_downstream()
 
         if self.env.context.get("is_scrap"):
-            moves_todo._post_blocked_audit()
+            moves_todo._post_block_audit()
             return moves_todo
 
         if picking and not cancel_backorder:
@@ -2039,16 +2045,16 @@ class StockMove(models.Model):
         if moves_todo:
             moves_todo._check_quantity()
             moves_todo._action_synch_order()
-            moves_todo._post_blocked_audit()
+            moves_todo._post_block_audit()
         return moves_todo
 
-    def _blocked_completion_context(self):
+    def _prepare_block_completion_context(self):
         context = {CONTEXT_BLOCK_COMPLETING: INTERNAL_CONTEXT_FLAG}
         if self and all(self.mapped("is_inventory")):
             context[CONTEXT_BLOCK_IS_INVENTORY] = INTERNAL_CONTEXT_FLAG
         return context
 
-    def _blocked_audit_entries(self):
+    def _get_block_audit_entries(self):
         deciding = self.with_context(
             **{CONTEXT_BLOCK_COMPLETING: None, CONTEXT_BLOCK_IS_INVENTORY: None},
         ).env
@@ -2065,7 +2071,7 @@ class StockMove(models.Model):
                     continue
                 key = (location.id, direction)
                 if key not in decisions:
-                    decisions[key] = location.with_env(deciding)._block_decision(
+                    decisions[key] = location.with_env(deciding)._get_block_decision(
                         direction,
                     )
                 allowed, override = decisions[key]
@@ -2092,8 +2098,8 @@ class StockMove(models.Model):
                 )
         return entries
 
-    def _post_blocked_audit(self):
-        entries = self._blocked_audit_entries()
+    def _post_block_audit(self):
+        entries = self._get_block_audit_entries()
         if not entries:
             return
         by_thread = defaultdict(list)
@@ -2102,12 +2108,12 @@ class StockMove(models.Model):
         author = self.env.user.partner_id
         for thread, thread_entries in by_thread.items():
             thread.sudo().message_post(
-                body=self._blocked_audit_body(thread_entries),
+                body=self._prepare_block_audit_body(thread_entries),
                 subject=self.env._("Blocked Location Operation"),
                 author_id=author.id,
             )
 
-    def _blocked_audit_body(self, entries):
+    def _prepare_block_audit_body(self, entries):
         reason_labels = {
             BLOCK_REASON_OVERRIDE_HARD: self.env._("Hard Block override"),
             BLOCK_REASON_OVERRIDE_SOFT: self.env._("Soft Block override"),
@@ -2133,7 +2139,7 @@ class StockMove(models.Model):
             for (location, reason), group in grouped.items():
                 body += Markup("<li><b>%s</b> (%s: %s)<ul>") % (
                     location.display_name,
-                    location._block_type_label(location.effective_block_type),
+                    location._get_block_type_label(location.effective_block_type),
                     reason_labels[reason],
                 )
                 for entry in group:
@@ -2298,7 +2304,7 @@ class StockMove(models.Model):
 
     def _update_picking(self):
         Picking = self.env["stock.picking"]
-        grouped_moves = groupby(self, key=lambda m: m._key_assign_picking())
+        grouped_moves = groupby(self, key=lambda m: m._get_picking_assignation_key())
         for _group, moves in grouped_moves:
             moves = self.env["stock.move"].concat(*moves)
             new_picking = False
@@ -3050,7 +3056,7 @@ class StockMove(models.Model):
             or self.product_id.uom_id.display_name,
         }
 
-    def _key_assign_picking(self):
+    def _get_picking_assignation_key(self):
         self.check_singleton()
         keys = (
             self.reference_ids,
@@ -3871,13 +3877,13 @@ class StockMove(models.Model):
                 lambda m, state=state: m.state != state
             ).state = state
 
-    def _rollup_move_dests_fetch(self):
-        self._rollup_moves_fetch("move_dest_ids")
+    def _prefetch_rollup_move_dests(self):
+        self._prefetch_rollup_moves("move_dest_ids")
 
-    def _rollup_move_origs_fetch(self):
-        self._rollup_moves_fetch("move_orig_ids")
+    def _prefetch_rollup_move_origs(self):
+        self._prefetch_rollup_moves("move_orig_ids")
 
-    def _rollup_moves_fetch(self, target_field):
+    def _prefetch_rollup_moves(self, target_field):
         seen = set(self.ids)
         self.fetch([target_field])
         next_ids = set(self[target_field].ids)

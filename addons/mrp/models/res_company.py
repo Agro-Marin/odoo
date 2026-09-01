@@ -27,7 +27,7 @@ class ResCompany(models.Model):
             .search([("code", "=", "mrp.unbuild")])
             .mapped("company_id")
         )
-        self._companies_without(having)._create_unbuild_sequence()
+        self._get_companies_without(having)._create_unbuild_sequence()
 
     def _create_per_company_sequences(self):
         super()._create_per_company_sequences()

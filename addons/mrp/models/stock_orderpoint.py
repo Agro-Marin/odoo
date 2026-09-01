@@ -275,7 +275,7 @@ class StockWarehouseOrderpoint(models.Model):
             result[orderpoint.id] = bom.product_uom_id
         return result
 
-    def _quantity_in_progress(self):
+    def _get_quantity_in_progress(self):
         bom_kits = self.env["mrp.bom"]._get_bom_by_product(
             self.product_id, bom_type="phantom"
         )
@@ -289,7 +289,7 @@ class StockWarehouseOrderpoint(models.Model):
         )
         res = super(
             StockWarehouseOrderpoint, orderpoints_without_kit
-        )._quantity_in_progress()
+        )._get_quantity_in_progress()
         for orderpoint, bom_kit in bom_kit_orderpoints.items():
             _dummy, bom_sub_lines = bom_kit._explode(orderpoint.product_id, 1)
             ratios_qty_available = []

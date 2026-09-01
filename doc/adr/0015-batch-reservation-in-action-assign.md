@@ -170,7 +170,22 @@ decision:
   earlier, because the cache fast path requires `strict` and the primary
   reservation gather is non-strict. Serving it would remove the last per-move
   query. This change makes that safer: with writes deferred, no quant is created
-  mid-loop, which is the case `_QuantsCache.covers()` exists to refuse.
+  mid-loop, which is the case `QuantsCache.is_covering()` exists to refuse.
 
 Neither was attempted: the failure mode is silent under-reservation, and both
 want concurrency tests this change did not need.
+
+## Amendments
+
+### 2026-08-31 — the cache predicate is named in Consequences and had moved
+
+Consequences named the refusal predicate as _QuantsCache.covers(), spelled with
+a leading underscore and the verb in the indicative. Neither half is in the
+tree: the class is `stock/tools/reservation.py::QuantsCache`, public, and the
+predicate is `QuantsCache.is_covering()` -- `coding_guidelines.rst` §2.4.3 puts
+a method answering a question about its subject on `_is_`/`_has_`/`_can_`, and
+covers reads as a statement rather than a question.
+
+The pointer is corrected in place; the argument it supports is unchanged. Before
+this, `test_adr_coherence` reported this record as describing code that does not
+exist, which was true of the name and false of the code.

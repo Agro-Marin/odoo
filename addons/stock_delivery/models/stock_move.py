@@ -54,8 +54,8 @@ class StockMove(models.Model):
             vals["carrier_tracking_ref"] = carrier_tracking_ref
         return vals
 
-    def _key_assign_picking(self):
-        keys = super()._key_assign_picking()
+    def _get_picking_assignation_key(self):
+        keys = super()._get_picking_assignation_key()
         return keys + (self.sale_line_id.order_id.carrier_id,)
 
 

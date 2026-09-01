@@ -24,7 +24,7 @@ class MixinDateCategory(models.AbstractModel):
     _date_category_field = None
 
     date_category = fields.Selection(
-        selection=lambda self: self._date_category_selection(),
+        selection="_selection_date_category",
         string="Date Category",
         store=False,
         readonly=True,
@@ -46,7 +46,7 @@ class MixinDateCategory(models.AbstractModel):
         )
 
     @api.model
-    def _date_category_boundaries(self):
+    def _get_date_category_boundaries(self):
         start_today = fields.Datetime.context_timestamp(
             self.env.user,
             fields.Datetime.now(),
@@ -60,17 +60,17 @@ class MixinDateCategory(models.AbstractModel):
         }
 
     @api.model
-    def _date_category_selection(self):
+    def _selection_date_category(self):
         return [
             (key, self.env._(label))  # pylint: disable=gettext-variable
             for key, _upper, label, _kind in self.DATE_CATEGORIES
         ]
 
     @api.model
-    def _naive_date_category_boundaries(self):
+    def _get_date_category_boundaries_naive(self):
         return {
             key: value.astimezone(UTC).replace(tzinfo=None)
-            for key, value in self._date_category_boundaries().items()
+            for key, value in self._get_date_category_boundaries().items()
         }
 
     @api.model
@@ -81,7 +81,7 @@ class MixinDateCategory(models.AbstractModel):
             value = value.replace(tzinfo=UTC)
         else:
             value = value.astimezone(UTC)
-        bound = self._date_category_boundaries()
+        bound = self._get_date_category_boundaries()
         for key, upper, _label, _kind in self.DATE_CATEGORIES:
             if upper is None or value < bound[upper]:
                 return key
@@ -89,7 +89,7 @@ class MixinDateCategory(models.AbstractModel):
 
     @api.model
     def date_category_to_domain(self, field_name, date_category):
-        bound = self._naive_date_category_boundaries()
+        bound = self._get_date_category_boundaries_naive()
         lower = None
         for key, upper, _label, _kind in self.DATE_CATEGORIES:
             if key == date_category:
@@ -103,8 +103,8 @@ class MixinDateCategory(models.AbstractModel):
         return None
 
     @api.model
-    def _date_category_sql(self, date_sql):
-        bound = self._naive_date_category_boundaries()
+    def _get_date_category_sql(self, date_sql):
+        bound = self._get_date_category_boundaries_naive()
         arms = [
             SQL(
                 "WHEN %(date_value)s < %(limit)s THEN %(category)s",
@@ -133,7 +133,9 @@ class MixinDateCategory(models.AbstractModel):
         date_sql = model._field_to_sql(model._table, date_field, query)
         query.groupby = SQL("1, 2")
         rows = self.env.execute_query(
-            query.select(group_sql, self._date_category_sql(date_sql), SQL("COUNT(*)"))
+            query.select(
+                group_sql, self._get_date_category_sql(date_sql), SQL("COUNT(*)")
+            )
         )
         for record_id, date_category, count in rows:
             counts_by_record[record_id][date_category] = count

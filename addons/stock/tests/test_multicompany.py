@@ -11,7 +11,7 @@ class TestCompanyProvisioning(TransactionCase):
 
     def test_companies_with_property_counts_per_company_default(self):
         company = self.env["res.company"].create({"name": "Prov Co"})
-        having = self.env["res.company"]._companies_with_property(
+        having = self.env["res.company"]._get_companies_with_property(
             "product.template", "property_stock_inventory"
         )
         self.assertIn(
@@ -34,7 +34,7 @@ class TestCompanyProvisioning(TransactionCase):
             loc.id,
             company_id=False,
         )
-        having = self.env["res.company"]._companies_with_property(
+        having = self.env["res.company"]._get_companies_with_property(
             "product.template", "property_stock_inventory"
         )
         self.assertEqual(
@@ -43,7 +43,7 @@ class TestCompanyProvisioning(TransactionCase):
             "a global default must mark all companies as provisioned",
         )
         self.assertFalse(
-            self.env["res.company"]._companies_without(having),
+            self.env["res.company"]._get_companies_without(having),
             "no company should be considered missing the property",
         )
 
@@ -75,7 +75,7 @@ class TestCompanyProvisioning(TransactionCase):
         company.active = False
         self.assertIn(
             company,
-            self.env["res.company"]._all_companies(),
+            self.env["res.company"]._get_all_companies(),
             "archived companies must be visible to the backfill enumeration",
         )
         self.env["res.company"].create_missing_transit_location()
@@ -129,10 +129,10 @@ class TestCompanyStockProvisioning(TransactionCase):
         company = self.env["res.company"].create({"name": "Helper Co"})
         transit = company.internal_transit_location_id
         partner = self.env["res.partner"].create({"name": "Prop Partner"})
-        partner.with_company(company)._set_stock_property_locations(transit)
+        partner.with_company(company)._update_stock_property_locations(transit)
         self.assertEqual(partner.with_company(company).property_stock_customer, transit)
         self.assertEqual(partner.with_company(company).property_stock_supplier, transit)
-        partner.with_company(company)._set_stock_property_locations(
+        partner.with_company(company)._update_stock_property_locations(
             self.env["stock.location"]
         )
         self.assertFalse(partner.with_company(company).property_stock_customer)

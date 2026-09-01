@@ -98,7 +98,7 @@ class StockQuant(models.Model):
             reserved=self._field_to_sql(self._table, "reserved_quantity", query),
         )
 
-    def _set_view_context(self):
+    def _with_view_context(self):
         self_with_context = self
         if (
             self.env.context.get("default_product_id")
@@ -107,4 +107,4 @@ class StockQuant(models.Model):
             .use_expiration_date
         ):
             self_with_context = self.with_context(show_removal_date=True)
-        return super(StockQuant, self_with_context)._set_view_context()
+        return super(StockQuant, self_with_context)._with_view_context()

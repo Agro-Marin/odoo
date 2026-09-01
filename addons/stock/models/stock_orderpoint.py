@@ -473,7 +473,7 @@ class StockWarehouseOrderpoint(models.Model):
     def _get_domains_pending_moves(self, horizon_date):
         _dummy, domain_move_in, domain_move_out = self.env[
             "stock.location"
-        ]._quantity_domains(self.location_id.ids)
+        ]._get_domains_quantity(self.location_id.ids)
         scope = Domain.AND(
             [
                 [("product_id", "in", self.product_id.ids)],
@@ -797,7 +797,7 @@ class StockWarehouseOrderpoint(models.Model):
         values_by_orderpoint = self._read_product_qty_by_context(
             ["qty_available_virtual"],
         )
-        qty_in_progress = self._quantity_in_progress()
+        qty_in_progress = self._get_quantity_in_progress()
         return {
             orderpoint.id: (
                 values_by_orderpoint[orderpoint.id]["qty_available_virtual"]
@@ -1199,7 +1199,7 @@ class StockWarehouseOrderpoint(models.Model):
         self.flush_recordset(stored)
 
     @api.model
-    def _get_orderpoint_values(self, product_id, location_id):
+    def _prepare_orderpoint_vals(self, product_id, location_id):
         return {
             "product_id": product_id,
             "location_id": location_id,
@@ -1506,7 +1506,7 @@ class StockWarehouseOrderpoint(models.Model):
     def _post_process_scheduler(self):
         return True
 
-    def _quantity_in_progress(self):
+    def _get_quantity_in_progress(self):
         return dict.fromkeys(self._ids, 0.0)
 
     @api.autovacuum

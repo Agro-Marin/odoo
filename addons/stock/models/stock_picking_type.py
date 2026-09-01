@@ -389,7 +389,7 @@ class StockPickingType(models.Model):
                 "reservation_days_before_priority",
                 picking_type.reservation_days_before_priority,
             )
-            moves._set_reservation_date_from_days(common_days, priority_days)
+            moves._update_date_reservation_from_days(common_days, priority_days)
 
     def _update_default_locations_for_warehouse(self, vals):
         new_warehouse = self.warehouse_id
@@ -553,7 +553,7 @@ class StockPickingType(models.Model):
         state = picking._field_to_sql(table, "state", query)
         is_open = SQL("%s IN %s", state, self._OPEN_PICKING_STATES)
         late_cutoff = (
-            self._date_category_boundaries()["today"]
+            self._get_date_category_boundaries()["today"]
             .astimezone(UTC)
             .replace(tzinfo=None)
         )

@@ -982,7 +982,7 @@ class TestStockQuantImprovements(TestStockCommon):
             [("product_id", "=", product.id), ("location_id", "=", self.loc.id)]
         )
         self.assertEqual(
-            quant._reservation_key(),
+            quant._get_reservation_key(),
             (quant.location_id, quant.lot_id, quant.package_id, quant.owner_id),
         )
 

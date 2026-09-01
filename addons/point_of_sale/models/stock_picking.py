@@ -203,8 +203,8 @@ class StockMove(models.Model):
             vals["pos_order_id"] = order.id
         return vals
 
-    def _key_assign_picking(self):
-        keys = super()._key_assign_picking()
+    def _get_picking_assignation_key(self):
+        keys = super()._get_picking_assignation_key()
         return keys + (self.reference_ids.pos_order_ids,)
 
     @api.model

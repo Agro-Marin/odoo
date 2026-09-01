@@ -574,7 +574,7 @@ class StockLot(models.Model):
         domain_quant_loc, domain_move_in_loc, domain_move_out_loc = (
             self.env["stock.location"]
             .with_context(skip_in_progress=True)
-            ._quantity_domains_from_context()
+            ._get_domains_quantity_from_context()
         )
         owner_id = self.env.context.get("owner_id")
         package_id = self.env.context.get("package_id")

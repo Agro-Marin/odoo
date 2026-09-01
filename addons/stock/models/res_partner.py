@@ -23,7 +23,7 @@ class ResPartner(models.Model):
     )
     picking_warn_msg = fields.Text(string="Message for Stock Picking")
 
-    def _set_stock_property_locations(self, location):
+    def _update_stock_property_locations(self, location):
         self.write(
             {
                 "property_stock_customer": location.id,

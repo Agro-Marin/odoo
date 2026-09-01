@@ -209,7 +209,7 @@ class StockPackage(models.Model):
                         [
                             quant.with_context(
                                 inventory_name=message
-                            )._get_inventory_move_values(
+                            )._prepare_inventory_move_vals(
                                 -quant.quantity,
                                 location_dest_id,
                                 quant.location_id,

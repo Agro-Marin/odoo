@@ -312,7 +312,7 @@ class TestTheDestinationDomainIsBuiltOnce(LocationHardeningCase):
     def test_the_outbound_half_is_the_negation_of_the_inbound_one(self):
         Move = self.env["stock.move"]
         ids = self.stock_location.ids
-        into, out_of = self.Location._move_destination_domains(
+        into, out_of = self.Location._get_domains_move_destination(
             lambda field: Domain(field, "child_of", ids),
         )
         self.assertEqual(
@@ -322,24 +322,24 @@ class TestTheDestinationDomainIsBuiltOnce(LocationHardeningCase):
 
     def test_skipping_in_progress_drops_the_final_location(self):
         ids = self.stock_location.ids
-        plain, __ = self.Location._move_destination_domains(
+        plain, __ = self.Location._get_domains_move_destination(
             lambda field: Domain(field, "child_of", ids),
         )
         skipping, __ = self.Location.with_context(
             skip_in_progress=True,
-        )._move_destination_domains(lambda field: Domain(field, "child_of", ids))
+        )._get_domains_move_destination(lambda field: Domain(field, "child_of", ids))
         self.assertIn("location_final_id", repr(plain))
         self.assertNotIn("location_final_id", repr(skipping))
 
     def test_the_strict_scope_never_grows_a_final_location_clause(self):
-        strict = self.Location.with_context(strict=True)._quantity_domains(
+        strict = self.Location.with_context(strict=True)._get_domains_quantity(
             self.stock_location.ids,
         )
         self.assertNotIn("location_final_id", repr(strict))
 
     def test_an_empty_scope_is_false_in_all_three_domains(self):
         self.assertEqual(
-            [repr(domain) for domain in self.Location._quantity_domains(set())],
+            [repr(domain) for domain in self.Location._get_domains_quantity(set())],
             [repr(Domain.FALSE)] * 3,
         )
 

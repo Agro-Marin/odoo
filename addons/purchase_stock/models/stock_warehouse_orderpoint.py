@@ -259,8 +259,8 @@ class StockWarehouseOrderpoint(models.Model):
         values["supplierinfo_id"] = self.supplier_id
         return values
 
-    def _quantity_in_progress(self):
-        res = super()._quantity_in_progress()
+    def _get_quantity_in_progress(self):
+        res = super()._get_quantity_in_progress()
         qty_by_product_location, __ = self.product_id._get_quantity_in_progress(
             self.location_id.ids,
         )

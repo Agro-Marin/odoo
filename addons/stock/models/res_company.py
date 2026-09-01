@@ -86,28 +86,30 @@ class ResCompany(models.Model):
         companies_sudo._create_per_company_sequences()
         companies_sudo._create_per_company_picking_types()
         companies_sudo._create_per_company_rules()
-        companies_sudo._set_per_company_inter_company_locations(inter_company_location)
+        companies_sudo._update_per_company_inter_company_locations(
+            inter_company_location
+        )
         if modules.module.current_test:
             companies_sudo._create_warehouse()
         return companies
 
     @api.model
-    def _all_companies(self):
+    def _get_all_companies(self):
         return self.env["res.company"].with_context(active_test=False).search([])
 
     @api.model
-    def _companies_without(self, companies_having):
-        return self._all_companies() - companies_having
+    def _get_companies_without(self, companies_having):
+        return self._get_all_companies() - companies_having
 
     @api.model
-    def _companies_with_property(self, model_name, field_name):
+    def _get_companies_with_property(self, model_name, field_name):
         field = self.env["ir.model.fields"]._get(model_name, field_name)
         defaults = self.env["ir.default"].sudo()
         global_default = defaults.search_count(
             [("field_id", "=", field.id), ("company_id", "=", False)], limit=1
         )
         if global_default:
-            return self._all_companies()
+            return self._get_all_companies()
         return defaults.search([("field_id", "=", field.id)]).mapped("company_id")
 
     def _create_transit_location(self):
@@ -124,7 +126,7 @@ class ResCompany(models.Model):
         )
         for company, location in zip(self, locations, strict=True):
             company.internal_transit_location_id = location.id
-            company.partner_id.with_company(company)._set_stock_property_locations(
+            company.partner_id.with_company(company)._update_stock_property_locations(
                 location
             )
         return locations
@@ -216,24 +218,24 @@ class ResCompany(models.Model):
 
     @api.model
     def create_missing_transit_location(self):
-        company_without_transit = self._all_companies().filtered(
+        company_without_transit = self._get_all_companies().filtered(
             lambda company: not company.internal_transit_location_id
         )
         company_without_transit._create_transit_location()
 
     @api.model
     def create_missing_inventory_loss_location(self):
-        having = self._companies_with_property(
+        having = self._get_companies_with_property(
             "product.template", "property_stock_inventory"
         )
-        self._companies_without(having)._create_inventory_loss_location()
+        self._get_companies_without(having)._create_inventory_loss_location()
 
     @api.model
     def create_missing_production_location(self):
-        having = self._companies_with_property(
+        having = self._get_companies_with_property(
             "product.template", "property_stock_production"
         )
-        self._companies_without(having)._create_production_location()
+        self._get_companies_without(having)._create_production_location()
 
     @api.model
     def create_missing_scrap_sequence(self):
@@ -242,14 +244,14 @@ class ResCompany(models.Model):
             .search([("code", "=", "stock.scrap")])
             .mapped("company_id")
         )
-        self._companies_without(having)._create_scrap_sequence()
+        self._get_companies_without(having)._create_scrap_sequence()
 
     @api.model
     def create_missing_mail_template(self):
         template_id = self._default_stock_mail_confirmation_template_id()
         if not template_id:
             return
-        self._all_companies().filtered(
+        self._get_all_companies().filtered(
             lambda company: not company.stock_mail_confirmation_template_id
         ).stock_mail_confirmation_template_id = template_id
 
@@ -267,19 +269,19 @@ class ResCompany(models.Model):
     def _create_per_company_rules(self):
         pass
 
-    def _set_per_company_inter_company_locations(self, inter_company_location):
+    def _update_per_company_inter_company_locations(self, inter_company_location):
         if not self.env.user.has_group("base.group_multi_company"):
             return
-        all_companies = self._all_companies()
+        all_companies = self._get_all_companies()
         for company in self:
             other_companies = all_companies - company
             other_companies.partner_id.with_company(
                 company
-            )._set_stock_property_locations(inter_company_location)
+            )._update_stock_property_locations(inter_company_location)
             for other_company in other_companies:
                 company.partner_id.with_company(
                     other_company
-                )._set_stock_property_locations(inter_company_location)
+                )._update_stock_property_locations(inter_company_location)
 
     def _default_stock_mail_confirmation_template_id(self):
         template = self.env.ref(

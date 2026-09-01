@@ -32,7 +32,7 @@ class StockReplenishmentReport(models.AbstractModel):
         Move = self.env["stock.move"].with_context(active_test=False)
         Quant = self.env["stock.quant"].with_context(active_test=False)
         Location = self.env["stock.location"]
-        domain_quant, _dummy, domain_move_out_loc = Location._quantity_domains(
+        domain_quant, _dummy, domain_move_out_loc = Location._get_domains_quantity(
             locations.ids,
         )
         domain_state = Domain(
@@ -195,7 +195,7 @@ class StockReplenishmentReport(models.AbstractModel):
             if (product_id, location_id) in existing:
                 continue
             location = self.env["stock.location"].browse(location_id)
-            values = Orderpoint._get_orderpoint_values(product_id, location_id)
+            values = Orderpoint._prepare_orderpoint_vals(product_id, location_id)
             values.update(
                 {
                     "name": _("Replenishment Report"),

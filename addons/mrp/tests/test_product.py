@@ -529,10 +529,10 @@ class TestMrpProductQuantityScope(TestMrpCommon):
         Location = self.env["stock.location"]
         in_stock = Location.with_context(
             location=self.stock_location.id
-        )._quantity_domains_from_context()
+        )._get_domains_quantity_from_context()
         in_elsewhere = Location.with_context(
             location=elsewhere.id
-        )._quantity_domains_from_context()
+        )._get_domains_quantity_from_context()
 
         scoped = kit.with_context(mrp_compute_quantities={})
         self.assertEqual(
