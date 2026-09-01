@@ -146,7 +146,7 @@ class IrHttp(models.AbstractModel):
             },
             "test_mode": config["test_enable"],
             "cwv_sample_rate": cwv_sample_rate,
-            "feature_flags": self._get_feature_flags(ir_config_sudo),
+            "feature_flags": self._get_feature_flags(),
             "has_unaccent": bool(self.env.registry.has_unaccent),
         }
         if request.session.debug:
@@ -159,7 +159,7 @@ class IrHttp(models.AbstractModel):
 
     _FEATURE_FLAG_PREFIX = "web.feature."
 
-    def _get_feature_flags(self, ir_config_sudo: Any = None) -> dict[str, Any]:
+    def _get_feature_flags(self) -> dict[str, Any]:
         return dict(self._get_feature_flags_cached())
 
     @ormcache(cache="stable")
