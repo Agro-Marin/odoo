@@ -23,19 +23,26 @@
     }
 }
 
-.loyalty-templates-container {
-    pointer-events: auto;
+// The empty state paints the templates over the (empty) list table.
+.o_loyalty_program_list_view_view
+    .o_list_renderer:has(.o_view_nocontent)
+    > .o_list_table {
+    display: none;
+}
 
-    .loyalty-template {
-        padding: map-get($spacers, 2) !important;
-        cursor: pointer !important;
+// A <button>, so padding and cursor come from the markup and from Bootstrap's
+// reboot. Only the two states the browser cannot guess are declared here.
+.loyalty-template {
+    &:hover {
+        background: var(
+            --LoyaltyTemplate-background-hover,
+            #{o-token(--o-gray-200, $o-gray-200)}
+        );
+    }
 
-        &:hover {
-            background: var(
-                --LoyaltyTemplate-background-hover,
-                #{o-token(--o-gray-200, $o-gray-200)}
-            );
-        }
+    &:focus-visible {
+        box-shadow: 0 0 0 #{$btn-focus-width} RGBA(#{$btn-link-focus-shadow-rgb}, 0.5);
+        outline: none;
     }
 }
 
@@ -49,6 +56,20 @@
 .o_loyalty_program_list_view_view .o_list_renderer .o_view_nocontent {
     @include media-breakpoint-down(lg) {
         height: fit-content;
+    }
+}
+
+// `o-nocontent-empty` caps the help at 650px, which is a paragraph's width, not
+// a six-card grid's.
+.o_nocontent_help:has(.loyalty-template) {
+    max-width: unset;
+
+    @include media-breakpoint-up(sm) {
+        max-width: 90%;
+    }
+
+    @include media-breakpoint-up(lg) {
+        max-width: 80%;
     }
 }
 
