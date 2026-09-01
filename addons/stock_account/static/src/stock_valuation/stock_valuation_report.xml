@@ -27,7 +27,6 @@
                             <t t-if="data.inventory_loss" t-call="stock_account.StockValuationReport.InventoryLoss"/>
                             <t t-call="stock_account.StockValuationReport.StockVariation"/>
                             <t t-call="stock_account.StockValuationReport.EndingStock"/>
-                            <!-- <t t-call="stock_account.StockValuationReport.Accrual"/> -->
                         </tbody>
                     </table>
                 </div>
@@ -78,14 +77,5 @@
             sublines="data.inventory_loss.lines"
             value="data.inventory_loss.value"/>
         <t t-call="stock_account.StockValuationReport.EmptyLine"/>
-    </t>
-
-    <t t-name="stock_account.StockValuationReport.Accrual">
-        <t t-if="accrual.lines.length">
-            <StockValuationReportToggleLine
-                label.translate="Accrual"
-                sublines="accrual.lines"
-                level="0"/>
-        </t>
     </t>
 </templates>

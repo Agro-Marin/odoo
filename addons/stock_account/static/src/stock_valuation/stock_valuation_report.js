@@ -13,7 +13,6 @@ import { StockValuationReportButtonsBar } from "../stock_valuation/buttons_bar/b
 import { StockValuationReportController } from "../stock_valuation/controller.js";
 import { StockValuationReportFilters } from "../stock_valuation/filters/filters.js";
 import { StockValuationReportLine } from "../stock_valuation/line/line.js";
-import { StockValuationReportToggleLine } from "../stock_valuation/line/toggle_line.js";
 const { DateTime } = luxon;
 
 export class StockValuationReport extends Component {
@@ -24,7 +23,6 @@ export class StockValuationReport extends Component {
         StockValuationReportButtonsBar,
         StockValuationReportFilters,
         StockValuationReportLine,
-        StockValuationReportToggleLine,
     };
 
     setup() {
@@ -49,10 +47,6 @@ export class StockValuationReport extends Component {
         return formatMonetary(value, {
             currencyId: this.data.currency_id,
         });
-    }
-
-    get accrual() {
-        return { label: _t("Accrual"), lines: [], value: 0 };
     }
 
     get data() {
