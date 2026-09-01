@@ -135,7 +135,7 @@ class TestPointOfSaleFlow(CommonPosTest):
         self.assertEqual(
             order._get_rounded_amount(order.amount_total), order.amount_paid
         )
-        refund_action = order.refund()
+        refund_action = order.action_refund()
         refund = self.env["pos.order"].browse(refund_action["res_id"])
 
         with Form(refund) as refund_form:
@@ -155,7 +155,7 @@ class TestPointOfSaleFlow(CommonPosTest):
                 }
             )
         )
-        refund_payment.with_context(**payment_context).check()
+        refund_payment.with_context(**payment_context).action_make_payment()
         self.assertEqual(refund.state, "paid")
         current_session.action_pos_session_closing_control()
         self.assertEqual(current_session.state, "closed")
@@ -179,7 +179,7 @@ class TestPointOfSaleFlow(CommonPosTest):
             }
         )
 
-        refund_action = order.refund()
+        refund_action = order.action_refund()
         refund = self.env["pos.order"].browse(refund_action["res_id"])
 
         with Form(refund) as refund_form:
@@ -200,11 +200,11 @@ class TestPointOfSaleFlow(CommonPosTest):
                 }
             )
         )
-        refund_payment.with_context(**payment_context).check()
+        refund_payment.with_context(**payment_context).action_make_payment()
 
         self.assertEqual(refund.state, "paid")
 
-        refund_action = order.refund()
+        refund_action = order.action_refund()
         remaining_refund = self.env["pos.order"].browse(refund_action["res_id"])
         self.assertEqual(remaining_refund.amount_total, -10.0)
 
@@ -222,7 +222,7 @@ class TestPointOfSaleFlow(CommonPosTest):
                 }
             )
         )
-        refund_payment.with_context(**payment_context).check()
+        refund_payment.with_context(**payment_context).action_make_payment()
 
         self.assertEqual(remaining_refund.state, "paid")
 
@@ -538,7 +538,7 @@ class TestPointOfSaleFlow(CommonPosTest):
                 "payment_method_id": self.pos_config_eur.payment_method_ids[0].id,
                 "amount": untax + tax,
             }
-        ).with_context(**payment_context).check()
+        ).with_context(**payment_context).action_make_payment()
         self.assertEqual(pos_order.state, "paid")
 
         pos_order.action_pos_order_invoice()
@@ -571,7 +571,9 @@ class TestPointOfSaleFlow(CommonPosTest):
                 "payment_method_id": self.cash_payment_method.id,
             }
         )
-        payment.with_context(active_ids=order.ids, active_id=order.id).check()
+        payment.with_context(
+            active_ids=order.ids, active_id=order.id
+        ).action_make_payment()
         self.assertEqual(order.state, "paid", "Order should be in paid state.")
 
         total_cash_payment = sum(
@@ -583,7 +585,7 @@ class TestPointOfSaleFlow(CommonPosTest):
 
         action = current_session._close_session_action(1.0)
         wizard = self.env["pos.close.session.wizard"].browse(action["res_id"])
-        wizard.with_context(action["context"]).close_session()
+        wizard.with_context(action["context"]).action_close_session()
 
         diff_line = current_session.move_id.line_ids.filtered(
             lambda line: line.name == "Difference at closing PoS session"
@@ -735,7 +737,7 @@ class TestPointOfSaleFlow(CommonPosTest):
                 }
             )
         )
-        order_payment.with_context(**payment_context).check()
+        order_payment.with_context(**payment_context).action_make_payment()
 
         self.assertEqual(
             order.account_move.invoice_date_due,
@@ -1573,7 +1575,7 @@ class TestPointOfSaleFlow(CommonPosTest):
 
         self.env["pos.order"].sync_from_ui([pos_order_data])
         order = current_session.order_ids[0]
-        refund_action = order.refund()
+        refund_action = order.action_refund()
         refund = self.env["pos.order"].browse(refund_action["res_id"])
         self.assertEqual(order.lines[0].refunded_qty, 1)
         refund.action_pos_order_cancel()
@@ -2002,7 +2004,7 @@ class TestPointOfSaleFlow(CommonPosTest):
                 }
             )
         )
-        order_payment.with_context(**payment_context).check()
+        order_payment.with_context(**payment_context).action_make_payment()
 
         session_id.action_pos_session_closing_control(
             bank_payment_method_diffs={self.bank_payment_method.id: -10.00}
@@ -2086,7 +2088,7 @@ class TestPointOfSaleFlow(CommonPosTest):
             )
         )
         context_payment = {"active_id": self.order.id}
-        self.pos_make_payment_0.with_context(context_payment).check()
+        self.pos_make_payment_0.with_context(context_payment).action_make_payment()
         res = self.order.action_pos_order_invoice()
         invoice = self.env["account.move"].browse(res["res_id"])
         self.assertEqual(
@@ -2256,12 +2258,12 @@ class TestPointOfSaleFlow(CommonPosTest):
                 }
             )
         )
-        order_payment.with_context(**payment_context).check()
+        order_payment.with_context(**payment_context).action_make_payment()
         self.assertAlmostEqual(
             order.amount_total, order.amount_paid, msg="Order should be fully paid."
         )
 
-        refund_action = order.refund()
+        refund_action = order.action_refund()
         refund = self.env["pos.order"].browse(refund_action["res_id"])
 
         payment_context = {"active_ids": refund.ids, "active_id": refund.id}
@@ -2276,7 +2278,7 @@ class TestPointOfSaleFlow(CommonPosTest):
             )
         )
 
-        refund_payment.with_context(**payment_context).check()
+        refund_payment.with_context(**payment_context).action_make_payment()
         current_session.close_session_from_ui()
         self.assertEqual(current_session.picking_ids.mapped("state"), ["done", "done"])
 

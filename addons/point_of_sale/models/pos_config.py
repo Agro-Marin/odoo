@@ -622,11 +622,11 @@ class PosConfig(models.Model):
             if not session_record or not session_record.exists():
                 config.statistics_for_current_session = False
                 continue
-            config.statistics_for_current_session = config.get_statistics_for_session(
+            config.statistics_for_current_session = config._get_statistics_for_session(
                 session_record
             )
 
-    def get_statistics_for_session(self, session):
+    def _get_statistics_for_session(self, session):
         self.check_singleton()
         currency = self.currency_id
         tz = timezone(self.env.context.get("tz") or self.env.user.tz or "UTC")
@@ -1033,7 +1033,7 @@ class PosConfig(models.Model):
             "device_identifier": identifier,
         }
 
-    def _reset_default_on_vals(self, vals):
+    def _update_vals_default_tip_product(self, vals):
         if (
             "tip_product_id" in vals
             and not vals["tip_product_id"]
@@ -1081,7 +1081,7 @@ class PosConfig(models.Model):
     def write(self, vals):
         vals = dict(vals)
         self._check_header_footer(vals)
-        self._reset_default_on_vals(vals)
+        self._update_vals_default_tip_product(vals)
         if "is_order_printer" in vals and not vals["is_order_printer"]:
             vals["printer_ids"] = [fields.Command.clear()]
 
@@ -1089,8 +1089,8 @@ class PosConfig(models.Model):
             "bypass_payment_method_ids_forbidden_change", False
         )
 
-        self._preprocess_x2many_vals_from_settings_view(vals)
-        vals = self._keep_new_vals(vals)
+        self._update_vals_x2many_from_settings_view(vals)
+        vals = self._prepare_vals_changed(vals)
         opened_session = self.mapped("session_ids").filtered(
             lambda s: s.state != "closed"
         )
@@ -1126,7 +1126,7 @@ class PosConfig(models.Model):
             ):
                 config.available_preset_ids |= config.default_preset_id
 
-        self.sudo()._set_fiscal_position()
+        self.sudo()._update_fiscal_position_ids()
         if any(k.startswith(("module_", "group_")) for k in vals):
             self.sudo()._check_modules_to_install()
             self.sudo()._check_groups_implied()
@@ -1134,7 +1134,7 @@ class PosConfig(models.Model):
             self._update_preparation_printers_menuitem_visibility()
         return result
 
-    def _preprocess_x2many_vals_from_settings_view(self, vals):
+    def _update_vals_x2many_from_settings_view(self, vals):
         from_settings_view = self.env.context.get("from_settings_view")
         if not from_settings_view:
             return
@@ -1155,7 +1155,7 @@ class PosConfig(models.Model):
 
                 vals[x2many_field] = unlink_commands + vals[x2many_field]
 
-    def _keep_new_vals(self, vals):
+    def _prepare_vals_changed(self, vals):
         from_settings_view = self.env.context.get("from_settings_view")
         if not from_settings_view:
             return vals
@@ -1183,7 +1183,7 @@ class PosConfig(models.Model):
         sequences_to_delete.unlink()
         return res
 
-    def _set_fiscal_position(self):
+    def _update_fiscal_position_ids(self):
         for config in self:
             if (
                 config.tax_regime_selection
@@ -1238,7 +1238,7 @@ class PosConfig(models.Model):
             "tag": "reload",
         }
 
-    def _action_to_open_ui(self):
+    def _prepare_ui_action(self):
         if not self.current_session_id:
             self.env["pos.session"].create(
                 {"user_id": self.env.uid, "config_id": self.id}
@@ -1253,7 +1253,7 @@ class PosConfig(models.Model):
             "target": "self",
         }
 
-    def _get_url_to_cache(self, debug):
+    def _get_urls_to_cache(self, debug):
         url_to_cache = [
             f"/pos/ui/{self.id}?from_backend=True",
             f"/pos/ui/{self.id}",
@@ -1289,12 +1289,12 @@ class PosConfig(models.Model):
         self._check_fields(self._fields)
 
         self._check_company_has_fiscal_country()
-        return self._action_to_open_ui()
+        return self._prepare_ui_action()
 
     def close_ui(self):
         return self.open_ui()
 
-    def open_existing_session_cb(self):
+    def action_view_current_session(self):
         self.check_singleton()
         return self._open_session(self.current_session_id.id)
 
@@ -1309,7 +1309,7 @@ class PosConfig(models.Model):
             "type": "ir.actions.act_window",
         }
 
-    def open_opened_rescue_session_form(self):
+    def action_view_rescue_sessions(self):
         rescue_session_ids = self.session_ids.filtered(
             lambda s: s.state != "closed" and s.rescue
         )
@@ -1335,7 +1335,7 @@ class PosConfig(models.Model):
         if pms:
             self.payment_method_ids = [Command.link(pm.id) for pm in pms]
 
-    def _is_journal_exist(self, journal_code, name, company_id):
+    def _get_or_create_journal_id(self, journal_code, name, company_id):
         account_journal = self.env["account.journal"]
         existing_journal = account_journal.search(
             [
@@ -1358,7 +1358,7 @@ class PosConfig(models.Model):
             ).id
         )
 
-    def _is_pos_pm_exist(self, name, journal_id, company_id):
+    def _get_or_create_payment_method_id(self, name, journal_id, company_id):
         pos_payment = self.env["pos.payment.method"]
         existing_pos_cash_pm = pos_payment.search(
             [

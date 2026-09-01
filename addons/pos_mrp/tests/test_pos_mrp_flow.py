@@ -488,7 +488,7 @@ class TestPosMrp(CommonPosMrpTest):
                 }
             )
         )
-        order_payment.with_context(**payment_context).check()
+        order_payment.with_context(**payment_context).action_make_payment()
         self.pos_config_usd.current_session_id.action_pos_session_closing_control()
         self.assertRecordValues(
             order.lines,

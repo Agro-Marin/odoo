@@ -37,7 +37,7 @@ class PosDetailsWizard(models.TransientModel):
         if self.end_date and self.start_date and self.end_date < self.start_date:
             self.start_date = self.end_date
 
-    def generate_report(self):
+    def action_print_report(self):
         data = {
             "date_start": self.start_date,
             "date_stop": self.end_date,

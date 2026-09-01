@@ -350,7 +350,7 @@ class ResConfigSettings(models.TransientModel):
         related="pos_config_id.fast_payment_method_ids", readonly=False
     )
 
-    def open_payment_method_form(self):
+    def action_open_payment_method_form(self):
         bank_journal = self.env["account.journal"].search(
             [
                 ("type", "=", "bank"),

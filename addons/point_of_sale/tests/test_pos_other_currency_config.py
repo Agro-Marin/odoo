@@ -618,7 +618,7 @@ class TestPoSOtherCurrencyConfig(TestPoSCommon):
                 {"amount": order.amount_total, "payment_method_id": self.bank_pm2.id}
             )
         )
-        order_payment.with_context(**payment_context).check()
+        order_payment.with_context(**payment_context).action_make_payment()
 
         session_id.action_pos_session_closing_control(
             bank_payment_method_diffs={self.bank_pm2.id: 10.00}

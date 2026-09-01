@@ -450,10 +450,10 @@ class CommonPosTest(ValuationReconciliationTestCommon):
                     .with_context(**payment_context)
                     .create(make_payment)
                 )
-                order_payment.with_context(**payment_context).check()
+                order_payment.with_context(**payment_context).action_make_payment()
 
         if data.get("refund_data"):
-            refund_action = order.refund()
+            refund_action = order.action_refund()
             refund = self.env["pos.order"].browse(refund_action["res_id"])
             payment_context = {"active_ids": refund.ids, "active_id": refund.id}
 
@@ -469,7 +469,7 @@ class CommonPosTest(ValuationReconciliationTestCommon):
                     .with_context(**payment_context)
                     .create(make_refund)
                 )
-                refund_payment.with_context(**payment_context).check()
+                refund_payment.with_context(**payment_context).action_make_payment()
 
         return order, refund
 
@@ -1322,5 +1322,5 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
                     "payment_method_id": payment_method.id,
                 }
             )
-            .check()
+            .action_make_payment()
         )

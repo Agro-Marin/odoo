@@ -327,7 +327,7 @@ class ProductTemplate(models.Model):
             "active_test": not load_archived,
             "bin_size": True,
         }
-        domain = self._server_date_to_domain(domain)
+        domain = self._add_server_date_to_domain(domain)
         return self.with_context(context).search(
             domain,
             order="sequence,default_code,name",

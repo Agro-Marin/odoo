@@ -276,10 +276,10 @@ class SelfOrderCommonTest(odoo.tests.HttpCase):
                 if payment.get('amount'):
                     make_payment['amount'] = payment['amount']
                 order_payment = self.env['pos.make.payment'].with_context(**payment_context).create(make_payment)
-                order_payment.with_context(**payment_context).check()
+                order_payment.with_context(**payment_context).action_make_payment()
 
         if data.get('refund_data'):
-            refund_action = order.refund()
+            refund_action = order.action_refund()
             refund = self.env['pos.order'].browse(refund_action['res_id'])
             payment_context = {"active_ids": refund.ids, "active_id": refund.id}
 
@@ -291,6 +291,6 @@ class SelfOrderCommonTest(odoo.tests.HttpCase):
                 if refund_data.get('amount'):
                     make_refund['amount'] = refund_data['amount']
                 refund_payment = self.env['pos.make.payment'].with_context(**payment_context).create(make_refund)
-                refund_payment.with_context(**payment_context).check()
+                refund_payment.with_context(**payment_context).action_make_payment()
 
         return order, refund

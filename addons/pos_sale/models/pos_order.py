@@ -256,8 +256,8 @@ class PosOrder(models.Model):
             )
         return super().write(vals)
 
-    def _force_create_picking_real_time(self):
-        result = super()._force_create_picking_real_time()
+    def _is_real_time_picking_forced(self):
+        result = super()._is_real_time_picking_forced()
         return result or any(self.lines.mapped("sale_order_origin_id"))
 
 

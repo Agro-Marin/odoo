@@ -29,7 +29,7 @@ class PosSession(models.Model):
         self.check_singleton()
         return True
 
-    def open_frontend_cb(self):
+    def action_open_frontend(self):
         sessions_to_check = self.filtered(
             lambda s: s.config_id.company_id._is_accounting_unalterable()
         )
@@ -38,7 +38,7 @@ class PosSession(models.Model):
         ).start_at = fields.Datetime.now()
         for session in sessions_to_check:
             session._check_session_timing()
-        return super().open_frontend_cb()
+        return super().action_open_frontend()
 
 
 ORDER_FIELDS_BEFORE_17_4 = [

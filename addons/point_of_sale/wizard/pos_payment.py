@@ -53,7 +53,7 @@ class PosMakePayment(models.TransientModel):
         string="Payment Date", required=True, default=lambda self: fields.Datetime.now()
     )
 
-    def check(self):
+    def action_make_payment(self):
         self.check_singleton()
 
         order = self.env["pos.order"].browse(self.env.context.get("active_id", False))
@@ -94,9 +94,9 @@ class PosMakePayment(models.TransientModel):
                 )
             return {"type": "ir.actions.act_window_close"}
 
-        return self.launch_payment()
+        return self._prepare_payment_action()
 
-    def launch_payment(self):
+    def _prepare_payment_action(self):
         return {
             "name": _("Payment"),
             "view_mode": "form",

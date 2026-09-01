@@ -193,7 +193,7 @@ class PosOrder(models.Model):
 
         return self.id
 
-    def _clean_payment_lines(self):
+    def _remove_payment_lines(self):
         self.check_singleton()
         self.payment_ids.unlink()
 
@@ -663,7 +663,7 @@ class PosOrder(models.Model):
     def _update_total_cost_in_real_time(self):
         for order in self:
             lines = order.lines
-            if not order._should_create_picking_real_time():
+            if not order._is_real_time_picking_required():
                 storable_fifo_avco_lines = lines.filtered(
                     lambda l: l._is_product_storable_fifo_avco()
                 )
@@ -1103,11 +1103,11 @@ class PosOrder(models.Model):
         partner_bank_id = False
         amount_total = sum(order.amount_total for order in self)
 
-        def _first_allowed(bank_ids):
+        def get_first_allowed_bank(bank_ids):
             return bank_ids.filtered(lambda b: b.allow_out_payment)[:1]
 
         if amount_total <= 0 and self.partner_id.bank_ids:
-            partner_bank_id = _first_allowed(self.partner_id.bank_ids)
+            partner_bank_id = get_first_allowed_bank(self.partner_id.bank_ids)
 
         elif amount_total >= 0 and self.payment_ids:
             journal_bank = self.payment_ids[
@@ -1121,7 +1121,9 @@ class PosOrder(models.Model):
             and amount_total >= 0
             and self.company_id.partner_id.bank_ids
         ):
-            partner_bank_id = _first_allowed(self.company_id.partner_id.bank_ids)
+            partner_bank_id = get_first_allowed_bank(
+                self.company_id.partner_id.bank_ids
+            )
 
         return partner_bank_id.id if partner_bank_id else False
 
@@ -1525,7 +1527,7 @@ class PosOrder(models.Model):
             ]
 
             amount_currency = payment_id.amount
-            balance = self.session_id._amount_converter(
+            balance = self.session_id._convert_amount_to_company_currency(
                 payment_id.amount, self.date_order, False
             )
 
@@ -1612,11 +1614,11 @@ class PosOrder(models.Model):
     def action_pos_order_invoice(self):
         self.check_singleton()
         if not (move := self.account_move):
-            is_picking_created = self._should_create_picking_real_time()
+            is_picking_created = self._is_real_time_picking_required()
             self.write({"to_invoice": True})
             if (
                 not is_picking_created
-                and self._should_create_picking_real_time()
+                and self._is_real_time_picking_required()
                 and self.session_id.state != "closed"
             ):
                 self._create_order_picking()
@@ -1863,13 +1865,13 @@ class PosOrder(models.Model):
             self.env["pos.order.line"].browse(refunded_orderline_ids).mapped("order_id")
         )
 
-    def _should_create_picking_real_time(self):
+    def _is_real_time_picking_required(self):
         return (
             not self.session_id.update_stock_at_closing
-            or self._force_create_picking_real_time()
+            or self._is_real_time_picking_forced()
         )
 
-    def _force_create_picking_real_time(self):
+    def _is_real_time_picking_forced(self):
         return self.company_id.anglo_saxon_accounting and self.to_invoice
 
     def _create_order_picking(self):
@@ -1878,7 +1880,7 @@ class PosOrder(models.Model):
             return
         if self.shipping_date:
             self.sudo().lines._launch_stock_rule_from_pos_order_lines()
-        elif self._should_create_picking_real_time():
+        elif self._is_real_time_picking_required():
             picking_type = self.config_id.picking_type_id
             if self.partner_id.property_stock_customer:
                 destination_id = self.partner_id.property_stock_customer.id
@@ -1976,7 +1978,7 @@ class PosOrder(models.Model):
         refund_orders._recompute_prices()
         return refund_orders
 
-    def refund(self):
+    def action_refund(self):
         return {
             "name": _("Return Products"),
             "view_mode": "form",
@@ -2272,8 +2274,8 @@ class PosOrderLine(models.Model):
         ]
 
     @api.model
-    def _is_field_accepted(self, field):
-        return field in self._fields and field not in [
+    def _is_field_accepted(self, field_name):
+        return field_name in self._fields and field_name not in [
             "combo_parent_id",
             "combo_line_ids",
         ]

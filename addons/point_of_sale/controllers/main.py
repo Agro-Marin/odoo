@@ -116,7 +116,7 @@ class PosController(PortalAccount):
                 "%Y-%m-%d %H:%M:%S"
             ),
             "urls_to_cache": json.dumps(
-                pos_config._get_url_to_cache(request.session.debug)
+                pos_config._get_urls_to_cache(request.session.debug)
             ),
             "use_lna": use_lna,
         }

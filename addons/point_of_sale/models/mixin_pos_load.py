@@ -12,7 +12,9 @@ class MixinPosLoad(models.AbstractModel):
         if not config:
             raise ValueError("config must be provided to search for PoS data.")
 
-        domain = self._server_date_to_domain(self._load_pos_data_domain(data, config))
+        domain = self._add_server_date_to_domain(
+            self._load_pos_data_domain(data, config)
+        )
         if domain is False:
             return []
 
@@ -24,11 +26,15 @@ class MixinPosLoad(models.AbstractModel):
         return []
 
     @api.model
-    def _load_pos_data_referenced_ids(self, data, model, field):
-        return {record[field] for record in data.get(model, []) if record.get(field)}
+    def _get_referenced_ids(self, data, model, field_name):
+        return {
+            record[field_name]
+            for record in data.get(model, [])
+            if record.get(field_name)
+        }
 
     @api.model
-    def _server_date_to_domain(self, domain):
+    def _add_server_date_to_domain(self, domain):
         if domain is False:
             return domain
 
@@ -50,7 +56,7 @@ class MixinPosLoad(models.AbstractModel):
         records = records._filtered_access("read").read(fields, load=False)
         return records or []
 
-    def _unrelevant_records(self, config):
+    def _get_inactive_ids(self, config):
         if "active" not in self._fields:
             return []
         try:

@@ -387,7 +387,7 @@ class TestPoSStock(TestPoSCommon):
         order = self.env["pos.order"].sync_from_ui(orders)
 
         refund_action = (
-            self.env["pos.order"].browse(order["pos.order"][0]["id"]).refund()
+            self.env["pos.order"].browse(order["pos.order"][0]["id"]).action_refund()
         )
         refund = self.env["pos.order"].browse(refund_action["res_id"])
 
@@ -402,7 +402,7 @@ class TestPoSStock(TestPoSCommon):
                 }
             )
         )
-        refund_payment.with_context(**payment_context).check()
+        refund_payment.with_context(**payment_context).action_make_payment()
 
         self.pos_session.action_pos_session_validate()
         expense_account_move_line = self.env["account.move.line"].search(

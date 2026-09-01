@@ -125,7 +125,7 @@ class TestPosInvoiceGuards(TestPoSCommon):
             msg="reversal move is unbalanced -- amount_currency/balance were swapped"
             " in the aggregation branch",
         )
-        converter = self.pos_session._amount_converter
+        converter = self.pos_session._convert_amount_to_company_currency
         self.assertAlmostEqual(
             payment_terms[0]["amount_currency"],
             100.0,

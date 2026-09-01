@@ -16,7 +16,7 @@ class PosOrder(models.Model):
         self.check_singleton()
         return self.currency_id.round(self._get_rounded_amount(self.amount_total) - self.amount_paid)
 
-    def _clean_payment_lines(self):
+    def _remove_payment_lines(self):
         self.check_singleton()
         order_payments = self.env['pos.payment'].search(['&', ('pos_order_id', '=', self.id), ('online_account_payment_id', '=', False)])
         order_payments.unlink()
@@ -48,7 +48,7 @@ class PosOrder(models.Model):
         }
         if not isinstance(next_online_payment_amount, bool):
             if tools.float_is_zero(next_online_payment_amount, precision_rounding=self.currency_id.rounding) and len(online_payments) == 0 and self.state == 'draft' and not self.config_id.module_pos_restaurant and len(self.config_id.trusted_config_ids) == 0:
-                self.sudo()._clean_payment_lines() # Needed to delete the order
+                self.sudo()._remove_payment_lines() # Needed to delete the order
                 return_data['deleted'] = True
             elif self._check_next_online_payment_amount(next_online_payment_amount):
                 self.next_online_payment_amount = next_online_payment_amount

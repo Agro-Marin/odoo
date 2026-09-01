@@ -710,7 +710,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                 }
             )
         )
-        order_payment.with_context(**payment_context).check()
+        order_payment.with_context(**payment_context).action_make_payment()
 
         current_session.close_session_from_ui()
         self.env.flush_all()
@@ -3061,7 +3061,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
         self.assertEqual(sale_order.line_ids.qty_invoiced, 1)
         pos_order_id = data["pos.order"][0]["id"]
         pos_order_record = self.env["pos.order"].browse(pos_order_id)
-        refund_action = pos_order_record.refund()
+        refund_action = pos_order_record.action_refund()
         refund = self.env["pos.order"].browse(refund_action["res_id"])
         payment_context = {"active_ids": refund.ids, "active_id": refund.id}
         refund_payment = (
@@ -3076,7 +3076,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
         )
 
         self.env.flush_all()
-        refund_payment.with_context(**payment_context).check()
+        refund_payment.with_context(**payment_context).action_make_payment()
         self.assertEqual(sale_order.line_ids.qty_invoiced, 0)
 
     def test_settle_order_with_multiple_uom(self):

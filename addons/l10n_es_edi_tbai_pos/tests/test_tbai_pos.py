@@ -65,7 +65,7 @@ class TestPosEdi(TestEsEdiTbaiCommonGipuzkoa, CommonPosEsEdiTest):
         self.pay_pos_order(order)
 
         # Create the refund
-        refund_action = order.refund()
+        refund_action = order.action_refund()
         pos_refund = self.env['pos.order'].browse(refund_action['res_id'])
 
         # An error is raised if the refund is invoiced
@@ -92,7 +92,7 @@ class TestPosEdi(TestEsEdiTbaiCommonGipuzkoa, CommonPosEsEdiTest):
             ],
         })
         self.pay_pos_order(order)
-        refund_action = order.refund()
+        refund_action = order.action_refund()
         pos_refund = self.env['pos.order'].browse(refund_action['res_id'])
 
         # An error is raised if the refund is not invoiced

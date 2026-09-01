@@ -12,7 +12,7 @@
                     <field name="account_id" readonly="account_readonly"/>
                 </group>
                 <footer>
-                    <button name="close_session" string="Close Session" type="object" class="btn-primary" data-hotkey="q"/>
+                    <button name="action_close_session" string="Close Session" type="object" class="btn-primary" data-hotkey="q"/>
                     <button special="cancel" data-hotkey="x" string="Cancel" class="btn-secondary" />
                 </footer>
             </form>

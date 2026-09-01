@@ -72,7 +72,7 @@ class L10nTWITestEdiPosOrder(L10nTWITestEdi, TestPoSCommon):
             with patch(CALL_API_METHOD, new=self._test_02_mock):
                 order.action_pos_order_invoice()
             invoice = order.account_move
-            refund = self.env['pos.order'].browse(order.refund()['res_id'])
+            refund = self.env['pos.order'].browse(order.action_refund()['res_id'])
             with patch(CALL_API_METHOD, new=self._test_02_mock):
                 refund.action_pos_order_invoice()
 

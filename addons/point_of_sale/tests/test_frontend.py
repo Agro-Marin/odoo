@@ -4570,7 +4570,7 @@ class TestUi(TestPointOfSaleHttpCommon):
             "Refund order pricelist should be the original order's pricelist.",
         )
 
-        refund_action = orders[1].refund()
+        refund_action = orders[1].action_refund()
         refund_order = self.env["pos.order"].browse(refund_action["res_id"])
 
         self.assertEqual(
@@ -4592,7 +4592,7 @@ class TestUi(TestPointOfSaleHttpCommon):
             )
         )
 
-        refund_payment.with_context(**payment_context).check()
+        refund_payment.with_context(**payment_context).action_make_payment()
         self.assertEqual(
             refund_order.state, "paid", "Refund order should be marked as paid."
         )

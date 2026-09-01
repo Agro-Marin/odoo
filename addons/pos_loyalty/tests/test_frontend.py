@@ -3027,7 +3027,7 @@ class TestUi(TestPointOfSaleHttpCommon):
         self.env['pos.make.payment'].with_context(**payment_context).create({
             'amount': 10.0,
             'payment_method_id': self.customer_account_payment_method.id,
-        }).check()
+        }).action_make_payment()
         self.start_tour("/pos/ui?config_id=%d" % self.main_pos_config.id, 'test_settle_dont_give_points_again', login="accountman")
 
     def test_refund_does_not_decrease_points(self):

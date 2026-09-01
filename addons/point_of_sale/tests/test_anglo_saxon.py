@@ -167,7 +167,7 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
         )
 
         context_payment = {"active_id": self.pos_order_pos0.id}
-        self.pos_make_payment_0.with_context(context_payment).check()
+        self.pos_make_payment_0.with_context(context_payment).action_make_payment()
 
         self.assertEqual(
             self.pos_order_pos0.state, "paid", "Order should be in paid state."
@@ -277,7 +277,7 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
         )
 
         context_payment = {"active_id": pos_order_pos0.id}
-        self.pos_make_payment_0.with_context(context_payment).check()
+        self.pos_make_payment_0.with_context(context_payment).action_make_payment()
 
         current_session_id = self.pos_config.current_session_id
         current_session_id.post_closing_cash_details(7 * 450.0)
@@ -313,7 +313,7 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
         )
 
         context_payment = {"active_id": pos_order_pos0.id}
-        self.pos_make_payment_0.with_context(context_payment).check()
+        self.pos_make_payment_0.with_context(context_payment).action_make_payment()
 
         pos_order_pos0.action_pos_order_invoice()
 
@@ -386,7 +386,7 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
         )
 
         context_payment = {"active_id": self.pos_order_pos0.id}
-        self.pos_make_payment_0.with_context(context_payment).check()
+        self.pos_make_payment_0.with_context(context_payment).action_make_payment()
 
         current_session_id = self.pos_config.current_session_id
         current_session_id.post_closing_cash_details(450.0)
@@ -482,7 +482,7 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
             }
         )
         context_payment = {"active_id": self.pos_order_pos0.id}
-        self.pos_make_payment_0.with_context(context_payment).check()
+        self.pos_make_payment_0.with_context(context_payment).action_make_payment()
 
         self.pos_order_pos0.action_pos_order_invoice()
 
@@ -564,7 +564,7 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
             }
         )
         context_payment = {"active_id": self.pos_order_pos0.id}
-        self.pos_make_payment_0.with_context(context_payment).check()
+        self.pos_make_payment_0.with_context(context_payment).action_make_payment()
         self.assertIn(self.pos_order_pos0.state, ("paid", "done"))
 
         res = self.pos_order_pos0.action_pos_order_invoice()
@@ -672,7 +672,7 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
         )
 
         context_payment = {"active_id": self.pos_order_pos0.id}
-        self.pos_make_payment_0.with_context(context_payment).check()
+        self.pos_make_payment_0.with_context(context_payment).action_make_payment()
 
         current_session_id = self.pos_config.current_session_id
         current_session_id.post_closing_cash_details(300.0)
@@ -790,7 +790,7 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
             }
         )
         context_payment = {"active_id": pos_order.id}
-        pos_payment.with_context(context_payment).check()
+        pos_payment.with_context(context_payment).action_make_payment()
 
         valuation_account = self.category.property_stock_valuation_account_id
         valuation_lines = pos_order.account_move.line_ids.filtered(

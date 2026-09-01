@@ -30,7 +30,7 @@ class LoyaltyProgram(models.Model):
     def _load_pos_data_read(self, records, config):
         return super()._load_pos_data_read(records.sudo(), config)
 
-    def _unrelevant_records(self, config):
+    def _get_inactive_ids(self, config):
         valid_record = config._get_program_ids()
         return self.filtered(lambda record: record.id not in valid_record.ids).ids
 

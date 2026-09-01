@@ -113,7 +113,7 @@
                                     <t t-if="record.current_session_state.raw_value === 'opened'">Continue Selling</t>
                                     <t t-else="">Open Register</t>
                                 </button>
-                                <button t-else="" class="btn btn-secondary" name="open_existing_session_cb" type="object">Close</button>
+                                <button t-else="" class="btn btn-secondary" name="action_view_current_session" type="object">Close</button>
                             </div>
                             <div class="col-12 col-md-6">
                                 <t t-set="statistics" t-value="record.statistics_for_current_session.raw_value" />
@@ -159,7 +159,7 @@
                                     </div>
                                 </t>
                                 
-                                <a t-if="record.number_of_rescue_session.value &gt; 0" class="col-12" name="open_opened_rescue_session_form" type="object">
+                                <a t-if="record.number_of_rescue_session.value &gt; 0" class="col-12" name="action_view_rescue_sessions" type="object">
                                     <field name="number_of_rescue_session" /> outstanding rescue session
                                 </a>
                             </div>

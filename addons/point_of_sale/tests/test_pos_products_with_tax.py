@@ -470,7 +470,7 @@ class TestPoSProductsWithTax(TestPoSCommon):
             order_to_return = self.pos_session.order_ids.filtered(
                 lambda order: "12345-123-1234" in order.uuid
             )
-            order_to_return.refund()
+            order_to_return.action_refund()
 
             refund_order = self.pos_session.order_ids.filtered(
                 lambda order: order.state == "draft"
@@ -489,7 +489,7 @@ class TestPoSProductsWithTax(TestPoSCommon):
                     }
                 )
             )
-            make_payment.check()
+            make_payment.action_make_payment()
             self.assertEqual(
                 refund_order.state,
                 "paid",

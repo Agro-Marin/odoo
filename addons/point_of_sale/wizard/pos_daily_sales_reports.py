@@ -15,7 +15,7 @@ class PosDailySalesReportsWizard(models.TransientModel):
             "session_ids": self.pos_session_id.ids,
         }
 
-    def generate_report(self):
+    def action_print_report(self):
         return self.env.ref("point_of_sale.sale_details_report").report_action(
             [], data=self._get_report_data()
         )

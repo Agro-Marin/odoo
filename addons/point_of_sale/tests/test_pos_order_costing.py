@@ -44,7 +44,7 @@ class TestPosOrderCosting(TestAngloSaxonCommon):
                 "payment_method_id": self.cash_payment_method.id,
             }
         )
-        payment.with_context(**ctx).check()
+        payment.with_context(**ctx).action_make_payment()
 
     def _open_session(self):
         self.pos_config.open_ui()
@@ -175,7 +175,7 @@ class TestPosOrderCosting(TestAngloSaxonCommon):
         order = self._make_order()
         self._pay(order)
 
-        refund = self.PosOrder.browse(order.refund()["res_id"])
+        refund = self.PosOrder.browse(order.action_refund()["res_id"])
         order.invalidate_recordset()
         self.assertEqual(order.refund_orders_count, 1)
         self.assertEqual(order.lines.refunded_qty, 1.0)
@@ -201,7 +201,7 @@ class TestPosOrderCosting(TestAngloSaxonCommon):
         order = self._make_order(qty=5.0)
         self._pay(order)
 
-        refund = self.PosOrder.browse(order.refund()["res_id"])
+        refund = self.PosOrder.browse(order.action_refund()["res_id"])
         order.invalidate_recordset()
         self.assertEqual(order.lines.refunded_qty, 5.0)
 

@@ -215,7 +215,7 @@ class TestUi(TestPosHrHttpCommon):
             'amount': 100,
             'payment_method_id': self.bank_payment_method.id
         })
-        order_payment.with_context(**payment_context).check()
+        order_payment.with_context(**payment_context).action_make_payment()
         self.start_pos_tour("test_minimal_employee_refund", login="pos_admin")
 
     def test_cost_and_margin_visibility(self):

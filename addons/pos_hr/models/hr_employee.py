@@ -16,7 +16,7 @@ class HrEmployee(models.Model):
     def _load_pos_data_fields(self, config):
         return ["name", "user_id", "work_contact_id"]
 
-    def _server_date_to_domain(self, domain):
+    def _add_server_date_to_domain(self, domain):
         return domain
 
     @api.model

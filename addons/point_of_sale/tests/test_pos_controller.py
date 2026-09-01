@@ -16,7 +16,7 @@ class TestPoSController(TestPointOfSaleHttpCommon):
                 "amount": amount,
                 "payment_method_id": self.main_pos_config.payment_method_ids[0].id,
             }
-        ).with_context(**payment_context).check()
+        ).with_context(**payment_context).action_make_payment()
         return order
 
     def test_qr_code_receipt(self):
@@ -215,7 +215,7 @@ class TestPoSController(TestPointOfSaleHttpCommon):
             )
         )
         context_payment = {"active_id": self.pos_order.id}
-        self.pos_make_payment.with_context(context_payment).check()
+        self.pos_make_payment.with_context(context_payment).action_make_payment()
         self.main_pos_config.current_session_id.close_session_from_ui()
         self.start_tour("/pos/ticket", "invoicePoSOrderWithSelfInvocing", login=None)
         self.assertTrue(

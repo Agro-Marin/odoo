@@ -477,7 +477,7 @@ class TestPoSBasicConfig(TestPoSCommon):
                 lambda order: "666-666-666" in order.uuid
             )
 
-            order.refund()
+            order.action_refund()
             refund_order = self.pos_session.order_ids.filtered(
                 lambda order: order.state == "draft"
             )
@@ -496,7 +496,7 @@ class TestPoSBasicConfig(TestPoSCommon):
                     }
                 )
             )
-            make_payment.check()
+            make_payment.action_make_payment()
 
             refund_order.action_pos_order_invoice()
 
@@ -597,7 +597,7 @@ class TestPoSBasicConfig(TestPoSCommon):
             order_to_return = self.pos_session.order_ids.filtered(
                 lambda order: "12345-123-1234" in order.uuid
             )
-            order_to_return.refund()
+            order_to_return.action_refund()
             refund_order = self.pos_session.order_ids.filtered(
                 lambda order: order.state == "draft"
             )
@@ -620,7 +620,7 @@ class TestPoSBasicConfig(TestPoSCommon):
                     }
                 )
             )
-            make_payment.check()
+            make_payment.action_make_payment()
             self.assertEqual(
                 refund_order.state,
                 "paid",
@@ -1705,7 +1705,7 @@ class TestPoSBasicConfig(TestPoSCommon):
             order_to_return = self.pos_session.order_ids.filtered(
                 lambda order: "12345-123-1234" in order.uuid
             )
-            order_to_return.refund()
+            order_to_return.action_refund()
             refund_order = self.pos_session.order_ids.filtered(
                 lambda order: order.state == "draft"
             )
@@ -1728,7 +1728,7 @@ class TestPoSBasicConfig(TestPoSCommon):
                     }
                 )
             )
-            make_payment.check()
+            make_payment.action_make_payment()
 
         self._run_test(
             {

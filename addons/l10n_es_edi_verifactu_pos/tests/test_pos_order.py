@@ -131,7 +131,7 @@ class TestL10nEsEdiVerifactuPosOrder(TestL10nEsEdiVerifactuPosCommon):
                     'date_order': '2024-12-30 00:00:00',
                 })
             with self._mock_zeep_registration_operation_certificate_issue():
-                refund_action = order.refund()
+                refund_action = order.action_refund()
                 refund = self.env['pos.order'].browse(refund_action['res_id'])
                 payment_context = {"active_ids": refund.ids, "active_id": refund.id}
                 refund_payment = self.env['pos.make.payment'].with_context(**payment_context).create({

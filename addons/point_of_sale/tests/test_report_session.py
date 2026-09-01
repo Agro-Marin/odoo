@@ -249,7 +249,7 @@ class TestReportSession(TestPoSCommon):
             )
         )
         for payment in order_payment:
-            payment.with_context(**payment_context).check()
+            payment.with_context(**payment_context).action_make_payment()
 
         order_report_lines = (
             self.env["report.pos.order"].sudo().search([("order_id", "=", order.id)])
