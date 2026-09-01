@@ -186,4 +186,42 @@ class TestIapAccount(TransactionCase):
         self.assertEqual(account.warning_threshold, 0)
         # 'reveal' is an integer_balance service: rounds to a whole unit.
         self.assertEqual(account.balance, "12 Credits")
+        # The numeric balance keeps the full precision the server reported:
+        # 'balance' is the rounded label, 'balance_amount' is what the alert
+        # threshold is compared against.
+        self.assertEqual(account.balance_amount, 12.3456)
         self.assertTrue(account.service_locked)
+
+    def test_low_balance_flag_tracks_the_alert_threshold(self):
+        """The low-balance flag compares the numeric balance to the threshold."""
+        account = self.env["iap.account"].create({"service_id": self.service.id})
+
+        # Default threshold is 0: only an exhausted account is flagged.
+        account.balance_amount = 5
+        self.assertFalse(account.is_balance_below_warning_threshold)
+        account.balance_amount = 0
+        self.assertTrue(account.is_balance_below_warning_threshold)
+
+        # A positive threshold needs a recipient with an email address:
+        # check_warning_alerts refuses the write otherwise.
+        recipient = self.env["res.users"].create(
+            {
+                "name": "Threshold recipient",
+                "login": "threshold_iap",
+                "email": "threshold_iap@example.com",
+            }
+        )
+        with patch.object(iap_tools, "iap_jsonrpc", return_value=True):
+            account.write(
+                {
+                    "warning_threshold": 25,
+                    "warning_user_ids": [Command.set(recipient.ids)],
+                }
+            )
+        account.balance_amount = 10
+        self.assertTrue(account.is_balance_below_warning_threshold)
+        account.balance_amount = 30
+        self.assertFalse(account.is_balance_below_warning_threshold)
+        # The threshold itself is 'at or below', not 'strictly below'.
+        account.balance_amount = 25
+        self.assertTrue(account.is_balance_below_warning_threshold)

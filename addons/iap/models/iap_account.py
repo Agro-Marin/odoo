@@ -38,6 +38,13 @@ class IapAccount(models.Model):
     # Set from the IAP server when the view loads, except warning_user_ids, which
     # is local; both warning fields are pushed to IAP on write
     balance = fields.Char(readonly=True)
+    # The same balance as a number: 'balance' is the label the form shows,
+    # already rounded and suffixed with the service unit, so it cannot be
+    # compared with warning_threshold.
+    balance_amount = fields.Float(readonly=True)
+    is_balance_below_warning_threshold = fields.Boolean(
+        compute="_compute_is_balance_below_warning_threshold"
+    )
     warning_threshold = fields.Float("Email Alert Threshold")
     warning_user_ids = fields.Many2many("res.users", string="Email Alert Recipients")
     state = fields.Selection(
@@ -48,6 +55,13 @@ class IapAccount(models.Model):
         ],
         readonly=True,
     )
+
+    @api.depends("balance_amount", "warning_threshold")
+    def _compute_is_balance_below_warning_threshold(self):
+        for account in self:
+            account.is_balance_below_warning_threshold = (
+                account.balance_amount <= account.warning_threshold
+            )
 
     @api.constrains("warning_threshold", "warning_user_ids")
     def check_warning_alerts(self):
@@ -150,12 +164,13 @@ class IapAccount(models.Model):
 
             for account in accounts:
                 # Round to a unit for integer services, to 4 decimals otherwise,
-                # to avoid long decimals
-                balance_amount = round(
+                # to avoid long decimals. This is the label only: the
+                # balance_amount field keeps the figure the server sent.
+                rounded_balance = round(
                     information["balance"],
                     None if account.service_id.integer_balance else 4,
                 )
-                balance = f"{balance_amount} {account.service_id.unit_name or ''}"
+                balance = f"{rounded_balance} {account.service_id.unit_name or ''}"
 
                 account_info = self._get_account_info(account, balance, information)
                 account.with_context(
@@ -165,6 +180,9 @@ class IapAccount(models.Model):
     def _get_account_info(self, account, balance, information):
         return {
             "balance": balance,
+            # Unrounded on purpose: 'balance' is rounded for display, but the
+            # alert threshold has to be compared against the real figure.
+            "balance_amount": information["balance"],
             "warning_threshold": information["warning_threshold"],
             "state": information["registered"],
             "service_locked": True,  # The account exists on IAP, prevent editing its service
