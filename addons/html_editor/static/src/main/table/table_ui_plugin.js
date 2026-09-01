@@ -2,6 +2,7 @@
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { Plugin } from "@html_editor/plugin";
 import { closestElement } from "@html_editor/utils/dom_traversal";
+import { getRowIndex } from "@html_editor/utils/table";
 import { reactive } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -225,7 +226,13 @@ export class TableUIPlugin extends Plugin {
             ),
             buildTableGrid: this.dependencies.table.buildTableGrid,
         };
-        if (td.cellIndex === 0) {
+        // Not `cellIndex === 0`: in a row that a rowspan from above reaches
+        // into, the first <td> is not the row's first grid square, and hanging
+        // the row menu off it puts the handle in the middle of the table.
+        const grid = this.dependencies.table.buildTableGrid(
+            closestElement(td, "table"),
+        );
+        if (grid[getRowIndex(td.parentElement)][0] === td) {
             registry
                 .category(this.config.localOverlayContainers.key)
                 .add(this.rowMenuOverlayKey, {
