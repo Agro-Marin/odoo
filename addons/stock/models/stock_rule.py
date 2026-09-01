@@ -562,8 +562,12 @@ class StockRule(models.Model):
                     (_("Delay on %s", rule.name), _("+ %d day(s)", rule.delay))
                     for rule in delaying_rules
                 ]
+        # A rule chain can span more than one company (e.g. an inter-company
+        # resupply route); there is no single "correct" company horizon in
+        # that case, so we deliberately pick the lowest company id for a
+        # deterministic result instead of an incidental recordset order.
         global_horizon_days = self.env["stock.warehouse.orderpoint"]._get_horizon_days(
-            self.company_id[:1],
+            self.company_id.sorted("id")[:1],
         )
         if global_horizon_days:
             delays["horizon_time"] += global_horizon_days
