@@ -33,7 +33,8 @@
                         source="data.sources_info[source]"
                         labelReport="receptionReportLabelAction"
                         showUom="data.show_uom"
-                        precision="data.precision"/>
+                        precision="data.precision"
+                        busyState="busyState"/>
                 </table>
             </t>
             <p t-else="">

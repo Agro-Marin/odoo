@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { useState } from "@odoo/owl";
 
-export function useOperationGuard() {
-    const state = useState({ busy: false });
+export function useOperationGuard(sharedState) {
+    const state = sharedState || useState({ busy: false });
     return {
         get busy() {
             return state.busy;

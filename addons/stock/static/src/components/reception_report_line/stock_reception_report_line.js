@@ -14,6 +14,7 @@ export class ReceptionReportLine extends Component {
         parentIndex: String,
         showUom: Boolean,
         precision: Number,
+        busyState: { type: Object, optional: true },
     };
 
     setup() {
@@ -21,7 +22,7 @@ export class ReceptionReportLine extends Component {
         this.actionService = useService("action");
         this.formatFloat = (val) =>
             formatFieldFloat(val, { digits: [false, this.props.precision] });
-        this.opGuard = useOperationGuard();
+        this.opGuard = useOperationGuard(this.props.busyState);
         this.onClickAssign = this.opGuard.guard(this.onClickAssign.bind(this));
         this.onClickUnassign = this.opGuard.guard(this.onClickUnassign.bind(this));
         this.onClickPrint = this.opGuard.guard(this.onClickPrint.bind(this));
