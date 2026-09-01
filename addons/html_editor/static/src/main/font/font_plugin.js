@@ -201,14 +201,14 @@ export class FontPlugin extends Plugin {
                     getItems: () => this.fontSizeItems,
                     getDisplay: () => this.fontSize,
                     onFontSizeInput: (size) => {
-                        this.dependencies.format.formatSelection("fontSize", {
+                        this.dependencies.format.requestFormat("fontSize", {
                             formatProps: { size },
                             applyStyle: true,
                         });
                         this.updateFontSizeSelectorParams();
                     },
                     onSelected: (item) => {
-                        this.dependencies.format.formatSelection(
+                        this.dependencies.format.requestFormat(
                             "setFontSizeClassName",
                             {
                                 formatProps: { className: item.className },

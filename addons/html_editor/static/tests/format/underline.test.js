@@ -1,11 +1,9 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { press } from "@odoo/hoot-dom";
 import { tick } from "@odoo/hoot-mock";
+import { press } from "@odoo/hoot-dom";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
-
-import { setupEditor, testEditor } from "../_helpers/editor.js";
-import { unformat } from "../_helpers/format.js";
-import { getContent } from "../_helpers/selection.js";
+import { setupEditor, testEditor } from "../_helpers/editor";
+import { getContent } from "../_helpers/selection";
 import {
     insertText,
     italic,
@@ -13,7 +11,10 @@ import {
     tripleClick,
     underline,
     undo,
-} from "../_helpers/user_actions.js";
+} from "../_helpers/user_actions";
+import { unformat } from "../_helpers/format";
+import { QWebPlugin } from "@html_editor/others/qweb_plugin";
+import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
 
 test("should make a few characters underline", async () => {
     await testEditor({
@@ -49,9 +50,10 @@ test("should make two paragraphs not underline", async () => {
 
 test("should make qweb tag underline", async () => {
     await testEditor({
-        contentBefore: `<div><p t-esc="'Test'" contenteditable="false">[Test]</p></div>`,
+        contentBefore: `<div><p t-out="'Test'" contenteditable="false">[Test]</p></div>`,
         stepFunction: underline,
-        contentAfter: `<div>[<p t-esc="'Test'" contenteditable="false" style="text-decoration-line: underline;">Test</p>]</div>`,
+        contentAfter: `<div>[<p t-out="'Test'" style="text-decoration-line: underline;">Test</p>]</div>`,
+        config: { Plugins: [...MAIN_PLUGINS, QWebPlugin] },
     });
 });
 
@@ -93,6 +95,7 @@ test("should make a selection with underline text in the middle fully underline"
 
 test("should make a selection ending with underline text fully underline", async () => {
     await testEditor({
+        // @phoenix content adapted to make it valid html
         contentBefore: `<p>[ab</p><p><u>c]d</u></p>`,
         stepFunction: underline,
         contentAfter: `<p><u>[ab</u></p><p><u>c]d</u></p>`,
@@ -133,9 +136,9 @@ test("should make two paragraphs (separated with whitespace) underline, then not
             <p>[abc</p>
             <p>def]</p>
         `,
-        stepFunction: async (editor) => {
+        stepFunction: async (editor, { assertContentEquals }) => {
             underline(editor);
-            expect(getContent(editor.editable)).toBe(`
+            assertContentEquals(`
             <p><u>[abc</u></p>
             <p><u>def]</u></p>
         `);
@@ -145,24 +148,6 @@ test("should make two paragraphs (separated with whitespace) underline, then not
             <p>[abc</p>
             <p>def]</p>
         `,
-    });
-});
-
-test("should get ready to type in underline", async () => {
-    await testEditor({
-        contentBefore: `<p>ab[]cd</p>`,
-        stepFunction: underline,
-        contentAfterEdit: `<p>ab<u data-oe-zws-empty-inline="">\u200B[]</u>cd</p>`,
-        contentAfter: `<p>ab[]cd</p>`,
-    });
-});
-
-test("should get ready to type in not underline", async () => {
-    await testEditor({
-        contentBefore: `<p><u>ab[]cd</u></p>`,
-        stepFunction: underline,
-        contentAfterEdit: `<p><u>ab</u><span data-oe-zws-empty-inline="">\u200B[]</span><u>cd</u></p>`,
-        contentAfter: `<p><u>ab[]cd</u></p>`,
     });
 });
 
@@ -226,36 +211,24 @@ describe("with strikeThrough", () => {
     test("should get ready to write in strikeThrough without underline (underline was first)", async () => {
         await testEditor({
             contentBefore: `<p>ab<u><s>cd[]ef</s></u></p>`,
-            stepFunction: underline,
-            contentAfterEdit: `<p>ab<u><s>cd</s></u><s data-oe-zws-empty-inline="">\u200B[]</s><u><s>ef</s></u></p>`,
-            contentAfter: `<p>ab<u><s>cd[]ef</s></u></p>`,
-        });
-    });
-
-    test("should restore underline after removing it (collapsed, strikeThrough)", async () => {
-        await testEditor({
-            contentBefore: `<p>ab<u><s>cd</s></u><s data-oe-zws-empty-inline="">\u200b[]</s><u><s>ef</s></u></p>`,
-            stepFunction: underline,
-            contentAfterEdit: `<p>ab<u><s>cd</s></u><s data-oe-zws-empty-inline=""><u data-oe-zws-empty-inline="">\u200B[]</u></s><u><s>ef</s></u></p>`,
-            contentAfter: `<p>ab<u><s>cd[]ef</s></u></p>`,
-        });
-    });
-
-    test("should remove underline after restoring it after removing it (collapsed, strikeThrough)", async () => {
-        await testEditor({
-            contentBefore: `<p>ab<u><s>cd</s></u><s><u>\u200B[]</u></s><u><s>ef</s></u></p>`,
-            stepFunction: underline,
-            contentAfterEdit: `<p>ab<u><s>cd</s></u><s data-oe-zws-empty-inline="">\u200B[]</s><u><s>ef</s></u></p>`,
-            contentAfter: `<p>ab<u><s>cd[]ef</s></u></p>`,
+            stepFunction: async (editor) => {
+                underline(editor);
+                await insertText(editor, "x");
+            },
+            contentAfterEdit: `<p>ab<u><s>cd</s></u><s>x[]</s><u><s>ef</s></u></p>`,
+            contentAfter: `<p>ab<u><s>cd</s></u><s>x[]</s><u><s>ef</s></u></p>`,
         });
     });
 
     test("should remove underline after restoring it and writing after removing it (collapsed, strikeThrough)", async () => {
         await testEditor({
             contentBefore: `<p>ab<u><s>cd</s></u><s><u>ghi[]</u></s><u><s>ef</s></u></p>`,
-            stepFunction: underline,
-            contentAfterEdit: `<p>ab<u><s>cd</s></u><s><u>ghi</u></s><s data-oe-zws-empty-inline="">\u200B[]</s><u><s>ef</s></u></p>`,
-            contentAfter: `<p>ab<u><s>cd</s></u><s><u>ghi</u></s>[]<u><s>ef</s></u></p>`,
+            stepFunction: async (editor) => {
+                underline(editor);
+                await insertText(editor, "x");
+            },
+            contentAfterEdit: `<p>ab<u><s>cd</s></u><s><u>ghi</u>x[]</s><u><s>ef</s></u></p>`,
+            contentAfter: `<p>ab<u><s>cd</s></u><s><u>ghi</u>x[]</s><u><s>ef</s></u></p>`,
         });
     });
 
@@ -263,6 +236,7 @@ describe("with strikeThrough", () => {
         await testEditor({
             contentBefore: `<p>ab<u><s>cd[]ef</s></u></p>`,
             stepFunction: async (editor) => {
+                /** @todo fix warnings */
                 patchWithCleanup(console, { warn: () => {} });
 
                 underline(editor);
@@ -292,9 +266,10 @@ describe("with italic", () => {
             stepFunction: async (editor) => {
                 italic(editor);
                 underline(editor);
+                await insertText(editor, "A");
             },
-            contentAfterEdit: `<p>ab<em data-oe-zws-empty-inline=""><u data-oe-zws-empty-inline="">\u200B[]</u></em>cd</p>`,
-            contentAfter: `<p>ab[]cd</p>`,
+            contentAfterEdit: `<p>ab<em><u>A[]</u></em>cd</p>`,
+            contentAfter: `<p>ab<em><u>A[]</u></em>cd</p>`,
         });
     });
 
@@ -305,23 +280,22 @@ describe("with italic", () => {
                 italic(editor);
                 underline(editor);
                 underline(editor);
+                await insertText(editor, "A");
             },
-            contentAfterEdit: `<p>ab<em data-oe-zws-empty-inline="">\u200B[]</em>cd</p>`,
-            contentAfter: `<p>ab[]cd</p>`,
+            contentAfterEdit: `<p>ab<em>A[]</em>cd</p>`,
+            contentAfter: `<p>ab<em>A[]</em>cd</p>`,
         });
     });
 
     test("should get ready to write in italic, after changing one's mind about underline (separated by italic)", async () => {
-        await testEditor({
-            contentBefore: `<p>ab[]cd</p>`,
-            stepFunction: async (editor) => {
-                underline(editor);
-                italic(editor);
-                underline(editor);
-            },
-            contentAfterEdit: `<p>ab<em data-oe-zws-empty-inline="">\u200B[]</em>cd</p>`,
-            contentAfter: `<p>ab[]cd</p>`,
-        });
+        const { editor, el } = await setupEditor("<p>ab[]cd</p>");
+
+        underline(editor);
+        italic(editor);
+        underline(editor);
+        await insertText(editor, "A");
+        await tick();
+        expect(getContent(el)).toBe(`<p>ab<em>A[]</em>cd</p>`);
     });
 
     test("should get ready to write in italic, after changing one's mind about underline (two consecutive at the beginning)", async () => {
@@ -331,45 +305,34 @@ describe("with italic", () => {
                 underline(editor);
                 underline(editor);
                 italic(editor);
+                await insertText(editor, "A");
             },
-            contentAfterEdit: `<p>ab<em data-oe-zws-empty-inline="">\u200B[]</em>cd</p>`,
-            contentAfter: `<p>ab[]cd</p>`,
+            contentAfterEdit: `<p>ab<em>A[]</em>cd</p>`,
+            contentAfter: `<p>ab<em>A[]</em>cd</p>`,
         });
     });
 
     test("should get ready to write in italic without underline (underline was first)", async () => {
         await testEditor({
             contentBefore: `<p>ab<u><em>cd[]ef</em></u></p>`,
-            stepFunction: underline,
-            contentAfterEdit: `<p>ab<u><em>cd</em></u><em data-oe-zws-empty-inline="">\u200B[]</em><u><em>ef</em></u></p>`,
-            contentAfter: `<p>ab<u><em>cd[]ef</em></u></p>`,
-        });
-    });
-
-    test("should restore underline after removing it (collapsed, italic)", async () => {
-        await testEditor({
-            contentBefore: `<p>ab<u><em>cd</em></u><em>\u200B[]</em><u><em>ef</em></u></p>`,
-            stepFunction: underline,
-            contentAfterEdit: `<p>ab<u><em>cd</em></u><em><u data-oe-zws-empty-inline="">\u200b[]</u></em><u><em>ef</em></u></p>`,
-            contentAfter: `<p>ab<u><em>cd[]ef</em></u></p>`,
-        });
-    });
-
-    test("should remove underline after restoring it after removing it (collapsed, italic)", async () => {
-        await testEditor({
-            contentBefore: `<p>ab<u><em>cd</em></u><em><u>\u200B[]</u></em><u><em>ef</em></u></p>`,
-            stepFunction: underline,
-            contentAfterEdit: `<p>ab<u><em>cd</em></u><em data-oe-zws-empty-inline="">\u200B[]</em><u><em>ef</em></u></p>`,
-            contentAfter: `<p>ab<u><em>cd[]ef</em></u></p>`,
+            stepFunction: async (editor) => {
+                underline(editor);
+                await insertText(editor, "A");
+            },
+            contentAfterEdit: `<p>ab<u><em>cd</em></u><em>A[]</em><u><em>ef</em></u></p>`,
+            contentAfter: `<p>ab<u><em>cd</em></u><em>A[]</em><u><em>ef</em></u></p>`,
         });
     });
 
     test("should remove underline after restoring it and writing after removing it (collapsed, italic)", async () => {
         await testEditor({
             contentBefore: `<p>ab<u><em>cd</em></u><em><u>ghi[]</u></em><u><em>ef</em></u></p>`,
-            stepFunction: underline,
-            contentAfterEdit: `<p>ab<u><em>cd</em></u><em><u>ghi</u></em><em data-oe-zws-empty-inline="">\u200B[]</em><u><em>ef</em></u></p>`,
-            contentAfter: `<p>ab<u><em>cd</em></u><em><u>ghi</u></em>[]<u><em>ef</em></u></p>`,
+            stepFunction: async (editor) => {
+                underline(editor);
+                await insertText(editor, "A");
+            },
+            contentAfterEdit: `<p>ab<u><em>cd</em></u><em><u>ghi</u>A[]</em><u><em>ef</em></u></p>`,
+            contentAfter: `<p>ab<u><em>cd</em></u><em><u>ghi</u>A[]</em><u><em>ef</em></u></p>`,
         });
     });
 
@@ -377,6 +340,7 @@ describe("with italic", () => {
         await testEditor({
             contentBefore: `<p>ab<u><em>cd[]ef</em></u></p>`,
             stepFunction: async (editor) => {
+                /** @todo fix warnings */
                 patchWithCleanup(console, { warn: () => {} });
 
                 underline(editor);
@@ -390,18 +354,18 @@ describe("with italic", () => {
         });
     });
 
-    test("should remove empty underline tag when changing selection", async () => {
+    test("should discard underline request when changing selection", async () => {
         const { editor, el } = await setupEditor("<p>ab[]cd</p>");
 
         underline(editor);
         await tick();
-        expect(getContent(el)).toBe(
-            `<p>ab<u data-oe-zws-empty-inline="">\u200B[]</u>cd</p>`,
-        );
+        expect(getContent(el)).toBe(`<p>ab[]cd</p>`);
 
         await simulateArrowKeyPress(editor, "ArrowLeft");
-        await tick();
+        await tick(); // await selectionchange
         expect(getContent(el)).toBe(`<p>a[]bcd</p>`);
+        await insertText(editor, "A");
+        expect(getContent(el)).toBe(`<p>aA[]bcd</p>`);
     });
 });
 
@@ -410,10 +374,11 @@ test("should not add history step for underline on collapsed selection", async (
 
     patchWithCleanup(console, { warn: () => {} });
 
+    // Collapsed formatting shortcuts (e.g. Ctrl+U) shouldn’t create a history
+    // commit. The empty inline tag is temporary: auto-cleaned if unused. We want
+    // to avoid having a phantom commit in the history.
     await press(["ctrl", "u"]);
-    expect(getContent(el)).toBe(
-        `<p>abcd<u data-oe-zws-empty-inline="">\u200B[]</u></p>`,
-    );
+    expect(getContent(el)).toBe(`<p>abcd[]</p>`);
 
     await insertText(editor, "A");
     expect(getContent(el)).toBe(`<p>abcd<u>A[]</u></p>`);

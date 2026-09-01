@@ -108,9 +108,9 @@ describe("Selection collapsed", () => {
                 stepFunction: deleteBackward,
                 contentAfterEdit:
                     '<p data-selection-placeholder=""><br></p>' +
-                    '<div><p>ab</p><br><i data-oe-zws-empty-inline="">[]\u200B</i></div>' +
+                    "<div><p>ab</p><br>[]<br></div>" +
                     '<p data-selection-placeholder=""><br></p>',
-                contentAfter: "<div><p>ab</p><br><br>[]</div>",
+                contentAfter: "<div><p>ab</p><br>[]<br></div>",
             });
         });
 
@@ -150,8 +150,7 @@ describe("Selection collapsed", () => {
                     await insertText(editor, "x");
                     undo(editor);
                 },
-                contentAfterEdit:
-                    '<p>ab<b data-oe-zws-empty-inline="">[]\u200B</b>de</p>',
+                contentAfterEdit: "<p>ab[]de</p>",
                 contentAfter: "<p>ab[]de</p>",
             });
         });
@@ -188,7 +187,7 @@ describe("Selection collapsed", () => {
                     deleteBackward(editor);
                 },
                 contentAfterEdit:
-                    '<p>uv<i style="color:red" data-oe-zws-empty-inline="">[]\u200B</i>xy</p>',
+                    '<p>uv<span data-oe-zws-empty-inline="" style="color:red">[]\u200B</span>xy</p>',
                 contentAfter: "<p>uv[]xy</p>",
             });
         });
@@ -200,8 +199,9 @@ describe("Selection collapsed", () => {
                     deleteBackward(editor);
                     await insertText(editor, "i");
                 },
-                contentAfterEdit: '<p>uv<i style="color:red">i[]</i>xy</p>',
-                contentAfter: '<p>uv<i style="color:red">i[]</i>xy</p>',
+                contentAfterEdit:
+                    '<p>uv<span style="color:red"><em>i[]</em></span>xy</p>',
+                contentAfter: '<p>uv<span style="color:red"><em>i[]</em></span>xy</p>',
             });
         });
 
@@ -565,24 +565,6 @@ describe("Selection collapsed", () => {
                 contentBefore: `<p>a<a class="btn" href="http://test.test/">[]</a></p>`,
                 stepFunction: deleteBackward,
                 contentAfter: `<p>a[]</p>`,
-            });
-        });
-
-        test("should delete empty styled paragraph(s) and move cursor to previous styled inline (1)", async () => {
-            await testEditor({
-                contentBefore: `<p><strong data-oe-zws-empty-inline="">\u200B</strong></p><p><strong data-oe-zws-empty-inline="">[]\u200B</strong></p>`,
-                stepFunction: deleteBackward,
-                contentAfterEdit: `<p o-we-hint-text='Type "/" for commands' class="o-we-hint"><strong data-oe-zws-empty-inline="">\u200B[]</strong><br></p>`,
-                contentAfter: `<p>[]<br></p>`,
-            });
-        });
-
-        test("should delete empty styled paragraph(s) and move cursor to previous styled inline (2)", async () => {
-            await testEditor({
-                contentBefore: `<p><strong>abc</strong></p><p><strong data-oe-zws-empty-inline="">\u200B</strong></p><p><strong data-oe-zws-empty-inline="">\u200B</strong></p><p><strong data-oe-zws-empty-inline="">[]\u200B</strong></p>`,
-                stepFunction: deleteBackward,
-                contentAfterEdit: `<p><strong>abc</strong></p><p><strong data-oe-zws-empty-inline="">\u200B</strong><br></p><p o-we-hint-text='Type "/" for commands' class="o-we-hint"><strong data-oe-zws-empty-inline="">\u200B[]</strong><br></p>`,
-                contentAfter: `<p><strong>abc</strong></p><p><br></p><p>[]<br></p>`,
             });
         });
 

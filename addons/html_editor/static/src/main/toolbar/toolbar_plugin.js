@@ -103,6 +103,7 @@ export class ToolbarPlugin extends Plugin {
         selection_leave_handlers: () => this.closeToolbar(),
         selection_enter_handlers: () => this.updateToolbar(),
         step_added_handlers: () => this.updateToolbar(),
+        format_requested_handlers: () => this.updateToolbar(),
         user_commands: {
             id: "expandToolbar",
             run: () => {

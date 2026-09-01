@@ -24,6 +24,9 @@ import { execCommand } from "./userCommands.js";
 export async function insertText(editor, text) {
     const insertChar = (char) => {
         const range = editor.document.getSelection().getRangeAt(0);
+        if (!range.collapsed) {
+            range.deleteContents();
+        }
         let offset = range.startOffset;
         let node = range.startContainer;
 
@@ -235,7 +238,7 @@ export function setFontSizeClassName(className) {
 }
 export function setFontFamily(fontFamily) {
     return (editor) => {
-        editor.shared.format.formatSelection("fontFamily", {
+        editor.shared.format.requestFormat("fontFamily", {
             applyStyle: fontFamily !== false,
             formatProps: {
                 name: fontFamily + "_name",

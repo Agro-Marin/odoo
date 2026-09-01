@@ -2,6 +2,7 @@ import { MAIN_EMBEDDINGS } from "@html_editor/others/embedded_components/embeddi
 import { EMBEDDED_COMPONENT_PLUGINS, MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-dom";
+import { tick } from "@odoo/hoot-mock";
 
 import { setupEditor, testEditor } from "../_helpers/editor.js";
 import { unformat } from "../_helpers/format.js";
@@ -1292,7 +1293,7 @@ describe("Selection not collapsed", () => {
             contentBefore: "<h1><i>[abcdef]</i></h1>",
             stepFunction: deleteForward,
             contentAfterEdit:
-                '<h1 o-we-hint-text="Heading 1" class="o-we-hint"><i data-oe-zws-empty-inline="">[]\u200B</i><br></h1>',
+                '<h1 o-we-hint-text="Heading 1" class="o-we-hint">[]<br></h1>',
             contentAfter: "<h1>[]<br></h1>",
         });
     });
@@ -1504,43 +1505,55 @@ describe("Selection not collapsed", () => {
     });
 
     test("should delete a selection from the beginning of a heading1 with a format to the end of a paragraph (1)", async () => {
-        await testEditor({
-            contentBefore: "<h1><u>[abcd</u></h1><p>ef]</p><h2>1</h2>",
-            stepFunction: deleteForward,
-            contentAfterEdit:
-                '<h1 o-we-hint-text="Heading 1" class="o-we-hint"><u data-oe-zws-empty-inline="">[]\u200B</u><br></h1><h2>1</h2>',
-            contentAfter: "<h1>[]<br></h1><h2>1</h2>",
-        });
+        const { editor, el } = await setupEditor(
+            "<h1><u>[abcd</u></h1><p>ef]</p><h2>1</h2>",
+        );
+        deleteForward(editor);
+        expect(getContent(el)).toBe(
+            `<h1 o-we-hint-text="Heading 1" class="o-we-hint">[]<br></h1><h2>1</h2>`,
+        );
+        await tick();
+        await insertText(editor, "x");
+        expect(getContent(el)).toBe("<h1><u>x[]</u></h1><h2>1</h2>");
     });
 
     test("should delete a selection from the beginning of a heading1 with a format to the end of a paragraph (2)", async () => {
-        await testEditor({
-            contentBefore: "<h1>[<u>abcd</u></h1><p>ef]</p><h2>2</h2>",
-            stepFunction: deleteForward,
-            contentAfterEdit:
-                '<h1 o-we-hint-text="Heading 1" class="o-we-hint"><u data-oe-zws-empty-inline="">[]\u200B</u><br></h1><h2>2</h2>',
-            contentAfter: "<h1>[]<br></h1><h2>2</h2>",
-        });
+        const { editor, el } = await setupEditor(
+            "<h1>[<u>abcd</u></h1><p>ef]</p><h2>2</h2>",
+        );
+        deleteForward(editor);
+        expect(getContent(el)).toBe(
+            `<h1 o-we-hint-text="Heading 1" class="o-we-hint">[]<br></h1><h2>2</h2>`,
+        );
+        await tick();
+        await insertText(editor, "x");
+        expect(getContent(el)).toBe("<h1><u>x[]</u></h1><h2>2</h2>");
     });
 
     test("should delete a selection from the beginning of a heading1 with a format to the end of a paragraph (3)", async () => {
-        await testEditor({
-            contentBefore: "<h1><u>]abcd</u></h1><p>ef[</p><h2>3</h2>",
-            stepFunction: deleteForward,
-            contentAfterEdit:
-                '<h1 o-we-hint-text="Heading 1" class="o-we-hint"><u data-oe-zws-empty-inline="">[]\u200B</u><br></h1><h2>3</h2>',
-            contentAfter: "<h1>[]<br></h1><h2>3</h2>",
-        });
+        const { editor, el } = await setupEditor(
+            "<h1><u>]abcd</u></h1><p>ef[</p><h2>3</h2>",
+        );
+        deleteForward(editor);
+        expect(getContent(el)).toBe(
+            `<h1 o-we-hint-text="Heading 1" class="o-we-hint">[]<br></h1><h2>3</h2>`,
+        );
+        await tick();
+        await insertText(editor, "x");
+        expect(getContent(el)).toBe("<h1><u>x[]</u></h1><h2>3</h2>");
     });
 
     test("should delete a selection from the beginning of a heading1 with a format to the end of a paragraph (4)", async () => {
-        await testEditor({
-            contentBefore: "<h1>]<u>abcd</u></h1><p>ef[</p><h2>4</h2>",
-            stepFunction: deleteForward,
-            contentAfterEdit:
-                '<h1 o-we-hint-text="Heading 1" class="o-we-hint"><u data-oe-zws-empty-inline="">[]\u200B</u><br></h1><h2>4</h2>',
-            contentAfter: "<h1>[]<br></h1><h2>4</h2>",
-        });
+        const { editor, el } = await setupEditor(
+            "<h1>]<u>abcd</u></h1><p>ef[</p><h2>4</h2>",
+        );
+        deleteForward(editor);
+        expect(getContent(el)).toBe(
+            `<h1 o-we-hint-text="Heading 1" class="o-we-hint">[]<br></h1><h2>4</h2>`,
+        );
+        await tick();
+        await insertText(editor, "x");
+        expect(getContent(el)).toBe("<h1><u>x[]</u></h1><h2>4</h2>");
     });
 
     test.tags("desktop");

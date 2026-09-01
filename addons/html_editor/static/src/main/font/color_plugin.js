@@ -220,7 +220,7 @@ export class ColorPlugin extends Plugin {
             ) {
                 zws = selection.anchorNode;
             } else {
-                zws = this.dependencies.format.insertAndSelectZws();
+                zws = this.dependencies.format.getOrCreateZws();
             }
             this.dependencies.selection.setSelection(
                 {
