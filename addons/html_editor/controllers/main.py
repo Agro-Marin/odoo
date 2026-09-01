@@ -274,6 +274,23 @@ class HTML_Editor(http.Controller):
             attachment = IrAttachment.sudo().create(attachment_data)
             if not attachment_data["public"]:
                 attachment.sudo().generate_access_token()
+            # The bypass above hands a portal user an unrestricted create, so
+            # bound what they may leave behind. Checked after the create rather
+            # than before because the mimetype and the size are what
+            # ir.attachment infers, not what the caller claimed; raising here
+            # rolls the request transaction back, so nothing is persisted.
+            if request.env.user.share:
+                max_portal_file_size = (
+                    request.env["ir.config_parameter"]
+                    .sudo()
+                    .get_param_int("html_editor.max_portal_file_size", 100_000_000)
+                )
+                if not (attachment.mimetype or "").startswith("image/"):
+                    raise AccessError(_("Non-internal users can only upload images."))
+                if attachment.file_size >= max_portal_file_size:
+                    raise AccessError(
+                        _("Non-internal users cannot upload files this large.")
+                    )
         else:
             attachment = get_existing_attachment(
                 IrAttachment, attachment_data
