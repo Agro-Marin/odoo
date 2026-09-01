@@ -7,14 +7,14 @@ class TestExportImportRoundtrip(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.Partner = cls.env["res.partner"]
-        cls.tag_a = cls.env["res.partner.category"].create({"name": "rt tag A"})
-        cls.tag_b = cls.env["res.partner.category"].create({"name": "rt tag B"})
+        cls.tag_a = cls.env["res.partner.tag"].create({"name": "rt tag A"})
+        cls.tag_b = cls.env["res.partner.tag"].create({"name": "rt tag B"})
         cls.country = cls.env.ref("base.be")
         cls.record = cls.Partner.create(
             {
                 "name": "roundtrip probe",
                 "country_id": cls.country.id,
-                "category_id": [Command.set([cls.tag_a.id, cls.tag_b.id])],
+                "tag_ids": [Command.set([cls.tag_a.id, cls.tag_b.id])],
             }
         )
         cls.env.flush_all()
@@ -23,7 +23,7 @@ class TestExportImportRoundtrip(TransactionCase):
         return self.record.export_data(columns)["datas"][0]
 
     def test_m2m_external_id_column_exports_external_ids(self):
-        __, cell = self._export(["name", "category_id/id"])
+        __, cell = self._export(["name", "tag_ids/id"])
         exported = cell.split(",")
         self.assertEqual(len(exported), 2, cell)
         resolved = [self.env.ref(xid) for xid in exported]
@@ -36,14 +36,14 @@ class TestExportImportRoundtrip(TransactionCase):
             self.assertNotIn(name, exported)
 
     def test_m2m_database_id_column_exports_database_ids(self):
-        __, cell = self._export(["name", "category_id/.id"])
+        __, cell = self._export(["name", "tag_ids/.id"])
         self.assertEqual(
             sorted(int(v) for v in cell.split(",")),
             sorted((self.tag_a + self.tag_b).ids),
         )
 
     def test_m2m_bare_column_still_exports_display_names(self):
-        __, cell = self._export(["name", "category_id"])
+        __, cell = self._export(["name", "tag_ids"])
         self.assertEqual(
             sorted(cell.split(",")),
             sorted([self.tag_a.display_name, self.tag_b.display_name]),
@@ -59,7 +59,7 @@ class TestExportImportRoundtrip(TransactionCase):
         )
 
     def test_export_then_load_roundtrips(self):
-        columns = ["name", "country_id/id", "category_id/id", "employee", "color"]
+        columns = ["name", "country_id/id", "tag_ids/id", "employee", "color"]
         self.record.employee = True
         self.record.color = 3
         self.env.flush_all()
@@ -73,7 +73,7 @@ class TestExportImportRoundtrip(TransactionCase):
         imported = self.Partner.browse(result["ids"])
         self.assertEqual(imported.name, self.record.name)
         self.assertEqual(imported.country_id, self.record.country_id)
-        self.assertEqual(imported.category_id, self.record.category_id)
+        self.assertEqual(imported.tag_ids, self.record.tag_ids)
         self.assertEqual(imported.employee, self.record.employee)
         self.assertEqual(imported.color, self.record.color)
 
@@ -90,7 +90,7 @@ class TestExportImportRoundtrip(TransactionCase):
 
     def test_load_reports_unconvertible_cell_type_instead_of_raising(self):
         result = self.Partner.load(
-            ["name", "category_id"], [["bad shape", [self.tag_a.id]]]
+            ["name", "tag_ids"], [["bad shape", [self.tag_a.id]]]
         )
         messages = result["messages"]
         self.assertTrue(messages, "an unconvertible cell was silently accepted")

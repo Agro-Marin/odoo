@@ -23,10 +23,10 @@
         groups="base.group_partner_manager" />
 
     <menuitem
-        id="menu_partner_category_form"
+        id="menu_partner_tag_form"
         name="Contact Tags"
         parent="res_partner_menu_config"
-        action="base.action_partner_category_form"
+        action="base.action_partner_tag_form"
         sequence="1" />
 
     <menuitem

@@ -50,7 +50,7 @@ amount_taxexc_invoiced, etc.) for drop-in adoption.
         "mixin_report_sql",
     ],
     "data": [
-        "views/res_partner_category_views.xml",
+        "views/res_partner_tag_views.xml",
     ],
     "author": "Odoo Community",
     "website": "https://www.odoo.com",

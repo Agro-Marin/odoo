@@ -54,6 +54,13 @@ class ResPartnerIdentifierType(models.Model):
         default=False,
         help="Allow one contact to carry several values of this type.",
     )
+    confidential = fields.Boolean(
+        default=False,
+        help="Restrict this identifier to its own holder and to the groups "
+        "granted full access by a record rule. Use it for what identifies a "
+        "person to the state -- a national number, a passport -- and leave it "
+        "off for what a company publishes about itself, such as a tax ID.",
+    )
     synced_with_commercial = fields.Boolean(
         default=False,
         help="Copy this identifier from the commercial entity down to its "

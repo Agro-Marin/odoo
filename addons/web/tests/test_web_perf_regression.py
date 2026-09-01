@@ -28,7 +28,7 @@ class TestWebPerfRegression(TransactionCase):
             }
         )
 
-        cls.categories = cls.env["res.partner.category"].create(
+        cls.categories = cls.env["res.partner.tag"].create(
             [{"name": f"PerfCat_{i}"} for i in range(5)]
         )
 
@@ -40,7 +40,7 @@ class TestWebPerfRegression(TransactionCase):
                     "name": f"PerfPartner_{i:03d}",
                     "email": f"perf{i}@test.example.com",
                     "country_id": cls.country_be.id,
-                    "category_id": [(6, 0, cls.categories[:3].ids)],
+                    "tag_ids": [(6, 0, cls.categories[:3].ids)],
                     "type": "contact",
                     "is_company": False,
                 }
@@ -135,7 +135,7 @@ class TestWebPerfRegression(TransactionCase):
             partners.web_read(
                 {
                     "name": {},
-                    "category_id": {
+                    "tag_ids": {
                         "fields": {
                             "display_name": {},
                             "color": {},
@@ -196,7 +196,7 @@ class TestWebPerfRegression(TransactionCase):
         self.env.invalidate_all()
         with self.assertQueryCount(5):
             Partners.search_panel_select_multi_range(
-                "category_id",
+                "tag_ids",
                 search_domain=[("name", "like", "PerfPartner")],
                 enable_counters=True,
             )

@@ -141,7 +141,7 @@ covers. That is how `partner_enterprise` adds a map view without editing this mo
 partner_menu_root                        Contacts (the app)
 ├── res_partner_menu                     Contacts        -> action_partner       seq 10
 └── res_partner_menu_config              Configuration   (base.group_partner_manager)  seq 100
-    ├── menu_partner_category_form       Contact Tags
+    ├── menu_partner_tag_form       Contact Tags
     ├── res_partner_age_range_menu       Age Ranges      -> res_partner_age_range_action
     ├── res_partner_identifier_type_menu Identifier Types    (base.group_system)
     ├── res_partner_industry_menu        Industries          (base.group_system)

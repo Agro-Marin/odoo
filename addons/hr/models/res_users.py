@@ -30,7 +30,7 @@ HR_WRITABLE_FIELDS = [
     "private_phone",
     "private_email",
     "barcode",
-    "category_ids",
+    "tag_ids",
     "display_name",
     "emergency_contact",
     "emergency_phone",
@@ -78,8 +78,8 @@ class ResUsers(models.Model):
     work_email = fields.Char(
         related="employee_id.work_email", readonly=False, related_sudo=False
     )
-    category_ids = fields.Many2many(
-        related="employee_id.category_ids",
+    tag_ids = fields.Many2many(
+        related="employee_id.tag_ids",
         string="Employee Tags",
         readonly=False,
         related_sudo=False,

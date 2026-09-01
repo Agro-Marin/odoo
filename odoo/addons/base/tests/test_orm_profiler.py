@@ -24,14 +24,14 @@ class TestOrmProfiler(TransactionCase):
         self.profiler.clear()
 
     def test_create_recorded(self):
-        self.env["res.partner.category"].create(
+        self.env["res.partner.tag"].create(
             [{"name": f"Prof Cat {i}"} for i in range(3)]
         )
 
         entries = {
             key: stats
             for key, stats in self.profiler._data.items()
-            if key[0] == "create" and key[1] == "res.partner.category"
+            if key[0] == "create" and key[1] == "res.partner.tag"
         }
         self.assertTrue(entries, "create should be recorded")
         stats = next(iter(entries.values()))
@@ -40,7 +40,7 @@ class TestOrmProfiler(TransactionCase):
         self.assertGreater(stats.time, 0)
 
     def test_write_recorded(self):
-        categories = self.env["res.partner.category"].create(
+        categories = self.env["res.partner.tag"].create(
             [{"name": f"Prof Cat {i}"} for i in range(3)]
         )
         self.profiler.clear()
@@ -50,14 +50,14 @@ class TestOrmProfiler(TransactionCase):
         entries = {
             key: stats
             for key, stats in self.profiler._data.items()
-            if key[0] == "write" and key[1] == "res.partner.category"
+            if key[0] == "write" and key[1] == "res.partner.tag"
         }
         self.assertTrue(entries, "write should be recorded")
         stats = next(iter(entries.values()))
         self.assertEqual(stats.records, 3)
 
     def test_unlink_recorded(self):
-        categories = self.env["res.partner.category"].create(
+        categories = self.env["res.partner.tag"].create(
             [{"name": f"Prof Cat {i}"} for i in range(3)]
         )
         self.profiler.clear()
@@ -67,24 +67,24 @@ class TestOrmProfiler(TransactionCase):
         entries = {
             key: stats
             for key, stats in self.profiler._data.items()
-            if key[0] == "unlink" and key[1] == "res.partner.category"
+            if key[0] == "unlink" and key[1] == "res.partner.tag"
         }
         self.assertTrue(entries, "unlink should be recorded")
 
     def test_search_recorded(self):
         self.profiler.clear()
 
-        self.env["res.partner.category"].search([("name", "like", "Prof")])
+        self.env["res.partner.tag"].search([("name", "like", "Prof")])
 
         entries = {
             key: stats
             for key, stats in self.profiler._data.items()
-            if key[0] == "search" and key[1] == "res.partner.category"
+            if key[0] == "search" and key[1] == "res.partner.tag"
         }
         self.assertTrue(entries, "search should be recorded")
 
     def test_read_recorded(self):
-        categories = self.env["res.partner.category"].create(
+        categories = self.env["res.partner.tag"].create(
             [{"name": f"Prof Cat {i}"} for i in range(3)]
         )
         self.profiler.clear()
@@ -94,12 +94,12 @@ class TestOrmProfiler(TransactionCase):
         entries = {
             key: stats
             for key, stats in self.profiler._data.items()
-            if key[0] == "read" and key[1] == "res.partner.category"
+            if key[0] == "read" and key[1] == "res.partner.tag"
         }
         self.assertTrue(entries, "read should be recorded")
 
     def test_report_emits_warning(self):
-        self.env["res.partner.category"].create(
+        self.env["res.partner.tag"].create(
             [{"name": f"Report Cat {i}"} for i in range(3)]
         )
 
@@ -111,12 +111,12 @@ class TestOrmProfiler(TransactionCase):
             "Report should emit ORM Profile Summary",
         )
         self.assertTrue(
-            any("res.partner.category" in msg for msg in log.output),
+            any("res.partner.tag" in msg for msg in log.output),
             "Report should mention the model name",
         )
 
     def test_clear_resets_data(self):
-        self.env["res.partner.category"].create({"name": "Clear Test"})
+        self.env["res.partner.tag"].create({"name": "Clear Test"})
         self.assertTrue(self.profiler._data, "Data should exist before clear")
 
         self.profiler.clear()
@@ -126,7 +126,7 @@ class TestOrmProfiler(TransactionCase):
 
     def test_timing_accumulates(self):
         for i in range(3):
-            self.env["res.partner.category"].create({"name": f"Acc Cat {i}"})
+            self.env["res.partner.tag"].create({"name": f"Acc Cat {i}"})
 
         total = sum(stats.time for stats in self.profiler._data.values())
         self.assertAlmostEqual(
@@ -152,6 +152,6 @@ class TestOrmProfilerDisabled(TransactionCase):
 
     def test_no_profiler_when_disabled(self):
         self.assertFalse(orm_profiler._orm_profiling_enabled)
-        cat = self.env["res.partner.category"].create({"name": "Disabled Test"})
+        cat = self.env["res.partner.tag"].create({"name": "Disabled Test"})
         cat.write({"name": "Updated"})
         cat.unlink()

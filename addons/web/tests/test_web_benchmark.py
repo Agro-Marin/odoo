@@ -18,7 +18,7 @@ class TestWebBenchmark(TransactionCase):
         super().setUpClass()
         cls.all_results = []
 
-        cls.categories = cls.env["res.partner.category"].create(
+        cls.categories = cls.env["res.partner.tag"].create(
             [{"name": f"BenchCat_{i}"} for i in range(5)]
         )
 
@@ -30,7 +30,7 @@ class TestWebBenchmark(TransactionCase):
                     "name": f"BenchPartner_{i:04d}",
                     "email": f"bench{i}@test.example.com",
                     "country_id": cls.country_be.id,
-                    "category_id": [(6, 0, cls.categories[:3].ids)],
+                    "tag_ids": [(6, 0, cls.categories[:3].ids)],
                     "type": "contact",
                 }
                 for i in range(500)
@@ -118,7 +118,7 @@ class TestWebBenchmark(TransactionCase):
         spec = {
             "name": {},
             "country_id": {"fields": {"display_name": {}, "code": {}}},
-            "category_id": {"fields": {"display_name": {}, "color": {}}},
+            "tag_ids": {"fields": {"display_name": {}, "color": {}}},
         }
 
         self._run_benchmark(
@@ -156,7 +156,7 @@ class TestWebBenchmark(TransactionCase):
         self._run_benchmark(
             "search_panel_m2m_counters (5 categories)",
             lambda: Partners.search_panel_select_multi_range(
-                "category_id",
+                "tag_ids",
                 search_domain=domain,
                 enable_counters=True,
             ),

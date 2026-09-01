@@ -2408,13 +2408,13 @@ class TestPartnerRecursion(TransactionCase):
 @tagged("res_partner")
 class TestPartnerCategory(TransactionCase):
     def test_name_search(self):
-        category = self.env["res.partner.category"].create({"name": "buggy_test"})
-        result = self.env["res.partner.category"].name_search("buggy_test")
+        category = self.env["res.partner.tag"].create({"name": "buggy_test"})
+        result = self.env["res.partner.tag"].name_search("buggy_test")
         self.assertEqual(len(result), 1)
         self.assertEqual(result, [(category.id, category.display_name)])
 
     def test_recursion_rejected(self):
-        Category = self.env["res.partner.category"]
+        Category = self.env["res.partner.tag"]
         a = Category.create({"name": "A"})
         b = Category.create({"name": "B", "parent_id": a.id})
         c = Category.create({"name": "C", "parent_id": b.id})
@@ -2424,7 +2424,7 @@ class TestPartnerCategory(TransactionCase):
             a.write({"parent_id": a.id})
 
     def test_display_name_full_ancestor_path(self):
-        Category = self.env["res.partner.category"]
+        Category = self.env["res.partner.tag"]
         a = Category.create({"name": "A"})
         b = Category.create({"name": "B", "parent_id": a.id})
         c = Category.create({"name": "C", "parent_id": b.id})
@@ -2435,13 +2435,13 @@ class TestPartnerCategory(TransactionCase):
         self.assertEqual(c.display_name, " / B / C")
 
     def test_display_name_new_record_fallback(self):
-        Category = self.env["res.partner.category"]
+        Category = self.env["res.partner.tag"]
         parent = Category.create({"name": "Stored Parent"})
         draft = Category.new({"name": "Draft Child", "parent_id": parent.id})
         self.assertEqual(draft.display_name, "Stored Parent / Draft Child")
 
     def test_display_name_invalidated_on_parent_rename(self):
-        Category = self.env["res.partner.category"]
+        Category = self.env["res.partner.tag"]
         a = Category.create({"name": "A"})
         b = Category.create({"name": "B", "parent_id": a.id})
         self.assertEqual(b.display_name, "A / B")
@@ -2449,7 +2449,7 @@ class TestPartnerCategory(TransactionCase):
         self.assertEqual(b.display_name, "A2 / B")
 
     def test_search_display_name_child_of(self):
-        Category = self.env["res.partner.category"]
+        Category = self.env["res.partner.tag"]
         parent = Category.create({"name": "Furniture"})
         child = Category.create({"name": "Chairs", "parent_id": parent.id})
         result = Category.search([("display_name", "like", "Furniture")])

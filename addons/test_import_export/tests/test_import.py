@@ -1232,7 +1232,7 @@ foo3,US,0,invoices\n""",
 
         It makes sure that values of type Char and Many2many are correctly merged."""
 
-        tag1, tag2, tag3 = self.env["res.partner.category"].create(
+        tag1, tag2, tag3 = self.env["res.partner.tag"].create(
             [
                 {
                     "name": "tag1",
@@ -1267,7 +1267,7 @@ foo3,US,0,invoices\n""",
             )
 
             results = import_wizard.execute_import(
-                ["name", "country_id", "name", "name", "category_id", "category_id"],
+                ["name", "country_id", "name", "name", "tag_ids", "tag_ids"],
                 [],
                 {
                     "quoting": '"',
@@ -1285,9 +1285,9 @@ foo3,US,0,invoices\n""",
         self.assertEqual("Marc Demo The Demo User", partners[1].name)
         self.assertEqual("Joel Portal", partners[2].name)
 
-        self.assertEqual(tag1 | tag2 | tag3, partners[0].category_id)
-        self.assertEqual(tag3, partners[1].category_id)
-        self.assertEqual(tag1 | tag3, partners[2].category_id)
+        self.assertEqual(tag1 | tag2 | tag3, partners[0].tag_ids)
+        self.assertEqual(tag3, partners[1].tag_ids)
+        self.assertEqual(tag1 | tag3, partners[2].tag_ids)
 
     def test_multi_mapping_hmtl(self):
         import_wizard = self.env["base_import.import"].create(

@@ -9,7 +9,7 @@
                         <field name="employee_ids" invisible="allocation_mode != 'employee'" widget="many2many_avatar_employee" placeholder="All Employees"/>
                         <field name="company_id" invisible="allocation_mode != 'company'"/>
                         <field name="department_id" invisible="allocation_mode != 'department'" required="allocation_mode == 'department'"/>
-                        <field name="category_id" invisible="allocation_mode != 'category'" required="allocation_mode == 'category'"/>
+                        <field name="tag_id" invisible="allocation_mode != 'category'" required="allocation_mode == 'category'"/>
                         <field name="holiday_status_id"/>
                         <field name="allocation_type" widget="radio"/>
                         <field name="request_unit" invisible="1"/>

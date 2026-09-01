@@ -1291,9 +1291,9 @@ class TestSelfServiceEscalation(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.user = new_test_user(cls.env, login="escalation_user")
-        cls.tag = cls.env["res.partner.category"].create({"name": "victim tag"})
+        cls.tag = cls.env["res.partner.tag"].create({"name": "victim tag"})
         cls.other = cls.env["res.partner"].create(
-            {"name": "other", "category_id": [Command.link(cls.tag.id)]}
+            {"name": "other", "tag_ids": [Command.link(cls.tag.id)]}
         )
         cls.self_writeable = cls.env["res.users"]._self_accessible_fields()[1]
 
@@ -1336,7 +1336,7 @@ class TestSelfServiceEscalation(TransactionCase):
         with patch.object(
             type(self.env["res.users"]),
             "SELF_WRITEABLE_FIELDS",
-            property(lambda s: ["category_id"]),
+            property(lambda s: ["tag_ids"]),
         ):
             self.env.registry.clear_cache("stable")
             for command in (
@@ -1345,7 +1345,7 @@ class TestSelfServiceEscalation(TransactionCase):
                 Command.update(self.tag.id, {"name": "renamed"}),
             ):
                 with self.assertRaises(AccessError):
-                    self._self_write({"category_id": [command]})
+                    self._self_write({"tag_ids": [command]})
         self.env.registry.clear_cache("stable")
         self.assertTrue(self.tag.exists(), "the tag was destroyed by a self-write")
         self.assertEqual(self.tag.name, "victim tag", "the tag was renamed")
@@ -1354,32 +1354,32 @@ class TestSelfServiceEscalation(TransactionCase):
         with patch.object(
             type(self.env["res.users"]),
             "SELF_WRITEABLE_FIELDS",
-            property(lambda s: ["category_id"]),
+            property(lambda s: ["tag_ids"]),
         ):
             self.env.registry.clear_cache("stable")
-            self._self_write({"category_id": [Command.link(self.tag.id)]})
-            self.assertIn(self.tag, self.user.category_id)
-            self._self_write({"category_id": [Command.unlink(self.tag.id)]})
-            self.assertNotIn(self.tag, self.user.category_id)
-            self._self_write({"category_id": [Command.set(self.tag.ids)]})
-            self.assertEqual(self.user.category_id, self.tag)
-            self._self_write({"category_id": [Command.clear()]})
-            self.assertFalse(self.user.category_id)
+            self._self_write({"tag_ids": [Command.link(self.tag.id)]})
+            self.assertIn(self.tag, self.user.tag_ids)
+            self._self_write({"tag_ids": [Command.unlink(self.tag.id)]})
+            self.assertNotIn(self.tag, self.user.tag_ids)
+            self._self_write({"tag_ids": [Command.set(self.tag.ids)]})
+            self.assertEqual(self.user.tag_ids, self.tag)
+            self._self_write({"tag_ids": [Command.clear()]})
+            self.assertFalse(self.user.tag_ids)
         self.env.registry.clear_cache("stable")
         self.assertTrue(self.tag.exists(), "a relation edit destroyed the tag")
 
     def test_shorthand_values_are_classified_by_effect(self):
         Users = self.env["res.users"]
         self.assertTrue(
-            Users._is_escaping_own_record({"category_id": [{"name": "forged"}]}),
+            Users._is_escaping_own_record({"tag_ids": [{"name": "forged"}]}),
             "the dict create shorthand must not be escalated",
         )
         self.assertFalse(
-            Users._is_escaping_own_record({"category_id": [self.tag.id]}),
+            Users._is_escaping_own_record({"tag_ids": [self.tag.id]}),
             "the bare-id link shorthand is a relation edit",
         )
         self.assertFalse(
-            Users._is_escaping_own_record({"category_id": self.tag}),
+            Users._is_escaping_own_record({"tag_ids": self.tag}),
             "assigning a recordset replaces the relation only",
         )
         self.assertFalse(

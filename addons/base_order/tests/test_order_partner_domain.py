@@ -7,7 +7,7 @@ class TestOrderPartnerDomain(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.Category = cls.env["res.partner.category"]
+        cls.Category = cls.env["res.partner.tag"]
         cls.Partner = cls.env["res.partner"]
         cls.group = cls.env["res.groups"].create({"name": "Reserved Buyers"})
         cls.other_group = cls.env["res.groups"].create({"name": "Other Buyers"})
@@ -31,7 +31,7 @@ class TestOrderPartnerDomain(TransactionCase):
 
     def _tag(self, name, category):
         return self.Partner.create(
-            {"name": name, "category_id": [Command.set(category.ids)]}
+            {"name": name, "tag_ids": [Command.set(category.ids)]}
         )
 
     def _domain(self, model="purchase.order"):

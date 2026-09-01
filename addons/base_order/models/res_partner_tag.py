@@ -2,8 +2,8 @@ from odoo import api, fields, models
 from odoo.fields import Domain
 
 
-class ResPartnerCategory(models.Model):
-    _inherit = "res.partner.category"
+class ResPartnerTag(models.Model):
+    _inherit = "res.partner.tag"
 
     order_type = fields.Selection(
         selection=[
@@ -11,15 +11,15 @@ class ResPartnerCategory(models.Model):
             ("purchase", "Purchase Orders"),
         ],
         string="Order Scope",
-        help="Order type whose partner selection this category restricts. "
+        help="Order type whose partner selection this tag restricts. "
         "Leave empty to restrict every order type.",
     )
     group_ids = fields.Many2many(
         comodel_name="res.groups",
         string="Reserved For",
         help="Only users in one of these groups may pick a partner tagged with "
-        "this category, or with one of its children, on an order of the scope "
-        "above. Leave empty to place the category outside the restriction.",
+        "this tag, or with one of its children, on an order of the scope "
+        "above. Leave empty to place the tag outside the restriction.",
     )
 
     @api.model
@@ -37,4 +37,4 @@ class ResPartnerCategory(models.Model):
         )
         if not allowed:
             return Domain.FALSE
-        return Domain("category_id", "child_of", allowed.ids)
+        return Domain("tag_ids", "child_of", allowed.ids)

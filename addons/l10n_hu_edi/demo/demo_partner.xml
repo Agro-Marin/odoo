@@ -6,7 +6,7 @@
 
     <record id="res_partner_hu_01" model="res.partner">
         <field name="name">Magyar Vevő Kft.</field>
-        <field eval="[Command.set([ref('base.res_partner_category_11')])]" name="category_id"/>
+        <field eval="[Command.set([ref('base.res_partner_category_11')])]" name="tag_ids"/>
         <field name="is_company">1</field>
         <field name="street">Alkotmány utca 11.</field>
         <field name="city">Debrecen</field>
@@ -30,7 +30,7 @@
 
     <record id="res_partner_hu_02" model="res.partner">
         <field name="name">MOL Nyrt.</field>
-        <field eval="[Command.set([ref('base.res_partner_category_11')])]" name="category_id"/>
+        <field eval="[Command.set([ref('base.res_partner_category_11')])]" name="tag_ids"/>
         <field name="is_company">1</field>
         <field name="street">Dombóvári út 28.</field>
         <field name="city">Budapest</field>
@@ -53,7 +53,7 @@
 
     <record id="res_partner_hu_03" model="res.partner">
         <field name="name">MOL Petrolkémia Zrt.</field>
-        <field eval="[Command.set([ref('base.res_partner_category_11')])]" name="category_id"/>
+        <field eval="[Command.set([ref('base.res_partner_category_11')])]" name="tag_ids"/>
         <field name="is_company">1</field>
         <field name="street">TVK-Ipartelep, TVK Központi Irodaház 2119/3hrsz. 136. ép.</field>
         <field name="city">Tiszaújváros</field>

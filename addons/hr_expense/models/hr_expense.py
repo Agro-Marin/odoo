@@ -868,7 +868,7 @@ class HrExpense(models.Model):
                     "product_id": expense.product_id.id,
                     "product_categ_id": expense.product_id.categ_id.id,
                     "partner_id": expense.employee_id.work_contact_id.id,
-                    "partner_category_id": expense.employee_id.work_contact_id.category_id.ids,
+                    "partner_tag_id": expense.employee_id.work_contact_id.tag_ids.ids,
                     "account_prefix": expense.account_id.code,
                     "company_id": expense.company_id.id,
                 }

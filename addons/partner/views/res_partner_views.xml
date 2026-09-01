@@ -57,7 +57,7 @@
                     string="Birthday Month"
                     context="{'group_by': 'birthdate:month_number'}" />
             </filter>
-            <field name="category_id" position="after">
+            <field name="tag_ids" position="after">
                 <field name="age" />
                 <field name="age_range_id" />
             </field>

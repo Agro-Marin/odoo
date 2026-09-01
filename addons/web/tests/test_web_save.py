@@ -176,7 +176,7 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         self.assertEqual(self.partner.phone, "222")
 
     def test_translated_field_no_false_conflict(self):
-        category = self.env["res.partner.category"].create({"name": "Original"})
+        category = self.env["res.partner.tag"].create({"name": "Original"})
         self.env.flush_all()
         self.assertTrue(category._fields["name"].translate)
         category.web_save(
@@ -187,10 +187,10 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         self.assertEqual(category.name, "Renamed")
 
     def test_translated_field_fails_open(self):
-        category = self.env["res.partner.category"].create({"name": "Original"})
+        category = self.env["res.partner.tag"].create({"name": "Original"})
         self.env.flush_all()
         self.env.cr.execute(
-            "UPDATE res_partner_category SET name = %s WHERE id = %s",
+            "UPDATE res_partner_tag SET name = %s WHERE id = %s",
             ('{"en_US": "Changed Elsewhere"}', category.id),
         )
         category.web_save(
@@ -434,7 +434,7 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
             )
         with self.assertRaises(UserError):
             self.partner.web_save(
-                {"category_id": [[6, False, ["virtual_1"]]]},
+                {"tag_ids": [[6, False, ["virtual_1"]]]},
                 specification={"id": {}},
             )
         result = self.partner.web_save(

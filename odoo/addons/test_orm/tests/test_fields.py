@@ -3989,8 +3989,8 @@ class TestX2many(TransactionExpressionCase):
                 "field_description": "Foo",
                 "model_id": model_id,
                 "ttype": "many2many",
-                "relation": "res.partner.category",
-                "related": "category_id",
+                "relation": "res.partner.tag",
+                "related": "tag_ids",
                 "readonly": True,
                 "store": True,
             }

@@ -821,7 +821,7 @@ class TestSelfWriteDoesNotEscalateThroughRelations(TestHrCommon):
         cls.env["hr.employee"].create(
             {"name": "Self Writer", "user_id": cls.self_user.id}
         )
-        cls.existing_tag = cls.env["hr.employee.category"].create(
+        cls.existing_tag = cls.env["res.partner.tag"].create(
             {"name": "Pre-existing Tag"}
         )
         cls.env.flush_all()
@@ -833,14 +833,14 @@ class TestSelfWriteDoesNotEscalateThroughRelations(TestHrCommon):
         self.env.flush_all()
 
     def test_a_self_writable_m2m_cannot_create_a_comodel_record(self):
-        before = self.env["hr.employee.category"].search_count([])
+        before = self.env["res.partner.tag"].search_count([])
         with self.assertRaises(AccessError):
             self._write_as_self(
-                {"category_ids": [Command.create({"name": "Minted By Employee"})]}
+                {"tag_ids": [Command.create({"name": "Minted By Employee"})]}
             )
         self.env.invalidate_all()
         self.assertEqual(
-            self.env["hr.employee.category"].search_count([]),
+            self.env["res.partner.tag"].search_count([]),
             before,
             "res.users.write elevates a self-write to superuser when every key is"
             " self-writable. base's _is_escaping_own_record is what stops that"
@@ -854,7 +854,7 @@ class TestSelfWriteDoesNotEscalateThroughRelations(TestHrCommon):
         with self.assertRaises(AccessError):
             self._write_as_self(
                 {
-                    "category_ids": [
+                    "tag_ids": [
                         Command.update(self.existing_tag.id, {"name": "ESCALATED"})
                     ]
                 }
@@ -870,7 +870,7 @@ class TestSelfWriteDoesNotEscalateThroughRelations(TestHrCommon):
     def test_a_self_writable_m2m_cannot_delete_a_comodel_record(self):
         with self.assertRaises(AccessError):
             self._write_as_self(
-                {"category_ids": [Command.delete(self.existing_tag.id)]}
+                {"tag_ids": [Command.delete(self.existing_tag.id)]}
             )
         self.env.invalidate_all()
         self.assertTrue(
@@ -880,11 +880,11 @@ class TestSelfWriteDoesNotEscalateThroughRelations(TestHrCommon):
         )
 
     def test_linking_an_existing_tag_to_oneself_still_works(self):
-        self._write_as_self({"category_ids": [Command.link(self.existing_tag.id)]})
+        self._write_as_self({"tag_ids": [Command.link(self.existing_tag.id)]})
         self.env.invalidate_all()
         self.assertIn(
             self.existing_tag,
-            self.self_user.employee_id.sudo().category_ids,
+            self.self_user.employee_id.sudo().tag_ids,
             "LINK is inside _RELATION_ONLY_COMMANDS and is the self-service case"
             " the field exists for; the guard must not break it",
         )

@@ -15,7 +15,7 @@
 
         <record id="view_partner_tag_form" model="ir.ui.view">
             <field name="name">Website Tags</field>
-            <field name="model">res.partner.tag</field>
+            <field name="model">res.partner.website.tag</field>
             <field name="arch" type="xml">
                 <form string="Partner Tag">
                 <sheet>
@@ -32,7 +32,7 @@
 
         <record id="view_partner_tag_list" model="ir.ui.view">
             <field name="name">Website Tags</field>
-            <field name="model">res.partner.tag</field>
+            <field name="model">res.partner.website.tag</field>
             <field eval="6" name="priority"/>
             <field name="arch" type="xml">
                 <list string="Website Tags" editable="bottom">
@@ -44,9 +44,9 @@
             </field>
         </record>
 
-        <record id="res_partner_tag_view_search" model="ir.ui.view">
-            <field name="name">res.partner.tag.view.search</field>
-            <field name="model">res.partner.tag</field>
+        <record id="res_partner_website_tag_view_search" model="ir.ui.view">
+            <field name="name">res.partner.website.tag.view.search</field>
+            <field name="model">res.partner.website.tag</field>
             <field name="arch" type="xml">
                 <search string="Search Partner Tag">
                     <field name="name"/>
@@ -58,8 +58,8 @@
 
         <record id="action_partner_tag_form" model="ir.actions.act_window">
             <field name="name">Website Tags</field>
-            <field name="res_model">res.partner.tag</field>
-            <field name="search_view_id" ref="res_partner_tag_view_search"/>
+            <field name="res_model">res.partner.website.tag</field>
+            <field name="search_view_id" ref="res_partner_website_tag_view_search"/>
             <field name="help" type="html">
               <p class="o_view_nocontent_smiling_face">
                 Create a new contact tag

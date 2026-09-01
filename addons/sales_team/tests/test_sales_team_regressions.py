@@ -617,11 +617,11 @@ class TestSearchCrmTeamIds(TestSalesCommon):
         self.assertEqual(self._search("!=", False), self.user_ab)
 
     def test_matches_a_stored_many2many(self):
-        cat_a, cat_b = self.env["res.partner.category"].create(
+        cat_a, cat_b = self.env["res.partner.tag"].create(
             [{"name": "MA"}, {"name": "MB"}]
         )
         p_ab = self.env["res.partner"].create(
-            {"name": "P AB", "category_id": [(6, 0, (cat_a | cat_b).ids)]}
+            {"name": "P AB", "tag_ids": [(6, 0, (cat_a | cat_b).ids)]}
         )
         p_none = self.env["res.partner"].create({"name": "P None"})
         pairs = {self.user_ab: p_ab, self.user_none: p_none}
@@ -636,7 +636,7 @@ class TestSearchCrmTeamIds(TestSalesCommon):
             reference = self.env["res.partner"].search(
                 [
                     ("id", "in", (p_ab | p_none).ids),
-                    ("category_id", operator, cat_value),
+                    ("tag_ids", operator, cat_value),
                 ]
             )
             self.assertEqual(
@@ -715,14 +715,14 @@ class TestSearchMemberIds(TestSalesCommon):
         )
 
     def test_matches_a_stored_many2many(self):
-        cat_a, cat_b = self.env["res.partner.category"].create(
+        cat_a, cat_b = self.env["res.partner.tag"].create(
             [{"name": "TA"}, {"name": "TB"}]
         )
         p_a = self.env["res.partner"].create(
-            {"name": "T PA", "category_id": [(6, 0, cat_a.ids)]}
+            {"name": "T PA", "tag_ids": [(6, 0, cat_a.ids)]}
         )
         p_b = self.env["res.partner"].create(
-            {"name": "T PB", "category_id": [(6, 0, cat_b.ids)]}
+            {"name": "T PB", "tag_ids": [(6, 0, cat_b.ids)]}
         )
         p_empty = self.env["res.partner"].create({"name": "T PEmpty"})
         pairs = {self.team_a: p_a, self.team_b: p_b, self.team_empty: p_empty}
@@ -737,7 +737,7 @@ class TestSearchMemberIds(TestSalesCommon):
             ("in", [False] + self.member_a.ids, [False] + cat_a.ids),
         ):
             reference = self.env["res.partner"].search(
-                [("id", "in", partners.ids), ("category_id", operator, cat_value)]
+                [("id", "in", partners.ids), ("tag_ids", operator, cat_value)]
             )
             self.assertEqual(
                 set(self._search(operator, member_value)),

@@ -23,17 +23,17 @@ class Many2manyCase(TransactionCase):
         self.redbeard = self.env["test_orm.pirate"].create({"name": "Red Beard"})
 
     def test_set_removes_archived_links(self):
-        Category = self.env["res.partner.category"]
+        Category = self.env["res.partner.tag"]
         a, b, c = Category.create([{"name": "A"}, {"name": "B"}, {"name": "C"}])
         partner = self.env["res.partner"].create(
-            {"name": "P", "category_id": [Command.set((a + b).ids)]}
+            {"name": "P", "tag_ids": [Command.set((a + b).ids)]}
         )
         b.active = False
 
-        partner.write({"category_id": [Command.set(c.ids)]})
+        partner.write({"tag_ids": [Command.set(c.ids)]})
 
         self.assertEqual(
-            partner.with_context(active_test=False).category_id,
+            partner.with_context(active_test=False).tag_ids,
             c,
             "archived link must be removed by SET, not survive the delta",
         )

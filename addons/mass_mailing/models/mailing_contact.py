@@ -51,7 +51,7 @@ class MailingContact(models.Model):
         "mailing.subscription", "contact_id", string="Subscription Information"
     )
     country_id = fields.Many2one("res.country", string="Country")
-    tag_ids = fields.Many2many("res.partner.category", string="Tags")
+    tag_ids = fields.Many2many("res.partner.tag", string="Tags")
     opt_out = fields.Boolean(
         "Opt Out",
         compute="_compute_opt_out",

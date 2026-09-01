@@ -9217,7 +9217,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_res_lang__active
 #: model:ir.model.fields,field_description:base.field_res_partner__active
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__active
-#: model:ir.model.fields,field_description:base.field_res_partner_category__active
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__active
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__active
 #: model:ir.model.fields,field_description:base.field_res_users__active
 #: model_terms:ir.ui.view,arch_db:base.asset_view_search
@@ -10160,7 +10160,7 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:base.ir_filters_view_search
 #: model_terms:ir.ui.view,arch_db:base.ir_mail_server_form
 #: model_terms:ir.ui.view,arch_db:base.res_bank_view_search
-#: model_terms:ir.ui.view,arch_db:base.res_partner_category_view_search
+#: model_terms:ir.ui.view,arch_db:base.res_partner_tag_view_search
 #: model_terms:ir.ui.view,arch_db:base.res_partner_industry_view_search
 #: model_terms:ir.ui.view,arch_db:base.view_ir_mail_server_search
 #: model_terms:ir.ui.view,arch_db:base.view_partner_bank_form
@@ -10268,7 +10268,7 @@ msgid "Assets/Fleet bridge"
 msgstr ""
 
 #. module: base
-#: model_terms:ir.actions.act_window,help:base.action_partner_category_form
+#: model_terms:ir.actions.act_window,help:base.action_partner_tag_form
 msgid "Assign tags to your contacts to organize, filter and track them."
 msgstr ""
 
@@ -11763,7 +11763,7 @@ msgid "Child IDs"
 msgstr ""
 
 #. module: base
-#: model:ir.model.fields,field_description:base.field_res_partner_category__child_ids
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__child_ids
 msgid "Child Tags"
 msgstr ""
 
@@ -11958,7 +11958,7 @@ msgid "Colombian Localization for EDI documents"
 msgstr ""
 
 #. module: base
-#: model:ir.model.fields,field_description:base.field_res_partner_category__color
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__color
 msgid "Color"
 msgstr ""
 
@@ -12382,7 +12382,7 @@ msgid "Construction"
 msgstr ""
 
 #. module: base
-#: model:res.partner.category,name:base.res_partner_category_8
+#: model:res.partner.tag,name:base.res_partner_category_8
 msgid "Consulting Services"
 msgstr ""
 
@@ -12417,13 +12417,13 @@ msgid "Contact Name"
 msgstr ""
 
 #. module: base
-#: model_terms:ir.ui.view,arch_db:base.view_partner_category_form
+#: model_terms:ir.ui.view,arch_db:base.view_partner_tag_form
 msgid "Contact Tag"
 msgstr ""
 
 #. module: base
-#: model:ir.actions.act_window,name:base.action_partner_category_form
-#: model_terms:ir.ui.view,arch_db:base.view_partner_category_list
+#: model:ir.actions.act_window,name:base.action_partner_tag_form
+#: model_terms:ir.ui.view,arch_db:base.view_partner_tag_list
 msgid "Contact Tags"
 msgstr ""
 
@@ -12697,7 +12697,7 @@ msgid "Create a Bank Account"
 msgstr ""
 
 #. module: base
-#: model_terms:ir.actions.act_window,help:base.action_partner_category_form
+#: model_terms:ir.actions.act_window,help:base.action_partner_tag_form
 msgid "Create a Contact Tag"
 msgstr ""
 
@@ -12897,7 +12897,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_res_lang__create_uid
 #: model:ir.model.fields,field_description:base.field_res_partner__create_uid
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__create_uid
-#: model:ir.model.fields,field_description:base.field_res_partner_category__create_uid
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__create_uid
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__create_uid
 #: model:ir.model.fields,field_description:base.field_res_partner_title__create_uid
 #: model:ir.model.fields,field_description:base.field_res_users__create_uid
@@ -12980,7 +12980,7 @@ msgstr "បង្កើតដោយ"
 #: model:ir.model.fields,field_description:base.field_res_lang__create_date
 #: model:ir.model.fields,field_description:base.field_res_partner__create_date
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__create_date
-#: model:ir.model.fields,field_description:base.field_res_partner_category__create_date
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__create_date
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__create_date
 #: model:ir.model.fields,field_description:base.field_res_partner_title__create_date
 #: model:ir.model.fields,field_description:base.field_res_users_apikeys_description__create_date
@@ -13677,7 +13677,7 @@ msgid "Design, send and track emails"
 msgstr ""
 
 #. module: base
-#: model:res.partner.category,name:base.res_partner_category_14
+#: model:res.partner.tag,name:base.res_partner_category_14
 msgid "Desk Manufacturers"
 msgstr ""
 
@@ -13865,7 +13865,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_res_lang__display_name
 #: model:ir.model.fields,field_description:base.field_res_partner__display_name
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__display_name
-#: model:ir.model.fields,field_description:base.field_res_partner_category__display_name
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__display_name
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__display_name
 #: model:ir.model.fields,field_description:base.field_res_partner_title__display_name
 #: model:ir.model.fields,field_description:base.field_res_users__display_name
@@ -14469,7 +14469,7 @@ msgstr ""
 #. module: base
 #: model:ir.module.category,name:base.module_category_human_resources_employees
 #: model:ir.module.module,shortdesc:base.module_hr
-#: model:res.partner.category,name:base.res_partner_category_3
+#: model:res.partner.tag,name:base.res_partner_category_3
 msgid "Employees"
 msgstr ""
 
@@ -16919,7 +16919,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_res_lang__id
 #: model:ir.model.fields,field_description:base.field_res_partner__id
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__id
-#: model:ir.model.fields,field_description:base.field_res_partner_category__id
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__id
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__id
 #: model:ir.model.fields,field_description:base.field_res_partner_title__id
 #: model:ir.model.fields,field_description:base.field_res_users__id
@@ -18420,7 +18420,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_res_lang__write_uid
 #: model:ir.model.fields,field_description:base.field_res_partner__write_uid
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__write_uid
-#: model:ir.model.fields,field_description:base.field_res_partner_category__write_uid
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__write_uid
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__write_uid
 #: model:ir.model.fields,field_description:base.field_res_partner_title__write_uid
 #: model:ir.model.fields,field_description:base.field_res_users__write_uid
@@ -18502,7 +18502,7 @@ msgstr "ផ្លាស់ប្តូរចុងក្រោយ"
 #: model:ir.model.fields,field_description:base.field_res_lang__write_date
 #: model:ir.model.fields,field_description:base.field_res_partner__write_date
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__write_date
-#: model:ir.model.fields,field_description:base.field_res_partner_category__write_date
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__write_date
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__write_date
 #: model:ir.model.fields,field_description:base.field_res_partner_title__write_date
 #: model:ir.model.fields,field_description:base.field_res_users__write_date
@@ -21847,7 +21847,7 @@ msgid "OdooBot for livechat"
 msgstr ""
 
 #. module: base
-#: model:res.partner.category,name:base.res_partner_category_12
+#: model:res.partner.tag,name:base.res_partner_category_12
 msgid "Office Supplies"
 msgstr ""
 
@@ -22623,7 +22623,7 @@ msgid "Parent Application"
 msgstr ""
 
 #. module: base
-#: model:ir.model.fields,field_description:base.field_res_partner_category__parent_id
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__parent_id
 msgid "Parent Category"
 msgstr ""
 
@@ -22641,7 +22641,7 @@ msgstr ""
 
 #. module: base
 #: model:ir.model.fields,field_description:base.field_ir_ui_menu__parent_path
-#: model:ir.model.fields,field_description:base.field_res_partner_category__parent_path
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__parent_path
 msgid "Parent Path"
 msgstr ""
 
@@ -22668,7 +22668,7 @@ msgid "Partner Autocomplete"
 msgstr ""
 
 #. module: base
-#: model:ir.model,name:base.model_res_partner_category
+#: model:ir.model,name:base.model_res_partner_tag
 msgid "Partner Tags"
 msgstr ""
 
@@ -22711,7 +22711,7 @@ msgid "Partner-related data of the user"
 msgstr ""
 
 #. module: base
-#: model:ir.model.fields,field_description:base.field_res_partner_category__partner_ids
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__partner_ids
 #: model_terms:ir.ui.view,arch_db:base.base_partner_merge_automatic_wizard_form
 #: model_terms:ir.ui.view,arch_db:base.view_partner_form
 msgid "Partners"
@@ -23691,7 +23691,7 @@ msgid "Properties of base fields cannot be altered in this manner! Please modify
 msgstr ""
 
 #. module: base
-#: model:res.partner.category,name:base.res_partner_category_2
+#: model:res.partner.tag,name:base.res_partner_category_2
 msgid "Prospects"
 msgstr ""
 
@@ -25232,7 +25232,7 @@ msgid "Search Partner"
 msgstr ""
 
 #. module: base
-#: model_terms:ir.ui.view,arch_db:base.res_partner_category_view_search
+#: model_terms:ir.ui.view,arch_db:base.res_partner_tag_view_search
 msgid "Search Partner Category"
 msgstr ""
 
@@ -25656,7 +25656,7 @@ msgstr ""
 
 #. module: base
 #: model:ir.module.category,name:base.module_category_services
-#: model:res.partner.category,name:base.res_partner_category_11
+#: model:res.partner.tag,name:base.res_partner_category_11
 #: model_terms:ir.ui.view,arch_db:base.user_groups_view
 msgid "Services"
 msgstr "សេវាកម្ម"
@@ -26789,7 +26789,7 @@ msgid "Tag"
 msgstr "ធែក"
 
 #. module: base
-#: model:ir.model.fields,field_description:base.field_res_partner_category__name
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__name
 msgid "Tag Name"
 msgstr ""
 
@@ -27186,7 +27186,7 @@ msgid "The URL code of the language must be unique!"
 msgstr ""
 
 #. module: base
-#: model:ir.model.fields,help:base.field_res_partner_category__active
+#: model:ir.model.fields,help:base.field_res_partner_tag__active
 msgid "The active field allows you to hide the category without removing it."
 msgstr ""
 
@@ -29301,7 +29301,7 @@ msgid "Vat Label"
 msgstr ""
 
 #. module: base
-#: model:res.partner.category,name:base.res_partner_category_0
+#: model:res.partner.tag,name:base.res_partner_category_0
 msgid "Vendor"
 msgstr ""
 
@@ -30405,7 +30405,7 @@ msgid "e.g. \"B2B\", \"VIP\", \"Consulting\", ..."
 msgstr ""
 
 #. module: base
-#: model_terms:ir.ui.view,arch_db:base.view_partner_category_form
+#: model_terms:ir.ui.view,arch_db:base.view_partner_tag_form
 msgid "e.g. \"Consulting Services\""
 msgstr ""
 

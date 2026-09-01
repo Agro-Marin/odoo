@@ -4802,7 +4802,7 @@ class AccountMove(models.Model):
                 "account_prefix": cash_discount_account.code,
                 "company_id": self.company_id.id,
                 "partner_id": self.commercial_partner_id.id,
-                "partner_category_id": self.partner_id.category_id.ids,
+                "partner_tag_id": self.partner_id.tag_ids.ids,
             }
         )
         return cash_discount_account, epd_analytic_distribution

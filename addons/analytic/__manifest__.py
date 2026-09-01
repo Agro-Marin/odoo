@@ -1,6 +1,6 @@
 {
     "name": "Analytic Accounting",
-    "version": "1.3",
+    "version": "1.4",
     "category": "Accounting/Accounting",
     "depends": ["uom", "mail"],
     "description": """

@@ -28,11 +28,39 @@ _ORM_MINTED_PREFIXES = ("model_", "field_", "selection_", "constraint_", "module
 _HOOK_MINTED_MODULES = frozenset({"product_unspsc"})
 
 _RE_REF_CALL = re.compile(r"\bref\(\s*['\"]([^'\"]+)['\"]")
+# ``ref('xmlid', False)`` passes raise_if_not_found=False, so it yields False
+# instead of raising. Deliberately optional, and outside what this gate asserts.
+_RE_REF_CALL_OPTIONAL = re.compile(r"\bref\(\s*['\"]([^'\"]+)['\"]\s*,\s*False\s*\)")
 _RE_XML_ID_LITERAL = re.compile(r"['\"]xml_id['\"]\s*:\s*['\"]([^'\"]+)['\"]")
+# The same declaration wrapped in a helper call, which is how pos_restaurant
+# suffixes its scenario xmlids:
+#     'xml_id': self._get_suffixed_ref_name('pos_restaurant.pos_config_main_restaurant')
+# The literal is the declaration either way; only the spelling differs.
+_RE_XML_ID_WRAPPED = re.compile(
+    r"['\"]xml_id['\"]\s*:\s*[A-Za-z_][\w.]*\(\s*['\"]([^'\"]+)['\"]"
+)
 
 
 def _qualify(module, xmlid):
     return xmlid if "." in xmlid else f"{module}.{xmlid}"
+
+
+def _is_optional_field_ref(element):
+    """True when convert.py would resolve this ref without raising.
+
+    ``_eval_field_ref`` calls ``id_get(f_ref, raise_if_not_found=nodeattr2bool(
+    rec, "forcecreate", True))``, so a record carrying ``forcecreate="False"``
+    yields False for a missing xmlid instead of failing the install. This gate
+    asserts that a missing xmlid stops a module loading; for those it does not,
+    and counting them makes the number mean something other than its own
+    message.
+    """
+    record = element.getparent()
+    while record is not None and record.tag not in ("record", "template"):
+        record = record.getparent()
+    if record is None:
+        return False
+    return (record.get("forcecreate") or "").strip().lower() in ("false", "0")
 
 
 class TestRecordReferences(lint_case.LintCase):
@@ -82,9 +110,14 @@ class TestRecordReferences(lint_case.LintCase):
         # `ref` is an xmlid only on <field>; elsewhere in a view arch it is an
         # ordinary attribute of the rendered element.
         if element.tag == "field" and (ref := element.get("ref")):
-            cls.references.append((_qualify(module, ref), path, element.sourceline))
+            if not _is_optional_field_ref(element):
+                cls.references.append((_qualify(module, ref), path, element.sourceline))
         for attribute in ("eval", "t-value"):
-            for match in _RE_REF_CALL.finditer(element.get(attribute) or ""):
+            source = element.get(attribute) or ""
+            optional = {m.group(1) for m in _RE_REF_CALL_OPTIONAL.finditer(source)}
+            for match in _RE_REF_CALL.finditer(source):
+                if match.group(1) in optional:
+                    continue
                 cls.references.append(
                     (_qualify(module, match.group(1)), path, element.sourceline)
                 )
@@ -122,8 +155,9 @@ class TestRecordReferences(lint_case.LintCase):
                 source = path.read_text(encoding="utf-8")
             except OSError, UnicodeDecodeError:
                 continue
-            for match in _RE_XML_ID_LITERAL.finditer(source):
-                cls.defined.add(_qualify(module, match.group(1)))
+            for pattern in (_RE_XML_ID_LITERAL, _RE_XML_ID_WRAPPED):
+                for match in pattern.finditer(source):
+                    cls.defined.add(_qualify(module, match.group(1)))
 
     @classmethod
     def _is_statically_undecidable(cls, ref):

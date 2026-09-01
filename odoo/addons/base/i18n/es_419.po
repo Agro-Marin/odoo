@@ -16092,7 +16092,7 @@ msgstr "Activar"
 #: model:ir.model.fields,field_description:base.field_res_lang__active
 #: model:ir.model.fields,field_description:base.field_res_partner__active
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__active
-#: model:ir.model.fields,field_description:base.field_res_partner_category__active
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__active
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__active
 #: model:ir.model.fields,field_description:base.field_res_users__active
 #: model_terms:ir.ui.view,arch_db:base.asset_view_search
@@ -18720,7 +18720,7 @@ msgstr "Archivar"
 #: model_terms:ir.ui.view,arch_db:base.ir_filters_view_search
 #: model_terms:ir.ui.view,arch_db:base.ir_mail_server_form
 #: model_terms:ir.ui.view,arch_db:base.res_bank_view_search
-#: model_terms:ir.ui.view,arch_db:base.res_partner_category_view_search
+#: model_terms:ir.ui.view,arch_db:base.res_partner_tag_view_search
 #: model_terms:ir.ui.view,arch_db:base.res_partner_industry_view_search
 #: model_terms:ir.ui.view,arch_db:base.res_partner_kanban_view
 #: model_terms:ir.ui.view,arch_db:base.view_ir_mail_server_search
@@ -19381,7 +19381,7 @@ msgid "Assets/Fleet bridge"
 msgstr "Enlace entre activos y Flotilla"
 
 #. module: base
-#: model_terms:ir.actions.act_window,help:base.action_partner_category_form
+#: model_terms:ir.actions.act_window,help:base.action_partner_tag_form
 msgid "Assign tags to your contacts to organize, filter and track them."
 msgstr ""
 "Asigne etiquetas a sus contactos para organizarlos, filtrarlos y "
@@ -21685,10 +21685,10 @@ msgstr "Categorías"
 #. module: base
 #: model:ir.model.fields,field_description:base.field_ir_module_module__category_id
 #: model:ir.model.fields,field_description:base.field_res_groups_privilege__category_id
-#: model:ir.model.fields,field_description:base.field_res_partner_category__parent_id
-#: model_terms:ir.ui.view,arch_db:base.res_partner_category_view_search
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__parent_id
+#: model_terms:ir.ui.view,arch_db:base.res_partner_tag_view_search
 #: model_terms:ir.ui.view,arch_db:base.view_module_filter
-#: model_terms:ir.ui.view,arch_db:base.view_partner_category_list
+#: model_terms:ir.ui.view,arch_db:base.view_partner_tag_list
 msgid "Category"
 msgstr "Categoría"
 
@@ -22037,7 +22037,7 @@ msgid "Child IDs"
 msgstr "ID subordinadas"
 
 #. module: base
-#: model:ir.model.fields,field_description:base.field_res_partner_category__child_ids
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__child_ids
 msgid "Child Tags"
 msgstr "Etiquetas subordinadas"
 
@@ -22430,8 +22430,8 @@ msgstr "Colones"
 #. module: base
 #: model:ir.model.fields,field_description:base.field_res_company__color
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__color
-#: model:ir.model.fields,field_description:base.field_res_partner_category__color
-#: model_terms:ir.ui.view,arch_db:base.res_partner_category_view_search
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__color
+#: model_terms:ir.ui.view,arch_db:base.res_partner_tag_view_search
 msgid "Color"
 msgstr "Color"
 
@@ -22993,7 +22993,7 @@ msgid "Consultancy, Design, Tech, Computers, IT, Blogs"
 msgstr "Consultoría, diseño, tecnología, computadoras, TI, blogs"
 
 #. module: base
-#: model:res.partner.category,name:base.res_partner_category_8
+#: model:res.partner.tag,name:base.res_partner_category_8
 msgid "Consulting Services"
 msgstr "Servicios de consultoría"
 
@@ -23019,13 +23019,13 @@ msgid "Contact Form"
 msgstr "Formulario de contacto"
 
 #. module: base
-#: model_terms:ir.ui.view,arch_db:base.view_partner_category_form
+#: model_terms:ir.ui.view,arch_db:base.view_partner_tag_form
 msgid "Contact Tag"
 msgstr "Etiqueta de contacto"
 
 #. module: base
-#: model:ir.actions.act_window,name:base.action_partner_category_form
-#: model_terms:ir.ui.view,arch_db:base.view_partner_category_list
+#: model:ir.actions.act_window,name:base.action_partner_tag_form
+#: model_terms:ir.ui.view,arch_db:base.view_partner_tag_list
 msgid "Contact Tags"
 msgstr "Etiquetas de contacto"
 
@@ -23370,7 +23370,7 @@ msgid "Create a Bank Account"
 msgstr "Crear una cuenta bancaria"
 
 #. module: base
-#: model_terms:ir.actions.act_window,help:base.action_partner_category_form
+#: model_terms:ir.actions.act_window,help:base.action_partner_tag_form
 msgid "Create a Contact Tag"
 msgstr "Crear una etiqueta de contacto"
 
@@ -23613,7 +23613,7 @@ msgstr "Vistas creadas"
 #: model:ir.model.fields,field_description:base.field_res_lang__create_uid
 #: model:ir.model.fields,field_description:base.field_res_partner__create_uid
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__create_uid
-#: model:ir.model.fields,field_description:base.field_res_partner_category__create_uid
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__create_uid
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__create_uid
 #: model:ir.model.fields,field_description:base.field_res_users__create_uid
 #: model:ir.model.fields,field_description:base.field_res_users_apikeys_description__create_uid
@@ -23702,7 +23702,7 @@ msgstr "Creado por"
 #: model:ir.model.fields,field_description:base.field_res_lang__create_date
 #: model:ir.model.fields,field_description:base.field_res_partner__create_date
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__create_date
-#: model:ir.model.fields,field_description:base.field_res_partner_category__create_date
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__create_date
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__create_date
 #: model:ir.model.fields,field_description:base.field_res_users_apikeys_description__create_date
 #: model:ir.model.fields,field_description:base.field_res_users_deletion__create_date
@@ -24686,7 +24686,7 @@ msgid "Design, send and track emails"
 msgstr "Diseñe, envíe y rastree correos electrónicos"
 
 #. module: base
-#: model:res.partner.category,name:base.res_partner_category_14
+#: model:res.partner.tag,name:base.res_partner_category_14
 msgid "Desk Manufacturers"
 msgstr "Fabricantes de escritorios"
 
@@ -24962,7 +24962,7 @@ msgstr "Grupos separados"
 #: model:ir.model.fields,field_description:base.field_res_lang__display_name
 #: model:ir.model.fields,field_description:base.field_res_partner__display_name
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__display_name
-#: model:ir.model.fields,field_description:base.field_res_partner_category__display_name
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__display_name
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__display_name
 #: model:ir.model.fields,field_description:base.field_res_users__display_name
 #: model:ir.model.fields,field_description:base.field_res_users_apikeys__display_name
@@ -25849,7 +25849,7 @@ msgstr "Referencias del empleado"
 #. module: base
 #: model:ir.module.category,name:base.module_category_human_resources_employees
 #: model:ir.module.module,shortdesc:base.module_hr
-#: model:res.partner.category,name:base.res_partner_category_3
+#: model:res.partner.tag,name:base.res_partner_category_3
 msgid "Employees"
 msgstr "Empleados"
 
@@ -29707,7 +29707,7 @@ msgstr "Cuentas bancarias IBAN"
 #: model:ir.model.fields,field_description:base.field_res_lang__id
 #: model:ir.model.fields,field_description:base.field_res_partner__id
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__id
-#: model:ir.model.fields,field_description:base.field_res_partner_category__id
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__id
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__id
 #: model:ir.model.fields,field_description:base.field_res_users__id
 #: model:ir.model.fields,field_description:base.field_res_users_apikeys__id
@@ -32125,7 +32125,7 @@ msgstr "Última actualización"
 #: model:ir.model.fields,field_description:base.field_res_lang__write_uid
 #: model:ir.model.fields,field_description:base.field_res_partner__write_uid
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__write_uid
-#: model:ir.model.fields,field_description:base.field_res_partner_category__write_uid
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__write_uid
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__write_uid
 #: model:ir.model.fields,field_description:base.field_res_users__write_uid
 #: model:ir.model.fields,field_description:base.field_res_users_apikeys_description__write_uid
@@ -32213,7 +32213,7 @@ msgstr "Última actualización por"
 #: model:ir.model.fields,field_description:base.field_res_lang__write_date
 #: model:ir.model.fields,field_description:base.field_res_partner__write_date
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__write_date
-#: model:ir.model.fields,field_description:base.field_res_partner_category__write_date
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__write_date
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__write_date
 #: model:ir.model.fields,field_description:base.field_res_users__write_date
 #: model:ir.model.fields,field_description:base.field_res_users_apikeys_description__write_date
@@ -34792,14 +34792,14 @@ msgstr "Nakfa"
 #: model:ir.model.fields,field_description:base.field_res_lang__name
 #: model:ir.model.fields,field_description:base.field_res_partner__name
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__bank_name
-#: model:ir.model.fields,field_description:base.field_res_partner_category__name
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__name
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__name
 #: model:ir.model.fields,field_description:base.field_res_users__name
 #: model_terms:ir.ui.view,arch_db:base.ir_profile_view_search
 #: model_terms:ir.ui.view,arch_db:base.res_device_view_form
 #: model_terms:ir.ui.view,arch_db:base.res_device_view_kanban
 #: model_terms:ir.ui.view,arch_db:base.res_device_view_tree
-#: model_terms:ir.ui.view,arch_db:base.res_partner_category_view_search
+#: model_terms:ir.ui.view,arch_db:base.res_partner_tag_view_search
 #: model_terms:ir.ui.view,arch_db:base.view_currency_form
 #: model_terms:ir.ui.view,arch_db:base.view_currency_tree
 #: model_terms:ir.ui.view,arch_db:base.view_partner_form
@@ -37294,7 +37294,7 @@ msgid "OdooBot - HR"
 msgstr "OdooBot - RR. HH."
 
 #. module: base
-#: model:res.partner.category,name:base.res_partner_category_12
+#: model:res.partner.tag,name:base.res_partner_category_12
 msgid "Office Supplies"
 msgstr "Suministros de oficina"
 
@@ -38753,7 +38753,7 @@ msgstr "Menú principal"
 #. module: base
 #: model:ir.model.fields,field_description:base.field_ir_ui_menu__parent_path
 #: model:ir.model.fields,field_description:base.field_res_company__parent_path
-#: model:ir.model.fields,field_description:base.field_res_partner_category__parent_path
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__parent_path
 msgid "Parent Path"
 msgstr "Ruta principal"
 
@@ -38781,7 +38781,7 @@ msgid "Partner Autocomplete"
 msgstr "Autocompletar contacto"
 
 #. module: base
-#: model:ir.model,name:base.model_res_partner_category
+#: model:ir.model,name:base.model_res_partner_tag
 msgid "Partner Tags"
 msgstr "Etiquetas del contacto"
 
@@ -38813,7 +38813,7 @@ msgid "Partner-related data of the user"
 msgstr "Datos relacionados al contacto del usuario"
 
 #. module: base
-#: model:ir.model.fields,field_description:base.field_res_partner_category__partner_ids
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__partner_ids
 #: model_terms:ir.ui.view,arch_db:base.base_partner_merge_automatic_wizard_form
 #: model_terms:ir.ui.view,arch_db:base.view_partner_form
 msgid "Partners"
@@ -40388,7 +40388,7 @@ msgid "Property Owner Association"
 msgstr "Asociación de propietarios"
 
 #. module: base
-#: model:res.partner.category,name:base.res_partner_category_2
+#: model:res.partner.tag,name:base.res_partner_category_2
 msgid "Prospects"
 msgstr "Clientes potenciales"
 
@@ -42451,7 +42451,7 @@ msgid "Search Partner"
 msgstr "Buscar contacto"
 
 #. module: base
-#: model_terms:ir.ui.view,arch_db:base.res_partner_category_view_search
+#: model_terms:ir.ui.view,arch_db:base.res_partner_tag_view_search
 msgid "Search Partner Category"
 msgstr "Buscar categoría de contacto"
 
@@ -43045,7 +43045,7 @@ msgstr ""
 #. module: base
 #: model:ir.module.category,name:base.module_category_services
 #: model:ir.module.category,name:base.module_category_theme_services
-#: model:res.partner.category,name:base.res_partner_category_11
+#: model:res.partner.tag,name:base.res_partner_category_11
 msgid "Services"
 msgstr "Servicios"
 
@@ -45343,7 +45343,7 @@ msgstr ""
 " seleccionar un registro."
 
 #. module: base
-#: model:ir.model.fields,help:base.field_res_partner_category__active
+#: model:ir.model.fields,help:base.field_res_partner_tag__active
 msgid "The active field allows you to hide the category without removing it."
 msgstr ""
 "El campo activo le permite ocultar la categoría sin tener que eliminarla."
@@ -48769,7 +48769,7 @@ msgstr ""
 "reparación, mecánica, cocheras, talleres, deportes, servicios"
 
 #. module: base
-#: model:res.partner.category,name:base.res_partner_category_0
+#: model:res.partner.tag,name:base.res_partner_category_0
 msgid "Vendor"
 msgstr "Proveedor"
 
@@ -50428,12 +50428,12 @@ msgid "e.g. \"B2B\", \"VIP\", \"Consulting\", ..."
 msgstr "Por ejemplo, \"B2B\", \"VIP\", \"Consultoría\", ..."
 
 #. module: base
-#: model_terms:ir.ui.view,arch_db:base.view_partner_category_form
+#: model_terms:ir.ui.view,arch_db:base.view_partner_tag_form
 msgid "e.g. \"Consulting Services\""
 msgstr "Por ejemplo, \"Servicios de consultoría\""
 
 #. module: base
-#: model_terms:ir.ui.view,arch_db:base.view_partner_category_list
+#: model_terms:ir.ui.view,arch_db:base.view_partner_tag_list
 msgid "e.g. \"Roadshow\""
 msgstr "por ejemplo, \"roadshow\""
 

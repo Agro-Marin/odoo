@@ -310,9 +310,9 @@ class TestFieldConverters(TransactionCase):
         self.assertIn("Cannot create new", str(cm.exception.args[0]))
 
     def test_m2m_blank_comma_segments_dropped(self):
-        tag = self.env["res.partner.category"].create({"name": "IFLD17 Tag"})
+        tag = self.env["res.partner.tag"].create({"name": "IFLD17 Tag"})
         converter = self.converter._resolve_converter_field(
-            self.env["res.partner"]._fields["category_id"], str
+            self.env["res.partner"]._fields["tag_ids"], str
         )
         for raw in ("IFLD17 Tag,", ",IFLD17 Tag", "IFLD17 Tag, ", "IFLD17 Tag,,"):
             commands, warnings = converter([{None: raw}])
@@ -324,14 +324,14 @@ class TestFieldConverters(TransactionCase):
             )
 
     def test_load_m2m_trailing_comma_imports(self):
-        self.env["res.partner.category"].create({"name": "IFLD17 E2E"})
+        self.env["res.partner.tag"].create({"name": "IFLD17 E2E"})
         result = self.env["res.partner"].load(
-            ["name", "category_id"], [["IFLD17 Partner", "IFLD17 E2E,"]]
+            ["name", "tag_ids"], [["IFLD17 Partner", "IFLD17 E2E,"]]
         )
         self.assertFalse(result["messages"])
         self.assertTrue(result["ids"])
         partner = self.env["res.partner"].browse(result["ids"])
-        self.assertEqual(partner.category_id.mapped("name"), ["IFLD17 E2E"])
+        self.assertEqual(partner.tag_ids.mapped("name"), ["IFLD17 E2E"])
 
     def test_o2m_blank_comma_segment_creates_no_record(self):
         child = self.env["res.partner"].create({"name": "IFLD18 Child"})
@@ -787,13 +787,13 @@ class TestFieldConverters(TransactionCase):
     def test_import_policy_is_a_single_decision(self):
         both = self.converter.with_context(
             import_file=True,
-            import_skip_records=["type", "category_id", "parent_id"],
-            import_set_empty_fields=["type", "category_id", "parent_id"],
+            import_skip_records=["type", "tag_ids", "parent_id"],
+            import_set_empty_fields=["type", "tag_ids", "parent_id"],
         )
         partner_fields = self.env["res.partner"]._fields
         self.assertIs(both._str_to_selection(partner_fields["type"], "zzz")[0], SKIP)
         self.assertIs(
-            both._str_to_many2many(partner_fields["category_id"], [{None: "zzz"}])[0],
+            both._str_to_many2many(partner_fields["tag_ids"], [{None: "zzz"}])[0],
             SKIP,
         )
         self.assertIs(
@@ -803,7 +803,7 @@ class TestFieldConverters(TransactionCase):
     def test_non_text_reference_is_a_clean_error(self):
         partner_fields = self.env["res.partner"]._fields
         converters = {
-            "category_id": self.converter._str_to_many2many,
+            "tag_ids": self.converter._str_to_many2many,
             "child_ids": self.converter._str_to_one2many,
         }
         for fname, convert in converters.items():
@@ -845,7 +845,7 @@ class TestFieldConverters(TransactionCase):
 
     def test_many2one_reference_is_stripped_like_many2many(self):
         partner = self.env["res.partner"].create({"name": "IFLD39 Parent"})
-        tag = self.env["res.partner.category"].create({"name": "IFLD39 Tag"})
+        tag = self.env["res.partner.tag"].create({"name": "IFLD39 Tag"})
         fields = self.env["res.partner"]._fields
         for raw in (
             "IFLD39 Parent",
@@ -860,7 +860,7 @@ class TestFieldConverters(TransactionCase):
                 self.assertFalse(warnings)
                 self.assertEqual(got, partner.id)
         commands, _w = self.converter._str_to_many2many(
-            fields["category_id"], [{None: " IFLD39 Tag "}]
+            fields["tag_ids"], [{None: " IFLD39 Tag "}]
         )
         self.assertEqual(commands, [Command.set([tag.id])])
 
@@ -1007,11 +1007,11 @@ class TestFieldConverters(TransactionCase):
                     "name": "pm",
                     "type": "many2many",
                     "string": "PM",
-                    "comodel": "res.partner.category",
+                    "comodel": "res.partner.tag",
                 }
             ]
         )
-        tag = self.env["res.partner.category"].create({"name": "IFLD47 Tag"})
+        tag = self.env["res.partner.tag"].create({"name": "IFLD47 Tag"})
         model = self.env["res.partner"].with_context(
             import_file=True, import_set_empty_fields=["properties.pm"]
         )

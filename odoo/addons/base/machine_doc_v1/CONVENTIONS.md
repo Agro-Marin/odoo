@@ -30,7 +30,7 @@ Business entities that users interact with directly.
 
 | Prefix | Purpose | Examples |
 |--------|---------|---------|
-| `res.partner` | Contacts/companies | res.partner, res.partner.category |
+| `res.partner` | Contacts/companies | res.partner, res.partner.tag |
 | `res.users` | User accounts | res.users, res.users.apikeys |
 | `res.company` | Multi-company | res.company |
 | `res.country` | Geography | res.country, res.country.state |
@@ -79,7 +79,7 @@ Used for hierarchical models that need efficient ancestor/descendant queries.
 ```python
 # These models use _parent_store:
 # - res.company (company tree)
-# - res.partner.category (tag hierarchy)
+# - res.partner.tag (tag hierarchy)
 # - ir.ui.menu (menu tree)
 ```
 

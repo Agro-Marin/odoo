@@ -15,7 +15,7 @@
                     operator="child_of" />
                 <field name="email" filter_domain="[('email', 'ilike', self)]" />
                 <field name="phone" />
-                <field name="category_id" string="Tag" operator="child_of" />
+                <field name="tag_ids" string="Tag" operator="child_of" />
                 <field name="user_id" />
                 <separator />
                 <filter
@@ -67,7 +67,7 @@
                     <filter
                         name="group_category"
                         string="Tags"
-                        context="{'group_by': 'category_id'}" />
+                        context="{'group_by': 'tag_ids'}" />
                     <filter
                         name="group_industry"
                         string="Industry"
@@ -113,7 +113,7 @@
                     width="270" />
                 <field name="properties" optional="hide" />
                 <field
-                    name="category_id"
+                    name="tag_ids"
                     widget="many2many_tags"
                     options="{'color_field': 'color'}"
                     optional="hide" />
@@ -500,7 +500,7 @@
                                 invisible="not is_company"
                                 options="{'no_create': True}" />
                             <field
-                                name="category_id"
+                                name="tag_ids"
                                 widget="many2many_tags"
                                 placeholder="e.g. &quot;B2B&quot;, &quot;VIP&quot;, &quot;Consulting&quot;, ..."
                                 options="{'color_field': 'color'}" />
@@ -578,7 +578,7 @@
                                                     <field name="function" />
                                                 </div>
                                                 <div
-                                                    t-if="record.type.raw_value != 'contact' and (record.city.raw_value or record.country_id.raw_value)">
+                                                    t-if="!['contact', 'private'].includes(record.type.raw_value) and (record.city.raw_value or record.country_id.raw_value)">
                                                     <i
                                                         class="fa-solid fa-location-dot me-1 text-primary"
                                                         title="Location" />

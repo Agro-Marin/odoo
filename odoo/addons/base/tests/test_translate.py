@@ -518,13 +518,13 @@ class TestTranslation(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.env["res.lang"]._activate_lang("fr_FR")
-        cls.customers = cls.env["res.partner.category"].create({"name": "Customers"})
+        cls.customers = cls.env["res.partner.tag"].create({"name": "Customers"})
 
         cls.customers_xml_id = cls.customers.export_data(["id"]).get("datas")[0][0]
         po_string = (
             """
         #. module: __export__
-        #: model:res.partner.category,name:%s
+        #: model:res.partner.tag,name:%s
         msgid "Customers"
         msgstr "Clients"
         """
@@ -613,7 +613,7 @@ class TestTranslation(TransactionCase):
         )
 
     def test_104_orderby_translated_field(self):
-        padawans = self.env["res.partner.category"].create({"name": "Padawans"})
+        padawans = self.env["res.partner.tag"].create({"name": "Padawans"})
         padawans_fr = padawans.with_context(lang="fr_FR")
         padawans_fr.write({"name": "Apprentis"})
         categories = padawans_fr.search(
@@ -681,7 +681,7 @@ class TestTranslation(TransactionCase):
         )
 
     def test_108_search_en(self):
-        CategoryEn = self.env["res.partner.category"].with_context(lang="en_US")
+        CategoryEn = self.env["res.partner.tag"].with_context(lang="en_US")
         category_equal = CategoryEn.search([("name", "=", "Customers")])
         self.assertEqual(
             category_equal.id,
@@ -708,7 +708,7 @@ class TestTranslation(TransactionCase):
         )
 
     def test_109_search_fr(self):
-        CategoryFr = self.env["res.partner.category"].with_context(lang="fr_FR")
+        CategoryFr = self.env["res.partner.tag"].with_context(lang="fr_FR")
         category_equal = CategoryFr.search([("name", "=", "Clients")])
         self.assertEqual(
             category_equal.id,
@@ -746,7 +746,7 @@ class TestTranslation(TransactionCase):
             langs,
             "Test did not start with the expected languages",
         )
-        CategoryEs = self.env["res.partner.category"].with_context(lang="es_ES")
+        CategoryEs = self.env["res.partner.tag"].with_context(lang="es_ES")
         category_equal = CategoryEs.search([("name", "=", "Customers")])
         self.assertEqual(
             category_equal.id,
@@ -806,11 +806,11 @@ class TestTranslationWrite(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.category = cls.env["res.partner.category"].create({"name": "Reblochon"})
+        cls.category = cls.env["res.partner.tag"].create({"name": "Reblochon"})
         cls.category_xml_id = cls.category.export_data(["id"]).get("datas")[0][0]
 
     def test_flush_stale_flat_cache_entry_not_nulled(self):
-        category = self.env["res.partner.category"].create({"name": "Reblochon"})
+        category = self.env["res.partner.tag"].create({"name": "Reblochon"})
         field = category._fields["name"]
         core = self.env._core
 
@@ -836,7 +836,7 @@ class TestTranslationWrite(TransactionCase):
         )
 
         category = (
-            self.env["res.partner.category"]
+            self.env["res.partner.tag"]
             .with_context(lang="en_US")
             .create({"name": "English"})
         )
@@ -847,7 +847,7 @@ class TestTranslationWrite(TransactionCase):
         self.assertEqual(category.with_context(lang="fr_FR").name, "English 2")
 
         category2 = (
-            self.env["res.partner.category"]
+            self.env["res.partner.tag"]
             .with_context(lang="fr_FR")
             .create({"name": "French"})
         )
@@ -863,7 +863,7 @@ class TestTranslationWrite(TransactionCase):
         )
 
         category3 = (
-            self.env["res.partner.category"]
+            self.env["res.partner.tag"]
             .with_context(lang="en_US")
             .create({"name": "English"})
         )
@@ -929,7 +929,7 @@ class TestTranslationWrite(TransactionCase):
         po_string = (
             """
         #. module: __export__
-        #: model:res.partner.category,name:%s
+        #: model:res.partner.tag,name:%s
         msgid "Reblochon"
         msgstr "Translated Name"
         """

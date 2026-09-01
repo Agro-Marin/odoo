@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <record id="view_partner_category_form" model="ir.ui.view">
+    <record id="view_partner_tag_form" model="ir.ui.view">
         <field name="name">Contact Tags</field>
-        <field name="model">res.partner.category</field>
+        <field name="model">res.partner.tag</field>
         <field name="arch" type="xml">
             <form string="Contact Tag">
                 <sheet>
@@ -20,13 +20,13 @@
         </field>
     </record>
 
-    <record id="res_partner_category_view_search" model="ir.ui.view">
-        <field name="name">res.partner.category.view.search</field>
-        <field name="model">res.partner.category</field>
+    <record id="res_partner_tag_view_search" model="ir.ui.view">
+        <field name="name">res.partner.tag.view.search</field>
+        <field name="model">res.partner.tag</field>
         <field name="arch" type="xml">
-            <search string="Search Partner Category">
+            <search string="Search Partner Tags">
                 <field name="name" string="Name" />
-                <field name="display_name" string="Category" />
+                <field name="display_name" string="Tag" />
                 <separator />
                 <filter
                     string="Archived"
@@ -34,7 +34,7 @@
                     domain="[('active', '=', False)]" />
                 <group>
                     <filter
-                        string="Category"
+                        string="Parent Tag"
                         name="group_parent_id"
                         context="{'group_by': 'parent_id'}" />
                     <filter
@@ -46,23 +46,26 @@
         </field>
     </record>
 
-    <record id="view_partner_category_list" model="ir.ui.view">
+    <record id="view_partner_tag_list" model="ir.ui.view">
         <field name="name">Contact Tags</field>
-        <field name="model">res.partner.category</field>
+        <field name="model">res.partner.tag</field>
         <field name="priority" eval="6" />
         <field name="arch" type="xml">
             <list string="Contact Tags" editable="bottom" multi_edit="1" sample="1">
                 <field name="name" placeholder="e.g. &quot;Roadshow&quot;" />
-                <field name="parent_id" string="Category" domain="[('id', '!=', id)]" />
+                <field
+                    name="parent_id"
+                    string="Parent Tag"
+                    domain="[('id', '!=', id)]" />
                 <field name="color" widget="color_picker" />
             </list>
         </field>
     </record>
 
-    <record id="action_partner_category_form" model="ir.actions.act_window">
+    <record id="action_partner_tag_form" model="ir.actions.act_window">
         <field name="name">Contact Tags</field>
-        <field name="res_model">res.partner.category</field>
-        <field name="search_view_id" ref="res_partner_category_view_search" />
+        <field name="res_model">res.partner.tag</field>
+        <field name="search_view_id" ref="res_partner_tag_view_search" />
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Create a Contact Tag

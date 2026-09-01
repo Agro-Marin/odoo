@@ -17,7 +17,7 @@
                     <field name="contract_date_start" groups="hr.group_hr_manager"/>
                     <field name="job_id"/>
                     <field name="coach_id" domain="[('company_id', 'in', allowed_company_ids)]"/>
-                    <field name="category_ids" groups="hr.group_hr_user"/>
+                    <field name="tag_ids" groups="hr.group_hr_user"/>
                     <field name="private_car_plate" groups="hr.group_hr_user"/>
                     <field name="resource_calendar_id" domain="[('company_id', 'in', allowed_company_ids)]"/>
                     <field name="company_id"/>
@@ -74,7 +74,7 @@
                         <filter name="group_start" string="Start Date" context="{'group_by': 'contract_date_start'}" groups="hr.group_hr_manager"/>
                         <separator name="secondary_groupby_separator"/>
                         <separator name="managers_groupby_separator"/>
-                        <filter name="group_category_ids" string="Tags" context="{'group_by': 'category_ids'}"/>
+                        <filter name="group_category_ids" string="Tags" context="{'group_by': 'tag_ids'}"/>
                         <separator/>
                         <filter string="Properties" name="group_by_employee_properties" context="{'group_by': 'employee_properties'}"/>
                     </group>
@@ -135,7 +135,7 @@
                                     </h5>
                                     <h5>
                                         <i class="fa-solid fa-tags me-1 text-primary" title="Tags"/>
-                                        <field name="category_ids" widget="many2many_tags"
+                                        <field name="tag_ids" widget="many2many_tags"
                                             options="{'color_field': 'color', 'no_create_edit': True}"
                                             placeholder="e.g. Founder, Motorized, Building B, ..." groups="hr.group_hr_user"/>
                                     </h5>
@@ -479,7 +479,7 @@
                     <field name="coach_id" widget="many2one_avatar_employee" optional="hide"/>
                     <field name="user_id" string="Related User" widget="many2one_avatar_user" optional="hide"/>
                     <field name="active" column_invisible="True"/>
-                    <field name="category_ids" widget="many2many_tags" options="{'color_field': 'color'}" optional="hide"/>
+                    <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}" optional="hide"/>
                     <field name="country_id" optional="hide"/>
                 </list>
             </field>
@@ -531,7 +531,7 @@
                     <field name="coach_id" widget="many2one_avatar_employee" optional="hide"/>
                     <field name="user_id" string="Related User" widget="many2one_avatar_user" optional="hide"/>
                     <field name="active" column_invisible="True"/>
-                    <field name="category_ids" widget="many2many_tags" options="{'color_field': 'color'}" optional="hide"/>
+                    <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}" optional="hide"/>
                     <field name="country_id" optional="hide"/>
                 </list>
             </field>
@@ -593,7 +593,7 @@
                                     <field name="birthday_public_display_string"/>
                                 </div>
                                 <field name="employee_properties" widget="properties"/>
-                                <field class="hr_tags" name="category_ids" widget="many2many_tags" options="{'color_field': 'color'}" optional="hide"/>
+                                <field class="hr_tags" name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}" optional="hide"/>
                                 <footer class="py-0">
                                     <div class="d-flex ms-auto">
                                         <field name="user_id" widget="many2one_avatar_user" readonly="1" class="mb-1 ms-2"/>

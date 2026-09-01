@@ -7,7 +7,7 @@
             <list string="Analytic Distribution Model" open_form_view="True" editable="top" multi_edit="1" default_order="sequence, id desc">
                 <field name="sequence" widget="handle"/>
                 <field name="partner_id" optional="show"/>
-                <field name="partner_category_id" optional="hide"/>
+                <field name="partner_tag_id" optional="hide"/>
                 <field name="company_id" column_invisible="True"/>
                 <field name="company_id" groups="base.group_multi_company" optional="show" placeholder="Visible to all"/>
                 <field name="analytic_distribution" widget="analytic_distribution" optional="show"
@@ -26,7 +26,7 @@
                         <group string="Conditions to meet" colspan="2">
                             <group>
                                 <field name="partner_id"/>
-                                <field name="partner_category_id"/>
+                                <field name="partner_tag_id"/>
                             </group>
                             <group>
                                 <field name="company_id" groups="base.group_multi_company" placeholder="Visible to all"/>

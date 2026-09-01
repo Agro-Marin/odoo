@@ -66,7 +66,7 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         ).write({"active": True})
 
     def test_00_in_not_in_m2m(self):
-        categories = self.env["res.partner.category"]
+        categories = self.env["res.partner.tag"]
         cat_a = categories.create({"name": "test_expression_category_A"})
         cat_b = categories.create({"name": "test_expression_category_B"})
 
@@ -74,129 +74,129 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         a = partners.create(
             {
                 "name": "test_expression_partner_A",
-                "category_id": [Command.set([cat_a.id])],
+                "tag_ids": [Command.set([cat_a.id])],
             }
         )
         b = partners.create(
             {
                 "name": "test_expression_partner_B",
-                "category_id": [Command.set([cat_b.id])],
+                "tag_ids": [Command.set([cat_b.id])],
             }
         )
         ab = partners.create(
             {
                 "name": "test_expression_partner_AB",
-                "category_id": [Command.set([cat_a.id, cat_b.id])],
+                "tag_ids": [Command.set([cat_a.id, cat_b.id])],
             }
         )
         c = partners.create({"name": "test_expression_partner_C"})
 
-        with_a = self._search(partners, [("category_id", "in", [cat_a.id])])
-        self.assertEqual(a + ab, with_a, "Search for category_id in cat_a failed.")
+        with_a = self._search(partners, [("tag_ids", "in", [cat_a.id])])
+        self.assertEqual(a + ab, with_a, "Search for tag_ids in cat_a failed.")
 
-        with_b = self._search(partners, [("category_id", "in", [cat_b.id])])
-        self.assertEqual(b + ab, with_b, "Search for category_id in cat_b failed.")
+        with_b = self._search(partners, [("tag_ids", "in", [cat_b.id])])
+        self.assertEqual(b + ab, with_b, "Search for tag_ids in cat_b failed.")
 
         with_a_or_b = self._search(
-            partners, [("category_id", "in", [cat_a.id, cat_b.id])]
+            partners, [("tag_ids", "in", [cat_a.id, cat_b.id])]
         )
         self.assertEqual(
             a + b + ab,
             with_a_or_b,
-            "Search for category_id contains cat_a or cat_b failed.",
+            "Search for tag_ids contains cat_a or cat_b failed.",
         )
 
         with_a_or_with_b = self._search(
             partners,
             [
                 "|",
-                ("category_id", "in", [cat_a.id]),
-                ("category_id", "in", [cat_b.id]),
+                ("tag_ids", "in", [cat_a.id]),
+                ("tag_ids", "in", [cat_b.id]),
             ],
         )
         self.assertEqual(
             a + b + ab,
             with_a_or_with_b,
-            "Search for category_id contains cat_a or contains cat_b failed.",
+            "Search for tag_ids contains cat_a or contains cat_b failed.",
         )
 
         with_a_and_b = self._search(
             partners,
             [
-                ("category_id", "in", [cat_a.id]),
-                ("category_id", "in", [cat_b.id]),
+                ("tag_ids", "in", [cat_a.id]),
+                ("tag_ids", "in", [cat_b.id]),
             ],
         )
         self.assertEqual(
             ab,
             with_a_and_b,
-            "Search for category_id contains cat_a and cat_b failed.",
+            "Search for tag_ids contains cat_a and cat_b failed.",
         )
 
         without_a_or_b = self._search(
-            partners, [("category_id", "not in", [cat_a.id, cat_b.id])]
+            partners, [("tag_ids", "not in", [cat_a.id, cat_b.id])]
         )
         self.assertFalse(
             without_a_or_b & (a + b + ab),
-            "Search for category_id doesn't contain cat_a or cat_b failed (1).",
+            "Search for tag_ids doesn't contain cat_a or cat_b failed (1).",
         )
         self.assertTrue(
             c in without_a_or_b,
-            "Search for category_id doesn't contain cat_a or cat_b failed (2).",
+            "Search for tag_ids doesn't contain cat_a or cat_b failed (2).",
         )
 
         without_a_and_without_b = self._search(
             partners,
             [
-                ("category_id", "not in", [cat_a.id]),
-                ("category_id", "not in", [cat_b.id]),
+                ("tag_ids", "not in", [cat_a.id]),
+                ("tag_ids", "not in", [cat_b.id]),
             ],
         )
         self.assertFalse(
             without_a_and_without_b & (a + b + ab),
-            "Search for category_id doesn't contain cat_a and cat_b failed (1).",
+            "Search for tag_ids doesn't contain cat_a and cat_b failed (1).",
         )
         self.assertTrue(
             c in without_a_and_without_b,
-            "Search for category_id doesn't contain cat_a and cat_b failed (2).",
+            "Search for tag_ids doesn't contain cat_a and cat_b failed (2).",
         )
 
-        without_a = self._search(partners, [("category_id", "not in", [cat_a.id])])
+        without_a = self._search(partners, [("tag_ids", "not in", [cat_a.id])])
         self.assertTrue(
             a not in without_a,
-            "Search for category_id doesn't contain cat_a failed (1).",
+            "Search for tag_ids doesn't contain cat_a failed (1).",
         )
         self.assertTrue(
             ab not in without_a,
-            "Search for category_id doesn't contain cat_a failed (2).",
+            "Search for tag_ids doesn't contain cat_a failed (2).",
         )
         self.assertLessEqual(
             b + c,
             without_a,
-            "Search for category_id doesn't contain cat_a failed (3).",
+            "Search for tag_ids doesn't contain cat_a failed (3).",
         )
 
-        without_b = self._search(partners, [("category_id", "not in", [cat_b.id])])
+        without_b = self._search(partners, [("tag_ids", "not in", [cat_b.id])])
         self.assertTrue(
             b not in without_b,
-            "Search for category_id doesn't contain cat_b failed (1).",
+            "Search for tag_ids doesn't contain cat_b failed (1).",
         )
         self.assertTrue(
             ab not in without_b,
-            "Search for category_id doesn't contain cat_b failed (2).",
+            "Search for tag_ids doesn't contain cat_b failed (2).",
         )
         self.assertLessEqual(
             a + c,
             without_b,
-            "Search for category_id doesn't contain cat_b failed (3).",
+            "Search for tag_ids doesn't contain cat_b failed (3).",
         )
 
-        without_categ = self._search(partners, [("category_id", "in", [False])])
+        without_categ = self._search(partners, [("tag_ids", "in", [False])])
         self.assertTrue(c in without_categ, "c is without category")
         self.assertFalse(without_categ & (a + b + ab), "only c is without category")
 
         with_categ_a_none = self._search(
-            partners, [("category_id", "in", [cat_a.id, False])]
+            partners, [("tag_ids", "in", [cat_a.id, False])]
         )
         self.assertLessEqual(
             a + ab + c,
@@ -211,7 +211,7 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
 
     def test_05_not_str_m2m(self):
         partners = self.env["res.partner"]
-        categories = self.env["res.partner.category"]
+        categories = self.env["res.partner.tag"]
 
         cids = {}
         for name in ["A", "B", "AB"]:
@@ -228,14 +228,14 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         pids = {}
         for name, cat_ids in partners_config.items():
             pids[name] = partners.create(
-                {"name": name, "category_id": [Command.set(cat_ids)]}
+                {"name": name, "tag_ids": [Command.set(cat_ids)]}
             ).id
 
         base_domain = [("id", "in", list(pids.values()))]
 
         def test(op, value, expected):
             found_ids = self._search(
-                partners, base_domain + [("category_id", op, value)]
+                partners, base_domain + [("tag_ids", op, value)]
             ).ids
             expected_ids = [pids[name] for name in expected]
             self.assertItemsEqual(
@@ -266,10 +266,10 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
 
     def test_10_hierarchy_in_m2m(self):
         Partner = self.env["res.partner"]
-        Category = self.env["res.partner.category"]
+        Category = self.env["res.partner.tag"]
 
         partners = self._search(
-            Partner, [("category_id", "child_of", self.partner_category.id)]
+            Partner, [("tag_ids", "child_of", self.partner_category.id)]
         )
         self.assertTrue(partners)
 
@@ -571,18 +571,18 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
     def test_15_m2m_false(self):
         Partner = self.env["res.partner"]
 
-        partners = self._search(Partner, [("category_id", "in", [])])
+        partners = self._search(Partner, [("tag_ids", "in", [])])
         self.assertFalse(partners)
 
-        partners = self._search(Partner, [("category_id", "=", False)])
+        partners = self._search(Partner, [("tag_ids", "=", False)])
         self.assertTrue(partners)
         for partner in partners:
-            self.assertFalse(partner.category_id)
+            self.assertFalse(partner.tag_ids)
 
-        partners = self._search(Partner, [("category_id", "!=", False)])
+        partners = self._search(Partner, [("tag_ids", "!=", False)])
         self.assertTrue(partners)
         for partner in partners:
-            self.assertTrue(partner.category_id)
+            self.assertTrue(partner.tag_ids)
 
     def test_15_o2m(self):
         Partner = self.env["res.partner"]
@@ -594,7 +594,7 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         for partner in partners:
             self.assertFalse(partner.child_ids)
 
-        categories = self.env["res.partner.category"].search([])
+        categories = self.env["res.partner.tag"].search([])
         parents = self._search(categories, [("child_ids", "!=", False)])
         self.assertEqual(parents, categories.filtered(lambda c: c.child_ids))
         leaves = self._search(categories, [("child_ids", "=", False)])
@@ -1241,7 +1241,7 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
             msg = "unaccent not enabled"
             raise unittest.SkipTest(msg)
 
-        Model = self.env["res.partner.category"]
+        Model = self.env["res.partner.tag"]
         helen = Model.create({"name": "Hélène"})
         self.assertEqual(helen, self._search(Model, [("name", "ilike", "Helene")]))
         self.assertEqual(helen, self._search(Model, [("name", "ilike", "hélène")]))
@@ -1299,7 +1299,7 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         )
 
     def test_like_filtered(self):
-        Model = self.env["res.partner.category"]
+        Model = self.env["res.partner.tag"]
         record = Model.create({"name": "[default] _*%"})
         record_pct = Model.create({"name": "5%"})
 
@@ -1313,7 +1313,7 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         self.assertIn(record_pct, self._search(Model, [("name", "=like", r"%\%")]))
 
     def test_like_cast(self):
-        Model = self.env["res.partner.category"]
+        Model = self.env["res.partner.tag"]
         record = Model.create({"name": "XY", "color": 42})
 
         self.assertIn(record, self._search(Model, [("name", "like", "X")]))
@@ -1429,7 +1429,7 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         vals = {
             "name": "Odoo Test",
             "active": False,
-            "category_id": [Command.set([self.partner_category.id])],
+            "tag_ids": [Command.set([self.partner_category.id])],
             "child_ids": [
                 Command.create(
                     {
@@ -1442,7 +1442,7 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         Partner.create(vals)
         partner = self._search(
             Partner,
-            [("category_id", "ilike", "sellers"), ("active", "=", False)],
+            [("tag_ids", "ilike", "sellers"), ("active", "=", False)],
             [("active", "=", False)],
         )
         self.assertTrue(
@@ -1739,7 +1739,7 @@ class TestBypassAccess(TransactionExpressionCase):
         states = State.search([("country_id", "=", country_us.id)], limit=2)
         Industry = self.env["res.partner.industry"]
         industries = Industry.create([{"name": "Ind1"}, {"name": "Ind2"}])
-        Category = self.env["res.partner.category"]
+        Category = self.env["res.partner.tag"]
         categories = Category.create([{"name": name} for name in ("foo", "bar")])
 
         p_a = partner_obj.create(
@@ -1792,8 +1792,8 @@ class TestBypassAccess(TransactionExpressionCase):
         b_ba = bank_obj.create(
             {"acc_number": "789", "acc_type": "bank", "partner_id": p_ba.id}
         )
-        p_a.category_id = categories[0]
-        p_b.category_id = categories[1]
+        p_a.tag_ids = categories[0]
+        p_b.tag_ids = categories[1]
 
         name_test = "12"
 
@@ -2004,16 +2004,16 @@ class TestBypassAccess(TransactionExpressionCase):
             "bypass_search_access on one2many with domains incorrect result",
         )
 
-        patch_domain(partner_obj, "category_id", lambda self: [("name", "!=", "bar")])
+        patch_domain(partner_obj, "tag_ids", lambda self: [("name", "!=", "bar")])
         self.assertIn(
-            p_a, self._search(partner_obj, [("category_id.name", "=", "foo")])
+            p_a, self._search(partner_obj, [("tag_ids.name", "=", "foo")])
         )
-        patch_bypass_search_access(partner_obj, "category_id", True)
+        patch_bypass_search_access(partner_obj, "tag_ids", True)
         self.assertIn(
-            p_a, self._search(partner_obj, [("category_id.name", "=", "foo")])
+            p_a, self._search(partner_obj, [("tag_ids.name", "=", "foo")])
         )
 
-        patch_bypass_search_access(partner_obj, "category_id", False)
+        patch_bypass_search_access(partner_obj, "tag_ids", False)
         patch_bypass_search_access(partner_obj, "bank_ids", False)
         patch_bypass_search_access(partner_obj, "child_ids", False)
         patch_bypass_search_access(partner_obj, "state_id", False)
@@ -2263,9 +2263,9 @@ class TestQueries(TransactionCase):
     @mute_logger("odoo.models.unlink")
     def test_access_rules_active_test(self):
         skip_if_dev_mode("xml")
-        PartnerCateg = self.env["res.partner.category"]
+        PartnerCateg = self.env["res.partner.tag"]
 
-        model_id = self.env["ir.model"]._get("res.partner.category").id
+        model_id = self.env["ir.model"]._get("res.partner.tag").id
         self.env["ir.rule"].search([("model_id", "=", model_id)]).unlink()
         self.env["ir.rule"].create(
             [
@@ -2335,29 +2335,29 @@ class TestQueries(TransactionCase):
         with self.assertQueries(
             [
                 """
-            SELECT "res_partner_category"."id"
-            FROM "res_partner_category"
-            LEFT JOIN "res_partner_category" AS "res_partner_category__parent_id" ON (
-                "res_partner_category"."parent_id" = "res_partner_category__parent_id"."id")
-            WHERE ("res_partner_category"."active" IS TRUE AND "res_partner_category"."id" IN (%s))
+            SELECT "res_partner_tag"."id"
+            FROM "res_partner_tag"
+            LEFT JOIN "res_partner_tag" AS "res_partner_tag__parent_id" ON (
+                "res_partner_tag"."parent_id" = "res_partner_tag__parent_id"."id")
+            WHERE ("res_partner_tag"."active" IS TRUE AND "res_partner_tag"."id" IN (%s))
                 AND (NOT EXISTS(
                         SELECT FROM (
-                            SELECT "res_partner_category"."parent_id" AS __inverse
-                            FROM "res_partner_category"
+                            SELECT "res_partner_tag"."parent_id" AS __inverse
+                            FROM "res_partner_tag"
                             WHERE
                                 (
-                                    "res_partner_category"."name" ->> %s ILIKE %s
-                                    AND "res_partner_category"."parent_id" IS NOT NULL
+                                    "res_partner_tag"."name" ->> %s ILIKE %s
+                                    AND "res_partner_tag"."parent_id" IS NOT NULL
                                 )
                         ) AS __sub
-                        WHERE __inverse = "res_partner_category"."id"
+                        WHERE __inverse = "res_partner_tag"."id"
                     )
                     AND (
-                        "res_partner_category"."parent_id" IS NOT NULL
-                        AND "res_partner_category__parent_id"."name" ->> %s ILIKE %s
+                        "res_partner_tag"."parent_id" IS NOT NULL
+                        AND "res_partner_tag__parent_id"."name" ->> %s ILIKE %s
                     )
                 )
-            ORDER BY "res_partner_category"."name" ->> %s, "res_partner_category"."id"
+            ORDER BY "res_partner_tag"."name" ->> %s, "res_partner_tag"."id"
         """
             ]
         ):

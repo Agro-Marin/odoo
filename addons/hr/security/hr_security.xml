@@ -121,4 +121,12 @@
         <field name="domain_force">['|', ('country_id', '=', False), ('country_id', 'in', user.env.companies.mapped('country_id').ids)]</field>
     </record>
 </data>
+
+    <record id="res_partner_identifier_rule_hr_user" model="ir.rule">
+        <field name="name">res.partner.identifier: HR officers read every identifier</field>
+        <field name="model_id" ref="base.model_res_partner_identifier"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[Command.link(ref('hr.group_hr_user'))]"/>
+    </record>
+
 </odoo>

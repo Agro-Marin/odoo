@@ -178,32 +178,32 @@ If you have development competencies, we can propose you specific traineeships</
             <field name="address_id" ref="base.main_partner"/>
         </record>
 
-        <record id="employee_category_2" model="hr.employee.category">
+        <record id="employee_category_2" model="res.partner.tag">
             <field name="name">Sales</field>
             <field name="color" eval="1"/>
         </record>
 
-        <record id="employee_category_3" model="hr.employee.category">
+        <record id="employee_category_3" model="res.partner.tag">
             <field name="name">Trainer</field>
             <field name="color" eval="2"/>
         </record>
 
-        <record id="employee_category_4" model="hr.employee.category">
+        <record id="employee_category_4" model="res.partner.tag">
             <field name="name">Employee</field>
             <field name="color" eval="6"/>
         </record>
 
-        <record id="employee_category_5" model="hr.employee.category">
+        <record id="employee_category_5" model="res.partner.tag">
             <field name="name">Consultant</field>
             <field name="color" eval="4"/>
         </record>
 
-        <record id="employee_category_6" model="hr.employee.category">
+        <record id="employee_category_6" model="res.partner.tag">
             <field name="name">Standard 20 hours/week</field>
             <field name="color" eval="3"/>
         </record>
 
-        <record id="employee_category_7" model="hr.employee.category">
+        <record id="employee_category_7" model="res.partner.tag">
             <field name="name">High Potential</field>
             <field name="color" eval="8"/>
         </record>
@@ -211,7 +211,7 @@ If you have development competencies, we can propose you specific traineeships</
         <record id="employee_admin" model="hr.employee">
             <field name="private_phone">+1 555-555-5555</field>
             <field name="private_email">admin@yourcompany.example.com</field>
-            <field name="category_ids" eval="[Command.set([ref('employee_category_4'), ref('employee_category_3')])]"/>
+            <field name="tag_ids" eval="[Command.set([ref('employee_category_4'), ref('employee_category_3')])]"/>
             <field name="date_version" eval="'2020-01-01'"/>
             <field name="contract_date_start" eval="'2020-01-01'"/>
             <field name="contract_date_end" eval="False"/>
@@ -244,7 +244,7 @@ If you have development competencies, we can propose you specific traineeships</
             <field name="department_id" ref="dep_sales"/>
             <field name="parent_id" ref="employee_admin"/>
             <field name="job_id" ref="hr.job_marketing"/>
-            <field name="category_ids" eval="[Command.set([ref('employee_category_4'), ref('employee_category_2')])]"/>
+            <field name="tag_ids" eval="[Command.set([ref('employee_category_4'), ref('employee_category_2')])]"/>
             <field name="resource_calendar_id" ref="resource.resource_calendar_std_38h"/>
             <field name="work_location_id" ref="work_location_1"/>
             <field name="work_contact_id" ref="hr.work_contact_ngh"/>
@@ -261,7 +261,7 @@ If you have development competencies, we can propose you specific traineeships</
         <record id="employee_qdp" model="hr.employee">
             <field name="name">Marc Demo</field>
             <field name="user_id" ref="base.user_demo"/>
-            <field name="category_ids" eval="[Command.set([ref('employee_category_4')])]"/>
+            <field name="tag_ids" eval="[Command.set([ref('employee_category_4')])]"/>
             <field name="work_contact_id" ref="base.partner_demo"/>
             <field name="date_version" eval="(DateTime.today() + relativedelta(years=-1, month=1, day=1))"/>
             <field name="contract_date_start" eval="(DateTime.today() + relativedelta(years=-1, month=1, day=1))"/>
@@ -293,7 +293,7 @@ If you have development competencies, we can propose you specific traineeships</
 
         <record id="employee_al" model="hr.employee">
             <field name="name">Ronnie Hart</field>
-            <field name="category_ids" eval="[Command.set([ref('employee_category_4'), ref('employee_category_3')])]"/>
+            <field name="tag_ids" eval="[Command.set([ref('employee_category_4'), ref('employee_category_3')])]"/>
             <field name="work_contact_id" ref="hr.work_contact_al"/>
             <field name="image_1920" type="base64" file="hr/static/img/employee_al-image.jpg"/>
             <field name="create_date">2010-01-01 00:00:00</field>
@@ -320,7 +320,7 @@ If you have development competencies, we can propose you specific traineeships</
 
         <record id="employee_vad" model="hr.employee">
             <field name="name">Tina Williamson</field>
-            <field name="category_ids" eval="[Command.set([ref('employee_category_4'), ref('employee_category_7')])]"/>
+            <field name="tag_ids" eval="[Command.set([ref('employee_category_4'), ref('employee_category_7')])]"/>
             <field name="work_contact_id" ref="hr.work_contact_vad"/>
             <field name="image_1920" type="base64" file="hr/static/img/employee_vad-image.jpg"/>
             <field name="create_date">2010-01-01 00:00:00</field>
@@ -378,7 +378,7 @@ If you have development competencies, we can propose you specific traineeships</
 
         <record id="employee_fpi" model="hr.employee">
             <field name="name">Audrey Peterson</field>
-            <field name="category_ids" eval="[Command.set([ref('employee_category_4'), ref('employee_category_5')])]"/>
+            <field name="tag_ids" eval="[Command.set([ref('employee_category_4'), ref('employee_category_5')])]"/>
             <field name="private_country_id" ref="base.us"/>
             <field name="private_email">Audrey.peterson2020@example.com</field>
             <field name="work_contact_id" ref="hr.work_contact_fpi"/>
@@ -461,7 +461,7 @@ If you have development competencies, we can propose you specific traineeships</
 
         <record id="employee_fme" model="hr.employee">
             <field name="name">Keith Byrd</field>
-            <field name="category_ids" eval="[Command.set([ref('employee_category_4')])]"/>
+            <field name="tag_ids" eval="[Command.set([ref('employee_category_4')])]"/>
             <field name="work_contact_id" ref="hr.work_contact_fme"/>
             <field name="image_1920" type="base64" file="hr/static/img/employee_fme-image.jpg"/>
             <field name="create_date">2010-01-01 00:00:00</field>
@@ -534,7 +534,7 @@ If you have development competencies, we can propose you specific traineeships</
 
         <record id="employee_jth" model="hr.employee">
             <field name="name">Toni Jimenez</field>
-            <field name="category_ids" eval="[Command.set([ref('employee_category_4'), ref('employee_category_5'), ref('employee_category_6')])]"/>
+            <field name="tag_ids" eval="[Command.set([ref('employee_category_4'), ref('employee_category_5'), ref('employee_category_6')])]"/>
             <field name="work_contact_id" ref="hr.work_contact_jth"/>
             <field name="image_1920" type="base64" file="hr/static/img/employee_jth-image.jpg"/>
             <field name="create_date">2010-01-01 00:00:00</field>
@@ -563,7 +563,7 @@ If you have development competencies, we can propose you specific traineeships</
 
         <record id="employee_mit" model="hr.employee">
             <field name="name">Anita Oliver</field>
-            <field name="category_ids" eval="[Command.set([ref('employee_category_4')])]"/>
+            <field name="tag_ids" eval="[Command.set([ref('employee_category_4')])]"/>
             <field name="work_contact_id" ref="hr.work_contact_mit"/>
             <field name="image_1920" type="base64" file="hr/static/img/employee_mit-image.jpg"/>
             <field name="create_date">2010-01-01 00:00:00</field>
@@ -593,7 +593,7 @@ If you have development competencies, we can propose you specific traineeships</
 
         <record id="employee_niv" model="hr.employee">
             <field name="name">Sharlene Rhodes</field>
-            <field name="category_ids" eval="[Command.set([ref('employee_category_4'), ref('employee_category_7')])]"/>
+            <field name="tag_ids" eval="[Command.set([ref('employee_category_4'), ref('employee_category_7')])]"/>
             <field name="work_contact_id" ref="hr.work_contact_niv"/>
             <field name="image_1920" type="base64" file="hr/static/img/employee_niv-image.jpg"/>
             <field name="create_date">2010-01-01 00:00:00</field>
@@ -621,7 +621,7 @@ If you have development competencies, we can propose you specific traineeships</
 
         <record id="employee_stw" model="hr.employee">
             <field name="name">Randall Lewis</field>
-            <field name="category_ids" eval="[Command.set([ref('employee_category_4')])]"/>
+            <field name="tag_ids" eval="[Command.set([ref('employee_category_4')])]"/>
             <field name="work_contact_id" ref="hr.work_contact_stw"/>
             <field name="image_1920" type="base64" file="hr/static/img/employee_stw-image.jpg"/>
             <field name="create_date">2010-01-01 00:00:00</field>
@@ -649,7 +649,7 @@ If you have development competencies, we can propose you specific traineeships</
 
         <record id="employee_chs" model="hr.employee">
             <field name="name">Jennie Fletcher</field>
-            <field name="category_ids" eval="[Command.set([ref('employee_category_4'), ref('employee_category_7')])]"/>
+            <field name="tag_ids" eval="[Command.set([ref('employee_category_4'), ref('employee_category_7')])]"/>
             <field name="work_contact_id" ref="hr.work_contact_chs"/>
             <field name="image_1920" type="base64" file="hr/static/img/employee_chs-image.jpg"/>
             <field name="create_date">2010-01-01 00:00:00</field>

@@ -822,8 +822,8 @@ class TestFieldDescriptionCachePerGroupSet(TransactionCaseWithUserDemo):
         return (field._description_sortable(env), field._description_groupable(env))
 
     def test_two_group_sets_do_not_share_an_answer(self):
-        internal_first = self._answers(self.internal_user, "res.partner", "category_id")
-        portal_after = self._answers(self.portal_user, "res.partner", "category_id")
+        internal_first = self._answers(self.internal_user, "res.partner", "tag_ids")
+        portal_after = self._answers(self.portal_user, "res.partner", "tag_ids")
 
         self.assertNotEqual(
             internal_first,
@@ -831,22 +831,22 @@ class TestFieldDescriptionCachePerGroupSet(TransactionCaseWithUserDemo):
             "a portal user must not be served the internal user's cached answer",
         )
         self.assertEqual(
-            self._answers(self.internal_user, "res.partner", "category_id"),
+            self._answers(self.internal_user, "res.partner", "tag_ids"),
             internal_first,
             "and the internal user's answer must survive the portal read",
         )
 
     def test_the_order_the_users_ask_in_does_not_matter(self):
-        portal_first = self._answers(self.portal_user, "res.partner", "category_id")
-        internal_after = self._answers(self.internal_user, "res.partner", "category_id")
+        portal_first = self._answers(self.portal_user, "res.partner", "tag_ids")
+        internal_after = self._answers(self.internal_user, "res.partner", "tag_ids")
         self.env.registry.clear_cache()
 
         self.assertEqual(
-            self._answers(self.portal_user, "res.partner", "category_id"),
+            self._answers(self.portal_user, "res.partner", "tag_ids"),
             portal_first,
         )
         self.assertEqual(
-            self._answers(self.internal_user, "res.partner", "category_id"),
+            self._answers(self.internal_user, "res.partner", "tag_ids"),
             internal_after,
         )
 

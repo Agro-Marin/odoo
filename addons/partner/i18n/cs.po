@@ -46,7 +46,7 @@ msgid "Contact"
 msgstr "Kontakt"
 
 #. module: partner
-#: model:ir.ui.menu,name:partner.menu_partner_category_form
+#: model:ir.ui.menu,name:partner.menu_partner_tag_form
 msgid "Contact Tags"
 msgstr "Štítky kontaktů"
 

@@ -28,7 +28,7 @@ class TestAllocations(TestHrHolidaysCommon):
                 "name": "Test Department",
             }
         )
-        cls.category_tag = cls.env["hr.employee.category"].create(
+        cls.category_tag = cls.env["res.partner.tag"].create(
             {"name": "Test category"}
         )
         cls.employee = cls.env["hr.employee"].create(
@@ -36,7 +36,7 @@ class TestAllocations(TestHrHolidaysCommon):
                 "name": "My Employee",
                 "company_id": cls.company.id,
                 "department_id": cls.department.id,
-                "category_ids": [(4, cls.category_tag.id)],
+                "tag_ids": [(4, cls.category_tag.id)],
             }
         )
 
@@ -325,7 +325,7 @@ class TestAllocations(TestHrHolidaysCommon):
             {
                 "name": "Bank Holiday",
                 "allocation_mode": "category",
-                "category_id": self.category_tag.id,
+                "tag_id": self.category_tag.id,
                 "holiday_status_id": self.leave_type.id,
                 "duration": 2,
                 "allocation_type": "regular",

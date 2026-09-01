@@ -19,11 +19,11 @@ class AccountAnalyticDistributionModel(models.Model):
         ondelete="cascade",
         help="Select a partner for which the analytic distribution will be used (e.g. create new customer invoice or Sales order if we select this partner, it will automatically take this as an analytic account)",
     )
-    partner_category_id = fields.Many2one(
-        "res.partner.category",
-        string="Partner Category",
+    partner_tag_id = fields.Many2one(
+        "res.partner.tag",
+        string="Partner Tag",
         ondelete="cascade",
-        help="Select a partner category for which the analytic distribution will be used (e.g. create new customer invoice or Sales order if we select this partner, it will automatically take this as an analytic account)",
+        help="Select a partner tag for which the analytic distribution will be used (e.g. create new customer invoice or Sales order if we select this partner, it will automatically take this as an analytic account)",
     )
     company_id = fields.Many2one(
         "res.company",
@@ -82,7 +82,7 @@ class AccountAnalyticDistributionModel(models.Model):
         return {
             "company_id": False,
             "partner_id": False,
-            "partner_category_id": [],
+            "partner_tag_id": [],
         }
 
     @api.model
@@ -94,7 +94,7 @@ class AccountAnalyticDistributionModel(models.Model):
         return self.search(domain)
 
     def _create_domain(self, fname, value):
-        if fname == "partner_category_id":
+        if fname == "partner_tag_id":
             # Build a new list instead of `value += [False]`: the list belongs to
             # the caller's vals dict, and callers memoize on that dict.
             # `account.move.line._compute_analytic_distribution` keys a frozendict

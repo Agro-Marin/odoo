@@ -361,7 +361,7 @@ class TestConvertCsvEncoding(common.TransactionCase):
         convert_csv_import(
             self.env,
             "test_convert",
-            "res.partner.category.csv",
+            "res.partner.tag.csv",
             text.encode("utf-8"),
             mode="init",
         )

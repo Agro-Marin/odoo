@@ -332,7 +332,7 @@ class ResPartner(models.Model):
         return (self.env.user.partner_id, self.env["mail.guest"])
 
 
-class ResPartnerCategory(models.Model):
-    _inherit = "res.partner.category"
+class ResPartnerTag(models.Model):
+    _inherit = "res.partner.tag"
 
     _mail_partner_fields = ()

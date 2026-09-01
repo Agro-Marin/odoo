@@ -59,7 +59,7 @@ class MixinAccountMoveSend(models.AbstractModel):
                 'message': _("Testing mode is enabled."),
             }
 
-        if tr_companies_missing_required_codes := tr_nilvera_moves.company_id.filtered(lambda c: c.country_code == 'TR' and not (c.partner_id.category_id.parent_id and self.env["res.partner.category"]._get_l10n_tr_official_mandatory_categories())):
+        if tr_companies_missing_required_codes := tr_nilvera_moves.company_id.filtered(lambda c: c.country_code == 'TR' and not (c.partner_id.tag_ids.parent_id and self.env["res.partner.tag"]._get_l10n_tr_official_mandatory_categories())):
             alerts["tr_companies_missing_required_codes"] = {
                 "message": _("Please ensure that your company contact has either the 'MERSISNO' or 'TICARETSICILNO' tag with a value assigned."),
                 "action_text": _("View Company(s)"),

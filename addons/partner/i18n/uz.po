@@ -50,7 +50,7 @@ msgid "Contact"
 msgstr "Aloqa"
 
 #. module: partner
-#: model:ir.ui.menu,name:partner.menu_partner_category_form
+#: model:ir.ui.menu,name:partner.menu_partner_tag_form
 #, fuzzy
 msgid "Contact Tags"
 msgstr "Kontakt belgilari"

@@ -3,8 +3,8 @@ from . import hr_job
 from . import hr_version
 from . import hr_contract_type
 from . import hr_employee
+from . import hr_employee_convergence
 from . import mixin_hr
-from . import hr_employee_category
 from . import hr_employee_public
 from . import hr_department
 from . import hr_departure_reason
@@ -18,6 +18,7 @@ from . import res_config_settings
 from . import res_users
 from . import res_company
 from . import res_partner
+from . import res_partner_tag
 from . import res_partner_bank
 from . import resource
 from . import resource_calendar

@@ -2,7 +2,7 @@
 <odoo>
     <record id="res_partner_ch_qr" model="res.partner">
         <field name="name">Easy Clean Lausanne</field>
-        <field eval="[Command.set([ref('base.res_partner_category_11')])]" name="category_id"/>
+        <field eval="[Command.set([ref('base.res_partner_category_11')])]" name="tag_ids"/>
         <field name="is_company">1</field>
         <field name="city">Lausanne</field>
         <field name="zip">1004</field>

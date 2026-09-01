@@ -17,7 +17,7 @@ from odoo.libs.text import name_length_band, similarity_ratio
 from odoo.tools import SQL
 
 if typing.TYPE_CHECKING:
-    from .res_partner_category import ResPartnerCategory
+    from .res_partner_tag import ResPartnerTag
     from .res_users import ResUsers
 
 from .mixin_format_address import ADDRESS_FIELDS
@@ -147,7 +147,7 @@ class ResPartner(models.Model):
     _check_company_auto = True
     _check_company_domain = models.check_company_domain_parent_of
 
-    _complete_name_displayed_types = ("invoice", "delivery", "other")
+    _complete_name_displayed_types = ("invoice", "delivery", "other", "private")
 
     company_id = fields.Many2one(
         "res.company",
@@ -193,12 +193,12 @@ class ResPartner(models.Model):
         store=True,
         help="The internal user in charge of this contact.",
     )
-    category_id = fields.Many2many(
-        "res.partner.category",
+    tag_ids = fields.Many2many(
+        "res.partner.tag",
         column1="partner_id",
-        column2="category_id",
+        column2="tag_id",
         string="Tags",
-        default=lambda self: self._default_category_id(),
+        default=lambda self: self._default_tag_ids(),
     )
     barcode = fields.Char(
         copy=False,
@@ -274,6 +274,7 @@ class ResPartner(models.Model):
             ("invoice", "Invoice"),
             ("delivery", "Delivery"),
             ("other", "Other"),
+            ("private", "Private"),
         ],
         string="Address Type",
         default="contact",
@@ -330,6 +331,13 @@ class ResPartner(models.Model):
         ],
     )
     birthdate = fields.Date()
+    nationality_id = fields.Many2one(
+        "res.country",
+        string="Nationality",
+        help="The country this person is a national of. Distinct from the "
+        "address country, which says where they are: a person may be resident "
+        "in one country and a national of another.",
+    )
     user_ids: ResUsers = fields.One2many(
         "res.users",
         "partner_id",
@@ -439,10 +447,8 @@ class ResPartner(models.Model):
     def _compute_avatar_128(self) -> None:
         super()._compute_avatar_128()
 
-    def _default_category_id(self) -> ResPartnerCategory:
-        return self.env["res.partner.category"].browse(
-            self.env.context.get("category_id")
-        )
+    def _default_tag_ids(self) -> ResPartnerTag:
+        return self.env["res.partner.tag"].browse(self.env.context.get("tag_id"))
 
     @api.model
     def default_get(self, fields: list[str]) -> dict[str, Any]:
@@ -889,6 +895,8 @@ class ResPartner(models.Model):
                 partner.type_address_label = _("Invoice Address")
             elif partner.type == "delivery":
                 partner.type_address_label = _("Delivery Address")
+            elif partner.type == "private":
+                partner.type_address_label = _("Private Address")
             elif partner.type == "contact" and partner.parent_id:
                 partner.type_address_label = _("Company Address")
             else:
@@ -1641,11 +1649,11 @@ class ResPartner(models.Model):
 
     @api.model
     def view_header_get(self, view_id: int | None, view_type: str) -> str | bool:
-        if self.env.context.get("category_id"):
+        if self.env.context.get("tag_id"):
             return _(
-                "Partners: %(category)s",
-                category=self.env["res.partner.category"]
-                .browse(self.env.context["category_id"])
+                "Partners: %(tag)s",
+                tag=self.env["res.partner.tag"]
+                .browse(self.env.context["tag_id"])
                 .name,
             )
         return super().view_header_get(view_id, view_type)

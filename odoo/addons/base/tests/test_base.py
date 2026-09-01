@@ -155,7 +155,7 @@ class TestParentStore(TransactionCase):
     def setUp(self):
         super().setUp()
 
-        category = self.env["res.partner.category"]
+        category = self.env["res.partner.tag"]
         self.patch(category._fields["child_ids"], "copy", True)
 
         self.root = category.create({"name": "Root category"})
@@ -190,8 +190,8 @@ class TestParentStore(TransactionCase):
         records = new_cat0.search([("parent_id", "parent_of", 999999999)])
         self.assertEqual(len(records), 0)
 
-        category = self.env["res.partner.category"]
-        self.patch(self.env.registry["res.partner.category"], "_parent_store", False)
+        category = self.env["res.partner.tag"]
+        self.patch(self.env.registry["res.partner.tag"], "_parent_store", False)
         records = category.search([("parent_id", "child_of", 999999999)])
         self.assertEqual(len(records), 0)
 
@@ -200,8 +200,8 @@ class TestParentStore(TransactionCase):
         records = new_cat0.search([("parent_id", "child_of", 999999999)])
         self.assertEqual(len(records), 0)
 
-        category = self.env["res.partner.category"]
-        self.patch(self.env.registry["res.partner.category"], "_parent_store", False)
+        category = self.env["res.partner.tag"]
+        self.patch(self.env.registry["res.partner.tag"], "_parent_store", False)
         records = category.search([("parent_id", "child_of", 999999999)])
         self.assertEqual(len(records), 0)
 

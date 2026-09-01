@@ -223,7 +223,7 @@ class AccountEdiXmlUblTr(models.AbstractModel):
         return party_node
 
     def _get_party_identification_node_list(self, partner):
-        official_categories = partner.category_id._get_l10n_tr_official_categories()
+        official_categories = partner.tag_ids._get_l10n_tr_official_categories()
         return [
             {
                 'cbc:ID': {
@@ -238,7 +238,7 @@ class AccountEdiXmlUblTr(models.AbstractModel):
                         'schemeID': category.parent_id.name,
                     },
                 }
-                for category in partner.category_id
+                for category in partner.tag_ids
                 if category.parent_id in official_categories
             ),
         ]

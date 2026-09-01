@@ -345,7 +345,7 @@ class TestDomainComparandTypeParity(TransactionCase):
                         self.records.filtered_domain(domain)
 
     def test_ordering_on_x2many_is_rejected(self):
-        for fname in ("child_ids", "category_id"):
+        for fname in ("child_ids", "tag_ids"):
             for operator in (">", ">=", "<", "<="):
                 for value in (1, 0):
                     with self.subTest(fname=fname, operator=operator, value=value):

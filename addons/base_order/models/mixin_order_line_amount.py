@@ -430,7 +430,7 @@ class MixinOrderLineAmount(models.AbstractModel):
         "partner_id",
         "product_id",
         "product_categ_id",
-        "order_id.partner_id.category_id",
+        "order_id.partner_id.tag_ids",
     )
     def _compute_analytic_distribution(self):
         cache = {}
@@ -438,12 +438,12 @@ class MixinOrderLineAmount(models.AbstractModel):
 
         for line in self.filtered(lambda l: not l.display_type):
             partner = line.order_id.partner_id
-            partner_category_ids = tuple(partner.category_id.ids)
+            partner_tag_ids = tuple(partner.tag_ids.ids)
             cache_key = (
                 line.product_id.id,
                 line.product_categ_id.id,
                 partner.id,
-                partner_category_ids,
+                partner_tag_ids,
                 line.company_id.id,
             )
             if cache_key not in cache:
@@ -452,7 +452,7 @@ class MixinOrderLineAmount(models.AbstractModel):
                         "product_id": line.product_id.id,
                         "product_categ_id": line.product_categ_id.id,
                         "partner_id": partner.id,
-                        "partner_category_id": list(partner_category_ids),
+                        "partner_tag_id": list(partner_tag_ids),
                         "company_id": line.company_id.id,
                     },
                 )

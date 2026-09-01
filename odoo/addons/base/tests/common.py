@@ -253,19 +253,19 @@ class HttpCaseWithUserDemo(_UserDemoCase, HttpCase):
 class SavepointCaseWithUserDemo(_UserDemoCase, TransactionCase):
     @classmethod
     def _load_partners_set(cls):
-        cls.partner_category = cls.env["res.partner.category"].create(
+        cls.partner_category = cls.env["res.partner.tag"].create(
             {
                 "name": "Sellers",
                 "color": 2,
             }
         )
-        cls.partner_category_child_1 = cls.env["res.partner.category"].create(
+        cls.partner_category_child_1 = cls.env["res.partner.tag"].create(
             {
                 "name": "Office Supplies",
                 "parent_id": cls.partner_category.id,
             }
         )
-        cls.partner_category_child_2 = cls.env["res.partner.category"].create(
+        cls.partner_category_child_2 = cls.env["res.partner.tag"].create(
             {
                 "name": "Desk Manufacturers",
                 "parent_id": cls.partner_category.id,
@@ -277,7 +277,7 @@ class SavepointCaseWithUserDemo(_UserDemoCase, TransactionCase):
                 {
                     "name": "Inner Works",
                     "state_id": cls.env.ref("base.state_us_1").id,
-                    "category_id": [
+                    "tag_ids": [
                         Command.set(
                             [
                                 cls.partner_category_child_1.id,
@@ -354,7 +354,7 @@ class SavepointCaseWithUserDemo(_UserDemoCase, TransactionCase):
                 {
                     "name": "Urban Trends",
                     "state_id": cls.env.ref("base.state_us_4").id,
-                    "category_id": [
+                    "tag_ids": [
                         Command.set(
                             [
                                 cls.partner_category_child_1.id,

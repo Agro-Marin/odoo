@@ -1514,7 +1514,7 @@ class AccountMoveLine(models.Model):
             "product_id": self.product_id.id,
             "product_categ_id": self.product_id.categ_id.id,
             "partner_id": self.partner_id.id,
-            "partner_category_id": self.partner_id.category_id.ids,
+            "partner_tag_id": self.partner_id.tag_ids.ids,
             "account_prefix": self.account_id.code,
             "company_id": self.company_id.id,
             "related_root_plan_ids": root_plans,

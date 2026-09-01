@@ -12,7 +12,7 @@ from . import account_move
 from . import account_move_line
 from . import res_company
 from . import res_partner
-from . import res_partner_category
+from . import res_partner_tag
 from . import product_product
 from . import res_config_settings
 from . import mixin_order_merge

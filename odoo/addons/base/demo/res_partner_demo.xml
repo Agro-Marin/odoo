@@ -1,38 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo noupdate="0">
 
-    <record id="res_partner_category_0" model="res.partner.category">
+    <record id="res_partner_category_0" model="res.partner.tag">
         <field name="name">Vendor</field>
         <field name="color" eval="2" />
     </record>
 
-    <record id="res_partner_category_2" model="res.partner.category">
+    <record id="res_partner_category_2" model="res.partner.tag">
         <field name="name">Prospects</field>
         <field name="color" eval="3" />
     </record>
 
-    <record id="res_partner_category_3" model="res.partner.category">
+    <record id="res_partner_category_3" model="res.partner.tag">
         <field name="name">Employees</field>
         <field name="color" eval="4" />
     </record>
 
-    <record id="res_partner_category_8" model="res.partner.category">
+    <record id="res_partner_category_8" model="res.partner.tag">
         <field name="name">Consulting Services</field>
         <field name="color" eval="5" />
     </record>
 
-    <record id="res_partner_category_11" model="res.partner.category">
+    <record id="res_partner_category_11" model="res.partner.tag">
         <field name="name">Services</field>
         <field name="color" eval="7" />
     </record>
 
-    <record id="res_partner_category_12" model="res.partner.category">
+    <record id="res_partner_category_12" model="res.partner.tag">
         <field name="name">Office Supplies</field>
         <field name="parent_id" ref="res_partner_category_0" />
         <field name="color" eval="8" />
     </record>
 
-    <record id="res_partner_category_14" model="res.partner.category">
+    <record id="res_partner_category_14" model="res.partner.tag">
         <field name="name">Desk Manufacturers</field>
         <field name="color" eval="10" />
         <field name="parent_id" ref="res_partner_category_0" />
@@ -45,7 +45,7 @@
     <record id="res_partner_1" model="res.partner">
         <field name="name">Wood Corner</field>
         <field
-            name="category_id"
+            name="tag_ids"
             eval="[Command.set([ref('res_partner_category_14'), ref('res_partner_category_12')])]" />
         <field name="is_company">1</field>
         <field name="street">1839 Arbor Way</field>
@@ -66,7 +66,7 @@
     <record id="res_partner_2" model="res.partner">
         <field name="name">Acme Corporation</field>
         <field
-            name="category_id"
+            name="tag_ids"
             eval="[Command.set([ref('base.res_partner_category_14')])]" />
         <field name="is_company">1</field>
         <field name="street">77 Santa Barbara Rd</field>
@@ -87,7 +87,7 @@
     <record id="res_partner_3" model="res.partner">
         <field name="name">Gemini Furniture</field>
         <field
-            name="category_id"
+            name="tag_ids"
             eval="[Command.set([ref('res_partner_category_8'), ref('res_partner_category_14')])]" />
         <field name="is_company" eval="True" />
         <field name="street">Via Industria 21</field>
@@ -107,7 +107,7 @@
     <record id="res_partner_4" model="res.partner">
         <field name="name">Ready Mat</field>
         <field
-            name="category_id"
+            name="tag_ids"
             eval="[Command.set([ref('res_partner_category_14'), ref('res_partner_category_12')])]" />
         <field name="is_company">1</field>
         <field name="street">7500 W Linne Road</field>
@@ -176,9 +176,7 @@
 
     <record id="res_partner_12" model="res.partner">
         <field name="name">Azure Interior</field>
-        <field
-            name="category_id"
-            eval="[Command.set([ref('res_partner_category_11')])]" />
+        <field name="tag_ids" eval="[Command.set([ref('res_partner_category_11')])]" />
         <field name="is_company">1</field>
         <field name="street">4557 De Silva St</field>
         <field name="city">Fremont</field>

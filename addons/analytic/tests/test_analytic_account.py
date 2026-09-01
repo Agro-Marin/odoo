@@ -193,10 +193,10 @@ class TestAnalyticAccount(AnalyticCommon):
             "Distribution 2 should be given, for the partner",
         )
 
-        partner_category = self.env["res.partner.category"].create(
+        partner_category = self.env["res.partner.tag"].create(
             {"name": "partner_categ"}
         )
-        self.partner_a.write({"category_id": [Command.set([partner_category.id])]})
+        self.partner_a.write({"tag_ids": [Command.set([partner_category.id])]})
 
         distribution_4 = self.env["account.analytic.distribution.model"].create(
             {
@@ -205,7 +205,7 @@ class TestAnalyticAccount(AnalyticCommon):
                     self.analytic_account_1.id: 100,
                     self.analytic_account_2.id: 100,
                 },
-                "partner_category_id": partner_category.id,
+                "partner_tag_id": partner_category.id,
                 "sequence": 1,
             }
         )
@@ -216,7 +216,7 @@ class TestAnalyticAccount(AnalyticCommon):
             {
                 "partner_id": self.partner_a.id,
                 "company_id": self.company.id,
-                "partner_category_id": partner_category.ids,
+                "partner_tag_id": partner_category.ids,
             }
         )
 
@@ -554,14 +554,14 @@ class TestAnalyticAccount(AnalyticCommon):
 
         Callers memoize on that dict --
         `account.move.line._compute_analytic_distribution` keys a frozendict on
-        it -- so an in-place `partner_category_id += [False]` changed a key that
+        it -- so an in-place `partner_tag_id += [False]` changed a key that
         was already inserted in the cache: every later lookup compared unequal,
         the cache missed once per line and re-ran this search per invoice line.
         The append was also cumulative across calls.
         """
         Model = self.env["account.analytic.distribution.model"]
         categories = []
-        vals = {"partner_id": self.partner_a.id, "partner_category_id": categories}
+        vals = {"partner_id": self.partner_a.id, "partner_tag_id": categories}
         for _ in range(3):
             Model._get_distribution(dict(vals))
         self.assertEqual(
@@ -587,7 +587,7 @@ class TestAnalyticAccount(AnalyticCommon):
             key = frozendict(
                 {
                     "partner_id": self.partner_a.id,
-                    "partner_category_id": self.partner_a.category_id.ids,
+                    "partner_tag_id": self.partner_a.tag_ids.ids,
                 }
             )
             if key not in cache:

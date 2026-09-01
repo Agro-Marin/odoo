@@ -383,19 +383,19 @@ class TestMergePartnerAbsorbSourceValues(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.Wizard = cls.env["base.partner.merge.automatic.wizard"]
-        cls.tag_dst = cls.env["res.partner.category"].create({"name": "Kept"})
-        cls.tag_src = cls.env["res.partner.category"].create({"name": "Absorbed"})
+        cls.tag_dst = cls.env["res.partner.tag"].create({"name": "Kept"})
+        cls.tag_src = cls.env["res.partner.tag"].create({"name": "Absorbed"})
 
     def _prepare_pair(self):
         dst = self.env["res.partner"].create(
-            {"name": "Catch-All", "category_id": [Command.set(self.tag_dst.ids)]}
+            {"name": "Catch-All", "tag_ids": [Command.set(self.tag_dst.ids)]}
         )
         src = self.env["res.partner"].create(
             {
                 "name": "Dormant",
                 "vat": "BE0477472701",
                 "street": "Rue Source 1",
-                "category_id": [Command.set(self.tag_src.ids)],
+                "tag_ids": [Command.set(self.tag_src.ids)],
             }
         )
         self.env["res.partner.bank"].create(
@@ -412,7 +412,7 @@ class TestMergePartnerAbsorbSourceValues(TransactionCase):
         self.env.invalidate_all()
 
         self.assertEqual(dst.vat, "BE0477472701")
-        self.assertEqual(dst.category_id, self.tag_dst | self.tag_src)
+        self.assertEqual(dst.tag_ids, self.tag_dst | self.tag_src)
         self.assertTrue(dst.bank_ids)
 
     def test_not_absorbing_keeps_the_destination_identity(self):
@@ -430,7 +430,7 @@ class TestMergePartnerAbsorbSourceValues(TransactionCase):
         self.assertFalse(dst.street, "a plain field must not be absorbed")
         self.assertFalse(dst.barcode, "a company-dependent field must not be absorbed")
         self.assertEqual(
-            dst.category_id, self.tag_dst, "a many2many must not be absorbed"
+            dst.tag_ids, self.tag_dst, "a many2many must not be absorbed"
         )
         self.assertFalse(dst.bank_ids, "a bank account must not be absorbed")
 

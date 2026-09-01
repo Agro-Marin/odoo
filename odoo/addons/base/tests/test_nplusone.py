@@ -36,7 +36,7 @@ class TestNplusOneDetection(TransactionCase):
         self.tracker.clear()
 
     def test_write_n1_detected(self):
-        categories = self.env["res.partner.category"].create(
+        categories = self.env["res.partner.tag"].create(
             [{"name": f"N1 Test Cat {i}"} for i in range(5)]
         )
         self.tracker.clear()
@@ -49,7 +49,7 @@ class TestNplusOneDetection(TransactionCase):
             for key, entry in self.tracker._data.items()
             if entry.count >= nplusone.NplusOneTracker.THRESHOLD
             and key[0] == "write"
-            and key[1] == "res.partner.category"
+            and key[1] == "res.partner.tag"
         ]
         self.assertTrue(violations, "N+1 write pattern should be detected")
         entry = violations[0][1]
@@ -58,7 +58,7 @@ class TestNplusOneDetection(TransactionCase):
         self.assertEqual(len(entry.vals_fingerprints), 1, "Same fields every call")
 
     def test_batch_write_no_violation(self):
-        categories = self.env["res.partner.category"].create(
+        categories = self.env["res.partner.tag"].create(
             [{"name": f"Batch Test Cat {i}"} for i in range(5)]
         )
         self.tracker.clear()
@@ -73,20 +73,20 @@ class TestNplusOneDetection(TransactionCase):
         self.tracker.clear()
 
         for i in range(5):
-            self.env["res.partner.category"].create({"name": f"N1 Cat {i}"})
+            self.env["res.partner.tag"].create({"name": f"N1 Cat {i}"})
 
         violations = [
             (key, entry)
             for key, entry in self.tracker._data.items()
             if entry.count >= nplusone.NplusOneTracker.THRESHOLD
             and key[0] == "create"
-            and key[1] == "res.partner.category"
+            and key[1] == "res.partner.tag"
         ]
         self.assertTrue(violations, "N+1 create pattern should be detected")
         self.assertEqual(violations[0][1].count, 5)
 
     def test_unlink_n1_detected(self):
-        categories = self.env["res.partner.category"].create(
+        categories = self.env["res.partner.tag"].create(
             [{"name": f"Unlink Cat {i}"} for i in range(5)]
         )
         self.tracker.clear()
@@ -104,7 +104,7 @@ class TestNplusOneDetection(TransactionCase):
     def test_batch_create_no_violation(self):
         self.tracker.clear()
 
-        self.env["res.partner.category"].create(
+        self.env["res.partner.tag"].create(
             [{"name": f"Batch Cat {i}"} for i in range(20)]
         )
 
@@ -116,7 +116,7 @@ class TestNplusOneDetection(TransactionCase):
         self.tracker.clear()
 
         for i in range(5):
-            self.env["res.partner.category"].create({"name": f"Report Cat {i}"})
+            self.env["res.partner.tag"].create({"name": f"Report Cat {i}"})
 
         with self.assertLogs("odoo.orm.nplusone", level="WARNING") as log:
             self.tracker.report()
@@ -126,12 +126,12 @@ class TestNplusOneDetection(TransactionCase):
             "Report should emit N+1 warning",
         )
         self.assertTrue(
-            any("res.partner.category" in msg for msg in log.output),
+            any("res.partner.tag" in msg for msg in log.output),
             "Warning should mention the model name",
         )
 
     def test_different_fields_tracked(self):
-        categories = self.env["res.partner.category"].create(
+        categories = self.env["res.partner.tag"].create(
             [{"name": f"FP Cat {i}"} for i in range(4)]
         )
         self.tracker.clear()
@@ -166,7 +166,7 @@ class TestNplusOneDisabled(TransactionCase):
 
     def test_no_tracker_when_disabled(self):
         self.assertFalse(nplusone._n1_enabled)
-        cat = self.env["res.partner.category"].create({"name": "Disabled Test"})
+        cat = self.env["res.partner.tag"].create({"name": "Disabled Test"})
         cat.write({"name": "Updated"})
         cat.unlink()
 
@@ -190,50 +190,50 @@ class TestNplusOneReadDetection(TestNplusOneDetection):
         ]
 
     def test_search_per_record_is_reported(self):
-        categories = self.env["res.partner.category"].create(
+        categories = self.env["res.partner.tag"].create(
             [{"name": f"Read N1 {i}"} for i in range(10)]
         )
         self.env.flush_all()
         self.tracker.clear()
 
         for category in categories:
-            self.env["res.partner.category"].search([("id", "=", category.id)])
+            self.env["res.partner.tag"].search([("id", "=", category.id)])
 
-        violations = self._violations("search", "res.partner.category")
+        violations = self._violations("search", "res.partner.tag")
         self.assertTrue(
             violations,
             "a search per record is the N+1 the tracker exists to name; "
-            f"recorded {self._entries('search', 'res.partner.category')}",
+            f"recorded {self._entries('search', 'res.partner.tag')}",
         )
         self.assertEqual(violations[0].count, 10)
         self.assertEqual(violations[0].total_records, 10)
 
     def test_one_batched_search_is_not_reported(self):
-        categories = self.env["res.partner.category"].create(
+        categories = self.env["res.partner.tag"].create(
             [{"name": f"Batched {i}"} for i in range(10)]
         )
         self.env.flush_all()
         self.tracker.clear()
 
-        self.env["res.partner.category"].search([("id", "in", categories.ids)])
+        self.env["res.partner.tag"].search([("id", "in", categories.ids)])
 
-        self.assertFalse(self._violations("search", "res.partner.category"))
+        self.assertFalse(self._violations("search", "res.partner.tag"))
 
     def test_a_repeated_wide_search_is_not_an_n_plus_one(self):
-        categories = self.env["res.partner.category"].create(
+        categories = self.env["res.partner.tag"].create(
             [{"name": f"Wide {i}"} for i in range(10)]
         )
         self.env.flush_all()
         self.tracker.clear()
 
         for _ in range(10):
-            self.env["res.partner.category"].search([("id", "in", categories.ids)])
+            self.env["res.partner.tag"].search([("id", "in", categories.ids)])
 
-        entries = self._entries("search", "res.partner.category")
+        entries = self._entries("search", "res.partner.tag")
         self.assertTrue(entries, "the calls were recorded")
         self.assertGreaterEqual(entries[0].count, 10)
         self.assertFalse(
-            self._violations("search", "res.partner.category"),
+            self._violations("search", "res.partner.tag"),
             "10 calls returning 10 records each average 10 per call, well over "
             "READ_RECORDS_PER_CALL, so this is not an N+1",
         )
@@ -241,8 +241,8 @@ class TestNplusOneReadDetection(TestNplusOneDetection):
     def test_a_search_that_finds_nothing_still_counts(self):
         self.tracker.clear()
         for i in range(10):
-            self.env["res.partner.category"].search([("name", "=", f"absent-{i}")])
+            self.env["res.partner.tag"].search([("name", "=", f"absent-{i}")])
         self.assertTrue(
-            self._violations("search", "res.partner.category"),
+            self._violations("search", "res.partner.tag"),
             "a search per record that matches nothing is still a search per record",
         )

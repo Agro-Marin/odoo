@@ -240,14 +240,37 @@ class HrEmployee(models.Model):
         string="Gender",
     )
 
+    private_address_id = fields.Many2one(
+        "res.partner",
+        string="Private Address",
+        compute="_compute_private_address_id",
+        store=True,
+        groups="hr.group_hr_user",
+        copy=False,
+        index="btree_not_null",
+        help="The employee's home address, held as a private child of their "
+        "work contact rather than as columns here.",
+    )
     private_street = fields.Char(
-        string="Private Street", groups="hr.group_hr_user", tracking=True
+        string="Private Street",
+        related="private_address_id.street",
+        readonly=False,
+        groups="hr.group_hr_user",
+        tracking=True,
     )
     private_street2 = fields.Char(
-        string="Private Street2", groups="hr.group_hr_user", tracking=True
+        string="Private Street2",
+        related="private_address_id.street2",
+        readonly=False,
+        groups="hr.group_hr_user",
+        tracking=True,
     )
     private_city = fields.Char(
-        string="Private City", groups="hr.group_hr_user", tracking=True
+        string="Private City",
+        related="private_address_id.city",
+        readonly=False,
+        groups="hr.group_hr_user",
+        tracking=True,
     )
     allowed_country_state_ids = fields.Many2many(
         "res.country.state",
@@ -257,16 +280,24 @@ class HrEmployee(models.Model):
     private_state_id = fields.Many2one(
         "res.country.state",
         string="Private State",
+        related="private_address_id.state_id",
+        readonly=False,
         domain="[('id', 'in', allowed_country_state_ids)]",
         groups="hr.group_hr_user",
         tracking=True,
     )
     private_zip = fields.Char(
-        string="Private Zip", groups="hr.group_hr_user", tracking=True
+        string="Private Zip",
+        related="private_address_id.zip",
+        readonly=False,
+        groups="hr.group_hr_user",
+        tracking=True,
     )
     private_country_id = fields.Many2one(
         "res.country",
         string="Private Country",
+        related="private_address_id.country_id",
+        readonly=False,
         groups="hr.group_hr_user",
         tracking=True,
     )
@@ -468,11 +499,11 @@ class HrEmployee(models.Model):
         help='Select the "Employee" who is the coach of this employee.\n'
         'The "Coach" has no specific rights or responsibilities by default.',
     )
-    category_ids = fields.Many2many(
-        "hr.employee.category",
-        "employee_category_rel",
+    tag_ids = fields.Many2many(
+        "res.partner.tag",
+        "employee_tag_rel",
         "employee_id",
-        "category_id",
+        "tag_id",
         groups="hr.group_hr_user",
         string="Tags",
     )
@@ -1262,6 +1293,33 @@ class HrEmployee(models.Model):
         )
         for employee, work_contact in zip(self, work_contacts, strict=True):
             employee.work_contact_id = work_contact
+
+    @api.depends("work_contact_id")
+    def _compute_private_address_id(self):
+        """One private child per work contact, created on demand.
+
+        The address is a typed child of the party rather than columns on the
+        role, so it is found by the same traversal as every other address and
+        survives the employment that created it. `type="private"` keeps it out
+        of `address_get`, which is an allowlist, and out of the four
+        address-sync paths, which all gate on `type == "contact"` -- so the
+        parent never overwrites it and, more importantly, it never pushes a home
+        street up onto the company.
+        """
+        Partner = self.env["res.partner"].sudo()
+        for employee in self:
+            if employee.private_address_id:
+                continue
+            contact = employee.work_contact_id
+            if not contact:
+                employee.private_address_id = False
+                continue
+            existing = Partner.search(
+                [("parent_id", "=", contact.id), ("type", "=", "private")], limit=1
+            )
+            employee.private_address_id = existing or Partner.create(
+                {"parent_id": contact.id, "type": "private"}
+            )
 
     @api.depends("parent_id")
     def _compute_coach_id(self):

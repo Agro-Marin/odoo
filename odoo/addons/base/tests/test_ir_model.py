@@ -22,7 +22,7 @@ class TestXMLID(TransactionCase):
         return self.env["ir.model.data"].search(domain)
 
     def test_create(self):
-        model = self.env["res.partner.category"]
+        model = self.env["res.partner.tag"]
         xml_id = "test_convert.category_foo"
 
         data = {"xml_id": xml_id, "values": {"name": "Foo"}}
@@ -44,7 +44,7 @@ class TestXMLID(TransactionCase):
         self.assertEqual(self.get_data(xml_id).noupdate, False)
 
     def test_create_noupdate(self):
-        model = self.env["res.partner.category"]
+        model = self.env["res.partner.tag"]
         xml_id = "test_convert.category_foo"
 
         data = {"xml_id": xml_id, "values": {"name": "Foo"}, "noupdate": True}
@@ -66,7 +66,7 @@ class TestXMLID(TransactionCase):
         self.assertEqual(self.get_data(xml_id).noupdate, True)
 
     def test_create_noupdate_multi(self):
-        model = self.env["res.partner.category"]
+        model = self.env["res.partner.tag"]
         data_list = [
             {
                 "xml_id": "test_convert.category_foo",
@@ -91,7 +91,7 @@ class TestXMLID(TransactionCase):
         self.assertEqual(self.get_data("test_convert.category_bar").noupdate, True)
 
     def test_create_order(self):
-        model = self.env["res.partner.category"]
+        model = self.env["res.partner.tag"]
         data_list = [
             {"xml_id": "test_convert.category_foo", "values": {"name": "Foo"}},
             {
@@ -133,7 +133,7 @@ class TestXMLID(TransactionCase):
         self.assertEqual(user.login, "foo")
 
     def test_recreate(self):
-        model = self.env["res.partner.category"]
+        model = self.env["res.partner.tag"]
         xml_id = "test_convert.category_foo"
         data = {"xml_id": xml_id, "values": {"name": "Foo"}}
 
@@ -189,7 +189,7 @@ class TestXMLID(TransactionCase):
         "odoo.addons.base.models.ir_model_data",
     )
     def test_create_external_id_with_space(self):
-        model = self.env["res.partner.category"]
+        model = self.env["res.partner.tag"]
         data_list = [
             {
                 "xml_id": "test_convert.category_with space",
@@ -2003,7 +2003,7 @@ class TestIrModelData(TransactionCase):
         mock_clear.assert_not_called()
 
     def test_update_xmlids_literal_percent(self):
-        record = self.env["res.partner.category"].create({"name": "Percent"})
+        record = self.env["res.partner.tag"].create({"name": "Percent"})
         xmlid = "test_convert.category_100%_percent"
         self.env["ir.model.data"]._update_xmlids([{"xml_id": xmlid, "record": record}])
         self.assertEqual(
@@ -2017,14 +2017,14 @@ class TestIrModelData(TransactionCase):
 
     def test_process_end_keeps_record_while_another_xmlid_lives(self):
         module = "x_imd_procend"
-        category = self.env["res.partner.category"].create({"name": "procend"})
+        category = self.env["res.partner.tag"].create({"name": "procend"})
         self.env.flush_all()
         for index in range(3):
             self.env["ir.model.data"].create(
                 {
                     "module": module,
                     "name": f"cat_{index}",
-                    "model": "res.partner.category",
+                    "model": "res.partner.tag",
                     "res_id": category.id,
                 }
             )
@@ -2040,13 +2040,13 @@ class TestIrModelData(TransactionCase):
 
     def test_process_end_keeps_record_owned_by_another_module(self):
         module = "x_imd_procend2"
-        category = self.env["res.partner.category"].create({"name": "procend2"})
+        category = self.env["res.partner.tag"].create({"name": "procend2"})
         self.env.flush_all()
         self.env["ir.model.data"].create(
             {
                 "module": module,
                 "name": "cat_a",
-                "model": "res.partner.category",
+                "model": "res.partner.tag",
                 "res_id": category.id,
             }
         )
@@ -2054,7 +2054,7 @@ class TestIrModelData(TransactionCase):
             {
                 "module": "base",
                 "name": "x_imd_procend2_keeper",
-                "model": "res.partner.category",
+                "model": "res.partner.tag",
                 "res_id": category.id,
             }
         )

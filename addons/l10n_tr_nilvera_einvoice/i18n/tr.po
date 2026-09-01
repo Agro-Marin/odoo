@@ -17,32 +17,32 @@ msgstr ""
 "Plural-Forms: \n"
 
 #. module: l10n_tr_nilvera_einvoice
-#: model:res.partner.category,name:l10n_tr_nilvera_einvoice.partner_demo_company_tr_tag
+#: model:res.partner.tag,name:l10n_tr_nilvera_einvoice.partner_demo_company_tr_tag
 msgid "0-123456780100019"
 msgstr ""
 
 #. module: l10n_tr_nilvera_einvoice
-#: model:res.partner.category,name:l10n_tr_nilvera_einvoice.l10n_tr_res_partner_1_tag
+#: model:res.partner.tag,name:l10n_tr_nilvera_einvoice.l10n_tr_res_partner_1_tag
 msgid "0-123456780200020"
 msgstr ""
 
 #. module: l10n_tr_nilvera_einvoice
-#: model:res.partner.category,name:l10n_tr_nilvera_einvoice.l10n_tr_res_partner_2_tag
+#: model:res.partner.tag,name:l10n_tr_nilvera_einvoice.l10n_tr_res_partner_2_tag
 msgid "0-424519348000017"
 msgstr ""
 
 #. module: l10n_tr_nilvera_einvoice
-#: model:res.partner.category,name:l10n_tr_nilvera_einvoice.res_partner_category_aboneno
+#: model:res.partner.tag,name:l10n_tr_nilvera_einvoice.res_partner_category_aboneno
 msgid "ABONENO"
 msgstr ""
 
 #. module: l10n_tr_nilvera_einvoice
-#: model:res.partner.category,name:l10n_tr_nilvera_einvoice.res_partner_category_aracikurumetiket
+#: model:res.partner.tag,name:l10n_tr_nilvera_einvoice.res_partner_category_aracikurumetiket
 msgid "ARACIKURUMETIKET"
 msgstr ""
 
 #. module: l10n_tr_nilvera_einvoice
-#: model:res.partner.category,name:l10n_tr_nilvera_einvoice.res_partner_category_aracikurumvkn
+#: model:res.partner.tag,name:l10n_tr_nilvera_einvoice.res_partner_category_aracikurumvkn
 msgid "ARACIKURUMVKN"
 msgstr ""
 
@@ -52,12 +52,12 @@ msgid "Account Move Send"
 msgstr "Hesap Hareketi Yollandı"
 
 #. module: l10n_tr_nilvera_einvoice
-#: model:res.partner.category,name:l10n_tr_nilvera_einvoice.res_partner_category_bayino
+#: model:res.partner.tag,name:l10n_tr_nilvera_einvoice.res_partner_category_bayino
 msgid "BAYINO"
 msgstr ""
 
 #. module: l10n_tr_nilvera_einvoice
-#: model:res.partner.category,name:l10n_tr_nilvera_einvoice.res_partner_category_ciftcino
+#: model:res.partner.tag,name:l10n_tr_nilvera_einvoice.res_partner_category_ciftcino
 msgid "CIFTCINO"
 msgstr ""
 
@@ -107,12 +107,12 @@ msgid "Check tags on company(s)"
 msgstr "Şirket(ler) üzerindeki etiketleri kontrol edin"
 
 #. module: l10n_tr_nilvera_einvoice
-#: model:res.partner.category,name:l10n_tr_nilvera_einvoice.res_partner_category_distributorno
+#: model:res.partner.tag,name:l10n_tr_nilvera_einvoice.res_partner_category_distributorno
 msgid "DISTRIBUTORNO"
 msgstr ""
 
 #. module: l10n_tr_nilvera_einvoice
-#: model:res.partner.category,name:l10n_tr_nilvera_einvoice.res_partner_category_dosyano
+#: model:res.partner.tag,name:l10n_tr_nilvera_einvoice.res_partner_category_dosyano
 msgid "DOSYANO"
 msgstr ""
 
@@ -121,12 +121,12 @@ msgstr ""
 #: model:ir.model.fields,field_description:l10n_tr_nilvera_einvoice.field_account_journal__display_name
 #: model:ir.model.fields,field_description:l10n_tr_nilvera_einvoice.field_account_move__display_name
 #: model:ir.model.fields,field_description:l10n_tr_nilvera_einvoice.field_account_move_send__display_name
-#: model:ir.model.fields,field_description:l10n_tr_nilvera_einvoice.field_res_partner_category__display_name
+#: model:ir.model.fields,field_description:l10n_tr_nilvera_einvoice.field_res_partner_tag__display_name
 msgid "Display Name"
 msgstr "Görünüm Adı"
 
 #. module: l10n_tr_nilvera_einvoice
-#: model:res.partner.category,name:l10n_tr_nilvera_einvoice.res_partner_category_epdkno
+#: model:res.partner.tag,name:l10n_tr_nilvera_einvoice.res_partner_category_epdkno
 msgid "EPDKNO"
 msgstr ""
 
@@ -142,12 +142,12 @@ msgid "Fetch Nilvera PDF"
 msgstr ""
 
 #. module: l10n_tr_nilvera_einvoice
-#: model:res.partner.category,name:l10n_tr_nilvera_einvoice.res_partner_category_hastano
+#: model:res.partner.tag,name:l10n_tr_nilvera_einvoice.res_partner_category_hastano
 msgid "HASTANO"
 msgstr ""
 
 #. module: l10n_tr_nilvera_einvoice
-#: model:res.partner.category,name:l10n_tr_nilvera_einvoice.res_partner_category_hizmetno
+#: model:res.partner.tag,name:l10n_tr_nilvera_einvoice.res_partner_category_hizmetno
 msgid "HIZMETNO"
 msgstr ""
 
@@ -156,12 +156,12 @@ msgstr ""
 #: model:ir.model.fields,field_description:l10n_tr_nilvera_einvoice.field_account_journal__id
 #: model:ir.model.fields,field_description:l10n_tr_nilvera_einvoice.field_account_move__id
 #: model:ir.model.fields,field_description:l10n_tr_nilvera_einvoice.field_account_move_send__id
-#: model:ir.model.fields,field_description:l10n_tr_nilvera_einvoice.field_res_partner_category__id
+#: model:ir.model.fields,field_description:l10n_tr_nilvera_einvoice.field_res_partner_tag__id
 msgid "ID"
 msgstr ""
 
 #. module: l10n_tr_nilvera_einvoice
-#: model:res.partner.category,name:l10n_tr_nilvera_einvoice.res_partner_category_imalatcino
+#: model:res.partner.tag,name:l10n_tr_nilvera_einvoice.res_partner_category_imalatcino
 msgid "IMALATCINO"
 msgstr ""
 
@@ -176,12 +176,12 @@ msgid "Journal Entry"
 msgstr "Yevmiye Kaydı"
 
 #. module: l10n_tr_nilvera_einvoice
-#: model:res.partner.category,name:l10n_tr_nilvera_einvoice.res_partner_category_mersisno
+#: model:res.partner.tag,name:l10n_tr_nilvera_einvoice.res_partner_category_mersisno
 msgid "MERSISNO"
 msgstr ""
 
 #. module: l10n_tr_nilvera_einvoice
-#: model:res.partner.category,name:l10n_tr_nilvera_einvoice.res_partner_category_musterino
+#: model:res.partner.tag,name:l10n_tr_nilvera_einvoice.res_partner_category_musterino
 msgid "MUSTERINO"
 msgstr ""
 
@@ -257,12 +257,12 @@ msgstr ""
 "başka bir API anahtarı deneyin veya Nilvera ile iletişime geçin."
 
 #. module: l10n_tr_nilvera_einvoice
-#: model:res.partner.category,name:l10n_tr_nilvera_einvoice.res_partner_category_pasaportno
+#: model:res.partner.tag,name:l10n_tr_nilvera_einvoice.res_partner_category_pasaportno
 msgid "PASAPORTNO"
 msgstr ""
 
 #. module: l10n_tr_nilvera_einvoice
-#: model:ir.model,name:l10n_tr_nilvera_einvoice.model_res_partner_category
+#: model:ir.model,name:l10n_tr_nilvera_einvoice.model_res_partner_tag
 msgid "Partner Tags"
 msgstr "Ortak Etiketleri"
 
@@ -277,12 +277,12 @@ msgstr ""
 "değerle birlikte ekli olduğundan emin olun."
 
 #. module: l10n_tr_nilvera_einvoice
-#: model:res.partner.category,name:l10n_tr_nilvera_einvoice.res_partner_category_sayacno
+#: model:res.partner.tag,name:l10n_tr_nilvera_einvoice.res_partner_category_sayacno
 msgid "SAYACNO"
 msgstr ""
 
 #. module: l10n_tr_nilvera_einvoice
-#: model:res.partner.category,name:l10n_tr_nilvera_einvoice.res_partner_category_subeno
+#: model:res.partner.tag,name:l10n_tr_nilvera_einvoice.res_partner_category_subeno
 msgid "SUBENO"
 msgstr ""
 
@@ -303,22 +303,22 @@ msgid "Successful"
 msgstr "Başarılı"
 
 #. module: l10n_tr_nilvera_einvoice
-#: model:res.partner.category,name:l10n_tr_nilvera_einvoice.res_partner_category_tapdkno
+#: model:res.partner.tag,name:l10n_tr_nilvera_einvoice.res_partner_category_tapdkno
 msgid "TAPDKNO"
 msgstr ""
 
 #. module: l10n_tr_nilvera_einvoice
-#: model:res.partner.category,name:l10n_tr_nilvera_einvoice.res_partner_category_telefonno
+#: model:res.partner.tag,name:l10n_tr_nilvera_einvoice.res_partner_category_telefonno
 msgid "TELEFONNO"
 msgstr ""
 
 #. module: l10n_tr_nilvera_einvoice
-#: model:res.partner.category,name:l10n_tr_nilvera_einvoice.res_partner_category_tesisatno
+#: model:res.partner.tag,name:l10n_tr_nilvera_einvoice.res_partner_category_tesisatno
 msgid "TESISATNO"
 msgstr ""
 
 #. module: l10n_tr_nilvera_einvoice
-#: model:res.partner.category,name:l10n_tr_nilvera_einvoice.res_partner_category_ticaretsicilno
+#: model:res.partner.tag,name:l10n_tr_nilvera_einvoice.res_partner_category_ticaretsicilno
 msgid "TICARETSICILNO"
 msgstr ""
 
@@ -336,7 +336,7 @@ msgstr "Test modu etkinleştirildi."
 
 #. module: l10n_tr_nilvera_einvoice
 #. odoo-python
-#: code:addons/l10n_tr_nilvera_einvoice/models/res_partner_category.py:0
+#: code:addons/l10n_tr_nilvera_einvoice/models/res_partner_tag.py:0
 msgid ""
 "The Contact Tag(s) cannot be deleted because it is used in Türkiye "
 "electronic integrations."
@@ -453,7 +453,7 @@ msgid "UBL-TR 1.2"
 msgstr ""
 
 #. module: l10n_tr_nilvera_einvoice
-#: model:res.partner.category,name:l10n_tr_nilvera_einvoice.res_partner_category_ureticino
+#: model:res.partner.tag,name:l10n_tr_nilvera_einvoice.res_partner_category_ureticino
 msgid "URETICINO"
 msgstr ""
 

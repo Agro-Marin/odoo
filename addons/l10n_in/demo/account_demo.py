@@ -25,7 +25,7 @@ class AccountChartTemplate(models.AbstractModel):
                     'l10n_in_edi_production_env': False,
                 })
                 demo_data = {
-                    'res.partner.category': self._get_demo_data_res_partner_category(company),
+                    'res.partner.tag': self._get_demo_data_res_partner_tag(company),
                     'res.partner': self._get_demo_data_partner(),
                     'account.move': self._get_demo_data_move(company),
                     'res.config.settings': self._get_demo_data_config_settings(company),
@@ -48,7 +48,7 @@ class AccountChartTemplate(models.AbstractModel):
         }
 
     @api.model
-    def _get_demo_data_res_partner_category(self, company=False):
+    def _get_demo_data_res_partner_tag(self, company=False):
         return{
             'res_partner_category_registered': {
                 'name': 'Registered',
@@ -72,7 +72,7 @@ class AccountChartTemplate(models.AbstractModel):
             'res_partner_registered_customer': {
                 **default_partner_dict,
                 'name': 'B2B Customer Intra State',
-                'category_id': 'res_partner_category_registered',
+                'tag_ids': 'res_partner_category_registered',
                 'l10n_in_gst_treatment': 'regular',
                 'street': '201, Second Floor, IT Tower 4',
                 'street2': 'InfoCity Gate - 1, Infocity',
@@ -84,7 +84,7 @@ class AccountChartTemplate(models.AbstractModel):
             'res_partner_registered_customer_inter_state': {
                 **default_partner_dict,
                 'name': 'B2B Customer Inter State',
-                'category_id': 'res_partner_category_registered',
+                'tag_ids': 'res_partner_category_registered',
                 'l10n_in_gst_treatment': 'regular',
                 'street': 'floor-1, Maddikunta-Ankanpally Village',
                 'street2': 'Post box No 2, NH-65',
@@ -96,7 +96,7 @@ class AccountChartTemplate(models.AbstractModel):
             'res_partner_unregistered_customer':{
                 **default_partner_dict,
                 'name': 'B2C Customer Intra State',
-                'category_id': 'res_partner_category_unregistered',
+                'tag_ids': 'res_partner_category_unregistered',
                 'l10n_in_gst_treatment': 'unregistered',
                 'street': 'B105, yogeshwar Tower',
                 'state_id': intra_state_ref,
@@ -106,7 +106,7 @@ class AccountChartTemplate(models.AbstractModel):
             'res_partner_unregistered_customer_inter_state':{
                 **default_partner_dict,
                 'name': 'B2C Customer Inter State',
-                'category_id': 'res_partner_category_unregistered',
+                'tag_ids': 'res_partner_category_unregistered',
                 'l10n_in_gst_treatment': 'unregistered',
                 'street': '80, Sarojini Devi Road',
                 'city': 'Hyderabad',
@@ -116,7 +116,7 @@ class AccountChartTemplate(models.AbstractModel):
             'res_partner_registered_supplier_1': {
                 **default_partner_dict,
                 'name': 'Supplier',
-                'category_id': 'res_partner_category_registered',
+                'tag_ids': 'res_partner_category_registered',
                 'l10n_in_gst_treatment': 'regular',
                 'street': '19, Ground Floor',
                 'street2': 'Survey Road,Vadipatti',
@@ -128,7 +128,7 @@ class AccountChartTemplate(models.AbstractModel):
             'res_partner_registered_supplier_2': {
                 **default_partner_dict,
                 'name': 'Odoo In Private Limited',
-                'category_id': 'res_partner_category_registered',
+                'tag_ids': 'res_partner_category_registered',
                 'l10n_in_gst_treatment': 'regular',
                 'street': '401, Fourth Floor, IT Tower 4',
                 'street2': 'InfoCity Gate - 1, Infocity',

@@ -5,7 +5,7 @@
 
     <record id="res_partner_adhoc" model="res.partner">
         <field name="name">ADHOC SA</field>
-        <field eval="[(6, 0, [ref('base.res_partner_category_8'), ref('base.res_partner_category_11')])]" name="category_id"/>
+        <field eval="[(6, 0, [ref('base.res_partner_category_8'), ref('base.res_partner_category_11')])]" name="tag_ids"/>
         <field name="is_company">1</field>
         <field name="city">Rosario</field>
         <field name="zip">2000</field>
@@ -24,7 +24,7 @@
     <!-- Gritti Agrimensura -->
     <record id="res_partner_gritti_agrimensura" model="res.partner">
         <field name="name">Gritti Agrimensura</field>
-        <field eval="[(6, 0, [ref('base.res_partner_category_8'), ref('base.res_partner_category_11')])]" name="category_id"/>
+        <field eval="[(6, 0, [ref('base.res_partner_category_8'), ref('base.res_partner_category_11')])]" name="tag_ids"/>
         <field name="is_company">1</field>
         <field name="city">Rosario</field>
         <field name="zip">2000</field>
@@ -118,7 +118,7 @@
     <!-- Foreign Partner -->
     <record id="res_partner_foreign" model="res.partner">
         <field name="name">Foreign Inc</field>
-        <field eval="[(6, 0, [ref('base.res_partner_category_14'), ref('base.res_partner_category_12')])]" name="category_id"/>
+        <field eval="[(6, 0, [ref('base.res_partner_category_14'), ref('base.res_partner_category_12')])]" name="tag_ids"/>
         <field name="is_company">1</field>
         <field name="street">7841 Red Road</field>
         <field name="city">San Francisco</field>
@@ -136,7 +136,7 @@
     <!-- Trenes argentinos -->
     <record id="res_partner_mipyme" model="res.partner">
         <field name="name">Trenes Argentinos (Mipyme)</field>
-        <field eval="[(6, 0, [ref('base.res_partner_category_14'), ref('base.res_partner_category_12')])]" name="category_id"/>
+        <field eval="[(6, 0, [ref('base.res_partner_category_14'), ref('base.res_partner_category_12')])]" name="tag_ids"/>
         <field name="is_company">1</field>
         <field name="street">Santa Cruz 4636</field>
         <field name="city">Buenos Aires</field>

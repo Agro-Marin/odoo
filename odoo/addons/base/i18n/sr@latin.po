@@ -11480,7 +11480,7 @@ msgstr "Aktiviraj"
 #: model:ir.model.fields,field_description:base.field_res_lang__active
 #: model:ir.model.fields,field_description:base.field_res_partner__active
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__active
-#: model:ir.model.fields,field_description:base.field_res_partner_category__active
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__active
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__active
 #: model:ir.model.fields,field_description:base.field_res_users__active
 #: model_terms:ir.ui.view,arch_db:base.asset_view_search
@@ -13923,7 +13923,7 @@ msgstr "Arhiva"
 #: model_terms:ir.ui.view,arch_db:base.ir_filters_view_search
 #: model_terms:ir.ui.view,arch_db:base.ir_mail_server_form
 #: model_terms:ir.ui.view,arch_db:base.res_bank_view_search
-#: model_terms:ir.ui.view,arch_db:base.res_partner_category_view_search
+#: model_terms:ir.ui.view,arch_db:base.res_partner_tag_view_search
 #: model_terms:ir.ui.view,arch_db:base.res_partner_industry_view_search
 #: model_terms:ir.ui.view,arch_db:base.res_partner_kanban_view
 #: model_terms:ir.ui.view,arch_db:base.view_ir_mail_server_search
@@ -14579,7 +14579,7 @@ msgid "Assets/Fleet bridge"
 msgstr ""
 
 #. module: base
-#: model_terms:ir.actions.act_window,help:base.action_partner_category_form
+#: model_terms:ir.actions.act_window,help:base.action_partner_tag_form
 msgid "Assign tags to your contacts to organize, filter and track them."
 msgstr ""
 
@@ -16721,10 +16721,10 @@ msgstr "Kategorije"
 #. module: base
 #: model:ir.model.fields,field_description:base.field_ir_module_module__category_id
 #: model:ir.model.fields,field_description:base.field_res_groups_privilege__category_id
-#: model:ir.model.fields,field_description:base.field_res_partner_category__parent_id
-#: model_terms:ir.ui.view,arch_db:base.res_partner_category_view_search
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__parent_id
+#: model_terms:ir.ui.view,arch_db:base.res_partner_tag_view_search
 #: model_terms:ir.ui.view,arch_db:base.view_module_filter
-#: model_terms:ir.ui.view,arch_db:base.view_partner_category_list
+#: model_terms:ir.ui.view,arch_db:base.view_partner_tag_list
 msgid "Category"
 msgstr "Kategorija"
 
@@ -17036,7 +17036,7 @@ msgid "Child IDs"
 msgstr "Šifre potomaka"
 
 #. module: base
-#: model:ir.model.fields,field_description:base.field_res_partner_category__child_ids
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__child_ids
 msgid "Child Tags"
 msgstr ""
 
@@ -17405,8 +17405,8 @@ msgstr ""
 #. module: base
 #: model:ir.model.fields,field_description:base.field_res_company__color
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__color
-#: model:ir.model.fields,field_description:base.field_res_partner_category__color
-#: model_terms:ir.ui.view,arch_db:base.res_partner_category_view_search
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__color
+#: model_terms:ir.ui.view,arch_db:base.res_partner_tag_view_search
 msgid "Color"
 msgstr "Boja"
 
@@ -17935,7 +17935,7 @@ msgid "Consultancy, Design, Tech, Computers, IT, Blogs"
 msgstr ""
 
 #. module: base
-#: model:res.partner.category,name:base.res_partner_category_8
+#: model:res.partner.tag,name:base.res_partner_category_8
 msgid "Consulting Services"
 msgstr ""
 
@@ -17961,13 +17961,13 @@ msgid "Contact Form"
 msgstr ""
 
 #. module: base
-#: model_terms:ir.ui.view,arch_db:base.view_partner_category_form
+#: model_terms:ir.ui.view,arch_db:base.view_partner_tag_form
 msgid "Contact Tag"
 msgstr ""
 
 #. module: base
-#: model:ir.actions.act_window,name:base.action_partner_category_form
-#: model_terms:ir.ui.view,arch_db:base.view_partner_category_list
+#: model:ir.actions.act_window,name:base.action_partner_tag_form
+#: model_terms:ir.ui.view,arch_db:base.view_partner_tag_list
 msgid "Contact Tags"
 msgstr "Oznake kontakta"
 
@@ -18292,7 +18292,7 @@ msgid "Create a Bank Account"
 msgstr ""
 
 #. module: base
-#: model_terms:ir.actions.act_window,help:base.action_partner_category_form
+#: model_terms:ir.actions.act_window,help:base.action_partner_tag_form
 msgid "Create a Contact Tag"
 msgstr ""
 
@@ -18526,7 +18526,7 @@ msgstr "Kreirani pregledi"
 #: model:ir.model.fields,field_description:base.field_res_lang__create_uid
 #: model:ir.model.fields,field_description:base.field_res_partner__create_uid
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__create_uid
-#: model:ir.model.fields,field_description:base.field_res_partner_category__create_uid
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__create_uid
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__create_uid
 #: model:ir.model.fields,field_description:base.field_res_users__create_uid
 #: model:ir.model.fields,field_description:base.field_res_users_apikeys_description__create_uid
@@ -18615,7 +18615,7 @@ msgstr "Kreirao"
 #: model:ir.model.fields,field_description:base.field_res_lang__create_date
 #: model:ir.model.fields,field_description:base.field_res_partner__create_date
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__create_date
-#: model:ir.model.fields,field_description:base.field_res_partner_category__create_date
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__create_date
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__create_date
 #: model:ir.model.fields,field_description:base.field_res_users_apikeys_description__create_date
 #: model:ir.model.fields,field_description:base.field_res_users_deletion__create_date
@@ -19570,7 +19570,7 @@ msgid "Design, send and track emails"
 msgstr ""
 
 #. module: base
-#: model:res.partner.category,name:base.res_partner_category_14
+#: model:res.partner.tag,name:base.res_partner_category_14
 msgid "Desk Manufacturers"
 msgstr ""
 
@@ -19837,7 +19837,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_res_lang__display_name
 #: model:ir.model.fields,field_description:base.field_res_partner__display_name
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__display_name
-#: model:ir.model.fields,field_description:base.field_res_partner_category__display_name
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__display_name
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__display_name
 #: model:ir.model.fields,field_description:base.field_res_users__display_name
 #: model:ir.model.fields,field_description:base.field_res_users_apikeys__display_name
@@ -20670,7 +20670,7 @@ msgstr ""
 #. module: base
 #: model:ir.module.category,name:base.module_category_human_resources_employees
 #: model:ir.module.module,shortdesc:base.module_hr
-#: model:res.partner.category,name:base.res_partner_category_3
+#: model:res.partner.tag,name:base.res_partner_category_3
 msgid "Employees"
 msgstr "Zaposleni"
 
@@ -24320,7 +24320,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_res_lang__id
 #: model:ir.model.fields,field_description:base.field_res_partner__id
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__id
-#: model:ir.model.fields,field_description:base.field_res_partner_category__id
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__id
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__id
 #: model:ir.model.fields,field_description:base.field_res_users__id
 #: model:ir.model.fields,field_description:base.field_res_users_apikeys__id
@@ -26549,7 +26549,7 @@ msgstr "Poslednja izmena"
 #: model:ir.model.fields,field_description:base.field_res_lang__write_uid
 #: model:ir.model.fields,field_description:base.field_res_partner__write_uid
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__write_uid
-#: model:ir.model.fields,field_description:base.field_res_partner_category__write_uid
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__write_uid
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__write_uid
 #: model:ir.model.fields,field_description:base.field_res_users__write_uid
 #: model:ir.model.fields,field_description:base.field_res_users_apikeys_description__write_uid
@@ -26637,7 +26637,7 @@ msgstr "Poslednje izmenio/la"
 #: model:ir.model.fields,field_description:base.field_res_lang__write_date
 #: model:ir.model.fields,field_description:base.field_res_partner__write_date
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__write_date
-#: model:ir.model.fields,field_description:base.field_res_partner_category__write_date
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__write_date
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__write_date
 #: model:ir.model.fields,field_description:base.field_res_users__write_date
 #: model:ir.model.fields,field_description:base.field_res_users_apikeys_description__write_date
@@ -28993,14 +28993,14 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_res_lang__name
 #: model:ir.model.fields,field_description:base.field_res_partner__name
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__bank_name
-#: model:ir.model.fields,field_description:base.field_res_partner_category__name
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__name
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__name
 #: model:ir.model.fields,field_description:base.field_res_users__name
 #: model_terms:ir.ui.view,arch_db:base.ir_profile_view_search
 #: model_terms:ir.ui.view,arch_db:base.res_device_view_form
 #: model_terms:ir.ui.view,arch_db:base.res_device_view_kanban
 #: model_terms:ir.ui.view,arch_db:base.res_device_view_tree
-#: model_terms:ir.ui.view,arch_db:base.res_partner_category_view_search
+#: model_terms:ir.ui.view,arch_db:base.res_partner_tag_view_search
 #: model_terms:ir.ui.view,arch_db:base.view_currency_form
 #: model_terms:ir.ui.view,arch_db:base.view_currency_tree
 #: model_terms:ir.ui.view,arch_db:base.view_partner_form
@@ -30730,7 +30730,7 @@ msgid "OdooBot - HR"
 msgstr ""
 
 #. module: base
-#: model:res.partner.category,name:base.res_partner_category_12
+#: model:res.partner.tag,name:base.res_partner_category_12
 msgid "Office Supplies"
 msgstr ""
 
@@ -32004,7 +32004,7 @@ msgstr "Nad meni"
 #. module: base
 #: model:ir.model.fields,field_description:base.field_ir_ui_menu__parent_path
 #: model:ir.model.fields,field_description:base.field_res_company__parent_path
-#: model:ir.model.fields,field_description:base.field_res_partner_category__parent_path
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__parent_path
 msgid "Parent Path"
 msgstr "Nadređena Putanja"
 
@@ -32031,7 +32031,7 @@ msgid "Partner Autocomplete"
 msgstr ""
 
 #. module: base
-#: model:ir.model,name:base.model_res_partner_category
+#: model:ir.model,name:base.model_res_partner_tag
 msgid "Partner Tags"
 msgstr ""
 
@@ -32063,7 +32063,7 @@ msgid "Partner-related data of the user"
 msgstr "Podaci korisnika u vezi sa partnerima"
 
 #. module: base
-#: model:ir.model.fields,field_description:base.field_res_partner_category__partner_ids
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__partner_ids
 #: model_terms:ir.ui.view,arch_db:base.base_partner_merge_automatic_wizard_form
 #: model_terms:ir.ui.view,arch_db:base.view_partner_form
 msgid "Partners"
@@ -33497,7 +33497,7 @@ msgid "Property Owner Association"
 msgstr ""
 
 #. module: base
-#: model:res.partner.category,name:base.res_partner_category_2
+#: model:res.partner.tag,name:base.res_partner_category_2
 msgid "Prospects"
 msgstr ""
 
@@ -35479,7 +35479,7 @@ msgid "Search Partner"
 msgstr "Pronađi partnera"
 
 #. module: base
-#: model_terms:ir.ui.view,arch_db:base.res_partner_category_view_search
+#: model_terms:ir.ui.view,arch_db:base.res_partner_tag_view_search
 msgid "Search Partner Category"
 msgstr ""
 
@@ -36037,7 +36037,7 @@ msgstr ""
 #. module: base
 #: model:ir.module.category,name:base.module_category_services
 #: model:ir.module.category,name:base.module_category_theme_services
-#: model:res.partner.category,name:base.res_partner_category_11
+#: model:res.partner.tag,name:base.res_partner_category_11
 msgid "Services"
 msgstr "Usluge"
 
@@ -38219,7 +38219,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.model.fields,help:base.field_res_partner_category__active
+#: model:ir.model.fields,help:base.field_res_partner_tag__active
 msgid "The active field allows you to hide the category without removing it."
 msgstr ""
 "Aktivno polje vam dozvoljava da sakrijete kategoriju bez njenog uklanjanja."
@@ -41126,7 +41126,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:res.partner.category,name:base.res_partner_category_0
+#: model:res.partner.tag,name:base.res_partner_category_0
 msgid "Vendor"
 msgstr "Dobavljač"
 
@@ -42608,12 +42608,12 @@ msgid "e.g. \"B2B\", \"VIP\", \"Consulting\", ..."
 msgstr ""
 
 #. module: base
-#: model_terms:ir.ui.view,arch_db:base.view_partner_category_form
+#: model_terms:ir.ui.view,arch_db:base.view_partner_tag_form
 msgid "e.g. \"Consulting Services\""
 msgstr ""
 
 #. module: base
-#: model_terms:ir.ui.view,arch_db:base.view_partner_category_list
+#: model_terms:ir.ui.view,arch_db:base.view_partner_tag_list
 msgid "e.g. \"Roadshow\""
 msgstr ""
 

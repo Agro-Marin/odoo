@@ -53,15 +53,15 @@
             <field name="contract_type_id" ref="hr.contract_type_permanent"/>
         </record>
 
-        <record id="employee_category_4" model="hr.employee.category" forcecreate="1">
+        <record id="employee_category_4" model="res.partner.tag" forcecreate="1">
             <field name="name">Employee</field>
             <field name="color" eval="6"/>
         </record>
-        <record id="employee_category_5" model="hr.employee.category" forcecreate="1">
+        <record id="employee_category_5" model="res.partner.tag" forcecreate="1">
             <field name="name">Consultant</field>
             <field name="color" eval="4"/>
         </record>
-        <record id="employee_category_demo" model="hr.employee.category" forcecreate="1">
+        <record id="employee_category_demo" model="res.partner.tag" forcecreate="1">
             <field name="name">Demo</field>
             <field name="color" eval="6"/>
         </record>
@@ -119,7 +119,7 @@
             <field name="department_id" ref="hr.dep_administration"/>
             <field name="job_id" ref="job_ceo"/>
             <field name="job_title">Chief Executive Officer</field>
-            <field name="category_ids" eval="[Command.set([ref('employee_category_4'), ref('employee_category_demo')])]"/>
+            <field name="tag_ids" eval="[Command.set([ref('employee_category_4'), ref('employee_category_demo')])]"/>
             <field name="image_1920" type="base64" file="hr/static/img/partner_root-image.jpg"/>
             <field name="work_phone">(555)-768-6230</field>
             <field name="mobile_phone">(555)-768-6235</field>
@@ -139,7 +139,7 @@
             <field name="work_email">granger@mycompany.example.com</field>
             <field name="job_id" ref="job_consultant"/>
             <field name="job_title">Consultant</field>
-            <field name="category_ids" eval="[Command.set([ref('employee_category_5'), ref('employee_category_demo')])]"/>
+            <field name="tag_ids" eval="[Command.set([ref('employee_category_5'), ref('employee_category_demo')])]"/>
             <field name="image_1920" type="base64" file="hr/static/img/employee_awa-image.jpg"/>
             <field name="work_phone">(555)-768-6230</field>
             <field name="mobile_phone">(555)-768-6235</field>
@@ -160,7 +160,7 @@
             <field name="work_email">jones@mycompany.example.com</field>
             <field name="job_id" ref="job_developer"/>
             <field name="job_title">Experienced Developer</field>
-            <field name="category_ids" eval="[Command.set([ref('employee_category_4'), ref('employee_category_demo')])]"/>
+            <field name="tag_ids" eval="[Command.set([ref('employee_category_4'), ref('employee_category_demo')])]"/>
             <field name="image_1920" type="base64" file="hr/static/img/employee_qdp-image.png"/>
             <field name="work_phone">(555)-768-6230</field>
             <field name="mobile_phone">(555)-768-6235</field>

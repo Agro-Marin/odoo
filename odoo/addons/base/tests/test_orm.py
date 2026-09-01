@@ -7,8 +7,8 @@ from odoo.tools import mute_logger
 class TestORM(TransactionCase):
     @mute_logger("odoo.models")
     def test_access_deleted_records(self):
-        c1 = self.env["res.partner.category"].create({"name": "W"})
-        c2 = self.env["res.partner.category"].create({"name": "Y"})
+        c1 = self.env["res.partner.tag"].create({"name": "W"})
+        c2 = self.env["res.partner.tag"].create({"name": "Y"})
         c1.unlink()
 
         user = self.env["res.users"].create(

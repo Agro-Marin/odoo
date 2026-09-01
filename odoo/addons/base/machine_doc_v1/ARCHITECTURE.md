@@ -125,7 +125,7 @@ odoo/addons/base/
 │   ├── res_groups_privilege.py  #   Group privilege categories
 │   ├── res_lang.py              #   Language management + formatting
 │   ├── res_partner.py           #   Contacts/companies (core business entity)
-│   ├── res_partner_category.py  #   Partner tags (hierarchical)
+│   ├── res_partner_tag.py       #   Partner tags (hierarchical)
 │   ├── res_partner_format_address_mixin.py # Address form customization
 │   ├── res_partner_format_vat_mixin.py     # VAT label customization
 │   ├── res_partner_industry.py  #   Industry classification
@@ -197,7 +197,7 @@ every Odoo module depends on.
 
 | Category | Models | Purpose |
 |----------|--------|---------|
-| Partners | res.partner, res.partner.category, res.partner.industry | Contacts, companies, tags, industries |
+| Partners | res.partner, res.partner.tag, res.partner.industry | Contacts, companies, tags, industries |
 | Users | res.users, res.users.log, res.users.settings, res.users.deletion | User accounts, preferences, audit |
 | Auth | res.users.apikeys, res.users.identitycheck | API keys, password verification |
 | Security | res.groups, res.groups.privilege | Group hierarchy, privilege categories |

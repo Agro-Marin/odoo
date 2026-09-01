@@ -35,7 +35,7 @@
             ref="analytic.account_analytic_distribution_model_form_view" />
         <field name="arch" type="xml">
             <data>
-                <xpath expr="//field[@name='partner_category_id']" position="after">
+                <xpath expr="//field[@name='partner_tag_id']" position="after">
                     <field name="prefix_placeholder" invisible="1"/> <!-- Read by the
                     placeholder_field option on account_prefix -->
                     <field

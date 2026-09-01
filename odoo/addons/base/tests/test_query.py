@@ -175,7 +175,7 @@ class QueryTestCase(BaseCase):
 
 class TestQuery(TransactionCase):
     def test_auto(self):
-        model = self.env["res.partner.category"]
+        model = self.env["res.partner.tag"]
         model.create([{"name": "Test Category 1"}, {"name": "Test Category 2"}])
         query = model._search([])
         self.assertIsInstance(query, Query)
@@ -184,13 +184,13 @@ class TestQuery(TransactionCase):
         self.assertGreater(len(ids), 1)
 
     def test_records_as_query(self):
-        records = self.env["res.partner.category"]
+        records = self.env["res.partner.tag"]
         query = records._as_query()
         self.assertEqual(list(query), records.ids)
         self.cr.execute(query.select())
         self.assertEqual([row[0] for row in self.cr.fetchall()], records.ids)
 
-        records = self.env["res.partner.category"].search([])
+        records = self.env["res.partner.tag"].search([])
         query = records._as_query()
         self.assertEqual(list(query), records.ids)
         self.cr.execute(query.select())
@@ -203,14 +203,14 @@ class TestQuery(TransactionCase):
         self.assertEqual([row[0] for row in self.cr.fetchall()], records.ids)
 
     def test_count_matching_ignores_limit_offset(self):
-        model = self.env["res.partner.category"]
+        model = self.env["res.partner.tag"]
         model.create([{"name": f"CM Test {i}"} for i in range(5)])
         query = model._search([("name", "like", "CM Test")], limit=2, offset=1)
         self.assertEqual(len(query), 2)
         self.assertEqual(query.count_matching(), 5)
 
     def test_count_matching_with_limit(self):
-        model = self.env["res.partner.category"]
+        model = self.env["res.partner.tag"]
         model.create([{"name": f"CML Test {i}"} for i in range(5)])
         query = model._search([("name", "like", "CML Test")], limit=2)
         self.assertEqual(query.count_matching(limit=3), 3)
@@ -232,7 +232,7 @@ class TestQuery(TransactionCase):
         self.env.execute_query(query.select())
 
     def test_count_matching_honours_a_zero_limit(self):
-        model = self.env["res.partner.category"]
+        model = self.env["res.partner.tag"]
         model.create([{"name": f"CMZ Test {i}"} for i in range(3)])
         query = model._search([("name", "like", "CMZ Test")])
         self.assertEqual(query.count_matching(limit=0), 0)
@@ -241,7 +241,7 @@ class TestQuery(TransactionCase):
         self.assertEqual(model.search_count([("name", "like", "CMZ Test")], limit=0), 0)
 
     def test_a_widening_limit_drops_the_memoised_empty_result(self):
-        model = self.env["res.partner.category"]
+        model = self.env["res.partner.tag"]
         model.create([{"name": f"CMW Test {i}"} for i in range(3)])
         domain = [("name", "like", "CMW Test")]
 

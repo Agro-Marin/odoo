@@ -81,7 +81,7 @@ from . import tag_tag
 
 from . import mixin_format_vat_label
 from . import mixin_format_address
-from . import res_partner_category
+from . import res_partner_tag
 from . import res_partner_industry
 from . import res_country
 from . import res_lang

@@ -5,8 +5,8 @@ class ResPartner(models.Model):
     _inherit = "res.partner"
 
     website_tag_ids = fields.Many2many(
-        "res.partner.tag",
-        "res_partner_res_partner_tag_rel",
+        "res.partner.website.tag",
+        "res_partner_res_partner_website_tag_rel",
         "partner_id",
         "tag_id",
         string="Website tags",
@@ -17,10 +17,10 @@ class ResPartner(models.Model):
         return self.env.ref("partner.partner_menu_root").id
 
 
-class ResPartnerTag(models.Model):
-    _name = "res.partner.tag"
+class ResPartnerWebsiteTag(models.Model):
+    _name = "res.partner.website.tag"
 
-    _description = "Partner Tags - These tags can be used on website to find customers by sector, or ..."
+    _description = "Website Tag (published label for the customer references page)"
     _inherit = ["mixin.website.published"]
 
     @api.model
@@ -28,10 +28,10 @@ class ResPartnerTag(models.Model):
         classname = ["info", "primary", "success", "warning", "danger"]
         return [(x, str.title(x)) for x in classname]
 
-    name = fields.Char("Category Name", required=True, translate=True)
+    name = fields.Char("Tag Name", required=True, translate=True)
     partner_ids = fields.Many2many(
         "res.partner",
-        "res_partner_res_partner_tag_rel",
+        "res_partner_res_partner_website_tag_rel",
         "tag_id",
         "partner_id",
         string="Partners",

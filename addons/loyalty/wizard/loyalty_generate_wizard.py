@@ -17,7 +17,7 @@ class LoyaltyGenerateWizard(models.TransientModel):
     )
 
     customer_ids = fields.Many2many('res.partner', string='Customers')
-    customer_tag_ids = fields.Many2many('res.partner.category', string='Customer Tags')
+    customer_tag_ids = fields.Many2many('res.partner.tag', string='Customer Tags')
 
     coupon_qty = fields.Integer("Quantity",
         compute='_compute_coupon_qty', readonly=False, store=True)
@@ -37,7 +37,7 @@ class LoyaltyGenerateWizard(models.TransientModel):
         if self.customer_ids:
             domains.append(Domain('id', 'in', self.customer_ids.ids))
         if self.customer_tag_ids:
-            domains.append(Domain('category_id', 'in', self.customer_tag_ids.ids))
+            domains.append(Domain('tag_ids', 'in', self.customer_tag_ids.ids))
         # An empty selection deliberately means *every* partner, and the form says
         # so: `customer_ids` is placeheld "For all customers" and a warning banner
         # shows `confirmation_message`, which carries the exact count, before

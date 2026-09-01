@@ -44,6 +44,17 @@ class ResPartnerIdentifier(models.Model):
         help="Punctuation and case removed, so two spellings of one identifier "
         "compare and deduplicate as one.",
     )
+    valid_until = fields.Date(
+        index="btree_not_null",
+        help="Date the document carrying this identifier expires. Leave empty "
+        "for an identifier that does not expire.",
+    )
+    document_ids = fields.One2many(
+        comodel_name="ir.attachment",
+        inverse_name="res_id",
+        domain=[("res_model", "=", "res.partner.identifier")],
+        string="Documents",
+    )
     company_id = fields.Many2one(
         related="partner_id.company_id",
         store=True,

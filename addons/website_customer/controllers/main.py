@@ -72,7 +72,7 @@ class WebsiteCustomer(GoogleMap):
         list_as_website_content=_lt("Customers"),
     )
     def customers(self, country=None, industry=None, page=0, **post):
-        Tag = request.env["res.partner.tag"]
+        Tag = request.env["res.partner.website.tag"]
         Partner = request.env["res.partner"]
         search_value = post.get("search")
 

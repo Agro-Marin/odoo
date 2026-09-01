@@ -47,7 +47,7 @@ msgid "Contact"
 msgstr "연락처"
 
 #. module: partner
-#: model:ir.ui.menu,name:partner.menu_partner_category_form
+#: model:ir.ui.menu,name:partner.menu_partner_tag_form
 msgid "Contact Tags"
 msgstr "연락처 태그"
 

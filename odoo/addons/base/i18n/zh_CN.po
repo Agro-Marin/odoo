@@ -16262,7 +16262,7 @@ msgstr "启用"
 #: model:ir.model.fields,field_description:base.field_res_lang__active
 #: model:ir.model.fields,field_description:base.field_res_partner__active
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__active
-#: model:ir.model.fields,field_description:base.field_res_partner_category__active
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__active
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__active
 #: model:ir.model.fields,field_description:base.field_res_users__active
 #: model_terms:ir.ui.view,arch_db:base.asset_view_search
@@ -18772,7 +18772,7 @@ msgstr "存档"
 #: model_terms:ir.ui.view,arch_db:base.ir_filters_view_search
 #: model_terms:ir.ui.view,arch_db:base.ir_mail_server_form
 #: model_terms:ir.ui.view,arch_db:base.res_bank_view_search
-#: model_terms:ir.ui.view,arch_db:base.res_partner_category_view_search
+#: model_terms:ir.ui.view,arch_db:base.res_partner_tag_view_search
 #: model_terms:ir.ui.view,arch_db:base.res_partner_industry_view_search
 #: model_terms:ir.ui.view,arch_db:base.res_partner_kanban_view
 #: model_terms:ir.ui.view,arch_db:base.view_ir_mail_server_search
@@ -19428,7 +19428,7 @@ msgid "Assets/Fleet bridge"
 msgstr "资产/车队桥接"
 
 #. module: base
-#: model_terms:ir.actions.act_window,help:base.action_partner_category_form
+#: model_terms:ir.actions.act_window,help:base.action_partner_tag_form
 msgid "Assign tags to your contacts to organize, filter and track them."
 msgstr "为联系人指定标签，以便对其进行整理、筛选和跟踪。"
 
@@ -21587,10 +21587,10 @@ msgstr "类别"
 #. module: base
 #: model:ir.model.fields,field_description:base.field_ir_module_module__category_id
 #: model:ir.model.fields,field_description:base.field_res_groups_privilege__category_id
-#: model:ir.model.fields,field_description:base.field_res_partner_category__parent_id
-#: model_terms:ir.ui.view,arch_db:base.res_partner_category_view_search
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__parent_id
+#: model_terms:ir.ui.view,arch_db:base.res_partner_tag_view_search
 #: model_terms:ir.ui.view,arch_db:base.view_module_filter
-#: model_terms:ir.ui.view,arch_db:base.view_partner_category_list
+#: model_terms:ir.ui.view,arch_db:base.view_partner_tag_list
 msgid "Category"
 msgstr "类别"
 
@@ -21906,7 +21906,7 @@ msgid "Child IDs"
 msgstr "子 IDs"
 
 #. module: base
-#: model:ir.model.fields,field_description:base.field_res_partner_category__child_ids
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__child_ids
 msgid "Child Tags"
 msgstr "儿童标签"
 
@@ -22294,8 +22294,8 @@ msgstr "Colones"
 #. module: base
 #: model:ir.model.fields,field_description:base.field_res_company__color
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__color
-#: model:ir.model.fields,field_description:base.field_res_partner_category__color
-#: model_terms:ir.ui.view,arch_db:base.res_partner_category_view_search
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__color
+#: model_terms:ir.ui.view,arch_db:base.res_partner_tag_view_search
 msgid "Color"
 msgstr "颜色"
 
@@ -22835,7 +22835,7 @@ msgid "Consultancy, Design, Tech, Computers, IT, Blogs"
 msgstr ""
 
 #. module: base
-#: model:res.partner.category,name:base.res_partner_category_8
+#: model:res.partner.tag,name:base.res_partner_category_8
 msgid "Consulting Services"
 msgstr "咨询服务"
 
@@ -22861,13 +22861,13 @@ msgid "Contact Form"
 msgstr "联系表单"
 
 #. module: base
-#: model_terms:ir.ui.view,arch_db:base.view_partner_category_form
+#: model_terms:ir.ui.view,arch_db:base.view_partner_tag_form
 msgid "Contact Tag"
 msgstr "联系人标签"
 
 #. module: base
-#: model:ir.actions.act_window,name:base.action_partner_category_form
-#: model_terms:ir.ui.view,arch_db:base.view_partner_category_list
+#: model:ir.actions.act_window,name:base.action_partner_tag_form
+#: model_terms:ir.ui.view,arch_db:base.view_partner_tag_list
 msgid "Contact Tags"
 msgstr "联系标签"
 
@@ -23193,7 +23193,7 @@ msgid "Create a Bank Account"
 msgstr "创建银行账户"
 
 #. module: base
-#: model_terms:ir.actions.act_window,help:base.action_partner_category_form
+#: model_terms:ir.actions.act_window,help:base.action_partner_tag_form
 msgid "Create a Contact Tag"
 msgstr "创建联系人标签"
 
@@ -23427,7 +23427,7 @@ msgstr "创建的视图"
 #: model:ir.model.fields,field_description:base.field_res_lang__create_uid
 #: model:ir.model.fields,field_description:base.field_res_partner__create_uid
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__create_uid
-#: model:ir.model.fields,field_description:base.field_res_partner_category__create_uid
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__create_uid
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__create_uid
 #: model:ir.model.fields,field_description:base.field_res_users__create_uid
 #: model:ir.model.fields,field_description:base.field_res_users_apikeys_description__create_uid
@@ -23516,7 +23516,7 @@ msgstr "创建人"
 #: model:ir.model.fields,field_description:base.field_res_lang__create_date
 #: model:ir.model.fields,field_description:base.field_res_partner__create_date
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__create_date
-#: model:ir.model.fields,field_description:base.field_res_partner_category__create_date
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__create_date
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__create_date
 #: model:ir.model.fields,field_description:base.field_res_users_apikeys_description__create_date
 #: model:ir.model.fields,field_description:base.field_res_users_deletion__create_date
@@ -24482,7 +24482,7 @@ msgid "Design, send and track emails"
 msgstr "设计、发送和跟踪电子邮件"
 
 #. module: base
-#: model:res.partner.category,name:base.res_partner_category_14
+#: model:res.partner.tag,name:base.res_partner_category_14
 msgid "Desk Manufacturers"
 msgstr "办公桌制造商"
 
@@ -24749,7 +24749,7 @@ msgstr "互斥组"
 #: model:ir.model.fields,field_description:base.field_res_lang__display_name
 #: model:ir.model.fields,field_description:base.field_res_partner__display_name
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__display_name
-#: model:ir.model.fields,field_description:base.field_res_partner_category__display_name
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__display_name
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__display_name
 #: model:ir.model.fields,field_description:base.field_res_users__display_name
 #: model:ir.model.fields,field_description:base.field_res_users_apikeys__display_name
@@ -25595,7 +25595,7 @@ msgstr "员工推荐"
 #. module: base
 #: model:ir.module.category,name:base.module_category_human_resources_employees
 #: model:ir.module.module,shortdesc:base.module_hr
-#: model:res.partner.category,name:base.res_partner_category_3
+#: model:res.partner.tag,name:base.res_partner_category_3
 msgid "Employees"
 msgstr "员工"
 
@@ -29316,7 +29316,7 @@ msgstr "IBAN 银行账户"
 #: model:ir.model.fields,field_description:base.field_res_lang__id
 #: model:ir.model.fields,field_description:base.field_res_partner__id
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__id
-#: model:ir.model.fields,field_description:base.field_res_partner_category__id
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__id
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__id
 #: model:ir.model.fields,field_description:base.field_res_users__id
 #: model:ir.model.fields,field_description:base.field_res_users_apikeys__id
@@ -31600,7 +31600,7 @@ msgstr "最后更新"
 #: model:ir.model.fields,field_description:base.field_res_lang__write_uid
 #: model:ir.model.fields,field_description:base.field_res_partner__write_uid
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__write_uid
-#: model:ir.model.fields,field_description:base.field_res_partner_category__write_uid
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__write_uid
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__write_uid
 #: model:ir.model.fields,field_description:base.field_res_users__write_uid
 #: model:ir.model.fields,field_description:base.field_res_users_apikeys_description__write_uid
@@ -31688,7 +31688,7 @@ msgstr "最后更新人"
 #: model:ir.model.fields,field_description:base.field_res_lang__write_date
 #: model:ir.model.fields,field_description:base.field_res_partner__write_date
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__write_date
-#: model:ir.model.fields,field_description:base.field_res_partner_category__write_date
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__write_date
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__write_date
 #: model:ir.model.fields,field_description:base.field_res_users__write_date
 #: model:ir.model.fields,field_description:base.field_res_users_apikeys_description__write_date
@@ -34186,14 +34186,14 @@ msgstr "厄立特里亚纳克法"
 #: model:ir.model.fields,field_description:base.field_res_lang__name
 #: model:ir.model.fields,field_description:base.field_res_partner__name
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__bank_name
-#: model:ir.model.fields,field_description:base.field_res_partner_category__name
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__name
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__name
 #: model:ir.model.fields,field_description:base.field_res_users__name
 #: model_terms:ir.ui.view,arch_db:base.ir_profile_view_search
 #: model_terms:ir.ui.view,arch_db:base.res_device_view_form
 #: model_terms:ir.ui.view,arch_db:base.res_device_view_kanban
 #: model_terms:ir.ui.view,arch_db:base.res_device_view_tree
-#: model_terms:ir.ui.view,arch_db:base.res_partner_category_view_search
+#: model_terms:ir.ui.view,arch_db:base.res_partner_tag_view_search
 #: model_terms:ir.ui.view,arch_db:base.view_currency_form
 #: model_terms:ir.ui.view,arch_db:base.view_currency_tree
 #: model_terms:ir.ui.view,arch_db:base.view_partner_form
@@ -36851,7 +36851,7 @@ msgid "OdooBot - HR"
 msgstr "OdooBot - 人力资源"
 
 #. module: base
-#: model:res.partner.category,name:base.res_partner_category_12
+#: model:res.partner.tag,name:base.res_partner_category_12
 msgid "Office Supplies"
 msgstr "办公用品"
 
@@ -38317,7 +38317,7 @@ msgstr "上级菜单"
 #. module: base
 #: model:ir.model.fields,field_description:base.field_ir_ui_menu__parent_path
 #: model:ir.model.fields,field_description:base.field_res_company__parent_path
-#: model:ir.model.fields,field_description:base.field_res_partner_category__parent_path
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__parent_path
 msgid "Parent Path"
 msgstr "上级路径"
 
@@ -38344,7 +38344,7 @@ msgid "Partner Autocomplete"
 msgstr "合作伙伴自动完成"
 
 #. module: base
-#: model:ir.model,name:base.model_res_partner_category
+#: model:ir.model,name:base.model_res_partner_tag
 msgid "Partner Tags"
 msgstr "联系人标签"
 
@@ -38376,7 +38376,7 @@ msgid "Partner-related data of the user"
 msgstr "用户的合作伙伴相关数据"
 
 #. module: base
-#: model:ir.model.fields,field_description:base.field_res_partner_category__partner_ids
+#: model:ir.model.fields,field_description:base.field_res_partner_tag__partner_ids
 #: model_terms:ir.ui.view,arch_db:base.base_partner_merge_automatic_wizard_form
 #: model_terms:ir.ui.view,arch_db:base.view_partner_form
 msgid "Partners"
@@ -39889,7 +39889,7 @@ msgid "Property Owner Association"
 msgstr "业主协会"
 
 #. module: base
-#: model:res.partner.category,name:base.res_partner_category_2
+#: model:res.partner.tag,name:base.res_partner_category_2
 msgid "Prospects"
 msgstr "前景"
 
@@ -41890,7 +41890,7 @@ msgid "Search Partner"
 msgstr "合作伙伴搜索"
 
 #. module: base
-#: model_terms:ir.ui.view,arch_db:base.res_partner_category_view_search
+#: model_terms:ir.ui.view,arch_db:base.res_partner_tag_view_search
 msgid "Search Partner Category"
 msgstr "搜索合作伙伴类别"
 
@@ -42471,7 +42471,7 @@ msgstr "服务、企业、设计、科技、机器人、电脑、IT、网志"
 #. module: base
 #: model:ir.module.category,name:base.module_category_services
 #: model:ir.module.category,name:base.module_category_theme_services
-#: model:res.partner.category,name:base.res_partner_category_11
+#: model:res.partner.tag,name:base.res_partner_category_11
 msgid "Services"
 msgstr "服务"
 
@@ -44666,7 +44666,7 @@ msgid ""
 msgstr "“%s” 不可设为主页动作，因为它需要事先选取一项记录。"
 
 #. module: base
-#: model:ir.model.fields,help:base.field_res_partner_category__active
+#: model:ir.model.fields,help:base.field_res_partner_tag__active
 msgid "The active field allows you to hide the category without removing it."
 msgstr "活动字段允许您隐藏类别而不删除它。"
 
@@ -47750,7 +47750,7 @@ msgstr ""
 "务"
 
 #. module: base
-#: model:res.partner.category,name:base.res_partner_category_0
+#: model:res.partner.tag,name:base.res_partner_category_0
 msgid "Vendor"
 msgstr "供应商"
 
@@ -49292,12 +49292,12 @@ msgid "e.g. \"B2B\", \"VIP\", \"Consulting\", ..."
 msgstr "例如：\"B2B\"、\"VIP\"、\"咨询\"......"
 
 #. module: base
-#: model_terms:ir.ui.view,arch_db:base.view_partner_category_form
+#: model_terms:ir.ui.view,arch_db:base.view_partner_tag_form
 msgid "e.g. \"Consulting Services\""
 msgstr "例如：\"咨询服务\""
 
 #. module: base
-#: model_terms:ir.ui.view,arch_db:base.view_partner_category_list
+#: model_terms:ir.ui.view,arch_db:base.view_partner_tag_list
 msgid "e.g. \"Roadshow\""
 msgstr "例：路演"
 

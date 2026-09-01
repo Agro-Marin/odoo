@@ -6,12 +6,12 @@ class TestTranslationOverride(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.category = cls.env["res.partner.category"].create({"name": "Reblochon"})
+        cls.category = cls.env["res.partner.tag"].create({"name": "Reblochon"})
         cls.custom = cls.env["ir.model.fields"].create(
             {
                 "name": "x_html_test",
                 "ttype": "html",
-                "model_id": cls.env["ir.model"]._get_id("res.partner.category"),
+                "model_id": cls.env["ir.model"]._get_id("res.partner.tag"),
                 "translate": "html_translate",
             }
         )

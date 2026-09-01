@@ -55,7 +55,7 @@ class HrLeaveGenerateMultiWizard(models.TransientModel):
         "res.company", default=lambda self: self.env.company, required=True
     )
     department_id = fields.Many2one("hr.department")
-    category_id = fields.Many2one("hr.employee.category", string="Employee Tag")
+    tag_id = fields.Many2one("res.partner.tag", string="Employee Tag")
     date_from = fields.Date("Start Date", required=True)
     date_to = fields.Date("End Date", required=True)
 
@@ -66,7 +66,7 @@ class HrLeaveGenerateMultiWizard(models.TransientModel):
                 self._domain_employee_ids()
             )
         elif self.allocation_mode == "category":
-            employees = self.category_id.employee_ids.filtered(
+            employees = self.tag_id.employee_ids.filtered(
                 lambda e: e.company_id in self.env.companies
             )
         elif self.allocation_mode == "company":

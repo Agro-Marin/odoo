@@ -60,8 +60,8 @@ class TestServerActionsBase(TransactionCaseWithUserDemo):
         self.res_partner_children_field = Fields.search(
             [("model", "=", "res.partner"), ("name", "=", "child_ids")]
         )
-        self.res_partner_category_field = Fields.search(
-            [("model", "=", "res.partner"), ("name", "=", "category_id")]
+        self.res_partner_tag_field = Fields.search(
+            [("model", "=", "res.partner"), ("name", "=", "tag_ids")]
         )
         self.res_country_model = Model.search([("model", "=", "res.country")])
         self.res_country_name_field = Fields.search(
@@ -73,11 +73,11 @@ class TestServerActionsBase(TransactionCaseWithUserDemo):
         self.res_country_name_position_field = Fields.search(
             [("model", "=", "res.country"), ("name", "=", "name_position")]
         )
-        self.res_partner_category_model = Model.search(
-            [("model", "=", "res.partner.category")]
+        self.res_partner_tag_model = Model.search(
+            [("model", "=", "res.partner.tag")]
         )
-        self.res_partner_category_name_field = Fields.search(
-            [("model", "=", "res.partner.category"), ("name", "=", "name")]
+        self.res_partner_tag_name_field = Fields.search(
+            [("model", "=", "res.partner.tag"), ("name", "=", "name")]
         )
 
         self.action = self.env["ir.actions.server"].create(
@@ -231,8 +231,8 @@ ZeroDivisionError: division by zero"""
         self.action.write(
             {
                 "state": "object_create",
-                "crud_model_id": self.res_partner_category_model.id,
-                "link_field_id": self.res_partner_category_field.id,
+                "crud_model_id": self.res_partner_tag_model.id,
+                "link_field_id": self.res_partner_tag_field.id,
                 "value": "TestingPartner",
             }
         )
@@ -241,11 +241,11 @@ ZeroDivisionError: division by zero"""
             run_res,
             "ir_actions_server: create record action correctly finished should return False",
         )
-        category = self.env["res.partner.category"].search(
+        category = self.env["res.partner.tag"].search(
             [("name", "ilike", "TestingPartner")]
         )
         self.assertEqual(len(category), 1, "ir_actions_server: TODO")
-        self.assertIn(category, self.test_partner.category_id)
+        self.assertIn(category, self.test_partner.tag_ids)
 
     def test_25_crud_copy(self):
         self.action.write(
@@ -316,15 +316,15 @@ ZeroDivisionError: division by zero"""
         self.assertIn(dupe, self.test_partner.child_ids)
 
     def test_25_crud_copy_link_many2many(self):
-        category_id = self.env["res.partner.category"].name_create(
+        tag_id = self.env["res.partner.tag"].name_create(
             "CategoryToDuplicate"
         )[0]
         self.action.write(
             {
                 "state": "object_copy",
-                "crud_model_id": self.res_partner_category_model.id,
-                "link_field_id": self.res_partner_category_field.id,
-                "resource_ref": f"res.partner.category,{category_id}",
+                "crud_model_id": self.res_partner_tag_model.id,
+                "link_field_id": self.res_partner_tag_field.id,
+                "resource_ref": f"res.partner.tag,{tag_id}",
             }
         )
         run_res = self.action.with_context(self.context).run()
@@ -332,14 +332,14 @@ ZeroDivisionError: division by zero"""
             run_res,
             "ir_actions_server: duplicate record action correctly finished should return False",
         )
-        dupe = self.env["res.partner.category"].search(
+        dupe = self.env["res.partner.tag"].search(
             [
                 ("name", "ilike", "CategoryToDuplicate"),
-                ("id", "!=", category_id),
+                ("id", "!=", tag_id),
             ]
         )
         self.assertEqual(len(dupe), 1)
-        self.assertIn(dupe, self.test_partner.category_id)
+        self.assertIn(dupe, self.test_partner.tag_ids)
 
     def test_30_crud_write(self):
         self.action.write(
@@ -441,12 +441,12 @@ ZeroDivisionError: division by zero"""
         self.assertEqual(self.test_country.name_position, "after")
 
     def test_36_crud_write_m2m_ops(self):
-        categ_1 = self.env["res.partner.category"].create({"name": "TestCateg1"})
-        categ_2 = self.env["res.partner.category"].create({"name": "TestCateg2"})
+        categ_1 = self.env["res.partner.tag"].create({"name": "TestCateg1"})
+        categ_2 = self.env["res.partner.tag"].create({"name": "TestCateg2"})
         self.action.write(
             {
                 "state": "object_write",
-                "update_path": "category_id",
+                "update_path": "tag_ids",
                 "update_m2m_operation": "set",
                 "resource_ref": categ_1,
             }
@@ -458,14 +458,14 @@ ZeroDivisionError: division by zero"""
         )
         self.assertIn(
             categ_1,
-            self.test_partner.category_id,
+            self.test_partner.tag_ids,
             "ir_actions_server: tag should have been set",
         )
 
         self.action.write(
             {
                 "state": "object_write",
-                "update_path": "category_id",
+                "update_path": "tag_ids",
                 "update_m2m_operation": "add",
                 "resource_ref": categ_2,
             }
@@ -477,19 +477,19 @@ ZeroDivisionError: division by zero"""
         )
         self.assertIn(
             categ_2,
-            self.test_partner.category_id,
+            self.test_partner.tag_ids,
             "ir_actions_server: new tag should have been added",
         )
         self.assertIn(
             categ_1,
-            self.test_partner.category_id,
+            self.test_partner.tag_ids,
             "ir_actions_server: old tag should still be there",
         )
 
         self.action.write(
             {
                 "state": "object_write",
-                "update_path": "category_id",
+                "update_path": "tag_ids",
                 "update_m2m_operation": "remove",
                 "resource_ref": categ_1,
             }
@@ -501,19 +501,19 @@ ZeroDivisionError: division by zero"""
         )
         self.assertNotIn(
             categ_1,
-            self.test_partner.category_id,
+            self.test_partner.tag_ids,
             "ir_actions_server: tag should have been removed",
         )
         self.assertIn(
             categ_2,
-            self.test_partner.category_id,
+            self.test_partner.tag_ids,
             "ir_actions_server: tag should still be there",
         )
 
         self.action.write(
             {
                 "state": "object_write",
-                "update_path": "category_id",
+                "update_path": "tag_ids",
                 "update_m2m_operation": "clear",
             }
         )
@@ -523,7 +523,7 @@ ZeroDivisionError: division by zero"""
             "ir_actions_server: update record action correctly finished should return False",
         )
         self.assertFalse(
-            self.test_partner.category_id,
+            self.test_partner.tag_ids,
             "ir_actions_server: tags should have been cleared",
         )
 
@@ -936,7 +936,7 @@ ZeroDivisionError: division by zero"""
         self.action.write(
             {
                 "state": "object_write",
-                "update_path": "category_id",
+                "update_path": "tag_ids",
                 "update_m2m_operation": "add",
                 "value": "not-an-int",
             }
@@ -949,7 +949,7 @@ ZeroDivisionError: division by zero"""
         self.action.write(
             {
                 "state": "object_write",
-                "update_path": "category_id",
+                "update_path": "tag_ids",
                 "update_m2m_operation": False,
                 "value": "1",
             }

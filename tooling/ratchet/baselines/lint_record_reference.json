@@ -1,5 +1,5 @@
 {
-  "count": 8,
-  "measured_at": "b7b596cd004b13ff0031a8f8a1ee850bfa02589a",
-  "note": "Re-measured after rebasing this branch onto origin/19.0-marin (214 upstream commits). Neither side's floor described the merged tree: both had driven counts down independently from a common base, so every one of these had to be re-derived rather than merged. Measured at HEAD in the workspace checkout; mypy per section 9.3 in a detached worktree with mypy==2.3.0 alone."
+  "count": 0,
+  "measured_at": "6728adf7018b4026ccf42dffad0e0e8b0d0fb586",
+  "note": "All 8 banked findings were false positives, in three classes the checker did not model, each verified against the ORM path that resolves the ref. (1) <record forcecreate=\"False\"> makes convert.py call id_get(raise_if_not_found=False), so a missing xmlid yields False instead of failing the install -- 4 refs in point_of_sale/data/orders_demo.xml and pos_restaurant. (2) ref(\"xmlid\", False) passes the same flag explicitly -- website_event_sale and website_event_track, both under a comment reading \"Update the event type if exists\". (3) An xmlid minted in Python through a helper call rather than a bare literal: pos_restaurant mints pos_config_main_restaurant via _get_suffixed_ref_name(), which the scan already intended to catch -- its own comment names pos_restaurant -- but the regex required the literal to follow the colon directly. The gate asserts a missing xmlid stops a module loading; for all 8 it cannot, so the number meant something other than its own message. Checker corrected in the same change; measured 10 -> 1 -> 0 as each class was modelled."
 }

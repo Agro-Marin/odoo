@@ -17,21 +17,21 @@ class TestReadProgressBar(common.TransactionCase):
                 "other": "200",
             },
         }
-        tag = self.env["res.partner.category"].create(
+        tag = self.env["res.partner.tag"].create(
             {"name": "test_read_progress_bar_m2m_tag"}
         )
         tagged = self.Model.create(
             {
                 "name": "test_read_progress_bar_m2m_tagged",
                 "type": "contact",
-                "category_id": [(6, 0, tag.ids)],
+                "tag_ids": [(6, 0, tag.ids)],
             }
         )
         untagged = self.Model.create(
             {"name": "test_read_progress_bar_m2m_untagged", "type": "other"}
         )
         result = self.Model.read_progress_bar(
-            [("id", "in", (tagged + untagged).ids)], "category_id", progressbar
+            [("id", "in", (tagged + untagged).ids)], "tag_ids", progressbar
         )
         self.assertEqual(
             result,

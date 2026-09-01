@@ -1100,7 +1100,7 @@ Inherits: `mixin.format.address`, `mixin.format.vat.label`, `mixin.avatar`, `mix
 - `user_id` (Many2one → res.users, computed, precompute, readonly=False, stored) — Salesperson
 - `vat` (Char, indexed), `company_registry` (Char)
 - `bank_ids` (One2many → res.partner.bank)
-- `category_id` (Many2many → res.partner.category) — Tags
+- `category_id` (Many2many → res.partner.tag) — Tags
 - `active` (Boolean, default=True)
 - `type` (Selection) — `contact`, `invoice`, `delivery`, `other`
 - Address fields: `street`, `street2`, `zip`, `city`, `state_id`, `country_id`
@@ -1121,9 +1121,9 @@ Inherits: `mixin.format.address`, `mixin.format.vat.label`, `mixin.avatar`, `mix
 - `_update_parent_address(partner)` — Auto-link children when parent created
 - `create(vals_list)`, `write(vals)` — With partner_share computation, commercial field sync
 
-### models/res_partner_category.py
+### models/res_partner_tag.py
 
-#### ResPartnerCategory — `res.partner.category` (`_name`, `_parent_store = True`)
+#### ResPartnerTag — `res.partner.tag` (`_name`, `_parent_store = True`)
 
 Partner tags — hierarchical.
 
@@ -1887,7 +1887,7 @@ Quick lookup — file → model → primary role:
 | `res_groups_privilege.py` | res.groups.privilege | Group categories |
 | `res_lang.py` | res.lang | Languages |
 | `res_partner.py` | res.partner | Contacts/companies |
-| `res_partner_category.py` | res.partner.category | Partner tags |
+| `res_partner_tag.py` | res.partner.tag | Partner tags |
 | `res_partner_identifier_type.py` | res.partner.identifier.type | Identifier kinds (RFC, CURP, SIREN…) |
 | `res_partner_identifier.py` | res.partner.identifier | One contact's identifier value |
 | `mixin_format_address.py` | mixin.format.address | Address formatting |
