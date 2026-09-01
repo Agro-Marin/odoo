@@ -211,7 +211,7 @@ class UserInputSession(http.Controller):
         if survey.question_ids:
             most_voted_answers = survey._get_session_most_voted_answers()
             is_first_question = survey._is_first_page_or_question(
-                survey.session_question_id
+                most_voted_answers, survey.session_question_id
             )
             is_last_question = survey._is_last_page_or_question(
                 most_voted_answers, survey.session_question_id
