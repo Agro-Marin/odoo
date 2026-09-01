@@ -173,7 +173,7 @@ class WebsiteAssets(models.AbstractModel):
                     value,
                 )
             pattern = "'%s': %%s,\n" % name
-            regex = re.compile(pattern % ".+")
+            regex = re.compile("'%s': .+,\n" % re.escape(name))
             replacement = pattern % value
             if regex.search(updatedFileContent):
                 updatedFileContent = re.sub(regex, replacement, updatedFileContent)
