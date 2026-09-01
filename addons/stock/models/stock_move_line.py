@@ -1665,6 +1665,7 @@ class StockMoveLine(models.Model):
 
     def _link_to_existing_moves(self):
         unlinked = self.browse()
+        lines_per_vals = defaultdict(self.browse)
         for move_line in self:
             linkable_moves = (
                 move_line._get_linkable_moves()
@@ -1674,13 +1675,17 @@ class StockMoveLine(models.Model):
             if not linkable_moves:
                 unlinked |= move_line
                 continue
-            vals = {
-                "move_id": linkable_moves[0].id,
-                "picking_id": linkable_moves[0].picking_id.id,
-            }
-            if linkable_moves[0].picked:
+            key = (
+                linkable_moves[0].id,
+                linkable_moves[0].picking_id.id,
+                linkable_moves[0].picked,
+            )
+            lines_per_vals[key] |= move_line
+        for (move_id, picking_id, picked), lines in lines_per_vals.items():
+            vals = {"move_id": move_id, "picking_id": picking_id}
+            if picked:
                 vals["picked"] = True
-            move_line.write(vals)
+            lines.write(vals)
         return unlinked
 
     def _create_moves(self):
