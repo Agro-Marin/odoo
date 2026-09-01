@@ -1,26 +1,25 @@
-
 {
-    'name': "IAP / Mail",
-    'summary': """Bridge between IAP and mail""",
-    'description': """Bridge between IAP and mail""",
-    'category': 'Hidden/Tools',
-    'version': '1.0',
-    'depends': [
-        'iap',
-        'mail',
+    "name": "IAP / Mail",
+    "summary": """Bridge between IAP and mail""",
+    "description": """Bridge between IAP and mail""",
+    "category": "Hidden/Tools",
+    "version": "1.0",
+    "depends": [
+        "iap",
+        "mail",
     ],
-    'installable': True,
-    'auto_install': True,
-    'data': [
-        'data/mail_templates.xml',
-        'views/iap_views.xml',
+    "installable": True,
+    "auto_install": True,
+    "data": [
+        "data/mail_templates.xml",
+        "views/iap_views.xml",
     ],
-    'assets': {
-        'web.assets_backend': [
-            'iap_mail/static/src/js/**/*',
-            'iap_mail/static/src/scss/iap_mail.scss',
+    "assets": {
+        "web.assets_backend": [
+            "iap_mail/static/src/js/**/*",
+            "iap_mail/static/src/scss/iap_mail.scss",
         ],
     },
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
 }
