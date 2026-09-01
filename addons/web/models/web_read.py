@@ -251,7 +251,11 @@ class Base(models.AbstractModel):
             baseline = self._coerce_concurrency_value(field, baseline_raw)
             new = self._coerce_concurrency_value(field, new_raw)
             return current not in (baseline, new)
-        except Exception:
+        # fmt: skip below: ruff format (target-version=py314) rewrites the
+        # parenthesized tuple into PEP 758's unparenthesized `except A, B:`
+        # form, which is syntactically valid here but reads like the
+        # long-forbidden Python 2 comma-except grammar. Tracked in t25382.
+        except (TypeError, ValueError):  # fmt: skip
             return False
 
     def _check_concurrent_field_changes(self, vals, known_values):
