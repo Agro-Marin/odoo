@@ -1428,6 +1428,12 @@ export class TablePlugin extends Plugin {
             return;
         }
         const currentTable = closestElement(currentCell, "table");
+        const tableGrid = this.buildTableGrid(currentTable);
+        const currentRowIndex = getRowIndex(currentCell);
+        const currentColIndex = tableGrid[currentRowIndex].indexOf(currentCell);
+        if (currentColIndex < 0) {
+            return;
+        }
         const areCellsSelected = currentCell.classList.contains("o_selected_td");
         const isArrowUp = ev.key === "ArrowUp";
         if (!areCellsSelected) {
@@ -1447,11 +1453,6 @@ export class TablePlugin extends Plugin {
                 return;
             }
         }
-        const cellPosition = {
-            row: getRowIndex(currentCell),
-            col: getColumnIndex(currentCell),
-        };
-        const tableRows = [...currentTable.rows].map((row) => [...row.cells]);
         const shouldNavigateCell = (currentNode) => {
             const siblingDirection = isArrowUp
                 ? "previousElementSibling"
@@ -1474,8 +1475,8 @@ export class TablePlugin extends Plugin {
             }
             return true;
         };
-        const rowOffset = isArrowUp ? -1 : 1;
-        let targetNode = tableRows[cellPosition.row + rowOffset]?.[cellPosition.col];
+        const rowOffset = currentRowIndex + (isArrowUp ? -1 : currentCell.rowSpan);
+        let targetNode = tableGrid[rowOffset]?.[currentColIndex];
         const siblingElement = isArrowUp
             ? currentTable.previousElementSibling
             : currentTable.nextElementSibling;
