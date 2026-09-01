@@ -61,3 +61,72 @@ class TestWebHierarchyView(TransactionCase):
             None,
             {"validate": False},
         )
+
+    # ── hierarchy_read ──────────────────────────────────────────────────
+
+    def test_hierarchy_read_empty_domain(self):
+        """A domain matching nothing returns an empty list."""
+        result = self.env["res.partner"].hierarchy_read(
+            [("id", "=", 0)], {"name": {}}, "parent_id"
+        )
+        self.assertEqual(result, [])
+
+    def test_hierarchy_read_single_record_no_parent_no_children(self):
+        """A lone record with no parent and no children returns just itself."""
+        partner = self.env["res.partner"].create({"name": "Standalone"})
+        result = self.env["res.partner"].hierarchy_read(
+            [("id", "=", partner.id)], {"name": {}}, "parent_id"
+        )
+        self.assertEqual([r["id"] for r in result], [partner.id])
+        self.assertNotIn("__child_ids__", result[0])
+
+    def test_hierarchy_read_single_record_expands_parent_and_siblings(self):
+        """Focusing on one child also returns its parent and siblings."""
+        Partner = self.env["res.partner"]
+        parent = Partner.create({"name": "Parent"})
+        child1 = Partner.create({"name": "Child 1", "parent_id": parent.id})
+        child2 = Partner.create({"name": "Child 2", "parent_id": parent.id})
+        result = Partner.hierarchy_read(
+            [("id", "=", child1.id)], {"name": {}}, "parent_id"
+        )
+        self.assertEqual({r["id"] for r in result}, {parent.id, child1.id, child2.id})
+
+    def test_hierarchy_read_multi_match_computes_child_ids(self):
+        """Multiple matches compute __child_ids__ per matched record via read_group."""
+        Partner = self.env["res.partner"]
+        parent = Partner.create({"name": "Parent"})
+        child1 = Partner.create({"name": "Child 1", "parent_id": parent.id})
+        child2 = Partner.create({"name": "Child 2", "parent_id": parent.id})
+        other = Partner.create({"name": "Other"})
+        result = Partner.hierarchy_read(
+            [("id", "in", [parent.id, other.id])], {"name": {}}, "parent_id"
+        )
+        by_id = {r["id"]: r for r in result}
+        self.assertEqual(set(by_id[parent.id]["__child_ids__"]), {child1.id, child2.id})
+        self.assertNotIn("__child_ids__", by_id[other.id])
+
+    def test_hierarchy_read_explicit_child_field_skips_read_group(self):
+        """An explicit child_field means the server never adds __child_ids__."""
+        Partner = self.env["res.partner"]
+        parent = Partner.create({"name": "Parent"})
+        Partner.create({"name": "Child", "parent_id": parent.id})
+        result = Partner.hierarchy_read(
+            [("id", "=", parent.id)],
+            {"name": {}},
+            "parent_id",
+            child_field="child_ids",
+        )
+        self.assertNotIn("__child_ids__", result[0])
+
+    def test_hierarchy_read_order_on_non_groupby_field(self):
+        """A default_order naming a plain field must not crash (see F001)."""
+        Partner = self.env["res.partner"]
+        parent = Partner.create({"name": "Parent"})
+        other = Partner.create({"name": "Other"})
+        result = Partner.hierarchy_read(
+            [("id", "in", [parent.id, other.id])],
+            {"name": {}},
+            "parent_id",
+            order="name",
+        )
+        self.assertEqual(len(result), 2)
