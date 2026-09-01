@@ -208,6 +208,57 @@ class TestSurveyInvite(common.TestSurveyCommon, MailCase):
         )
 
     @users("survey_manager")
+    def test_survey_invite_by_email_skips_partners_without_a_user_account(self):
+        """action_invite()'s email lookup must not attach a login-required
+        invite to a partner with no user account, and must not attach it to
+        more than one partner sharing the same normalized email."""
+        Answer = self.env["survey.user_input"]
+        dup_customer = (
+            self.env["res.partner"]
+            .sudo()
+            .create(
+                {"name": "Caroline Customer Duplicate", "email": self.customer.email}
+            )
+        )
+
+        self.survey.write(
+            {
+                "access_mode": "token",
+                "users_login_required": True,
+                "users_can_signup": False,
+            }
+        )
+        invite = self.env["survey.invite"].create(
+            {"survey_id": self.survey.id, "emails": self.customer.email}
+        )
+        invite.action_invite()
+
+        answers = Answer.search([("survey_id", "=", self.survey.id)])
+        self.assertEqual(
+            len(answers),
+            1,
+            "one recipient must not fan out into one answer per duplicate partner",
+        )
+        self.assertFalse(
+            answers.partner_id & (self.customer | dup_customer),
+            "an email with no matching user account must not be attached "
+            "to a partner that can never log in as itself",
+        )
+
+        # A matching partner that DOES have a user account must still be found.
+        invite2 = self.env["survey.invite"].create(
+            {"survey_id": self.survey.id, "emails": self.user_emp.email}
+        )
+        invite2.action_invite()
+        answers2 = Answer.search(
+            [
+                ("survey_id", "=", self.survey.id),
+                ("partner_id", "=", self.user_emp.partner_id.id),
+            ]
+        )
+        self.assertEqual(len(answers2), 1)
+
+    @users("survey_manager")
     def test_survey_invite_authentication_signup(self):
         self.env["ir.config_parameter"].sudo().set_param(
             "auth_signup.invitation_scope", "b2c"

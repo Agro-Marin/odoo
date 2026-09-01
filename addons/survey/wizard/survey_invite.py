@@ -371,10 +371,10 @@ class SurveyInvite(models.TransientModel):
             partner = False
             email_normalized = email_normalize(email)
             if email_normalized:
-                limit = None if invite.survey_users_login_required else 1
-                partner = Partner.search(
-                    [("email_normalized", "=", email_normalized)], limit=limit
-                )
+                domain = [("email_normalized", "=", email_normalized)]
+                if invite.survey_users_login_required:
+                    domain.append(("user_ids", "!=", False))
+                partner = Partner.search(domain, limit=1)
             if partner:
                 valid_partners |= partner
             else:
