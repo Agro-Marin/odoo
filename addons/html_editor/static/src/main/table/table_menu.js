@@ -27,6 +27,7 @@ export class TableMenu extends Component {
         resetTableSize: Function,
         clearColumnContent: Function,
         clearRowContent: Function,
+        toggleAlternatingRows: Function,
         close: Function,
         dropdownState: Object,
         target: { validate: (el) => el.nodeType === Node.ELEMENT_NODE },
@@ -196,6 +197,8 @@ export class TableMenu extends Component {
     }
 
     rowItems() {
+        const table = closestElement(this.props.target, "table");
+        const alternates = table.classList.contains("o_alternating_rows");
         return [
             this.isFirst &&
                 !this.isTableHeader && {
@@ -234,6 +237,14 @@ export class TableMenu extends Component {
                 icon: "fa-plus",
                 text: _t("Insert below"),
                 action: (target) => this.props.addRow("after", target.parentElement),
+            },
+            {
+                name: "toggle_alternating_rows",
+                icon: "fa-paint-brush",
+                text: alternates
+                    ? _t("Clear alternate colors")
+                    : _t("Alternate row colors"),
+                action: () => this.props.toggleAlternatingRows(table),
             },
             {
                 name: "delete",

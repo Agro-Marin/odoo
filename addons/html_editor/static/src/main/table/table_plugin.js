@@ -63,6 +63,7 @@ function isUnremovableTableComponent(node, root) {
  * @property { TablePlugin['resetTableSize'] } resetTableSize
  * @property { TablePlugin['clearColumnContent'] } clearColumnContent
  * @property { TablePlugin['clearRowContent'] } clearRowContent
+ * @property { TablePlugin['toggleAlternatingRows'] } toggleAlternatingRows
  */
 
 /**
@@ -95,6 +96,7 @@ export class TablePlugin extends Plugin {
         "resetTableSize",
         "clearColumnContent",
         "clearRowContent",
+        "toggleAlternatingRows",
     ];
     /** @type {import("plugins").EditorResources} */
     resources = {
@@ -636,6 +638,16 @@ export class TablePlugin extends Plugin {
             td.replaceChildren(baseContainer);
         });
     }
+
+    /**
+     * Shades every other row, so a wide table stays readable across a line.
+     *
+     * @param {HTMLTableElement} table
+     */
+    toggleAlternatingRows(table) {
+        table.classList.toggle("o_alternating_rows");
+    }
+
     deleteTable(table) {
         table =
             table ||
