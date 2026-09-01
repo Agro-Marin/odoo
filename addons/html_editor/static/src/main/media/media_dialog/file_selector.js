@@ -66,6 +66,11 @@ export class Attachment extends Component {
     remove() {
         this.dialogs.add(ConfirmationDialog, {
             body: _t("Are you sure you want to delete this file?"),
+            confirmLabel: _t("Delete"),
+            confirmClass: "btn-danger",
+            // Without a `cancel` handler the dialog renders no cancel button,
+            // and a destructive question has to offer a way out.
+            cancel: () => {},
             confirm: async () => {
                 const prevented = await rpc("/html_editor/attachment/remove", {
                     ids: [this.props.id],

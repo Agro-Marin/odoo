@@ -406,6 +406,7 @@ test("list of table commands in first row", async () => {
         "move_down",
         "insert_above",
         "insert_below",
+        "toggle_alternating_rows",
         "delete",
         "clear_content",
     ]);
@@ -432,6 +433,7 @@ test("list of table commands in first row if it's table header (TH)", async () =
         "remove_header",
         "move_down",
         "insert_below",
+        "toggle_alternating_rows",
         "delete",
         "clear_content",
     ]);
@@ -458,6 +460,7 @@ test("list of table commands in second row", async () => {
         "move_down",
         "insert_above",
         "insert_below",
+        "toggle_alternating_rows",
         "delete",
         "clear_content",
     ]);
@@ -483,6 +486,7 @@ test("list of table commands in last row", async () => {
         "move_up",
         "insert_above",
         "insert_below",
+        "toggle_alternating_rows",
         "delete",
         "clear_content",
     ]);
@@ -514,6 +518,7 @@ test("list of commands updates when hovering different table rows", async () => 
         "move_down",
         "insert_above",
         "insert_below",
+        "toggle_alternating_rows",
         "delete",
         "clear_content",
     ]);
@@ -530,6 +535,7 @@ test("list of commands updates when hovering different table rows", async () => 
         "move_down",
         "insert_above",
         "insert_below",
+        "toggle_alternating_rows",
         "delete",
         "clear_content",
     ]);
@@ -545,9 +551,43 @@ test("list of commands updates when hovering different table rows", async () => 
         "move_up",
         "insert_above",
         "insert_below",
+        "toggle_alternating_rows",
         "delete",
         "clear_content",
     ]);
+});
+
+test("alternate row colors can be toggled from the row menu", async () => {
+    const { el, editor } = await setupEditor(`
+        <table>
+            <tbody>
+            <tr><td class="a">1[]</td></tr>
+            <tr><td class="b">2</td></tr>
+            </tbody>
+        </table>`);
+    await hover(el.querySelector("td.a"));
+    await waitFor(".o-we-table-menu");
+    await click("[data-type='row'].o-we-table-menu");
+    await waitFor(".dropdown-menu");
+    expect("div[name='toggle_alternating_rows']").toHaveText("Alternate row colors");
+
+    await click("div[name='toggle_alternating_rows']");
+    await animationFrame();
+    expect("table").toHaveClass("o_alternating_rows");
+
+    // Reopening offers the way back. Leave the cell first, or re-entering it
+    // fires no pointerenter and the menu never comes back.
+    await hover(el);
+    await animationFrame();
+    await hover(el.querySelector("td.a"));
+    await waitFor(".o-we-table-menu");
+    await click("[data-type='row'].o-we-table-menu");
+    await waitFor(".dropdown-menu");
+    expect("div[name='toggle_alternating_rows']").toHaveText("Clear alternate colors");
+
+    // And the toggle is a single undoable step.
+    undo(editor);
+    expect("table").not.toHaveClass("o_alternating_rows");
 });
 
 test("open/close table menu", async () => {

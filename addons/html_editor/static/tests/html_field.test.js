@@ -1320,6 +1320,139 @@ test("add Vimeo video link in 'Videos' tab of MediaDialog", async () => {
     await click(queryOne(".modal-footer").firstChild);
 });
 
+test.tags("desktop");
+test("the Vertical option reframes the video preview to 9:16", async () => {
+    const shortsUrl = "https://www.youtube.com/shorts/qAgW3oG7Zmc";
+    await mountView({
+        type: "form",
+        resId: 1,
+        resModel: "partner",
+        arch: `
+            <form>
+                <field name="txt" widget="html"/>
+            </form>`,
+    });
+    setSelectionInHtmlField();
+
+    await onRpc("/html_editor/video_url/data", async () => ({
+        video_id: "qAgW3oG7Zmc",
+        platform: "youtube",
+        embed_url: "https://www.youtube.com/embed/qAgW3oG7Zmc?rel=0&autoplay=0",
+        params: { rel: 0, autoplay: 0 },
+    }));
+
+    await insertText(htmlEditor, "/video");
+    await waitFor(".o-we-powerbox");
+    await press("Enter");
+    await contains(".modal-body .nav-link:contains('Videos')").click();
+    await waitFor("textarea[id='o_video_text']");
+
+    const input = queryOne("textarea[id='o_video_text']");
+    input.value = shortsUrl;
+    manuallyDispatchProgrammaticEvent(input, "input", {
+        inputType: "insertText",
+    });
+    await waitFor(".o_video_dialog_options", { timeout: 1500 });
+
+    // The preview opens in the 16:9 frame every video used to get.
+    expect(".o_video_preview .media_iframe_video_size").toHaveCount(1);
+    expect(".o_video_preview .media_iframe_video_size_for_vertical").toHaveCount(0);
+
+    // The switch input is visually-hidden, so click it rather than its label.
+    queryOne(".o_video_dialog_options label:contains('Vertical') input").click();
+    await waitFor(".o_video_preview .media_iframe_video_size_for_vertical");
+    expect(".o_video_preview .media_iframe_video_size").toHaveCount(0);
+});
+
+test.tags("desktop");
+test("a video inserted as Vertical keeps its 9:16 frame in the document", async () => {
+    const shortsUrl = "https://www.youtube.com/shorts/qAgW3oG7Zmc";
+    const embedUrl = "https://www.youtube.com/embed/qAgW3oG7Zmc?rel=0&autoplay=0";
+    await mountView({
+        type: "form",
+        resId: 1,
+        resModel: "partner",
+        arch: `
+            <form>
+                <field name="txt" widget="html"/>
+            </form>`,
+    });
+    setSelectionInHtmlField();
+
+    await onRpc("/html_editor/video_url/data", async () => ({
+        video_id: "qAgW3oG7Zmc",
+        platform: "youtube",
+        embed_url: embedUrl,
+        params: { rel: 0, autoplay: 0 },
+    }));
+
+    await insertText(htmlEditor, "/video");
+    await waitFor(".o-we-powerbox");
+    await press("Enter");
+    await contains(".modal-body .nav-link:contains('Videos')").click();
+    await waitFor("textarea[id='o_video_text']");
+
+    const input = queryOne("textarea[id='o_video_text']");
+    input.value = shortsUrl;
+    manuallyDispatchProgrammaticEvent(input, "input", {
+        inputType: "insertText",
+    });
+    await waitFor(".o_video_dialog_options", { timeout: 1500 });
+    queryOne(".o_video_dialog_options label:contains('Vertical') input").click();
+    await waitFor(".o_video_preview .media_iframe_video_size_for_vertical");
+    await click(queryOne(".modal-footer").firstChild);
+
+    await waitFor("div[data-embedded='video'] iframe");
+    const videoEl = queryOne("div[data-embedded='video']");
+    expect(videoEl).toHaveClass("media_iframe_video_size_for_vertical");
+    expect(videoEl.dataset.isVertical).toBe("true");
+    // The orientation frames the player; it must not reach the player's URL.
+    expect(`div[data-embedded='video'] iframe[data-src="${embedUrl}"]`).toHaveCount(1);
+});
+
+test.tags("desktop");
+test("a Facebook video can be embedded", async () => {
+    const videoId = "2206239373151307";
+    const facebookUrl = `https://www.facebook.com/watch?v=${videoId}`;
+    await mountView({
+        type: "form",
+        resId: 1,
+        resModel: "partner",
+        arch: `
+            <form>
+                <field name="txt" widget="html"/>
+            </form>`,
+    });
+    setSelectionInHtmlField();
+
+    await onRpc("/html_editor/video_url/data", async () => ({
+        video_id: videoId,
+        platform: "facebook",
+        embed_url: `//facebook.com/plugins/video.php?href=https://www.facebook.com/username/videos/${videoId}/`,
+        params: {},
+    }));
+
+    await insertText(htmlEditor, "/video");
+    await waitFor(".o-we-powerbox");
+    await press("Enter");
+    await contains(".modal-body .nav-link:contains('Videos')").click();
+    await waitFor("textarea[id='o_video_text']");
+
+    const input = queryOne("textarea[id='o_video_text']");
+    input.value = facebookUrl;
+    manuallyDispatchProgrammaticEvent(input, "input", {
+        inputType: "insertText",
+    });
+    await waitFor(".o_video_dialog_options", { timeout: 1500 });
+    expect(input).toHaveClass("is-valid");
+    await click(queryOne(".modal-footer").firstChild);
+
+    const iframeEl = await waitFor("div[data-embedded='video'] iframe");
+    expect(new URL(iframeEl.dataset.src).searchParams.get("href")).toBe(
+        `https://www.facebook.com/username/videos/${videoId}/`,
+    );
+});
+
 test("MediaDialog contains 'Videos' tab by default in html field", async () => {
     await mountView({
         type: "form",
