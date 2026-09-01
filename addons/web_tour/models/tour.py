@@ -71,8 +71,8 @@ class Web_TourTour(models.Model):
     def export_js_file(self):
         js_content = f"""import {{ registry }} from '@web/core/registry';
 
-registry.category("web_tour.tours").add("{self.name}", {{
-    url: "{self.url}",
+registry.category("web_tour.tours").add({json.dumps(self.name)}, {{
+    url: {json.dumps(self.url)},
     steps: () => {json.dumps(self.step_ids.get_steps_json(), indent=4)}
 }})"""
 
