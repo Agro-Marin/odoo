@@ -762,6 +762,48 @@ class TestBatchPicking(TransactionCase):
             "Batch Transfers should be cancelled when there are no transfers.",
         )
 
+    def test_remove_all_transfers_from_confirmed_batch_multi_record_write(self):
+        other_batch = self.env["stock.picking.batch"].create(
+            {
+                "name": "Batch 2",
+                "company_id": self.env.company.id,
+                "picking_ids": [(4, self.picking_client_3.id)],
+            }
+        )
+        self.batch.action_confirm()
+        other_batch.action_confirm()
+
+        # Detach every picking from self.batch through the picking side
+        # (batch_id=False), the way button_validate's pickings_to_detach flow
+        # does. This never calls stock.picking.batch.write(), so self.batch is
+        # left in_progress with 0 pickings.
+        (self.picking_client_1 | self.picking_client_2).batch_id = False
+        self.assertEqual(
+            self.batch.state,
+            "in_progress",
+            "Detaching pickings from the picking side must not itself "
+            "cancel the now-empty batch.",
+        )
+        self.assertFalse(self.batch.picking_ids)
+
+        # A later, unrelated multi-record write (e.g. a bulk "assign
+        # responsible" from the list view) must still repair self.batch: the
+        # guard in write() must not skip it just because other_batch (in the
+        # same recordset) still has pickings.
+        (self.batch | other_batch).write({"user_id": self.env.uid})
+
+        self.assertEqual(
+            self.batch.state,
+            "cancel",
+            "Emptied batch should be cancelled even when written together "
+            "with a batch that still has pickings.",
+        )
+        self.assertEqual(
+            other_batch.state,
+            "in_progress",
+            "Batch that still has pickings should not be affected.",
+        )
+
     def test_backorder_on_one_picking(self):
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 10.0
