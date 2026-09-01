@@ -15,7 +15,7 @@ class IrActionsServer(models.Model):
     website_path = fields.Char("Website Path")
     website_url = fields.Char(
         "Website Url",
-        compute="_get_website_url",
+        compute="_compute_website_url",
         help="The full URL to access the server action through the website.",
     )
     website_published = fields.Boolean(
@@ -32,23 +32,23 @@ class IrActionsServer(models.Model):
         for action in self:
             action.xml_id = res.get(action.id)
 
-    def _compute_website_url(self, website_path, xml_id):
+    @api.depends("state", "website_published", "website_path", "xml_id")
+    def _compute_website_url(self):
+        for action in self:
+            if action.state == "code" and action.website_published:
+                action.website_url = action._get_website_url(
+                    action.website_path, action.xml_id
+                )
+            else:
+                action.website_url = False
+
+    def _get_website_url(self, website_path, xml_id):
         base_url = self.get_base_url()
         link = website_path or xml_id or (self.id and "%d" % self.id) or ""
         if base_url and link:
             path = "%s/%s" % ("/website/action", link)
             return urls.urljoin(base_url, path)
         return ""
-
-    @api.depends("state", "website_published", "website_path", "xml_id")
-    def _get_website_url(self):
-        for action in self:
-            if action.state == "code" and action.website_published:
-                action.website_url = action._compute_website_url(
-                    action.website_path, action.xml_id
-                )
-            else:
-                action.website_url = False
 
     @api.model
     def _prepare_eval_context(self, action):

@@ -86,13 +86,16 @@ class Website(models.Model):
     def website_domain(self):
         return Domain("website_id", "in", [False, *self.ids])
 
-    def _active_languages(self):
+    def _get_active_lang_ids(self):
         return self.env["res.lang"].search([]).ids
+
+    def _default_language_ids(self):
+        return self._get_active_lang_ids()
 
     def _default_default_lang_id(self):
         lang_code = self.env["ir.default"]._get("res.partner", "lang")
         def_lang_id = self.env["res.lang"]._get_data(code=lang_code).id
-        return def_lang_id or self._active_languages()[0]
+        return def_lang_id or self._get_active_lang_ids()[0]
 
     name = fields.Char("Website Name", required=True)
     sequence = fields.Integer(default=10)
@@ -115,7 +118,7 @@ class Website(models.Model):
         "website_id",
         "lang_id",
         string="Languages",
-        default=_active_languages,
+        default=_default_language_ids,
         required=True,
     )
     language_count = fields.Count("language_ids", "Number of languages")
@@ -343,7 +346,7 @@ class Website(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
-            self._handle_create_write(vals)
+            self._update_vals(vals)
 
             if "user_id" not in vals:
                 company = self.env["res.company"].browse(
@@ -375,7 +378,7 @@ class Website(models.Model):
         public_user_to_change_websites = self.env["website"]
         original_company = self.company_id
         values = vals
-        self._handle_create_write(values)
+        self._update_vals(values)
 
         self.env.registry.clear_cache()
 
@@ -431,13 +434,13 @@ class Website(models.Model):
         return result
 
     @api.model
-    def _handle_create_write(self, vals):
-        self._handle_favicon(vals)
-        self._handle_domain(vals)
-        self._handle_homepage_url(vals)
+    def _update_vals(self, vals):
+        self._update_vals_favicon(vals)
+        self._update_vals_domain(vals)
+        self._update_vals_homepage_url(vals)
 
     @api.model
-    def _handle_favicon(self, vals):
+    def _update_vals_favicon(self, vals):
         if vals.get("favicon"):
             vals["favicon"] = base64.b64encode(
                 image_process(
@@ -449,7 +452,7 @@ class Website(models.Model):
             )
 
     @api.model
-    def _handle_domain(self, vals):
+    def _update_vals_domain(self, vals):
         if vals.get("domain"):
             vals["domain"] = self._normalize_domain_url(vals["domain"])
 
@@ -460,7 +463,7 @@ class Website(models.Model):
         return normalized_url.rstrip("/")
 
     @api.model
-    def _handle_homepage_url(self, vals):
+    def _update_vals_homepage_url(self, vals):
         homepage_url = vals.get("homepage_url")
         if homepage_url:
             vals["homepage_url"] = homepage_url.rstrip("/")
@@ -538,7 +541,6 @@ class Website(models.Model):
 
     def _is_indexable_url(self, url):
         return self._idna_url(url) == self._idna_url(self.domain)
-
 
     def _api_rpc(self, route, params, endpoint_param_name, default_endpoint, **kwargs):
         params["version"] = release.version
@@ -645,11 +647,11 @@ class Website(models.Model):
             el.set("style", style_attr)
 
         if "background" in customizations:
-            self._set_background_options(el, customizations["background"])
+            self._update_background_options(el, customizations["background"])
 
         return
 
-    def _set_background_options(self, el, background_options):
+    def _update_background_options(self, el, background_options):
         snippet_classes = el.get("class").split()
         snippet_style = (el.get("style") or "").split()
 
@@ -1019,7 +1021,7 @@ class Website(models.Model):
                 generated_content.update(snippet_generated_content)
                 translated_content.update(snippet_translated_content)
 
-        translated_ratio = html_text_processor._calculate_translation_ratio(
+        translated_ratio = html_text_processor._get_translation_ratio(
             generated_content, translated_content
         )
         if translated_ratio > 0.8:
@@ -1516,7 +1518,6 @@ class Website(models.Model):
 
         return dependencies
 
-
     @api.model
     def get_current_website(self, fallback=True):
         is_frontend_request = request and getattr(request, "is_frontend", False)
@@ -1532,7 +1533,6 @@ class Website(models.Model):
 
         if not is_frontend_request and not fallback:
             return self.browse(False)
-
 
         domain_name = (
             (request and request.httprequest.host)
@@ -1558,14 +1558,14 @@ class Website(models.Model):
     @api.model
     @tools.ormcache("domain_name", "fallback")
     def _get_current_website_id(self, domain_name, fallback=True):
-        def _remove_port(domain_name):
+        def remove_port(domain_name):
             return (domain_name or "").split(":")[0]
 
-        def _filter_domain(website, domain_name, ignore_port=False):
+        def is_domain_matching(website, domain_name, ignore_port=False):
             website_domain = get_base_domain(website.domain_punycode)
             if ignore_port:
-                website_domain = _remove_port(website_domain)
-                domain_name = _remove_port(domain_name)
+                website_domain = remove_port(website_domain)
+                domain_name = remove_port(domain_name)
             return website_domain.lower() == (domain_name or "").lower()
 
         domain_name = to_punycode(domain_name or "")
@@ -1574,13 +1574,13 @@ class Website(models.Model):
         found_websites = self.search(
             [
                 "|",
-                ("domain", "ilike", escape_psql(_remove_port(domain_name))),
-                ("domain", "ilike", escape_psql(_remove_port(domain_name_idna))),
+                ("domain", "ilike", escape_psql(remove_port(domain_name))),
+                ("domain", "ilike", escape_psql(remove_port(domain_name_idna))),
             ]
         )
-        websites = found_websites.filtered(lambda w: _filter_domain(w, domain_name))
+        websites = found_websites.filtered(lambda w: is_domain_matching(w, domain_name))
         websites = websites or found_websites.filtered(
-            lambda w: _filter_domain(w, domain_name, ignore_port=True)
+            lambda w: is_domain_matching(w, domain_name, ignore_port=True)
         )
 
         if not websites:
@@ -1636,7 +1636,7 @@ class Website(models.Model):
     def pager(self, url, total, page=1, step=30, scope=5, url_args=None):
         return pager(url, total, page=page, step=step, scope=scope, url_args=url_args)
 
-    def rule_is_enumerable(self, rule):
+    def is_rule_enumerable(self, rule):
         endpoint = rule.endpoint
         methods = endpoint.routing.get("methods") or ["GET"]
 
@@ -1694,10 +1694,10 @@ class Website(models.Model):
 
         sitemap_endpoint_done = set()
 
-        def _norm(url):
+        def normalize_url(url):
             return "/" if url == "/" else url.rstrip("/")
 
-        def _unwrap_callable(f):
+        def get_underlying_function(f):
             if isinstance(f, functools.partial):
                 f = f.func
             if isinstance(f, types.MethodType):
@@ -1710,7 +1710,7 @@ class Website(models.Model):
                 continue
 
             if callable(sitemap_func):
-                func_key = _unwrap_callable(sitemap_func)
+                func_key = get_underlying_function(sitemap_func)
                 if func_key in sitemap_endpoint_done:
                     continue
                 sitemap_endpoint_done.add(func_key)
@@ -1719,14 +1719,14 @@ class Website(models.Model):
                     rule,
                     query_string,
                 ):
-                    loc_norm = {**loc, "loc": _norm(loc["loc"])}
+                    loc_norm = {**loc, "loc": normalize_url(loc["loc"])}
                     url = loc_norm["loc"]
                     if url not in url_set:
                         yield loc_norm
                         url_set.add(url)
                 continue
 
-            if not self.rule_is_enumerable(rule):
+            if not self.is_rule_enumerable(rule):
                 continue
 
             if "sitemap" not in rule.endpoint.routing:
@@ -1786,7 +1786,7 @@ class Website(models.Model):
 
             for value in values:
                 _domain_part, url = rule.build(value, append_unknown=False)
-                url = _norm(url)
+                url = normalize_url(url)
                 pattern = query_string and "*%s*" % "*".join(query_string.split("/"))
                 if not query_string or fnmatch.fnmatch(url.lower(), pattern):
                     page = {"loc": url}
@@ -1833,7 +1833,7 @@ class Website(models.Model):
                 break
         return res
 
-    def check_existing_page(self, page):
+    def is_page_existing(self, page):
         if (
             len(
                 self._get_website_pages(
@@ -1968,7 +1968,6 @@ class Website(models.Model):
     def _get_cached_values(self):
         self.check_singleton()
 
-
         self.fetch(
             ["user_id", "company_id", "default_lang_id", "homepage_url", "cookies_bar"]
         )
@@ -2035,7 +2034,9 @@ class Website(models.Model):
             if match:
                 snippet_occurences.append(match.group())
 
-        if self._check_snippet_used(snippet_occurences, asset_type, asset_version):
+        if self._is_snippet_used_in_occurrences(
+            snippet_occurences, asset_type, asset_version
+        ):
             return True
 
         html_fields = [
@@ -2054,9 +2055,13 @@ class Website(models.Model):
         )
 
         snippet_occurences = [r[0][0] for r in self.env.cr.fetchall()]
-        return self._check_snippet_used(snippet_occurences, asset_type, asset_version)
+        return self._is_snippet_used_in_occurrences(
+            snippet_occurences, asset_type, asset_version
+        )
 
-    def _check_snippet_used(self, snippet_occurences, asset_type, asset_version):
+    def _is_snippet_used_in_occurrences(
+        self, snippet_occurences, asset_type, asset_version
+    ):
         for snippet in snippet_occurences:
             if asset_version == "000":
                 if f"data-v{asset_type}" not in snippet:
@@ -2065,7 +2070,7 @@ class Website(models.Model):
                 return True
         return False
 
-    def _check_user_can_modify(self, record):
+    def _check_access_to_modify(self, record):
         record.check_access("write")
 
     def _disable_unused_snippets_assets(self):
@@ -2410,7 +2415,7 @@ class Website(models.Model):
                             value = value.lower()
                             yield from re.findall(match_pattern, value)
 
-    def _all_consents_granted(self):
+    def _is_every_consent_granted(self):
         self.check_singleton()
         return not self.cookies_bar or self.env["ir.http"]._is_allowed_cookie(
             "optional"

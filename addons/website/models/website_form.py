@@ -11,7 +11,7 @@ from odoo.http import request
 class Website(models.Model):
     _inherit = "website"
 
-    def _website_form_last_record(self):
+    def _get_website_form_last_record(self):
         if request and request.session.get("form_builder_model_model"):
             return request.env[request.session["form_builder_model_model"]].browse(
                 request.session["form_builder_id"]
@@ -183,7 +183,7 @@ class IrModelFields(models.Model):
         )
 
     @api.ondelete(at_uninstall=False)
-    def _check_if_used_in_website_form(self):
+    def _unlink_except_used_in_website_form(self):
         for field in self:
             for model_name, field_name in self.env["website"]._get_fields_html():
                 domain = [(field_name, "ilike", f'data-model_name="{field.model}"')]

@@ -80,7 +80,9 @@ class MixinWebsitePublished(models.AbstractModel):
     def _compute_can_publish(self):
         for record in self:
             try:
-                self.env["website"].get_current_website()._check_user_can_modify(record)
+                self.env["website"].get_current_website()._check_access_to_modify(
+                    record
+                )
                 record.can_publish = True
             except AccessError:
                 record.can_publish = False

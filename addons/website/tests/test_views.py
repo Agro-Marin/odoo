@@ -1018,18 +1018,18 @@ class TestCowViewSaving(TestViewSavingCommon, HttpCase):
         view = (
             View.with_context(active_test=False)
             .search([("key", "=", self.inherit_view.key)])
-            .filter_duplicate()
+            ._filtered_most_specific()
         )
         self.assertEqual(
-            view.active, True, "filter_duplicate should return the generic one"
+            view.active, True, "_filtered_most_specific should return the generic one"
         )
         view = (
             View.with_context(active_test=False, website_id=1)
             .search([("key", "=", self.inherit_view.key)])
-            .filter_duplicate()
+            ._filtered_most_specific()
         )
         self.assertEqual(
-            view.active, False, "filter_duplicate should return the specific one"
+            view.active, False, "_filtered_most_specific should return the specific one"
         )
 
     def test_get_related_views_tree(self):

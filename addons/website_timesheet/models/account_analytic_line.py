@@ -15,6 +15,6 @@ class AccountAnalyticLine(models.Model):
             .sudo()
             .with_context(active_test=False)
             .search(domain)
-            .filter_duplicate()
+            ._filtered_most_specific()
             .active
         )

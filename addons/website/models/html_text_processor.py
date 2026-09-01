@@ -38,7 +38,7 @@ class WebsiteHTMLTextProcessor(models.AbstractModel):
     def _get_processing_cache(self, cache_key):
         return dict(self.env.context.get(cache_key, {}))
 
-    def _update_processing_cache(self, cache_key, updates):
+    def _with_processing_cache(self, cache_key, updates):
         current_cache = self._get_processing_cache(cache_key)
         current_cache.update(updates)
         return self.with_context(**{cache_key: current_cache})
@@ -71,11 +71,13 @@ class WebsiteHTMLTextProcessor(models.AbstractModel):
             else:
                 snippet_html = snippet["section"]
                 snippet_html_en = snippet["translated_section"]
-                updated_processor, placeholders = updated_processor._process_snippet(
-                    snippet_html, snippet_html_en
+                updated_processor, placeholders = (
+                    updated_processor._get_snippet_placeholders(
+                        snippet_html, snippet_html_en
+                    )
                 )
                 render_data = (snippet_html, placeholders)
-                updated_processor = updated_processor._update_processing_cache(
+                updated_processor = updated_processor._with_processing_cache(
                     "html_snippets_cache", {key: render_data}
                 )
                 for placeholder in placeholders:
@@ -85,7 +87,7 @@ class WebsiteHTMLTextProcessor(models.AbstractModel):
         )
         return updated_processor, generated_content, translated_content
 
-    def _process_snippet(self, snippet, snippet_en):
+    def _get_snippet_placeholders(self, snippet, snippet_en):
         text_generation_target_lang = self.env.context[
             "html_text_generation_target_lang"
         ]
@@ -97,9 +99,7 @@ class WebsiteHTMLTextProcessor(models.AbstractModel):
         placeholders = []
         updated_processor = self
         for term in terms:
-            updated_processor, placeholder = updated_processor._compute_placeholder(
-                term
-            )
+            updated_processor, placeholder = updated_processor._get_placeholder(term)
             placeholders.append(placeholder)
         if text_must_be_translated_for_openai:
             translation_dictionary = (
@@ -122,7 +122,7 @@ class WebsiteHTMLTextProcessor(models.AbstractModel):
                 ]
 
             if translated_updates:
-                updated_processor = updated_processor._update_processing_cache(
+                updated_processor = updated_processor._with_processing_cache(
                     "html_translated_content", translated_updates
                 )
         return updated_processor, placeholders
@@ -139,18 +139,18 @@ class WebsiteHTMLTextProcessor(models.AbstractModel):
         render = IrQweb._render(snippet_key, cta_data)
         render_en = IrQweb._render(snippet_key, cta_data, lang="en_US")
         updated_processor = self
-        updated_processor, placeholders = updated_processor._process_snippet(
+        updated_processor, placeholders = updated_processor._get_snippet_placeholders(
             render, render_en
         )
         data = (render, placeholders)
-        updated_processor = updated_processor._update_processing_cache(
+        updated_processor = updated_processor._with_processing_cache(
             "html_snippets_cache", {snippet_key: data}
         )
 
         return updated_processor, render, placeholders
 
     @api.model
-    def _calculate_translation_ratio(self, generated_content, translated_content):
+    def _get_translation_ratio(self, generated_content, translated_content):
         text_must_be_translated_for_openai = self.env.context.get(
             "html_text_must_be_translated_for_openai", False
         )
@@ -188,7 +188,7 @@ class WebsiteHTMLTextProcessor(models.AbstractModel):
         )
         return html.fromstring(render)
 
-    def _compute_placeholder(self, html_string):
+    def _get_placeholder(self, html_string):
         if not html_string or not html_string.strip():
             return self, html_string
 
@@ -229,7 +229,7 @@ class WebsiteHTMLTextProcessor(models.AbstractModel):
         updated_processor = self
 
         if hash_updates:
-            updated_processor = updated_processor._update_processing_cache(
+            updated_processor = updated_processor._with_processing_cache(
                 "html_hashes_to_tags_and_attributes", hash_updates
             )
 
@@ -254,7 +254,7 @@ class WebsiteHTMLTextProcessor(models.AbstractModel):
             opening_tags, closing_tags = zip(*tags, strict=False)
             wrapping_pattern = f"{''.join(opening_tags)}$0{''.join(closing_tags[::-1])}"
 
-            updated_processor = updated_processor._update_processing_cache(
+            updated_processor = updated_processor._with_processing_cache(
                 "html_string_to_wrapping_tags", {html_string: wrapping_pattern}
             )
 
@@ -262,7 +262,7 @@ class WebsiteHTMLTextProcessor(models.AbstractModel):
         return updated_processor, result
 
     def _format_replacement(self, html_string, generated_content):
-        replacement = generated_content.get(self._compute_placeholder(html_string)[1])
+        replacement = generated_content.get(self._get_placeholder(html_string)[1])
         if not replacement:
             return html_string
 

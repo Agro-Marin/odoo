@@ -503,7 +503,7 @@ class Website(Home):
         readonly=True,
     )
     def check_existing_link(self, link):
-        return request.website.check_existing_page(link)
+        return request.website.is_page_existing(link)
 
     @http.route(
         "/website/save_session_layout_mode",
@@ -1165,7 +1165,7 @@ class Website(Home):
             res["website_is_published"] = record.website_published
 
         try:
-            request.website._check_user_can_modify(record)
+            request.website._check_access_to_modify(record)
         except AccessError:
             res["can_edit_seo"] = False
         if request.env.user.has_group("website.group_website_restricted_editor"):
@@ -1198,7 +1198,7 @@ class Website(Home):
         for rec in records:
             try:
                 record = request.env[rec["res_model"]].browse(rec["res_id"])
-                request.website._check_user_can_modify(record)
+                request.website._check_access_to_modify(record)
                 return True
             except AccessError as e:
                 if not first_error:
@@ -1286,7 +1286,7 @@ class Website(Home):
         model = "ir.ui.view" if is_view_data else "ir.asset"
         Model = request.env[model].with_context(active_test=False)
         domain = Domain("key", "in", keys) & request.website.website_domain()
-        return Model.search(domain).filter_duplicate()
+        return Model.search(domain)._filtered_most_specific()
 
     @http.route(
         ["/website/theme_customize_data_get"],

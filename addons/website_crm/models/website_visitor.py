@@ -61,8 +61,8 @@ class WebsiteVisitor(models.Model):
             return True
         return check
 
-    def _inactive_visitors_domain(self):
-        return super()._inactive_visitors_domain() & Domain("lead_ids", "=", False)
+    def _get_domain_inactive_visitors(self):
+        return super()._get_domain_inactive_visitors() & Domain("lead_ids", "=", False)
 
     def _merge_visitor(self, target):
         if self.lead_ids:

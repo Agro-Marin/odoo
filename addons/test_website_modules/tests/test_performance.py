@@ -279,18 +279,18 @@ class TestWebsiteAllPerformance(
         self.assertEqual(self._get_cart_quantity(), 0)
 
         origin_allow_to_use_cache = (
-            odoo.addons.website.models.website_page.WebsitePage._allow_to_use_cache
+            odoo.addons.website.models.website_page.WebsitePage._is_cache_usable
         )
 
-        def _allow_to_use_cache(request):
+        def _is_cache_usable(request):
             can_use = origin_allow_to_use_cache(request.env["website.page"], request)
             self.assertTrue(
                 can_use, "The homepage should be cached for the public user"
             )
 
         with patch(
-            "odoo.addons.website.models.website_page.WebsitePage._allow_to_use_cache",
-            wraps=_allow_to_use_cache,
+            "odoo.addons.website.models.website_page.WebsitePage._is_cache_usable",
+            wraps=_is_cache_usable,
         ) as mocked:
             self.url_open(self.page.url)
             mocked.assert_called_once()

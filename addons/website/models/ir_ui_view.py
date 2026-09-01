@@ -150,7 +150,9 @@ class IrUiView(models.Model):
                 website_specific_view, view.env["website"].browse(current_website_id)
             )
 
-            for inherit_child in view.inherit_children_ids.filter_duplicate().sorted(
+            for (
+                inherit_child
+            ) in view.inherit_children_ids._filtered_most_specific().sorted(
                 key=lambda v: (v.priority, v.id)
             ):
                 if inherit_child.website_id.id == current_website_id:
@@ -280,7 +282,7 @@ class IrUiView(models.Model):
             )
         )
 
-    def filter_duplicate(self):
+    def _filtered_most_specific(self):
         current_website_id = self.env.context.get("website_id")
         if not current_website_id:
             return self.filtered(lambda view: not view.website_id)
@@ -302,7 +304,7 @@ class IrUiView(models.Model):
     @api.model
     def _view_get_inherited_children(self, view):
         extensions = super()._view_get_inherited_children(view)
-        return extensions.filter_duplicate()
+        return extensions._filtered_most_specific()
 
     @api.model
     def _get_inheriting_views_domain(self):
@@ -323,7 +325,7 @@ class IrUiView(models.Model):
         views = super(
             IrUiView, self.with_context(active_test=False)
         )._get_views_inheriting()
-        return views.filter_duplicate().filtered("active")
+        return views._filtered_most_specific().filtered("active")
 
     @api.model
     def _get_filter_xmlid_query(self):
@@ -515,7 +517,6 @@ class IrUiView(models.Model):
                 for suffix in ("", "-rule")
             ]
         )
-
 
     @api.model
     def _snippet_save_view_values_hook(self):

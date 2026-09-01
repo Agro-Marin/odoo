@@ -96,9 +96,9 @@ class WebsiteVisitor(models.Model):
 
         return [("id", "in", visitor_ids)]
 
-    def _inactive_visitors_domain(self):
+    def _get_domain_inactive_visitors(self):
         """Visitors registered to events are considered always active and should not be deleted."""
-        return super()._inactive_visitors_domain() & Domain(
+        return super()._get_domain_inactive_visitors() & Domain(
             "event_registration_ids", "=", False
         )
 

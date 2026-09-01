@@ -59,11 +59,11 @@ CDN: `cdn_activated`, `cdn_url`, `cdn_filters`. Custom code:
 - `get_current_website(fallback=True)` / `_get_current_website_id(domain, fallback)` — resolve the active website from request/domain. `_force()` / `_force_website(id)` pin it in session.
 - `_get_cached(field)` / `_get_cached_values()` — ormcached scalar accessors (user_id, company_id, default_lang_id) avoiding per-request reads.
 - **Configurator RPC surface:** `configurator_init`, `configurator_apply`, `configurator_skip`, `configurator_recommended_themes`, `configurator_set_menu_links`, `configurator_get_footer_links`, `get_theme_configurator_snippets`, `create_and_redirect_configurator`, + snippet preconfig helpers.
-- **Page CRUD:** `new_page(...)`, `get_unique_path(url)`, `get_unique_key(...)`, `_bootstrap_homepage`, `copy_menu_hierarchy`, `check_existing_page`, `search_pages`, `search_url_dependencies`.
+- **Page CRUD:** `new_page(...)`, `get_unique_path(url)`, `get_unique_key(...)`, `_bootstrap_homepage`, `copy_menu_hierarchy`, `is_page_existing`, `search_pages`, `search_url_dependencies`.
 - **Frontend fuzzy-search engine:** `_search_get_details`, `_search_with_fuzzy`, `_search_exact`, `_search_render_results`, `_search_find_fuzzy_term`, `_trigram_enumerate_words` (pg_trgm), `_basic_enumerate_words`, `_search_text_from_html`.
-- **Sitemap:** `_enumerate_pages`, `rule_is_enumerable`.
+- **Sitemap:** `_enumerate_pages`, `is_rule_enumerable`.
 - **Rendering helpers:** `image_url`, `get_cdn_url`, `get_template`, `viewref`, `is_view_active`, `pager`, `_get_canonical_url`, `_is_canonical_url`.
-- `_check_user_can_modify(record)` — the publish-rights gate used by mixins and editable QWeb.
+- `_check_access_to_modify(record)` — the publish-rights gate used by mixins and editable QWeb.
 - `create` (multi) bootstraps menu/homepage/pages/social defaults per new website; `unlink` guards the default website.
 
 > `domain` must be unique. Public-user resolution is cached and
@@ -104,7 +104,7 @@ only these skip cache clear).
 **The full-page response cache** (the notable subsystem): `_get_response`,
 `_get_response_cached` (ormcache `"templates.cached_values"`), `_get_cache_key`
 (website / lang / path / debug / **cookie-consent** state), `_get_page_info`
-(ormcached url→page), `_allow_to_use_cache` (GET, no params, public user, no
+(ormcached url→page), `_is_cache_usable` (GET, no params, public user, no
 group), `_post_process_response_from_cache` (rewrites csrf_token, stamps
 `_cached_page`/`_cached_view_id` for visitor tracking). `PageCannotBeCached`
 exception. Cache is keyed with cookie-consent so embeds don't leak across
@@ -238,9 +238,9 @@ paths — to avoid leaking unpublished related records; the single-record path
 
 ### models/website_form.py — form builder (3 classes)
 
-- **`website` (EXT)** — `_website_form_last_record()` (session-tracked).
-- **`ir.model` (EXT)** — `website_form_access` (opt-in), `website_form_default_field_id`, `website_form_label`, `website_form_key`; `_get_form_writable_fields`, `get_authorized_fields()` (RPC, **designer-gated** — leaks field metadata), `get_compatible_form_models()`.
-- **`ir.model.fields` (EXT)** — `website_form_blacklisted` (default True; whitelist-by-negation). `init()` sets the SQL default; `formbuilder_whitelist(model, fields)` (RPC, designer-gated, raw SQL to avoid registry reload); `_check_if_used_in_website_form` (ondelete guard parsing HTML fields).
+- **`website` (EXT)** — `_get_website_form_last_record()` (session-tracked).
+- **`ir.model` (EXT)** — `website_form_access` (opt-in), `website_form_default_field_id`, `website_form_label`, `website_form_key`; `_get_fields_form_writable`, `get_fields_authorized()` (RPC, **designer-gated** — leaks field metadata), `get_compatible_form_models()`.
+- **`ir.model.fields` (EXT)** — `website_form_blacklisted` (default True; whitelist-by-negation). `init()` sets the SQL default; `formbuilder_whitelist(model, fields)` (RPC, designer-gated, raw SQL to avoid registry reload); `_unlink_except_used_in_website_form` (ondelete guard parsing HTML fields).
 
 ### models/website_visitor.py — WebsiteTrack + WebsiteVisitor — NEW
 

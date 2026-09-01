@@ -46,7 +46,7 @@ class IrQweb(models.AbstractModel):
         if not editable and has_group_restricted_editor and "main_object" in values:
             try:
                 main_object = values["main_object"].with_user(irQweb.env.user.id)
-                current_website._check_user_can_modify(main_object)
+                current_website._check_access_to_modify(main_object)
                 editable = True
             except AccessError:
                 pass

@@ -73,7 +73,7 @@ class IrHttp(models.AbstractModel):
 
         if (
             path
-            and request.env["ir.http"]._rewrite_len(request.website_routing)
+            and request.env["ir.http"]._get_rewrite_count(request.website_routing)
             and (
                 len(path) > 1
                 and path.startswith("/")
@@ -87,7 +87,7 @@ class IrHttp(models.AbstractModel):
         return super()._url_for(url_from, lang_code)
 
     @tools.ormcache("website_id", cache="routing")
-    def _rewrite_len(self, website_id: int) -> int:
+    def _get_rewrite_count(self, website_id: int) -> int:
         rewrites = self._get_rewrites(website_id)
         return len(rewrites)
 
@@ -109,7 +109,7 @@ class IrHttp(models.AbstractModel):
         website_id = self._routing_map_key() or False
         logger.debug("_generate_routing_rules for website: %s", website_id)
         rewrites = self._get_rewrites(website_id)
-        self._rewrite_len.__cache__.add_value(
+        self._get_rewrite_count.__cache__.add_value(
             self, website_id, cache_value=len(rewrites)
         )
 

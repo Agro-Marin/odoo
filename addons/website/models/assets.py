@@ -330,7 +330,7 @@ class WebsiteAssets(models.AbstractModel):
         website = self.env["website"].get_current_website()
         url = custom_url[1:] if custom_url.startswith(("/", "\\")) else custom_url
         res = self.env["ir.asset"].search([("path", "like", url)])
-        return res.with_context(website_id=website.id).filter_duplicate()
+        return res.with_context(website_id=website.id)._filtered_most_specific()
 
     @api.model
     def _add_website_id(self, values):

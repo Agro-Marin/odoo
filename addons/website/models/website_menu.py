@@ -26,11 +26,11 @@ class WebsiteMenu(models.Model):
         return menu.sequence or 0
 
     @api.depends("mega_menu_content")
-    def _compute_field_is_mega_menu(self):
+    def _compute_is_mega_menu(self):
         for menu in self:
             menu.is_mega_menu = bool(menu.mega_menu_content)
 
-    def _set_field_is_mega_menu(self):
+    def _inverse_is_mega_menu(self):
         for menu in self:
             if menu.is_mega_menu:
                 if not menu.mega_menu_content:
@@ -76,7 +76,7 @@ class WebsiteMenu(models.Model):
         help="User needs to be at least in one of these groups to see the menu",
     )
     is_mega_menu = fields.Boolean(
-        compute=_compute_field_is_mega_menu, inverse=_set_field_is_mega_menu
+        compute=_compute_is_mega_menu, inverse=_inverse_is_mega_menu
     )
     mega_menu_content = fields.Html(
         translate=html_translate, sanitize=False, prefetch=True
@@ -84,7 +84,7 @@ class WebsiteMenu(models.Model):
     mega_menu_classes = fields.Char()
 
     @api.depends("website_id")
-    @api.depends_context("display_website")
+    @api.depends_context("display_website", "uid")
     def _compute_display_name(self):
         if not self.env.context.get("display_website") and not self.env.user.has_group(
             "website.group_multi_website"
@@ -213,6 +213,7 @@ class WebsiteMenu(models.Model):
                 )
             )
 
+    @api.depends_context("uid")
     def _compute_is_visible(self):
         for menu in self:
             visible = True

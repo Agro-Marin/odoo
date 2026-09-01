@@ -35,6 +35,9 @@ class WebsiteVisitor(models.Model):
     _description = "Website Visitor"
     _order = "id DESC"
 
+    def _default_access_token(self):
+        return self._get_access_token()
+
     def _get_access_token(self):
         if not request:
             raise ValueError("Visitors can only be created through the frontend.")
@@ -52,7 +55,7 @@ class WebsiteVisitor(models.Model):
         return hashlib.sha1(msg).hexdigest()[:32]
 
     name = fields.Char("Name", related="partner_id.name")
-    access_token = fields.Char(required=True, default=_get_access_token, copy=False)
+    access_token = fields.Char(required=True, default=_default_access_token, copy=False)
     website_id = fields.Many2one("website", "Website", readonly=True)
     partner_id = fields.Many2one(
         "res.partner",
@@ -383,7 +386,7 @@ class WebsiteVisitor(models.Model):
         self.unlink()
 
     def _cron_unlink_old_visitors(self, batch_size=1000):
-        domain = self._inactive_visitors_domain()
+        domain = self._get_domain_inactive_visitors()
         visitors = self.env["website.visitor"].sudo().search(domain, limit=batch_size)
         visitors.unlink()
         self.env["ir.cron"]._commit_progress(
@@ -393,7 +396,7 @@ class WebsiteVisitor(models.Model):
             else visitors.search_count(domain),
         )
 
-    def _inactive_visitors_domain(self):
+    def _get_domain_inactive_visitors(self):
         delay_days = int(
             self.env["ir.config_parameter"]
             .sudo()

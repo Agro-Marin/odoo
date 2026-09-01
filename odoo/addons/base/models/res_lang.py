@@ -130,7 +130,7 @@ class ResLang(models.Model):
     thousands_sep = fields.Char(string="Thousands Separator", default=",", trim=False)
 
     @api.depends("code", "flag_image")
-    def _compute_field_flag_image_url(self) -> None:
+    def _compute_flag_image_url(self) -> None:
         has_flag = set(self.with_context(bin_size=True).filtered("flag_image")._ids)
         for lang in self:
             if lang.id in has_flag:
@@ -146,7 +146,7 @@ class ResLang(models.Model):
                 )
 
     flag_image = fields.Image("Image")
-    flag_image_url = fields.Char(compute=_compute_field_flag_image_url)
+    flag_image_url = fields.Char(compute=_compute_flag_image_url)
 
     _name_uniq = models.Constraint(
         "unique(name)",

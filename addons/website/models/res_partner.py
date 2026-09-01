@@ -44,7 +44,7 @@ class ResPartner(models.Model):
         return "https://maps.google.com/maps?" + urlencode(params)
 
     @api.depends("website_id")
-    @api.depends_context("display_website")
+    @api.depends_context("display_website", "uid")
     def _compute_display_name(self):
         super()._compute_display_name()
         if not self.env.context.get("display_website") or not self.env.user.has_group(

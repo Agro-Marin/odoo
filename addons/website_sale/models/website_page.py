@@ -7,8 +7,8 @@ class WebsitePage(models.Model):
     _inherit = "website.page"
 
     @api.model
-    def _allow_cache_insertion(self, layout):
-        return " data-order-id=" not in layout and super()._allow_cache_insertion(
+    def _is_cache_insertion_allowed(self, layout):
+        return " data-order-id=" not in layout and super()._is_cache_insertion_allowed(
             layout
         )
 

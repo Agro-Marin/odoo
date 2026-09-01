@@ -56,10 +56,10 @@ class WebsiteVisitor(models.Model):
 
         return [("id", "in", track_visitors.visitor_id.ids)]
 
-    def _inactive_visitors_domain(self):
+    def _get_domain_inactive_visitors(self):
         """Visitors registered to push subscriptions are considered always active and should not be
         deleted."""
-        return super()._inactive_visitors_domain() & Domain(
+        return super()._get_domain_inactive_visitors() & Domain(
             "event_track_visitor_ids", "=", False
         )
 

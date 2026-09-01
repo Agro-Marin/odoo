@@ -19,8 +19,8 @@ primitives recur:
 - **`website.get_current_website()`** — resolves the active website from the
   request/domain. `_force_website(id)` pins one in session (used by
   `/website/force/<id>`).
-- **`filter_duplicate(website_id)`** — keeps the most-specific record per key when
-  both a generic and a specific version match.
+- **`_filtered_most_specific(website_id)`** — narrows a recordset to one record per
+  key, preferring the specific one when both a generic and a specific version match.
 
 ## COW / COU — the Generic-vs-Specific Content Model
 
@@ -66,7 +66,7 @@ Public website routes are declared with a distinct kwarg set (full detail in
 Making a model publishable on the website is done by inheriting mixins
 (`models/mixins.py`), not by hand-rolling fields:
 
-- **`mixin.website.published`** → `is_published`, `can_publish`, `website_url`. Override `website_url` per model. `create`/`write` raise `AccessError` if publishing without `can_publish` (which routes through `website._check_user_can_modify`).
+- **`mixin.website.published`** → `is_published`, `can_publish`, `website_url`. Override `website_url` per model. `create`/`write` raise `AccessError` if publishing without `can_publish` (which routes through `website._check_access_to_modify`).
 - **`mixin.website.published.multi`** → the above + `website_id`-context-aware publish state (a record bound to another website reads unpublished). Use this, not the plain published mixin, for multi-website-scoped content.
 - **`mixin.website.seo.metadata`** → `website_meta_*` fields. Override `_default_website_meta()` to set defaults; call `get_website_meta()` (never override it).
 - **`mixin.website.searchable`** → override `_search_get_detail()` (returns model/base_domain/search_fields/fetch_fields/mapping/icon) to appear in frontend fuzzy search.
@@ -112,7 +112,7 @@ behaves differently in the editor, a `.edit.js` mixin. See
 (`_get_cache_key`) includes website / lang / path / debug / **cookie-consent
 state**. Two consequences:
 
-- A page is only cacheable when `_allow_to_use_cache` holds: **GET, no query
+- A page is only cacheable when `_is_cache_usable` holds: **GET, no query
   params, public user, no group restriction**. Anything else renders live.
 - The cookie-consent component of the key is load-bearing: it prevents a
   consenter's third-party embeds from leaking into a refuser's cached page.

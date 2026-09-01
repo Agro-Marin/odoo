@@ -411,7 +411,7 @@ class TestQwebProcessAtt(TransactionCase):
     def test_process_att_url_crap(self):
         looked_up = []
         IrHttp = self.registry["ir.http"]
-        self.patch(IrHttp, "_rewrite_len", lambda self_, website_id: 1)
+        self.patch(IrHttp, "_get_rewrite_count", lambda self_, website_id: 1)
         self.patch(
             IrHttp,
             "url_rewrite",

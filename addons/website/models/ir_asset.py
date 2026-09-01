@@ -33,7 +33,9 @@ class IrAsset(models.Model):
 
     def _filter_bundle_assets(self, assets, *, website_id=None, **params):
         return (
-            super()._filter_bundle_assets(assets, **params).filter_duplicate(website_id)
+            super()
+            ._filter_bundle_assets(assets, **params)
+            ._filtered_most_specific(website_id)
         )
 
     def _get_addons_active(self, *, website_id=None, **params):
@@ -51,7 +53,7 @@ class IrAsset(models.Model):
 
         return [name for name in addons_list if name not in to_remove]
 
-    def filter_duplicate(self, website_id=None):
+    def _filtered_most_specific(self, website_id=None):
         if website_id is None:
             website_id = self.env["website"].get_current_website(fallback=False).id
         if not website_id:

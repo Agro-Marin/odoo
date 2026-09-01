@@ -316,7 +316,7 @@ class TestFlagImageUrlDoesNotLoadImages(TransactionCase):
 
         self.patch(Binary, "read", spy)
         self.env.invalidate_all()
-        self.env["res.lang"].search([])._compute_field_flag_image_url()
+        self.env["res.lang"].search([])._compute_flag_image_url()
 
         self.assertTrue(read_sizes, "the compute must still consult flag_image")
         self.assertTrue(

@@ -69,7 +69,7 @@ class ThemeIrUiView(models.Model):
     _name = "theme.ir.ui.view"
     _description = "Theme UI View"
 
-    def compute_arch_fs(self):
+    def _default_arch_fs(self):
         if "install_filename" not in self.env.context:
             return ""
         path_info = get_resource_from_path(self.env.context["install_filename"])
@@ -84,7 +84,7 @@ class ThemeIrUiView(models.Model):
     mode = fields.Selection([("primary", "Base view"), ("extension", "Extension View")])
     active = fields.Boolean(default=True)
     arch = fields.Text(translate=xml_translate)
-    arch_fs = fields.Char(default=compute_arch_fs)
+    arch_fs = fields.Char(default=_default_arch_fs)
     inherit_id = fields.Reference(
         selection=[
             ("ir.ui.view", "ir.ui.view"),

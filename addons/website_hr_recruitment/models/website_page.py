@@ -5,7 +5,7 @@ class WebsitePage(models.Model):
     _inherit = "website.page"
 
     @api.model
-    def _allow_to_use_cache(self, request):
+    def _is_cache_usable(self, request):
         if request.httprequest.path == "/job-thank-you":
             return False
-        return super()._allow_to_use_cache(request)
+        return super()._is_cache_usable(request)

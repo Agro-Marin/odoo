@@ -142,7 +142,7 @@ class WebsiteVisitorTestsCommon(MockVisitor, HttpCaseWithUserDemo):
         self.env["ir.config_parameter"].sudo().set_param("website.visitor.live.days", 7)
 
         with self.assertQueryCount(2):
-            WebsiteVisitor.search(WebsiteVisitor._inactive_visitors_domain())
+            WebsiteVisitor.search(WebsiteVisitor._get_domain_inactive_visitors())
 
         inactive_visitor_ids = inactive_visitors.ids
         active_visitor_ids = active_visitors.ids

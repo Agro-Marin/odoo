@@ -49,7 +49,7 @@ class WebsitePage(models.Model):
     website_indexed = fields.Boolean("Is Indexed", default=True)
     date_publish = fields.Datetime("Publishing Date")
     menu_ids = fields.One2many("website.menu", "page_id", "Related Menus")
-    is_in_menu = fields.Boolean(compute="_compute_website_menu")
+    is_in_menu = fields.Boolean(compute="_compute_is_in_menu")
     is_homepage = fields.Boolean(compute="_compute_is_homepage", string="Homepage")
     is_visible = fields.Boolean(compute="_compute_is_visible", string="Is Visible")
     is_new_page_template = fields.Boolean(
@@ -80,7 +80,7 @@ class WebsitePage(models.Model):
             )
 
     @api.depends("menu_ids")
-    def _compute_website_menu(self):
+    def _compute_is_in_menu(self):
         for page in self:
             page.is_in_menu = bool(page.menu_ids)
 
@@ -193,7 +193,9 @@ class WebsitePage(models.Model):
                         page.menu_ids.write({"url": url})
                         old_url = page.url
                         old_url_normalized = {"homepage_url": old_url}
-                        self.env["website"]._handle_homepage_url(old_url_normalized)
+                        self.env["website"]._update_vals_homepage_url(
+                            old_url_normalized
+                        )
                         websites = self.env["website"].search(
                             [("homepage_url", "=", old_url_normalized["homepage_url"])]
                         )
@@ -319,7 +321,7 @@ class WebsitePage(models.Model):
                     domain, limit=len(ids), order=search_detail.get("order", order)
                 )
 
-        def filter_page(search, page, all_pages):
+        def is_page_accessible(search, page, all_pages):
             Rule = page.env["ir.rule"].sudo(False)
             if not page.filtered_domain(
                 Rule._get_domain_accessible_records("website.page", "read")
@@ -341,7 +343,9 @@ class WebsitePage(models.Model):
                 )
             return True
 
-        results = results.filtered(lambda result: filter_page(search, result, results))
+        results = results.filtered(
+            lambda result: is_page_accessible(search, result, results)
+        )
         return results[:limit], len(results)
 
     def action_page_debug_view(self):
@@ -354,7 +358,7 @@ class WebsitePage(models.Model):
         }
 
     @api.model
-    def _allow_to_use_cache(self, request):
+    def _is_cache_usable(self, request):
         page_info = self._get_page_info(request) or {}
         return (
             request.httprequest.method == "GET"
@@ -370,7 +374,7 @@ class WebsitePage(models.Model):
         )
 
     @api.model
-    def _allow_cache_insertion(self, layout):
+    def _is_cache_insertion_allowed(self, layout):
         return True
 
     @api.model
@@ -402,7 +406,7 @@ class WebsitePage(models.Model):
 
     def _get_response(self, request):
         self.check_singleton()
-        if self._allow_to_use_cache(request):
+        if self._is_cache_usable(request):
             try:
                 response, cache_key = self._get_response_cached(request)
             except PageCannotBeCached as notCache:
@@ -443,7 +447,7 @@ class WebsitePage(models.Model):
             raise PageCannotBeCached(result)
 
         response.flatten()
-        if not self._allow_cache_insertion(response.response[-1]):
+        if not self._is_cache_insertion_allowed(response.response[-1]):
             raise PageCannotBeCached(result)
 
         return result

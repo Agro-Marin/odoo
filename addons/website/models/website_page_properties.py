@@ -30,7 +30,7 @@ class WebsitePagePropertiesBase(models.TransientModel):
             for model in self.env["ir.model"].sudo().search([])
         ]
 
-    def _get_menu_domain(self, url=None):
+    def _get_domain_menu(self, url=None):
         self.check_singleton()
         target = self.target_model_id
         domain = [("website_id", "=", self.website_id.id)]
@@ -44,7 +44,7 @@ class WebsitePagePropertiesBase(models.TransientModel):
     @api.depends("url", "website_id")
     def _compute_menu_ids(self):
         for record in self:
-            record.menu_ids = self.env["website.menu"].search(record._get_menu_domain())
+            record.menu_ids = self.env["website.menu"].search(record._get_domain_menu())
 
     @api.depends("menu_ids")
     def _compute_is_in_menu(self):
@@ -69,7 +69,7 @@ class WebsitePagePropertiesBase(models.TransientModel):
                 )
         else:
             menus = self.menu_ids or self.env["website.menu"].search(
-                self._get_menu_domain()
+                self._get_domain_menu()
             )
             if menus:
                 menus.unlink()
